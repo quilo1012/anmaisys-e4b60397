@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LineChatButton } from "@/components/LineChatButton";
 import { ShiftScrapCard } from "@/components/production/ShiftScrapCard";
+import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, shiftLoggingDeadline, SHIFT_LABEL } from "@/lib/shifts";
 import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
@@ -122,6 +123,8 @@ function MyProductionContent() {
   const { selectedLineName: line } = useDeviceLineCtx();
   const { profile, role } = useAuth() as any;
   const navigate = useNavigate();
+  const [targetUnlocked, setTargetUnlocked] = useState(false);
+  const [leaderAssigned, setLeaderAssigned] = useState<boolean | null>(null);
 
   /**
    * A spinner that cannot end is worse than an error.
@@ -254,7 +257,7 @@ function MyProductionContent() {
             <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/operator/performance")}>
               View Performance
             </Button>
-            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} />
+            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
           </div>
         </CardContent>
       </Card>
@@ -311,65 +314,201 @@ function MyProductionContent() {
   );
 }
 
-/**
- * The line's target for the shift, and how the shift is doing against it.
- *
- * It used to sit behind a leader PIN. The panel is read-only — total target, produced,
- * percentage — and it is the operator's own line, so the lock was asking somebody to
- * prove who they were before being told how their own shift was going. Unlocking a
- * number nobody can change buys nothing and costs a PIN entry every shift.
- */
-function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0 }: {
-  line: string; shiftLabel: string; totalTarget: number; produced?: number;
-}) {
+function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockChange, onLeaderAssignedChange }: { line: string; shiftLabel: string; totalTarget: number; produced?: number; onUnlockChange?: (v: boolean) => void; onLeaderAssignedChange?: (v: boolean) => void }) {
+  const [pinOpen, setPinOpen] = useState(false);
+  const [leader, setLeader] = useState<{ name: string; matched: boolean } | null>(null);
+  const [open, setOpen] = useState(false);
+
+
+  const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
+  const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
+
+  const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+
+  // Leader assigned to THIS line/date/shift on production_sessions.
+  const assignedQ = useQuery({
+    enabled: !!line,
+    queryKey: ["target-gate-leader", line, today, shift],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("production_sessions")
+        .select("leader_name")
+        .eq("session_date", today)
+        .eq("line", line)
+        .eq("shift", shift)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.leader_name as string | null) ?? null;
+    },
+    refetchInterval: 60_000,
+  });
+  const assignedLeader = assignedQ.data;
+
+  useEffect(() => {
+    if (assignedQ.isSuccess) {
+      onLeaderAssignedChange?.(!!assignedLeader?.trim());
+    }
+  }, [assignedQ.isSuccess, assignedLeader, onLeaderAssignedChange]);
+
+  const authorized = !!leader?.matched;
+
+  useEffect(() => { onUnlockChange?.(authorized); }, [authorized, onUnlockChange]);
+
+  const onClick = () => {
+    if (leader) {
+      if (authorized) setOpen((v) => !v);
+      else toast.error(`This PIN is not the leader assigned to ${line} for this shift.`);
+      return;
+    }
+    setPinOpen(true);
+  };
+
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Target className="mr-2 h-4 w-4" />
-          Target
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-64">
-        <div className="text-xs text-muted-foreground">Total Target (RAG Weekly)</div>
-        <div className="mt-1 text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
-        <div className="mt-1 text-xs text-muted-foreground">{line} · {shiftLabel}</div>
-        <div className="mt-3 space-y-1 border-t pt-3">
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs text-muted-foreground">Produced</span>
-            <span className="text-lg font-semibold tabular-nums">{Number(produced || 0).toLocaleString()}</span>
+    <>
+      <Popover open={open && authorized} onOpenChange={(v) => authorized && setOpen(v)}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" onClick={onClick}>
+            {authorized ? <Target className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+            Target
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64">
+          <div className="text-xs text-muted-foreground">Total Target (RAG Weekly)</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums">{totalTarget.toLocaleString()}</div>
+          <div className="text-xs text-muted-foreground mt-1">{line} · {shiftLabel}</div>
+          <div className="mt-3 pt-3 border-t space-y-1">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-muted-foreground">Produced</span>
+              <span className="text-lg font-semibold tabular-nums">{Number(produced || 0).toLocaleString()}</span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-muted-foreground">% of Target</span>
+              {totalTarget > 0 ? (
+                (() => {
+                  const pct = (Number(produced || 0) / totalTarget) * 100;
+                  const cls = pct >= 90 ? "text-emerald-600" : pct >= 70 ? "text-amber-600" : "text-red-600";
+                  return <span className={`text-lg font-semibold tabular-nums ${cls}`}>{pct.toFixed(1)}%</span>;
+                })()
+              ) : (
+                <span className="text-lg font-semibold tabular-nums text-muted-foreground">—</span>
+              )}
+            </div>
           </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs text-muted-foreground">% of Target</span>
-            {totalTarget > 0 ? (
-              (() => {
-                const pct = (Number(produced || 0) / totalTarget) * 100;
-                const cls = pct >= 90 ? "text-emerald-600" : pct >= 70 ? "text-amber-600" : "text-red-600";
-                return <span className={`text-lg font-semibold tabular-nums ${cls}`}>{pct.toFixed(1)}%</span>;
-              })()
-            ) : (
-              <span className="text-lg font-semibold tabular-nums text-muted-foreground">—</span>
-            )}
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+          {leader && <div className="text-2xs text-muted-foreground mt-2">Unlocked by {leader.name}</div>}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full mt-3"
+            onClick={() => {
+              setLeader(null);
+              setOpen(false);
+              toast.success("Target locked");
+            }}
+          >
+            <Lock className="h-4 w-4 mr-2" />
+            Lock target
+          </Button>
+        </PopoverContent>
+      </Popover>
+      <PinDialog
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        title="Leader PIN"
+        description={`Enter your PIN to unlock the target for ${line}.`}
+        onSuccess={async (eng) => {
+          if (eng.is_leader === false) {
+            toast.error("Only Line Leader PINs can unlock the target.");
+            return;
+          }
+          if (!assignedLeader) {
+            setLeader({ name: eng.name, matched: false });
+            toast.error(`No leader is assigned to ${line} · ${shiftLabel} yet. Ask the planner to assign one.`);
+            return;
+          }
+          const matched = normalize(assignedLeader) === normalize(eng.name);
+          setLeader({ name: eng.name, matched });
+          if (!matched) {
+            // Point the leader at the line they ARE running today, so a wrong-tablet
+            // login says where to go instead of dead-ending.
+            const { data: mine } = await (supabase as any)
+              .from("production_sessions")
+              .select("line")
+              .eq("session_date", today)
+              .eq("shift", shift)
+              .ilike("leader_name", eng.name);
+            const myLines = ((mine ?? []) as { line: string }[]).map((r) => r.line).filter(Boolean);
+            toast.error(
+              myLines.length
+                ? `${eng.name} is the leader for ${myLines.join(", ")} today, not ${line}. Sign in on that line's tablet.`
+                : `${eng.name} is not the leader for ${line} today (${assignedLeader} is).`,
+            );
+            return;
+          }
+          setOpen(true);
+        }}
+      />
+    </>
   );
 }
 
-
-/**
- * How the shift is doing against its target: produced, target, and what is left.
- *
- * It used to be behind a PIN. The bar shows the operator's own line, on their own
- * shift, and none of it can be changed from here — asking somebody to prove who they
- * are before being told how their morning is going bought nothing and cost a PIN
- * entry every shift.
- */
+/** The shift target is hidden by default so operators aren't shown the number.
+ *  Anyone with the shared company PIN can reveal it — it's not leader-only.
+ *  Once revealed it stays visible for this screen's session. */
 function TargetMeta({ target, produced }: { target: number; produced: number }) {
-  if (!target) return null;
+  const [revealed, setRevealed] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [pin, setPin] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  if (target <= 0) return null;
+
   const remaining = Math.max(0, target - produced);
   const pct = Math.min(100, Math.round((produced / target) * 100));
+
+  const verify = async () => {
+    const p = pin.trim();
+    if (!p) return;
+    setChecking(true);
+    try {
+      const { data, error } = await (supabase.rpc as any)("verify_target_pin", { _pin: p });
+      if (error) throw error;
+      if (data === true) { setRevealed(true); setOpen(false); setPin(""); }
+      else { toast.error("Incorrect PIN"); setPin(""); }
+    } catch (e: any) {
+      toast.error(e?.message || "Couldn't verify the PIN");
+    } finally { setChecking(false); }
+  };
+
+  if (!revealed) {
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-2xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+          <Lock className="h-3 w-3" /> View target
+        </button>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setPin(""); }}>
+          <DialogContent className="sm:max-w-xs">
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="h-4 w-4" /> View target</DialogTitle></DialogHeader>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Enter the PIN to see the target and shift progress.</p>
+              <Input
+                type="password" inputMode="numeric" autoFocus value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") verify(); }}
+                placeholder="PIN" className="h-11 text-center tracking-[0.4em]" autoComplete="off"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setOpen(false); setPin(""); }}>Cancel</Button>
+              <Button onClick={verify} disabled={checking || !pin.trim()}>
+                {checking && <Loader2 className="h-4 w-4 mr-1 animate-spin" />} Reveal
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
 
   return (
     <div className="w-full max-w-[230px]">
@@ -384,7 +523,6 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
     </div>
   );
 }
-
 
 /** Parse "B26188 07/2026 07/2028" into batch + first-of-month dates.
  *  First MM/YYYY token = manufactured, second = expiry. Extra text stays in the batch. */

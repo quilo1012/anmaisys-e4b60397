@@ -23,6 +23,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ArrowLeft, Delete, Clock, Maximize2, Minimize2, MessageSquare, Save, AlertTriangle, Plus, LogOut, Lock, Unlock, ChevronUp, ChevronDown, Trash2 } from "lucide-react";
+import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -142,6 +143,8 @@ export default function LineProductionScreen() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [assetScope, setAssetScope] = useState<"line" | "sealer_printer">("line");
+  const [targetUnlock, setTargetUnlock] = useState<EngineerIdentity | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
   const activeSessionDate = useMemo(() => sessionDateForShift(shift, now), [shift, now]);
 
   // Operator is locked to current shift — auto-update as time passes.
@@ -683,6 +686,30 @@ export default function LineProductionScreen() {
             </Button>
           </div>
           {/* Tablet selector removed — each operator login is bound to its own tablet/line */}
+          {isOperator && (
+            targetUnlock ? (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 border-green-500/60 text-green-600 dark:text-green-400"
+                onClick={() => setTargetUnlock(null)}
+                title="Click to lock again"
+              >
+                <Unlock className="h-5 w-5 mr-2" />
+                Target ({targetUnlock.name})
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                className="h-12 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md"
+                onClick={() => setPinOpen(true)}
+              >
+                <Lock className="h-5 w-5 mr-2" />
+                Show Target
+              </Button>
+            )
+          )}
+
           <div className="ml-auto flex items-center gap-3">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
@@ -816,10 +843,8 @@ export default function LineProductionScreen() {
 
 
 
-          {/* KPI — Production Performance style. No longer gated: the target and the
-              progress are this line's own shift, read-only, and an operator asking to
-              be told how their own morning is going should not need a leader's PIN. */}
-          {(<>
+          {/* KPI — Production Performance style (hidden for operators until unlocked by leader PIN) */}
+          {(!isOperator || targetUnlock) && (<>
           {/* KPI — Production Performance style */}
           {(() => {
             const eff = totals.pct;
@@ -897,7 +922,7 @@ export default function LineProductionScreen() {
                   item={it}
                   effTarget={effTarget}
                   onOpen={openEditor}
-                  hideTarget={false}
+                  hideTarget={isOperator && !targetUnlock}
                   lineId={lineIdQ.data ?? null}
                   lineName={canonicalLineName}
                   canManage={canManageSkus}
@@ -1031,6 +1056,45 @@ export default function LineProductionScreen() {
         line={line}
         operatorLabel={operatorAcctQ.data?.label || `Tablet ${tabletId}`}
         assetScope={assetScope}
+      />
+
+      <PinDialog
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        title="Unlock Target"
+        description="Enter Line Leader PIN to reveal target & progress for this shift."
+        onSuccess={async (eng) => {
+          // Validate against the actual production_sessions record for this
+          // exact line + date + shift (same source as the RAG target shown).
+          // Only the leader assigned to THAT specific session can unlock.
+          const { data: sessions, error } = await (supabase as any)
+            .from("production_sessions")
+            .select("line, leader_name")
+            .eq("session_date", activeSessionDate)
+            .eq("shift", shift);
+          if (error) {
+            toast.error(`Could not verify session leader: ${error.message}`);
+            return;
+          }
+          const sessionRow = (sessions || []).find((r: any) =>
+            lineNamesMatch(r.line, canonicalLineName)
+          );
+          if (!sessionRow) {
+            toast.error(
+              `No production session found for ${canonicalLineName} on this shift. Ask a supervisor to assign the shift leader first.`
+            );
+            return;
+          }
+          const sessionLeader = String(sessionRow.leader_name ?? "").trim().toLowerCase();
+          const pinLeader = String(eng.name ?? "").trim().toLowerCase();
+          if (!sessionLeader || sessionLeader !== pinLeader) {
+            toast.error(
+              `PIN not authorized for ${canonicalLineName} on this shift. Only the leader assigned to this shift can unlock the target.`
+            );
+            return;
+          }
+          setTargetUnlock(eng);
+        }}
       />
 
       {confirmDialog}
