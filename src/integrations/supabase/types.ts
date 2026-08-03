@@ -794,6 +794,9 @@ export type Database = {
           id: string
           left_on: string | null
           notes: string | null
+          position: string | null
+          manager_id: string | null
+          employment_type: string
           shift_group: string | null
           shift_pattern_id: string | null
           source: string
@@ -813,6 +816,9 @@ export type Database = {
           id?: string
           left_on?: string | null
           notes?: string | null
+          position?: string | null
+          manager_id?: string | null
+          employment_type?: string
           shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
@@ -832,6 +838,9 @@ export type Database = {
           id?: string
           left_on?: string | null
           notes?: string | null
+          position?: string | null
+          manager_id?: string | null
+          employment_type?: string
           shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
