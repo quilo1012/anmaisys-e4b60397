@@ -20,15 +20,12 @@ import {
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { AddEmployeeDialog } from "@/components/workforce/AddEmployeeDialog";
+import { PeopleTable } from "@/components/workforce/PeopleTable";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
-import { roleStripe } from "@/lib/workforceRoles";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
 
-/** The columns of the People tab, in the order the factory says them. */
-const NO_SHIFT = "__none__";
-const PEOPLE_COLUMNS = ["Day", "Night", "Warehouse Day", "Weekend", "Warehouse Weekend", NO_SHIFT];
 
 /** Day and Night read at a glance; the weekend crews are quieter on purpose. */
 const SHIFT_BADGE: Record<string, string> = {
@@ -141,91 +138,17 @@ export default function WorkforcePage() {
             />
           </TabsContent>
           <TabsContent value="people" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base">People ({onTheList.length})</CardTitle>
-                    <CardDescription>
-                      Everyone who works here, by the shift they are on. Click a name to open
-                      their record.
-                    </CardDescription>
-                  </div>
-                  <div className="flex flex-wrap gap-2 no-print">
-                    {canEdit && <AddEmployeeDialog />}
-                    <Input placeholder="Search name…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-48" />
-                    <Select value={dept} onValueChange={setDept}>
-                      <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__all__">All departments</SelectItem>
-                        {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-64" />
-                ) : (
-                  /* Columns by shift, the way the board is columns by area: the question
-                     asked of this list is almost always "who is on nights", and a flat
-                     table of 180 names made that a sorting exercise. */
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                    {PEOPLE_COLUMNS.map((group) => {
-                      const here = onTheList.filter((r) =>
-                        group === NO_SHIFT ? !r.shift_group : r.shift_group === group,
-                      );
-                      return (
-                        <div key={group} className="flex min-h-[8rem] flex-col rounded-lg border bg-muted/30 p-2 break-inside-avoid">
-                          <div className="mb-1.5 flex items-baseline justify-between gap-2 border-b pb-1">
-                            <span className="truncate text-xs font-bold uppercase tracking-wide">
-                              {group === NO_SHIFT ? "No shift recorded" : group}
-                            </span>
-                            <span
-                              className={cn(
-                                "shrink-0 rounded px-1.5 font-mono text-xs font-bold",
-                                here.length ? "bg-primary/10 text-primary" : "text-muted-foreground/50",
-                              )}
-                            >
-                              {here.length}
-                            </span>
-                          </div>
-                          <div className="max-h-96 space-y-1 overflow-y-auto print:max-h-none print:overflow-visible">
-                            {here.length === 0 && (
-                              <p className="px-1 py-1 text-2xs italic text-muted-foreground">Nobody here</p>
-                            )}
-                            {here.map((r) => {
-                              const role = roleStripe(r.department);
-                              return (
-                                <button
-                                  key={r.id}
-                                  type="button"
-                                  onClick={() => setDetailId(r.id)}
-                                  title={[r.full_name, r.department, r.pattern ? describeDays(r.pattern.days) : "No rota"].filter(Boolean).join(" · ")}
-                                  className="flex w-full items-center gap-1 rounded-md border bg-card px-1.5 py-1 text-left hover:border-primary"
-                                >
-                                  {role && (
-                                    <span className={cn("shrink-0 rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight", role.cls)}>
-                                      {role.short}
-                                    </span>
-                                  )}
-                                  <span className="min-w-0 flex-1 truncate text-xs font-medium">{r.full_name}</span>
-                                  {!r.pattern && (
-                                    <span className="shrink-0 text-[9px] uppercase text-muted-foreground">no rota</span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {isLoading ? (
+              <Skeleton className="h-96" />
+            ) : (
+              <PeopleTable
+                people={onTheList}
+                onOpen={setDetailId}
+                actions={canEdit ? <AddEmployeeDialog /> : undefined}
+              />
+            )}
           </TabsContent>
+
 
           <TabsContent value="leavers">
             {/* Their own tab. Kept because they hold attendance and an overtime balance
