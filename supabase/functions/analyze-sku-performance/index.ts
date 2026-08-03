@@ -27,6 +27,8 @@ Deno.serve(async (req) => {
     if (claimsErr || !claimsData?.claims?.sub) {
       return json({ error: "unauthorized" }, 401);
     }
+    const userId = claimsData.claims.sub as string;
+
 
     const body = await req.json().catch(() => ({}));
     const skuId: string | undefined = body?.sku_id;
