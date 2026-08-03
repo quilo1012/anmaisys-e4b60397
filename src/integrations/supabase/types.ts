@@ -298,8 +298,8 @@ export type Database = {
           created_at: string | null
           employee_id: string
           half_day: boolean | null
-          is_leader: boolean
           id: string
+          is_leader: boolean
           note: string | null
           on_date: string
           shift: string
@@ -311,8 +311,8 @@ export type Database = {
           created_at?: string | null
           employee_id: string
           half_day?: boolean | null
-          is_leader?: boolean
           id?: string
+          is_leader?: boolean
           note?: string | null
           on_date: string
           shift: string
@@ -324,8 +324,8 @@ export type Database = {
           created_at?: string | null
           employee_id?: string
           half_day?: boolean | null
-          is_leader?: boolean
           id?: string
+          is_leader?: boolean
           note?: string | null
           on_date?: string
           shift?: string
@@ -348,6 +348,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_allocations_backup_0308: {
+        Row: {
+          area_id: string | null
+          created_at: string | null
+          employee_id: string | null
+          half_day: boolean | null
+          id: string | null
+          note: string | null
+          on_date: string | null
+          shift: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          area_id?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          half_day?: boolean | null
+          id?: string | null
+          note?: string | null
+          on_date?: string | null
+          shift?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          area_id?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          half_day?: boolean | null
+          id?: string | null
+          note?: string | null
+          on_date?: string | null
+          shift?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       device_lines: {
         Row: {
@@ -823,6 +862,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      employees_backup_dedupe: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          current_line_id: string | null
+          department: string | null
+          email: string | null
+          employee_ref: string | null
+          full_name: string | null
+          headcount_area_id: string | null
+          id: string | null
+          left_on: string | null
+          notes: string | null
+          shift_group: string | null
+          shift_pattern_id: string | null
+          source: string | null
+          started_on: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          current_line_id?: string | null
+          department?: string | null
+          email?: string | null
+          employee_ref?: string | null
+          full_name?: string | null
+          headcount_area_id?: string | null
+          id?: string | null
+          left_on?: string | null
+          notes?: string | null
+          shift_group?: string | null
+          shift_pattern_id?: string | null
+          source?: string | null
+          started_on?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          current_line_id?: string | null
+          department?: string | null
+          email?: string | null
+          employee_ref?: string | null
+          full_name?: string | null
+          headcount_area_id?: string | null
+          id?: string | null
+          left_on?: string | null
+          notes?: string | null
+          shift_group?: string | null
+          shift_pattern_id?: string | null
+          source?: string | null
+          started_on?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       engineer_scores: {
         Row: {
@@ -1873,6 +1972,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      overtime_entries_backup_20260802: {
+        Row: {
+          created_at: string | null
+          employee_id: string | null
+          hours: number | null
+          id: string | null
+          imported_at: string | null
+          note: string | null
+          period_id: string | null
+          recorded_by: string | null
+          source: string | null
+          source_note: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          employee_id?: string | null
+          hours?: number | null
+          id?: string | null
+          imported_at?: string | null
+          note?: string | null
+          period_id?: string | null
+          recorded_by?: string | null
+          source?: string | null
+          source_note?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          employee_id?: string | null
+          hours?: number | null
+          id?: string | null
+          imported_at?: string | null
+          note?: string | null
+          period_id?: string | null
+          recorded_by?: string | null
+          source?: string | null
+          source_note?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       overtime_periods: {
         Row: {
