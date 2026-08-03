@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, GripVertical, UserCheck, UserX, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,12 @@ import {
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
 let draggedEmployeeId: string | null = null;
 
-type ShiftKey = "Day" | "Night";
+/**
+ * The boards there are. Weekend is one of them: `daily_allocations.shift` accepts it,
+ * the Fri–Mon crew is forty people, and without a tab their allocations were saved
+ * and then invisible — 37 of them, on a board that could only show Day and Night.
+ */
+type ShiftKey = "Day" | "Night" | "Weekend";
 type ViewKey = ShiftKey | "Split";
 
 const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
@@ -123,6 +128,7 @@ function initials(name: string) {
 const LOOK: Record<string, { icon: typeof Sun; banner: string; soft: string; ink: string }> = {
   Day: { icon: Sun, banner: "from-amber-600 to-amber-400", soft: "bg-amber-500/10", ink: "text-warning-strong" },
   Night: { icon: Moon, banner: "from-indigo-900 to-indigo-500", soft: "bg-indigo-500/10", ink: "text-indigo-700 dark:text-indigo-300" },
+  Weekend: { icon: CalendarDays, banner: "from-teal-800 to-teal-500", soft: "bg-teal-500/10", ink: "text-teal-700 dark:text-teal-300" },
 };
 
 /**
@@ -789,6 +795,7 @@ export default function ProductionHeadcountPage() {
         <TabsList>
           <TabsTrigger value="Day">Day</TabsTrigger>
           <TabsTrigger value="Night">Night</TabsTrigger>
+          <TabsTrigger value="Weekend">Weekend</TabsTrigger>
           <TabsTrigger value="Split">Split</TabsTrigger>
         </TabsList>
       </Tabs>
