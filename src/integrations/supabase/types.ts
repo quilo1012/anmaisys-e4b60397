@@ -1016,6 +1016,7 @@ export type Database = {
           line_id: string | null
           name: string
           section: string
+          department: string | null
           sort_order: number
         }
         Insert: {
@@ -1026,6 +1027,7 @@ export type Database = {
           line_id?: string | null
           name: string
           section?: string
+          department?: string | null
           sort_order?: number
         }
         Update: {
@@ -1036,6 +1038,7 @@ export type Database = {
           line_id?: string | null
           name?: string
           section?: string
+          department?: string | null
           sort_order?: number
         }
         Relationships: [
