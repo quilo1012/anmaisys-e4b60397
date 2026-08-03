@@ -691,32 +691,6 @@ function ShiftBoard({
         })}
       </div>
 
-      <DropZone disabled={!canManage} onDrop={() => handleDrop("roster")(readDrag() ?? "")}>
-        <Card className="border-dashed print:hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-3">
-            <CardTitle className="text-sm font-semibold">Unallocated ({shift})</CardTitle>
-            <Badge variant="outline" className="tabular-nums">{unassigned.length}</Badge>
-          </CardHeader>
-          <CardContent className="min-h-[64px] pb-3">
-            <div className="flex flex-wrap gap-1.5">
-              {unassigned.map((p) => (
-                <Chip
-                  key={p.id}
-                  name={p.full_name}
-                  onOpen={() => setEditing(p.id)}
-                  tone="roster"
-                  draggable={canManage}
-                  onDragStart={(e) => {
-                    draggedEmployeeId = p.id;
-                    dragStart(e, p.id);
-                  }}
-                />
-              ))}
-              {unassigned.length === 0 && <span className="text-xs text-muted-foreground">Everyone is allocated</span>}
-            </div>
-          </CardContent>
-        </Card>
-      </DropZone>
     </div>
   );
 }
