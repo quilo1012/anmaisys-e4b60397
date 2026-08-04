@@ -28,7 +28,7 @@ const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[]
  * still ahead of them and is the thing somebody means by "he moved to nights".
  */
 export function PersonDayDialog({
-  open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader,
+  open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
   patterns, patternId,
   onSetStatus, onSetArea, onSetShift, onSetPattern, onSetLeader, onRemove,
 }: {
@@ -42,6 +42,9 @@ export function PersonDayDialog({
   areas: HeadcountArea[];
   canManage: boolean;
   onSetStatus: (s: AllocStatus) => void;
+  /** Half a day: worked the morning, off the afternoon, or the other way round. */
+  halfDay: boolean;
+  onSetHalfDay: (v: boolean) => void;
   onSetArea: (areaId: string) => void;
   onSetShift: (shiftGroup: string) => void;
   onSetPattern: (patternId: string | null) => void;
@@ -89,6 +92,29 @@ export function PersonDayDialog({
             <p className="mt-1.5 text-2xs text-muted-foreground">
               Overtime keeps the area — they are working. Absence and holiday clear it.
             </p>
+
+            {/* Half a day is not a smaller version of a day off; it is a different
+                fact. Somebody on a half-day holiday worked a shift, and counting them
+                as absent loses the hours they were on the line. The column has been
+                on the table since it was created and nothing has ever written to it. */}
+            {(status === "absence" || status === "holiday") && (
+              <label className={cn(
+                "mt-2 flex items-center gap-2.5 rounded-lg border p-2.5 text-xs",
+                canManage ? "cursor-pointer hover:bg-muted" : "opacity-60",
+              )}>
+                <Checkbox
+                  checked={halfDay}
+                  disabled={!canManage}
+                  onCheckedChange={(v) => onSetHalfDay(v === true)}
+                />
+                <span>
+                  <span className="font-semibold">Half day</span>
+                  <span className="block text-2xs text-muted-foreground">
+                    They worked part of the shift. Counts as ½ against the day, not a whole one.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
 
           <div>

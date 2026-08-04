@@ -169,6 +169,7 @@ function Chip({
   role,
   dimmed,
   overtime,
+  half,
   draggable,
   onOpen,
   onDragStart,
@@ -183,6 +184,8 @@ function Chip({
   onOpen?: () => void;
   /** Working a day their own rota does not cover — marked on the line, not moved off it. */
   overtime?: boolean;
+  /** Off for half the shift. Shown on the chip so the block's count can be read honestly. */
+  half?: boolean;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -223,6 +226,16 @@ function Chip({
         {leader ? "LEAD" : initials(name)}
       </span>
       <span className="truncate">{name}</span>
+      {/* Half a day, said on the chip. Without it the block reads "2 away" and both
+          look identical, when one of them worked the morning. */}
+      {half && (
+        <span
+          title="Half day — worked part of the shift"
+          className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-[10px] font-bold leading-tight text-muted-foreground"
+        >
+          ½
+        </span>
+      )}
       {/* The named role rides after the name, the way a label does on a card. Only
           when there is one: a badge every row carries tells the eye nothing. */}
       {role && !leader && (
@@ -709,11 +722,19 @@ function ShiftBoard({
             areaId={alloc?.area_id ?? null}
             areas={areas}
             canManage={canManage}
+            halfDay={alloc?.half_day === true}
+            onSetHalfDay={(v) => place.mutate({
+              employeeId: editing,
+              areaId: alloc?.area_id ?? null,
+              status: (alloc?.status as AllocStatus | undefined) ?? "absence",
+              halfDay: v,
+            })}
             onSetStatus={(st) => place.mutate({
               employeeId: editing,
               // Overtime is still a place; absence and holiday are not.
               areaId: st === "absence" || st === "holiday" ? null : alloc?.area_id ?? null,
               status: st,
+              halfDay: alloc?.half_day === true,
             })}
             onSetArea={(id) => place.mutate({
               employeeId: editing,
@@ -759,6 +780,7 @@ function ShiftBoard({
                         dimmed={isDimmed(p.full_name)}
                         role={roleStripe(p.department)}
                         tone={block.status === "overtime" ? "overtime" : "away"}
+                        half={byEmployee.get(p.id)?.half_day === true}
                         draggable={canManage}
                         onDragStart={(e) => {
                           draggedEmployeeId = p.id;
