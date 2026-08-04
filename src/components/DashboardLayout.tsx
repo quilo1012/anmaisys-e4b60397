@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, Menu } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -116,6 +116,7 @@ export const navItems: NavItem[] = [
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
   // Beside Headcount because they answer the same question from two ends: the board
   // says who was meant to be on a line, this says who actually clocked on.
+  { title: "Leave", url: "/dashboard/leave", icon: CalendarDays, roles: ["admin"], group: "Production", action: "workforce.view" },
   { title: "Attendance", url: "/dashboard/attendance", icon: Clock, roles: ["admin"], group: "Production", action: "workforce.view" },
   // Beside Attendance because it is what that data is for: the period handed to
   // finance, with the two overtime figures set against each other rather than summed.
