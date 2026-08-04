@@ -10,7 +10,10 @@ import { downloadCsv } from "@/lib/exportCsv";
 import { useAttendanceRange, useOvertimePeriods, type Employee } from "@/hooks/useWorkforce";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const STATUSES = ["present", "absent", "sick", "holiday", "unpaid", "training"] as const;
+// Training was on this list from the start and no attendance row has ever carried
+// it — 52 records, none of them training. A column that is always zero teaches the
+// eye to skip a whole region of the table.
+const STATUSES = ["present", "absent", "sick", "holiday", "unpaid"] as const;
 type Status = (typeof STATUSES)[number];
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -19,7 +22,6 @@ const STATUS_LABEL: Record<Status, string> = {
   sick: "Sick",
   holiday: "Holiday",
   unpaid: "Unpaid",
-  training: "Training",
 };
 
 /** First and last day of the month a date falls in, as the opening range. */
@@ -61,7 +63,7 @@ export function MonthlySummary({ employees }: Props) {
       if (!STATUSES.includes(a.status as Status)) continue;
       const counts =
         byEmployee.get(a.employee_id) ??
-        { present: 0, absent: 0, sick: 0, holiday: 0, unpaid: 0, training: 0 };
+        { present: 0, absent: 0, sick: 0, holiday: 0, unpaid: 0 };
       counts[a.status as Status] += 1;
       byEmployee.set(a.employee_id, counts);
     }

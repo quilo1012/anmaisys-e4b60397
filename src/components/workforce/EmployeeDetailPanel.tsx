@@ -210,17 +210,11 @@ export function EmployeeDetailPanel({
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label className="text-xs">Contract</Label>
-              <Select value={employmentType} onValueChange={setEmploymentType} disabled={!canEdit}>
-                <SelectTrigger className="text-sm capitalize"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["permanent", "agency", "contractor", "temporary"].map((t) => (
-                    <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Contract removed from the form: every one of the 194 people reads
+                "permanent", so the field has never told anybody apart. The column and
+                the value it holds are untouched — this only stops asking a question
+                nobody was answering. The Agency count in the department panel reads
+                from it and will stay at zero until there is a real way to set it. */}
             <div>
               <Label className="text-xs" htmlFor="wf-dept">Department</Label>
               <Input
@@ -273,9 +267,24 @@ export function EmployeeDetailPanel({
                 <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">— none —</SelectItem>
-                  {(patterns ?? []).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name} · {describeDays(p.days)}</SelectItem>
-                  ))}
+                  {/* Every pattern is named after its own days, so printing them again
+                      gave "Mon–Thu days · Mon, Tue, Wed, Thu" nine times over. The
+                      day list is kept only where the name does not already carry it.
+                      Ordered by how much of the week they cover, so the full-week and
+                      four-day patterns — which is nearly everybody — come first. */}
+                  {[...(patterns ?? [])]
+                    .sort((a, b) => (b.days?.length ?? 0) - (a.days?.length ?? 0) || a.name.localeCompare(b.name))
+                    .map((p) => {
+                      const days = describeDays(p.days);
+                      const named = days
+                        .split(", ")
+                        .every((d) => p.name.toLowerCase().includes(d.toLowerCase()));
+                      return (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}{named ? "" : ` · ${days}`}
+                        </SelectItem>
+                      );
+                    })}
                 </SelectContent>
               </Select>
             </div>
