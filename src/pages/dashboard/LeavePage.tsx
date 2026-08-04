@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CalendarDays, Check, X, Plus, Loader2, AlertTriangle } from "lucide-react";
+import { CalendarDays, Check, X, Plus, Loader2 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf } from "@/lib/leaveDays";
@@ -451,11 +451,14 @@ export default function LeavePage() {
 
         {uncovered.length > 0 && (
           <div>
-            <h2 className="mb-2 flex items-center gap-1.5 text-2xs font-bold uppercase tracking-widest text-warning-strong">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              Marked on the board, no request ({uncovered.length})
+            {/* Not a warning. The board is the day's plan and the fastest thing to
+                reach when somebody does not turn up, so a day marked there is a
+                decision already taken — not paperwork somebody forgot. It is listed
+                because it counts, and it counts the same as an approved request. */}
+            <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+              Marked on the board ({uncovered.length})
             </h2>
-            <Card className="border-amber-500/40">
+            <Card>
               <CardContent className="divide-y p-0">
                 {uncovered.slice(0, 20).map((d) => (
                   <div key={`${d.employee_id}-${d.on_date}`} className="flex items-center gap-2.5 px-3 py-2 text-xs">
@@ -465,9 +468,9 @@ export default function LeavePage() {
                   </div>
                 ))}
                 <p className="px-3 py-2 text-2xs text-muted-foreground">
-                  Put straight onto the headcount board rather than through a request. They show as off
-                  on the board. Raise a request covering the dates if the finance close needs them and
-                  they were marked before this screen started writing the attendance record.
+                  Recorded straight on the headcount board rather than through a request. They count
+                  the same — in the balance above and in the finance close — and need nothing else
+                  doing. A request only adds who asked and who approved, for the days that want it.
                 </p>
               </CardContent>
             </Card>
@@ -590,11 +593,13 @@ export default function LeavePage() {
         )}
 
         <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Approving writes the working days to the attendance record, which the finance close
-          counts, and to the headcount board, which draws them as off. Days are counted against
-          the person's rota — a week off for a Mon–Thu crew is four days, not seven — and a
-          person with no rota on file cannot be approved until one is set.
+          <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Two ways in, one record. Marking somebody off on the headcount board counts immediately —
+          it is the day's plan and the quickest thing to reach when somebody does not turn up.
+          A request adds who asked and who approved, and writes the same days when it is approved.
+          Either way the balance above and the finance close read the same attendance record.
+          Days are counted against the person's rota: a week off for a Mon–Thu crew is four days,
+          not seven.
         </p>
       </div>
     </DashboardLayout>
