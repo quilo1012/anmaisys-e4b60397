@@ -76,11 +76,29 @@ function dayTypeLabel(iso: string) {
  * lets Gel Room count as production while sitting beside the capsule machines.
  */
 const SECTIONS: { key: string; label: string; accent: string }[] = [
-  { key: "main_lines", label: "Main lines", accent: "text-primary" },
-  { key: "encapsulation", label: "Tablet & encapsulation", accent: "text-teal-600 dark:text-teal-400" },
-  { key: "support_ops", label: "Support & operations", accent: "text-slate-500" },
-  { key: "warehouse_quality", label: "Warehouse, hygiene & quality", accent: "text-orange-600 dark:text-orange-400" },
+  { key: "production", label: "Production", accent: "text-primary" },
+  { key: "support", label: "Support", accent: "text-slate-500" },
 ];
+
+/**
+ * Which block an area is drawn in.
+ *
+ * `section` decides, and it is not the same question as `kind`. Hygiene, Quality and
+ * Runner are support in the totals and sit in the production block on the board,
+ * because that is where the factory's own sheet puts them — the people planning the
+ * day read them alongside the lines they serve.
+ *
+ * The fallback matters more than it looks. The board used to filter on `section`
+ * alone against a fixed list of four, so an area whose section was renamed, misspelt
+ * or left blank vanished from the board entirely while its allocations carried on
+ * being saved. Anything unrecognised now lands in the block its `kind` implies,
+ * which is wrong at worst and invisible never.
+ */
+function blockOf(area: HeadcountArea): string {
+  const s = (area.section ?? "").toLowerCase();
+  if (s === "production" || s === "support") return s;
+  return area.kind === "production" ? "production" : "support";
+}
 
 /**
  * A section heading that can be folded away.
@@ -532,7 +550,7 @@ function ShiftBoard({
       </div>
 
       {SECTIONS.map((section) => {
-        const ofKind = areas.filter((a) => a.section === section.key);
+        const ofKind = areas.filter((a) => blockOf(a) === section.key);
         if (ofKind.length === 0) return null;
         const open = openSections[section.key] !== false;
         const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
