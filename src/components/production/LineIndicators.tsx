@@ -27,22 +27,31 @@ export interface LineRow {
  * what to start recording.
  */
 export function LineIndicators({
-  lines, from, to, shift,
+  lines, from, to, shift, leader,
 }: {
   lines: LineRow[];
   /** ISO dates, inclusive. */
   from: string;
   to: string;
   shift?: "ALL" | "DAY" | "NIGHT";
+  /**
+   * Narrows every column to one leader's work. Null is the whole factory.
+   *
+   * It has to reach all of them or none: `lines` already arrives filtered by the
+   * screen above, so leaving the queries here open put a leader's output next to
+   * the factory's scrap in the same row, with nothing saying which was which.
+   */
+  leader?: string | null;
 }) {
   const { data: quality = [] } = useQuery({
-    queryKey: ["line-ind-quality", from, to, shift],
+    queryKey: ["line-ind-quality", from, to, shift, leader],
     queryFn: async () => {
       const window = shiftDateFetchRange(from, to);
       let q = db.from("quality_actions")
         .select("line, severity, validation_status, closed_at, labels, shift, recorded_at")
         .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
       if (shift && shift !== "ALL") q = q.eq("shift", shift);
+      if (leader) q = q.eq("leader_name", leader);
       const { data, error } = await q;
       if (error) throw error;
       return ((data ?? []) as Array<{ line: string | null; severity: string | null; validation_status: string | null; closed_at: string | null; shift: string | null; recorded_at: string }>)
@@ -54,13 +63,14 @@ export function LineIndicators({
   });
 
   const { data: items = [] } = useQuery({
-    queryKey: ["line-ind-scrap", from, to, shift],
+    queryKey: ["line-ind-scrap", from, to, shift, leader],
     queryFn: async () => {
       let q = db.from("production_items")
         .select("actual_qty, scrap_qty, production_sessions!inner(line, session_date, shift, staff_actual)")
         .gte("production_sessions.session_date", from)
         .lte("production_sessions.session_date", to);
       if (shift && shift !== "ALL") q = q.eq("production_sessions.shift", shift);
+      if (leader) q = q.eq("production_sessions.leader_name", leader);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Array<{
@@ -121,10 +131,15 @@ export function LineIndicators({
   return (
     <Card className="break-inside-avoid">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Line indicators</CardTitle>
+        <CardTitle className="text-base">
+          Line indicators
+          {leader && <span className="ml-2 text-sm font-normal text-muted-foreground">· {leader} only</span>}
+        </CardTitle>
         <CardDescription>
           Everything this system measures per line, for the period above. What it does not measure is
           listed underneath — that list is the work, not an omission.
+          {/* Said out loud because the numbers look factory-wide until you know they are not. */}
+          {leader && ` Every figure below counts only the shifts ${leader} led.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
