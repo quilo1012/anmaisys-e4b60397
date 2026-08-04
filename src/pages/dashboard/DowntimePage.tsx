@@ -675,7 +675,27 @@ export default function DowntimePage() {
       return filterLine === "all" || (w.line_at_time || w.line) === filterLine;
     });
   }, [allWOs, filterLine]);
-  const filteredRisks = useMemo(() => buildMachineRisks(riskWOs), [riskWOs]);
+  const allRisks = useMemo(() => buildMachineRisks(riskWOs), [riskWOs]);
+
+  /**
+   * The risk table, cut down to the machines that failed in the window being asked
+   * about.
+   *
+   * The numbers still come from ninety days — MTBF over a single day is meaningless,
+   * which is why the window above is fixed. But a report filtered to today that lists
+   * a machine whose last failure was in May reads as a broken filter, and somebody
+   * checks the filter rather than the machine. So the arithmetic keeps its ninety
+   * days and the list answers the question that was asked: which of these broke in
+   * the period, and what is its real MTBF.
+   */
+  const machinesInRange = useMemo(
+    () => new Set(filteredWOs.map((w: any) => w.machine).filter(Boolean)),
+    [filteredWOs],
+  );
+  const filteredRisks = useMemo(
+    () => allRisks.filter((r) => machinesInRange.has(r.machine)),
+    [allRisks, machinesInRange],
+  );
 
   const avgMTTR = useMemo(() => {
     const finished = filteredWOs.filter((w) => w.started_at && w.finished_at);
@@ -1379,7 +1399,17 @@ export default function DowntimePage() {
               </Card>
 
               <Card className="print-page-break">
-                <CardHeader><CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle>
+                  {/* Said on the card, because the two windows are different on
+                      purpose and a reader who does not know that will think one of
+                      the numbers is wrong. */}
+                  <CardDescription>
+                    Machines that failed in the selected period. MTBF and risk are
+                    measured over the last 90 days, because a single day has no
+                    interval to measure.
+                  </CardDescription>
+                </CardHeader>
                 <CardContent>
                   {filteredRisks.length === 0 ? (
                     <p className="text-muted-foreground text-center py-4">No data for selected period</p>
