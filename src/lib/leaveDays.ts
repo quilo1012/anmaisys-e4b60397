@@ -48,3 +48,62 @@ export function describeLeaveDays(d: LeaveDays): string {
   if (d.workingDays === 0) return "no working days in this range";
   return `${d.workingDays} day${d.workingDays === 1 ? "" : "s"}`;
 }
+
+/** The leave year runs 1 August to 31 July, as BrightPay has it. */
+export const LEAVE_YEAR_START_MMDD = "08-01";
+
+/** The leave year a date falls in, as `{ from, to }` ISO dates. */
+export function leaveYearOf(isoDate: string): { from: string; to: string } {
+  const y = Number(isoDate.slice(0, 4));
+  const startsThisYear = isoDate.slice(5) >= LEAVE_YEAR_START_MMDD;
+  const from = `${startsThisYear ? y : y - 1}-${LEAVE_YEAR_START_MMDD}`;
+  const to = `${startsThisYear ? y + 1 : y}-07-31`;
+  return { from, to };
+}
+
+export interface LeaveBalance {
+  /** Approved holiday already behind them. */
+  taken: number;
+  /** Approved holiday still to come, or running now. */
+  booked: number;
+  /** Entitlement less both. Null when no entitlement is on file. */
+  remaining: number | null;
+  /** From the shift pattern. Null for the patterns BrightPay has not given yet. */
+  total: number | null;
+}
+
+/**
+ * What somebody has left, against their own pattern's entitlement.
+ *
+ * The entitlement is not 28 days for everybody: it is counted in working days of
+ * their own rota, so a Mon–Thu person gets 22.5 and a Tue–Fri person 21.5. Counting
+ * a fixed number for everybody would hand the Tue–Fri crew a day they do not have.
+ *
+ * Taken and booked are split on today rather than merged, because they answer
+ * different questions — one is spent, the other is promised — and BrightPay reports
+ * them apart.
+ */
+export function leaveBalance(
+  approvedHoliday: { start_date: string; end_date: string; working_days: number | null }[],
+  entitlement: number | null,
+  today: string,
+): LeaveBalance {
+  const year = leaveYearOf(today);
+  let taken = 0;
+  let booked = 0;
+  for (const r of approvedHoliday) {
+    // A request is counted in the leave year it starts in, so one straddling 31 July
+    // is not split across two years or counted in both.
+    if (r.start_date < year.from || r.start_date > year.to) continue;
+    const days = Number(r.working_days ?? 0);
+    if (r.end_date < today) taken += days;
+    else booked += days;
+  }
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    taken: round(taken),
+    booked: round(booked),
+    total: entitlement,
+    remaining: entitlement == null ? null : round(entitlement - taken - booked),
+  };
+}

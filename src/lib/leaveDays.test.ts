@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leaveDays, eachDate, describeLeaveDays } from "@/lib/leaveDays";
+import { leaveDays, eachDate, describeLeaveDays, leaveBalance, leaveYearOf } from "@/lib/leaveDays";
 
 // ISO weekdays: 1 = Monday … 7 = Sunday.
 const MON_THU = [1, 2, 3, 4];
@@ -65,5 +65,69 @@ describe("leaveDays", () => {
     const d = leaveDays("2026-10-23", "2026-10-27", MON_FRI);
     expect(d.calendarDays).toBe(5);
     expect(d.workingDates).toEqual(["2026-10-23", "2026-10-26", "2026-10-27"]);
+  });
+});
+
+
+describe("leaveYearOf", () => {
+  it("runs 1 August to 31 July", () => {
+    expect(leaveYearOf("2026-08-04")).toEqual({ from: "2026-08-01", to: "2027-07-31" });
+    expect(leaveYearOf("2027-07-31")).toEqual({ from: "2026-08-01", to: "2027-07-31" });
+    // The day before the year opens belongs to the year before.
+    expect(leaveYearOf("2026-07-31")).toEqual({ from: "2025-08-01", to: "2026-07-31" });
+  });
+});
+
+describe("leaveBalance", () => {
+  const TODAY = "2026-08-04";
+  const req = (start: string, end: string, days: number) =>
+    ({ start_date: start, end_date: end, working_days: days });
+
+  it("reconciles with the BrightPay figures for Mon–Thu", () => {
+    // 0 taken, 5 booked, 17.5 remaining, 22.5 total.
+    const b = leaveBalance([req("2026-09-07", "2026-09-13", 5)], 22.5, TODAY);
+    expect(b).toEqual({ taken: 0, booked: 5, remaining: 17.5, total: 22.5 });
+  });
+
+  it("reconciles for Tue–Fri", () => {
+    const b = leaveBalance([req("2026-10-06", "2026-10-09", 3)], 21.5, TODAY);
+    expect(b).toEqual({ taken: 0, booked: 3, remaining: 18.5, total: 21.5 });
+  });
+
+  it("reconciles for Fri–Mon", () => {
+    const b = leaveBalance([req("2026-12-04", "2026-12-14", 8)], 22.5, TODAY);
+    expect(b).toEqual({ taken: 0, booked: 8, remaining: 14.5, total: 22.5 });
+  });
+
+  it("splits taken from booked on today", () => {
+    // Spent and promised are different questions, and BrightPay reports them apart.
+    const b = leaveBalance([
+      req("2026-08-01", "2026-08-03", 3),   // over
+      req("2026-08-10", "2026-08-13", 4),   // to come
+    ], 22.5, TODAY);
+    expect(b.taken).toBe(3);
+    expect(b.booked).toBe(4);
+    expect(b.remaining).toBe(15.5);
+  });
+
+  it("counts a request running right now as booked, not taken", () => {
+    expect(leaveBalance([req("2026-08-03", "2026-08-06", 4)], 22.5, TODAY).booked).toBe(4);
+  });
+
+  it("carries half days, because the sheet does", () => {
+    expect(leaveBalance([req("2026-09-01", "2026-09-01", 0.5)], 22.5, TODAY).remaining).toBe(22);
+  });
+
+  it("ignores leave from another leave year", () => {
+    expect(leaveBalance([req("2026-07-20", "2026-07-23", 4)], 22.5, TODAY).taken).toBe(0);
+  });
+
+  it("says nothing rather than zero when the pattern has no entitlement on file", () => {
+    // Mon–Fri and Sun are not in BrightPay's table yet. A remaining of 0 would read
+    // as "no days left" when it means "nobody has told us how many there are".
+    const b = leaveBalance([req("2026-09-01", "2026-09-02", 2)], null, TODAY);
+    expect(b.total).toBeNull();
+    expect(b.remaining).toBeNull();
+    expect(b.booked).toBe(2);
   });
 });
