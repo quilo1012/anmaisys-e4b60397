@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Action } from "@/lib/permissions";
+import { BackButton } from "@/components/BackButton";
 
 export interface Tool {
   title: string;
@@ -84,6 +85,8 @@ export default function SystemHubPage() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
+      <BackButton />
+
       <div className="flex items-center gap-3">
         <SettingsIcon className="h-6 w-6 text-muted-foreground" />
         <div>

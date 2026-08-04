@@ -9,6 +9,7 @@ import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { useReportSummary } from "@/hooks/useReportSummary";
 import { FileBarChart, Gauge, Clock, Wrench, AlertTriangle, ChevronRight, Printer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { BackButton } from "@/components/BackButton";
 
 const iso = (d: Date) => format(d, "yyyy-MM-dd");
 
@@ -83,6 +84,10 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-4 p-4 sm:p-6">
+      {/* Off the paper: this page prints, and the Print button beside it is already
+          dropped by the print stylesheet. */}
+      <BackButton className="print:hidden" />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <FileBarChart className="h-6 w-6 text-muted-foreground" />
