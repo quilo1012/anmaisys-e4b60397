@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "@/components/BackButton";
+import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
@@ -876,6 +877,7 @@ export default function ProductionHeadcountPage() {
           other screen, so leaving the board is where the hand already expects it —
           the board scrolls for twenty columns and the shell's Back is a long way up. */}
       <BackButton className="no-print" />
+      <WorkforceTabs />
 
       <div className="rounded-xl bg-[hsl(215_60%_18%)] p-4 text-white shadow-sm print:bg-white print:text-black">
         <div className="flex flex-wrap items-center justify-between gap-3">
