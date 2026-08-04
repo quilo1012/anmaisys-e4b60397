@@ -183,7 +183,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
     qc.invalidateQueries({ queryKey: ["headcount-allocations", onDate, shift] });
 
   const place = useMutation({
-    mutationFn: async (input: { employeeId: string; areaId: string | null; status: AllocStatus }) => {
+    mutationFn: async (input: { employeeId: string; areaId: string | null; status: AllocStatus; halfDay?: boolean }) => {
       const { error } = await supabase
         .from("daily_allocations")
         .upsert(
@@ -197,6 +197,11 @@ export function useAllocationMutations(onDate: string, shift: string) {
             // they are not at a place that day.
             area_id: input.status === "assigned" || input.status === "overtime" ? input.areaId : null,
             status: input.status,
+            // Half a day off. The column has been on this table since it was created
+            // and nothing ever wrote to it, so a half-day holiday was recorded as a
+            // whole one — the difference between somebody who worked the morning and
+            // somebody who was not there at all.
+            half_day: input.halfDay ?? false,
           },
           { onConflict: "on_date,shift,employee_id" },
         );
