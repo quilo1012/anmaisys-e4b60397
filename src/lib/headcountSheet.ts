@@ -83,8 +83,15 @@ export function buildHeadcountWorkbook(input: {
   allocationsFor: (date: string, shift: string) => Allocation[];
 }): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
-  const production = input.areas.filter((a) => a.kind === "production");
-  const support = input.areas.filter((a) => a.kind !== "production");
+  // Blocks follow `section`, the same rule the board draws by, so the sheet and the
+  // screen cannot disagree about where Hygiene sits. The totals below still count by
+  // `kind` — that is the other question, and the answer to it did not change.
+  const block = (a: HeadcountArea) => {
+    const sec = (a.section ?? "").toLowerCase();
+    return sec === "production" || sec === "support" ? sec : (a.kind === "production" ? "production" : "support");
+  };
+  const production = input.areas.filter((a) => block(a) === "production");
+  const support = input.areas.filter((a) => block(a) !== "production");
 
   for (const day of input.days) {
     const allocs = input.allocationsFor(day.date, day.shift);
@@ -117,7 +124,12 @@ export function buildHeadcountWorkbook(input: {
     }
     rows.push([]);
     // The number the sheet exists to carry: everyone standing on a production area.
-    rows.push(["Total staff in Production", production.reduce((n, a) => n + inArea(a.id).length, 0)]);
+    // Counted by `kind`, not by which block it was printed in: Hygiene prints with
+    // the lines because that is where the sheet puts it, and still counts as support.
+    rows.push([
+      "Total staff in Production",
+      input.areas.filter((a) => a.kind === "production").reduce((n, a) => n + inArea(a.id).length, 0),
+    ]);
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     // A tab name Excel accepts: 31 characters, none of : \ / ? * [ ]
