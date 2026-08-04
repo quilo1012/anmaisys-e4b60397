@@ -117,6 +117,9 @@ export const navItems: NavItem[] = [
   // Beside Headcount because they answer the same question from two ends: the board
   // says who was meant to be on a line, this says who actually clocked on.
   { title: "Attendance", url: "/dashboard/attendance", icon: Clock, roles: ["admin"], group: "Production", action: "workforce.view" },
+  // Beside Attendance because it is what that data is for: the period handed to
+  // finance, with the two overtime figures set against each other rather than summed.
+  { title: "Finance Close", url: "/dashboard/finance-close", icon: Calculator, roles: ["admin"], group: "Production", action: "workforce.view" },
 
   // Setup, integrations and the audit trail, behind one door.
   //
