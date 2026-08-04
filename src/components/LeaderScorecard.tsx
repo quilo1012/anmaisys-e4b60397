@@ -362,7 +362,11 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
 
   return (
     <Dialog open={!!leaderName} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      {/* The header stays put and only the body scrolls.
+          It used to be one scrolling box: content wider than the dialog pushed the
+          title row sideways and took Print and Export off the right-hand edge with
+          it, so the card looked as though it had no print option at all. */}
+      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between gap-2 pr-6">
             <span className="flex flex-col">
@@ -390,6 +394,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
           </DialogTitle>
         </DialogHeader>
 
+        <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div id="leader-scorecard-print" className="space-y-4 print-content [&>div]:break-inside-avoid">
           <ReportPrintHeader
             title={`Leader Scorecard — ${leaderName ?? ""}`}
@@ -409,7 +414,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                     {score.final === null ? "—" : `${displayScore(score.final)}%`}
                   </p>
                 </div>
-                <div className="grid flex-1 grid-cols-3 gap-2 text-center">
+                <div className="grid min-w-0 flex-1 grid-cols-3 gap-2 text-center">
                   {([
                     ["Production", score.production, score.applied.production_pct],
                     ["Quality", score.quality, score.applied.quality_pct],
@@ -470,7 +475,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
               </div>
               <div className="max-h-56 overflow-y-auto rounded-md border divide-y print:max-h-none print:overflow-visible">
                 {actions.slice().reverse().map((a) => (
-                  <div key={a.id} className="flex flex-wrap items-center gap-2 px-2 py-1.5 text-xs">
+                  <div key={a.id} className="flex min-w-0 flex-wrap items-center gap-2 px-2 py-1.5 text-xs">
                     <span className="font-mono">{a.action_no || a.id.slice(0, 8)}</span>
                     <span className="text-muted-foreground">{format(new Date(a.recorded_at), "dd/MM")}</span>
                     {a.line && <span className="text-muted-foreground">{a.line}</span>}
@@ -654,6 +659,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
               </>
             )}
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
