@@ -678,9 +678,42 @@ Deno.serve(async (req) => {
       // Same problem → the same order picks the clock back up. Matching on the code
       // rather than on "the newest order" also survives a stop code that flaps: the
       // order for that code is found again instead of a third one being raised.
-      const existing = (activeWOs ?? []).find(
+      let existing = (activeWOs ?? []).find(
         (w) => normalizeStopCode(w.intouch_downtime_code) === codeKey,
       ) ?? null;
+
+      // A person got there first.
+      //
+      // The lookup above finds orders by `intouch_machine_id` and then keeps the one
+      // carrying this stop code. An order raised from a tablet has neither, so it is
+      // invisible here and the poll raises its own for a fault somebody has already
+      // reported: Murilo opened WO-703 for a sensor issue on Line 4 at 15:40:31 and
+      // the poll opened WO-704 for the same fault thirty-one seconds later.
+      //
+      // Same line, same problem, still open, raised in the last hour — that is the
+      // same fault, and the order that exists wins. It is stamped with the iTouching
+      // identifiers so every later poll recognises it through the check above rather
+      // than coming back here.
+      if (!existing && m.line_id) {
+        const { data: human } = await admin
+          .from("work_orders")
+          .select("id, wo_number, intouch_downtime_code, notes")
+          .eq("line_id", m.line_id)
+          .is("intouch_downtime_code", null)
+          .eq("description", label)
+          .in("status", activeStatuses)
+          .gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const adopted = human?.[0] ?? null;
+        if (adopted) {
+          await admin.from("work_orders")
+            .update({ intouch_machine_id: s.MachineID, intouch_downtime_code: s.DowntimeCode })
+            .eq("id", adopted.id);
+          results.skipped.push(`${m.intouch_machine_name} (${codeName} → already reported on WO-${adopted.wo_number})`);
+          existing = { ...adopted, intouch_downtime_code: s.DowntimeCode };
+        }
+      }
       const otherActiveWOs = (activeWOs ?? []).filter((w) => w.id !== existing?.id);
 
       if (existing) {
