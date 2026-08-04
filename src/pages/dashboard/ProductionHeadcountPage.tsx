@@ -373,6 +373,8 @@ function ShiftBoard({
   const [find, setFind] = useState("");
   const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
+  /** Absence / Holidays / Overtime, opened the same way an area column is. */
+  const [pickingAway, setPickingAway] = useState<{ status: AllocStatus; label: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   // Folded sections are remembered: the one you do not care about at 6am is the same
   // one at 2pm, and re-folding it every morning is a small tax on every shift.
@@ -708,6 +710,41 @@ function ShiftBoard({
         />
       )}
 
+      {/* The same picker, writing a state instead of an area. Marking Holiday here is
+          the quick call somebody makes when a person does not appear; the Leave screen
+          is the formal request with a balance behind it. Both write the same
+          `daily_allocations.status`, so the board cannot end up telling two stories. */}
+      {pickingAway && (
+        <AreaPicker
+          areaId={`away:${pickingAway.status}`}
+          areaName={pickingAway.label}
+          open
+          onOpenChange={(v) => !v && setPickingAway(null)}
+          people={[...(everyoneById?.values() ?? [])].map((e) => {
+            const alloc = byEmployee.get(e.id);
+            const here = alloc?.status === pickingAway.status;
+            const theirs = onShift.find((o) => o.id === e.id);
+            return {
+              ...e,
+              // The picker ticks by area id, so the block borrows one. Somebody
+              // already in this block reads as ticked; somebody on a line shows the
+              // line they are on, so moving them is a visible choice rather than a
+              // silent one.
+              currentAreaId: here ? `away:${pickingAway.status}` : alloc?.area_id ?? null,
+              currentAreaName: here
+                ? pickingAway.label
+                : alloc?.area_id ? areas.find((a) => a.id === alloc.area_id)?.name ?? null : null,
+              offRota: theirs?.offRota ?? false,
+              otherShift: theirs ? null : e.shift_group,
+            };
+          })}
+          onToggle={(person, to) => {
+            if (!to) { remove.mutate(person.id); return; }
+            place.mutate({ employeeId: person.id, areaId: null, status: pickingAway.status });
+          }}
+        />
+      )}
+
       {editing && (() => {
         const person = employeeById.get(editing);
         const alloc = byEmployee.get(editing);
@@ -766,7 +803,18 @@ function ShiftBoard({
               onDrop={() => handleDrop({ areaId: null, status: block.status })(readDrag() ?? "")}
             >
               <Card className={cn("h-full", block.accent)}>
-                <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 py-3">
+                {/* Clickable like an area column. These blocks only took a drag
+                    before, which on a tablet means holding a name and dragging it
+                    across the screen — the one gesture gloves are worst at, for the
+                    thing done most often when somebody does not turn up. */}
+                <CardHeader
+                  className={cn(
+                    "flex flex-row items-center justify-between gap-2 space-y-0 py-3",
+                    canManage && "cursor-pointer hover:brightness-95",
+                  )}
+                  onClick={canManage ? () => setPickingAway({ status: block.status, label: block.label }) : undefined}
+                  title={canManage ? `Add or remove people in ${block.label}` : undefined}
+                >
                   <CardTitle className="text-sm font-semibold">{block.label}</CardTitle>
                   <Badge variant="outline" className="tabular-nums">{people.length}</Badge>
                 </CardHeader>

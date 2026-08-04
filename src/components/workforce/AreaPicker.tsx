@@ -103,9 +103,12 @@ export function AreaPicker<T extends PickerPerson>({
         <DialogHeader className="px-4 pt-4">
           <DialogTitle>{areaName}</DialogTitle>
           <DialogDescription>
-            {here.length} on this area today. Everyone is listed — including people the
-            rota does not put in today, and people from another shift. Pick them to move
-            them here, or pick somebody already here to take them off.
+            {/* "on this area" reads wrong for Absence and Holidays, which are states
+                rather than places. The caller says which it is by the id it passes. */}
+            {here.length} {areaId.startsWith("away:") ? "on this list" : "on this area"} today.
+            Everyone is listed — including people the rota does not put in today, and people
+            from another shift. Pick them to move them here, or pick somebody already here to
+            take them off.
           </DialogDescription>
         </DialogHeader>
         {/* Substring, not the fuzzy default. Typing "rich" was returning Gabriel
