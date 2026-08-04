@@ -679,6 +679,7 @@ export default function ProductionPerformancePage() {
           from={range.from}
           to={range.to}
           shift={shift === "all" ? "ALL" : shift}
+          leader={leaderFilter === "__all__" ? null : leaderFilter}
         />
         </>
         )}
