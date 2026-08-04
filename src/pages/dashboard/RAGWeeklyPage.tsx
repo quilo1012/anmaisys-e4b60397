@@ -23,7 +23,7 @@ import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOf
 import { Link } from "react-router-dom";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
 import { EmptyState } from "@/components/EmptyState";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { exportRagPdf, exportRagExcel } from "@/lib/ragExports";
 import { useAuth } from "@/contexts/AuthContext";
@@ -727,7 +727,7 @@ export default function RAGWeeklyPage() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </CardTitle>
-              <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs w-full sm:w-auto">
                 <SyncStatusIndicator
                   isSyncing={
                     ragFetching > 0 ||
@@ -742,16 +742,16 @@ export default function RAGWeeklyPage() {
                   }
                 />
 
-                <Button variant="outline" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>This week</Button>
-                <Button variant="default" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-                  <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+                <Button size="sm" variant="outline" className="h-8" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>This week</Button>
+                <Button size="sm" variant="default" className="h-8" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
                   {syncMutation.isPending ? "Syncing..." : "Sync from system"}
                 </Button>
                 {canEditRagEntries && (
-                  <div className="flex items-center gap-1.5 rounded-md border px-1.5 py-1">
+                  <div className="flex h-8 items-center gap-1 rounded-md border px-1.5">
                     <span className="pl-1 text-xs font-medium text-muted-foreground">Target</span>
                     <Select value={bumpDate} onValueChange={setBumpDate}>
-                      <SelectTrigger className="h-8 w-[118px]"><SelectValue placeholder="Date" /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
                       <SelectContent>
                         {weekDates.map((d) => {
                           const ds = format(d, "yyyy-MM-dd");
@@ -760,55 +760,47 @@ export default function RAGWeeklyPage() {
                       </SelectContent>
                     </Select>
                     <Select value={bumpShift} onValueChange={(v) => setBumpShift(v as Shift)}>
-                      <SelectTrigger className="h-8 w-[86px]"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-7 w-[78px] text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="DAY">Day</SelectItem>
                         <SelectItem value="NIGHT">Night</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
-                      variant="outline" size="sm" className="h-8 px-2.5 font-semibold"
+                      variant="outline" size="sm" className="h-7 px-2 text-xs font-semibold"
                       disabled={bumpMutation.isPending}
                       onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: -1 })}
                       title="Decrease targets for this date & shift by 1%"
                     >−1%</Button>
                     <Button
-                      variant="default" size="sm" className="h-8 px-2.5 font-semibold"
+                      variant="default" size="sm" className="h-7 px-2 text-xs font-semibold"
                       disabled={bumpMutation.isPending}
                       onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: 1 })}
                       title="Increase targets for this date & shift by 1%"
                     >+1%</Button>
                   </div>
                 )}
+                {/* The template and the import moved into the file menu below. They
+                    are two steps of one job — download it, fill it, send it back —
+                    and as separate primary buttons they competed with Sync for the
+                    eye while pushing the row onto a second line. The input stays
+                    mounted here because the menu item drives it. */}
                 {isAdmin && (
-                  <Button
-                    onClick={() => downloadRagTemplate(weekStart, lines).catch((e) => toast.error(e.message))}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                  >
-                    <Download className="h-4 w-4 mr-1" />Download Template
-                  </Button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleImportFile(f);
+                      e.target.value = "";
+                    }}
+                  />
                 )}
                 {isAdmin && (
-                  <>
-                    <input
-                      ref={importInputRef}
-                      type="file"
-                      accept=".xlsx,.xls"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void handleImportFile(f);
-                        e.target.value = "";
-                      }}
-                    />
-                    <Button variant="outline" onClick={() => importInputRef.current?.click()}>
-                      <Upload className="h-4 w-4 mr-1" />Import Excel
-                    </Button>
-                  </>
-                )}
-                {isAdmin && (
-                  <Button variant="outline" onClick={() => setManageLinesOpen(true)}>
-                    <Settings2 className="h-4 w-4 mr-1" />Manage Lines
+                  <Button size="sm" variant="outline" className="h-8" onClick={() => setManageLinesOpen(true)}>
+                    <Settings2 className="h-3.5 w-3.5 mr-1" />Manage Lines
                   </Button>
                 )}
                 <Select
@@ -817,7 +809,7 @@ export default function RAGWeeklyPage() {
                     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
                 >
-                  <SelectTrigger className="w-[170px]">
+                  <SelectTrigger className="h-8 w-[150px]">
                     <SelectValue placeholder="Jump to line" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
@@ -829,12 +821,25 @@ export default function RAGWeeklyPage() {
                 </Select>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                      <Download className="h-4 w-4 mr-1" />Export
-                      <ChevronDown className="h-4 w-4 ml-1" />
+                    <Button size="sm" variant="outline" className="h-8">
+                      <Download className="h-3.5 w-3.5 mr-1" />Import / Export
+                      <ChevronDown className="h-3.5 w-3.5 ml-1" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="bg-popover z-50">
+                    {isAdmin && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => downloadRagTemplate(weekStart, lines).catch((e) => toast.error(e.message))}
+                        >
+                          <Download className="h-4 w-4 mr-2" />Download template
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => importInputRef.current?.click()}>
+                          <Upload className="h-4 w-4 mr-2" />Import Excel
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
