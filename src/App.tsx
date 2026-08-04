@@ -69,6 +69,7 @@ const WorkOrderDetail = lazyWithReload(() => import("./pages/dashboard/WorkOrder
 const StockPage = lazyWithReload(() => import("./pages/dashboard/StockPage"));
 const AuditLogsPage = lazyWithReload(() => import("./pages/dashboard/AuditLogsPage"));
 const SystemHubPage = lazyWithReload(() => import("./pages/dashboard/SystemHubPage"));
+const ReportsPage = lazyWithReload(() => import("./pages/dashboard/ReportsPage"));
 const WorkforcePage = lazyWithReload(() => import("./pages/dashboard/WorkforcePage"));
 const ProductionHeadcountPage = lazyWithReload(() => import("./pages/dashboard/ProductionHeadcountPage"));
 
@@ -390,6 +391,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="headcount.view">
                       <ProductionHeadcountPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/reports"
+                  element={
+                    <ProtectedRoute requiredAction="reports.analytics">
+                      <ReportsPage />
                     </ProtectedRoute>
                   }
                 />
