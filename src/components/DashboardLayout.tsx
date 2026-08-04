@@ -113,14 +113,11 @@ export const navItems: NavItem[] = [
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
+  // Headcount is the way in to all four workforce screens. Leave, Attendance and
+  // Finance Close are reached from the tab bar on the board rather than from here:
+  // they are one job seen from four angles, and four menu rows said they were four
+  // jobs.
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
-  // Beside Headcount because they answer the same question from two ends: the board
-  // says who was meant to be on a line, this says who actually clocked on.
-  { title: "Leave", url: "/dashboard/leave", icon: CalendarDays, roles: ["admin"], group: "Production", action: "workforce.view" },
-  { title: "Attendance", url: "/dashboard/attendance", icon: Clock, roles: ["admin"], group: "Production", action: "workforce.view" },
-  // Beside Attendance because it is what that data is for: the period handed to
-  // finance, with the two overtime figures set against each other rather than summed.
-  { title: "Finance Close", url: "/dashboard/finance-close", icon: Calculator, roles: ["admin"], group: "Production", action: "workforce.view" },
 
   // Setup, integrations and the audit trail, behind one door.
   //
