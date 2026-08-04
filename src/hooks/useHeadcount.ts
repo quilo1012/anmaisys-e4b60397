@@ -212,6 +212,30 @@ export function useAllocationMutations(onDate: string, shift: string) {
           { onConflict: "on_date,shift,employee_id" },
         );
       if (error) throw error;
+
+      // The board and the payroll record have to say the same thing.
+      //
+      // Marking somebody off here wrote only `daily_allocations`, so a holiday put on
+      // the board never reached `employee_attendance` and the finance close never
+      // counted it — eight of the thirteen days marked this way were invisible to
+      // payroll. Anderson Cavalcante's 06/08 was one of them.
+      //
+      // Assigned and overtime write "present" for the same reason in reverse: moving
+      // somebody back onto a line has to clear the holiday it replaced, or the close
+      // pays a day they worked.
+      const attendance =
+        input.status === "holiday" ? "holiday"
+        : input.status === "absence" ? "absent"
+        : "present";
+      const { error: attErr } = await (supabase as any)
+        .from("employee_attendance")
+        .upsert(
+          { employee_id: input.employeeId, on_date: onDate, status: attendance },
+          { onConflict: "employee_id,on_date" },
+        );
+      // Not fatal: the board placement is the thing the user asked for, and a failure
+      // here must not undo it. It surfaces as a warning rather than a rollback.
+      if (attErr) toast.warning(`Placed on the board, but the attendance record did not save: ${attErr.message}`);
     },
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message ?? "Could not save the allocation", { id: "headcount-place" }),

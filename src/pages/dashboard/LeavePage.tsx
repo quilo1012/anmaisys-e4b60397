@@ -84,6 +84,28 @@ export default function LeavePage() {
     },
   });
 
+  /**
+   * Time off put straight onto the headcount board, with no request behind it.
+   *
+   * The board is the faster way to mark somebody off and people use it, so this
+   * screen showing only `leave_requests` meant a day like Anderson Cavalcante's 06/08
+   * simply did not exist here. Listed rather than hidden: a day off is a day off,
+   * whether it came through approval or not.
+   */
+  const { data: boardOnly = [] } = useQuery({
+    queryKey: ["leave-board-only"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("daily_allocations")
+        .select("employee_id, on_date, status")
+        .in("status", ["holiday", "absence"])
+        .order("on_date", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as { employee_id: string; on_date: string; status: string }[];
+    },
+  });
+
   const person = useMemo(() => new Map(roster.map((e) => [e.id, e])), [roster]);
   const patternOf = (id: string) => {
     const p = person.get(id);
@@ -165,6 +187,16 @@ export default function LeavePage() {
       sickToday: approved.filter((r) => r.kind === "sick" && onDay(r)).length,
     };
   }, [requests, today]);
+
+  // A board day is "covered" when an approved request already spans it.
+  const uncovered = useMemo(() => {
+    const approved = requests.filter((r) => r.status === "approved");
+    return boardOnly
+      .filter((d) => !approved.some(
+        (r) => r.employee_id === d.employee_id && r.start_date <= d.on_date && r.end_date >= d.on_date,
+      ))
+      .sort((a, b) => b.on_date.localeCompare(a.on_date));
+  }, [boardOnly, requests]);
 
   const pending = requests.filter((r) => r.status === "pending");
   const decided = requests.filter((r) => r.status !== "pending").slice().reverse();
@@ -394,6 +426,31 @@ export default function LeavePage() {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {uncovered.length > 0 && (
+          <div>
+            <h2 className="mb-2 flex items-center gap-1.5 text-2xs font-bold uppercase tracking-widest text-warning-strong">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Marked on the board, no request ({uncovered.length})
+            </h2>
+            <Card className="border-amber-500/40">
+              <CardContent className="divide-y p-0">
+                {uncovered.slice(0, 20).map((d) => (
+                  <div key={`${d.employee_id}-${d.on_date}`} className="flex items-center gap-2.5 px-3 py-2 text-xs">
+                    <span className="font-medium">{person.get(d.employee_id)?.full_name ?? "Unknown"}</span>
+                    <Badge variant="outline" className="text-2xs capitalize">{d.status}</Badge>
+                    <span className="ml-auto font-mono text-2xs text-muted-foreground">{d.on_date}</span>
+                  </div>
+                ))}
+                <p className="px-3 py-2 text-2xs text-muted-foreground">
+                  Put straight onto the headcount board rather than through a request. They show as off
+                  on the board. Raise a request covering the dates if the finance close needs them and
+                  they were marked before this screen started writing the attendance record.
+                </p>
               </CardContent>
             </Card>
           </div>
