@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
+import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -109,6 +110,11 @@ export default function FinanceClosePage() {
 
   return (
     <DashboardLayout>
+      <AdminPinGate
+        storageKey="finance-close"
+        title="Finance Close"
+        description="Overtime and time off per person, for the pay period. Enter the admin PIN to open."
+      >
       <div className="space-y-4">
         <BackButton className="print:hidden" />
 
@@ -233,6 +239,7 @@ export default function FinanceClosePage() {
           </CardContent>
         </Card>
       </div>
+      </AdminPinGate>
     </DashboardLayout>
   );
 }
