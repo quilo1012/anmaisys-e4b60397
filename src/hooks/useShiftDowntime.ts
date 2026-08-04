@@ -125,8 +125,28 @@ export function useShiftDowntime(dateISO: string) {
         .or(`line_resumed_at.gte.${dayStart.toISOString()},line_resumed_at.is.null`);
       if (woErr) throw woErr;
 
+      // Which of these orders have an event ANYWHERE, not just in this window.
+      //
+      // `woIdsWithEvents` above is built from the windowed query, so an order whose
+      // real event fell on another day is not in it — the fallback then fires and
+      // synthesises a stoppage from the order's own line-stop gap. That gap is not
+      // downtime: a force-close at a shift boundary stretches it to the handover, so
+      // WO-701 stopped Line 5A for 179 minutes on 03/08 and appeared as a phantom
+      // 12h 00m on 04/08 — exactly the length of the day shift. The heatmap, which
+      // has no fallback, showed nothing there and was right.
+      const candidateIds = (woData || []).map((w: any) => w.id);
+      let idsWithAnyEvent = woIdsWithEvents;
+      if (candidateIds.length > 0) {
+        const { data: anyEv } = await (supabase as any)
+          .from("downtime_events").select("work_order_id").in("work_order_id", candidateIds);
+        idsWithAnyEvent = new Set([
+          ...woIdsWithEvents,
+          ...((anyEv || []) as { work_order_id: string }[]).map((e) => e.work_order_id),
+        ]);
+      }
+
       const synthetic: DowntimeEvent[] = (woData || [])
-        .filter((w: any) => !woIdsWithEvents.has(w.id))
+        .filter((w: any) => !idsWithAnyEvent.has(w.id))
         .map((w: any) => ({
           id: `wo-${w.id}`,
           work_order_id: w.id,

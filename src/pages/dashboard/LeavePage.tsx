@@ -68,9 +68,9 @@ export default function LeavePage() {
     queryKey: ["leave-patterns"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("shift_patterns").select("id, name, days, annual_leave_days");
+        .from("shift_patterns").select("id, name, days, annual_leave_days, leave_includes_bank_holidays");
       if (error) throw error;
-      return (data ?? []) as { id: string; name: string; days: number[]; annual_leave_days: number | null }[];
+      return (data ?? []) as { id: string; name: string; days: number[]; annual_leave_days: number | null; leave_includes_bank_holidays: boolean | null }[];
     },
   });
 
@@ -135,7 +135,7 @@ export default function LeavePage() {
           pat.annual_leave_days ?? null,
           today,
         );
-        return { id: pat.id, name: pat.name, people: people.length, ...b };
+        return { id: pat.id, name: pat.name, people: people.length, bankHols: pat.leave_includes_bank_holidays, ...b };
       })
       .filter((p) => p.people > 0)
       .sort((a, b) => b.people - a.people);
@@ -363,6 +363,7 @@ export default function LeavePage() {
                       <TableHead className="text-right">Booked</TableHead>
                       <TableHead className="text-right">Remaining</TableHead>
                       <TableHead className="text-right">Annual total</TableHead>
+                      <TableHead className="text-right">Bank hols</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -380,6 +381,14 @@ export default function LeavePage() {
                               people are on those. "to confirm" asks for them; a zero
                               would quietly claim they have none. */}
                           {p.total ?? <span className="text-warning-strong">to confirm</span>}
+                        </TableCell>
+                        {/* Whether the entitlement already swallows the bank holidays
+                            or they sit on top of it. Two patterns say no — Fri–Mon and
+                            the Sunday crews — and paying either as though it said yes
+                            is a real day, per person, per year. */}
+                        <TableCell className="text-right text-2xs">
+                          {p.bankHols == null ? <span className="text-muted-foreground">—</span>
+                            : p.bankHols ? "included" : <span className="text-warning-strong">on top</span>}
                         </TableCell>
                       </TableRow>
                     ))}
