@@ -22,6 +22,10 @@ export interface TimeMotoRow {
   balanceMinutes: number | null;
   /** Vacation, Sickness, Unpaid Leave — verbatim, so an unfamiliar one is visible. */
   absence: string | null;
+  /** What the contract said the day should be. TimeMoto calls it WorkSchedule. */
+  scheduledMinutes: number | null;
+  /** A manual correction the office made to overtime, kept apart from the clocked time. */
+  overtimeAdjMinutes: number | null;
   remarks: string | null;
 }
 
@@ -39,14 +43,20 @@ export interface TimeMotoParse {
 }
 
 /** Every spelling of a column this parser answers to. */
-const FIELDS: { field: keyof TimeMotoRow | "ignore"; aliases: string[] }[] = [
+const FIELDS: { field: keyof TimeMotoRow | "firstname" | "lastname" | "ignore"; aliases: string[] }[] = [
   { field: "name", aliases: ["name", "employee", "employee name", "full name", "user", "person"] },
+  // TimeMoto splits the person across two columns. Without these the header hunt
+  // finds no name at all and the whole file is rejected as unreadable.
+  { field: "firstname", aliases: ["firstname", "first name", "given name"] },
+  { field: "lastname", aliases: ["lastname", "last name", "surname", "family name"] },
   { field: "date", aliases: ["date", "day", "work date"] },
   { field: "start", aliases: ["in", "start", "start time", "clock in", "first in"] },
   { field: "end", aliases: ["out", "end", "end time", "clock out", "last out"] },
   { field: "workedMinutes", aliases: ["duration", "worked", "worked hours", "hours", "total", "actual"] },
   { field: "balanceMinutes", aliases: ["balance", "saldo", "overtime", "difference", "diff"] },
-  { field: "absence", aliases: ["absence", "absence name", "leave", "leave type", "type", "reason"] },
+  { field: "absence", aliases: ["absence", "absence name", "absencename", "leave", "leave type", "type", "reason"] },
+  { field: "scheduledMinutes", aliases: ["workschedule", "work schedule", "scheduled", "planned", "contract"] },
+  { field: "overtimeAdjMinutes", aliases: ["overtimeadjustment", "overtime adjustment", "adjustment", "ot adjustment"] },
   { field: "remarks", aliases: ["remarks", "remark", "note", "notes", "comment"] },
 ];
 
@@ -124,7 +134,8 @@ export function parseTimeMotoWorkbook(wb: XLSX.WorkBook, fallbackYear: number): 
       if (hit) found[idx] = hit.field as string;
     });
     const fields = Object.values(found);
-    if (fields.includes("name") && fields.includes("date")) {
+    const hasName = fields.includes("name") || fields.includes("firstname");
+    if (hasName && fields.includes("date")) {
       headerAt = i;
       map = found;
       (grid[i] ?? []).forEach((c, idx) => {
@@ -153,7 +164,9 @@ export function parseTimeMotoWorkbook(wb: XLSX.WorkBook, fallbackYear: number): 
       return idx === undefined ? undefined : cells[Number(idx)];
     };
 
-    const rawName = String(get("name") ?? "").trim();
+    // One column or two, joined here so everything downstream sees a single name.
+    const rawName = (String(get("name") ?? "").trim()
+      || [get("firstname"), get("lastname")].map((v) => String(v ?? "").trim()).filter(Boolean).join(" ")).trim();
     if (rawName && NOT_A_PERSON.test(rawName)) { out.skipped.push({ row: i + 1, reason: `"${rawName}" is a total, not a person` }); continue; }
     if (rawName) carriedName = rawName;
     if (!carriedName) continue;
@@ -175,6 +188,8 @@ export function parseTimeMotoWorkbook(wb: XLSX.WorkBook, fallbackYear: number): 
       workedMinutes: absence ? 0 : Math.max(0, worked ?? 0),
       balanceMinutes: parseHm(get("balanceMinutes")),
       absence,
+      scheduledMinutes: parseHm(get("scheduledMinutes")),
+      overtimeAdjMinutes: parseHm(get("overtimeAdjMinutes")),
       remarks: String(get("remarks") ?? "").trim() || null,
     });
     names.add(carriedName);
