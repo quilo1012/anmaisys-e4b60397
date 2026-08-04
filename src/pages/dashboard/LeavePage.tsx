@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarDays, Check, X, Plus, Loader2, AlertTriangle } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { leaveDays, describeLeaveDays } from "@/lib/leaveDays";
+import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf } from "@/lib/leaveDays";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 
 type Kind = "holiday" | "unpaid" | "sick";
@@ -67,9 +67,10 @@ export default function LeavePage() {
   const { data: patterns = [] } = useQuery({
     queryKey: ["leave-patterns"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("shift_patterns").select("id, days");
+      const { data, error } = await (supabase as any)
+        .from("shift_patterns").select("id, name, days, annual_leave_days");
       if (error) throw error;
-      return (data ?? []) as { id: string; days: number[] }[];
+      return (data ?? []) as { id: string; name: string; days: number[]; annual_leave_days: number | null }[];
     },
   });
 
@@ -94,6 +95,28 @@ export default function LeavePage() {
     () => (employeeId && start && end ? leaveDays(start, end, patternOf(employeeId)) : null),
     [employeeId, start, end, patterns, roster],
   );
+
+  // Entitlement is per shift pattern, in working days of that pattern — 22.5 for
+  // Mon–Thu, 21.5 for Tue–Fri. A flat 28 for everybody would hand the Tue–Fri crew a
+  // day they do not have, and short the others.
+  const today = new Date().toISOString().slice(0, 10);
+  const year = leaveYearOf(today);
+  const balances = useMemo(() => {
+    const approved = requests.filter((r) => r.status === "approved" && r.kind === "holiday");
+    return roster
+      .map((e) => {
+        const pat = patterns.find((p) => p.id === e.shift_pattern_id);
+        const mine = approved.filter((r) => r.employee_id === e.id);
+        const b = leaveBalance(
+          mine.map((r) => ({ start_date: r.start_date, end_date: r.end_date, working_days: r.working_days })),
+          pat?.annual_leave_days ?? null,
+          today,
+        );
+        return { id: e.id, name: e.full_name, pattern: pat?.name ?? null, ...b };
+      })
+      .filter((b) => b.taken > 0 || b.booked > 0)
+      .sort((a, b) => (a.remaining ?? Infinity) - (b.remaining ?? Infinity));
+  }, [roster, patterns, requests, today]);
 
   const pending = requests.filter((r) => r.status === "pending");
   const decided = requests.filter((r) => r.status !== "pending").slice().reverse();
@@ -257,6 +280,50 @@ export default function LeavePage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {balances.length > 0 && (
+          <div>
+            <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+              Holiday balance · leave year {year.from} → {year.to}
+            </h2>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee</TableHead><TableHead>Pattern</TableHead>
+                      <TableHead className="text-right">Taken</TableHead>
+                      <TableHead className="text-right">Booked</TableHead>
+                      <TableHead className="text-right">Remaining</TableHead>
+                      <TableHead className="text-right">Entitlement</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {balances.map((b) => (
+                      <TableRow key={b.id}>
+                        <TableCell className="font-medium">{b.name}</TableCell>
+                        <TableCell className="text-2xs text-muted-foreground">{b.pattern ?? "no rota"}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">{b.taken}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">{b.booked}</TableCell>
+                        {/* No entitlement on file is not "no days left" — it is nobody
+                            having told us how many there are. BrightPay has not given
+                            the Mon–Fri or Sun figures yet. */}
+                        <TableCell className={`text-right font-mono text-xs font-semibold tabular-nums ${
+                          b.remaining == null ? "text-muted-foreground"
+                            : b.remaining < 0 ? "text-destructive-strong" : ""}`}>
+                          {b.remaining == null ? "not set" : b.remaining}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                          {b.total ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         <div>
