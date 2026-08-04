@@ -23,6 +23,69 @@ export interface ParseResult {
   sheetsProcessed: string[];
 }
 
+  // What the sheet calls a line, mapped to what the line is actually called.
+  //
+  // These pointed at "Capsules & Tablets" and "Gel Line", and neither is a line —
+  // the factory's are "Tablet Line" and "GEL Line". The lookup below required an
+  // exact match against the real names, so every alias here silently resolved to
+  // nothing and a column headed "Tablet" fell through to the fuzzy matching that
+  // follows. Aliases are resolved case-insensitively now, so a name that differs
+  // only in capitals cannot kill one again.
+  const aliasMap: Record<string, string> = {
+  "tablet": "Tablet Line",
+  "tablets": "Tablet Line",
+  "tablet line": "Tablet Line",
+  "tablets line": "Tablet Line",
+  "capsule": "Tablet Line",
+  "capsules": "Tablet Line",
+  "capsule line": "Tablet Line",
+  "capsules line": "Tablet Line",
+  "caps tabs": "Tablet Line",
+  "c t": "Tablet Line",
+  "gel": "GEL Line",
+  "gel line": "GEL Line",
+  };
+/**
+ * A column heading from the spreadsheet, resolved to a line the factory actually has.
+ *
+ * Exported so the alias table can be tested directly. It could not be before, and
+ * that is how every alias in it came to point at a line name that does not exist.
+ */
+export function resolveLineName(text: string, knownLines: string[]): string | null {
+  const clean = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const t = clean(text);
+  if (!t) return null;
+  const alias = aliasMap[t];
+  if (alias) {
+    const real = knownLines.find((l) => clean(l) === clean(alias));
+    if (real) return real;
+  }
+  for (const l of knownLines) if (clean(l) === t) return l;
+  for (const l of knownLines) {
+    const ll = clean(l);
+    if (ll.length >= 3 && (t.includes(ll) || ll.includes(t))) return l;
+  }
+  const stop = new Set(["line", "linha", "ln", "and", "the", "of", "de", "da", "do"]);
+  const tTokens = new Set(t.split(" ").filter((w) => w.length >= 3 && !stop.has(w)));
+  const tAbbrev = t.replace(/\s+/g, "");
+  for (const l of knownLines) {
+    const ll = clean(l);
+    const lTokens = ll.split(" ").filter((w) => w.length >= 3 && !stop.has(w));
+    if (lTokens.length === 0) continue;
+    const hits = lTokens.filter((w) => tTokens.has(w)).length;
+    if (hits >= Math.min(1, lTokens.length) && (hits / lTokens.length) >= 0.5) return l;
+    const initials = lTokens.map((w) => w[0]).join("");
+    if (initials.length >= 2 && (tAbbrev === initials || t.split(" ").join("") === initials)) return l;
+  }
+  const lineToken = t.match(/\b(?:line|linha|ln|l)\s*0*(\d{1,2})\b/);
+  if (lineToken) {
+    const n = Number(lineToken[1]);
+    const dbMatch = knownLines.find((l) => new RegExp(`\\b0*${n}\\b`).test(clean(l)));
+    return dbMatch ?? `Line ${n}`;
+  }
+  return null;
+}
+
 export async function parseRagLayoutFile(
   file: File,
   knownLines: string[],
@@ -68,49 +131,8 @@ export async function parseRagLayoutFile(
   const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
   const clean = (v: unknown) => norm(v).replace(/[^a-z0-9]+/g, " ").trim();
 
-  const aliasMap: Record<string, string> = {
-    "tablet": "Capsules & Tablets",
-    "tablets": "Capsules & Tablets",
-    "tablet line": "Capsules & Tablets",
-    "tablets line": "Capsules & Tablets",
-    "capsule": "Capsules & Tablets",
-    "capsules": "Capsules & Tablets",
-    "capsule line": "Capsules & Tablets",
-    "capsules line": "Capsules & Tablets",
-    "caps tabs": "Capsules & Tablets",
-    "c t": "Capsules & Tablets",
-    "gel": "Gel Line",
-    "gel line": "Gel Line",
-  };
-  const findLineMatch = (text: string): string | null => {
-    const t = clean(text);
-    if (!t) return null;
-    if (aliasMap[t] && knownLines.includes(aliasMap[t])) return aliasMap[t];
-    for (const l of knownLines) if (clean(l) === t) return l;
-    for (const l of knownLines) {
-      const ll = clean(l);
-      if (ll.length >= 3 && (t.includes(ll) || ll.includes(t))) return l;
-    }
-    const stop = new Set(["line", "linha", "ln", "and", "the", "of", "de", "da", "do"]);
-    const tTokens = new Set(t.split(" ").filter((w) => w.length >= 3 && !stop.has(w)));
-    const tAbbrev = t.replace(/\s+/g, "");
-    for (const l of knownLines) {
-      const ll = clean(l);
-      const lTokens = ll.split(" ").filter((w) => w.length >= 3 && !stop.has(w));
-      if (lTokens.length === 0) continue;
-      const hits = lTokens.filter((w) => tTokens.has(w)).length;
-      if (hits >= Math.min(1, lTokens.length) && (hits / lTokens.length) >= 0.5) return l;
-      const initials = lTokens.map((w) => w[0]).join("");
-      if (initials.length >= 2 && (tAbbrev === initials || t.split(" ").join("") === initials)) return l;
-    }
-    const lineToken = t.match(/\b(?:line|linha|ln|l)\s*0*(\d{1,2})\b/);
-    if (lineToken) {
-      const n = Number(lineToken[1]);
-      const dbMatch = knownLines.find((l) => new RegExp(`\\b0*${n}\\b`).test(clean(l)));
-      return dbMatch ?? `Line ${n}`;
-    }
-    return null;
-  };
+
+  const findLineMatch = (text: string) => resolveLineName(text, knownLines);
 
   const agg = new Map<string, { plan: number; actual: number; downtime: number }>();
   const bump = (
