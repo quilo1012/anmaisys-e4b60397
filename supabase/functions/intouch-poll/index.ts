@@ -421,6 +421,22 @@ Deno.serve(async (req) => {
       (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c.label ?? ""]),
     );
 
+    // Whether a stop raises an order is the same kind of question as what it is
+    // called, and it reads EVERY code too.
+    //
+    // `codeLookup` is active-only on purpose — it decides live behaviour. But
+    // `requires_wo` is a standing instruction from an admin, not a live one, and
+    // reading it through the active-only map meant a deactivated code fell through
+    // the guard below as though nobody had ever mapped it. "Alarm" has been flagged
+    // `requires_wo = false` since June and inactive since July, and it still raised
+    // WO-639 and WO-640 on Line 2 — labelled "iTouching stop Alarm", because the
+    // same miss sent the name down the fallback as well. Deactivating a code must
+    // not change what a stop is called, and it must not change whether it calls out
+    // an engineer.
+    const codeDecision = new Map(
+      (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c]),
+    );
+
     const seenCodes = new Set(
       (statuses ?? [])
         .map((s) => normalizeStopCode(s.DowntimeCode))
@@ -615,15 +631,17 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // If the code has no mapping yet, still open a WO (don't drop the stop).
-      // Only skip when an admin explicitly marked requires_wo = false.
-      if (mapped_code && mapped_code.requires_wo === false) {
+      // If the code has no mapping at all, still open a WO (don't drop the stop).
+      // Only skip when an admin explicitly marked requires_wo = false — read from
+      // the full map, so deactivating a code does not silently revoke that decision.
+      const decided = codeDecision.get(codeKey);
+      if (decided && decided.requires_wo === false) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} flagged production-only)`);
         continue;
       }
 
-      const label = mapped_code?.label ?? `iTouching stop ${codeName}`;
-      const priority = (mapped_code?.default_priority ?? "medium") as string;
+      const label = decided?.label ?? `iTouching stop ${codeName}`;
+      const priority = (decided?.default_priority ?? "medium") as string;
 
       // Look up an active WO for this machine. If one exists, never create
       // another order for the same stopped machine. Check both the iTouching
