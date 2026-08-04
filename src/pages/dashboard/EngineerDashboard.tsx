@@ -38,7 +38,6 @@ import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
 import { EngineerNavCards } from "@/components/DashboardNavCards";
-import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { EngineerAlertLineFilter } from "@/components/EngineerAlertLineFilter";
 import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
@@ -838,7 +837,6 @@ function EngineerDashboardContent() {
     <DashboardLayout>
       <div className="space-y-4 md:space-y-6">
         {/* Same opening as every other landing screen. */}
-        <DashboardWelcome />
 
         {(lineFilterParam || dateFilterParam) && (
           <Alert className="flex items-center justify-between gap-2 border-primary/50 bg-primary/5">

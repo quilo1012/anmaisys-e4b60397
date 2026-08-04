@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
 import { useDeviceLineCtx } from "@/contexts/DeviceLineContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -236,7 +235,6 @@ function MyProductionContent() {
     <div className="space-y-4 max-w-5xl mx-auto">
       {/* Same opening as every other landing screen. This is the operator's landing
           after login, so it gets the greeting and the banner too. */}
-      <DashboardWelcome />
 
       {/* Header */}
       <Card>

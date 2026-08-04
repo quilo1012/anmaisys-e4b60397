@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
 import { LineIndicators } from "@/components/production/LineIndicators";
 import { supabase } from "@/integrations/supabase/client";
@@ -412,7 +411,6 @@ export default function ProductionPerformancePage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Landing screen for supervisors and the production office — same opening. */}
-        <DashboardWelcome />
 
         <SectionErrorBoundary title="Leader scorecard">
         <LeaderScorecard
