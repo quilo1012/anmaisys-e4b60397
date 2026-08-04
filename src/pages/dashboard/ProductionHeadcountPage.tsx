@@ -256,12 +256,17 @@ function SortableColumn({ id, children }: { id: string; children: (grip: React.R
         <button
           type="button"
           aria-label="Reorder column"
-          className="-ml-0.5 shrink-0 cursor-grab touch-none text-muted-foreground/50 hover:text-foreground active:cursor-grabbing no-print"
+          // Was 14px at half opacity with no padding around it: the one control on
+          // the board nobody could find, on a screen used through gloves. Full
+          // contrast and a real hit area — the drag still only starts from here, so
+          // the heading keeps opening the picker.
+          className="-ml-1 grid h-8 w-6 shrink-0 place-items-center cursor-grab touch-none rounded text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing no-print"
+          title="Drag to move this column"
           onClick={(e) => e.stopPropagation()}
           {...listeners}
           {...attributes}
         >
-          <GripVertical className="h-3.5 w-3.5" />
+          <GripVertical className="h-4 w-4" />
         </button>,
       )}
     </div>
@@ -583,9 +588,9 @@ function ShiftBoard({
           }}
         >
         <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
-        {/* Three blocks sharing the width, not three 200px cards against the left edge:
-          auto-fill left an empty track on anything wider than a laptop. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Packs as many line columns across as the screen allows. Capping this at
+            three put Line 4 onto a second row on a monitor with room for six. */}
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
@@ -727,7 +732,10 @@ function ShiftBoard({
       })()}
 
       <SectionLabel>Away &amp; overtime</SectionLabel>
-      <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
+      {/* Three blocks sharing the width. auto-fill with a 200px minimum left an empty
+          track on anything wider than a laptop: three cards against the left edge
+          with a hole beside them. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {AWAY_BLOCKS.map((block) => {
           const people = peopleWith(block.status);
           return (
