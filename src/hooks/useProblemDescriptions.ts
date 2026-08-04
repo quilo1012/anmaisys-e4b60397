@@ -8,6 +8,15 @@ export interface ProblemDescription {
   severity: string;
   description: string;
   active: boolean;
+  /**
+   * Planned work: the stop is real but does not count as downtime.
+   *
+   * Mirrors `intouch_stop_code_catalog.planned`, which has always had it — a
+   * changeover or a deep clean stops the line without being a breakdown, and the
+   * views read this so a planned job reads zero everywhere rather than zero on one
+   * screen and full on another.
+   */
+  planned: boolean;
   created_at: string;
 }
 
@@ -83,7 +92,7 @@ export function useAddProblemDescription() {
 export function useUpdateProblemDescription() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: { id: string; name?: string; category?: string; severity?: string; description?: string; active?: boolean }) => {
+    mutationFn: async ({ id, ...updates }: { id: string; name?: string; category?: string; severity?: string; description?: string; active?: boolean; planned?: boolean }) => {
       const { error } = await (supabase as any).from("problem_descriptions").update(updates).eq("id", id);
       if (error) throw error;
     },

@@ -68,6 +68,7 @@ export default function ProblemsPage() {
   const isIncomplete = (p: ProblemDescription) => !p.category?.trim() || !p.description?.trim();
   const incompleteCount = (problems || []).filter(isIncomplete).length;
   const visibleProblems = (problems || []).filter((p) => (showOnlyIncomplete ? isIncomplete(p) : true));
+  const plannedCount = (problems || []).filter((p) => p.planned === true).length;
 
   const resetForm = () => { setName(""); setCategory(""); setDescription(""); setActive(true); };
 
@@ -130,6 +131,23 @@ export default function ProblemsPage() {
     }
   };
 
+  /**
+   * Marking a problem planned changes what every past order for it counted as, not
+   * just the next one — so the toast says which way it went and how many orders it
+   * reaches. Somebody flicking a switch is entitled to know it moved history.
+   */
+  const togglePlanned = async (p: ProblemDescription, planned: boolean) => {
+    try {
+      await updateProblem.mutateAsync({ id: p.id, planned });
+      toast({
+        title: planned ? `“${p.name}” no longer counts as downtime` : `“${p.name}” counts as downtime again`,
+        description: "Applies to every order with this problem, past and future.",
+      });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const formContent = (
     <div className="space-y-4">
       <div className="space-y-2"><Label>Problem Name <span className="text-destructive-strong">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Motor Overheating" required /></div>
@@ -170,6 +188,20 @@ export default function ProblemsPage() {
           </div>
         )}
 
+        {/* The count the iTouching screen shows for the same reason: a flag that
+            quietly removes minutes from every report needs to say how many
+            descriptions carry it, or nobody notices it drifting. */}
+        {plannedCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs">
+            <span className="font-medium">
+              {plannedCount} of {problems?.length ?? 0} marked planned
+            </span>
+            <span className="text-muted-foreground">
+              Their stops are recorded but do not count as downtime, on every screen.
+            </span>
+          </div>
+        )}
+
         <Card>
           <CardContent className="pt-6">
             {isLoading ? (
@@ -184,7 +216,11 @@ export default function ProblemsPage() {
                     <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Lines</TableHead>
-                    <TableHead>Active</TableHead>
+                    {/* Same column the iTouching stop codes have carried since the
+                        catalogue was imported: a changeover stops the line without
+                        being a breakdown. */}
+                    <TableHead className="w-28 text-center">Planned</TableHead>
+                    <TableHead className="w-24 text-center">Active</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -215,7 +251,14 @@ export default function ProblemsPage() {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={p.planned === true}
+                            onCheckedChange={(v) => togglePlanned(p, v)}
+                            title="Planned work does not count as downtime"
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
                           <Switch checked={p.active !== false} onCheckedChange={() => toggleActive(p)} />
                         </TableCell>
                         <TableCell>
