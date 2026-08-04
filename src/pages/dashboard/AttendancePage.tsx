@@ -122,6 +122,11 @@ export default function AttendancePage() {
           worked_minutes: r.workedMinutes,
           balance_minutes: r.balanceMinutes,
           absence_name: r.absence,
+          // The table has had these two columns since it was created and the first
+          // version of this import left them null: what the contract said the day
+          // should be, and any correction the office made by hand.
+          scheduled_minutes: r.scheduledMinutes,
+          overtime_adj_minutes: r.overtimeAdjMinutes,
           remarks: r.remarks,
           source: "timemoto",
         }));

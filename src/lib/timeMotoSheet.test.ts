@@ -129,6 +129,48 @@ describe("parseTimeMotoWorkbook", () => {
   });
 });
 
+describe("the real TimeMoto column names", () => {
+  // Firstname and Lastname are separate columns in the export. A parser looking only
+  // for "Name" finds no name column, fails the header hunt, and rejects the whole
+  // file as unreadable — which is what the first version of this did.
+  const REAL = ["Firstname", "Lastname", "Date", "Duration", "WorkSchedule", "Balance", "OvertimeAdjustment", "AbsenceName"];
+
+  it("joins Firstname and Lastname into one person", () => {
+    const p = parseTimeMotoWorkbook(book([
+      REAL,
+      ["Ana", "Silva", "04/08/26", "12:00", "8:00", "4:00", "0:00", ""],
+    ]), 2026);
+    expect(p.rows).toHaveLength(1);
+    expect(p.rows[0].name).toBe("Ana Silva");
+  });
+
+  it("reads WorkSchedule and OvertimeAdjustment, which the table has columns for", () => {
+    const p = parseTimeMotoWorkbook(book([
+      REAL,
+      ["Ana", "Silva", "04/08/26", "12:00", "8:00", "4:00", "-0:30", ""],
+    ]), 2026);
+    expect(p.rows[0].scheduledMinutes).toBe(480);
+    expect(p.rows[0].overtimeAdjMinutes).toBe(-30);
+  });
+
+  it("reads AbsenceName and forces the day to zero worked", () => {
+    const p = parseTimeMotoWorkbook(book([
+      REAL,
+      ["Ana", "Silva", "06/08/26", "11:00", "8:00", "-11:00", "0:00", "Sickness"],
+    ]), 2026);
+    expect(p.rows[0]).toMatchObject({ absence: "Sickness", workedMinutes: 0, balanceMinutes: -660 });
+  });
+
+  it("carries a surname-only blank down the block", () => {
+    const p = parseTimeMotoWorkbook(book([
+      REAL,
+      ["Ana", "Silva", "04/08/26", "8:00", "8:00", "0:00", "", ""],
+      ["", "", "05/08/26", "8:00", "8:00", "0:00", "", ""],
+    ]), 2026);
+    expect(p.rows.map((r) => r.name)).toEqual(["Ana Silva", "Ana Silva"]);
+  });
+});
+
 describe("matchNames", () => {
   const ROSTER = [
     { id: "e1", full_name: "Marcio Carvalho" },
