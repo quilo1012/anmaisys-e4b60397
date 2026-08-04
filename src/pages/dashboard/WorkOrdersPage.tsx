@@ -43,6 +43,7 @@ import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
 import { SLA_TARGETS } from "@/lib/sla";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { ShiftFilter } from "@/components/ShiftFilter";
+import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
 
@@ -83,7 +84,8 @@ export default function WorkOrdersPage() {
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
   const [currentPage, setCurrentPage] = useState(1);
   const [printMode, setPrintMode] = useState(false); // when printing, render ALL filtered rows (not just the current page)
-  const [shiftFilter, setShiftFilter] = useState<"ALL" | "DAY" | "NIGHT">("ALL");
+  // Shared with Downtime & Reliability: the same shift on both screens.
+  const [shiftFilter, setShiftFilter] = useOpsShift();
   const [lineFilter, setLineFilter] = useState<string>("all");
 
   // #12 Default period filter is "Today" for every role — no longer forced to "All"
@@ -514,7 +516,7 @@ export default function WorkOrdersPage() {
                   value={drRange}
                   preset={drPreset}
                   onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
-                  storageKey="work-orders"
+                  storageKey={OPS_RANGE_KEY}
                 />
                 <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
               </div>

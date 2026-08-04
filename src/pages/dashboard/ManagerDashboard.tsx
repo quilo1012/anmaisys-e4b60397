@@ -30,6 +30,7 @@ import { RoleShortcutGrid } from "@/components/RoleShortcutGrid";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
 import { DateRangeFilter, DateRangePreset, DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 
 const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 
@@ -281,7 +282,7 @@ function ManagerDashboardContent() {
                 value={kpiRange}
                 preset={kpiPreset}
                 onChange={(r, p) => { setKpiRange(r); setKpiPreset(p); }}
-                storageKey="manager-dashboard"
+                storageKey={OPS_RANGE_KEY}
               />
             }
           >

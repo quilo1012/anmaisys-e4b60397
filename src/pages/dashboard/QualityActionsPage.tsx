@@ -33,6 +33,7 @@ import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
+import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -614,7 +615,7 @@ export function QualityActionsView() {
 
         {/* Filters, in a toolbar card like the Maintenance Orders screen. */}
         <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-3">
-          <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey="quality-period" />
+          <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey={OPS_RANGE_KEY} />
           <Select value={filterSeverity} onValueChange={setFilterSeverity}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>

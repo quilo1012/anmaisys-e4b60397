@@ -27,6 +27,7 @@ import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlann
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 import XLSX from "xlsx-js-style";
+import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 
 /** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
 /** date "yyyy-mm-dd" → "MM/YY" for the compact batch mfg/expiry readout. */
@@ -871,7 +872,7 @@ export default function ShiftHistoryPage() {
                 className="w-full"
                 value={{ from: parseISO(from), to: parseISO(to) }}
                 preset={drPreset}
-                storageKey="shift-history-period"
+                storageKey={OPS_RANGE_KEY}
                 onChange={(r, p) => {
                   setDrPreset(p);
                   // This page speaks yyyy-MM-dd end to end — the queries, the exports

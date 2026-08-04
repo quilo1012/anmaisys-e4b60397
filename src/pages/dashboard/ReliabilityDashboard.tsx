@@ -20,6 +20,7 @@ import { format, subDays, differenceInMinutes, endOfDay, startOfDay, startOfWeek
 import { formatMTBF } from "@/lib/formatDuration";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
+import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 
 const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
   HIGH: { label: "HIGH", className: "bg-red-100 text-red-800 border-red-200" },
@@ -294,7 +295,7 @@ export default function ReliabilityDashboard() {
                 if (r.from) setStartDate(r.from);
                 setEndDate(r.to ?? new Date());
               }}
-              storageKey="reliability"
+              storageKey={OPS_RANGE_KEY}
             />
           </div>
         </div>
