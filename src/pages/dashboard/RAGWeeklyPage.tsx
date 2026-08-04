@@ -2120,12 +2120,14 @@ function DowntimeBreakdownPopover({
                 <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
                   <td className="px-2 py-1.5">
                     {s.source === "WO" && s.ref ? (
-                      <a
-                        href={`/dashboard/work-orders?wo=${encodeURIComponent(s.ref)}`}
+                      // `Link`, not `href`: an anchor reloaded the whole app to show
+                      // one order, throwing away every cached query on the way.
+                      <Link
+                        to={`/dashboard/work-orders?wo=${encodeURIComponent(s.ref)}`}
                         className="font-mono text-2xs text-primary hover:underline"
                       >
                         {woLabel}
-                      </a>
+                      </Link>
                     ) : (
                       <div className="font-mono text-2xs">{woLabel}</div>
                     )}
