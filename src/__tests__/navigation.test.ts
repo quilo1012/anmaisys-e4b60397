@@ -42,6 +42,24 @@ describe("sidebar", () => {
     }
   });
 
+  it("never defines a group holding a single item", () => {
+    // A group of one costs a line of sidebar and a beat of reading and returns
+    // nothing. That is what dissolved Assets, then Reports and Communication.
+    //
+    // Asserted on the group definitions, not on what a role ends up seeing: role
+    // filtering shrinks a group of six down to one on its own — a planner sees a
+    // single row under Maintenance — and no arrangement of this list can prevent it.
+    //
+    // System is the deliberate exception: its one row IS the hub, standing in for
+    // eight screens. Administration likewise holds Users alone, for managers only.
+    const counts = new Map<string, number>();
+    for (const i of navItems) counts.set(i.group, (counts.get(i.group) ?? 0) + 1);
+    for (const [group, n] of counts) {
+      if (group === "System" || group === "Administration") continue;
+      expect(n, `"${group}" is a heading over ${n} item — fold it into another group`).toBeGreaterThan(1);
+    }
+  });
+
   it("gives the System hub exactly one way in", () => {
     const entries = navItems.filter((i) => i.url === "/dashboard/system");
     expect(entries).toHaveLength(1);

@@ -97,11 +97,13 @@ export const navItems: NavItem[] = [
   // so putting it back is this one line.
   { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"], group: "Production", action: "quality.view" },
 
-  // Reports
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Reports", action: "reports.analytics" },
+  // Analytics and Messages sit in Overview rather than each holding a group of its
+  // own. The argument that dissolved Assets applies harder to a group of one: a
+  // heading over a single row costs a line of sidebar and a beat of reading, and
+  // returns nothing. For an admin that is two fewer headings over the same 17 links.
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
-  // Communication
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "operator"], group: "Communication", action: "chat.dm" },
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "operator"], group: "Overview", action: "chat.dm" },
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
@@ -198,6 +200,9 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
   // Assets folded into Maintenance. Machines, Problems and Stock are what maintenance
   // works on — three items in a group of their own bought a heading and a click for
   // nothing, and on a laptop the sidebar ran past the fold.
+  // Reports and Communication held one item each and are gone with them. The names
+  // stay in the list so an item still carrying the old group is rendered rather than
+  // silently dropped from the menu.
   const groups = ["Overview", "Maintenance", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
   const grouped = groups.map((g) => ({
     label: g,
