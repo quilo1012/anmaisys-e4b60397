@@ -105,23 +105,26 @@ export const navItems: NavItem[] = [
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
-  { title: "Users", url: "/users/manage", icon: Users, roles: ["admin", "manager"], group: "Administration", action: "users.manage" },
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
-  { title: "Workforce", url: "/dashboard/workforce", icon: UsersRound, roles: ["admin"], group: "Administration", action: "workforce.view" },
 
-  // System — the audit trail and the iTouching integration.
+  // Setup, integrations and the audit trail, behind one door.
   //
-  // Stop Codes decides which iTouching stops open a maintenance order, so it has to
-  // be findable; it existed as a route and a home-screen card but was missing from
-  // this sidebar entirely.
-  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: Shield, roles: ["admin"], group: "System", action: "audit.view" },
-  { title: "iTouching Sync", url: "/dashboard/intouch-settings", icon: Radar, roles: ["admin"], group: "System", action: "intouch.manage" },
-  { title: "iTouching Machines", url: "/dashboard/intouch-machines", icon: Radio, roles: ["admin"], group: "System", action: "intouch.manage" },
-  { title: "iTouching Stop Codes", url: "/dashboard/intouch-stop-codes", icon: Radar, roles: ["admin"], group: "System", action: "intouch.manage" },
+  // These eight were eight sidebar rows — a third of the menu — for screens somebody
+  // opens when something needs configuring, not screens they work in. They pushed the
+  // daily work down past the fold, which is backwards: a menu should be shortest for
+  // what is used most.
+  //
+  // The hub also does what the sidebar could not, which is say what each one is for.
+  // "iTouching Stop Codes" gives away nothing about deciding which alarms call out an
+  // engineer, and that decision is exactly why WO-639 and WO-640 were ever raised.
+  //
+  // Every route still exists and is still reachable directly; only the way in moved.
+  { title: "System", url: "/dashboard/system", icon: SettingsIcon, roles: ["admin"], group: "System" },
 
-  // Permissions is reached from inside Settings (avoids the duplicate entry).
-  { title: "Settings", url: "/dashboard/settings", icon: SettingsIcon, roles: ["admin"], group: "System", action: "system.settings" },
-  { title: "Root Diagnostics", url: "/dashboard/root-diagnostics", icon: Radar, roles: ["admin"], group: "System" },
+  // Users stays in the sidebar for managers, who can reach it but have no business
+  // in the rest of the hub. Folding it in would have cost them the link or given
+  // them the audit trail and the integration settings to go with it.
+  { title: "Users", url: "/users/manage", icon: Users, roles: ["manager"], group: "Administration", action: "users.manage" },
 ];
 
 

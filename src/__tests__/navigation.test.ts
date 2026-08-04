@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { navItems } from "@/components/DashboardLayout";
+import { SYSTEM_TOOLS } from "@/pages/dashboard/SystemHubPage";
 import { can, type Role } from "@/lib/permissions";
 
 /**
  * The sidebar's shape, asserted rather than assumed.
  *
- * Infrastructure lives under System and nowhere else. The risk is not that today's
+ * Infrastructure lives behind the System hub and nowhere else. The risk is not that today's
  * menu is wrong — it is that the next integration screen gets added with
  * `roles: ["admin", "manager"]` and quietly appears in a production manager's
  * sidebar. That is the failure these tests are here to catch.
@@ -21,12 +22,39 @@ const SYSTEM_ONLY = [
 ];
 
 describe("sidebar", () => {
-  it("keeps infrastructure screens in the System group", () => {
+  it("keeps infrastructure screens in the System hub", () => {
     for (const title of SYSTEM_ONLY) {
-      const item = navItems.find((i) => i.title === title);
-      expect(item, `${title} is missing from the sidebar`).toBeTruthy();
-      expect(item!.group).toBe("System");
+      expect(
+        SYSTEM_TOOLS.find((t) => t.title === title),
+        `${title} is missing from the System hub`,
+      ).toBeTruthy();
     }
+  });
+
+  it("keeps infrastructure screens out of the sidebar entirely", () => {
+    // The point of the hub is one row, not eight. A screen quietly re-added to the
+    // sidebar would undo it without anyone noticing.
+    for (const title of SYSTEM_ONLY) {
+      expect(
+        navItems.find((i) => i.title === title),
+        `${title} is back in the sidebar — it belongs in the System hub`,
+      ).toBeFalsy();
+    }
+  });
+
+  it("gives the System hub exactly one way in", () => {
+    const entries = navItems.filter((i) => i.url === "/dashboard/system");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].group).toBe("System");
+  });
+
+  it("leaves managers a route to Users without the rest of the hub", () => {
+    // A manager can manage users and has no business in the audit trail or the
+    // integration settings. Folding Users into the hub would have cost them the link
+    // or handed them everything else with it.
+    const users = navItems.filter((i) => i.url === "/users/manage");
+    expect(users.some((i) => i.roles.includes("manager"))).toBe(true);
+    expect(users.every((i) => i.group !== "System")).toBe(true);
   });
 
   it("shows nothing under System to anyone but an admin", () => {
