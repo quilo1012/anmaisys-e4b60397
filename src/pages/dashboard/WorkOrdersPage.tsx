@@ -77,6 +77,24 @@ export default function WorkOrdersPage() {
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("today"));
   const [drPreset, setDrPreset] = useState<DateRangePreset>("today");
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
+
+  /**
+   * `?wo=799` — one order, asked for by name.
+   *
+   * Links from the downtime breakdown and the RAG grid have always carried this, and
+   * this page has always ignored it: you clicked a specific stoppage and landed on
+   * the whole list, on today, with the order you wanted usually filtered out by the
+   * date range. It is treated as a filter of its own rather than as a search term,
+   * so it survives every other filter and cannot half-match — "799" must not also
+   * bring back 1799.
+   */
+  const woParam = searchParams.get("wo");
+  const pinnedWo = woParam && /^\d+$/.test(woParam) ? Number(woParam) : null;
+  const clearPinnedWo = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("wo");
+    setSearchParams(next, { replace: true });
+  };
   
   const [problemFilter, setProblemFilter] = useState<string>("all");
   const [machineFilter, setMachineFilter] = useState<string>("all");
@@ -246,6 +264,11 @@ export default function WorkOrdersPage() {
     if (!workOrders) return [];
     let filtered = workOrders;
     const now = new Date();
+    // Asked for by number, so nothing else gets to hide it — least of all the date
+    // range, which defaults to today and is what swallowed the order most of the time.
+    if (pinnedWo !== null) {
+      return filtered.filter((w) => Number(w.wo_number) === pinnedWo);
+    }
     if (drRange.from) {
       const fromMs = drRange.from.getTime();
       filtered = filtered.filter((w) => new Date(w.created_at).getTime() >= fromMs);
@@ -306,7 +329,7 @@ export default function WorkOrdersPage() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
     return filtered;
-  }, [workOrders, drRange, problemFilter, machineFilter, lineFilter, lineStoppedFilter, typeFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter]);
+  }, [workOrders, drRange, problemFilter, machineFilter, lineFilter, lineStoppedFilter, typeFilter, searchTerm, lineNameMap, machineLineMap, shiftFilter, statusFilter, pinnedWo]);
 
   const typeCounts = useMemo(() => {
     const rows = (workOrders ?? []) as any[];
@@ -486,6 +509,21 @@ export default function WorkOrdersPage() {
             </>
           }
         />
+
+        {/* Said out loud, because one row where a list usually is reads as a broken
+            filter. It also has to be undoable in one click — arriving here from a
+            stoppage often ends with wanting the rest of the day too. */}
+        {pinnedWo !== null && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs print:hidden">
+            <span className="font-medium">
+              Showing one order: <span className="font-mono font-semibold">WO #{pinnedWo}</span>
+            </span>
+            <span className="text-muted-foreground">All other filters are ignored while it is pinned.</span>
+            <Button variant="outline" size="sm" className="ml-auto h-7 text-xs" onClick={clearPinnedWo}>
+              Show all orders
+            </Button>
+          </div>
+        )}
 
         <Card>
           {/* Whole toolbar off the paper: the buttons were already dropped by the print
