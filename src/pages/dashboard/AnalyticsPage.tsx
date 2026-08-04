@@ -129,7 +129,10 @@ export default function AnalyticsPage() {
   const { data: products, isLoading: productsLoading } = useProducts();
   const { data: machines, isLoading: machinesLoading } = useMachines();
   const { data: linesData } = useLines();
-  const { data: engineerScores, isLoading: scoresLoading } = useEngineerScores();
+  // The stored scores are no longer what ranks anybody — the ranking is computed
+  // from the period below. Kept only for its loading flag, which still gates the
+  // page spinner alongside the other queries.
+  const { isLoading: scoresLoading } = useEngineerScores();
   const { data: woMetricsRange, isLoading: metricsLoading } = useAllWoMetrics({ from: startDate, to: endDate });
 
   // Quality actions in the selected date range → Quality Analytics section.
@@ -668,12 +671,36 @@ export default function AnalyticsPage() {
   }, [allWOs, metricsById]);
 
 
-  // Merge ranking with scores
+  /**
+   * The ranking, scored on the period being looked at.
+   *
+   * `engineer_scores.score` used to decide this, and it is a lifetime accumulator
+   * that is never recalculated: +10 for a fast response, +20 for a fast repair, −15
+   * and −30 for missing the targets, clamped to 0–100. Because it accumulates and
+   * stops at 100, everybody reaches the ceiling and stays there, where the rewards do
+   * nothing and only the penalties still bite. On 04/08 seven engineers read exactly
+   * 100 and Lucas Bombo read 85 — one missed response SLA, once, at some point since
+   * he hit the cap. It ranked him last for it while telling nobody why, and it showed
+   * all eight a score on a day none of them had completed anything.
+   *
+   * Scored from the same two numbers the maintenance KPIs use, over the same period,
+   * so the ranking can be checked against the columns printed beside it.
+   */
   const rankedEngineers = useMemo(() => {
-    const scoreMap: Record<string, number> = {};
-    engineerScores?.forEach((s) => { scoreMap[s.engineer_name || ""] = s.score; });
-    return engineerPerformance.map((e) => ({ ...e, score: scoreMap[e.name] ?? 0 })).sort((a, b) => b.score - a.score);
-  }, [engineerPerformance, engineerScores]);
+    // Half the score for answering, half for fixing. Full marks at the target, none
+    // at four times it, straight line between — a shape somebody can argue with,
+    // which the old one was not.
+    const band = (value: number, target: number) =>
+      Math.max(0, Math.min(50, Math.round(50 * (1 - (value - target) / (target * 3)))));
+    return engineerPerformance
+      .map((e) => ({
+        ...e,
+        // No completed orders in the period is not a zero and not a hundred: there is
+        // nothing to score, and saying so is more use than a number nobody earned.
+        score: e.completed === 0 ? null : band(e.avgResponse, 30) + band(e.avgMTTR, 60),
+      }))
+      .sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || b.completed - a.completed);
+  }, [engineerPerformance]);
 
   return (
     <DashboardLayout>
@@ -1115,7 +1142,7 @@ export default function AnalyticsPage() {
                       <div key={eng.name} className="flex flex-col items-center">
                         {medals[i]}
                         <p className="text-sm font-bold mt-1">{eng.name}</p>
-                        <p className="text-lg font-bold text-primary">{eng.score}</p>
+                        <p className="text-lg font-bold text-primary">{eng.score ?? "—"}</p>
                         <div className={`w-20 ${heights[i]} bg-primary/20 rounded-t-lg flex items-end justify-center pb-1`}>
                           <span className="text-xs text-muted-foreground">{eng.completed} WOs</span>
                         </div>
@@ -1144,13 +1171,24 @@ export default function AnalyticsPage() {
                           <td className="px-3 py-2 font-bold">{i + 1}</td>
                           <td className="px-3 py-2 font-medium">{eng.name}</td>
                           <td className="px-3 py-2 text-center">
-                            <Badge variant={eng.score >= 0 ? "default" : "destructive"}>{eng.score}</Badge>
+                            {/* Nothing completed in the period is not a zero: there is
+                                nothing to score, and a badge reading 0 accuses somebody
+                                of a bad month they did not have. */}
+                            {eng.score === null ? (
+                              <span className="text-xs text-muted-foreground">no orders</span>
+                            ) : (
+                              <Badge variant={eng.score >= 75 ? "default" : "destructive"}>{eng.score}</Badge>
+                            )}
                           </td>
                           <td className="px-3 py-2 text-center">{eng.completed}</td>
                           <td className="px-3 py-2 text-center">{fmtMin(eng.avgResponse)}</td>
                           <td className="px-3 py-2 text-center">{fmtMin(eng.avgMTTR)}</td>
                           <td className="px-3 py-2 text-center">
-                            {eng.score > 0 ? <TrendingUp className="h-4 w-4 text-green-500 inline" /> : eng.score < 0 ? <TrendingDown className="h-4 w-4 text-red-500 inline" /> : <span className="text-muted-foreground">—</span>}
+                            {/* Against the targets, not against zero: the old test was
+                                `score > 0`, which pointed the arrow up for everybody. */}
+                            {eng.score === null ? <span className="text-muted-foreground">—</span>
+                              : eng.score >= 75 ? <TrendingUp className="h-4 w-4 text-green-500 inline" />
+                              : <TrendingDown className="h-4 w-4 text-red-500 inline" />}
                           </td>
                         </tr>
                       ))}
