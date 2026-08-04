@@ -1,6 +1,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
+import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 import {
   Sidebar,
   SidebarContent,
@@ -163,6 +164,13 @@ function LiveClock() {
       <span className="hidden sm:inline font-semibold text-foreground">{timeLong}</span>
       <span className="mx-2 hidden md:inline">—</span>
       <span className="hidden md:inline">{date}</span>
+      {/* The shift used to live in the greeting banner on every landing screen. The
+          banner is gone; this is the one fact in it that was not already here, and
+          on a system where a night starting Monday is filed under Monday, knowing
+          which shift you are looking at is not decoration. */}
+      <span className="ml-2 hidden rounded bg-muted px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider lg:inline">
+        {SHIFT_LABEL[getCurrentFactoryShift().shiftCode]}
+      </span>
     </div>
   );
 }

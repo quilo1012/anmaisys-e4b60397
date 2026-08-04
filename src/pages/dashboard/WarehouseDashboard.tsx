@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
-import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { useMachines, useDistinctMachineValues } from "@/hooks/useMachines";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -162,7 +161,6 @@ export default function WarehouseDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <DashboardWelcome />
 
         <PageHeader
           title="Warehouse Admin"

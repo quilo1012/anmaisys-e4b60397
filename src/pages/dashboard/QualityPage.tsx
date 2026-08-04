@@ -1,6 +1,5 @@
 import { ShieldCheck } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { QualityActionsView } from "./QualityActionsPage";
 
@@ -9,7 +8,6 @@ export default function QualityPage() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Landing screen for the quality supervisor — same opening. */}
-        <DashboardWelcome />
 
         {/* The system's page header, like every other screen — the page had a bare
             icon and title with no description. */}

@@ -25,7 +25,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { FactoryStatusStrip } from "@/components/FactoryStatusStrip";
 import { ControlCentreHome } from "@/components/ControlCentreHome";
-import { DashboardWelcome } from "@/components/DashboardWelcome";
 import { RoleShortcutGrid } from "@/components/RoleShortcutGrid";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { isWoOpen, countOpenWOs } from "@/lib/woStatus";
@@ -183,7 +182,6 @@ function ManagerDashboardContent() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <DashboardWelcome />
 
         {/* The four things that need a person right now — same strip, same numbers,
             wherever you land. */}
