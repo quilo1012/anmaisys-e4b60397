@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -114,11 +116,27 @@ function StaleBadge({ wo }: { wo: any }) {
 }
 
 // Inline checklist component for in_progress WOs
+//
+// Built for a tablet held in a gloved hand under factory light, which is why the
+// whole row is the target rather than the 16px box inside it, and why the state of
+// an item is carried by colour and a filled icon instead of a tick you have to look
+// for. Nothing here changed about what is saved: same hooks, same payload, same
+// `completed` boolean.
 function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: EngineerIdentity | null }) {
-  const { data: checklistItems } = useChecklistsByProblemName(wo.description);
+  const { data: checklistItems, isLoading } = useChecklistsByProblemName(wo.description);
   const { data: responses } = useChecklistResponses(wo.id);
   const saveResponse = useSaveChecklistResponse();
 
+  if (isLoading) {
+    return (
+      <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-11 w-full" />
+        <Skeleton className="h-11 w-full" />
+        <Skeleton className="h-11 w-3/4" />
+      </div>
+    );
+  }
   if (!checklistItems || checklistItems.length === 0) return null;
 
   const responseMap = new Map(responses?.map(r => [r.checklist_id, r]) || []);
@@ -140,44 +158,80 @@ function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: En
 
   const completedCount = checklistItems.filter(i => responseMap.get(i.id)?.completed).length;
   const requiredIncomplete = checklistItems.filter(i => i.is_required && !responseMap.get(i.id)?.completed);
+  const pct = Math.round((completedCount / checklistItems.length) * 100);
 
   return (
-    <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-semibold flex items-center gap-1.5">
-          <ClipboardList className="h-4 w-4" /> Checklist
-        </h4>
-        <Badge variant={requiredIncomplete.length > 0 ? "destructive" : "default"} className="text-xs">
-          {completedCount}/{checklistItems.length} ✓
-        </Badge>
-      </div>
-      {Object.entries(grouped).map(([type, items]) => (
-        <div key={type} className="space-y-1.5">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wider">{type}</p>
-          {items.map((item) => {
-            const resp = responseMap.get(item.id);
-            const isChecked = resp?.completed ?? false;
-            return (
-              <div key={item.id} className="flex items-center gap-3 min-h-[40px]">
-                <Checkbox
-                  id={`inline-cl-${item.id}`}
-                  checked={isChecked}
-                  onCheckedChange={(checked) => handleToggle(item.id, !!checked)}
-                />
-                <Label htmlFor={`inline-cl-${item.id}`} className="cursor-pointer text-sm flex-1">
-                  {item.description}
-                  {item.is_required && <span className="text-destructive-strong ml-1">*</span>}
-                </Label>
-              </div>
-            );
-          })}
+    <div className="overflow-hidden rounded-lg border bg-muted/30">
+      {/* Stays put while the list scrolls: on a long checklist the count was the
+          first thing off the top of the screen, and it is the only number anyone
+          is actually tracking. */}
+      <div className="sticky top-0 z-10 border-b bg-background/95 px-3 py-2 backdrop-blur">
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="flex items-center gap-1.5 text-sm font-semibold">
+            <ClipboardList className="h-4 w-4" /> Checklist
+          </h4>
+          <Badge
+            variant={requiredIncomplete.length > 0 ? "destructive" : "default"}
+            className="font-mono text-xs tabular-nums"
+          >
+            {completedCount}/{checklistItems.length}
+          </Badge>
         </div>
-      ))}
-      {requiredIncomplete.length > 0 && (
-        <p className="text-xs text-destructive-strong font-medium flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" /> {requiredIncomplete.length} required item(s) incomplete — Finish blocked
-        </p>
-      )}
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar"
+             aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Checklist progress">
+          <div
+            className={cn("h-full transition-all duration-300",
+              requiredIncomplete.length > 0 ? "bg-amber-500" : "bg-emerald-500")}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3 p-3">
+        {Object.entries(grouped).map(([type, items]) => (
+          <div key={type} className="space-y-1">
+            <p className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">{type}</p>
+            {items.map((item) => {
+              const resp = responseMap.get(item.id);
+              const isChecked = resp?.completed ?? false;
+              return (
+                <label
+                  key={item.id}
+                  htmlFor={`inline-cl-${item.id}`}
+                  className={cn(
+                    // 44px and the whole row: a 16px checkbox is not a target for
+                    // somebody wearing gloves.
+                    "flex min-h-[44px] cursor-pointer items-center gap-3 rounded-md border px-2.5 py-1.5 transition-colors",
+                    isChecked
+                      ? "border-emerald-500/40 bg-emerald-500/10"
+                      : item.is_required
+                        ? "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10"
+                        : "border-transparent hover:bg-muted",
+                  )}
+                >
+                  <Checkbox
+                    id={`inline-cl-${item.id}`}
+                    checked={isChecked}
+                    onCheckedChange={(checked) => handleToggle(item.id, !!checked)}
+                    className="h-5 w-5"
+                  />
+                  <span className={cn("flex-1 text-sm leading-snug", isChecked && "text-muted-foreground line-through")}>
+                    {item.description}
+                    {item.is_required && <span className="ml-1 font-bold text-destructive-strong">*</span>}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        ))}
+
+        {requiredIncomplete.length > 0 && (
+          <p className="flex items-center gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs font-medium text-destructive-strong">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {requiredIncomplete.length} required item{requiredIncomplete.length === 1 ? "" : "s"} incomplete — Finish blocked
+          </p>
+        )}
+      </div>
     </div>
   );
 }
