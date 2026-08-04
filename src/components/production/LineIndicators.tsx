@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { severityPoints } from "@/lib/qualityConstants";
+import { shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columns newer than the generated types
@@ -37,13 +38,18 @@ export function LineIndicators({
   const { data: quality = [] } = useQuery({
     queryKey: ["line-ind-quality", from, to, shift],
     queryFn: async () => {
+      const window = shiftDateFetchRange(from, to);
       let q = db.from("quality_actions")
-        .select("line, severity, validation_status, closed_at, labels, shift")
-        .gte("recorded_at", from).lte("recorded_at", `${to}T23:59:59.999`);
+        .select("line, severity, validation_status, closed_at, labels, shift, recorded_at")
+        .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
       if (shift && shift !== "ALL") q = q.eq("shift", shift);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as Array<{ line: string | null; severity: string | null; validation_status: string | null; closed_at: string | null }>;
+      return ((data ?? []) as Array<{ line: string | null; severity: string | null; validation_status: string | null; closed_at: string | null; shift: string | null; recorded_at: string }>)
+        .filter((a) => {
+          const day = shiftSessionDate(a.recorded_at, a.shift);
+          return day >= from && day <= to;
+        });
     },
   });
 

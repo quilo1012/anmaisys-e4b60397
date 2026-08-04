@@ -21,6 +21,7 @@ import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
 import { format, subDays } from "date-fns";
+import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
@@ -183,9 +184,13 @@ export function QualityActionsView() {
   const { data: actions = [] } = useQuery({
     queryKey: ["quality_actions", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase.from("quality_actions").select("*").gte("recorded_at", from).lte("recorded_at", `${to}T23:59:59`).order("recorded_at", { ascending: false });
+      const window = shiftDateFetchRange(from, to);
+      const { data, error } = await supabase.from("quality_actions").select("*").gte("recorded_at", window.gte).lte("recorded_at", window.lte).order("recorded_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as QualityAction[];
+      return ((data ?? []) as unknown as QualityAction[]).filter((a) => {
+        const day = shiftSessionDate(a.recorded_at, a.shift);
+        return day >= from && day <= to;
+      });
     },
   });
 
@@ -432,13 +437,17 @@ export function QualityActionsView() {
   // One-tap report of TODAY's actions, independent of the date-range filter —
   // it queries today directly so it's right even if the filter is on a past range.
   const printDaily = async () => {
-    const day = format(new Date(), "yyyy-MM-dd");
+    // "Today" is the factory's day, not the calendar's: at 02:00 the night crew is
+    // still working the day before, and the report they ask for is theirs.
+    const day = getCurrentFactoryShift().sessionDate;
     try {
+      const window = shiftDateFetchRange(day, day);
       const { data, error } = await supabase.from("quality_actions").select("*")
-        .gte("recorded_at", day).lte("recorded_at", `${day}T23:59:59`)
+        .gte("recorded_at", window.gte).lte("recorded_at", window.lte)
         .order("recorded_at", { ascending: false });
       if (error) throw error;
-      const rows = (data ?? []) as unknown as QualityAction[];
+      const rows = ((data ?? []) as unknown as QualityAction[])
+        .filter((a) => shiftSessionDate(a.recorded_at, a.shift) === day);
       if (rows.length === 0) { toast.info("No quality actions logged today"); return; }
       await generateQualityReportPDF({
         actions: rows.map((a) => ({
