@@ -533,15 +533,6 @@ export default function ProductionPerformancePage() {
           );
         })()}
 
-        {/* Everything measured per line, and — just as important for a director
-            asking whether the data exists — everything that is not. */}
-        <LineIndicators
-          lines={sortedByLine.map((l) => ({ line: l.line, target: l.target, actual: l.actual, eff: l.eff }))}
-          from={range.from}
-          to={range.to}
-          shift={shift === "all" ? "ALL" : shift}
-        />
-
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedByLine.map((l) => {
 
@@ -675,6 +666,16 @@ export default function ProductionPerformancePage() {
             );
           })}
         </div>
+        {/* Below the lines, not above them.
+            It is a key and a gap report — what the colours mean and which lines have
+            no data — and both are read after the boards, not before. Above them it
+            pushed the thing the screen exists for below the fold. */}
+        <LineIndicators
+          lines={sortedByLine.map((l) => ({ line: l.line, target: l.target, actual: l.actual, eff: l.eff }))}
+          from={range.from}
+          to={range.to}
+          shift={shift === "all" ? "ALL" : shift}
+        />
         </>
         )}
       </div>
