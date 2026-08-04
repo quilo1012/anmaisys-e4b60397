@@ -511,18 +511,31 @@ export default function WorkOrderDetail() {
             return acc + differenceInSeconds(new Date(), new Date(e.stopped_at));
           }, 0);
 
-          const stopCount = downtimeEvents.length + (hasOperatorStop ? 1 : 0);
+          // The operator's stop and the first event are the same stoppage.
+          //
+          // `wo_auto_insert_downtime_event` writes an event FROM `line_stopped_at`, so
+          // adding the two counted one stoppage twice: WO-804 stopped Line 4 once at
+          // 16:48 and this card read "2 stoppages · 0h 23m" at 17:00, while the stop
+          // history directly underneath it read "1 stop · 0h 11m". Eleven minutes,
+          // counted twice, on the same screen.
+          //
+          // The events are the record — every other view is built on them, and this is
+          // the same rule `v_wo_metrics.line_downtime_sec` follows. The order's own
+          // timestamps are the fallback for orders old enough to have no event at all.
+          const useEvents = downtimeEvents.length > 0;
+          const stopCount = useEvents ? downtimeEvents.length : (hasOperatorStop ? 1 : 0);
           // Team-activity exclusions (break / filling blender / brushing & cleaning)
           // are subtracted from the order's downtime; the raw records stay intact.
           const exclusionIvs = toExclusionIntervals(woExclusions);
           let excludedMin = 0;
-          if (hasOperatorStop) {
+          if (useEvents) {
+            downtimeEvents.forEach((e) => {
+              excludedMin += subtractExclusionMinutes(e.stopped_at, e.resumed_at, exclusionIvs);
+            });
+          } else if (hasOperatorStop) {
             excludedMin += subtractExclusionMinutes(operatorStopStart, operatorStopEnd, exclusionIvs);
           }
-          downtimeEvents.forEach((e) => {
-            excludedMin += subtractExclusionMinutes(e.stopped_at, e.resumed_at, exclusionIvs);
-          });
-          const grossDowntimeSec = operatorDowntimeSec + engineerDowntimeSec;
+          const grossDowntimeSec = useEvents ? engineerDowntimeSec : operatorDowntimeSec;
           const totalDowntimeSec = Math.max(0, grossDowntimeSec - excludedMin * 60);
           const lineOperating = !((wo as any).line_stopped && !(wo as any).line_resumed_at);
           return (
