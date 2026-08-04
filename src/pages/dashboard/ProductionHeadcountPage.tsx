@@ -145,10 +145,10 @@ function initials(name: string) {
  * side by side are one board twice the size, and the eye has to read a heading to
  * know which factory it is looking at.
  */
-const LOOK: Record<string, { icon: typeof Sun; banner: string; soft: string; ink: string }> = {
-  Day: { icon: Sun, banner: "from-amber-600 to-amber-400", soft: "bg-amber-500/10", ink: "text-warning-strong" },
-  Night: { icon: Moon, banner: "from-indigo-900 to-indigo-500", soft: "bg-indigo-500/10", ink: "text-indigo-700 dark:text-indigo-300" },
-  Weekend: { icon: CalendarDays, banner: "from-teal-800 to-teal-500", soft: "bg-teal-500/10", ink: "text-teal-700 dark:text-teal-300" },
+const LOOK: Record<string, { icon: typeof Sun; rule: string; chip: string; soft: string; ink: string }> = {
+  Day: { icon: Sun, rule: "border-l-amber-500", chip: "bg-amber-500/15 text-warning-strong", soft: "bg-amber-500/10", ink: "text-warning-strong" },
+  Night: { icon: Moon, rule: "border-l-indigo-500", chip: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300", soft: "bg-indigo-500/10", ink: "text-indigo-700 dark:text-indigo-300" },
+  Weekend: { icon: CalendarDays, rule: "border-l-teal-500", chip: "bg-teal-500/15 text-teal-700 dark:text-teal-300", soft: "bg-teal-500/10", ink: "text-teal-700 dark:text-teal-300" },
 };
 
 /**
@@ -481,20 +481,24 @@ function ShiftBoard({
 
   return (
     <div className="space-y-4">
-      {/* The shift banner: says whose board this is before a single column is read. */}
-      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl bg-gradient-to-r px-4 py-3 text-white", look.banner)}>
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/20">
-          <ShiftIcon className="h-5 w-5" />
+      {/* Says whose board this is before a single column is read.
+          It used to be a full-width colour slab in white type. The colour is doing
+          real work — in Split the two boards are otherwise identical grids side by
+          side — so it stays, as a rule down the edge and a tinted icon rather than
+          the loudest thing on the screen. */}
+      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl border border-l-4 bg-card px-4 py-2.5", look.rule)}>
+        <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", look.chip)}>
+          <ShiftIcon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-base font-extrabold leading-tight">{shift} shift</h3>
-          <div className="truncate text-2xs font-medium text-white/95">{dayTypeLabel(onDate)}</div>
+          <h3 className="text-sm font-bold leading-tight">{shift} shift</h3>
+          <div className="truncate text-2xs text-muted-foreground">{dayTypeLabel(onDate)}</div>
         </div>
         <div className="ml-auto flex items-center gap-3">
           <Button
             size="sm"
-            variant="secondary"
-            className="print:hidden"
+            variant="outline"
+            className="h-8 print:hidden"
             onClick={() => setShowAll((v) => !v)}
             title={showAll ? "Only the people the rota puts in today" : "Everyone on this shift, rota or not"}
           >
@@ -502,17 +506,17 @@ function ShiftBoard({
             {showAll ? "Only today's rota" : "Show everyone"}
           </Button>
           <div className="relative print:hidden">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/80" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={find}
               onChange={(e) => setFind(e.target.value)}
               placeholder="Find a person…"
               aria-label="Find a person on the board"
-              className="h-9 w-44 border-white/30 bg-white/15 pl-8 text-sm text-white placeholder:text-white/70"
+              className="h-8 w-44 pl-8 text-xs"
             />
           </div>
           {canManage && (
-            <Button size="sm" variant="secondary" className="print:hidden" onClick={() => copyLastLikeDay.mutate()} disabled={copyLastLikeDay.isPending}>
+            <Button size="sm" variant="outline" className="h-8 print:hidden" onClick={() => copyLastLikeDay.mutate()} disabled={copyLastLikeDay.isPending}>
               <CopyPlus className="mr-2 h-4 w-4" />
               Copy from last same day
             </Button>
@@ -521,20 +525,20 @@ function ShiftBoard({
               46 assigned out of 82 due in is a shift half planned, and "46" alone
               reads like the whole answer. The rest of the rota is named underneath so
               nobody has to work out where the other 36 went. */}
-          <div className="rounded-xl bg-black/20 px-3 py-2 text-right">
+          <div className={cn("rounded-lg px-3 py-1.5 text-right", look.soft)}>
             <div className="flex items-baseline justify-end gap-1.5">
-              <b className="font-mono text-2xl font-extrabold leading-none tabular-nums">{assignedCount}</b>
-              <span className="text-2xs font-bold uppercase tracking-wider text-white/95">
+              <b className={cn("font-mono text-xl font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
+              <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
                 / {roster.length} {showAll ? "on this shift" : "on the rota"}
               </span>
             </div>
-            <div className="mt-1.5 h-1.5 w-40 overflow-hidden rounded-full bg-black/30">
+            <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-border">
               <div
-                className="h-full rounded-full bg-white"
+                className={cn("h-full rounded-full", look.rule.replace("border-l-", "bg-"))}
                 style={{ width: `${roster.length ? Math.min(100, (assignedCount / roster.length) * 100) : 0}%` }}
               />
             </div>
-            <div className="mt-1.5 text-2xs font-medium text-white/95">
+            <div className="mt-1 text-2xs text-muted-foreground">
               {unassigned.length} unallocated · {away} away
             </div>
           </div>
@@ -579,7 +583,9 @@ function ShiftBoard({
           }}
         >
         <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
+        {/* Three blocks sharing the width, not three 200px cards against the left edge:
+          auto-fill left an empty track on anything wider than a laptop. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
