@@ -87,8 +87,23 @@ export function useDowntime() {
       const woIdsWithEvents = new Set(
         (eventData || []).map((e: any) => e.work_order_id),
       );
+      // An order with an event on ANY day, not just in the window fetched above.
+      // Otherwise the fallback synthesises a stoppage from the order's line-stop gap,
+      // and a force-close at a shift boundary stretches that gap far past the real
+      // downtime — 179 recorded minutes reappearing as a phantom twelve hours.
+      const candidateIds = (woData || []).map((w: any) => w.id);
+      let idsWithAnyEvent = woIdsWithEvents;
+      if (candidateIds.length > 0) {
+        const { data: anyEv } = await (supabase as any)
+          .from("downtime_events").select("work_order_id").in("work_order_id", candidateIds);
+        idsWithAnyEvent = new Set([
+          ...woIdsWithEvents,
+          ...((anyEv || []) as { work_order_id: string }[]).map((e) => e.work_order_id),
+        ]);
+      }
+
       const woRecords: DowntimeRecord[] = (woData || [])
-        .filter((w: any) => !woIdsWithEvents.has(w.id))
+        .filter((w: any) => !idsWithAnyEvent.has(w.id))
         .map((w: any) => ({
           id: `wo-${w.id}`,
           source: "wo_event" as const,

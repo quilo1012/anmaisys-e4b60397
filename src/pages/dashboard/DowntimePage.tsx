@@ -623,9 +623,18 @@ export default function DowntimePage() {
       const t = new Date(r.started_at).getTime();
       return t >= rangeStartMs && t <= rangeEndMs;
     });
-    const lineCount: Record<string, number> = {};
-    rangeRecords.forEach(r => { lineCount[r.line] = (lineCount[r.line] || 0) + 1; });
-    const mostAffected = Object.entries(lineCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+    // Most affected = the most minutes lost, not the most stoppages.
+    //
+    // This counted rows: on 04/08 it named Line 4, which had three short stops
+    // totalling seventeen minutes, over Line 1, which lost two hours and seven. The
+    // card sits beside Total Downtime and reads as "where the time went", so counting
+    // frequency answered a question nobody asked with the label of one they did.
+    const lineMinutes: Record<string, number> = {};
+    rangeRecords.forEach((r) => {
+      lineMinutes[r.line] = (lineMinutes[r.line] || 0)
+        + reconcileMinutes(netStopsOf(r), rangeStartMs, rangeEndMs, nowMs);
+    });
+    const mostAffected = Object.entries(lineMinutes).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
 
     return { totalRange, active, avgDuration, mostAffected };
     // eslint-disable-next-line react-hooks/exhaustive-deps
