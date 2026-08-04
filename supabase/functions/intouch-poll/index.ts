@@ -631,12 +631,31 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // If the code has no mapping at all, still open a WO (don't drop the stop).
-      // Only skip when an admin explicitly marked requires_wo = false — read from
-      // the full map, so deactivating a code does not silently revoke that decision.
+      // Two reasons not to raise an order, and both have to be checked here rather
+      // than left to the database.
+      //
+      // `requires_wo = false` is an admin's standing decision, read from the full map
+      // so deactivating a code does not silently revoke it.
+      //
+      // An unmapped code is the one that used to freeze a machine. This comment said
+      // "still open a WO, don't drop the stop" — but `enforce_intouch_wo_requires_maintenance_code`
+      // refuses exactly that insert and returns NULL, so the row never appears, the
+      // `.single()` below fails with "Cannot coerce the result to a single JSON
+      // object", the loop hits `continue`, and the machine's state is never written.
+      // Every minute, for ever. Filler Line 5 sat like that from 16:50 on 04/08 while
+      // its stop code — "Filling Blender/ Blending" — was missing from the map, and
+      // Line 1's order went on reading "Electrical Stop" because nothing about that
+      // machine could be updated either.
+      //
+      // The database is the authority on this, so the poll stops arguing with it and
+      // says plainly what it saw instead.
       const decided = codeDecision.get(codeKey);
       if (decided && decided.requires_wo === false) {
         results.skipped.push(`${m.intouch_machine_name} (${codeName} flagged production-only)`);
+        continue;
+      }
+      if (!decided) {
+        results.skipped.push(`${m.intouch_machine_name} (${codeName} is not in the stop code map — no order raised)`);
         continue;
       }
 
@@ -835,9 +854,14 @@ Deno.serve(async (req) => {
           line_stopped_at: now,
         })
         .select("id, wo_number")
-        .single();
-      if (woErr) {
-        results.errors.push(`${m.intouch_machine_name}: ${woErr.message}`);
+        .maybeSingle();
+      if (woErr || !wo) {
+        // maybeSingle rather than single: a trigger that refuses the row returns
+        // nothing, and "Cannot coerce the result to a single JSON object" told
+        // nobody that a stop code was unmapped.
+        results.errors.push(
+          `${m.intouch_machine_name}: ${woErr?.message ?? `order refused for ${codeName} — check the stop code mapping`}`,
+        );
         continue;
       }
       results.opened_wos.push({ machine: m.machine_name ?? m.intouch_machine_name ?? "?", wo: String(wo.wo_number) });
