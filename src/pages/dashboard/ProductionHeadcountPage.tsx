@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronLeft, ChevronRight, Printer, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Download, Upload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +29,7 @@ import {
   type HeadcountArea,
   type HeadcountEmployee,
 } from "@/hooks/useHeadcount";
+import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialog";
 
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
 let draggedEmployeeId: string | null = null;
@@ -746,11 +748,18 @@ function ShiftBoard({
 }
 
 export default function ProductionHeadcountPage() {
+  const qc = useQueryClient();
   const { can } = useRole();
   const canManage = can("headcount.manage");
   const [date, setDate] = useState<string>(() => toISO(new Date()));
   const [view, setView] = useState<ViewKey>("Day");
   const { data: areas = [], isLoading } = useHeadcountAreas();
+
+  // Split shows two boards at once, so the sheet takes the Day one — a workbook has
+  // to be one shift per file for the import to know what it is reading back.
+  const sheetShift: ShiftKey = view === "Split" ? "Day" : (view as ShiftKey);
+  const [sheet, setSheet] = useState<"export" | "import" | null>(null);
+  const { data: sheetRoster = [] } = useShiftRoster(sheetShift, date, true);
 
   const shiftDate = (delta: number) => {
     const d = new Date(`${date}T12:00:00`);
@@ -783,6 +792,16 @@ export default function ProductionHeadcountPage() {
               </Button>
             </div>
             <Badge variant="outline" className="border-white/40 text-white print:text-black">{dayTypeLabel(date)}</Badge>
+            <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setSheet("export")}>
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+            {canManage && (
+              <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setSheet("import")}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import
+              </Button>
+            )}
             <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
               Print
@@ -814,6 +833,18 @@ export default function ProductionHeadcountPage() {
       ) : (
         <ShiftBoard onDate={date} shift={view} areas={areas} canManage={canManage} />
       )}
+
+      <HeadcountSheetDialog
+        open={sheet !== null}
+        onOpenChange={(v) => !v && setSheet(null)}
+        mode={sheet ?? "export"}
+        date={date}
+        shift={sheetShift}
+        areas={areas}
+        roster={sheetRoster}
+        canManage={canManage}
+        onImported={() => qc.invalidateQueries({ queryKey: ["allocations"] })}
+      />
     </div>
   );
 }
