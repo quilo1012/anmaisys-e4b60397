@@ -96,23 +96,19 @@ function ManagerDashboardContent() {
       ? Math.round(repairM.reduce((s, m) => s + (m.active_repair_sec || 0), 0) / repairM.length / 60)
       : 0;
 
-    // Avg Line Downtime: include finalized WOs AND any open WOs that have
-    // line_stopped_at set (ongoing stoppages) so live impact shows in the KPI.
-    const nowMs = Date.now();
-    const downSamples: number[] = [];
-    for (const m of finalized) {
-      if (m.line_downtime_sec !== null && (m.line_downtime_sec ?? 0) > 0) {
-        downSamples.push(m.line_downtime_sec as number);
-      }
-    }
-    for (const m of woMetrics) {
-      if (FINAL.has((m as any).status)) continue;
-      if (!m.line_stopped_at) continue;
-      const start = new Date(m.line_stopped_at).getTime();
-      const end = m.line_resumed_at ? new Date(m.line_resumed_at).getTime() : nowMs;
-      const sec = Math.max(0, Math.round((end - start) / 1000));
-      if (sec > 0) downSamples.push(sec);
-    }
+    // Avg Line Downtime, from every order that has a measured stoppage — finished or
+    // still running.
+    //
+    // Open orders used to be measured here, by hand, from `line_stopped_at` to now(),
+    // because `line_downtime_sec` was the subtraction off the order row and read NULL
+    // on all but a seventh of them. The view now counts the stoppages themselves and
+    // runs an unresumed one to now() on its own, so the second pass was both
+    // redundant and the less accurate of the two — it could not see an order whose
+    // stop lives only as an event, and it counted the running minutes between two
+    // separate stoppages as downtime.
+    const downSamples = woMetrics
+      .map((m) => m.line_downtime_sec)
+      .filter((s): s is number => s !== null && s > 0);
     const avgLineDowntime = downSamples.length
       ? Math.round(downSamples.reduce((s, n) => s + n, 0) / downSamples.length / 60)
       : 0;
