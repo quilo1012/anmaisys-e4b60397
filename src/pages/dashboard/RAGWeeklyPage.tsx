@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DailyIssueSummary } from "@/components/rag/DailyIssueSummary";
+import { useDailyIssueSummary, type DayShiftIssues } from "@/hooks/useDailyIssueSummary";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -1365,6 +1367,12 @@ function DayNightTotalSummary({
     return m;
   }, [commentRows]);
 
+  // One query for the whole week, shared by all 7 × n boxes through the query cache.
+  const { byLineDay: issueMap } = useDailyIssueSummary(
+    format(weekDates[0], "yyyy-MM-dd"),
+    format(weekDates[weekDates.length - 1], "yyyy-MM-dd"),
+  );
+
   useEffect(() => {
     if (!weekStartStr) return;
     const ch = supabase
@@ -1865,6 +1873,7 @@ function DayNightTotalSummary({
                     dayLabel={format(d, "EEE dd/MM")}
                     initialValue={commentMap.get(`${label}|${ds}`) ?? ""}
                     canEdit={canComment}
+                    issues={issueMap.get(`${label}|${ds}`)}
                   />
                 );
               })}
@@ -1917,12 +1926,14 @@ function LineCommentBox({
   dayLabel,
   initialValue,
   canEdit,
+  issues,
 }: {
   line: string;
   entryDate: string;
   dayLabel: string;
   initialValue: string;
   canEdit: boolean;
+  issues: DayShiftIssues | undefined;
 }) {
   const qc = useQueryClient();
   const [value, setValue] = useState<string>(initialValue ?? "");
@@ -1965,6 +1976,16 @@ function LineCommentBox({
         <div className="text-2xs uppercase tracking-wider text-muted-foreground font-semibold">{dayLabel}</div>
         {saving && <div className="text-2xs text-muted-foreground">…</div>}
       </div>
+      <DailyIssueSummary
+        issues={issues}
+        canEdit={canEdit}
+        onUseAsDraft={(text) => {
+          // Straight into the box, not into the database: the point of the draft is
+          // that somebody reads it and corrects it before it counts as the record.
+          focusedRef.current = true;
+          setValue((prev) => (prev.trim() ? `${prev.trim()}\n${text}` : text));
+        }}
+      />
       <Textarea
         value={value}
         onChange={(e) => setValue(e.target.value)}
