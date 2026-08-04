@@ -1609,6 +1609,19 @@ function DayNightTotalSummary({
         render: (c) => <span className={pctClass(c.actual, c.plan)}>{pct(c.actual, c.plan)}</span>,
       },
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
+      // Downtime, always. The rows below it are the breakdown by bucket and each one
+      // only appears when that bucket has minutes somewhere in the week — so a line
+      // that ran clean showed no downtime row at all, and a line that stopped for two
+      // hours showed one. The reader could not tell "nothing stopped" from "this
+      // grid does not report stoppages", which is the question the row exists for.
+      {
+        key: "dt",
+        label: "Downtime",
+        bold: true,
+        render: (c: Cell) => (
+          <span className={c.dt > 0 ? "text-warning-strong" : "text-muted-foreground"}>{fmtHm(c.dt)}</span>
+        ),
+      },
       ...visibleBuckets.map((b) => ({
         key: `dt:${b}`,
         label:
