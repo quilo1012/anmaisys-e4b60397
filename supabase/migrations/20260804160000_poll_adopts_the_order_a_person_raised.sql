@@ -1,0 +1,25 @@
+-- A fault reported by a person is not reported again by the poll.
+--
+-- Murilo opened WO-703 for a sensor issue on Line 4 at 15:40:31 from a tablet. The
+-- iTouching poll opened WO-704 for the same fault thirty-one seconds later, and both
+-- counted: the same stoppage twice against the line, twice in the order count, and a
+-- false gap in Line 4's MTBF.
+--
+-- The poll's duplicate check finds active orders by `intouch_machine_id` and then
+-- keeps the one carrying the current stop code. An order raised from a tablet has
+-- neither, so it is invisible to that check. The code fix (intouch-poll) adopts a
+-- human-raised order on the same line for the same problem instead of raising a
+-- second one, stamping it with the iTouching identifiers so later polls recognise it.
+--
+-- This migration records the data correction, which was applied directly:
+--
+--   * WO-703's stoppage ended at 15:45:02, when iTouching saw Line 4 running again.
+--     It had read 18:00 — the shift-close backfill, not an observation — which put
+--     139 minutes against the line instead of 5.
+--   * WO-704 is force-closed as the duplicate, its downtime event removed and its
+--     line-stop cleared so nothing counts it and no line reads as held.
+--
+-- Both rows were copied to wo_dedupe_backup_20260804 and
+-- downtime_events_dedupe_backup_20260804 first (admin-only RLS).
+--
+-- Line 4 on 03/08 now totals 64 minutes across all its orders.
