@@ -101,6 +101,11 @@ export const navItems: NavItem[] = [
   // own. The argument that dissolved Assets applies harder to a group of one: a
   // heading over a single row costs a line of sidebar and a beat of reading, and
   // returns nothing. For an admin that is two fewer headings over the same 17 links.
+  // Reports first: it is the one screen that answers "how did the day/week/month go"
+  // without opening four others, and it links through to each of them on the same
+  // period. Analytics stays for the question it actually answers — digging, not
+  // reporting.
+  { title: "Reports", url: "/dashboard/reports", icon: FileBarChart, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Overview", action: "reports.analytics" },
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
   { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "operator"], group: "Overview", action: "chat.dm" },
