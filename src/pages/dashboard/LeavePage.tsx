@@ -118,6 +118,54 @@ export default function LeavePage() {
       .sort((a, b) => (a.remaining ?? Infinity) - (b.remaining ?? Infinity));
   }, [roster, patterns, requests, today]);
 
+  /**
+   * The same three figures BrightPay prints, but per shift pattern rather than per
+   * person — the entitlement belongs to the pattern, so this is the row a manager
+   * checks the individual balances against.
+   */
+  const byPattern = useMemo(() => {
+    const approved = requests.filter((r) => r.status === "approved" && r.kind === "holiday");
+    return patterns
+      .map((pat) => {
+        const people = roster.filter((e) => e.shift_pattern_id === pat.id);
+        const ids = new Set(people.map((e) => e.id));
+        const mine = approved.filter((r) => ids.has(r.employee_id));
+        const b = leaveBalance(
+          mine.map((r) => ({ start_date: r.start_date, end_date: r.end_date, working_days: r.working_days })),
+          pat.annual_leave_days ?? null,
+          today,
+        );
+        return { id: pat.id, name: pat.name, people: people.length, ...b };
+      })
+      .filter((p) => p.people > 0)
+      .sort((a, b) => b.people - a.people);
+  }, [patterns, roster, requests, today]);
+
+  /** Approved leave running now or starting within a fortnight. */
+  const whosOff = useMemo(() => {
+    const horizon = new Date(`${today}T00:00:00Z`);
+    horizon.setUTCDate(horizon.getUTCDate() + 14);
+    const until = horizon.toISOString().slice(0, 10);
+    return requests
+      .filter((r) => r.status === "approved" && r.end_date >= today && r.start_date <= until)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  }, [requests, today]);
+
+  const kpis = useMemo(() => {
+    const approved = requests.filter((r) => r.status === "approved");
+    const month = today.slice(0, 7);
+    const onDay = (r: Req) => r.start_date <= today && r.end_date >= today;
+    return {
+      pending: requests.filter((r) => r.status === "pending").length,
+      approvedThisMonth: approved.filter((r) => (r.decided_at ?? "").slice(0, 7) === month).length,
+      bookedDays: approved
+        .filter((r) => r.kind === "holiday" && r.end_date >= today)
+        .reduce((a, r) => a + Number(r.working_days ?? 0), 0),
+      offToday: approved.filter(onDay).length,
+      sickToday: approved.filter((r) => r.kind === "sick" && onDay(r)).length,
+    };
+  }, [requests, today]);
+
   const pending = requests.filter((r) => r.status === "pending");
   const decided = requests.filter((r) => r.status !== "pending").slice().reverse();
 
@@ -280,6 +328,89 @@ export default function LeavePage() {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          {[
+            { label: "Pending", value: String(kpis.pending), warn: kpis.pending > 0 },
+            { label: "Approved this month", value: String(kpis.approvedThisMonth) },
+            { label: "Booked days ahead", value: String(kpis.bookedDays) },
+            { label: "Off today", value: String(kpis.offToday) },
+            { label: "Sick today", value: String(kpis.sickToday) },
+          ].map((k) => (
+            <Card key={k.label}>
+              <CardContent className="p-3">
+                <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</div>
+                <div className={`font-mono text-xl font-bold tabular-nums ${k.warn ? "text-warning-strong" : ""}`}>{k.value}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {byPattern.length > 0 && (
+          <div>
+            <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+              Entitlement by shift · {year.from} → {year.to}
+            </h2>
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Shift pattern</TableHead>
+                      <TableHead className="text-right">People</TableHead>
+                      <TableHead className="text-right">Taken</TableHead>
+                      <TableHead className="text-right">Booked</TableHead>
+                      <TableHead className="text-right">Remaining</TableHead>
+                      <TableHead className="text-right">Annual total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byPattern.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">{p.people}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">{p.taken}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">{p.booked}</TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">
+                          {p.remaining == null ? <span className="text-muted-foreground">—</span> : p.remaining}
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs tabular-nums">
+                          {/* BrightPay has not given the Mon–Fri or Sun figures, and nine
+                              people are on those. "to confirm" asks for them; a zero
+                              would quietly claim they have none. */}
+                          {p.total ?? <span className="text-warning-strong">to confirm</span>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {whosOff.length > 0 && (
+          <div>
+            <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+              Who is off · next two weeks
+            </h2>
+            <Card>
+              <CardContent className="divide-y p-0">
+                {whosOff.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2.5 px-3 py-2 text-xs">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${
+                      r.kind === "sick" ? "bg-destructive" : r.kind === "unpaid" ? "bg-orange-500" : "bg-primary"}`} />
+                    <span className="font-medium">{person.get(r.employee_id)?.full_name ?? "Unknown"}</span>
+                    <Badge variant="outline" className="text-2xs">{KIND_LABEL[r.kind]}</Badge>
+                    <span className="ml-auto font-mono text-2xs text-muted-foreground">
+                      {r.start_date === r.end_date ? r.start_date : `${r.start_date} → ${r.end_date}`}
+                    </span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {balances.length > 0 && (
