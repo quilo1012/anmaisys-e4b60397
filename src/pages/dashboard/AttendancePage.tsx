@@ -45,6 +45,30 @@ export default function AttendancePage() {
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const [from, setFrom] = useState(iso(monthStart));
   const [to, setTo] = useState(iso(today));
+  const [periodTouched, setPeriodTouched] = useState(false);
+
+  /**
+   * Opens on the pay period, not on the calendar month.
+   *
+   * It opened on the 1st to today — four days on 04/08 — while the finance close
+   * covered 13/07 to 09/08. The same two figures read 497h and 3,359h, and a balance
+   * of −321h beside one of −345h, which looks like two screens disagreeing when it
+   * is one question asked of two different fortnights.
+   */
+  useQuery({
+    queryKey: ["attendance-default-period"],
+    queryFn: async () => {
+      const d = iso(new Date());
+      const { data } = await (supabase as any)
+        .from("workforce_payroll_periods")
+        .select("start_date, end_date")
+        .lte("start_date", d).gte("end_date", d)
+        .limit(1).maybeSingle();
+      // Never overrides a range somebody has chosen.
+      if (data && !periodTouched) { setFrom(data.start_date); setTo(data.end_date); }
+      return data ?? null;
+    },
+  });
 
   const [preview, setPreview] = useState<(TimeMotoParse & { matched: { name: string; employeeId: string }[]; unmatched: string[] }) | null>(null);
   const [busy, setBusy] = useState(false);
@@ -186,8 +210,8 @@ export default function AttendancePage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
-          <div><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 h-8 w-40" /></div>
-          <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 h-8 w-40" /></div>
+          <div><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => { setPeriodTouched(true); setFrom(e.target.value); }} className="mt-1 h-8 w-40" /></div>
+          <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => { setPeriodTouched(true); setTo(e.target.value); }} className="mt-1 h-8 w-40" /></div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

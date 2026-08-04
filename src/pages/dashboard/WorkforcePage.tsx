@@ -145,6 +145,7 @@ export default function WorkforcePage() {
               <>
               <DepartmentHeadcount people={rows} canEdit={canEdit} />
               <PeopleTable
+                leftCount={rows.length - onTheList.length}
                 people={onTheList}
                 onOpen={setDetailId}
                 actions={canEdit ? <AddEmployeeDialog /> : undefined}

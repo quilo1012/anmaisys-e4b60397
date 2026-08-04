@@ -76,6 +76,8 @@ export interface CloseTotals {
   unpaid: number;
   /** People where one side reported and the other did not. */
   unreconciled: number;
+  /** Nobody has a payroll figure at all — the whole side of the reconciliation is missing. */
+  payrollEmpty: boolean;
 }
 
 export function closeTotals(rows: ClosePerson[]): CloseTotals {
@@ -92,6 +94,12 @@ export function closeTotals(rows: ClosePerson[]): CloseTotals {
     unreconciled: rows.filter(
       (r) => (r.clockedOtHours == null) !== (r.payrollOtHours == null),
     ).length,
+    // A delta of zero across everybody is either perfect agreement or an empty
+    // column, and those are opposite facts. On 04/08 not one payroll figure had been
+    // keyed, so every delta was null, the sum read 0.00 and the card said "Gap to
+    // settle: 0.00 h" — which reads as reconciled and is the most dangerous thing
+    // this screen could say to somebody about to pay.
+    payrollEmpty: rows.length > 0 && rows.every((r) => r.payrollOtHours == null),
   };
 }
 
