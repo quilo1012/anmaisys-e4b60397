@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DailyIssueSummary } from "@/components/rag/DailyIssueSummary";
+import { getCurrentFactoryShift } from "@/lib/shifts";
 import { useDailyIssueSummary, type DayShiftIssues } from "@/hooks/useDailyIssueSummary";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -1600,15 +1601,33 @@ function DayNightTotalSummary({
         : "text-muted-foreground";
 
 
+    // Where "now" is, in twenty-one columns.
+    //
+    // The first thing anybody asks of a week grid is which column is today, and the
+    // grid answered it nowhere — you counted across from Monday. A rule down today's
+    // day column says it before a single number is read.
+    const nowIso = getCurrentFactoryShift().sessionDate;
+    const todayCol = (ds: string) => (ds === nowIso ? "border-l-2 border-l-primary" : "");
+
+    // A day that has not happened yet is empty for a different reason than a day
+    // nobody filled in, and the grid said the same thing about both. Future days are
+    // muted so a gap in the past still reads as a gap.
+    const futureCol = (ds: string) => ds > nowIso;
+
     const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
-      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : "—" },
-      { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : "—", bold: true },
+      // An absent figure recedes rather than competing. A dash carried the same
+      // weight as "5,348", and across twenty-one columns of a week opened on a
+      // Tuesday that is a wall of punctuation with the real numbers hidden in it.
+      // The dash stays — nothing recorded is not the same as zero — it just stops
+      // shouting.
+      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : <span className="text-muted-foreground/40">—</span> },
+      { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : <span className="text-muted-foreground/40">—</span>, bold: true },
       {
         key: "var",
         label: "Variance %",
         render: (c) => <span className={pctClass(c.actual, c.plan)}>{pct(c.actual, c.plan)}</span>,
       },
-      { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : "—") },
+      { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : <span className="text-muted-foreground/40">—</span>) },
       // Downtime, always. The rows below it are the breakdown by bucket and each one
       // only appears when that bucket has minutes somewhere in the week — so a line
       // that ran clean showed no downtime row at all, and a line that stopped for two
@@ -1619,7 +1638,7 @@ function DayNightTotalSummary({
         label: "Downtime",
         bold: true,
         render: (c: Cell) => (
-          <span className={c.dt > 0 ? "text-warning-strong" : "text-muted-foreground"}>{fmtHm(c.dt)}</span>
+          <span className={c.dt > 0 ? "text-warning-strong" : "text-muted-foreground/40"}>{fmtHm(c.dt)}</span>
         ),
       },
       ...visibleBuckets.map((b) => ({
@@ -1689,7 +1708,7 @@ function DayNightTotalSummary({
                     const ds = format(d, "yyyy-MM-dd");
                     const excluded = isDateExcluded(label, ds);
                     return (
-                      <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${excluded ? "bg-muted/60 text-muted-foreground" : "bg-background"}`}>
+                      <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${todayCol(ds)} ${excluded ? "bg-muted/60 text-muted-foreground" : futureCol(ds) ? "bg-background text-muted-foreground" : "bg-background"}`}>
                         <div className="flex items-center justify-center gap-1">
                           <span>{DAY_LABELS[i]}</span>
                           <button
@@ -1836,7 +1855,7 @@ function DayNightTotalSummary({
                         const totalDim = isDateExcluded(label, ds) ? "bg-muted/60 text-muted-foreground" : "bg-muted/40";
                         return (
                           <Fragment key={i}>
-                            <td className={`${cls} border-l ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
+                            <td className={`${cls} border-l ${todayCol(ds)} ${dayDim}`}>{editable ? renderEdit(ds, "DAY") : wrapCell(ds, "DAY", row.render(buildCol(ds, "DAY")))}</td>
                             <td className={`${cls} ${nightDim}`}>{editable ? renderEdit(ds, "NIGHT") : wrapCell(ds, "NIGHT", row.render(buildCol(ds, "NIGHT")))}</td>
                             <td className={`${cls} ${totalDim}`}>{row.render(buildCol(ds, "TOTAL"))}</td>
                           </Fragment>
