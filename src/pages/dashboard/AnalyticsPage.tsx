@@ -36,6 +36,7 @@ import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { EmptyState } from "@/components/EmptyState";
+import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
@@ -117,7 +118,7 @@ export default function AnalyticsPage() {
   const { toast } = useToast();
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
-  const [shift, setShift] = useState<ShiftValue>("ALL");
+  const [shift, setShift] = useOpsShift();
   const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
   const endDate = drRange.to ?? endOfDay(new Date());
 
@@ -734,7 +735,7 @@ export default function AnalyticsPage() {
           onDateChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
           shift={shift}
           onShiftChange={setShift}
-          storageKey="analytics-page"
+          storageKey={OPS_RANGE_KEY}
         >
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
         </ReportsFilterBar>

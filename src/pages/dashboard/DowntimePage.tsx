@@ -24,6 +24,8 @@ import { computeHeatmap } from "@/lib/downtimeHeatmap";
 import * as XLSX from "xlsx";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
+import { ShiftFilter as ShiftPills } from "@/components/ShiftFilter";
+import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useLines } from "@/hooks/useMachines";
@@ -429,7 +431,10 @@ export default function DowntimePage() {
 
   // Shared page-level filters (apply across ALL tabs)
   const [filterLine, setFilterLine] = useState("all");
-  const [filterShift, setFilterShift] = useState<ShiftFilter>("all");
+  // The shift lives outside this page so Maintenance Orders reads the same one. The
+  // local type predates the shared control and stays as the page's internal spelling.
+  const [opsShift, setOpsShift] = useOpsShift();
+  const filterShift: ShiftFilter = opsShift === "ALL" ? "all" : opsShift === "DAY" ? "Day" : "Night";
   const [startDate, setStartDate] = useState<Date>(startOfDay(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
 
@@ -1064,7 +1069,7 @@ export default function DowntimePage() {
                 <DateRangeFilter
                   value={{ from: startDate, to: endDate }}
                   preset={datePreset}
-                  storageKey="downtime-page"
+                  storageKey={OPS_RANGE_KEY}
                   onChange={(range, preset) => {
                     setDatePreset(preset);
                     const r = preset === "all" ? getPresetRange("30d") : range;
@@ -1085,14 +1090,7 @@ export default function DowntimePage() {
                     {lineOptions.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Select value={filterShift} onValueChange={(v) => setFilterShift(v as ShiftFilter)}>
-                  <SelectTrigger className="w-[130px]"><SelectValue placeholder="Shift" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Shifts</SelectItem>
-                    <SelectItem value="Day">Day (06–18)</SelectItem>
-                    <SelectItem value="Night">Night (18–06)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <ShiftPills value={opsShift} onChange={setOpsShift} />
                 <div className="flex items-center gap-1 rounded-md border bg-muted/30 p-1">
                   <Button size="sm" variant="ghost" onClick={handleExportPdf} title="Export PDF">
                     <FileText className="h-4 w-4 mr-1.5" /> PDF
