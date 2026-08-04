@@ -165,7 +165,12 @@ export default function FinanceClosePage() {
             { label: "People", value: String(totals.people) },
             { label: "Clocked OT", value: `${totals.clockedOtHours.toFixed(2)} h` },
             { label: "Payroll OT", value: `${totals.payrollOtHours.toFixed(2)} h` },
-            { label: "Gap to settle", value: `${totals.deltaHours.toFixed(2)} h` },
+            {
+              label: "Gap to settle",
+              // Nothing keyed means nothing to compare, and saying "0.00 h" would
+              // tell somebody the two sides agree.
+              value: totals.payrollEmpty ? "not comparable" : `${totals.deltaHours.toFixed(2)} h`,
+            },
           ].map((k) => (
             <Card key={k.label}>
               <CardContent className="p-3">
@@ -184,7 +189,11 @@ export default function FinanceClosePage() {
             <b>Clocked OT</b> is what the clocks recorded. <b>Payroll OT</b> is what the office keyed
             in. They are not added together — the <b>Δ</b> is the disagreement to settle before anybody
             is paid, not overtime to pay. A dash means that side reported nothing, which is not zero.
-            {totals.unreconciled > 0 && (
+            {totals.payrollEmpty && (
+              <> <b className="text-warning-strong">No payroll overtime has been keyed for this period at all</b>,
+                so there is nothing to compare and the gap cannot be read as agreement.</>
+            )}
+            {!totals.payrollEmpty && totals.unreconciled > 0 && (
               <> <b>{totals.unreconciled}</b> {totals.unreconciled === 1 ? "person has" : "people have"} a
                 figure on one side only.</>
             )}

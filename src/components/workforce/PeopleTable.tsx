@@ -62,12 +62,21 @@ function Kpi({ label, value, sub }: { label: string; value: number; sub?: string
  * column: it reads as missing data rather than as a field nobody has ever filled.
  */
 export function PeopleTable({
-  people, onOpen, actions,
+  people, onOpen, actions, leftCount = 0,
 }: {
+  /** The active list. Leavers live under their own heading on the page. */
   people: PersonRow[];
   onOpen: (id: string) => void;
   /** Add-employee button and anything else the page owns. */
   actions?: React.ReactNode;
+  /**
+   * How many have left, counted from the full roster.
+   *
+   * This card used to read `people.length - active.length`, and `people` is the
+   * active list — so it was always exactly zero, while the Left tab underneath listed
+   * twenty-two. The number it needs is not in the list it is given.
+   */
+  leftCount?: number;
 }) {
   const [q, setQ] = useState("");
   const [dept, setDept] = useState(ALL);
@@ -172,9 +181,9 @@ export function PeopleTable({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Employees" value={people.length} sub="On file" />
+        <Kpi label="Employees" value={people.length + leftCount} sub="On file" />
         <Kpi label="Active" value={active.length} sub="Working here" />
-        <Kpi label="Left" value={people.length - active.length} sub="History kept" />
+        <Kpi label="Left" value={leftCount} sub="History kept" />
         <Kpi label="Departments" value={departments.length} />
         <Kpi label="Agency & contract" value={active.filter((p) => p.employment_type !== "permanent").length} sub="Not permanent" />
         <Kpi label="No rota" value={active.filter((p) => !p.pattern).length} sub="Due in every day" />
