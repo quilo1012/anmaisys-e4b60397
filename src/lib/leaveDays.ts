@@ -84,20 +84,30 @@ export interface LeaveBalance {
  * them apart.
  */
 export function leaveBalance(
-  approvedHoliday: { start_date: string; end_date: string; working_days: number | null }[],
+  /**
+   * One entry per day off actually recorded, not per request.
+   *
+   * Counting requests and counting recorded days give different answers the moment
+   * somebody is marked off on the board without paperwork: Anderson Cavalcante had a
+   * three-day request and four holidays on the record, so this screen said 3 and the
+   * finance close said 4. Both were true about different questions, which is worse
+   * than one of them being wrong.
+   *
+   * The days are what is spent, so the days are what is counted. `amount` carries the
+   * half-days the sheet books.
+   */
+  daysOff: { date: string; amount?: number }[],
   entitlement: number | null,
   today: string,
 ): LeaveBalance {
   const year = leaveYearOf(today);
   let taken = 0;
   let booked = 0;
-  for (const r of approvedHoliday) {
-    // A request is counted in the leave year it starts in, so one straddling 31 July
-    // is not split across two years or counted in both.
-    if (r.start_date < year.from || r.start_date > year.to) continue;
-    const days = Number(r.working_days ?? 0);
-    if (r.end_date < today) taken += days;
-    else booked += days;
+  for (const d of daysOff) {
+    if (d.date < year.from || d.date > year.to) continue;
+    const amount = d.amount ?? 1;
+    if (d.date < today) taken += amount;
+    else booked += amount;
   }
   const round = (n: number) => Math.round(n * 100) / 100;
   return {

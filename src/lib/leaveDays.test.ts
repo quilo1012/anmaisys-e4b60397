@@ -80,30 +80,32 @@ describe("leaveYearOf", () => {
 
 describe("leaveBalance", () => {
   const TODAY = "2026-08-04";
-  const req = (start: string, end: string, days: number) =>
-    ({ start_date: start, end_date: end, working_days: days });
+  /** `n` consecutive recorded days off starting on `from`. */
+  const days = (from: string, n: number, amount = 1) =>
+    eachDate(from, (() => { const d = new Date(`${from}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n - 1); return d.toISOString().slice(0, 10); })())
+      .map((date) => ({ date, amount }));
 
   it("reconciles with the BrightPay figures for Mon–Thu", () => {
     // 0 taken, 5 booked, 17.5 remaining, 22.5 total.
-    const b = leaveBalance([req("2026-09-07", "2026-09-13", 5)], 22.5, TODAY);
+    const b = leaveBalance(days("2026-09-07", 5), 22.5, TODAY);
     expect(b).toEqual({ taken: 0, booked: 5, remaining: 17.5, total: 22.5 });
   });
 
   it("reconciles for Tue–Fri", () => {
-    const b = leaveBalance([req("2026-10-06", "2026-10-09", 3)], 21.5, TODAY);
+    const b = leaveBalance(days("2026-10-06", 3), 21.5, TODAY);
     expect(b).toEqual({ taken: 0, booked: 3, remaining: 18.5, total: 21.5 });
   });
 
   it("reconciles for Fri–Mon", () => {
-    const b = leaveBalance([req("2026-12-04", "2026-12-14", 8)], 22.5, TODAY);
+    const b = leaveBalance(days("2026-12-04", 8), 22.5, TODAY);
     expect(b).toEqual({ taken: 0, booked: 8, remaining: 14.5, total: 22.5 });
   });
 
   it("splits taken from booked on today", () => {
     // Spent and promised are different questions, and BrightPay reports them apart.
     const b = leaveBalance([
-      req("2026-08-01", "2026-08-03", 3),   // over
-      req("2026-08-10", "2026-08-13", 4),   // to come
+      ...days("2026-08-01", 3),   // over
+      ...days("2026-08-10", 4),   // to come
     ], 22.5, TODAY);
     expect(b.taken).toBe(3);
     expect(b.booked).toBe(4);
@@ -111,21 +113,21 @@ describe("leaveBalance", () => {
   });
 
   it("counts a request running right now as booked, not taken", () => {
-    expect(leaveBalance([req("2026-08-03", "2026-08-06", 4)], 22.5, TODAY).booked).toBe(4);
+    expect(leaveBalance(days("2026-08-04", 4), 22.5, TODAY).booked).toBe(4);
   });
 
   it("carries half days, because the sheet does", () => {
-    expect(leaveBalance([req("2026-09-01", "2026-09-01", 0.5)], 22.5, TODAY).remaining).toBe(22);
+    expect(leaveBalance(days("2026-09-01", 1, 0.5), 22.5, TODAY).remaining).toBe(22);
   });
 
   it("ignores leave from another leave year", () => {
-    expect(leaveBalance([req("2026-07-20", "2026-07-23", 4)], 22.5, TODAY).taken).toBe(0);
+    expect(leaveBalance(days("2026-07-20", 4), 22.5, TODAY).taken).toBe(0);
   });
 
   it("says nothing rather than zero when the pattern has no entitlement on file", () => {
     // Mon–Fri and Sun are not in BrightPay's table yet. A remaining of 0 would read
     // as "no days left" when it means "nobody has told us how many there are".
-    const b = leaveBalance([req("2026-09-01", "2026-09-02", 2)], null, TODAY);
+    const b = leaveBalance(days("2026-09-01", 2), null, TODAY);
     expect(b.total).toBeNull();
     expect(b.remaining).toBeNull();
     expect(b.booked).toBe(2);

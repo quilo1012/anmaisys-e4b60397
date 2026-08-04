@@ -92,6 +92,26 @@ export default function LeavePage() {
    * simply did not exist here. Listed rather than hidden: a day off is a day off,
    * whether it came through approval or not.
    */
+  /**
+   * Every holiday day actually on the record, whatever put it there.
+   *
+   * The same table the finance close counts. Reading approved requests instead made
+   * this screen say 3 where the close said 4, because a day marked on the board has
+   * no request behind it. One source, one number.
+   */
+  const { data: holidayDays = [] } = useQuery({
+    queryKey: ["leave-holiday-days"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("employee_attendance")
+        .select("employee_id, on_date")
+        .eq("status", "holiday")
+        .limit(2000);
+      if (error) throw error;
+      return (data ?? []) as { employee_id: string; on_date: string }[];
+    },
+  });
+
   const { data: boardOnly = [] } = useQuery({
     queryKey: ["leave-board-only"],
     queryFn: async () => {
@@ -124,13 +144,12 @@ export default function LeavePage() {
   const today = new Date().toISOString().slice(0, 10);
   const year = leaveYearOf(today);
   const balances = useMemo(() => {
-    const approved = requests.filter((r) => r.status === "approved" && r.kind === "holiday");
     return roster
       .map((e) => {
         const pat = patterns.find((p) => p.id === e.shift_pattern_id);
-        const mine = approved.filter((r) => r.employee_id === e.id);
+        const mine = holidayDays.filter((d) => d.employee_id === e.id);
         const b = leaveBalance(
-          mine.map((r) => ({ start_date: r.start_date, end_date: r.end_date, working_days: r.working_days })),
+          mine.map((d) => ({ date: d.on_date })),
           pat?.annual_leave_days ?? null,
           today,
         );
@@ -138,7 +157,7 @@ export default function LeavePage() {
       })
       .filter((b) => b.taken > 0 || b.booked > 0)
       .sort((a, b) => (a.remaining ?? Infinity) - (b.remaining ?? Infinity));
-  }, [roster, patterns, requests, today]);
+  }, [roster, patterns, holidayDays, today]);
 
   /**
    * The same three figures BrightPay prints, but per shift pattern rather than per
@@ -146,14 +165,13 @@ export default function LeavePage() {
    * checks the individual balances against.
    */
   const byPattern = useMemo(() => {
-    const approved = requests.filter((r) => r.status === "approved" && r.kind === "holiday");
     return patterns
       .map((pat) => {
         const people = roster.filter((e) => e.shift_pattern_id === pat.id);
         const ids = new Set(people.map((e) => e.id));
-        const mine = approved.filter((r) => ids.has(r.employee_id));
+        const mine = holidayDays.filter((d) => ids.has(d.employee_id));
         const b = leaveBalance(
-          mine.map((r) => ({ start_date: r.start_date, end_date: r.end_date, working_days: r.working_days })),
+          mine.map((d) => ({ date: d.on_date })),
           pat.annual_leave_days ?? null,
           today,
         );
@@ -161,7 +179,7 @@ export default function LeavePage() {
       })
       .filter((p) => p.people > 0)
       .sort((a, b) => b.people - a.people);
-  }, [patterns, roster, requests, today]);
+  }, [patterns, roster, holidayDays, today]);
 
   /** Approved leave running now or starting within a fortnight. */
   const whosOff = useMemo(() => {
@@ -483,6 +501,9 @@ export default function LeavePage() {
           <div>
             <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
               Holiday balance · leave year {year.from} → {year.to}
+              <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground">
+                counted from the attendance record, the same days the finance close counts
+              </span>
             </h2>
             <Card>
               <CardContent className="p-0">
