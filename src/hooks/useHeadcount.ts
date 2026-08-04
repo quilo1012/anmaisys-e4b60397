@@ -13,6 +13,10 @@ export type HeadcountArea = {
   section: string;
   /** The department this area's work belongs to. */
   department: string | null;
+  /** What the company spreadsheet calls this column. Null means use `name`. */
+  sheet_label?: string | null;
+  /** Areas sharing this print as one column — Capsules 1 and 2 are "Pill line". */
+  sheet_group?: string | null;
   sort_order: number;
   active: boolean;
 };
@@ -46,9 +50,11 @@ export function useHeadcountAreas() {
   return useQuery({
     queryKey: ["headcount-areas"],
     queryFn: async (): Promise<HeadcountArea[]> => {
-      const { data, error } = await supabase
+      // `as any`: the two sheet columns are newer than the generated types, which is
+      // the same reason the rest of this file casts.
+      const { data, error } = await (supabase as any)
         .from("headcount_areas")
-        .select("id,name,kind,section,department,sort_order,active")
+        .select("id,name,kind,section,department,sort_order,active,sheet_label,sheet_group")
         .eq("active", true)
         .order("sort_order", { ascending: true });
       if (error) throw error;

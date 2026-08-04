@@ -90,46 +90,87 @@ export function buildHeadcountWorkbook(input: {
     const sec = (a.section ?? "").toLowerCase();
     return sec === "production" || sec === "support" ? sec : (a.kind === "production" ? "production" : "support");
   };
-  const production = input.areas.filter((a) => block(a) === "production");
-  const support = input.areas.filter((a) => block(a) !== "production");
+
+  /**
+   * The columns the company's own sheet has, built from the data rather than a list
+   * in this file.
+   *
+   * `sheet_label` renames one — the system says "Line 5", the sheet says
+   * "Line 5 (A&B)". `sheet_group` merges several into one: Capsules Machine 1 and 2
+   * are two areas on the board and a single "Pill line" column on the sheet.
+   *
+   * Anything with neither keeps its own name and still gets a column. That is the
+   * point of doing it this way: a hard-coded column list would have dropped Gel Line
+   * for being empty today and silently lost whoever is put there tomorrow.
+   */
+  const columnsOf = (areas: HeadcountArea[]) => {
+    const cols: { label: string; areas: HeadcountArea[] }[] = [];
+    for (const a of areas) {
+      const label = (a.sheet_group ?? a.sheet_label ?? a.name).trim();
+      const existing = cols.find((c) => c.label === label);
+      if (existing) existing.areas.push(a);
+      else cols.push({ label, areas: [a] });
+    }
+    return cols;
+  };
+
+  const production = columnsOf(input.areas.filter((a) => block(a) === "production"));
+  const support = columnsOf(input.areas.filter((a) => block(a) !== "production"));
 
   for (const day of input.days) {
     const allocs = input.allocationsFor(day.date, day.shift);
     const nameOf = (id: string) => input.employeeById.get(id)?.full_name ?? "";
 
     const working = allocs.filter((a) => a.status === "assigned" || a.status === "overtime");
-    const inArea = (areaId: string) =>
-      working.filter((a) => a.area_id === areaId).map((a) => nameOf(a.employee_id)).filter(Boolean).sort();
+    const inColumn = (col: { areas: HeadcountArea[] }) => {
+      const ids = new Set(col.areas.map((a) => a.id));
+      return working.filter((a) => a.area_id && ids.has(a.area_id))
+        .map((a) => nameOf(a.employee_id)).filter(Boolean).sort();
+    };
 
     const rows: (string | number)[][] = [];
-    const block = (areas: HeadcountArea[], heading: string) => {
-      if (areas.length === 0) return;
+    const band = (cols: { label: string; areas: HeadcountArea[] }[], heading: string, extra: [string, string[]][] = []) => {
+      if (cols.length === 0 && extra.length === 0) return 0;
       rows.push([heading]);
-      rows.push(areas.map((a) => a.name));
-      const cols = areas.map((a) => inArea(a.id));
-      const depth = Math.max(0, ...cols.map((c) => c.length));
-      for (let i = 0; i < depth; i++) rows.push(cols.map((c) => c[i] ?? ""));
-      rows.push(cols.map((c) => c.length));
+      // The away states are columns beside the areas, the way the sheet has them —
+      // a name under "Absence" reads the same as a name under "Line 1".
+      const labels = [...cols.map((c) => c.label), ...extra.map(([l]) => l)];
+      const lists = [...cols.map(inColumn), ...extra.map(([, names]) => names)];
+      rows.push(labels);
+      const depth = Math.max(0, ...lists.map((c) => c.length));
+      for (let i = 0; i < depth; i++) rows.push(lists.map((c) => c[i] ?? ""));
+      rows.push(lists.map((c) => c.length));
       rows.push([]);
+      // Only the area columns count towards the band subtotal; the states are people
+      // who are not there.
+      return cols.reduce((n, c) => n + inColumn(c).length, 0);
     };
 
     rows.push([`${day.shift} shift — ${day.date}`]);
     rows.push([]);
-    block(production, "PRODUCTION");
-    block(support, "SUPPORT");
-
-    for (const b of STATUS_BLOCKS) {
-      const names = allocs.filter((a) => a.status === b.status).map((a) => nameOf(a.employee_id)).filter(Boolean).sort();
-      rows.push([b.label, ...names]);
-    }
+    const states: [string, string[]][] = STATUS_BLOCKS.map((b) => [
+      b.label,
+      allocs.filter((a) => a.status === b.status).map((a) => nameOf(a.employee_id)).filter(Boolean).sort(),
+    ]);
+    const inProduction = band(production, "PRODUCTION", states);
+    const inSupport = band(support, "SUPPORT");
     rows.push([]);
     // The number the sheet exists to carry: everyone standing on a production area.
-    // Counted by `kind`, not by which block it was printed in: Hygiene prints with
-    // the lines because that is where the sheet puts it, and still counts as support.
-    rows.push([
-      "Total staff in Production",
-      input.areas.filter((a) => a.kind === "production").reduce((n, a) => n + inArea(a.id).length, 0),
-    ]);
+    // Three numbers, because two definitions of "in production" are in use and this
+    // sheet is not the place to pick a winner quietly.
+    //
+    // The system counts `kind = production` — the lines and the machines, which for
+    // 04/08 is 39. The company sheet's own definition sums both printed bands, which
+    // is 60. They differ by Hygiene, Quality and Runner: support people who print in
+    // the production band. Both are stated, and the total is spelled out so nobody
+    // has to work out which one a figure came from.
+    const byKind = input.areas
+      .filter((a) => a.kind === "production")
+      .reduce((n, a) => n + inColumn({ areas: [a] }).length, 0);
+    rows.push(["On production lines (system: kind = production)", byKind]);
+    rows.push(["In the production band on this sheet", inProduction]);
+    rows.push(["In the support band on this sheet", inSupport]);
+    rows.push(["Total staff in Production (both bands)", inProduction + inSupport]);
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     // A tab name Excel accepts: 31 characters, none of : \ / ? * [ ]
@@ -191,18 +232,30 @@ export function parseHeadcountWorkbook(
 
     // Columns are claimed by the nearest heading row above them, so the same sheet
     // can carry a production block and a support block without them bleeding together.
-    let columns: (HeadcountArea | null)[] = [];
+    //
+    // A column can be an area or one of the away states: the export prints Absence,
+    // Holidays and Overtime as columns beside the lines, the way the company sheet
+    // has them. Reading them only as row labels is what broke the round trip the
+    // moment the export changed shape.
+    type Col = { area: HeadcountArea } | { status: AllocStatus } | null;
+    let columns: Col[] = [];
     for (const rawRow of grid) {
       const row = (rawRow ?? []).map((c) => String(c ?? "").trim());
       if (row.every((c) => !c)) { columns = []; continue; }
 
-      const asAreas = row.map((c) => (c ? areaByName.get(normalise(c)) ?? null : null));
-      const hits = asAreas.filter(Boolean).length;
-      // A heading row is one where most of the filled cells name an area.
+      const asCols: Col[] = row.map((c) => {
+        if (!c) return null;
+        const area = areaByName.get(normalise(c));
+        if (area) return { area };
+        const st = STATUS_BLOCKS.find((b) => normalise(b.label) === normalise(c));
+        return st ? { status: st.status } : null;
+      });
+      const hits = asCols.filter(Boolean).length;
+      // A heading row is one where most of the filled cells name a column.
       const filled = row.filter(Boolean).length;
       if (filled > 0 && hits >= Math.max(1, Math.ceil(filled / 2))) {
-        columns = asAreas;
-        row.forEach((c, i) => { if (c && !asAreas[i]) unknown.add(c); });
+        columns = asCols;
+        row.forEach((c, i) => { if (c && !asCols[i]) unknown.add(c); });
         continue;
       }
 
@@ -223,16 +276,21 @@ export function parseHeadcountWorkbook(
 
       if (columns.length === 0) continue;
       row.forEach((cell, i) => {
-        const area = columns[i];
-        if (!area || !cell || NOT_A_NAME.test(cell)) return;
+        const col = columns[i];
+        if (!col || !cell || NOT_A_NAME.test(cell)) return;
         // A count row under a column is a number, not somebody called "7".
         if (/^\d+$/.test(cell)) return;
+        const label = "area" in col ? col.area.name : STATUS_BLOCKS.find((b) => b.status === col.status)!.label;
         const emp = resolve(cell);
-        if (!emp) { out.unmatchedNames.push({ name: cell, column: area.name, date }); return; }
+        if (!emp) { out.unmatchedNames.push({ name: cell, column: label, date }); return; }
         const key = `${date}|${emp.id}`;
         if (seen.has(key)) return;
         seen.add(key);
-        out.matched.push({ date, shift: ctx.shift, employeeId: emp.id, areaId: area.id, status: "assigned" });
+        out.matched.push({
+          date, shift: ctx.shift, employeeId: emp.id,
+          areaId: "area" in col ? col.area.id : null,
+          status: "area" in col ? "assigned" : col.status,
+        });
       });
     }
   }

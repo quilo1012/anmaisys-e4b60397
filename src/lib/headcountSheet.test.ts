@@ -82,6 +82,69 @@ describe("export then import", () => {
   });
 });
 
+describe("the company sheet's own column names", () => {
+  const labelled = [
+    { ...area("l5", "Line 5"), sheet_label: "Line 5 (A&B)" },
+    { ...area("c1", "Capsules Machine 1"), sheet_group: "Pill line" },
+    { ...area("c2", "Capsules Machine 2"), sheet_group: "Pill line" },
+    { ...area("gl", "Gel Line") },
+  ];
+  const staff = [emp("p1", "Ana Silva"), emp("p2", "Bruno Reis"), emp("p3", "Carla Dias")];
+
+  it("prints the sheet's label rather than the system's name", () => {
+    const wb = buildHeadcountWorkbook({
+      days: [{ date: "2026-08-04", shift: "Day" }],
+      areas: labelled,
+      employeeById: new Map(staff.map((e) => [e.id, e])),
+      allocationsFor: () => [alloc("p1", "l5")],
+    });
+    const grid = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+    expect(grid.flat()).toContain("Line 5 (A&B)");
+    expect(grid.flat()).not.toContain("Line 5");
+  });
+
+  it("merges the two capsule machines into one Pill line column", () => {
+    const wb = buildHeadcountWorkbook({
+      days: [{ date: "2026-08-04", shift: "Day" }],
+      areas: labelled,
+      employeeById: new Map(staff.map((e) => [e.id, e])),
+      allocationsFor: () => [alloc("p1", "c1"), alloc("p2", "c2")],
+    });
+    const flat = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 }).flat();
+    expect(flat.filter((c) => c === "Pill line")).toHaveLength(1);
+    // Both people survive the merge — this is the whole reason for merging rather
+    // than dropping a column.
+    expect(flat).toContain("Ana Silva");
+    expect(flat).toContain("Bruno Reis");
+  });
+
+  it("still gives a column to an area the sheet has never heard of", () => {
+    // A hard-coded column list would drop Gel Line for being empty today and lose
+    // whoever is put there tomorrow.
+    const wb = buildHeadcountWorkbook({
+      days: [{ date: "2026-08-04", shift: "Day" }],
+      areas: labelled,
+      employeeById: new Map(staff.map((e) => [e.id, e])),
+      allocationsFor: () => [alloc("p3", "gl")],
+    });
+    const flat = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 }).flat();
+    expect(flat).toContain("Gel Line");
+    expect(flat).toContain("Carla Dias");
+  });
+
+  it("states both definitions of the production total", () => {
+    const wb = buildHeadcountWorkbook({
+      days: [{ date: "2026-08-04", shift: "Day" }],
+      areas: AREAS,
+      employeeById: new Map(ROSTER.map((e) => [e.id, e])),
+      allocationsFor: () => [alloc("e1", "l1"), alloc("e4", "hy")],
+    });
+    const flat = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 }).flat();
+    expect(flat.some((c) => String(c).includes("kind = production"))).toBe(true);
+    expect(flat.some((c) => String(c).includes("both bands"))).toBe(true);
+  });
+});
+
 describe("matching names typed by hand", () => {
   const sheet = (rows: (string | number)[][]) => {
     const wb = XLSX.utils.book_new();
