@@ -182,8 +182,6 @@ export default function ProductionPerformancePage() {
       return (data ?? []) as any[];
     },
   });
-  // The live dashboard card keeps showing only still-open actions.
-  const openActions = periodActions.filter((a) => a.status === "todo" || a.status === "in_progress");
 
   const { data: queryResult } = useQuery<{ sessions: SessionAgg[]; ragRows: RagRow[] }>({
     queryKey: ["oee", range.from, range.to, shift, lineFilter, leaderFilter],
@@ -312,17 +310,6 @@ export default function ProductionPerformancePage() {
       map.set(s.session_date, cur);
     }
     return Array.from(map.values()).map((x) => ({ ...x, eff: x.target > 0 ? (x.actual / x.target) * 100 : 0 })).sort((a, b) => a.date.localeCompare(b.date));
-  }, [sessions]);
-
-  const leaderboard = useMemo(() => {
-    const map = new Map<string, { leader: string; sessions: number; target: number; actual: number }>();
-    for (const s of sessions) {
-      if (!s.leader_name) continue;
-      const cur = map.get(s.leader_name) ?? { leader: s.leader_name, sessions: 0, target: 0, actual: 0 };
-      cur.sessions += 1; cur.target += s.target; cur.actual += s.actual;
-      map.set(s.leader_name, cur);
-    }
-    return Array.from(map.values()).map((x) => ({ ...x, eff: x.target > 0 ? (x.actual / x.target) * 100 : 0 })).sort((a, b) => b.eff - a.eff).slice(0, 10);
   }, [sessions]);
 
   const lineRank = (name: string) => {
@@ -515,59 +502,6 @@ export default function ProductionPerformancePage() {
           );
         })()}
 
-        {/* Open quality actions for the same period + shift + leader. */}
-        <SectionErrorBoundary title="Open quality actions">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Open Quality Actions
-              <Badge variant="outline" className="ml-1">{openActions.length}</Badge>
-              {/* Named, because a filtered count reads as a total: 28/07 has four
-                  actions, one on days and three on nights, and the panel showing "1"
-                  looked like the whole day. */}
-              <span className="text-2xs font-normal text-muted-foreground">
-                {shift === "all" ? "all shifts" : shift === "DAY" ? "day shift" : "night shift"}
-                {leaderFilter !== "__all__" ? ` · ${leaderFilter}` : ""}
-              </span>
-              <span className="ml-auto inline-flex items-center gap-1.5 text-2xs font-medium text-emerald-600 dark:text-emerald-400">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                </span>
-                Live
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {openActions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No open quality actions in this period.</p>
-            ) : (
-              <div className="divide-y">
-                {openActions.slice(0, 8).map((a) => (
-                  <button key={a.id} type="button" onClick={() => navigate("/dashboard/quality")}
-                    className="flex w-full items-center gap-3 py-1.5 text-left hover:bg-accent/40 rounded px-1">
-                    <span className="font-mono text-xs text-muted-foreground w-14 shrink-0">{a.action_no ?? "—"}</span>
-                    <span className="text-xs text-muted-foreground w-16 shrink-0">{format(new Date(a.recorded_at), "dd/MM")}{a.shift ? ` · ${a.shift === "DAY" ? "D" : "N"}` : ""}</span>
-                    <span className="w-24 shrink-0 truncate text-xs font-medium" title="Leader responsible">{a.leader_name ?? "—"}</span>
-                    <span className="hidden w-20 shrink-0 truncate text-xs text-muted-foreground sm:block" title="Where it happened">{a.line ?? "—"}</span>
-                    {a.severity && <Badge variant="outline" className="text-2xs shrink-0">{a.severity}</Badge>}
-                    <span className="text-sm truncate flex-1">{a.description ?? "—"}</span>
-                  </button>
-                ))}
-                {openActions.length > 8 && (
-                  <button type="button" onClick={() => navigate("/dashboard/quality")}
-                    className="w-full py-2 text-center text-xs text-primary hover:underline">
-                    View all {openActions.length} in Quality →
-                  </button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        </SectionErrorBoundary>
-
-
         {/* Line status cards. No longer behind a per-shift password: the page is
             already reachable only by roles that hold production.performance.view,
             and a second password on top of the login asked the same question twice
@@ -607,53 +541,6 @@ export default function ProductionPerformancePage() {
           to={range.to}
           shift={shift === "all" ? "ALL" : shift}
         />
-
-        {/* Leaders — the way into each leader's scorecard.
-            It used to open only from the leader filter, so anyone who did not think
-            to filter first never found it. The scorecard is the point of this
-            screen's leader data; it should be one click from the names themselves. */}
-        {leaderboard.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Medal className="h-4 w-4" /> Leaders
-                <span className="text-xs font-normal text-muted-foreground">· click a name for the scorecard</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="divide-y">
-                {leaderboard.map((l, i) => (
-                  <button
-                    key={l.leader}
-                    type="button"
-                    onClick={() => setScorecardFor(l.leader)}
-                    className="flex w-full items-center justify-between gap-3 py-2 text-left text-sm transition-colors hover:bg-accent/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="w-6 shrink-0 text-xs text-muted-foreground">{medal(i) ?? i + 1}</span>
-                      <span className="truncate font-medium">{l.leader}</span>
-                      <span className="shrink-0 text-2xs text-muted-foreground">{l.sessions} session{l.sessions === 1 ? "" : "s"}</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-3 tabular-nums">
-                      <span className="text-muted-foreground">{l.actual.toLocaleString("en-GB")}</span>
-                      {l.target > 0 ? (
-                        <Badge variant="outline" className={l.eff >= 100
-                          ? "border-emerald-500/40 bg-emerald-500/15 text-success-strong"
-                          : l.eff >= 80
-                            ? "border-amber-500/40 bg-amber-500/15 text-warning-strong"
-                            : "border-red-500/40 bg-red-500/15 text-destructive-strong"}>
-                          {l.eff.toFixed(0)}%
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground" title="No RAG plan for this leader's sessions">no plan</Badge>
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedByLine.map((l) => {
