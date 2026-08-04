@@ -1700,7 +1700,11 @@ function DayNightTotalSummary({
             }}
           >
 
-            <table className="text-xs border-collapse min-w-[1000px] w-full tabular-nums">
+            {/* 11px and tighter padding: twenty-one columns at 12px pushed two days off
+                  the right of a laptop, and the numbers here are read in a column,
+                  not in a sentence — the scale that suits prose is not the one that
+                  suits a dense grid. */}
+            <table className="text-2xs border-collapse min-w-[880px] w-full tabular-nums">
               <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
                 <tr className="border-b bg-background">
                   <th className="text-left p-1.5 sticky left-0 bg-background z-30 min-w-[100px]" />
@@ -1769,7 +1773,7 @@ function DayNightTotalSummary({
                   const wtDay = weekTotal("DAY");
                   const wtNight = weekTotal("NIGHT");
                   const wtTot = weekTotal("TOTAL");
-                  const cls = `p-1.5 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
+                  const cls = `px-1.5 py-1 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
                   // Plan is typed here; actual is not. Actual is the sum of what
                   // operators logged for the line and shift, derived on write, so an
                   // inline editor would silently discard whatever was entered.
@@ -1847,7 +1851,7 @@ function DayNightTotalSummary({
                     isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                   return (
                     <tr key={row.key} className="border-b hover:bg-muted/20">
-                      <td className="p-1.5 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-2xs tracking-wide text-muted-foreground">{row.label}</td>
+                      <td className="px-1.5 py-1 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[10px] tracking-wide text-muted-foreground">{row.label}</td>
                       {weekDates.map((d, i) => {
                         const ds = format(d, "yyyy-MM-dd");
                         const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
