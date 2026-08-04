@@ -112,7 +112,7 @@ export default function FinanceClosePage() {
   return (
     <DashboardLayout>
       <AdminPinGate
-        storageKey="finance-close"
+        storageKey="workforce"
         title="Finance Close"
         description="Overtime and time off per person, for the pay period. Enter the admin PIN to open."
       >

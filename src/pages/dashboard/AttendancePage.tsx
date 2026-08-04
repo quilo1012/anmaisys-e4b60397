@@ -152,7 +152,7 @@ export default function AttendancePage() {
   return (
     <DashboardLayout>
       <AdminPinGate
-        storageKey="attendance"
+        storageKey="workforce"
         title="Time &amp; Attendance"
         description="Hours, balances and absence reasons for every employee. Enter the admin PIN to open."
       >
