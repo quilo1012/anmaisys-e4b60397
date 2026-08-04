@@ -72,6 +72,7 @@ const SystemHubPage = lazyWithReload(() => import("./pages/dashboard/SystemHubPa
 const ReportsPage = lazyWithReload(() => import("./pages/dashboard/ReportsPage"));
 const AttendancePage = lazyWithReload(() => import("./pages/dashboard/AttendancePage"));
 const FinanceClosePage = lazyWithReload(() => import("./pages/dashboard/FinanceClosePage"));
+const LeavePage = lazyWithReload(() => import("./pages/dashboard/LeavePage"));
 const WorkforcePage = lazyWithReload(() => import("./pages/dashboard/WorkforcePage"));
 const ProductionHeadcountPage = lazyWithReload(() => import("./pages/dashboard/ProductionHeadcountPage"));
 
@@ -393,6 +394,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="headcount.view">
                       <ProductionHeadcountPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/leave"
+                  element={
+                    <ProtectedRoute requiredAction="workforce.view">
+                      <LeavePage />
                     </ProtectedRoute>
                   }
                 />
