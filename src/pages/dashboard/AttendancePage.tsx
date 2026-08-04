@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
+import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,6 +150,11 @@ export default function AttendancePage() {
 
   return (
     <DashboardLayout>
+      <AdminPinGate
+        storageKey="attendance"
+        title="Time &amp; Attendance"
+        description="Hours, balances and absence reasons for every employee. Enter the admin PIN to open."
+      >
       <div className="space-y-4">
         <BackButton />
 
@@ -308,6 +314,7 @@ export default function AttendancePage() {
           duplicating them.
         </p>
       </div>
+      </AdminPinGate>
     </DashboardLayout>
   );
 }
