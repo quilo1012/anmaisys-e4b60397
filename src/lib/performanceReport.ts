@@ -22,12 +22,31 @@ export interface PerfReportOpenAction {
   description: string | null;
   status?: string | null;
 }
+/** One shift's worth of the per-line table, printed under its own heading. */
+export interface PerfReportSection {
+  label: string;
+  lines: PerfReportLine[];
+  totalTarget: number;
+  totalActual: number;
+}
 export interface PerfReportInput {
   periodLabel: string;
   filtersLabel: string;
   lines: PerfReportLine[];
   totalTarget: number;
   totalActual: number;
+  /**
+   * Day and Night as separate tables.
+   *
+   * A report run across both shifts summed them into one row per line, so a line
+   * that made target on days and lost it on nights printed as a single average that
+   * happened on neither. The headline figures stay whole-period; the tables split,
+   * because that is the level the work is actually reviewed at.
+   *
+   * Absent, the flat `lines` table is printed as before — which is what a report
+   * already filtered to one shift wants.
+   */
+  sections?: PerfReportSection[];
   openActions: PerfReportOpenAction[];
   generatedBy: string;
 }
@@ -72,7 +91,7 @@ async function loadLogoDataUrl(): Promise<string | null> {
 }
 
 export async function generatePerformanceReportPDF(input: PerfReportInput, opts?: { output?: "save" | "dataurl" | "bloburl" }) {
-  const { periodLabel, filtersLabel, lines, totalTarget, totalActual, openActions, generatedBy } = input;
+  const { periodLabel, filtersLabel, lines, totalTarget, totalActual, sections, openActions, generatedBy } = input;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -123,36 +142,59 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
   doc.text(`${lines.length} ${lines.length === 1 ? "line" : "lines"} scored   ·   ${filtersLabel}`, margin, y);
   y += 5;
 
-  // ── Per-line table ────────────────────────────────────────────────────
-  autoTable(doc, {
-    startY: y,
-    head: [["Line", "Leader", "Target", "Actual", "Gap", "%"]],
-    body: lines.map((l) => {
-      const g = l.actual - l.target;
-      return [
-        l.line,
-        l.leader ?? "—",
-        { content: n(l.target), styles: { halign: "right" } },
-        { content: n(l.actual), styles: { halign: "right" } },
-        { content: signed(g), styles: { halign: "right", textColor: gapTx(g), fontStyle: "bold" } },
-        { content: `${l.eff.toFixed(0)}%`, styles: { halign: "center", fillColor: ragBg(l.eff), textColor: ragTx(l.eff), fontStyle: "bold" } },
-      ];
-    }),
-    foot: [[
-      { content: "TOTAL", styles: { fontStyle: "bold" } },
-      "",
-      { content: n(totalTarget), styles: { halign: "right", fontStyle: "bold" } },
-      { content: n(totalActual), styles: { halign: "right", fontStyle: "bold" } },
-      { content: signed(totalGap), styles: { halign: "right", fontStyle: "bold", textColor: gapTx(totalGap) } },
-      { content: `${overall.toFixed(0)}%`, styles: { halign: "center", fontStyle: "bold", fillColor: ragBg(overall), textColor: ragTx(overall) } },
-    ]],
-    styles: { fontSize: 9, cellPadding: 2.4, lineColor: [226, 232, 240], lineWidth: 0.1 },
-    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", halign: "left" },
-    footStyles: { fillColor: [226, 232, 240], textColor: INK, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: { 0: { fontStyle: "bold" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "center" } },
-    margin: { left: margin, right: margin },
-  });
+  // ── Per-line table, once per shift when both are in scope ─────────────
+  //
+  // Drawn by a single routine so a split report and a whole-period one cannot
+  // drift apart in layout, spacing or colour rules.
+  const drawLineTable = (rows: PerfReportLine[], tTarget: number, tActual: number, startY: number) => {
+    const tGap = tActual - tTarget;
+    const tPct = tTarget > 0 ? (tActual / tTarget) * 100 : 0;
+    autoTable(doc, {
+      startY,
+      head: [["Line", "Leader", "Target", "Actual", "Gap", "%"]],
+      body: rows.map((l) => {
+        const g = l.actual - l.target;
+        return [
+          l.line,
+          l.leader ?? "—",
+          { content: n(l.target), styles: { halign: "right" } },
+          { content: n(l.actual), styles: { halign: "right" } },
+          { content: signed(g), styles: { halign: "right", textColor: gapTx(g), fontStyle: "bold" } },
+          { content: `${l.eff.toFixed(0)}%`, styles: { halign: "center", fillColor: ragBg(l.eff), textColor: ragTx(l.eff), fontStyle: "bold" } },
+        ];
+      }),
+      foot: [[
+        { content: "TOTAL", styles: { fontStyle: "bold" } },
+        "",
+        { content: n(tTarget), styles: { halign: "right", fontStyle: "bold" } },
+        { content: n(tActual), styles: { halign: "right", fontStyle: "bold" } },
+        { content: signed(tGap), styles: { halign: "right", fontStyle: "bold", textColor: gapTx(tGap) } },
+        { content: `${tPct.toFixed(0)}%`, styles: { halign: "center", fontStyle: "bold", fillColor: ragBg(tPct), textColor: ragTx(tPct) } },
+      ]],
+      styles: { fontSize: 9, cellPadding: 2.4, lineColor: [226, 232, 240], lineWidth: 0.1 },
+      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", halign: "left" },
+      footStyles: { fillColor: [226, 232, 240], textColor: INK, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: { 0: { fontStyle: "bold" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "center" } },
+      margin: { left: margin, right: margin },
+    });
+    return (doc as any).lastAutoTable.finalY as number;
+  };
+
+  const printable = (sections ?? []).filter((sec) => sec.lines.length > 0);
+  if (printable.length > 0) {
+    for (const sec of printable) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...NAVY);
+      doc.text(`${sec.label}  —  ${sec.lines.length} ${sec.lines.length === 1 ? "line" : "lines"}`, margin, y);
+      doc.setTextColor(0);
+      y = drawLineTable(sec.lines, sec.totalTarget, sec.totalActual, y + 2) + 7;
+    }
+    // Nudged back so the shared advance below lands in the same place either way.
+    y -= 7;
+  } else {
+    y = drawLineTable(lines, totalTarget, totalActual, y);
+  }
+
   y = (doc as any).lastAutoTable.finalY + 9;
 
   // ── Quality actions (all statuses in the period) ──────────────────────

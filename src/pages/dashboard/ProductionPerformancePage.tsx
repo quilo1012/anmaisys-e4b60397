@@ -33,6 +33,62 @@ interface SessionAgg {
   items: { sku_id: string; actual: number }[];
 }
 
+type RagRowT = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
+
+/**
+ * Target and actual per line, from RAG where it exists and the floor's own sessions
+ * where it does not.
+ *
+ * Lifted out of the component so the same arithmetic can be run over one shift's
+ * rows as easily as over the period's. A report that summed both shifts printed one
+ * row per line for work that happened on two, and a line that made target on days
+ * and lost it on nights read as an average that happened on neither.
+ */
+function aggregateLines(sessions: SessionAgg[], ragRows: RagRowT[], leaderFilter: string) {
+
+  type Agg = { line: string; target: number; ragActual: number; sessionActual: number; leader: string | null; hasSession: boolean; ragLines: Set<string> };
+  const map = new Map<string, Agg>();
+  const ragLineSet = new Set<string>();
+
+  if (leaderFilter === "__all__") {
+    for (const r of ragRows) {
+      ragLineSet.add(r.line);
+      const cur = map.get(r.line) ?? { line: r.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
+      cur.target += r.plan_qty;
+      cur.ragActual += r.actual_qty;
+      map.set(r.line, cur);
+    }
+  }
+
+  for (const s of sessions) {
+    const cur = map.get(s.line) ?? { line: s.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
+    // Only add session target if this line wasn't already seeded from RAG (avoid double count).
+    if (!ragLineSet.has(s.line)) cur.target += s.target;
+    const itemsActual = s.items.reduce((a, i) => a + i.actual, 0);
+    cur.sessionActual += itemsActual;
+    cur.leader = s.leader_name ?? cur.leader;
+    cur.hasSession = true;
+    map.set(s.line, cur);
+  }
+
+  return Array.from(map.values()).map((x) => {
+    const actual = x.ragActual > 0 ? x.ragActual : x.sessionActual;
+    // A line that was planned to run but has nothing logged on the floor.
+    //
+    // This used to look for a RAG figure with no matching shift record — the way
+    // Line 1 read 96% and 99% on 29/07 with zero entries on either shift. RAG
+    // actual is now derived from the same entries, so the two can no longer
+    // disagree and that test can never fire. What still needs flagging the same
+    // day is the case it was really catching: a planned line nobody logged.
+    const notLogged = x.target > 0 && actual === 0;
+    return { line: x.line, target: x.target, actual, leader: x.leader, hasSession: x.hasSession, notLogged, eff: x.target > 0 ? (actual / x.target) * 100 : 0 };
+  })
+    // Hide empty placeholder lines: no RAG target AND no production (e.g. a session
+    // created just by assigning a leader, or an operator opening My Production).
+    .filter((x) => x.target > 0 || x.actual > 0)
+    .sort((a, b) => b.eff - a.eff);
+}
+
 export default function ProductionPerformancePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -262,48 +318,19 @@ export default function ProductionPerformancePage() {
   // Build byLine from the UNION of RAG Weekly plan rows and production_sessions,
   // so lines with a plan but no session yet still appear (Actual = 0).
   // When leaderFilter is active, RAG-only lines are excluded (RAG has no leader info).
-  const byLine = useMemo(() => {
-    type Agg = { line: string; target: number; ragActual: number; sessionActual: number; leader: string | null; hasSession: boolean; ragLines: Set<string> };
-    const map = new Map<string, Agg>();
-    const ragLineSet = new Set<string>();
+  const byLine = useMemo(
+    () => aggregateLines(sessions, ragRows, leaderFilter),
+    [sessions, ragRows, leaderFilter],
+  );
 
-    if (leaderFilter === "__all__") {
-      for (const r of ragRows) {
-        ragLineSet.add(r.line);
-        const cur = map.get(r.line) ?? { line: r.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
-        cur.target += r.plan_qty;
-        cur.ragActual += r.actual_qty;
-        map.set(r.line, cur);
-      }
-    }
-
-    for (const s of sessions) {
-      const cur = map.get(s.line) ?? { line: s.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
-      // Only add session target if this line wasn't already seeded from RAG (avoid double count).
-      if (!ragLineSet.has(s.line)) cur.target += s.target;
-      const itemsActual = s.items.reduce((a, i) => a + i.actual, 0);
-      cur.sessionActual += itemsActual;
-      cur.leader = s.leader_name ?? cur.leader;
-      cur.hasSession = true;
-      map.set(s.line, cur);
-    }
-
-    return Array.from(map.values()).map((x) => {
-      const actual = x.ragActual > 0 ? x.ragActual : x.sessionActual;
-      // A line that was planned to run but has nothing logged on the floor.
-      //
-      // This used to look for a RAG figure with no matching shift record — the way
-      // Line 1 read 96% and 99% on 29/07 with zero entries on either shift. RAG
-      // actual is now derived from the same entries, so the two can no longer
-      // disagree and that test can never fire. What still needs flagging the same
-      // day is the case it was really catching: a planned line nobody logged.
-      const notLogged = x.target > 0 && actual === 0;
-      return { line: x.line, target: x.target, actual, leader: x.leader, hasSession: x.hasSession, notLogged, eff: x.target > 0 ? (actual / x.target) * 100 : 0 };
-    })
-      // Hide empty placeholder lines: no RAG target AND no production (e.g. a session
-      // created just by assigning a leader, or an operator opening My Production).
-      .filter((x) => x.target > 0 || x.actual > 0)
-      .sort((a, b) => b.eff - a.eff);
+  // The same figures, cut by shift, for a report that covers both.
+  const byShift = useMemo(() => {
+    const of = (sh: "DAY" | "NIGHT") => aggregateLines(
+      sessions.filter((x) => (x.shift ?? "").toUpperCase() === sh),
+      ragRows.filter((r) => (r.shift ?? "").toUpperCase() === sh),
+      leaderFilter,
+    );
+    return { DAY: of("DAY"), NIGHT: of("NIGHT") };
   }, [sessions, ragRows, leaderFilter]);
 
   const trend = useMemo(() => {
@@ -340,6 +367,22 @@ export default function ProductionPerformancePage() {
       filtersLabel: `Shift: ${shift === "all" ? "All" : cap(shift.toLowerCase())} · Line: ${lineFilter === "__all__" ? "All" : lineFilter} · Leader: ${leaderFilter === "__all__" ? "All" : leaderFilter}`,
       lines: sortedByLine.map((l) => ({ line: l.line, leader: l.leader, target: l.target, actual: l.actual, eff: l.eff })),
       totalTarget, totalActual,
+      // Split only when the screen is not already filtered to one shift: asking for
+      // Nights and being handed a Days table too would be answering a question
+      // nobody asked.
+      sections: shift !== "all" ? undefined : (["DAY", "NIGHT"] as const)
+        .map((sh) => {
+          const rows = [...byShift[sh]]
+            .sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line))
+            .filter((l) => l.target > 0);
+          return {
+            label: sh === "DAY" ? "Day shift  (06–18)" : "Night shift  (18–06)",
+            lines: rows.map((l) => ({ line: l.line, leader: l.leader, target: l.target, actual: l.actual, eff: l.eff })),
+            totalTarget: rows.reduce((a, l) => a + l.target, 0),
+            totalActual: rows.reduce((a, l) => a + l.actual, 0),
+          };
+        })
+        .filter((sec) => sec.lines.length > 0),
       openActions: periodActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description, status: a.status })),
       generatedBy: profile?.name || "—",
     }, { output });
