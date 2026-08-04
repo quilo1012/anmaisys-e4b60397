@@ -16,29 +16,34 @@ describe("admin pin gate", () => {
   beforeEach(() => { sessionStorage.clear(); localStorage.clear(); });
 
   it("starts locked", () => {
-    expect(isUnlocked("attendance")).toBe(false);
-    expect(isUnlocked("finance-close")).toBe(false);
+    expect(isUnlocked("workforce")).toBe(false);
   });
 
-  it("unlocking one screen does not unlock the other", () => {
-    // Separate keys on purpose: opening the hours does not open the pay run.
-    unlock("attendance");
-    expect(isUnlocked("attendance")).toBe(true);
-    expect(isUnlocked("finance-close")).toBe(false);
+  it("opens the whole workforce section at once", () => {
+    // One key for the four tabs. They are one screen seen four ways, and asking again
+    // on every tab is the friction that makes somebody prop the door open — a PIN
+    // typed four times an hour stops being a lock and becomes a habit.
+    unlock("workforce");
+    expect(isUnlocked("workforce")).toBe(true);
+  });
+
+  it("keeps sections that are not tabs of each other apart", () => {
+    unlock("workforce");
+    expect(isUnlocked("some-other-screen")).toBe(false);
   });
 
   it("remembers the unlock for the tab, not the machine", () => {
     // sessionStorage, not localStorage: closing the tab locks it again, which is how
     // a door behaves. A setting would survive, and that is the wrong shape for this.
-    unlock("finance-close");
-    expect(sessionStorage.getItem(KEY("finance-close"))).toBe("1");
-    expect(localStorage.getItem(KEY("finance-close"))).toBeNull();
+    unlock("workforce");
+    expect(sessionStorage.getItem(KEY("workforce"))).toBe("1");
+    expect(localStorage.getItem(KEY("workforce"))).toBeNull();
   });
 
   it("treats anything but the exact flag as locked", () => {
-    sessionStorage.setItem(KEY("attendance"), "true");
-    expect(isUnlocked("attendance")).toBe(false);
-    sessionStorage.setItem(KEY("attendance"), "");
-    expect(isUnlocked("attendance")).toBe(false);
+    sessionStorage.setItem(KEY("workforce"), "true");
+    expect(isUnlocked("workforce")).toBe(false);
+    sessionStorage.setItem(KEY("workforce"), "");
+    expect(isUnlocked("workforce")).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
+import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -317,6 +318,11 @@ export default function LeavePage() {
 
   return (
     <DashboardLayout>
+      <AdminPinGate
+        storageKey="workforce"
+        title="Leave"
+        description="Holidays, absence and the balances behind them. Enter the admin PIN to open."
+      >
       <div className="space-y-4">
         <BackButton />
         <WorkforceTabs />
@@ -604,6 +610,7 @@ export default function LeavePage() {
           not seven.
         </p>
       </div>
+      </AdminPinGate>
     </DashboardLayout>
   );
 }

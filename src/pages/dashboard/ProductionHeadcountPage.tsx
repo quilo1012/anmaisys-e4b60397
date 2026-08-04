@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
+import { AdminPinGate } from "@/components/AdminPinGate";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
@@ -871,6 +872,18 @@ export default function ProductionHeadcountPage() {
   };
 
   return (
+    // The whole workforce section behind one PIN. These four screens name every
+    // employee beside their hours, their sickness and what they are owed, and the
+    // board is now the way in to the other three.
+    //
+    // One key, not four: they are tabs of one screen, and asking again on every tab
+    // is the friction that makes somebody prop the door open — a PIN typed four times
+    // an hour stops being a lock and becomes a habit.
+    <AdminPinGate
+      storageKey="workforce"
+      title="Production Headcount"
+      description="The board and the workforce screens behind it. Enter the admin PIN to open."
+    >
     <div className="space-y-4">
       {/* Above the banner rather than inside it: the banner is navy, and a ghost
           button on it reads as disabled. Same component and same position as every
@@ -950,5 +963,6 @@ export default function ProductionHeadcountPage() {
         onImported={() => qc.invalidateQueries({ queryKey: ["allocations"] })}
       />
     </div>
+    </AdminPinGate>
   );
 }
