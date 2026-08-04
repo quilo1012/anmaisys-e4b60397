@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
-import { getCurrentFactoryShift } from "@/lib/shifts";
+import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
@@ -171,15 +171,19 @@ export default function ProductionPerformancePage() {
     refetchInterval: 15_000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
+      const window = shiftDateFetchRange(range.from, range.to);
       let q = supabase.from("quality_actions")
         .select("id, action_no, recorded_at, line, shift, status, severity, description, leader_name")
-        .gte("recorded_at", range.from).lte("recorded_at", `${range.to}T23:59:59`)
+        .gte("recorded_at", window.gte).lte("recorded_at", window.lte)
         .order("recorded_at", { ascending: false });
       if (shift !== "all") q = q.eq("shift", shift);
       if (leaderFilter !== "__all__") q = q.eq("leader_name", leaderFilter);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as any[];
+      return ((data ?? []) as any[]).filter((a) => {
+        const day = shiftSessionDate(a.recorded_at, a.shift);
+        return day >= range.from && day <= range.to;
+      });
     },
   });
 

@@ -42,6 +42,45 @@ export function getCurrentFactoryShift(date = new Date()): { sessionDate: string
   return { sessionDate: londonDateString(previous), shiftCode: "night" };
 }
 
+/**
+ * The day a record belongs to the factory, which is not always the day the clock
+ * said when it was written.
+ *
+ * A night that starts on the 28th and ends at 06:00 on the 29th is the 28th's night
+ * all the way through — the leader who worked it calls everything in it "the 28th",
+ * and production sessions already store it that way in `session_date`. Anything
+ * written between midnight and 06:00 therefore belongs to the day before.
+ *
+ * The shift is taken from the record rather than inferred from the hour, because the
+ * two can disagree: rows imported in bulk carry a synthetic midday timestamp and a
+ * real shift, and reading the hour would file a night under the day that never
+ * worked it. Where they disagree the recorded shift wins and the calendar date
+ * stands, which leaves imported history exactly where it was found.
+ */
+export function shiftSessionDate(recordedAt: string | Date, shift: string | null): string {
+  const d = typeof recordedAt === "string" ? new Date(recordedAt) : recordedAt;
+  const isNight = (shift ?? "").toUpperCase() === "NIGHT";
+  if (isNight && londonParts(d).hour < 6) {
+    const previous = new Date(d.getTime() - 24 * 60 * 60 * 1000);
+    return londonDateString(previous);
+  }
+  return londonDateString(d);
+}
+
+/**
+ * The window of timestamps that can hold a session date in [from, to].
+ *
+ * A night filed under `to` is still being written at 05:59 the following morning, so
+ * the fetch has to reach a day past the range and let {@link shiftSessionDate} throw
+ * back what does not belong. Narrowing this to the range itself is what made a
+ * leader's last night disappear from their own day.
+ */
+export function shiftDateFetchRange(from: string, to: string): { gte: string; lte: string } {
+  const end = new Date(`${to}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { gte: `${from}T00:00:00.000Z`, lte: `${end.toISOString().slice(0, 10)}T06:59:59.999Z` };
+}
+
 /** How far Europe/London local is ahead of UTC (ms) at the given instant. */
 function londonOffsetMs(atUtcMs: number): number {
   const parts = new Intl.DateTimeFormat("en-GB", {

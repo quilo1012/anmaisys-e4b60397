@@ -18,7 +18,7 @@ import {
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { computeLeaderScore, displayScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
-import { getShift } from "@/lib/shifts";
+import { getShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface LSAction {
@@ -71,14 +71,20 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
       // Shift-filtered like every other query on this card. Without it a leader's
       // night actions appeared on a card the screen had filtered to the day shift —
       // the page listed one action for 28/07 and the card listed three others.
+      const window = shiftDateFetchRange(from, to);
       let qy = supabase.from("quality_actions")
         .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at")
         .eq("leader_name", leaderName as string)
-        .gte("recorded_at", from).lte("recorded_at", untilTs);
+        .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
       if (shift !== "all") qy = qy.eq("shift", shift);
       const { data, error } = await qy.order("recorded_at");
       if (error) throw error;
-      return (data ?? []) as unknown as LSAction[];
+      // The fetch reaches into the morning after so a night filed under `to` is not
+      // cut off halfway; the shift date decides what actually stays.
+      return ((data ?? []) as unknown as LSAction[]).filter((a) => {
+        const day = shiftSessionDate(a.recorded_at, a.shift);
+        return day >= from && day <= to;
+      });
     },
   });
 
