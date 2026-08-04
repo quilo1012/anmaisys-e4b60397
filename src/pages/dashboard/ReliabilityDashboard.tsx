@@ -196,7 +196,14 @@ export default function ReliabilityDashboard() {
         lastFailure: lastFailureDate,
         risk,
       };
-    }).sort((a, b) => {
+    })
+    // Listed only if it broke inside the window being asked about. The risk itself
+    // still comes from ninety days — that is what makes it a property of the machine
+    // rather than of the view — but a table filtered to today that shows a machine
+    // whose last failure was in May reads as a broken filter, and the reader checks
+    // the filter instead of the machine.
+    .filter((r) => r.failures > 0)
+    .sort((a, b) => {
       const order: Record<RiskLevel, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
       return order[a.risk] - order[b.risk] || b.failures90 - a.failures90;
     });
@@ -378,8 +385,9 @@ export default function ReliabilityDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Cog className="h-5 w-5" />Machine Risk Assessment</CardTitle>
             <CardDescription>
-              Risk is judged over a fixed 90 days, so it does not change with the date filter. Planned
-              preventive work and warehouse jobs are left out — they are not failures.
+              Machines that failed in the selected period. Risk and MTBF are judged over a fixed
+              90 days, so they do not change with the date filter — a single day has no interval to
+              measure. Planned preventive work and warehouse jobs are left out; they are not failures.
             </CardDescription>
           </CardHeader>
           <CardContent>
