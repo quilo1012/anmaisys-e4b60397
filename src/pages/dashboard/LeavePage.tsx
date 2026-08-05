@@ -141,7 +141,7 @@ export default function LeavePage() {
       const { data, error } = await (supabase as any)
         .from("daily_allocations")
         .select("employee_id, on_date, status")
-        .in("status", ["holiday", "absence"])
+        .in("status", ["holiday", "sick", "unpaid"])
         .order("on_date", { ascending: false })
         .limit(200);
       if (error) throw error;
@@ -321,7 +321,7 @@ export default function LeavePage() {
             const { error: allocErr } = await (supabase as any).from("daily_allocations").upsert(
               days.workingDates.map((d) => ({
                 on_date: d, shift, employee_id: r.employee_id,
-                area_id: null, status: r.kind === "sick" ? "absence" : "holiday",
+                area_id: null, status: r.kind === "sick" ? "sick" : r.kind === "unpaid" ? "unpaid" : "holiday",
               })),
               { onConflict: "on_date,shift,employee_id" },
             );

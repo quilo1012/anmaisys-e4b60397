@@ -51,7 +51,7 @@ describe("datesBetween", () => {
 describe("export then import", () => {
   const allocations = [
     alloc("e1", "l1"), alloc("e2", "l1"), alloc("e3", "l5"),
-    alloc("e4", "hy"), alloc("e5", null, "absence"),
+    alloc("e4", "hy"), alloc("e5", null, "unpaid"), alloc("e6", null, "sick"),
   ];
   const wb = buildHeadcountWorkbook({
     days: [{ date: "2026-08-04", shift: "Day" }],
@@ -67,12 +67,16 @@ describe("export then import", () => {
   it("comes back with every person on the area they were on", () => {
     const p = parseHeadcountWorkbook(wb, { areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026 });
     expect(p.unmatchedNames).toEqual([]);
-    expect(p.matched).toHaveLength(5);
+    expect(p.matched).toHaveLength(6);
     const on = (id: string) => p.matched.find((m) => m.employeeId === id);
     expect(on("e1")!.areaId).toBe("l1");
     expect(on("e3")!.areaId).toBe("l5");
     expect(on("e4")!.areaId).toBe("hy");
-    expect(on("e5")).toMatchObject({ status: "absence", areaId: null });
+    // Sickness and unpaid are separate columns and must survive the round trip as
+    // themselves — collapsing them back into one absence is exactly what the board
+    // stopped doing.
+    expect(on("e5")).toMatchObject({ status: "unpaid", areaId: null });
+    expect(on("e6")).toMatchObject({ status: "sick", areaId: null });
   });
 
   it("does not mistake a column's count row for a person", () => {
