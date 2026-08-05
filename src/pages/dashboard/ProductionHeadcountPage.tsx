@@ -32,6 +32,7 @@ import {
   type HeadcountEmployee,
 } from "@/hooks/useHeadcount";
 import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialog";
+import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
 
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
@@ -987,9 +988,14 @@ export default function ProductionHeadcountPage() {
         <ShiftBoard onDate={date} shift={view} areas={areas} canManage={canManage} />
       )}
 
-      {/* The board is today; this is the period the board adds up to. Kept on the same
-          screen because the question a supervisor asks after placing people is who is
-          running ahead of their rota, and that used to mean another page. */}
+      {/* The board is today; these two are the period it adds up to. Kept on the same
+          screen because the questions a supervisor asks after placing people — how long
+          is this period, and who is running ahead of their rota — used to mean two
+          other pages.
+          Both sit inside the PIN gate with the board, which is the point of the gate:
+          the shift balance is pay information and does not become less so for being
+          further down the page. */}
+      <PeriodCalendar />
       <HeadcountOvertimePanel />
 
       <HeadcountSheetDialog
