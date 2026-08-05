@@ -202,3 +202,35 @@ describe("matching names typed by hand", () => {
     expect(p.matched).toHaveLength(1);
   });
 });
+
+describe("columns the exporter renames or merges", () => {
+  // The exporter labels a column with `sheet_group ?? sheet_label ?? name`. The reader
+  // only knew `name`, so its own output came back with an unknown column and everybody
+  // in it silently dropped — 47 people over a month of real boards.
+  const cap1 = { ...area("c1", "Capsules Machine 1"), sheet_group: "Pill line" } as HeadcountArea;
+  const cap2 = { ...area("c2", "Capsules Machine 2"), sheet_group: "Pill line" } as HeadcountArea;
+  const l5 = { ...area("l5", "Line 5"), sheet_label: "Line 5 (A&B)" } as HeadcountArea;
+  const AREAS2 = [cap1, cap2, l5];
+  const ROSTER2 = [emp("e1", "Ana Silva"), emp("e2", "Bruno Costa")];
+
+  const wb = buildHeadcountWorkbook({
+    days: [{ date: "2026-08-04", shift: "Day" }],
+    areas: AREAS2,
+    employeeById: new Map(ROSTER2.map((e) => [e.id, e])),
+    allocationsFor: () => [alloc("e1", "c1"), alloc("e2", "l5")],
+  });
+
+  it("reads its own merged column back instead of calling it unknown", () => {
+    const p = parseHeadcountWorkbook(wb, { areas: AREAS2, roster: ROSTER2, shift: "Day", fallbackYear: 2026 });
+    expect(p.unknownColumns).toEqual([]);
+    expect(p.matched).toHaveLength(2);
+    // A merged column cannot say which machine, so it lands on the first — the right
+    // column, and one drag from the right machine.
+    expect(p.matched.find((m) => m.employeeId === "e1")!.areaId).toBe("c1");
+  });
+
+  it("still reads a renamed column", () => {
+    const p = parseHeadcountWorkbook(wb, { areas: AREAS2, roster: ROSTER2, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched.find((m) => m.employeeId === "e2")!.areaId).toBe("l5");
+  });
+});
