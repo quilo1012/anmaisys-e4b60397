@@ -172,6 +172,7 @@ function Chip({
   dimmed,
   overtime,
   half,
+  leftEarlyAt,
   draggable,
   onOpen,
   onDragStart,
@@ -188,6 +189,8 @@ function Chip({
   overtime?: boolean;
   /** Off for half the shift. Shown on the chip so the block's count can be read honestly. */
   half?: boolean;
+  /** Came in and went home early, at this time. A day worked, not a day off. */
+  leftEarlyAt?: string | null;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -236,6 +239,17 @@ function Chip({
           className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-[10px] font-bold leading-tight text-muted-foreground"
         >
           ½
+        </span>
+      )}
+      {/* Went home early. On the chip because the column counts them as in — which
+          they were — and the supervisor reading the board at four needs to know the
+          line lost somebody at two without opening every card. */}
+      {leftEarlyAt && (
+        <span
+          title={`Left early — went home at ${leftEarlyAt.slice(0, 5)}`}
+          className="shrink-0 rounded-sm bg-amber-500/20 px-1 py-px text-[10px] font-bold leading-tight text-warning-strong"
+        >
+          ←{leftEarlyAt.slice(0, 5)}
         </span>
       )}
       {/* The named role rides after the name, the way a label does on a card. Only
@@ -644,6 +658,7 @@ function ShiftBoard({
                         role={roleStripe(p.department)}
                         dimmed={isDimmed(p.full_name)}
                         overtime={isOt}
+                        leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                         onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
@@ -751,6 +766,8 @@ function ShiftBoard({
         const person = employeeById.get(editing);
         const alloc = byEmployee.get(editing);
         if (!person) return null;
+        // Postgres hands back `14:00:00`; the time input wants `14:00`.
+        const leftEarly = alloc?.left_early_at ? alloc.left_early_at.slice(0, 5) : null;
         return (
           <PersonDayDialog
             open
@@ -767,6 +784,15 @@ function ShiftBoard({
               areaId: alloc?.area_id ?? null,
               status: (alloc?.status as AllocStatus | undefined) ?? "absence",
               halfDay: v,
+              leftEarlyAt: leftEarly,
+            })}
+            leftEarlyAt={leftEarly}
+            onSetLeftEarlyAt={(v) => place.mutate({
+              employeeId: editing,
+              areaId: alloc?.area_id ?? null,
+              status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
+              halfDay: alloc?.half_day === true,
+              leftEarlyAt: v,
             })}
             onSetStatus={(st) => place.mutate({
               employeeId: editing,
@@ -774,11 +800,17 @@ function ShiftBoard({
               areaId: st === "absence" || st === "holiday" ? null : alloc?.area_id ?? null,
               status: st,
               halfDay: alloc?.half_day === true,
+              // Carried, not dropped: the upsert writes every column, so leaving it
+              // out would silently clear an early finish somebody had recorded. The
+              // mutation itself drops it when the status stops being a day worked.
+              leftEarlyAt: leftEarly,
             })}
             onSetArea={(id) => place.mutate({
               employeeId: editing,
               areaId: id,
               status: alloc?.status === "overtime" ? "overtime" : "assigned",
+              halfDay: alloc?.half_day === true,
+              leftEarlyAt: leftEarly,
             })}
             onSetShift={(sg) => changeShift.mutate({ employeeId: editing, shiftGroup: sg })}
             patterns={patterns}
@@ -831,6 +863,7 @@ function ShiftBoard({
                         role={roleStripe(p.department)}
                         tone={block.status === "overtime" ? "overtime" : "away"}
                         half={byEmployee.get(p.id)?.half_day === true}
+                        leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                         draggable={canManage}
                         onDragStart={(e) => {
                           draggedEmployeeId = p.id;
