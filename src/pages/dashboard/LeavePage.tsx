@@ -186,9 +186,9 @@ export default function LeavePage() {
    * Sickness and unpaid, per person, over the same leave year as the holiday balance.
    *
    * Split into this year and the last twelve months because they answer different
-   * questions. A leave year resets on 01 April, and somebody with nine sick days in
-   * March and one in April is not a person with one sick day — the rolling count is
-   * the one an absence policy is written against, and the year-to-date is the one
+   * questions. The leave year resets on 01 August, and somebody with nine sick days
+   * in July and one in August is not a person with one sick day — the rolling count
+   * is the one an absence policy is written against, and the year-to-date is the one
    * that matches the balance table above it.
    */
   const absenceCounts = useMemo(() => {
