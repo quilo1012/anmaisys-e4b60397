@@ -45,7 +45,8 @@ type ShiftKey = "Day" | "Night" | "Weekend";
 type ViewKey = ShiftKey | "Split";
 
 const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
-  { status: "absence", label: "Absence", accent: "border-amber-500/40 bg-amber-500/5" },
+  { status: "sick", label: "Sickness", accent: "border-rose-500/40 bg-rose-500/5" },
+  { status: "unpaid", label: "Unpaid", accent: "border-amber-500/40 bg-amber-500/5" },
   { status: "holiday", label: "Holidays", accent: "border-amber-500/40 bg-amber-500/5" },
   { status: "overtime", label: "Overtime", accent: "border-violet-500/40 bg-violet-500/5" },
 ];
@@ -474,7 +475,8 @@ function ShiftBoard({
   const onLines = working.filter((a) => a.area_id && productionIds.has(a.area_id)).length;
   const support = assignedCount - onLines;
   const away = allocations.filter(
-    (a) => (a.status === "absence" || a.status === "holiday") && employeeById.has(a.employee_id),
+    (a) => (a.status === "sick" || a.status === "unpaid" || a.status === "holiday")
+      && employeeById.has(a.employee_id),
   ).length;
   const overtime = working.filter((a) => a.status === "overtime").length;
 
@@ -782,7 +784,7 @@ function ShiftBoard({
             onSetHalfDay={(v) => place.mutate({
               employeeId: editing,
               areaId: alloc?.area_id ?? null,
-              status: (alloc?.status as AllocStatus | undefined) ?? "absence",
+              status: (alloc?.status as AllocStatus | undefined) ?? "unpaid",
               halfDay: v,
               leftEarlyAt: leftEarly,
             })}
@@ -797,7 +799,7 @@ function ShiftBoard({
             onSetStatus={(st) => place.mutate({
               employeeId: editing,
               // Overtime is still a place; absence and holiday are not.
-              areaId: st === "absence" || st === "holiday" ? null : alloc?.area_id ?? null,
+              areaId: st === "assigned" || st === "overtime" ? alloc?.area_id ?? null : null,
               status: st,
               halfDay: alloc?.half_day === true,
               // Carried, not dropped: the upsert writes every column, so leaving it

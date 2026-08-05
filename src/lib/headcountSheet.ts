@@ -6,7 +6,8 @@ const NOT_A_NAME = /^(total|totals|total staff.*|absence[s]?|holiday[s]?|overtim
 
 /** Blocks written under the columns, in the order the factory's sheet has them. */
 const STATUS_BLOCKS: { label: string; status: AllocStatus }[] = [
-  { label: "Absence", status: "absence" },
+  { label: "Sickness", status: "sick" },
+  { label: "Unpaid", status: "unpaid" },
   { label: "Holidays", status: "holiday" },
   { label: "Overtime", status: "overtime" },
 ];

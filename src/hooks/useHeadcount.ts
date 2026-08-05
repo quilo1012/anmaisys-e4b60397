@@ -45,7 +45,15 @@ export type Allocation = {
   is_leader: boolean | null;
 };
 
-export type AllocStatus = "assigned" | "absence" | "holiday" | "overtime";
+/**
+ * How a day counts on the board.
+ *
+ * `absence` was one of these and said only "did not come in", which left the reason
+ * to be guessed by whoever read it later — and the reason is what decides whether the
+ * day is paid. It is now `unpaid`, with `sick` beside it, so the board records the
+ * two separately at the moment somebody knows which it was.
+ */
+export type AllocStatus = "assigned" | "overtime" | "sick" | "unpaid" | "holiday";
 
 /** Areas that make up the board columns (production first, then support). */
 export function useHeadcountAreas() {
@@ -239,9 +247,13 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // Assigned and overtime write "present" for the same reason in reverse: moving
       // somebody back onto a line has to clear the holiday it replaced, or the close
       // pays a day they worked.
+      // Each board status has a payroll record of its own now. Sick and unpaid used to
+      // collapse into "absent", which the finance close could only report as an
+      // absence of unstated kind — and the kind is what decides whether it is paid.
       const attendance =
         input.status === "holiday" ? "holiday"
-        : input.status === "absence" ? "absent"
+        : input.status === "sick" ? "sick"
+        : input.status === "unpaid" ? "unpaid"
         : "present";
       const { error: attErr } = await (supabase as any)
         .from("employee_attendance")

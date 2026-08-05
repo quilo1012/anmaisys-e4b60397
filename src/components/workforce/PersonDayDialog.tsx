@@ -16,7 +16,8 @@ const BOARD_SHIFTS = ["Day", "Night", "Weekend"] as const;
 const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[] = [
   { value: "assigned", label: "In", hint: "Working their normal day", cls: "border-emerald-500/40 bg-emerald-500/10 text-success-strong" },
   { value: "overtime", label: "Overtime", hint: "Working, and the day counts as overtime", cls: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300" },
-  { value: "absence", label: "Absence", hint: "Did not come in", cls: "border-amber-500/40 bg-amber-500/10 text-warning-strong" },
+  { value: "sick", label: "Sickness", hint: "Off ill", cls: "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300" },
+  { value: "unpaid", label: "Unpaid", hint: "Away, and not paid for the day", cls: "border-amber-500/40 bg-amber-500/10 text-warning-strong" },
   { value: "holiday", label: "Holiday", hint: "Booked leave", cls: "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
 ];
 
@@ -95,14 +96,14 @@ export function PersonDayDialog({
             {/* Said here because it is the one that surprises people: overtime keeps
                 the line, absence and holiday take them off it. */}
             <p className="mt-1.5 text-2xs text-muted-foreground">
-              Overtime keeps the area — they are working. Absence and holiday clear it.
+              Overtime keeps the area — they are working. Sickness, unpaid and holiday clear it.
             </p>
 
             {/* Half a day is not a smaller version of a day off; it is a different
                 fact. Somebody on a half-day holiday worked a shift, and counting them
                 as absent loses the hours they were on the line. The column has been
                 on the table since it was created and nothing has ever written to it. */}
-            {(status === "absence" || status === "holiday") && (
+            {(status === "sick" || status === "unpaid" || status === "holiday") && (
               <label className={cn(
                 "mt-2 flex items-center gap-2.5 rounded-lg border p-2.5 text-xs",
                 canManage ? "cursor-pointer hover:bg-muted" : "opacity-60",
