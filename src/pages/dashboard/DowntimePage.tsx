@@ -26,6 +26,7 @@ import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
 import { ShiftFilter as ShiftPills } from "@/components/ShiftFilter";
 import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
+import { MissingDowntimeAlert } from "@/components/MissingDowntimeAlert";
 import { useDowntime, useCreateDowntime, useUpdateDowntime, useDeleteDowntime, type DowntimeRecord } from "@/hooks/useDowntime";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useLines } from "@/hooks/useMachines";
@@ -1496,7 +1497,11 @@ export default function DowntimePage() {
             </TabsContent>
 
             {/* ─────────── HEATMAP TAB ─────────── */}
-            <TabsContent value="heatmap" className="mt-6">
+            <TabsContent value="heatmap" className="mt-6 space-y-4">
+              {/* Said above the heatmap, not below it: the grid cannot show a stop
+                  nobody recorded, so a low week and a week that was never written
+                  down look identical here. */}
+              <MissingDowntimeAlert from={new Date(fromMs)} to={new Date(toMs)} />
               <HeatmapSection
                 records={heatmapRecords}
                 isLoading={isLoading}
