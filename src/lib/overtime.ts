@@ -99,6 +99,23 @@ export function hoursOnSite(startsAt: string, endsAt: string): number {
 }
 
 /**
+ * A weekday whose hours differ from the rest of the rota.
+ *
+ * Most rotas work the same hours every day they cover and have none of these. The
+ * exception is the reason the type exists: a Tue–Fri rota that starts at 06:00 from
+ * Tuesday to Thursday but at 09:00 on the Friday is one rota, not two, and splitting
+ * it into two patterns would put the same person on two rows of every board.
+ */
+export interface PatternDayOverride {
+  /** ISO weekday: 1 = Monday … 7 = Sunday. */
+  weekday: number;
+  starts_at: string;
+  ends_at: string;
+  /** Null falls back to the pattern's own break. */
+  break_minutes?: number | null;
+}
+
+/**
  * What a full week of this rota is contracted to be.
  *
  * NOT a flat 44 for everybody. Every twelve-hour rota is four days long and
@@ -107,14 +124,37 @@ export function hoursOnSite(startsAt: string, endsAt: string): number {
  * 09:00–17:00 a 35-hour one, 08:00–17:00 forty, and a Sunday rota seven. Measuring
  * those against 44 would report somebody nine hours in deficit every week for as long
  * as they work here, and call a part-time contract a debt.
+ *
+ * Summed day by day rather than multiplied, because a rota may work different hours
+ * on different days. Tue–Thu at 06:00–18:00 with the Friday at 09:00–18:00 is three
+ * elevens and an eight — forty-one, not the forty-four that multiplying the first
+ * day by four would give.
  */
 export function weeklyTargetForPattern(
-  pattern: { days: number[]; starts_at: string | null; ends_at: string | null },
+  pattern: {
+    days: number[];
+    starts_at: string | null;
+    ends_at: string | null;
+    /** Break in minutes, when the pattern carries one. Falls back to `rules`. */
+    break_minutes?: number | null;
+  },
   rules: OvertimeRules = DEFAULT_RULES,
+  overrides: PatternDayOverride[] = [],
 ): number | null {
   if (!pattern.starts_at || !pattern.ends_at || pattern.days.length === 0) return null;
-  const perDay = Math.max(0, hoursOnSite(pattern.starts_at, pattern.ends_at) - rules.breakHours);
-  return round2(perDay * pattern.days.length);
+  const byWeekday = new Map(overrides.map((o) => [o.weekday, o]));
+  const patternBreak =
+    pattern.break_minutes == null ? rules.breakHours : pattern.break_minutes / 60;
+
+  let total = 0;
+  for (const weekday of pattern.days) {
+    const day = byWeekday.get(weekday);
+    const startsAt = day?.starts_at ?? pattern.starts_at;
+    const endsAt = day?.ends_at ?? pattern.ends_at;
+    const breakHours = day?.break_minutes == null ? patternBreak : day.break_minutes / 60;
+    total += Math.max(0, hoursOnSite(startsAt, endsAt) - breakHours);
+  }
+  return round2(total);
 }
 
 /** Whole days from start to end, both ends included. */

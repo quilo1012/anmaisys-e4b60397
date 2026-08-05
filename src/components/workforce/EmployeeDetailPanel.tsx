@@ -12,7 +12,7 @@ import { format } from "date-fns";
 import { ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  describeDays, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements, useShiftPatterns,
+  describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements, useShiftPatterns,
   useUpdateEmployee, type Employee,
 } from "@/hooks/useWorkforce";
 
@@ -279,9 +279,14 @@ export function EmployeeDetailPanel({
                       const named = days
                         .split(", ")
                         .every((d) => p.name.toLowerCase().includes(d.toLowerCase()));
+                      // A rota whose Friday starts three hours later reads as an
+                      // ordinary Tue–Fri from its name alone, so the hours are spelled
+                      // out whenever a day differs from the rest.
+                      const mixed = (p.dayOverrides ?? []).length > 0;
                       return (
                         <SelectItem key={p.id} value={p.id}>
-                          {p.name}{named ? "" : ` · ${days}`}
+                          {p.name}
+                          {mixed ? ` · ${describeSchedule(p)}` : named ? "" : ` · ${days}`}
                         </SelectItem>
                       );
                     })}

@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AllocStatus, HeadcountArea } from "@/hooks/useHeadcount";
-import { describeDays, type ShiftPattern } from "@/hooks/useWorkforce";
+import { describeSchedule, type ShiftPattern } from "@/hooks/useWorkforce";
 
 /** The shifts a board can be, which is what `daily_allocations.shift` accepts. */
 const BOARD_SHIFTS = ["Day", "Night", "Weekend"] as const;
@@ -209,7 +209,7 @@ export function PersonDayDialog({
                 {patterns.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}
-                    <span className="ml-2 text-2xs text-muted-foreground">{describeDays(p.days)}</span>
+                    <span className="ml-2 text-2xs text-muted-foreground">{describeSchedule(p)}</span>
                   </SelectItem>
                 ))}
               </SelectContent>

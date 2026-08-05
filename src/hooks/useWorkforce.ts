@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import type { PatternDayOverride } from "@/lib/overtime";
 
 /**
  * Workforce data: who works here, on which days, and the overtime they carry.
@@ -17,6 +18,14 @@ export interface ShiftPattern {
   /** ISO weekdays: 1 = Monday … 7 = Sunday. */
   days: number[];
   active: boolean;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  break_minutes?: number | null;
+  /**
+   * Weekdays whose hours differ from the rest of the rota. Empty for most patterns —
+   * they work the same hours every day they cover.
+   */
+  dayOverrides?: PatternDayOverride[];
 }
 
 export interface Employee {
@@ -94,6 +103,31 @@ export function describeDays(days: number[] | null | undefined): string {
   return ordered.map((d) => WEEKDAY_LABELS[d - 1]).join(", ");
 }
 
+/**
+ * The rota in words, hours included, saying so when a day differs.
+ *
+ * `describeDays` answers which weekdays; this answers which hours, and it exists
+ * because a rota whose Friday starts three hours later reads as an ordinary Tue–Fri
+ * everywhere it is picked from. Somebody choosing it from a list has no way to know,
+ * and the person put on the wrong hours is the one who finds out.
+ */
+export function describeSchedule(pattern: ShiftPattern): string {
+  const days = describeDays(pattern.days);
+  if (!pattern.starts_at || !pattern.ends_at) return days;
+  const hm = (t: string) => t.slice(0, 5);
+  const base = `${hm(pattern.starts_at)}–${hm(pattern.ends_at)}`;
+
+  const overrides = (pattern.dayOverrides ?? []).filter((o) => pattern.days.includes(o.weekday));
+  if (overrides.length === 0) return `${days} · ${base}`;
+
+  const normal = pattern.days.filter((d) => !overrides.some((o) => o.weekday === d));
+  const parts = normal.length > 0 ? [`${describeDays(normal)} ${base}`] : [];
+  for (const o of [...overrides].sort((a, b) => a.weekday - b.weekday)) {
+    parts.push(`${describeDays([o.weekday])} ${hm(o.starts_at)}–${hm(o.ends_at)}`);
+  }
+  return parts.join(" · ");
+}
+
 /** Whether the pattern covers a given date. */
 export function worksOn(days: number[] | null | undefined, date: Date): boolean {
   if (!days?.length) return false;
@@ -105,9 +139,27 @@ export function useShiftPatterns() {
   return useQuery({
     queryKey: ["shift_patterns"],
     queryFn: async (): Promise<ShiftPattern[]> => {
-      const { data, error } = await db.from("shift_patterns").select("*").order("name");
-      if (error) throw error;
-      return data ?? [];
+      // Two reads rather than an embed: the override table is small, almost always
+      // empty, and joining it would reshape every existing caller of this hook.
+      const [patterns, overrides] = await Promise.all([
+        db.from("shift_patterns").select("*").order("name"),
+        db.from("shift_pattern_days").select("pattern_id, weekday, starts_at, ends_at, break_minutes"),
+      ]);
+      if (patterns.error) throw patterns.error;
+      if (overrides.error) throw overrides.error;
+
+      const byPattern = new Map<string, PatternDayOverride[]>();
+      for (const o of (overrides.data ?? []) as any[]) {
+        const list = byPattern.get(o.pattern_id) ?? [];
+        list.push({
+          weekday: o.weekday, starts_at: o.starts_at,
+          ends_at: o.ends_at, break_minutes: o.break_minutes,
+        });
+        byPattern.set(o.pattern_id, list);
+      }
+      return (patterns.data ?? []).map((p: any) => ({
+        ...p, dayOverrides: byPattern.get(p.id) ?? [],
+      }));
     },
   });
 }
