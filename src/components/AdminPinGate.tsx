@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Loader2, Lock, ShieldCheck } from "lucide-react";
+import { shouldRelock } from "@/lib/adminPinGate";
 
 /**
  * A second door in front of payroll data.
@@ -13,9 +14,14 @@ import { Loader2, Lock, ShieldCheck } from "lucide-react";
  * every employee alongside their hours, their sickness and what they are owed, and a
  * role check does not help once somebody is already signed in.
  *
- * The unlock lasts for the browser session and no longer. Closing the tab locks it
- * again, which is the behaviour somebody expects of a door rather than of a setting.
- * `sessionStorage`, not `localStorage`, is the whole of that difference.
+ * The unlock lasts as long as you stay in the section and no longer. Walk out to Work
+ * Orders and it locks behind you; come back and it asks again. It used to last until
+ * the tab was closed, which in practice meant all day — somebody unlocked the board in
+ * the morning and walked back in at four without being asked, which is not a lock
+ * guarding an unattended laptop.
+ *
+ * Moving between the section's own tabs does not re-ask. A PIN typed four times an
+ * hour stops being a lock and becomes a habit somebody works around.
  *
  * The PIN is checked by the `verify-admin-pin` edge function — the same one Clear WOs
  * uses. Nothing here decides whether the PIN is right; it only asks.
@@ -46,6 +52,18 @@ export function AdminPinGate({
   useEffect(() => {
     try { setUnlocked(sessionStorage.getItem(key) === "1"); } catch { /* storage blocked */ }
   }, [key]);
+
+  // Lock behind you on the way out.
+  //
+  // Read at cleanup rather than at render: React Router has already committed the new
+  // location by the time this runs, so `pathname` is where the user went and not where
+  // they were. That is what makes it possible to tell a tab change inside the section
+  // from actually leaving it.
+  useEffect(() => () => {
+    try {
+      if (shouldRelock(storageKey, window.location.pathname)) sessionStorage.removeItem(key);
+    } catch { /* storage blocked */ }
+  }, [key, storageKey]);
 
   const submit = useCallback(async () => {
     if (pin.length < 4) return;
@@ -113,7 +131,7 @@ export function AdminPinGate({
           </Button>
 
           <p className="text-2xs text-muted-foreground">
-            Stays unlocked until you close this tab.
+            Locks again as soon as you leave this section.
           </p>
         </CardContent>
       </Card>

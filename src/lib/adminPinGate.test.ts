@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { shouldRelock } from "@/lib/adminPinGate";
 
 /**
  * The rules the PIN gate holds, kept honest here because the component itself is a
@@ -45,5 +46,45 @@ describe("admin pin gate", () => {
     expect(isUnlocked("workforce")).toBe(false);
     sessionStorage.setItem(KEY("workforce"), "");
     expect(isUnlocked("workforce")).toBe(false);
+  });
+});
+
+describe("locking behind you", () => {
+  // The unlock used to last until the tab closed, which meant somebody unlocked the
+  // board in the morning and walked back in at four without being asked.
+  it("stays open while you move between the section's own tabs", () => {
+    for (const p of ["/dashboard/headcount", "/dashboard/people", "/dashboard/leave",
+                     "/dashboard/attendance", "/dashboard/finance-close"]) {
+      expect(shouldRelock("workforce", p)).toBe(false);
+    }
+  });
+
+  it("locks the moment you go anywhere else", () => {
+    expect(shouldRelock("workforce", "/dashboard/work-orders")).toBe(true);
+    expect(shouldRelock("workforce", "/dashboard")).toBe(true);
+    expect(shouldRelock("workforce", "/users/manage")).toBe(true);
+  });
+
+  it("counts a record opened from inside the section as still inside it", () => {
+    // Exact matching would lock the section every time somebody opened a row and
+    // came back, which is the friction this is trying not to create.
+    expect(shouldRelock("workforce", "/dashboard/leave/abc-123")).toBe(false);
+  });
+
+  it("is not fooled by a path that merely starts with the same letters", () => {
+    expect(shouldRelock("workforce", "/dashboard/headcount-report")).toBe(true);
+  });
+
+  it("locks on any move for a section nobody has grouped", () => {
+    // The safe default: a screen with no sibling tabs listed has no tab changes to
+    // forgive, so every navigation away from it closes the door.
+    expect(shouldRelock("something-new", "/dashboard/something-new")).toBe(true);
+  });
+
+  it("treats a destination it cannot read as leaving", () => {
+    // A lock that stays open because it could not tell where you went is the failure
+    // worth avoiding.
+    expect(shouldRelock("workforce", null)).toBe(true);
+    expect(shouldRelock("workforce", "")).toBe(true);
   });
 });
