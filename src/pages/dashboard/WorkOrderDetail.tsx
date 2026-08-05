@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
+import { RecordMissedDowntime } from "@/components/RecordMissedDowntime";
 import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { activityLabel, subtractExclusionMinutes, toExclusionIntervals } from "@/lib/downtimeExclusions";
@@ -383,6 +384,20 @@ export default function WorkOrderDetail() {
         {/* Production Line Status — multi-cycle stop/resume control (not for warehouse WOs) */}
         {!isWarehouseWO && (
           <div className="print:hidden">
+            {/* The live control vanishes once the order is finished, so an order that
+                was worked without anybody ticking "line stopped" had no way back —
+                the downtime simply never existed. This is that way back. */}
+            {["finished", "closed", "completed"].includes(wo.status) && (
+              <div className="mb-2">
+                <RecordMissedDowntime
+                  workOrderId={wo.id}
+                  woNumber={wo.wo_number}
+                  problem={wo.description}
+                  createdAt={(wo as any).line_stopped_at ?? wo.created_at}
+                  finishedAt={(wo as any).finished_at ?? (wo as any).closed_at ?? null}
+                />
+              </div>
+            )}
             <LineDowntimeControl
               workOrderId={wo.id}
               problem={wo.description}
