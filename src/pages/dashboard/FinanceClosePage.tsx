@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calculator, Download, Printer, AlertTriangle } from "lucide-react";
 import { downloadCsv } from "@/lib/exportCsv";
+import { OvertimePanel } from "@/components/workforce/OvertimePanel";
+import { useEmployees, useOvertimeEntries, useOvertimePeriods } from "@/hooks/useWorkforce";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePersonInput,
 } from "@/lib/financeClose";
@@ -27,6 +29,15 @@ import {
  */
 export default function FinanceClosePage() {
   const [periodId, setPeriodId] = useState<string>("");
+
+  // The overtime register, which used to live on the Workforce screen. It is the
+  // source of the Payroll OT column below, so keying it anywhere else meant leaving
+  // this page to fill in the very number this page says is missing.
+  const { data: otEmployees } = useEmployees();
+  const { data: otPeriods } = useOvertimePeriods();
+  const [otPeriodId, setOtPeriodId] = useState<string | null>(null);
+  const otPeriod = otPeriods?.find((p) => p.id === otPeriodId) ?? otPeriods?.[0] ?? null;
+  const { data: otEntries } = useOvertimeEntries(otPeriod?.id ?? null);
 
   const { data: periods = [] } = useQuery({
     queryKey: ["payroll-periods"],
@@ -249,6 +260,22 @@ export default function FinanceClosePage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Where the Payroll OT column above is filled in. */}
+        <div className="space-y-2 print:hidden">
+          <h2 className="text-lg font-semibold tracking-tight">Overtime register</h2>
+          <p className="text-sm text-muted-foreground">
+            Hours keyed from the payroll sheet. What is entered here becomes the
+            <b> Payroll OT</b> column above.
+          </p>
+          <OvertimePanel
+            employees={otEmployees ?? []}
+            entries={otEntries ?? []}
+            periods={otPeriods ?? []}
+            activePeriod={otPeriod}
+            onPeriodChange={setOtPeriodId}
+          />
+        </div>
       </div>
       </AdminPinGate>
     </DashboardLayout>

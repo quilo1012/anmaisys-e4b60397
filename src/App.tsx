@@ -73,7 +73,7 @@ const ReportsPage = lazyWithReload(() => import("./pages/dashboard/ReportsPage")
 const AttendancePage = lazyWithReload(() => import("./pages/dashboard/AttendancePage"));
 const FinanceClosePage = lazyWithReload(() => import("./pages/dashboard/FinanceClosePage"));
 const LeavePage = lazyWithReload(() => import("./pages/dashboard/LeavePage"));
-const WorkforcePage = lazyWithReload(() => import("./pages/dashboard/WorkforcePage"));
+const PeoplePage = lazyWithReload(() => import("./pages/dashboard/PeoplePage"));
 const ProductionHeadcountPage = lazyWithReload(() => import("./pages/dashboard/ProductionHeadcountPage"));
 
 const ReliabilityDashboard = lazyWithReload(() => import("./pages/dashboard/ReliabilityDashboard"));
@@ -382,13 +382,16 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/dashboard/workforce"
+                  path="/dashboard/people"
                   element={
                     <ProtectedRoute requiredAction="workforce.view">
-                      <WorkforcePage />
+                      <PeoplePage />
                     </ProtectedRoute>
                   }
                 />
+                {/* The Workforce screen was retired; its employee records live on
+                    /dashboard/people now. Old links and bookmarks land there. */}
+                <Route path="/dashboard/workforce" element={<Navigate to="/dashboard/people" replace />} />
                 <Route
                   path="/dashboard/headcount"
                   element={
