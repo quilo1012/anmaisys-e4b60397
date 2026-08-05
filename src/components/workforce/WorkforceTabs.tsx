@@ -1,20 +1,22 @@
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Users, CalendarDays, Clock, Calculator } from "lucide-react";
+import { Users, Contact, CalendarDays, Clock, Calculator } from "lucide-react";
 
 /**
- * The four screens that are all about the same people, joined at the top.
+ * The screens that are all about the same people, joined at the top.
  *
- * They were four sidebar rows — Headcount, Leave, Attendance, Finance Close — which
- * put four entries in a menu for what is one job seen from four angles: who is in
- * today, who is off, who clocked on, and what that costs. The board is where somebody
- * starts, so the others hang off it.
+ * They were separate sidebar rows — Headcount, Leave, Attendance, Finance Close —
+ * which put four entries in a menu for what is one job seen from four angles: who is
+ * in today, who is off, who clocked on, and what that costs. The board is where
+ * somebody starts, so the others hang off it. People joined them when the Workforce
+ * screen was retired, since the employee records it held feed all of the others.
  *
  * Routes are unchanged, so a bookmark or a link from another screen still lands where
  * it did. Only the way in moved.
  */
 const TABS = [
   { to: "/dashboard/headcount", label: "Board", icon: Users },
+  { to: "/dashboard/people", label: "People", icon: Contact },
   { to: "/dashboard/leave", label: "Leave", icon: CalendarDays },
   { to: "/dashboard/attendance", label: "Attendance", icon: Clock },
   { to: "/dashboard/finance-close", label: "Finance Close", icon: Calculator },

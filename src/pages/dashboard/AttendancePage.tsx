@@ -14,8 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, Upload, Loader2, AlertTriangle, CalendarClock } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
+import { MonthlySummary } from "@/components/workforce/MonthlySummary";
+import { useEmployees } from "@/hooks/useWorkforce";
 import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/timeMotoSheet";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -38,6 +41,8 @@ function hm(mins: number | null | undefined): string {
  */
 export default function AttendancePage() {
   const qc = useQueryClient();
+  // Everybody, leavers included — the monthly view covers days already worked.
+  const { data: allEmployees } = useEmployees();
   const { can } = useRole();
   const canManage = can("workforce.manage");
 
@@ -209,6 +214,17 @@ export default function AttendancePage() {
           )}
         </div>
 
+        {/* Two records of the same days, kept apart. The clocks are what TimeMoto
+            saw; the board marks are what a supervisor wrote down. Merging them would
+            hide which one a number came from, and right now the clocks are empty
+            while the board is not. */}
+        <Tabs defaultValue="clocks" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="clocks">Clocks (TimeMoto)</TabsTrigger>
+            <TabsTrigger value="marks">Board marks</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="clocks" className="space-y-4">
         <div className="flex flex-wrap items-end gap-2">
           <div><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => { setPeriodTouched(true); setFrom(e.target.value); }} className="mt-1 h-8 w-40" /></div>
           <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => { setPeriodTouched(true); setTo(e.target.value); }} className="mt-1 h-8 w-40" /></div>
@@ -272,6 +288,15 @@ export default function AttendancePage() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="marks">
+            {/* Was the Workforce screen's Attendance tab. It reads `employee_attendance`
+                — the statuses marked on the headcount board — which no other screen
+                shows month by month. */}
+            <MonthlySummary employees={allEmployees ?? []} />
+          </TabsContent>
+        </Tabs>
 
         <Dialog open={preview !== null} onOpenChange={(v) => !v && setPreview(null)}>
           <DialogContent className="sm:max-w-lg">
