@@ -101,9 +101,12 @@ export function PersonDayDialog({
 
             {/* Half a day is not a smaller version of a day off; it is a different
                 fact. Somebody on a half-day holiday worked a shift, and counting them
-                as absent loses the hours they were on the line. The column has been
-                on the table since it was created and nothing has ever written to it. */}
-            {(status === "sick" || status === "unpaid" || status === "holiday") && (
+                as absent loses the hours they were on the line.
+                Offered on a working day too, because the factory's own sheet writes
+                "half day" beside people who were on a line — two of them in the month
+                imported — and with the box hidden those marks could be seen and never
+                changed. */}
+            {status !== null && (
               <label className={cn(
                 "mt-2 flex items-center gap-2.5 rounded-lg border p-2.5 text-xs",
                 canManage ? "cursor-pointer hover:bg-muted" : "opacity-60",
@@ -116,7 +119,9 @@ export function PersonDayDialog({
                 <span>
                   <span className="font-semibold">Half day</span>
                   <span className="block text-2xs text-muted-foreground">
-                    They worked part of the shift. Counts as ½ against the day, not a whole one.
+                    {status === "assigned" || status === "overtime"
+                      ? "They worked half the shift. Use Left early below when the time is known."
+                      : "They worked part of the shift. Counts as ½ against the day, not a whole one."}
                   </span>
                 </span>
               </label>
