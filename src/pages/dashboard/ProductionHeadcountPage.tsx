@@ -32,6 +32,7 @@ import {
   type HeadcountEmployee,
 } from "@/hooks/useHeadcount";
 import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialog";
+import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
 
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
 let draggedEmployeeId: string | null = null;
@@ -985,6 +986,11 @@ export default function ProductionHeadcountPage() {
       ) : (
         <ShiftBoard onDate={date} shift={view} areas={areas} canManage={canManage} />
       )}
+
+      {/* The board is today; this is the period the board adds up to. Kept on the same
+          screen because the question a supervisor asks after placing people is who is
+          running ahead of their rota, and that used to mean another page. */}
+      <HeadcountOvertimePanel />
 
       <HeadcountSheetDialog
         open={sheet !== null}
