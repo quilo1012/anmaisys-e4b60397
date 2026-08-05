@@ -38,6 +38,8 @@ export type Allocation = {
   area_id: string | null;
   status: string;
   half_day: boolean | null;
+  /** They came in and went home early, at this time. Null means they worked the shift out. */
+  left_early_at: string | null;
   note: string | null;
   /** Leads this area on this day. A line can lead differently tomorrow. */
   is_leader: boolean | null;
@@ -174,7 +176,7 @@ export function useAllocations(onDate: string, shift: string) {
     queryFn: async (): Promise<Allocation[]> => {
       const { data, error } = await supabase
         .from("daily_allocations")
-        .select("id,on_date,shift,employee_id,area_id,status,half_day,note,is_leader")
+        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,note,is_leader")
         .eq("on_date", onDate)
         .eq("shift", shift);
       if (error) throw error;
@@ -189,7 +191,12 @@ export function useAllocationMutations(onDate: string, shift: string) {
     qc.invalidateQueries({ queryKey: ["headcount-allocations", onDate, shift] });
 
   const place = useMutation({
-    mutationFn: async (input: { employeeId: string; areaId: string | null; status: AllocStatus; halfDay?: boolean }) => {
+    mutationFn: async (input: {
+      employeeId: string; areaId: string | null; status: AllocStatus;
+      halfDay?: boolean;
+      /** "HH:MM" if they went home early, null if they worked the shift out. */
+      leftEarlyAt?: string | null;
+    }) => {
       const { error } = await supabase
         .from("daily_allocations")
         .upsert(
@@ -208,6 +215,15 @@ export function useAllocationMutations(onDate: string, shift: string) {
             // whole one — the difference between somebody who worked the morning and
             // somebody who was not there at all.
             half_day: input.halfDay ?? false,
+            // A day worked and cut short is not a day off, so it does not go through
+            // `half_day`. Somebody who left at two was on the line all morning: the
+            // headcount still counted them, and the supervisor still needs to see it.
+            // Only a working status can carry it — you cannot leave early from a day
+            // you were never at.
+            left_early_at:
+              input.status === "assigned" || input.status === "overtime"
+                ? input.leftEarlyAt ?? null
+                : null,
           },
           { onConflict: "on_date,shift,employee_id" },
         );

@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,6 +30,7 @@ const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[]
  */
 export function PersonDayDialog({
   open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
+  leftEarlyAt, onSetLeftEarlyAt,
   patterns, patternId,
   onSetStatus, onSetArea, onSetShift, onSetPattern, onSetLeader, onRemove,
 }: {
@@ -45,6 +47,9 @@ export function PersonDayDialog({
   /** Half a day: worked the morning, off the afternoon, or the other way round. */
   halfDay: boolean;
   onSetHalfDay: (v: boolean) => void;
+  /** `"HH:MM"` if they came in and went home early, null if they worked the shift out. */
+  leftEarlyAt: string | null;
+  onSetLeftEarlyAt: (v: string | null) => void;
   onSetArea: (areaId: string) => void;
   onSetShift: (shiftGroup: string) => void;
   onSetPattern: (patternId: string | null) => void;
@@ -114,6 +119,50 @@ export function PersonDayDialog({
                   </span>
                 </span>
               </label>
+            )}
+
+            {/* Went home early, which the board had no way to say. Somebody who left
+                at two was on the line all morning, so this is not an absence and not a
+                half day off — it is a day worked that got cut short. Kept as its own
+                fact, with the time, because "he went early" and "he wasn't in" are
+                the two things a supervisor must never have to guess between. */}
+            {(status === "assigned" || status === "overtime") && (
+              <div className="mt-2 rounded-lg border p-2.5">
+                <label className={cn(
+                  "flex items-center gap-2.5 text-xs",
+                  canManage ? "cursor-pointer" : "opacity-60",
+                )}>
+                  <Checkbox
+                    checked={leftEarlyAt !== null}
+                    disabled={!canManage}
+                    // A default of 14:00 so the common case is one click; the time
+                    // stays editable and is what actually gets recorded.
+                    onCheckedChange={(v) => onSetLeftEarlyAt(v === true ? "14:00" : null)}
+                  />
+                  <span>
+                    <span className="font-semibold">Left early</span>
+                    <span className="block text-2xs text-muted-foreground">
+                      Came in and went home before the end of the shift.
+                    </span>
+                  </span>
+                </label>
+
+                {leftEarlyAt !== null && (
+                  <div className="mt-2 flex items-center gap-2 pl-7">
+                    <Label htmlFor="left-early-at" className="text-2xs text-muted-foreground">
+                      Went home at
+                    </Label>
+                    <Input
+                      id="left-early-at"
+                      type="time"
+                      value={leftEarlyAt}
+                      disabled={!canManage}
+                      onChange={(e) => onSetLeftEarlyAt(e.target.value || null)}
+                      className="h-8 w-28"
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

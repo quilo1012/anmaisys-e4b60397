@@ -300,6 +300,7 @@ export type Database = {
           half_day: boolean | null
           id: string
           is_leader: boolean
+          left_early_at: string | null
           note: string | null
           on_date: string
           shift: string
@@ -313,6 +314,7 @@ export type Database = {
           half_day?: boolean | null
           id?: string
           is_leader?: boolean
+          left_early_at?: string | null
           note?: string | null
           on_date: string
           shift: string
@@ -326,6 +328,7 @@ export type Database = {
           half_day?: boolean | null
           id?: string
           is_leader?: boolean
+          left_early_at?: string | null
           note?: string | null
           on_date?: string
           shift?: string
