@@ -114,6 +114,34 @@ export function HeadcountSheetDialog({
         .from("daily_allocations")
         .upsert(rows, { onConflict: "on_date,shift,employee_id" });
       if (error) throw error;
+
+      // The board and the payroll record have to say the same thing.
+      //
+      // This wrote `daily_allocations` and stopped, so a month imported from the
+      // factory's spreadsheet filled the board and left Annual Leave, Attendance and
+      // the finance close reading an empty table — a hundred and thirty-five holidays
+      // on the board and eleven in the record they are counted from. The dialog that
+      // marks one person has always written both; the import that marks a thousand
+      // did not, which is the wrong way round.
+      const attendance = preview.matched.map((m) => ({
+        employee_id: m.employeeId,
+        on_date: m.date,
+        status:
+          m.status === "holiday" ? "holiday"
+          : m.status === "sick" ? "sick"
+          : m.status === "unpaid" ? "unpaid"
+          : "present",
+      }));
+      const { error: attErr } = await (supabase as any)
+        .from("employee_attendance")
+        .upsert(attendance, { onConflict: "employee_id,on_date" });
+      // Not fatal, and said out loud rather than swallowed: the board placement is
+      // what was asked for and must not be undone, but a screen quietly disagreeing
+      // with the board is the failure this whole change exists to stop.
+      if (attErr) {
+        toast.warning(`Board imported, but the attendance record did not save: ${attErr.message}`);
+      }
+
       toast.success(`Imported ${rows.length} allocation${rows.length === 1 ? "" : "s"}`);
       onImported();
       close();
