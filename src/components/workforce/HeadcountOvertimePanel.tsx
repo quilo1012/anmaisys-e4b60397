@@ -58,17 +58,12 @@ export function HeadcountOvertimePanel() {
       if (allocs.error) throw allocs.error;
 
       const shiftOf = new Map(((emp.data ?? []) as any[]).map((e) => [e.id, e.shift_group ?? "Not set"]));
-      // Two spellings of the same word are in the data — "Production" and "Prodcution",
-      // and "Prodcution Operative" beside them. Folded here so the chart does not show
-      // one department three times, and left alone in `employees` where a rename is a
-      // data job rather than a display one.
-      const tidyDept = (d: string | null) => {
-        const s = (d ?? "").trim();
-        if (!s) return "Not set";
-        if (/^prod/i.test(s)) return /leader/i.test(s) ? "Team Leader" : "Production";
-        return s;
-      };
-      const deptOf = new Map(((emp.data ?? []) as any[]).map((e) => [e.id, tidyDept(e.department)]));
+      // The spellings were fixed in `employees` — "Prodcution" was on 28 records and
+      // split one department across three bars. Folding them here as well would hide
+      // the next typo instead of showing it, so this only fills in the blank.
+      const deptOf = new Map(((emp.data ?? []) as any[]).map(
+        (e) => [e.id, (e.department ?? "").trim() || "Not set"],
+      ));
 
       const counts = new Map<string, { present: number; holiday: number; sick: number; unpaid: number }>();
       const byDept = new Map<string, number>();
