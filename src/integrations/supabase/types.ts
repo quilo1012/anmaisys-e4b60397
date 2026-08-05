@@ -3820,6 +3820,44 @@ export type Database = {
         }
         Relationships: []
       }
+      shift_pattern_days: {
+        Row: {
+          break_minutes: number | null
+          created_at: string | null
+          ends_at: string
+          id: string
+          pattern_id: string
+          starts_at: string
+          weekday: number
+        }
+        Insert: {
+          break_minutes?: number | null
+          created_at?: string | null
+          ends_at: string
+          id?: string
+          pattern_id: string
+          starts_at: string
+          weekday: number
+        }
+        Update: {
+          break_minutes?: number | null
+          created_at?: string | null
+          ends_at?: string
+          id?: string
+          pattern_id?: string
+          starts_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shift_pattern_days_pattern_id_fkey"
+            columns: ["pattern_id"]
+            isOneToOne: false
+            referencedRelation: "shift_patterns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shift_patterns: {
         Row: {
           active: boolean

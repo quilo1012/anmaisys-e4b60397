@@ -63,6 +63,34 @@ describe("weeklyTargetForPattern — the week comes from the rota, not from 44",
     expect(weeklyTargetForPattern(P([7], "08:00", "16:00"))).toBe(7);
   });
 
+  it("sums the days rather than multiplying the first one", () => {
+    // Tue–Thu at 06:00–18:00 with the Friday at 09:00–18:00: three elevens and an
+    // eight. Multiplying day one by four would say 44 and hand them three hours of
+    // deficit every week for as long as they work here.
+    const friday = [{ weekday: 5, starts_at: "09:00", ends_at: "18:00" }];
+    expect(weeklyTargetForPattern(P([2, 3, 4, 5], "06:00", "18:00"), undefined, friday)).toBe(41);
+  });
+
+  it("ignores an override for a weekday the rota does not work", () => {
+    // A leftover row for a day that was dropped from the rota must not add hours to
+    // a week nobody works.
+    const saturday = [{ weekday: 6, starts_at: "09:00", ends_at: "18:00" }];
+    expect(weeklyTargetForPattern(P([2, 3, 4, 5], "06:00", "18:00"), undefined, saturday)).toBe(44);
+  });
+
+  it("lets a day carry its own break, and falls back to the rota's when it does not", () => {
+    const halfBreak = [{ weekday: 5, starts_at: "06:00", ends_at: "18:00", break_minutes: 30 }];
+    expect(weeklyTargetForPattern(P([2, 3, 4, 5], "06:00", "18:00"), undefined, halfBreak)).toBe(44.5);
+  });
+
+  it("takes the break from the pattern when it has one of its own", () => {
+    // The nine rotas all carry break_minutes: 60. Reading the rules default instead
+    // would be right today and silently wrong the day one of them changes.
+    expect(weeklyTargetForPattern(
+      { days: [2, 3, 4, 5], starts_at: "06:00", ends_at: "18:00", break_minutes: 30 },
+    )).toBe(46);
+  });
+
   it("returns null when the rota has no hours recorded", () => {
     // Null, not 44: not knowing somebody's contract is different from knowing it is
     // the standard one, and a default here would invent a deficit.
