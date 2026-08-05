@@ -392,7 +392,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/messages": "Messages",
   "/users/manage": "Users",
   "/dashboard/permissions": "Permissions",
-  "/dashboard/people": "People",
+  "/dashboard/people": "Employee",
   "/dashboard/headcount": "Production Headcount",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",

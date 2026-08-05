@@ -8,16 +8,18 @@ import { Users, Contact, CalendarDays, Clock, Calculator } from "lucide-react";
  * They were separate sidebar rows — Headcount, Leave, Attendance, Finance Close —
  * which put four entries in a menu for what is one job seen from four angles: who is
  * in today, who is off, who clocked on, and what that costs. The board is where
- * somebody starts, so the others hang off it. People joined them when the Workforce
- * screen was retired, since the employee records it held feed all of the others.
+ * somebody starts, so the others hang off it. Employee joined them when the Workforce
+ * screen was retired, since the records it held feed all of the others. It is reachable
+ * only from here — it was on the System Hub too, which put the same screen in two
+ * places and made the hub look like the way in when the board is.
  *
  * Routes are unchanged, so a bookmark or a link from another screen still lands where
  * it did. Only the way in moved.
  */
 const TABS = [
   { to: "/dashboard/headcount", label: "Board", icon: Users },
-  { to: "/dashboard/people", label: "People", icon: Contact },
-  { to: "/dashboard/leave", label: "Leave", icon: CalendarDays },
+  { to: "/dashboard/people", label: "Employee", icon: Contact },
+  { to: "/dashboard/leave", label: "Annual Leave", icon: CalendarDays },
   { to: "/dashboard/attendance", label: "Attendance", icon: Clock },
   { to: "/dashboard/finance-close", label: "Finance Close", icon: Calculator },
 ];

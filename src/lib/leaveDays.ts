@@ -117,3 +117,30 @@ export function leaveBalance(
     remaining: entitlement == null ? null : round(entitlement - taken - booked),
   };
 }
+
+/**
+ * Spells of absence, not days of it.
+ *
+ * Five days in one go is one illness. Five single days scattered across the year is
+ * the pattern an absence policy is written to catch, and a day count cannot tell the
+ * two apart — both read "5". Consecutive dates are one spell; a gap of a day or more
+ * starts another.
+ *
+ * The gap is measured in calendar days on purpose. Somebody off Thursday and back on
+ * the following Monday has two spells by this count even though they missed no
+ * scheduled day between, which overstates it for a four-day rota — but the opposite
+ * rule needs each person's own rota to decide what "consecutive" means, and getting
+ * that wrong the other way would merge two illnesses into one and hide the pattern.
+ */
+export function countSpells(dates: string[]): number {
+  const sorted = [...new Set(dates)].sort();
+  let spells = 0;
+  let previous: number | null = null;
+  for (const date of sorted) {
+    const at = Date.parse(`${date}T00:00:00Z`);
+    if (Number.isNaN(at)) continue;
+    if (previous == null || at - previous > 86_400_000) spells += 1;
+    previous = at;
+  }
+  return spells;
+}

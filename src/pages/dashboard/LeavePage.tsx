@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarDays, Check, X, Plus, Loader2 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf } from "@/lib/leaveDays";
+import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf, countSpells } from "@/lib/leaveDays";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 
 type Kind = "holiday" | "unpaid" | "sick";
@@ -114,6 +114,27 @@ export default function LeavePage() {
     },
   });
 
+  /**
+   * Sickness and unpaid days, from the same table the holiday count uses.
+   *
+   * Not from `leave_requests`: a sick day is almost never requested in advance, so
+   * counting requests would have shown nearly nobody off sick while the board and the
+   * finance close both said otherwise. One source, one number — the same reason the
+   * holiday balance stopped reading requests.
+   */
+  const { data: otherDays = [] } = useQuery({
+    queryKey: ["leave-sick-unpaid-days"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("employee_attendance")
+        .select("employee_id, on_date, status")
+        .in("status", ["sick", "unpaid"])
+        .limit(4000);
+      if (error) throw error;
+      return (data ?? []) as { employee_id: string; on_date: string; status: string }[];
+    },
+  });
+
   const { data: boardOnly = [] } = useQuery({
     queryKey: ["leave-board-only"],
     queryFn: async () => {
@@ -160,6 +181,40 @@ export default function LeavePage() {
       .filter((b) => b.taken > 0 || b.booked > 0)
       .sort((a, b) => (a.remaining ?? Infinity) - (b.remaining ?? Infinity));
   }, [roster, patterns, holidayDays, today]);
+
+  /**
+   * Sickness and unpaid, per person, over the same leave year as the holiday balance.
+   *
+   * Split into this year and the last twelve months because they answer different
+   * questions. A leave year resets on 01 April, and somebody with nine sick days in
+   * March and one in April is not a person with one sick day — the rolling count is
+   * the one an absence policy is written against, and the year-to-date is the one
+   * that matches the balance table above it.
+   */
+  const absenceCounts = useMemo(() => {
+    const yearAgo = new Date(Date.parse(`${today}T00:00:00Z`) - 365 * 86_400_000)
+      .toISOString().slice(0, 10);
+    return roster
+      .map((e) => {
+        const mine = otherDays.filter((d) => d.employee_id === e.id);
+        const count = (status: string, from: string) =>
+          mine.filter((d) => d.status === status && d.on_date >= from && d.on_date <= today).length;
+        return {
+          id: e.id,
+          name: e.full_name,
+          sickYear: count("sick", year.from),
+          sickRolling: count("sick", yearAgo),
+          unpaidYear: count("unpaid", year.from),
+          unpaidRolling: count("unpaid", yearAgo),
+          // Spells, not days. Five days in one go is one illness; five single days
+          // scattered across the year is the pattern a manager is looking for, and
+          // counting days alone cannot tell those apart.
+          sickSpells: countSpells(mine.filter((d) => d.status === "sick" && d.on_date >= yearAgo).map((d) => d.on_date)),
+        };
+      })
+      .filter((r) => r.sickRolling > 0 || r.unpaidRolling > 0)
+      .sort((a, b) => b.sickRolling - a.sickRolling || b.unpaidRolling - a.unpaidRolling);
+  }, [roster, otherDays, today, year.from]);
 
   /**
    * The same three figures BrightPay prints, but per shift pattern rather than per
@@ -331,8 +386,8 @@ export default function LeavePage() {
           <div className="flex items-center gap-3">
             <CalendarDays className="h-6 w-6 text-muted-foreground" />
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">Leave</h1>
-              <p className="text-sm text-muted-foreground">Requests, and what happens when they are approved</p>
+              <h1 className="text-2xl font-bold tracking-tight">Annual Leave</h1>
+              <p className="text-sm text-muted-foreground">Holiday balances, sickness and unpaid leave</p>
             </div>
           </div>
           <Button size="sm" onClick={() => setShowNew((v) => !v)}>
@@ -552,6 +607,93 @@ export default function LeavePage() {
                 </Table>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {absenceCounts.length > 0 && (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+                Sickness
+                <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground">
+                  days on the attendance record, not requests — a sick day is rarely booked ahead
+                </span>
+              </h2>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead className="text-right">This year</TableHead>
+                        <TableHead className="text-right">12 months</TableHead>
+                        {/* Spells, because five days in one go and five days across
+                            the year both count five and only one is a pattern. */}
+                        <TableHead className="text-right">Spells</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {absenceCounts.filter((r) => r.sickRolling > 0).map((r) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell className="text-right font-mono text-xs tabular-nums">{r.sickYear}</TableCell>
+                          <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{r.sickRolling}</TableCell>
+                          <TableCell className={`text-right font-mono text-xs tabular-nums ${
+                            r.sickSpells >= 4 ? "text-warning-strong" : "text-muted-foreground"}`}>
+                            {r.sickSpells}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {absenceCounts.every((r) => r.sickRolling === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center text-xs text-muted-foreground">
+                            Nobody has been off sick
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div>
+              <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+                Unpaid leave
+                <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground">
+                  agreed and unpaid — not an absence nobody agreed to
+                </span>
+              </h2>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead className="text-right">This year</TableHead>
+                        <TableHead className="text-right">12 months</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {absenceCounts.filter((r) => r.unpaidRolling > 0).map((r) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell className="text-right font-mono text-xs tabular-nums">{r.unpaidYear}</TableCell>
+                          <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{r.unpaidRolling}</TableCell>
+                        </TableRow>
+                      ))}
+                      {absenceCounts.every((r) => r.unpaidRolling === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center text-xs text-muted-foreground">
+                            Nobody has taken unpaid leave
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
 
