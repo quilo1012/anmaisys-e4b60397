@@ -3,7 +3,7 @@ import { buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePerso
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
   employeeId: "e1", name: "Ana Silva", department: "Production",
-  openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
+  clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
 });
 
 describe("buildClose", () => {
@@ -20,49 +20,39 @@ describe("buildClose", () => {
     expect(r.deltaHours).toBe(200);
   });
 
-  describe("a surplus covers an earlier shortfall before it is overtime", () => {
+  describe("a surplus covers a shortfall inside the same period", () => {
     // The contract is a four-day, forty-four hour week and hours are not settled week
-    // by week. Forty one week and fifty-two the next is not eight hours of overtime:
-    // the second week pays back the first.
-    it("pays only what is left once the debt is clear", () => {
-      // −4 carried in (a 40-hour week against 44), +8 this period (52 against 44).
-      const r = buildClose([person({ openingBalanceMin: -4 * 60, clockedBalanceMin: 8 * 60 })])[0];
-      expect(r.closingHours).toBe(4);
+    // by week. The pay period is twenty-eight days, so forty hours in week one and
+    // fifty-two in week two both fall inside it: the second week pays back the first.
+    it("pays only what is left once the shortfall is covered", () => {
+      // −4 in one week (40 against 44), +8 in another (52 against 44).
+      const r = buildClose([person({ clockedBalanceMin: 4 * 60 })])[0];
+      expect(r.clockedOtHours).toBe(4);
       expect(r.overtimeHours).toBe(4);
       expect(r.owedHours).toBe(0);
     });
 
-    it("earns nothing while the balance is still negative", () => {
-      // 40 then 48: still four hours short over the fortnight, so nothing is owed to
-      // them. The old screen reported the +4 of the second week as overtime.
-      const r = buildClose([person({ openingBalanceMin: -8 * 60, clockedBalanceMin: 4 * 60 })])[0];
-      expect(r.closingHours).toBe(-4);
+    it("reports a period that ends short as hours deducted, not as negative overtime", () => {
+      // 40 then 48 is four hours short over the fortnight. The screen used to show
+      // this as "Clocked OT −4.00", which reads as overtime and is not.
+      const r = buildClose([person({ clockedBalanceMin: -4 * 60 })])[0];
+      expect(r.clockedOtHours).toBe(-4);
       expect(r.overtimeHours).toBe(0);
       expect(r.owedHours).toBe(4);
     });
 
-    it("does not let the period's surplus hide a deficit outside the window", () => {
-      // The reason the opening balance is carried at all. Twelve hours over inside
-      // the period, sixteen down before it: they are four hours short, not twelve up.
-      const r = buildClose([person({ openingBalanceMin: -16 * 60, clockedBalanceMin: 12 * 60 })])[0];
-      expect(r.clockedOtHours).toBe(12);
-      expect(r.overtimeHours).toBe(0);
-      expect(r.owedHours).toBe(4);
-    });
-
-    it("measures a payroll claim against overtime earned, not against the balance", () => {
-      // Somebody sitting four hours short has earned nothing. A payroll claim of 4 h
-      // is four hours unsupported, not a figure that agrees with a −4 balance.
-      const r = buildClose([person({
-        openingBalanceMin: -8 * 60, clockedBalanceMin: 4 * 60, payrollOtHours: 4,
-      })])[0];
+    it("measures a payroll claim against overtime paid, not against the balance", () => {
+      // Somebody who ended four hours short earned nothing. A payroll claim of 4 h is
+      // four unsupported hours, not a figure that agrees with a −4 balance.
+      const r = buildClose([person({ clockedBalanceMin: -4 * 60, payrollOtHours: 4 })])[0];
       expect(r.overtimeHours).toBe(0);
       expect(r.deltaHours).toBe(4);
     });
 
-    it("treats a missing history as zero without calling it settled", () => {
-      const r = buildClose([person({ openingBalanceMin: null, clockedBalanceMin: 6 * 60 })])[0];
-      expect(r.openingHours).toBe(0);
+    it("starts each period at zero, because the one before it was settled", () => {
+      // Nothing carries in. A deficit already deducted from the previous period's pay
+      // must not be deducted again out of this period's overtime.
+      const r = buildClose([person({ clockedBalanceMin: 6 * 60 })])[0];
       expect(r.overtimeHours).toBe(6);
     });
   });
@@ -131,8 +121,7 @@ describe("the export finance receives", () => {
     const [row] = closeToCsvRows(rows);
     // Opening is known — it is zero, not missing — so it stays a number. Everything
     // downstream of the clocks is blank, because nothing was reported to derive it.
-    expect(row[2]).toBe(0);
-    for (const i of [3, 4, 5, 6, 7, 8]) expect(row[i]).toBe("");
+    for (const i of [2, 3, 4, 5, 6]) expect(row[i]).toBe("");
   });
 });
 
