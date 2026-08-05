@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Users } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
+import { AdminPinGate } from "@/components/AdminPinGate";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +67,17 @@ export default function PeoplePage() {
 
   return (
     <DashboardLayout>
+      {/* The one door in this section that had no lock. Every other tab — the board,
+          Annual Leave, Attendance, Finance Close — asks for the PIN, and this screen
+          holds more than any of them: every employee's department, rota, pay-relevant
+          entitlement and leaving date. Somebody who could not open the board could open
+          this and then walk into the board through the tabs.
+          Same key as the rest, so it is still one PIN for the section and not five. */}
+      <AdminPinGate
+        storageKey="workforce"
+        title="Employee"
+        description="The employee records behind the board. Enter the admin PIN to open."
+      >
       <div className="space-y-4">
         <BackButton />
         <WorkforceTabs />
@@ -168,6 +180,7 @@ export default function PeoplePage() {
         onOpenChange={(v) => !v && setDetailId(null)}
         canEdit={canEdit}
       />
+      </AdminPinGate>
     </DashboardLayout>
   );
 }

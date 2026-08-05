@@ -30,11 +30,19 @@ export function AdminPinGate({
   children: React.ReactNode;
 }) {
   const key = `pin-ok:${storageKey}`;
-  const [unlocked, setUnlocked] = useState(false);
+  // Read on the first render, not in an effect. Reading it afterwards meant every
+  // navigation inside an already-unlocked section painted the keypad for a frame
+  // before replacing it — the section flashed locked on every tab change, which
+  // teaches somebody to start typing before looking.
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return sessionStorage.getItem(key) === "1"; } catch { return false; }
+  });
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // Still watched, because the key can change between screens and another tab can
+  // unlock the section while this one is open.
   useEffect(() => {
     try { setUnlocked(sessionStorage.getItem(key) === "1"); } catch { /* storage blocked */ }
   }, [key]);
