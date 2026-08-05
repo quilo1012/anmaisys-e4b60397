@@ -195,7 +195,27 @@ export function parseHeadcountWorkbook(
   wb: XLSX.WorkBook,
   ctx: { areas: HeadcountArea[]; roster: HeadcountEmployee[]; shift: string; fallbackYear: number },
 ): ImportPreview {
-  const areaByName = new Map(ctx.areas.map((a) => [normalise(a.name), a]));
+  /**
+   * Every name a column can go by, back to the area it means.
+   *
+   * All three, because the exporter writes whichever of them the area carries and
+   * this has to read its own output back. `sheet_group` was the one missing: the
+   * exporter merges Capsules Machine 1 and 2 into a single "Pill line" column, and
+   * with only `name` in this map that column came back as unknown and everybody
+   * standing in it was dropped — 47 people over the month this was found.
+   *
+   * A grouped column resolves to the first of its areas. The sheet does not say which
+   * machine somebody was on, so this is the honest half of the answer: the right
+   * column, and a placement inside it that takes one drag to correct.
+   */
+  const areaByName = new Map<string, HeadcountArea>();
+  for (const a of ctx.areas) {
+    for (const key of [a.name, a.sheet_label, a.sheet_group]) {
+      if (!key) continue;
+      const k = normalise(key);
+      if (!areaByName.has(k)) areaByName.set(k, a);
+    }
+  }
 
   const byFull = new Map<string, HeadcountEmployee[]>();
   const byFirst = new Map<string, HeadcountEmployee[]>();
