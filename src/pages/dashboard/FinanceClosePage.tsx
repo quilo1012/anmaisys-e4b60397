@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calculator, Download, Printer, AlertTriangle } from "lucide-react";
 import { downloadCsv } from "@/lib/exportCsv";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
+import { ShiftBalancePanel } from "@/components/workforce/ShiftBalancePanel";
 import { useEmployees, useOvertimeEntries, useOvertimePeriods } from "@/hooks/useWorkforce";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePersonInput,
@@ -280,6 +281,12 @@ export default function FinanceClosePage() {
             )}
           </CardContent>
         </Card>
+
+        {/* The other question, answerable without a clock: how many shifts were they
+            due and how many did they come to. Kept apart from the hours above because
+            somebody who works every shift and leaves at two is level here and short
+            there — merging them would hide which question a number answered. */}
+        <ShiftBalancePanel from={from} to={to} />
 
         {/* Where the Payroll OT column above is filled in. */}
         <div className="space-y-2 print:hidden">
