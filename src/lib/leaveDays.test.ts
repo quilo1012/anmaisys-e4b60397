@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leaveDays, eachDate, describeLeaveDays, leaveBalance, leaveYearOf } from "@/lib/leaveDays";
+import { leaveDays, eachDate, describeLeaveDays, leaveBalance, leaveYearOf, countSpells } from "@/lib/leaveDays";
 
 // ISO weekdays: 1 = Monday … 7 = Sunday.
 const MON_THU = [1, 2, 3, 4];
@@ -131,5 +131,29 @@ describe("leaveBalance", () => {
     expect(b.total).toBeNull();
     expect(b.remaining).toBeNull();
     expect(b.booked).toBe(2);
+  });
+});
+
+describe("countSpells", () => {
+  it("counts a run of consecutive days as one spell", () => {
+    expect(countSpells(["2026-08-03", "2026-08-04", "2026-08-05"])).toBe(1);
+  });
+
+  it("counts scattered single days separately", () => {
+    // The whole point: five days in one go and five days across the year both count
+    // five, and only one of them is the pattern a manager is looking for.
+    expect(countSpells(["2026-04-06", "2026-05-11", "2026-06-01", "2026-07-20", "2026-08-03"])).toBe(5);
+  });
+
+  it("does not care what order the dates arrive in, or repeat one", () => {
+    expect(countSpells(["2026-08-05", "2026-08-03", "2026-08-04", "2026-08-04"])).toBe(1);
+  });
+
+  it("is zero for nobody off at all", () => {
+    expect(countSpells([])).toBe(0);
+  });
+
+  it("starts a new spell after a gap of a single day", () => {
+    expect(countSpells(["2026-08-03", "2026-08-05"])).toBe(2);
   });
 });

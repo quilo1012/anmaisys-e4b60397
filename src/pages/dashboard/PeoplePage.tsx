@@ -73,7 +73,7 @@ export default function PeoplePage() {
         <div className="flex items-center gap-3">
           <Users className="h-6 w-6 text-muted-foreground" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">People</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Employee</h1>
             <p className="text-sm text-muted-foreground">
               The employee records the board, Leave and Finance Close all read from
             </p>
