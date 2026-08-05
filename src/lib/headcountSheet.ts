@@ -207,13 +207,21 @@ export function parseHeadcountWorkbook(
    * A grouped column resolves to the first of its areas. The sheet does not say which
    * machine somebody was on, so this is the honest half of the answer: the right
    * column, and a placement inside it that takes one drag to correct.
+   *
+   * `sheet_label` takes a comma-separated list, because one area can be written
+   * several ways across the same workbook. The Blender Room is "Assembly" on most
+   * days, "Blender Team" on others and "Blender Room" on the rest — three columns for
+   * one place. Without the list, two of the three come back as unknown columns and
+   * everybody in them has to be placed again by hand.
    */
   const areaByName = new Map<string, HeadcountArea>();
   for (const a of ctx.areas) {
     for (const key of [a.name, a.sheet_label, a.sheet_group]) {
       if (!key) continue;
-      const k = normalise(key);
-      if (!areaByName.has(k)) areaByName.set(k, a);
+      for (const part of String(key).split(",")) {
+        const k = normalise(part);
+        if (k && !areaByName.has(k)) areaByName.set(k, a);
+      }
     }
   }
 

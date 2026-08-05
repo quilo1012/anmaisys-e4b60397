@@ -234,3 +234,50 @@ describe("columns the exporter renames or merges", () => {
     expect(p.matched.find((m) => m.employeeId === "e2")!.areaId).toBe("l5");
   });
 });
+
+describe("one area written several ways in the same workbook", () => {
+  // The Blender Room is "Assembly" on most days of the factory's own sheet, "Blender
+  // Team" on others and "Blender Room" on the rest. Three columns, one place. With a
+  // single label two of the three came back unknown and everybody in them was dropped.
+  const blender = {
+    ...area("br", "Blender Room", "support"),
+    sheet_label: "Blender Room, Assembly, Blender Team",
+  } as HeadcountArea;
+  const ROSTER2 = [emp("e1", "Ana Silva")];
+
+  const sheetWith = (columnName: string) => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Day shift — 2026-08-04"], [], ["SUPPORT"], [columnName], ["Ana Silva"], [1],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "2026-08-04 Day");
+    return wb;
+  };
+
+  for (const label of ["Assembly", "Blender Team", "Blender Room"]) {
+    it(`reads "${label}" as the Blender Room`, () => {
+      const p = parseHeadcountWorkbook(sheetWith(label), {
+        areas: [blender], roster: ROSTER2, shift: "Day", fallbackYear: 2026,
+      });
+      expect(p.unknownColumns).toEqual([]);
+      expect(p.matched).toHaveLength(1);
+      expect(p.matched[0].areaId).toBe("br");
+    });
+  }
+
+  it("still calls a column nobody claims unknown", () => {
+    // Beside a column it does know: a row of nothing but unknown headings is not read
+    // as a heading row at all, which is what keeps stray text out of the import.
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Day shift — 2026-08-04"], [], ["SUPPORT"],
+      ["Assembly", "Bottling"], ["Ana Silva", "Nobody Here"], [1, 1],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "2026-08-04 Day");
+    const p = parseHeadcountWorkbook(wb, {
+      areas: [blender], roster: ROSTER2, shift: "Day", fallbackYear: 2026,
+    });
+    expect(p.unknownColumns).toContain("Bottling");
+    expect(p.matched[0].areaId).toBe("br");
+  });
+});
