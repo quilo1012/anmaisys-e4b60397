@@ -36,14 +36,7 @@ CREATE POLICY "shift_pattern_days admin" ON public.shift_pattern_days
   USING (has_role(auth.uid(),'admin'::app_role))
   WITH CHECK (has_role(auth.uid(),'admin'::app_role));
 
--- The rota this table was created for. 3 × 11 h + 8 h = 41 h a week, not the 44 that
--- multiplying the first day by four would give.
-INSERT INTO public.shift_patterns
-  (name, days, starts_at, ends_at, break_minutes, active, annual_leave_days, leave_includes_bank_holidays)
-SELECT 'Tue–Fri days (Fri 09:00)', ARRAY[2,3,4,5], '06:00', '18:00', 60, true, 21.5, true
-WHERE NOT EXISTS (SELECT 1 FROM public.shift_patterns WHERE name = 'Tue–Fri days (Fri 09:00)');
-
-INSERT INTO public.shift_pattern_days (pattern_id, weekday, starts_at, ends_at)
-SELECT id, 5, '09:00', '18:00' FROM public.shift_patterns
-WHERE name = 'Tue–Fri days (Fri 09:00)'
-ON CONFLICT (pattern_id, weekday) DO NOTHING;
+-- No pattern uses this table yet. It was created for a rota that turned out to be two
+-- rotas (see 20260805123000), and it is kept because the modelling gap is real — a rota
+-- whose hours change from one day to the next cannot be expressed any other way, and
+-- `weeklyTargetForPattern` sums the days rather than multiplying regardless.
