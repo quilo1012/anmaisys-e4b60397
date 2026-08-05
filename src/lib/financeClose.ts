@@ -17,14 +17,18 @@
  * so forty-four. Hours are not settled week by week. Somebody who works forty one
  * week and fifty-two the next has not earned eight hours of overtime — the second
  * week is paying back the first, and they are level. Overtime is only what is left
- * over once the debt is clear.
+ * over once the shortfall is covered.
  *
- * That makes the running balance the thing to carry and overtime a consequence of it,
- * which in turn makes the period boundary dangerous: a deficit built in March against
- * a surplus in April is still the same debt, and a screen that starts counting at the
- * period start would pay April's surplus in full while March's shortfall sat outside
- * the window. So the opening balance is carried in, and overtime is only ever the
- * part of the CLOSING balance that is above zero.
+ * THE PAY PERIOD IS THE UNIT THAT SETTLES, and it is twenty-eight days — four weeks,
+ * which is why the forty/fifty-two example falls inside one. What the balance comes
+ * to at the end of it is settled there and then: positive is paid as overtime,
+ * negative is deducted from pay. Both directions close the account.
+ *
+ * So nothing is carried in. An earlier version of this file summed every day before
+ * the period into an opening balance, which would have been right if the balance ran
+ * on for ever — but it does not, and a deficit already deducted from March's pay
+ * would have been deducted a second time out of April's overtime. The period starts
+ * at zero because the period before it was paid.
  */
 
 export interface ClosePersonInput {
@@ -32,14 +36,9 @@ export interface ClosePersonInput {
   name: string;
   department: string | null;
   /**
-   * Signed minutes carried in from every day before the period started.
-   *
-   * Null means nothing was ever clocked before this period — a new starter, or an
-   * import that does not reach back that far. Treated as zero for the arithmetic but
-   * kept distinct so the screen can say the history is missing rather than settled.
+   * Signed minutes from the clocks within the period, and only within it. A day
+   * either side belongs to a period that has already been settled.
    */
-  openingBalanceMin: number | null;
-  /** Signed minutes from the clocks within the period. */
   clockedBalanceMin: number | null;
   /** Hours keyed in by the office for this period. */
   payrollOtHours: number | null;
@@ -49,15 +48,15 @@ export interface ClosePersonInput {
 }
 
 export interface ClosePerson extends ClosePersonInput {
-  /** Signed hours accrued inside the period. Not overtime — this can be negative. */
-  clockedOtHours: number | null;
-  /** Signed hours brought in from before the period. */
-  openingHours: number;
-  /** opening + period. What they are up or down by once this period is added on. */
-  closingHours: number | null;
   /**
-   * The part of the closing balance that is above zero — the only hours that are
-   * actually overtime, after any earlier shortfall has been covered.
+   * Signed hours over the period: what they worked less what they were due. Not
+   * overtime — a week under covers a week over inside the same period, and this can
+   * come out negative.
+   */
+  clockedOtHours: number | null;
+  /**
+   * The part of the period balance above zero — the hours actually paid as overtime,
+   * once any shortfall inside the period has been covered.
    */
   overtimeHours: number | null;
   /** The part below zero, as a positive number: hours still owed back. */
@@ -80,15 +79,16 @@ export const round2 = (n: number) => Math.round(n * 100) / 100;
 export function buildClose(rows: ClosePersonInput[]): ClosePerson[] {
   return rows
     .map((r) => {
+      // Summing the period's days is what makes a surplus cover a shortfall: forty
+      // hours in week one and fifty-two in week two is ninety-two against an
+      // eighty-eight hour contract, so four hours of overtime and not twelve.
       const clockedOtHours = r.clockedBalanceMin == null ? null : round2(r.clockedBalanceMin / 60);
-      const openingHours = round2((r.openingBalanceMin ?? 0) / 60);
 
-      // The surplus covers the shortfall before it becomes overtime. Forty hours one
-      // week and fifty-two the next is ninety-two against an eighty-eight hour
-      // contract: four hours of overtime, not twelve.
-      const closingHours = clockedOtHours == null ? null : round2(openingHours + clockedOtHours);
-      const overtimeHours = closingHours == null ? null : Math.max(0, closingHours);
-      const owedHours = closingHours == null ? null : Math.max(0, round2(-closingHours));
+      // Both directions settle here. Positive is paid as overtime; negative is
+      // deducted from pay, which is why it is reported as its own figure rather than
+      // left as a minus sign on the overtime column.
+      const overtimeHours = clockedOtHours == null ? null : Math.max(0, clockedOtHours);
+      const owedHours = clockedOtHours == null ? null : Math.max(0, round2(-clockedOtHours));
 
       // A missing figure is not a zero. If one side never reported, there is no gap
       // to state — saying "0" would read as "the two agree", which is the one thing
@@ -110,7 +110,7 @@ export function buildClose(rows: ClosePersonInput[]): ClosePerson[] {
         else otherAbsence += n;
       }
       return {
-        ...r, clockedOtHours, openingHours, closingHours, overtimeHours, owedHours,
+        ...r, clockedOtHours, overtimeHours, owedHours,
         deltaHours, sick, holiday, unpaid, otherAbsence,
       };
     })
@@ -121,9 +121,9 @@ export interface CloseTotals {
   people: number;
   /** Signed hours accrued in the period. Can be negative; not overtime. */
   clockedOtHours: number;
-  /** Hours genuinely earned as overtime, after each person's own deficit is covered. */
+  /** Hours paid as overtime, after each person's own shortfall is covered. */
   overtimeHours: number;
-  /** Hours still owed back, across everybody who is behind. */
+  /** Hours deducted from pay, across everybody who ended the period behind. */
   owedHours: number;
   payrollOtHours: number;
   deltaHours: number;
@@ -168,9 +168,7 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
   return rows.map((r) => [
     r.name,
     r.department ?? "",
-    r.openingHours,
     r.clockedOtHours ?? "",
-    r.closingHours ?? "",
     r.overtimeHours ?? "",
     r.owedHours ?? "",
     r.payrollOtHours ?? "",
@@ -185,8 +183,7 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
 
 export const CLOSE_HEADERS = [
   "Employee", "Department",
-  "Opening balance (h)", "This period (h)", "Closing balance (h)",
-  "Overtime earned (h)", "Hours owed (h)",
+  "Period balance (h)", "Overtime paid (h)", "Hours deducted (h)",
   "Payroll OT (h)", "Delta (h)",
   "Days present", "Sick", "Holiday", "Unpaid", "Other absence",
 ];
