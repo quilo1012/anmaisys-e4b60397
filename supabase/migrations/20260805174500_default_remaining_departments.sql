@@ -1,0 +1,19 @@
+-- Os 39 que sobravam sem departamento, postos em Production.
+--
+-- This is a default and not evidence, which is worth saying plainly because every
+-- other department on the system was read off something: the board column somebody
+-- stands in, or the sheet that named them.
+--
+-- Thirty-eight are the night crew, on the twelve-hour Mon–Thu nights rota, which is a
+-- production rota — nobody is on it to keep the books. The thirty-ninth is Andre
+-- Pereira. Nothing else in the system knows more: none of them holds an account role,
+-- none appears as an engineer on a work order, and the only two clues in the requester
+-- names — "henrique line 6" and "Juliano (Capsules & Tablets)" — point at production
+-- as well.
+--
+-- What this loses is the shape of that crew: their team leaders, technicians and lab
+-- staff are now filed as Production alongside the operatives. That correction belongs
+-- to somebody who knows them, on the Employee screen. It becomes visible the day their
+-- board is filled in, because the column a person stands in is what said "Office Admin"
+-- for Cesar Andrade.
+UPDATE public.employees SET department = 'Production' WHERE active AND department IS NULL;
