@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -123,15 +124,12 @@ export function HeadcountSheetDialog({
       // on the board and eleven in the record they are counted from. The dialog that
       // marks one person has always written both; the import that marks a thousand
       // did not, which is the wrong way round.
-      const attendance = preview.matched.map((m) => ({
-        employee_id: m.employeeId,
-        on_date: m.date,
-        status:
-          m.status === "holiday" ? "holiday"
-          : m.status === "sick" ? "sick"
-          : m.status === "unpaid" ? "unpaid"
-          : "present",
-      }));
+      // One row per person per day, and working beats being away — the rule lives in
+      // `attendanceFromBoard` because it also runs when a single person is marked by
+      // hand, and the two copies had already drifted apart twice.
+      const attendance = attendanceFromBoard(
+        preview.matched.map((m) => ({ employeeId: m.employeeId, date: m.date, status: m.status })),
+      );
       const { error: attErr } = await (supabase as any)
         .from("employee_attendance")
         .upsert(attendance, { onConflict: "employee_id,on_date" });

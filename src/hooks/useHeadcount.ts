@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { attendanceForStatus } from "@/lib/attendanceFromBoard";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
 
 export type HeadcountArea = {
@@ -250,11 +251,8 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // Each board status has a payroll record of its own now. Sick and unpaid used to
       // collapse into "absent", which the finance close could only report as an
       // absence of unstated kind — and the kind is what decides whether it is paid.
-      const attendance =
-        input.status === "holiday" ? "holiday"
-        : input.status === "sick" ? "sick"
-        : input.status === "unpaid" ? "unpaid"
-        : "present";
+      // Shared with the sheet import, which is where the two last disagreed.
+      const attendance = attendanceForStatus(input.status);
       const { error: attErr } = await (supabase as any)
         .from("employee_attendance")
         .upsert(
