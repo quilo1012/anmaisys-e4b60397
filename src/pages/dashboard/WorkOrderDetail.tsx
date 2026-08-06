@@ -65,6 +65,7 @@ function TimelineItem({ icon: Icon, label, time, className }: { icon: React.Comp
 }
 
 import { formatDuration as formatDurationFromSec, formatMinutes } from "@/lib/formatDuration";
+import { cycleTotal } from "@/lib/woCycle";
 
 // Standardized: always "Xh Ym" (no seconds, no plain "min").
 function formatDuration(minutes: number | null) {
@@ -259,11 +260,12 @@ export default function WorkOrderDetail() {
     (wo.started_at && (wo.finished_at || wo.completed_at)
       ? differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at))
       : null);
-  const totalMin =
-    viewTotalMin ??
-    ((wo.finished_at || wo.completed_at || wo.closed_at)
-      ? differenceInMinutes(new Date(wo.finished_at || wo.closed_at || wo.completed_at!), new Date(wo.created_at))
-      : null);
+  // `v_wo_metrics.total_cycle_sec` is `closed_at - created_at`, which is a real
+  // figure and not the one printed here. WO-2026-000511 read 362h 56m under the words
+  // "opened → finished" for a fifty-five minute repair that waited fifteen days for a
+  // signature. The view is left alone; this card stops borrowing from it.
+  const cycle = cycleTotal(wo as any);
+  const totalMin = cycle.minutes;
 
   return (
     <DashboardLayout>
@@ -495,13 +497,15 @@ export default function WorkOrderDetail() {
             <div className="grid grid-cols-3 gap-4 print:gap-0">
               <div className="text-center print:border print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Response</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">opened → accepted</p><p className="text-3xl font-bold print:text-base">{formatDuration(responseMin)}</p></div>
               <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execution</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">start → finish</p><p className="text-3xl font-bold print:text-base">{formatDuration(executionMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">{
-                  /* An order nobody accepted and nobody started was not "finished" —
-                     it was closed by a manager. Reading "opened → finished" against a
-                     figure that is mostly the order sitting there is how 2h10 gets
-                     mistaken for two hours of repair. */
-                  wo.status === "force_closed" ? "opened → force closed" : "opened → finished"
-                }</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p></div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">{cycle.label}</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p>
+                {/* The wait for a signature, said as its own thing. Fifteen days is a
+                    real problem and not a maintenance one; inside the repair figure it
+                    was arithmetic nobody could reconcile. */}
+                {cycle.signOffWaitMinutes != null && (
+                  <p className="mt-1 text-[9pt] text-warning-strong print:text-[6pt]">
+                    + {formatDuration(cycle.signOffWaitMinutes)} waiting for sign-off
+                  </p>
+                )}</div>
             </div>
           </CardContent>
         </Card>
