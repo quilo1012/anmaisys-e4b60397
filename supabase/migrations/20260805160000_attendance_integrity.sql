@@ -27,7 +27,7 @@ ON CONFLICT (employee_id, on_date) DO UPDATE SET status = EXCLUDED.status;
 --    day recorded as away. The time moves to the note rather than being deleted; what
 --    it means for his pay is not this migration's to decide.
 UPDATE public.daily_allocations
-SET note = coalesce(note || ' · ', '') || 'Folha diz: LEFT AT 07:45',
+SET note = coalesce(note || ' · ', '') || 'Sheet says: LEFT AT 07:45',
     left_early_at = NULL
 WHERE left_early_at IS NOT NULL AND status NOT IN ('assigned','overtime');
 
