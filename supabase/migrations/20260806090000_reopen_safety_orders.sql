@@ -15,12 +15,12 @@ UPDATE public.work_orders SET
   status = 'open', priority = 'high',
   rejected_at = NULL, rejected_by = NULL, rejection_reason = NULL,
   notes = coalesce(notes || E'\n', '') ||
-    'Reaberta 06/08: rejeitada a 04/08 17:16 com o motivo "..." — sem justificação registada. Relato de segurança (choque elétrico), prioridade corrigida de low para high.'
+    'Reopened 06/08: rejected on 04/08 17:16 with the reason "..." — no justification recorded. Safety report (electric shock); priority corrected from low to high.'
 WHERE wo_number = 801 AND status::text = 'rejected';
 
 UPDATE public.work_orders SET
   status = 'open',
   rejected_at = NULL, rejected_by = NULL, rejection_reason = NULL,
   notes = coalesce(notes || E'\n', '') ||
-    'Reaberta 06/08: rejeitada a 04/08 17:17 com o motivo "Ooo" — sem justificação registada. Metal detetado na Line 1 é evento de contaminação.'
+    'Reopened 06/08: rejected on 04/08 17:17 with the reason "Ooo" — no justification recorded. Metal detected on Line 1 is a contamination event.'
 WHERE wo_number = 802 AND status::text = 'rejected';
