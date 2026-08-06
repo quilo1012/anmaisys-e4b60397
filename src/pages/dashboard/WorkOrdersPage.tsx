@@ -155,7 +155,12 @@ export default function WorkOrdersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newWoType, setNewWoType] = useState<"production" | "warehouse_service">("production");
   const [newWarehouseLocation, setNewWarehouseLocation] = useState("");
-  const [newLineStopped, setNewLineStopped] = useState<"stopped" | "running">("running");
+  // No default. It used to open on "running", so an order raised from this form
+  // recorded no downtime unless somebody thought to change it — and none of the seven
+  // orders open on 06/08 had it set. The tablet on the floor opens on "stopped", which
+  // is the honest default there and the opposite one here; neither is a guess this
+  // form should make. Empty means the required check below actually fires.
+  const [newLineStopped, setNewLineStopped] = useState<"stopped" | "running" | "">("");
   const [newRequester, setNewRequester] = useState("");
   const [newLineId, setNewLineId] = useState("");
   const [newMachine, setNewMachine] = useState("");
@@ -413,7 +418,7 @@ export default function WorkOrdersPage() {
         await createWO.mutateAsync({ requester_name: newRequester.trim(), wo_type: "production", line_id: newLineId || undefined, machine: newMachine.trim(), description: newDesc.trim(), notes: newNotes.trim(), line_stopped: newLineStopped === "stopped" } as any);
       }
       toast({ title: "Maintenance Order Created" });
-      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewLineStopped("running"); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setTouched({}); setSubmitAttempted(false);
+      setShowCreate(false); setNewWoType("production"); setNewWarehouseLocation(""); setNewLineStopped(""); setNewRequester(""); setNewLineId(""); setNewMachine(""); setNewDesc(""); setNewNotes(""); setTouched({}); setSubmitAttempted(false);
 
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
