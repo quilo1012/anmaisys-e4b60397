@@ -115,7 +115,27 @@ function OperatorDashboardContent() {
   const { data: workOrders, isLoading } = useWorkOrders({ lineId });
   const { data: allWOs } = useWorkOrders({ lineId });
   // Operators only see the CURRENT factory shift's orders — previous shifts drop off automatically.
-  const shiftWOs = (workOrders ?? []).filter((wo) => new Date(wo.created_at) >= getCurrentShiftStart());
+  // This shift's work, plus anything still unresolved whenever it was raised.
+  //
+  // It used to be the shift alone, so at 18:01 every order from the day vanished from
+  // the operator's screen — the seven open on 06/08 included, one of them a report of
+  // a machine giving somebody an electric shock. An order nobody has answered is not
+  // history, and the shift it was raised in has no bearing on whether it still needs
+  // doing. The night operator was told nothing was outstanding on his line.
+  //
+  // Open first, because the point of the list is what still needs attention.
+  const OPEN_STATUSES = ["open", "received", "arrived", "in_progress"];
+  const shiftWOs = (workOrders ?? [])
+    .filter((wo) => OPEN_STATUSES.includes(wo.status) || new Date(wo.created_at) >= getCurrentShiftStart())
+    .sort((a, b) => {
+      const aOpen = OPEN_STATUSES.includes(a.status), bOpen = OPEN_STATUSES.includes(b.status);
+      if (aOpen !== bOpen) return aOpen ? -1 : 1;
+      // Oldest unanswered first: the one that has been waiting longest is the one
+      // somebody should be asking about.
+      return aOpen
+        ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
   const woIds = workOrders?.map((wo) => wo.id) || [];
   const { data: partsCounts } = usePartsCountByWOs(woIds);
   const { data: machines } = useMachines();
@@ -703,6 +723,13 @@ function OperatorDashboardContent() {
             <CardTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" />
               My Maintenance Orders
+              {/* The count somebody scans for. Said on the heading because the list is
+                  long and the open ones are only obvious once you read the badges. */}
+              {shiftWOs.some((w) => OPEN_STATUSES.includes(w.status)) && (
+                <Badge variant="destructive" className="ml-1">
+                  {shiftWOs.filter((w) => OPEN_STATUSES.includes(w.status)).length} still open
+                </Badge>
+              )}
             </CardTitle>
             <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/operator/my-production")}>
               <Factory className="h-4 w-4 mr-2" />
