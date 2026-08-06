@@ -98,7 +98,14 @@ function OperatorDashboardContent() {
   // Only surface required-field errors after a submit attempt — not on the empty
   // initial render (which looked broken/aggressive on the floor).
   const [showErrors, setShowErrors] = useState(false);
-  const [lineStopped, setLineStopped] = useState(false);
+  // Null until the operator says. It used to start at false — "Line Running" — on a
+  // two-button toggle, which looks answered, so an order raised on the floor booked no
+  // downtime unless somebody noticed and pressed the other button. Every order open on
+  // 06/08 came from an operator account and every one of them said Running.
+  //
+  // The default was the whole of the failure: an operator who has just watched a line
+  // stop does not read a toggle that already agrees with itself.
+  const [lineStopped, setLineStopped] = useState<boolean | null>(null);
   const [isRetroactive, setIsRetroactive] = useState(false);
   const [retroDate, setRetroDate] = useState<Date>();
   const [retroTime, setRetroTime] = useState("");
@@ -206,6 +213,14 @@ function OperatorDashboardContent() {
       toast({ title: "Machine required", description: "Please select the machine that needs maintenance.", variant: "destructive" });
       return;
     }
+    if (lineStopped === null) {
+      toast({
+        title: "Is the line stopped?",
+        description: "Say whether the line is stopped or still running — it decides whether this counts as downtime.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       let created_at: string | undefined;
       if (isRetroactive && retroDate) {
@@ -248,7 +263,7 @@ function OperatorDashboardContent() {
       toast({ title: lineStopped ? "🛑 WO Sent — Line Stopped" : "✓ WO Sent — Line Running", description: "Engineers have been notified." });
       setShowErrors(false);
       setRequestedBy(""); setMachineName(""); setMobileAssetId(""); setSecondaryAssetId(""); setPhysicalLineId(""); setDescription(""); setCustomDescription(""); setNotes("");
-      setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(false);
+      setIsRetroactive(false); setRetroDate(undefined); setRetroTime(""); setLineStopped(null);
     } catch {
       toast({ title: "Error", description: "Failed to create maintenance order", variant: "destructive" });
     }
@@ -271,7 +286,7 @@ function OperatorDashboardContent() {
           onClick={() => { setLineStopped(true); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
             "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
-            lineStopped ? "bg-red-600 text-white" : "text-muted-foreground hover:bg-accent"
+            lineStopped === true ? "bg-red-600 text-white" : "text-muted-foreground hover:bg-accent"
           )}
         >
           <StopCircle className="h-4 w-4" /> Stopped
@@ -281,7 +296,7 @@ function OperatorDashboardContent() {
           onClick={() => { setLineStopped(false); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
             "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
-            !lineStopped ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-accent"
+            lineStopped === false ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-accent"
           )}
         >
           <AlertCircle className="h-4 w-4" /> Running
@@ -290,8 +305,10 @@ function OperatorDashboardContent() {
       {/* What the choice does. It decides whether this order books downtime, and
           nothing on screen said so — half the orders raised on the floor in the last
           week said "Running", which is now taken at its word. */}
-      <p className="text-xs text-muted-foreground max-w-md">
-        {lineStopped
+      <p className={cn("text-xs max-w-md", lineStopped === null ? "font-medium text-warning-strong" : "text-muted-foreground")}>
+        {lineStopped === null
+          ? "Say which one. It decides whether this order counts as downtime."
+          : lineStopped
           ? "Downtime is counted from now until an engineer resumes the line."
           : "No downtime is counted. If the line does stop, the engineer records it on the order."}
       </p>
@@ -312,8 +329,8 @@ function OperatorDashboardContent() {
                 Line: {lineName}
               </Badge>
             )}
-            {lineStopped && <Badge variant="destructive" className="ml-2 gap-1"><StopCircle className="h-3 w-3" /> Line Stopped</Badge>}
-            {!lineStopped && (requestedBy || description) && <Badge className="ml-2 gap-1 bg-amber-500 text-white border-amber-500"><AlertCircle className="h-3 w-3" /> Line Running</Badge>}
+            {lineStopped === true && <Badge variant="destructive" className="ml-2 gap-1"><StopCircle className="h-3 w-3" /> Line Stopped</Badge>}
+            {lineStopped === false && (requestedBy || description) && <Badge className="ml-2 gap-1 bg-amber-500 text-white border-amber-500"><AlertCircle className="h-3 w-3" /> Line Running</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent>
