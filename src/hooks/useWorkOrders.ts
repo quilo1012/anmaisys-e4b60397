@@ -226,9 +226,30 @@ export function useCreateWorkOrder() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_data, vars) => {
+    onSuccess: (data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      logAuditEvent("create", "work_order", undefined, { requester_name: vars.requester_name, machine: vars.machine, description: vars.description, priority: vars.priority, line_stopped: !!vars.line_stopped });
+      // What was STORED, with the id, not what was asked for and nothing to join on.
+      //
+      // It logged `vars` — the client's request — under an undefined entity id. So
+      // when WO-2026-000814 turned out to have `line_stopped = false` while its audit
+      // entry said `true`, there was no way to tell whether the request was refused,
+      // overwritten by a trigger, or simply logged against the wrong order: the two
+      // records could not even be joined, and the one that existed described an
+      // intention rather than an outcome.
+      //
+      // `line_stopped_requested` is kept beside the stored value precisely so that
+      // gap is visible next time instead of having to be inferred a day later.
+      const stored = data as any;
+      logAuditEvent("create", "work_order", stored?.id, {
+        wo_number: stored?.wo_number,
+        requester_name: stored?.requester_name ?? vars.requester_name,
+        machine: stored?.machine ?? vars.machine,
+        description: stored?.description ?? vars.description,
+        priority: stored?.priority ?? vars.priority,
+        line_stopped: stored?.line_stopped ?? null,
+        line_stopped_at: stored?.line_stopped_at ?? null,
+        line_stopped_requested: !!vars.line_stopped,
+      });
     },
   });
 }
