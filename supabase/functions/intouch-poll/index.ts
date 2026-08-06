@@ -303,28 +303,25 @@ Deno.serve(async (req) => {
   }
 
   // ⏸️ Toggle controlled by Settings → iTouching (system_settings.intouch_auto_wo_enabled).
-  // When OFF, the cron / manual poll runs but does NOT open any Work Order.
+  //
+  // It governs whether an order is OPENED, and nothing else. The comment above this
+  // block always said that; the code returned early instead, so with the toggle off
+  // the poll answered `{"paused": true, "polled": 0}` every minute and never read a
+  // machine at all.
+  //
+  // That is how the mapping page came to show six machines stopped on a status last
+  // written at 15:49 on 04/08 — two days of red badges with no date beside them,
+  // while the cron fired sixty times an hour and did nothing. Reading is not an
+  // automatic action; opening somebody a work order is.
+  let autoWoEnabled = true;
   try {
     const { data: ss } = await admin
       .from("system_settings")
       .select("intouch_auto_wo_enabled")
       .limit(1)
       .maybeSingle();
-    if (!ss?.intouch_auto_wo_enabled) {
-      return new Response(JSON.stringify({
-        ok: true,
-        paused: true,
-        reason: "intouch_auto_wo_enabled is OFF",
-        polled: 0,
-        opened_wos: [],
-        skipped: [],
-        errors: [],
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-  } catch (_e) { /* fall through and run normally if flag read fails */ }
+    autoWoEnabled = !!ss?.intouch_auto_wo_enabled;
+  } catch (_e) { /* run normally if the flag cannot be read */ }
 
 
   const results = {
@@ -507,6 +504,14 @@ Deno.serve(async (req) => {
         last_seen_at: now,
         updated_at: now,
       }).eq("intouch_machine_id", s.MachineID);
+
+      // The status is written above whatever the toggle says, so the screens stay
+      // honest. Everything past this point either opens an order or edits one, which
+      // is exactly what the toggle exists to hold back.
+      if (!autoWoEnabled) {
+        results.skipped.push(`${m.intouch_machine_name} (status read; auto orders are OFF)`);
+        continue;
+      }
 
       if (currentStatus == null) {
         results.skipped.push(`${m.intouch_machine_name} (unknown status)`);
@@ -903,7 +908,10 @@ Deno.serve(async (req) => {
 
     console.log("intouch-poll result", JSON.stringify(results));
     const debug = new URL(req.url).searchParams.get("debug") === "1";
-    const payload: any = { ok: true, ...results };
+    // Said in the response, because "polled: 10, opened_wos: []" and "polled: 10,
+    // opened_wos: [] because orders are switched off" look identical otherwise, and
+    // somebody reading the logs has to be able to tell them apart.
+    const payload: any = { ok: true, auto_wo_enabled: autoWoEnabled, ...results };
     if (debug) {
       payload.raw_statuses = statuses.map((s) => ({
         MachineID: s.MachineID,
