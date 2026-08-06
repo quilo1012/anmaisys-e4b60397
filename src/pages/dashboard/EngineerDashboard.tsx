@@ -348,7 +348,7 @@ function EngineerDashboardContent() {
   const [signName, setSignName] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
-  const [rejectDialogWO, setRejectDialogWO] = useState<{ id: string; number: number | null } | null>(null);
+  const [rejectDialogWO, setRejectDialogWO] = useState<{ id: string; number: number | null; description: string | null } | null>(null);
 
   // BUG 4: state for "line still stopped" modal when trying to finish
   const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
@@ -758,7 +758,7 @@ function EngineerDashboardContent() {
                   <CheckCircle className="h-5 w-5 mr-2" /> ACCEPT
                 </Button>
                 {!(wo as any).intouch_stop_code && (
-                  <Button size="lg" variant="destructive" className="h-14 text-base font-bold" onClick={() => setRejectDialogWO({ id: wo.id, number: wo.wo_number ?? null })}>
+                  <Button size="lg" variant="destructive" className="h-14 text-base font-bold" onClick={() => setRejectDialogWO({ id: wo.id, number: wo.wo_number ?? null, description: wo.description ?? null })}>
                     <PowerOff className="h-5 w-5 mr-2" /> REJECT
                   </Button>
                 )}
@@ -1254,6 +1254,7 @@ function EngineerDashboardContent() {
       <RejectWoDialog
         woId={rejectDialogWO?.id ?? null}
         woNumber={rejectDialogWO?.number ?? null}
+        description={rejectDialogWO?.description ?? null}
         onOpenChange={(o) => { if (!o) setRejectDialogWO(null); }}
       />
 
