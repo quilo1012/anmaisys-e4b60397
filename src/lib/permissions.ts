@@ -141,7 +141,11 @@ const MATRIX: Record<Action, Role[]> = {
   // PLUS warehouse and quality_supervisor, for whom the PVS module is built.
 
   "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
-  "sku.view": ["production_office_admin"],
+  // Admin was missing from these two alone, so an admin could open the Planner and
+  // edit SKUs but not browse the catalogue. Fixed in the matrix rather than with a
+  // short-circuit in `can()`: the permissions screen draws this table, so an admin
+  // who is allowed by code but unticked here is a screen that lies.
+  "sku.view": ["admin", "production_office_admin"],
   "sku.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
 
   "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
@@ -150,7 +154,7 @@ const MATRIX: Record<Action, Role[]> = {
   // insert path for planner either). supervisor is enabled to match RLS.
   "rag.comment": ["admin", "manager", "supervisor", "production_office_admin"],
 
-  "smarttarget.view": ["production_office_admin"],
+  "smarttarget.view": ["admin", "production_office_admin"],
 
   "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer", "production_office_admin"],
   "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"],

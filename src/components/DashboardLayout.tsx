@@ -350,6 +350,11 @@ const roleTitle: Record<string, string> = {
   operator: "Operator",
   viewer: "Viewer",
   warehouse: "Warehouse Admin",
+  // These two were missing, so `roleTitle[role]` came back undefined and the badge
+  // rendered empty — with `aria-label="Current role: undefined"` read out to anybody
+  // using a screen reader. Two of the twelve roles had no name anywhere on screen.
+  quality_supervisor: "Quality Supervisor",
+  production_office_admin: "Production Office",
 };
 
 const roleBadgeClass: Record<string, string> = {
@@ -363,6 +368,8 @@ const roleBadgeClass: Record<string, string> = {
   operator: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30",
   viewer: "bg-muted text-muted-foreground border-border",
   warehouse: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+  quality_supervisor: "bg-cyan-500/15 text-cyan-600 border-cyan-500/30",
+  production_office_admin: "bg-indigo-500/15 text-indigo-600 border-indigo-500/30",
 };
 
 const routeTitles: Record<string, string> = {
