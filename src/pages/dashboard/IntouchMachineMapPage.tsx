@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, PlayCircle, Radio } from "lucide-react";
+import { Loader2, RefreshCw, PlayCircle, Radio, AlertTriangle } from "lucide-react";
+import { freshnessOf, pollerBanner } from "@/lib/pollerFreshness";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -115,6 +116,10 @@ export default function IntouchMachineMapPage() {
     }
   };
 
+  // Recomputed on render rather than memoised: the whole point is that it goes stale
+  // while somebody is looking at the page.
+  const banner = pollerBanner(mapRows, new Date());
+
   return (
     <DashboardLayout>
     <div className="space-y-4">
@@ -147,6 +152,15 @@ export default function IntouchMachineMapPage() {
             <p className="text-sm text-muted-foreground">No machines yet — click <b>Import from iTouching</b>.</p>
           ) : (
             <div className="overflow-x-auto">
+              {/* Above the table, because the table is a wall of red badges that read
+                  as "stopped now" whatever their age. Six machines showed a stop that
+                  was two days old and nothing on the page said so. */}
+              {banner && (
+                <p className="mb-3 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive-strong" />
+                  <span>{banner}</span>
+                </p>
+              )}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
@@ -194,9 +208,19 @@ export default function IntouchMachineMapPage() {
                       </td>
                       <td className="p-2">
                         {r.last_status != null ? (
-                          <Badge variant={r.last_status === 1 ? "default" : "destructive"}>
-                            {r.last_status}{r.last_downtime_code ? ` · ${r.last_downtime_code.slice(0, 8)}` : ""}
-                          </Badge>
+                          <div className="flex flex-col items-start gap-0.5">
+                            {/* Muted once the reading is too old to call a status: a
+                                red badge is a claim about right now. */}
+                            <Badge variant={
+                              !freshnessOf(r.last_seen_at, new Date()).trustworthy ? "outline"
+                                : r.last_status === 1 ? "default" : "destructive"
+                            }>
+                              {r.last_status}{r.last_downtime_code ? ` · ${r.last_downtime_code.slice(0, 8)}` : ""}
+                            </Badge>
+                            <span className="text-2xs text-muted-foreground">
+                              {freshnessOf(r.last_seen_at, new Date()).label}
+                            </span>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
