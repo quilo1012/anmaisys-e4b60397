@@ -104,11 +104,37 @@ export function useHeadcountAreas() {
  * day board; without this fold the allocation was saved as 'Day' and then nobody saw
  * it, because the roster looked for `shift_group = 'Day'` exactly.
  */
+/**
+ * Which board somebody is drawn on. Two boards, not five.
+ *
+ * The crews are Day, Night, Weekend, Warehouse Day and Warehouse Weekend, and the
+ * board used to have one per crew. That is not how the factory plans: their own
+ * headcount sheets draw a single sheet per day carrying everybody whose shift runs
+ * while the lines do — the Fri–Mon crew beside the Mon–Thu crew beside the warehouse —
+ * and only the night crew is planned apart.
+ *
+ * Splitting them cost more than it explained. The Weekend board held 45 rows against
+ * the Day board's 1516, thirty-one of them duplicates of a day already on Day; a
+ * weekend-crew person's approved holiday landed there alone while the board people
+ * read showed them missing; and the Day picker would not offer a Fri–Mon name, so
+ * nobody could place a Saturday call-in on the board their own allocation was on.
+ *
+ * The crew has not stopped mattering — it says which days somebody is due in, and it
+ * is shown on their card. It just is not a separate wall chart.
+ */
 export function boardShiftFor(shiftGroup: string | null | undefined): string | null {
   if (!shiftGroup) return null;
-  if (shiftGroup === "Warehouse Weekend") return "Weekend";
-  if (shiftGroup.startsWith("Warehouse")) return "Day";
-  return ["Day", "Night", "Weekend"].includes(shiftGroup) ? shiftGroup : null;
+  return shiftGroup === "Night" ? "Night" : "Day";
+}
+
+/** The crew, short enough for a badge on a card. Null for the plain day shift. */
+export function crewBadge(shiftGroup: string | null | undefined): string | null {
+  if (!shiftGroup) return null;
+  if (shiftGroup === "Weekend") return "FRI–MON";
+  if (shiftGroup === "Warehouse Weekend") return "WH FRI–MON";
+  if (shiftGroup === "Warehouse Day") return "WH";
+  if (shiftGroup === "Night") return "NIGHT";
+  return null;
 }
 
 export function useShiftRoster(shift: string, onDate: string, showAll = false) {
