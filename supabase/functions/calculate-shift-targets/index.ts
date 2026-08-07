@@ -25,7 +25,14 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CRON_SECRET = (Deno.env.get("CRON_SECRET") ?? "").trim();
+// The same three names `intouch-poll` accepts, because the same pg_cron job secret has
+// to open both doors. This function only read CRON_SECRET, which is not the name the
+// deployed secret goes by — so every scheduled call answered 401 and the targets were
+// never calculated. Two functions, two auth rules, one secret: the quieter rule loses
+// silently and nobody sees a 401 that nothing is watching.
+const CRON_SECRETS = ["CRON_SECRET", "CRON_TRIGGER_TOKEN", "CRON_POLL_KEY"]
+  .map((k) => (Deno.env.get(k) ?? "").trim())
+  .filter((v) => v.length > 0);
 
 const SHIFT_MINUTES = 660; // 11h productive window per 12h shift
 
@@ -48,7 +55,11 @@ Deno.serve(async (req) => {
   // Auth
   const cronHeader = (req.headers.get("x-cron-secret") ?? "").trim();
   const auth = req.headers.get("authorization") ?? "";
-  const cronOk = CRON_SECRET.length > 0 && cronHeader === CRON_SECRET;
+  // A bearer token is accepted too: pg_cron can send either, and the poller allows both.
+  const bearer = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+  const presented = cronHeader || bearer;
+  // An empty secret never opens the door, whichever side is empty.
+  const cronOk = presented.length > 0 && CRON_SECRETS.some((s) => s === presented);
 
   let userOk = false;
   if (!cronOk && auth.toLowerCase().startsWith("bearer ")) {
