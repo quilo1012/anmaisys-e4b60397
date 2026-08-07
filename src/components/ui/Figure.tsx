@@ -1,7 +1,12 @@
 import { cn } from "@/lib/utils";
 
 /**
- * A number this section is answerable for.
+ * A number a screen is answerable for.
+ *
+ * Lives in `ui/` because it is not a workforce idea. The app had EIGHT components for
+ * "a label and a number" — three of them called `Kpi`, in three files, with three
+ * different prop shapes, and two called `Figure`. Two different things under one name
+ * is a trap for whoever edits next.
  *
  * Every workforce screen opens with a row of identical grey boxes, and the box holding
  * "People: 176" looks exactly like the box holding "Gap to settle: 191.55 h". One is
@@ -28,7 +33,7 @@ import { cn } from "@/lib/utils";
 export type FigureTone = "neutral" | "earned" | "owed";
 
 export function Figure({
-  label, value, unit, tone = "neutral", lead = false, hint, className,
+  label, value, unit, tone = "neutral", lead = false, hint, bare = false, className,
 }: {
   label: string;
   /** Already formatted. This decides nothing about rounding — the caller knows. */
@@ -39,6 +44,11 @@ export function Figure({
   /** The screen's answer. One per screen, or the idea stops working. */
   lead?: boolean;
   hint?: string;
+  /**
+   * No card around it. For figures already inside a card — a row of four inside one
+   * panel is one object, and giving each its own border makes four.
+   */
+  bare?: boolean;
   className?: string;
 }) {
   return (
@@ -47,9 +57,9 @@ export function Figure({
       // border, which is one idea said three times and reads as a highlighted card
       // rather than an answer. Size and position carry it; the ledger rule stays the
       // only colour in the row, so it is the thing the eye finds.
-      className={cn("rounded-xl border bg-card p-3", className)}
+      className={cn(bare ? "min-w-0" : "rounded-xl border bg-card p-3", className)}
     >
-      <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </div>
 

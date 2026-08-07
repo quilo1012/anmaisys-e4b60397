@@ -36,7 +36,7 @@ import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialo
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
 import { currentShift } from "@/lib/operationalShift";
-import { SectionHeader } from "@/components/workforce/SectionHeader";
+import { ModuleHeader } from "@/components/ui/ModuleHeader";
 
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
 let draggedEmployeeId: string | null = null;
@@ -965,7 +965,7 @@ export default function ProductionHeadcountPage() {
       <BackButton className="no-print" />
       <WorkforceTabs />
 
-      <SectionHeader
+      <ModuleHeader
         title="Production Headcount"
         description="Daily allocation of people to production and support areas"
       >
@@ -1002,7 +1002,7 @@ export default function ProductionHeadcountPage() {
               Print
             </Button>
         </>
-      </SectionHeader>
+      </ModuleHeader>
 
       <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="print:hidden">
         <TabsList>

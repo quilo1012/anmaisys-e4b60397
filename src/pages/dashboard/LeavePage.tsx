@@ -6,8 +6,8 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
-import { SectionHeader } from "@/components/workforce/SectionHeader";
-import { Figure, FigureRow } from "@/components/workforce/Figure";
+import { ModuleHeader } from "@/components/ui/ModuleHeader";
+import { Figure, FigureRow } from "@/components/ui/Figure";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -457,14 +457,14 @@ export default function LeavePage() {
         <BackButton />
         <WorkforceTabs />
 
-        <SectionHeader
+        <ModuleHeader
           title="Annual Leave"
           description={`Holiday balances, sickness and unpaid leave · leave year ${year.from} → ${year.to}`}
         >
           <Button size="sm" variant="secondary" onClick={() => setShowNew((v) => !v)}>
             <Plus className="mr-1.5 h-4 w-4" /> Book leave
           </Button>
-        </SectionHeader>
+        </ModuleHeader>
 
         {showNew && (
           <Card>

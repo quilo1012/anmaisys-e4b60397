@@ -1,7 +1,13 @@
 import { cn } from "@/lib/utils";
 
 /**
- * One header for the five screens that are one job.
+ * The band at the top of a screen naming which module you are in.
+ *
+ * NOT `SectionHeading`, which is a small-caps divider between groups WITHIN a page,
+ * and not `PageHeader`, which is a plain title row. Three objects, three names — it
+ * was called `SectionHeader`, one letter from `SectionHeading`, sitting in the same
+ * folder. The app had just been through eight components for "a label and a number",
+ * three of them called `Kpi`, and this was the same trap being set again.
  *
  * The board had a navy band; Employee, Annual Leave, Attendance and Finance Close each
  * had a bare `<h1>` on white. Five screens about the same hundred and seventy-six
@@ -16,7 +22,7 @@ import { cn } from "@/lib/utils";
  * "where am I" for somebody who arrived on the Finance Close from a link and has never
  * seen the tabs.
  */
-export function SectionHeader({
+export function ModuleHeader({
   title, description, children, className,
 }: {
   title: string;

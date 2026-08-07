@@ -11,6 +11,7 @@ import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Figure } from "@/components/ui/Figure";
 import {
   QUALITY_SEVERITIES, severityMeta, DOCUMENTATION_LABEL, DOCUMENTATION_PENALTY_PCT,
   documentationScore, isValidatedPaperwork, validationMeta,
@@ -34,16 +35,6 @@ interface LSWorkOrder {
   line_at_time: string | null; line_stopped: boolean | null; description: string | null;
 }
 interface LSSession { oee_pct: number | null; run_time_min: number | null; down_time_min: number | null; intouch_good_total: number | null; session_date: string | null; line: string | null; shift: string | null }
-
-function Kpi({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
-  return (
-    <Card><CardContent className="p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={cn("text-xl font-bold", tone)}>{value}</div>
-      {sub && <div className="text-2xs text-muted-foreground">{sub}</div>}
-    </CardContent></Card>
-  );
-}
 
 /**
  * @param from  first day of the period, as the screen filters it
@@ -452,10 +443,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
           <div>
             <div className="mb-1.5 flex items-center gap-1 text-sm font-semibold"><Clock className="h-4 w-4" /> Quality</div>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <Kpi label="Total actions" value={q.total} />
-              <Kpi label="Open" value={q.open} tone="text-amber-600 dark:text-amber-400" />
-              <Kpi label="% closed" value={`${q.pctClosed}%`} tone="text-green-600 dark:text-green-400" sub={`${q.completed} completed`} />
-              <Kpi label="Avg resolution" value={q.avgResolution == null ? "—" : `${q.avgResolution.toFixed(1)}d`} sub="created → complete" />
+              <Figure label="Total actions" value={String(q.total)} />
+              <Figure label="Open" value={String(q.open)} tone={q.open > 0 ? "owed" : "neutral"} />
+              <Figure label="% closed" value={`${q.pctClosed}%`} tone="earned" hint={`${q.completed} completed`} />
+              <Figure label="Avg resolution" value={q.avgResolution == null ? "—" : `${q.avgResolution.toFixed(1)}d`} hint="created → complete" />
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {QUALITY_SEVERITIES.slice().reverse().map((s) => (
@@ -607,24 +598,24 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
             ) : (
               <>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Kpi
+                <Figure
                   label="Attainment"
                   value={p.attainment == null ? "n/a" : `${p.attainment}%`}
-                  sub={p.attainment == null ? "no RAG plan for these sessions" : `${p.actualQty.toLocaleString()} of ${p.targetQty.toLocaleString()} planned`}
+                  hint={p.attainment == null ? "no RAG plan for these sessions" : `${p.actualQty.toLocaleString()} of ${p.targetQty.toLocaleString()} planned`}
                 />
-                <Kpi label="Output" value={p.output.toLocaleString()} sub="logged on My Production" />
+                <Figure label="Output" value={p.output.toLocaleString()} hint="logged on My Production" />
                 {/* Was "Downtime", which read n/a on every card: 0 of 216 sessions this
                     month carry down_time_min. This is the number the leader actually
                     generates — the maintenance they called for. */}
-                <Kpi
+                <Figure
                   label="Maintenance called"
                   value={String(woRequests.length)}
-                  sub={
+                  hint={
                     woRequests.length === 0
                       ? "no work order raised in this period"
                       : `${woStopped} stopped the line`
                   }
-                  tone={woStopped > 0 ? "text-destructive-strong" : undefined}
+                  tone={woStopped > 0 ? "owed" : "neutral"}
                 />
               </div>
               {woRequests.length > 0 && (

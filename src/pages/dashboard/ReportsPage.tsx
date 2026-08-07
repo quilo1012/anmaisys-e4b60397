@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Figure } from "@/components/ui/Figure";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,16 +18,6 @@ const iso = (d: Date) => format(d, "yyyy-MM-dd");
 function mins(n: number): string {
   if (!n) return "—";
   return n < 60 ? `${n}m` : `${Math.floor(n / 60)}h ${String(n % 60).padStart(2, "0")}m`;
-}
-
-function Figure({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-mono text-xl font-bold tabular-nums">{value}</div>
-      {hint && <div className="truncate text-2xs text-muted-foreground">{hint}</div>}
-    </div>
-  );
 }
 
 function Section({
@@ -115,46 +106,46 @@ export default function ReportsPage() {
       </div>
 
       <Section title="Production" icon={Gauge} accent="border-l-emerald-500" to="/dashboard/production-performance" onOpen={navigate}>
-        <Figure label="Plan" value={s.production.plan.toLocaleString()} />
-        <Figure label="Actual" value={s.production.actual.toLocaleString()} />
-        <Figure
+        <Figure bare label="Plan" value={s.production.plan.toLocaleString()} />
+        <Figure bare label="Actual" value={s.production.actual.toLocaleString()} />
+        <Figure bare
           label="Efficiency"
           value={s.production.efficiencyPct == null ? "—" : `${s.production.efficiencyPct}%`}
           hint={s.production.efficiencyPct == null ? "no plan recorded" : undefined}
         />
-        <Figure label="Days planned" value={String(s.production.days)} />
+        <Figure bare label="Days planned" value={String(s.production.days)} />
       </Section>
 
       <Section title="Downtime" icon={Clock} accent="border-l-amber-500" to="/dashboard/downtime" onOpen={navigate}>
-        <Figure label="Total" value={mins(s.downtime.minutes)} />
-        <Figure label="Stoppages" value={String(s.downtime.stops)} />
-        <Figure
+        <Figure bare label="Total" value={mins(s.downtime.minutes)} />
+        <Figure bare label="Stoppages" value={String(s.downtime.stops)} />
+        <Figure bare
           label="Worst line"
           value={s.downtime.worstLine ?? "—"}
           hint={s.downtime.worstMinutes ? mins(s.downtime.worstMinutes) : undefined}
         />
-        <Figure
+        <Figure bare
           label="Per stoppage"
           value={s.downtime.stops ? mins(Math.round(s.downtime.minutes / s.downtime.stops)) : "—"}
         />
       </Section>
 
       <Section title="Maintenance" icon={Wrench} accent="border-l-sky-500" to="/dashboard/work-orders" onOpen={navigate}>
-        <Figure label="Raised" value={String(s.maintenance.raised)} />
-        <Figure
+        <Figure bare label="Raised" value={String(s.maintenance.raised)} />
+        <Figure bare
           label="Closed"
           value={String(s.maintenance.closed)}
           hint={s.maintenance.raised ? `${Math.round((s.maintenance.closed / s.maintenance.raised) * 100)}% of raised` : undefined}
         />
-        <Figure label="Avg response" value={s.maintenance.avgResponseMin == null ? "—" : `${s.maintenance.avgResponseMin}m`} />
-        <Figure label="Avg repair" value={s.maintenance.avgRepairMin == null ? "—" : `${s.maintenance.avgRepairMin}m`} />
+        <Figure bare label="Avg response" value={s.maintenance.avgResponseMin == null ? "—" : `${s.maintenance.avgResponseMin}m`} />
+        <Figure bare label="Avg repair" value={s.maintenance.avgRepairMin == null ? "—" : `${s.maintenance.avgRepairMin}m`} />
       </Section>
 
       <Section title="Quality" icon={AlertTriangle} accent="border-l-rose-500" to="/dashboard/quality" onOpen={navigate}>
-        <Figure label="Actions" value={String(s.quality.total)} />
-        <Figure label="Still open" value={String(s.quality.open)} />
-        <Figure label="Critical" value={String(s.quality.critical)} />
-        <Figure
+        <Figure bare label="Actions" value={String(s.quality.total)} />
+        <Figure bare label="Still open" value={String(s.quality.open)} />
+        <Figure bare label="Critical" value={String(s.quality.critical)} />
+        <Figure bare
           label="Closed"
           value={String(s.quality.total - s.quality.open)}
           hint={s.quality.total ? `${Math.round(((s.quality.total - s.quality.open) / s.quality.total) * 100)}%` : undefined}
