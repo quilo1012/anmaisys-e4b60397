@@ -72,3 +72,26 @@ describe("runMinutes", () => {
     expect(runMinutes("2026-08-06T17:20:00Z", null)).toBeNull();
   });
 });
+
+describe("runMinutes refuses a pair that cannot describe a run", () => {
+  it("refuses zero, which is not a short run", () => {
+    // Nine records hold a start and a finish on the same minute — five on 27/07 alone,
+    // at 09:59, 10:01, 10:02, 11:09 and 16:40. Saving stamped the finish with the clock
+    // while the operator had typed the clock into the start.
+    const t = "2026-08-06T09:59:00Z";
+    expect(runMinutes(t, t)).toBeNull();
+  });
+
+  it("refuses a run longer than the shift it belongs to", () => {
+    // An item belongs to a session and a session is one shift. K26217 claims 1050
+    // minutes on Line 3; averaged in, it makes the line look half as fast as it is.
+    const start = "2026-08-07T02:20:00Z";
+    expect(runMinutes(start, "2026-08-07T19:50:00Z")).toBeNull();   // 1050 min
+    expect(runMinutes(start, "2026-08-07T14:20:00Z")).toBe(720);    // exactly 12 h
+    expect(runMinutes(start, "2026-08-07T14:21:00Z")).toBeNull();   // a minute over
+  });
+
+  it("still measures an ordinary run", () => {
+    expect(runMinutes("2026-08-06T06:00:00Z", "2026-08-06T10:05:00Z")).toBe(245);
+  });
+});

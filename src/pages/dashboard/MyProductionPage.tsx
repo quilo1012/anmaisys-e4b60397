@@ -17,7 +17,7 @@ import { ShiftScrapCard } from "@/components/production/ShiftScrapCard";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, shiftLoggingDeadline, SHIFT_LABEL } from "@/lib/shifts";
-import { shiftTimeToIso } from "@/lib/productionTime";
+import { shiftTimeToIso, runMinutes } from "@/lib/productionTime";
 import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -935,10 +935,24 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
       // Each blender keeps its OWN start/finish, so several blenders on the same
       // SKU don't overwrite each other's times.
       // Saving marks the end of the run, so stamp Finish when it was left blank.
-      const finishHM = finishTime || nowHM();
+      //
+      // But never a Finish that is not after the Start. An operator who types the
+      // current time into Start and saves straight away got both fields on the same
+      // minute, and a run of zero minutes is not a short run — it is a record that
+      // cannot be read. Nine of them are on file: five on 27/07 alone, at 09:59, 10:01,
+      // 10:02, 11:09 and 16:40, each with its two times identical to the minute.
+      //
+      // An unfinished run is honest. A zero-length one is not, and it is the kind of
+      // wrong that looks finished.
       const entryTimes: Record<string, string | null> = {};
-      if (startTime) entryTimes.started_at = hmToIso(startTime, logDate, logShift);
-      entryTimes.finished_at = hmToIso(finishHM, logDate, logShift);
+      const startIso = startTime ? hmToIso(startTime, logDate, logShift) : null;
+      if (startTime) entryTimes.started_at = startIso;
+
+      const finishIso = hmToIso(finishTime || nowHM(), logDate, logShift);
+      const stampedNotTyped = !finishTime;
+      if (finishIso && !(stampedNotTyped && startIso && runMinutes(startIso, finishIso) == null)) {
+        entryTimes.finished_at = finishIso;
+      }
 
       if (existingEntry?.id) {
         const { error: upErr } = await (supabase as any)
