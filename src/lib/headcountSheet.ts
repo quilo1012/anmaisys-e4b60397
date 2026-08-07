@@ -89,7 +89,13 @@ export function buildHeadcountWorkbook(input: {
   // `kind` — that is the other question, and the answer to it did not change.
   const block = (a: HeadcountArea) => {
     const sec = (a.section ?? "").toLowerCase();
-    return sec === "production" || sec === "support" ? sec : (a.kind === "production" ? "production" : "support");
+    // Sectors — hygiene, quality, maintenance, the warehouse — print with support on
+    // the company's sheet, which has two bands and not three. The screen shows them
+    // apart because that is the question a supervisor asks; the sheet keeps its own
+    // shape so an export still reads back the way it always did.
+    if (sec === "production") return "production";
+    if (sec === "sectors" || sec === "support") return "support";
+    return a.kind === "production" ? "production" : "support";
   };
 
   /**
