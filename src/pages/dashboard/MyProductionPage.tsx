@@ -17,6 +17,7 @@ import { ShiftScrapCard } from "@/components/production/ShiftScrapCard";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { getCurrentFactoryShift, shiftLoggingDeadline, SHIFT_LABEL } from "@/lib/shifts";
+import { shiftTimeToIso } from "@/lib/productionTime";
 import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -66,13 +67,17 @@ function nowHM(): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 /** Build an ISO timestamp for today at the given "HH:mm" (local), or null. */
-function hmToIso(hm: string): string | null {
-  if (!hm) return null;
-  const [h, m] = hm.split(":").map(Number);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
+/**
+ * A typed time onto the day the SHIFT says it belongs to.
+ *
+ * This used to build `new Date()` and set the hours on it — the day the form happened
+ * to be submitted. On a night shift the operator crosses midnight and the record does
+ * not: logging at 01:00 that a run started at 17:20 produced 07/08 17:20, eighteen
+ * hours after the finish typed before midnight. Twenty-three records hold a negative
+ * duration because of it.
+ */
+function hmToIso(hm: string, sessionDate: string, shift: string): string | null {
+  return shiftTimeToIso(hm, sessionDate, shift);
 }
 /** Format digits as HH:mm while typing, so the time is entered by hand on a
  *  tablet instead of opening the native clock dial. */
@@ -544,6 +549,10 @@ function parseBatchInput(raw: string): { batch: string; mfg: string; exp: string
 type PlannedSku = { id: string; code: string; name: string; planned: number; done: number };
 
 function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = [] }: { sessionId: string; target?: number; produced?: number; plannedSkus?: PlannedSku[] }) {
+  // The shift being logged decides which day a typed time lands on, not the clock on
+  // the wall behind whoever is typing.
+  const { sessionDate: logDate, shiftCode: logShiftCode } = getCurrentFactoryShift();
+  const logShift = logShiftCode === "night" ? "NIGHT" : "DAY";
   const qc = useQueryClient();
   const { selectedLineName: jobLine } = useDeviceLineCtx();
   // iTouching is no longer read on this screen at all. It was the source of the
@@ -864,8 +873,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
             expiry_month: expClean ? `${expClean}-01` : null,
             destination: destClean || null,
             not_for_eu: notForEu,
-            started_at: hmToIso(startTime),
-            finished_at: hmToIso(finishTime),
+            started_at: hmToIso(startTime, logDate, logShift),
+            finished_at: hmToIso(finishTime, logDate, logShift),
           })
           .select("id")
           .maybeSingle();
@@ -893,8 +902,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
       } else {
         // Existing batch item — record/refresh the production times and batch code
         const timePatch: any = {};
-        if (startTime) timePatch.started_at = hmToIso(startTime);
-        if (finishTime) timePatch.finished_at = hmToIso(finishTime);
+        if (startTime) timePatch.started_at = hmToIso(startTime, logDate, logShift);
+        if (finishTime) timePatch.finished_at = hmToIso(finishTime, logDate, logShift);
         if (batchClean) timePatch.batch_code = batchClean;
         if (mfgClean) timePatch.manufacture_month = `${mfgClean}-01`;
         if (expClean) timePatch.expiry_month = `${expClean}-01`;
@@ -927,8 +936,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
       // Saving marks the end of the run, so stamp Finish when it was left blank.
       const finishHM = finishTime || nowHM();
       const entryTimes: Record<string, string | null> = {};
-      if (startTime) entryTimes.started_at = hmToIso(startTime);
-      entryTimes.finished_at = hmToIso(finishHM);
+      if (startTime) entryTimes.started_at = hmToIso(startTime, logDate, logShift);
+      entryTimes.finished_at = hmToIso(finishHM, logDate, logShift);
 
       if (existingEntry?.id) {
         const { error: upErr } = await (supabase as any)
