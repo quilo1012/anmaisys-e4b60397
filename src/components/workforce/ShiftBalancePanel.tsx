@@ -28,11 +28,17 @@ export function ShiftBalancePanel({ from, to }: { from: string; to: string }) {
           .select("id, full_name, department, shift_pattern_id, shift_patterns(name, days)")
           .eq("active", true),
         db.from("daily_allocations")
-          .select("employee_id, status")
+          .select("employee_id, status, shift")
           .gte("on_date", from).lte("on_date", to),
       ]);
       if (emp.error) throw emp.error;
       if (allocs.error) throw allocs.error;
+
+      // Which boards anybody actually filled in. The night board has never been
+      // planned, so everybody on it reads as a full period short — forty-eight
+      // invented deficits burying the two or three that are real.
+      const boardsPlanned = new Set<string>();
+      for (const a of (allocs.data ?? []) as any[]) if (a.shift) boardsPlanned.add(a.shift);
 
       const counts = new Map<string, { present: number; holiday: number; sick: number; unpaid: number }>();
       for (const a of (allocs.data ?? []) as any[]) {
@@ -50,6 +56,7 @@ export function ShiftBalancePanel({ from, to }: { from: string; to: string }) {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
           patternName: e.shift_patterns?.name ?? null,
           patternDays: e.shift_patterns?.days ?? null,
+          boardPlanned: boardsPlanned.has(e.shift_group === "Night" ? "Night" : "Day"),
           ...c,
         };
       });

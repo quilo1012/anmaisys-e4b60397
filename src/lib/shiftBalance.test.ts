@@ -10,7 +10,7 @@ const TO = "2026-08-04";
 const person = (over: Partial<ShiftBalanceInput> = {}): ShiftBalanceInput => ({
   employeeId: "e1", name: "Ana Silva", department: "Production",
   patternName: "Mon–Thu days", patternDays: [1, 2, 3, 4],
-  present: 0, holiday: 0, sick: 0, unpaid: 0, ...over,
+  present: 0, holiday: 0, sick: 0, unpaid: 0, boardPlanned: true, ...over,
 });
 
 describe("expectedShifts", () => {
@@ -121,5 +121,36 @@ describe("shortfallIsReliable", () => {
 
   it("trusts a shortfall when the days were marked and they were genuinely off", () => {
     expect(shortfallIsReliable(build({ present: 11, unpaid: 3 }))).toBe(true);
+  });
+});
+
+describe("a board nobody planned", () => {
+  // The night board has never been filled in. All forty-eight of its people read as a
+  // full period short, which buries the two or three shortfalls that are real.
+  const night = (o = {}) => person({ boardPlanned: false, present: 0, ...o });
+
+  it("does not count them as short", () => {
+    const t = shiftTotals(buildShiftBalances([night()], FROM, TO));
+    expect(t.inDeficit).toBe(0);
+    expect(t.deficitShifts).toBe(0);
+  });
+
+  it("counts them as their own thing instead", () => {
+    expect(shiftTotals(buildShiftBalances([night()], FROM, TO)).onUnplannedBoard).toBe(1);
+  });
+
+  it("keeps them out of the missing-from-the-board count", () => {
+    // Their absence is nobody's entry, not their absence.
+    expect(shiftTotals(buildShiftBalances([night()], FROM, TO)).noBoardRecord).toBe(0);
+  });
+
+  it("still counts somebody missing from a board that WAS planned", () => {
+    const t = shiftTotals(buildShiftBalances([person({ present: 0 })], FROM, TO));
+    expect(t.noBoardRecord).toBe(1);
+    expect(t.onUnplannedBoard).toBe(0);
+  });
+
+  it("never calls a shortfall on an unplanned board reliable", () => {
+    expect(shortfallIsReliable(buildShiftBalances([night()], FROM, TO)[0])).toBe(false);
   });
 });
