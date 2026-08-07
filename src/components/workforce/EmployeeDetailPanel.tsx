@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DEPARTMENTS, POSITIONS } from "@/lib/orgNames";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -180,15 +181,21 @@ export function EmployeeDetailPanel({
               )}
             </div>
             <div>
-              <Label className="text-xs" htmlFor="wf-position">Position</Label>
-              <Input
-                id="wf-position"
-                value={position}
+              <Label className="text-xs">Position</Label>
+              {/* A list, not a box. Free text gave "Prodcution Operative" twenty-two
+                  times against four spelled properly, and grouping by position counted
+                  them as two different jobs. */}
+              <Select
+                value={position || "__none__"}
                 disabled={!canEdit}
-                placeholder="Line Leader, Technician Operator…"
-                onChange={(e) => setPosition(e.target.value)}
-                className="text-sm"
-              />
+                onValueChange={(v) => setPosition(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Not set" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not set</SelectItem>
+                  {POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <p className="mt-1 text-2xs text-muted-foreground">
                 What they do. Separate from department, which is where they do it.
               </p>
@@ -216,15 +223,22 @@ export function EmployeeDetailPanel({
                 nobody was answering. The Agency count in the department panel reads
                 from it and will stay at zero until there is a real way to set it. */}
             <div>
-              <Label className="text-xs" htmlFor="wf-dept">Department</Label>
-              <Input
-                id="wf-dept"
-                value={department}
+              <Label className="text-xs">Department</Label>
+              {/* The same seven the headcount areas carry, so a total can be taken
+                  across the board and the people list. Free text had fifteen, of which
+                  four were job titles — twenty people whose department was
+                  "Team Leader" had no department at all while appearing to have one. */}
+              <Select
+                value={department || "__none__"}
                 disabled={!canEdit}
-                placeholder="To confirm"
-                onChange={(e) => setDepartment(e.target.value)}
-                className="text-sm"
-              />
+                onValueChange={(v) => setDepartment(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="text-sm"><SelectValue placeholder="To confirm" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">To confirm</SelectItem>
+                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               {/* Assigning by dropdown as well as by drag: placing 180 people once,

@@ -9,6 +9,7 @@ import { UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AllocStatus, HeadcountArea } from "@/hooks/useHeadcount";
 import { describeSchedule, type ShiftPattern } from "@/hooks/useWorkforce";
+import { earlyLeave } from "@/lib/earlyLeave";
 
 /** The shifts a board can be, which is what `daily_allocations.shift` accepts. */
 const BOARD_SHIFTS = ["Day", "Night", "Weekend"] as const;
@@ -61,6 +62,17 @@ export function PersonDayDialog({
   isLeader: boolean;
 }) {
   const areaName = areaId ? areas.find((a) => a.id === areaId)?.name ?? null : null;
+
+  // Null when the person has no rota: without one there is no shift length to measure
+  // the shortfall against, and "0h unpaid" would be worse than saying nothing.
+  const rota = patternId ? patterns.find((p) => p.id === patternId) : null;
+  const cut = rota
+    ? earlyLeave(leftEarlyAt, {
+        startsAt: (rota as any).starts_at,
+        endsAt: (rota as any).ends_at,
+        breakMinutes: (rota as any).break_minutes,
+      })
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -166,6 +178,16 @@ export function PersonDayDialog({
                       onChange={(e) => onSetLeftEarlyAt(e.target.value || null)}
                       className="h-8 w-28"
                     />
+                    {/* What the time costs, said where it is typed. The board stored
+                        this for months and no screen ever turned it into hours, so
+                        somebody who went home two hours into an eleven-hour shift
+                        counted as a full day everywhere. */}
+                    {cut && (
+                      <span className="text-2xs text-muted-foreground">
+                        {cut.workedHours}h worked ·{" "}
+                        <b className="text-warning-strong">{cut.missedHours}h unpaid</b>
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
