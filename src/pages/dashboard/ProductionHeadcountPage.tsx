@@ -35,6 +35,7 @@ import {
 import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
+import { currentShift } from "@/lib/operationalShift";
 
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
 let draggedEmployeeId: string | null = null;
@@ -921,8 +922,13 @@ export default function ProductionHeadcountPage() {
   const qc = useQueryClient();
   const { can } = useRole();
   const canManage = can("headcount.manage");
-  const [date, setDate] = useState<string>(() => toISO(new Date()));
-  const [view, setView] = useState<ViewKey>("Day");
+  // Opens on the board that is actually running. At 03:00 that is last night's, not an
+  // empty Day board for a day that has not started — see `currentShift`. The controls
+  // stay free afterwards: a day supervisor at 07:00 often wants to read what the night
+  // left, and the first thing anyone does is page back a day.
+  const opened = useMemo(() => currentShift(), []);
+  const [date, setDate] = useState<string>(opened.operationalDate);
+  const [view, setView] = useState<ViewKey>(opened.shift);
   const { data: areas = [], isLoading } = useHeadcountAreas();
 
   // Split shows two boards at once, so the sheet takes the Day one — a workbook has
@@ -975,6 +981,13 @@ export default function ProductionHeadcountPage() {
               </Button>
             </div>
             <Badge variant="outline" className="border-white/40 text-white print:text-black">{dayTypeLabel(date)}</Badge>
+            {/* A board showing yesterday is right at 03:00 and baffling unsaid. Drops
+                away the moment the reader moves off it, so it never becomes furniture. */}
+            {opened.carriedOver && date === opened.operationalDate && view === opened.shift && (
+              <Badge className="border-violet-300/50 bg-violet-500/25 text-white print:hidden">
+                Night still running — filed under {formatLong(date)}
+              </Badge>
+            )}
             <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setSheet("export")}>
               <Download className="mr-2 h-4 w-4" />
               Export
