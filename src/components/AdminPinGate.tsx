@@ -80,16 +80,30 @@ export function AdminPinGate({
         },
         body: JSON.stringify({ pin }),
       });
-      const body = await res.json();
+      // Every failure used to read "That PIN is not right", including the ones that
+      // are nothing to do with the PIN. Somebody whose session had expired, or who is
+      // not an admin, or hitting a function that is not deployed, was told to try
+      // another number — and no number would ever have worked. That is the difference
+      // between a door that is locked and a door that is missing.
+      const body = await res.json().catch(() => null as any);
       if (!res.ok || !body?.valid) {
-        setError("That PIN is not right.");
+        console.error("[AdminPinGate] verify failed", res.status, body);
+        setError(
+          res.status === 401 ? "Your session has expired — sign in again."
+          : res.status === 403 ? "This screen is admin-only, and this account is not an admin. The PIN will not open it."
+          : res.status === 404 ? "The PIN check is not reachable. Nothing you type will work until it is deployed."
+          : res.status >= 500 ? "The PIN check failed on the server. Try again in a moment."
+          : "That PIN is not right.",
+        );
         setPin("");
         return;
       }
       try { sessionStorage.setItem(key, "1"); } catch { /* storage blocked; unlock still holds for this render */ }
       setUnlocked(true);
     } catch (e) {
-      setError((e as Error).message || "Could not check the PIN.");
+      // A network failure is not a wrong PIN either — the tablet's wi-fi drops.
+      console.error("[AdminPinGate] verify threw", e);
+      setError("Could not reach the PIN check — no connection. The PIN itself is fine.");
     } finally {
       setBusy(false);
     }
