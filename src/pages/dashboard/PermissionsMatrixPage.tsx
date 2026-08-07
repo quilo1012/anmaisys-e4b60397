@@ -479,8 +479,8 @@ export default function PermissionsMatrixPage() {
                                         !allowed
                                           ? "border-border bg-muted/20 text-muted-foreground/30 cursor-not-allowed"
                                           : visible
-                                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400 cursor-pointer"
-                                          : "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400 cursor-pointer",
+                                          ? "border-emerald-500/40 bg-emerald-500/10 text-success-strong hover:bg-emerald-500/20 dark:text-emerald-400 cursor-pointer"
+                                          : "border-amber-500/40 bg-amber-500/10 text-warning-strong hover:bg-amber-500/20 dark:text-amber-400 cursor-pointer",
                                         devDirty ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "",
                                       ].join(" ")}
                                     >
@@ -502,7 +502,7 @@ export default function PermissionsMatrixPage() {
                                       className={[
                                         "inline-flex h-9 w-9 items-center justify-center rounded-md border transition",
                                         allowed
-                                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+                                          ? "border-emerald-500/40 bg-emerald-500/10 text-success-strong hover:bg-emerald-500/20 dark:text-emerald-400"
                                           : "border-border bg-muted/40 text-muted-foreground/60 hover:bg-muted",
                                         isDirty ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : "",
                                         !isAdmin ? "cursor-not-allowed opacity-70" : "cursor-pointer",
@@ -574,12 +574,12 @@ export default function PermissionsMatrixPage() {
                       )}
                     </td>
                     <td className="p-2 text-center">
-                      <Badge variant="outline" className={c.from ? "border-emerald-500/40 text-emerald-600" : "border-border text-muted-foreground"}>
+                      <Badge variant="outline" className={c.from ? "border-emerald-500/40 text-success-strong" : "border-border text-muted-foreground"}>
                         {c.from ? "Allowed" : "Denied"}
                       </Badge>
                     </td>
                     <td className="p-2 text-center">
-                      <Badge variant="outline" className={c.to ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive-strong"}>
+                      <Badge variant="outline" className={c.to ? "border-emerald-500/40 bg-emerald-500/10 text-success-strong" : "border-destructive/40 bg-destructive/5 text-destructive-strong"}>
                         {c.to ? "Allowed" : "Denied"}
                       </Badge>
                     </td>

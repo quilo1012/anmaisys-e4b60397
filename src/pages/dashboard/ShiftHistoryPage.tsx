@@ -847,7 +847,7 @@ export default function ShiftHistoryPage() {
           {[
             { label: "Produced", value: Math.round(summary.actual).toLocaleString(), sub: undefined as string | undefined, accent: "text-primary" },
             { label: "Target", value: Math.round(summary.target).toLocaleString(), sub: undefined, accent: "text-foreground" },
-            { label: "Attainment", value: summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—", sub: undefined, accent: summary.pct >= 100 ? "text-emerald-600" : summary.pct >= 90 ? "text-amber-600" : "text-destructive-strong" },
+            { label: "Attainment", value: summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—", sub: undefined, accent: summary.pct >= 100 ? "text-success-strong" : summary.pct >= 90 ? "text-warning-strong" : "text-destructive-strong" },
             { label: viewMode === "monthly" ? "Days produced" : "Days", value: `${summary.days}`, sub: `${summary.lineCount} line${summary.lineCount === 1 ? "" : "s"}`, accent: "text-foreground" },
           ].map((k) => (
             <Card key={k.label} className="border-l-4 border-l-primary/60 shadow-sm">

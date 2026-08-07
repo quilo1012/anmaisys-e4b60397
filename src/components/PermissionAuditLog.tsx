@@ -80,14 +80,14 @@ export function PermissionAuditLog({ limit = 30 }: { limit?: number }) {
                         <div className="flex items-center justify-center gap-1.5">
                           <Badge
                             variant="outline"
-                            className={from === "allowed" ? "border-emerald-500/40 text-emerald-600" : "border-border text-muted-foreground"}
+                            className={from === "allowed" ? "border-emerald-500/40 text-success-strong" : "border-border text-muted-foreground"}
                           >
                             {from || "—"}
                           </Badge>
                           <ArrowRight className="h-3 w-3 text-muted-foreground" />
                           <Badge
                             variant="outline"
-                            className={to === "allowed" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600" : "border-destructive/40 bg-destructive/5 text-destructive-strong"}
+                            className={to === "allowed" ? "border-emerald-500/40 bg-emerald-500/10 text-success-strong" : "border-destructive/40 bg-destructive/5 text-destructive-strong"}
                           >
                             {to || "—"}
                           </Badge>

@@ -193,7 +193,7 @@ export function WoTimeline({ workOrderId }: Props) {
                 />
                 <div className="flex items-baseline justify-between gap-3">
                   <p className={`text-sm font-medium ${filled ? "" : "text-muted-foreground"}`}>
-                    {s.kind === "pause" && <Coffee className="mr-1 inline h-3 w-3 text-amber-600" />}
+                    {s.kind === "pause" && <Coffee className="mr-1 inline h-3 w-3 text-warning-strong" />}
                     {s.kind === "stop" && <PowerOff className="mr-1 inline h-3 w-3 text-destructive" />}
                     {s.label}
                   </p>

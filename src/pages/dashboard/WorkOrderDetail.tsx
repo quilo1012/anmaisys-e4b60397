@@ -565,7 +565,7 @@ export default function WorkOrderDetail() {
                   <div className="text-center print:border print:border-black print:py-2">
                     <p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Line Status</p>
                     <p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">at closure</p>
-                    <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-emerald-600" : "text-destructive-strong"}`}>
+                    <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-success-strong" : "text-destructive-strong"}`}>
                       {lineOperating ? <><CheckCircle className="h-5 w-5 print:hidden" /> Running</> : <><AlertOctagon className="h-5 w-5 print:hidden" /> Stopped</>}
                     </p>
                   </div>
@@ -628,8 +628,8 @@ export default function WorkOrderDetail() {
               evs.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
               const iconFor = (i: Ev["icon"]) => {
                 if (i === "stop") return <span className="text-destructive-strong">🛑</span>;
-                if (i === "pause") return <span className="text-amber-600">⏸</span>;
-                if (i === "resume") return <span className="text-emerald-600">✓</span>;
+                if (i === "pause") return <span className="text-warning-strong">⏸</span>;
+                if (i === "resume") return <span className="text-success-strong">✓</span>;
                 if (i === "force") return <span className="text-muted-foreground">✕</span>;
                 return <span className="text-primary">●</span>;
               };
@@ -675,7 +675,7 @@ export default function WorkOrderDetail() {
                             const done = r?.completed;
                             return (
                               <li key={it.id} className="text-sm print:text-[8pt] flex items-start gap-2">
-                                {done ? <CheckSquare className="h-4 w-4 text-emerald-600 mt-0.5 print:h-3 print:w-3" /> : <Square className="h-4 w-4 text-muted-foreground mt-0.5 print:h-3 print:w-3" />}
+                                {done ? <CheckSquare className="h-4 w-4 text-success-strong mt-0.5 print:h-3 print:w-3" /> : <Square className="h-4 w-4 text-muted-foreground mt-0.5 print:h-3 print:w-3" />}
                                 <div>
                                   <span>{it.description}{it.is_required && <span className="text-destructive-strong ml-1">*</span>}</span>
                                   {done && r?.completed_at && (

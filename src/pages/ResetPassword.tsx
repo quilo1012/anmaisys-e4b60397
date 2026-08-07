@@ -132,7 +132,7 @@ export default function ResetPassword() {
       {sent ? (
         <div className="space-y-4">
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-600" />
+            <CheckCircle2 className="mx-auto h-8 w-8 text-success-strong" />
             <h3 className="mt-2 text-sm font-medium text-slate-900">Recovery email sent</h3>
             <p className="mt-1 text-xs text-slate-600">
               Check your inbox for the password reset link. If it doesn't arrive, check your spam folder.

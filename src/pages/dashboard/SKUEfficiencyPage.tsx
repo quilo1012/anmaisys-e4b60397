@@ -231,7 +231,7 @@ export default function SKUEfficiencyPage() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base text-emerald-600">
+              <CardTitle className="flex items-center gap-2 text-base text-success-strong">
                 <Trophy className="h-4 w-4" /> Top 5 — at or above target
               </CardTitle>
             </CardHeader>
@@ -291,7 +291,7 @@ export default function SKUEfficiencyPage() {
                       <TableCell>{r.line}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.target.toLocaleString()}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.actual.toLocaleString()}</TableCell>
-                      <TableCell className={`text-right tabular-nums ${r.gap < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                      <TableCell className={`text-right tabular-nums ${r.gap < 0 ? "text-red-600" : "text-success-strong"}`}>
                         {r.gap > 0 ? "+" : ""}{r.gap.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">{badgeForEff(r.eff)}</TableCell>
