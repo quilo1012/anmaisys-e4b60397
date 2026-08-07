@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -53,11 +54,18 @@ export function HeadcountSheetDialog({
         toast.error("Choose a range between one day and two months");
         return;
       }
-      const { data, error } = await supabase
-        .from("daily_allocations")
-        .select("*")
-        .gte("on_date", from).lte("on_date", to).eq("shift", shift);
-      if (error) throw error;
+      // Paged. Sixty-two days of a full board is over fifteen hundred rows and
+      // PostgREST returns a thousand without a word, so an export of a long range
+      // simply lost the last days — and an export that reads back cleanly is exactly
+      // how nobody notices.
+      const data = await fetchAllRows<any>({
+        range: async (a, b) => await (supabase as any)
+          .from("daily_allocations")
+          .select("*")
+          .gte("on_date", from).lte("on_date", to).eq("shift", shift)
+          .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+          .range(a, b),
+      });
 
       const byDay = new Map<string, Allocation[]>();
       for (const a of (data ?? []) as unknown as Allocation[]) {
