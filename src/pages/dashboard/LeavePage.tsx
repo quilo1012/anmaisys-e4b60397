@@ -19,6 +19,7 @@ import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf, countSpells } from "@/lib/leaveDays";
 import { boardShiftFor } from "@/hooks/useHeadcount";
+import { boardShiftForPerson } from "@/lib/boardForPerson";
 
 type Kind = "holiday" | "unpaid" | "sick";
 type Status = "pending" | "approved" | "rejected" | "cancelled";
@@ -314,9 +315,22 @@ export default function LeavePage() {
           );
           if (attErr) throw attErr;
 
-          // Only where the board knows which shift to draw them on. An unrecorded
-          // shift group is not guessed at — the attendance still counts.
-          const shift = boardShiftFor(person.get(r.employee_id)?.shift_group);
+          // Where this person is actually drawn, not where their crew says they
+          // belong. The Fri–Mon crew works while the lines run and the factory's own
+          // sheets put them on the day board with everybody else; mapping the crew
+          // sent Talita Melech's holiday to a Weekend board holding nothing but her
+          // holiday, while the board people read showed her missing from the plan.
+          const { data: history } = await (supabase as any)
+            .from("daily_allocations")
+            .select("shift, on_date")
+            .eq("employee_id", r.employee_id)
+            .order("on_date", { ascending: false })
+            .limit(120);
+          const shift = boardShiftForPerson(
+            (history ?? []) as { shift: string; on_date: string }[],
+            today,
+            boardShiftFor(person.get(r.employee_id)?.shift_group),
+          );
           if (shift) {
             const { error: allocErr } = await (supabase as any).from("daily_allocations").upsert(
               days.workingDates.map((d) => ({
