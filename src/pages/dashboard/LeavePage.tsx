@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
@@ -107,13 +108,17 @@ export default function LeavePage() {
   const { data: holidayDays = [] } = useQuery({
     queryKey: ["leave-holiday-days"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("employee_attendance")
-        .select("employee_id, on_date")
-        .eq("status", "holiday")
-        .limit(2000);
-      if (error) throw error;
-      return (data ?? []) as { employee_id: string; on_date: string }[];
+      // Paged, not capped. A hand-set ceiling is the same failure as PostgREST's own:
+      // it returns a shorter list and says nothing, and every balance on this screen is
+      // counted off it.
+      return await fetchAllRows<{ employee_id: string; on_date: string }>({
+        range: (a, b) => (supabase as any)
+          .from("employee_attendance")
+          .select("employee_id, on_date")
+          .eq("status", "holiday")
+          .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+          .range(a, b),
+      });
     },
   });
 
@@ -128,27 +133,32 @@ export default function LeavePage() {
   const { data: otherDays = [] } = useQuery({
     queryKey: ["leave-sick-unpaid-days"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("employee_attendance")
-        .select("employee_id, on_date, status")
-        .in("status", ["sick", "unpaid"])
-        .limit(4000);
-      if (error) throw error;
-      return (data ?? []) as { employee_id: string; on_date: string; status: string }[];
+      return await fetchAllRows<{ employee_id: string; on_date: string; status: string }>({
+        range: (a, b) => (supabase as any)
+          .from("employee_attendance")
+          .select("employee_id, on_date, status")
+          .in("status", ["sick", "unpaid"])
+          .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+          .range(a, b),
+      });
     },
   });
 
   const { data: boardOnly = [] } = useQuery({
     queryKey: ["leave-board-only"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("daily_allocations")
-        .select("employee_id, on_date, status")
-        .in("status", ["holiday", "sick", "unpaid"])
-        .order("on_date", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return (data ?? []) as { employee_id: string; on_date: string; status: string }[];
+      // This sat at 197 rows against a ceiling of 200. Three more days marked off on
+      // the board and the oldest would have dropped out of the "no request behind it"
+      // list silently — a day off that stops being listed looks exactly like a day off
+      // that was properly booked.
+      return await fetchAllRows<{ employee_id: string; on_date: string; status: string }>({
+        range: (a, b) => (supabase as any)
+          .from("daily_allocations")
+          .select("employee_id, on_date, status")
+          .in("status", ["holiday", "sick", "unpaid"])
+          .order("on_date", { ascending: false }).order("employee_id", { ascending: true })
+          .range(a, b),
+      });
     },
   });
 

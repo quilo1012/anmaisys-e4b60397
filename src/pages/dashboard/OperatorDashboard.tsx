@@ -499,11 +499,11 @@ function OperatorDashboardContent() {
                   if (!m || m.category !== "line_mobile") return null;
                   const at = (m.current_line || "").toString();
                   if (at === lineName) {
-                    return <p className="text-xs text-emerald-600 inline-flex items-center gap-1"><CheckCircle className="h-3 w-3" /> {m.name} is currently on {lineName}.</p>;
+                    return <p className="text-xs text-success-strong inline-flex items-center gap-1"><CheckCircle className="h-3 w-3" /> {m.name} is currently on {lineName}.</p>;
                   }
                   return (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-amber-600">
+                      <span className="text-warning-strong">
                         {m.name} is {at ? `at ${at}` : "not assigned"} — move it to {lineName}?
                       </span>
                       <Button

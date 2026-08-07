@@ -405,13 +405,19 @@ export function useAllocationMutations(onDate: string, shift: string) {
         return w === 0 ? "sun" : w === 6 ? "sat" : "week";
       };
       const target = dayType(onDate);
+      // Bounded by date, not by a row count. `daily_allocations` holds 1638 rows and
+      // gains about sixty a day, so a ceiling of 2000 was weeks from being reached —
+      // and a table this reads by working backwards from today only needs the last few
+      // weeks. Three weeks always contains a weekday, a Saturday and a Sunday.
+      const since = new Date(`${onDate}T12:00:00`);
+      since.setDate(since.getDate() - 21);
       const { data, error } = await supabase
         .from("daily_allocations")
         .select("on_date,employee_id,area_id,status,half_day,note")
         .eq("shift", shift)
         .lt("on_date", onDate)
-        .order("on_date", { ascending: false })
-        .limit(2000);
+        .gte("on_date", since.toISOString().slice(0, 10))
+        .order("on_date", { ascending: false });
       if (error) throw error;
       const rows = (data ?? []) as Array<Pick<Allocation, "on_date" | "employee_id" | "area_id" | "status" | "half_day" | "note">>;
       const source = rows.find((r) => dayType(r.on_date) === target)?.on_date;

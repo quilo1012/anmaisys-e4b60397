@@ -423,7 +423,7 @@ function ExecutionsList({ scheduleId }: { scheduleId: string }) {
           {Array.isArray(e.checklist_state) && e.checklist_state.length > 0 && (
             <ul className="mt-2 space-y-0.5 text-xs">
               {e.checklist_state.map((c, i) => (
-                <li key={i} className={cn("flex items-center gap-1", c.checked ? "text-emerald-600" : "text-muted-foreground")}>
+                <li key={i} className={cn("flex items-center gap-1", c.checked ? "text-success-strong" : "text-muted-foreground")}>
                   {c.checked ? <CheckCircle2 className="h-3 w-3" /> : <span className="h-3 w-3 rounded-full border" />}
                   {c.title}
                 </li>

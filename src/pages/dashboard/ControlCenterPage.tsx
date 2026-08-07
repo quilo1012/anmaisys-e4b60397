@@ -345,8 +345,8 @@ export default function ControlCenterPage() {
   };
 
   const getHealthColor = (score: number) => {
-    if (score >= 70) return "text-emerald-600 bg-emerald-500/15";
-    if (score >= 40) return "text-amber-600 bg-amber-500/15";
+    if (score >= 70) return "text-success-strong bg-emerald-500/15";
+    if (score >= 40) return "text-warning-strong bg-amber-500/15";
     return "text-red-600 bg-red-500/15";
   };
 
@@ -394,7 +394,7 @@ export default function ControlCenterPage() {
           <div>
             <h2 className={cn("font-bold flex items-center gap-2", tvMode ? "text-lg" : "text-2xl")}>
               <Monitor className={tvMode ? "h-4 w-4" : "h-6 w-6"} /> Control Center
-              <span className="inline-flex items-center gap-1 text-xs font-normal text-emerald-600 ml-2">
+              <span className="inline-flex items-center gap-1 text-xs font-normal text-success-strong ml-2">
                 <Radio className="h-3 w-3 animate-pulse" /> LIVE
               </span>
             </h2>
@@ -594,7 +594,7 @@ export default function ControlCenterPage() {
                                 </span>
                               )}
                               {attain !== null && (
-                                <span className={cn("inline-flex items-center gap-1 font-semibold", attain >= 95 ? "text-emerald-600" : attain >= 80 ? "text-amber-600" : "text-destructive-strong")} title="Attainment (actual vs plan)">
+                                <span className={cn("inline-flex items-center gap-1 font-semibold", attain >= 95 ? "text-success-strong" : attain >= 80 ? "text-warning-strong" : "text-destructive-strong")} title="Attainment (actual vs plan)">
                                   <Gauge className="h-3 w-3" /> {attain}%
                                 </span>
                               )}

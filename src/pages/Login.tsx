@@ -523,7 +523,7 @@ export default function Login() {
 
         {/* Remaining-attempts hint */}
         {lockedMsLeft === 0 && remaining < 5 && (
-          <p className="pt-1 text-center text-2xs text-amber-600">
+          <p className="pt-1 text-center text-2xs text-warning-strong">
             {remaining} attempt{remaining === 1 ? "" : "s"} remaining before lockout
           </p>
         )}

@@ -812,8 +812,8 @@ export default function AnalyticsPage() {
             ) : (
               <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-amber-600" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-amber-600" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
+                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-warning-strong" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-warning-strong" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
                 </div>
@@ -871,7 +871,7 @@ export default function AnalyticsPage() {
                             {r.eff === null ? (
                               <span className="text-muted-foreground" title="No RAG weekly plan for this leader's sessions in the period">—</span>
                             ) : (
-                              <Badge className={`${r.eff >= 100 ? "bg-green-500/15 text-green-600 border-green-500/40" : r.eff >= 80 ? "bg-amber-500/15 text-amber-600 border-amber-500/40" : "bg-red-500/15 text-red-600 border-red-500/40"} border`}>{r.eff.toFixed(1)}%</Badge>
+                              <Badge className={`${r.eff >= 100 ? "bg-green-500/15 text-green-600 border-green-500/40" : r.eff >= 80 ? "bg-amber-500/15 text-warning-strong border-amber-500/40" : "bg-red-500/15 text-red-600 border-red-500/40"} border`}>{r.eff.toFixed(1)}%</Badge>
                             )}
                           </td>
                           <td className="p-2 text-right tabular-nums">
@@ -891,7 +891,7 @@ export default function AnalyticsPage() {
                             {r.openActions === 0 ? (
                               <span className="text-muted-foreground">0</span>
                             ) : (
-                              <Link to="/dashboard/quality" className="font-semibold text-amber-600 hover:underline dark:text-amber-400">
+                              <Link to="/dashboard/quality" className="font-semibold text-warning-strong hover:underline dark:text-amber-400">
                                 {r.openActions}
                                 <span className="ml-1 text-2xs font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{r.openPoints}p</span>
                                 {r.openCritical > 0 && <span className="ml-1 text-2xs font-bold text-red-600 dark:text-red-400" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}

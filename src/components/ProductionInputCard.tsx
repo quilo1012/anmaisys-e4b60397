@@ -158,7 +158,7 @@ export function ProductionInputCard({
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="font-mono text-sm font-semibold">{it.code}</div>
                     {it.is_manual && (
-                      <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-amber-600">
+                      <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-2xs font-semibold uppercase tracking-wider text-warning-strong">
                         Manual
                       </span>
                     )}

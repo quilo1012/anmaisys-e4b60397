@@ -389,7 +389,7 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
               {totalTarget > 0 ? (
                 (() => {
                   const pct = (Number(produced || 0) / totalTarget) * 100;
-                  const cls = pct >= 90 ? "text-emerald-600" : pct >= 70 ? "text-amber-600" : "text-red-600";
+                  const cls = pct >= 90 ? "text-success-strong" : pct >= 70 ? "text-warning-strong" : "text-red-600";
                   return <span className={`text-lg font-semibold tabular-nums ${cls}`}>{pct.toFixed(1)}%</span>;
                 })()
               ) : (
