@@ -52,15 +52,25 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
     console.warn("logWOAction skipped: missing engineerId");
     return;
   }
-  // Upsert rather than insert, ignoring the duplicate.
+  // Ignore the duplicate WITHOUT naming a conflict target.
   //
-  // `idx_work_order_logs_unique_action` exists to say an engineer accepts, starts or
-  // finishes a work order once. A second press — a double tap, or a retry after a
-  // slow reply — is not an error, it is the same fact arriving twice, and the code
-  // below already swallowed the 23505. But the request still failed on the wire, and
-  // the global fetch interceptor logs every failed Supabase call as an API_ERROR, so
-  // a handled non-event filled the telemetry with duplicate-key alarms. Asking for
-  // "insert if new" means there is nothing to swallow and nothing to report.
+  // A second press — a double tap, or a retry after a slow reply — is the same fact
+  // arriving twice, not an error. Swallowing the 23505 afterwards was not enough: the
+  // request still failed on the wire and the global fetch interceptor logs every
+  // failed Supabase call, so a handled non-event filled the telemetry.
+  //
+  // Asking for `onConflict: "work_order_id,engineer_id,action"` was the fix and it was
+  // wrong. `idx_work_order_logs_unique_action` is a PARTIAL index — it only covers
+  // accept, start, finish and machine_back_to_work — and Postgres cannot infer a
+  // partial index from a conflict target with no matching predicate. So every call
+  // raised 42P10, which is not 23505, so it was not swallowed either. The engineer's
+  // action log wrote nothing at all between 06/08 and 07/08.
+  //
+  // With no target, PostgREST emits ON CONFLICT DO NOTHING, which is satisfied by any
+  // constraint including the partial one. The index still stops an engineer accepting
+  // twice; `received` on a reopened order still writes, which it should — twenty-six
+  // of the existing duplicates are exactly that, and a full unique index would have
+  // called them errors.
   const { error } = await supabase.from("work_order_logs" as any).upsert(
     {
       work_order_id: workOrderId,
@@ -68,7 +78,7 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
       engineer_name: engineerName,
       action,
     } as any,
-    { onConflict: "work_order_id,engineer_id,action", ignoreDuplicates: true },
+    { ignoreDuplicates: true },
   );
   // 23505 = unique violation → swallow (action already logged for this engineer)
   // 23503 = foreign key violation → the work order was deleted while this
@@ -76,8 +86,11 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
   // and the engineer's action already failed for the same reason, so reporting
   // this as a second failure only adds noise.
   const code = (error as { code?: string } | null)?.code;
+  // 42P10 = the conflict target matched no constraint. It should be impossible now
+  // that no target is sent, and it is named here because it went unnoticed for two
+  // days behind a guard that only knew about 23505.
   if (error && code !== "23505" && code !== "23503") {
-    console.error("logWOAction failed:", error);
+    console.error("logWOAction failed:", code, error);
   } else if (code === "23503") {
     console.warn("logWOAction skipped: work order no longer exists", workOrderId);
   }
