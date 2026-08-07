@@ -68,7 +68,7 @@ export default function FinanceClosePage() {
     enabled: !!period,
     queryFn: async () => {
       const db = supabase as any;
-      const [emp, clocked, payroll, manual] = await Promise.all([
+      const [emp, clocked, opening, payroll, manual] = await Promise.all([
         db.from("employees").select("id, full_name, department").eq("active", true),
         // Paged, because this is what somebody is paid from. A pay period holds more
         // than a thousand attendance rows and PostgREST caps an unbounded select there
@@ -81,6 +81,16 @@ export default function FinanceClosePage() {
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
         }).then((data: any[]) => ({ data, error: null })),
+        // Everything before the period: the hour bank as it stood when it opened. The
+        // balance runs on, so a shortfall from September is still owed in October and
+        // is worked off against those hours one for one.
+        fetchAllRows<any>({
+          range: (a, b) => db.from("attendance_days")
+            .select("employee_id, balance_minutes")
+            .lt("on_date", from)
+            .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+            .range(a, b),
+        }).then((data: any[]) => ({ data, error: null })),
         db.from("overtime_entries").select("employee_id, hours").eq("period_id", period!.id),
         // `on_date`, not `date` — the column the manual marks actually use.
         fetchAllRows<any>({
@@ -90,14 +100,20 @@ export default function FinanceClosePage() {
             .range(a, b),
         }).then((data: any[]) => ({ data, error: null })),
       ]);
-      for (const r of [emp, clocked, payroll, manual]) if (r.error) throw r.error;
+      for (const r of [emp, clocked, opening, payroll, manual]) if (r.error) throw r.error;
 
       const byId = new Map<string, ClosePersonInput>();
       for (const e of (emp.data ?? []) as any[]) {
         byId.set(e.id, {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
-          clockedBalanceMin: null, payrollOtHours: null, absences: {}, daysPresent: 0,
+          openingBalanceMin: null, clockedBalanceMin: null,
+          payrollOtHours: null, absences: {}, daysPresent: 0,
         });
+      }
+
+      for (const o of (opening.data ?? []) as any[]) {
+        const p = byId.get(o.employee_id); if (!p) continue;
+        p.openingBalanceMin = (p.openingBalanceMin ?? 0) + (o.balance_minutes ?? 0);
       }
 
       for (const d of (clocked.data ?? []) as any[]) {
@@ -126,6 +142,7 @@ export default function FinanceClosePage() {
       // Only people with something to report in the period.
       return buildClose([...byId.values()].filter(
         (p) => p.clockedBalanceMin != null || p.payrollOtHours != null
+          || p.openingBalanceMin != null
           || p.daysPresent > 0 || Object.keys(p.absences).length > 0,
       ));
     },
@@ -214,11 +231,11 @@ export default function FinanceClosePage() {
         <p className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-2xs">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" />
           <span>
-            Hours are not settled week by week. The contract is a four-day, forty-four hour week,
-            and somebody who works 40 h one week and 52 h the next has <b>not</b> earned eight hours
-            of overtime — the second week pays back the first. The <b>pay period</b> is what settles:
-            whatever the balance comes to over these 28 days is paid as overtime if it is positive
-            and deducted from pay if it is negative, so the next period starts at zero.
+            Hours are not settled week by week, and the balance <b>runs on between periods</b> — it is
+            an hour bank. What somebody is up or down by at the close opens the next period, a
+            shortfall is worked off against later hours one for one, and only what stands above zero
+            at the close is overtime. Somebody 16 h down who works 12 h over is still 4 h short, not
+            12 h to pay.
             <b>Payroll OT</b> is what the office keyed in; the two are never added together, and the
             <b>Δ</b> is the disagreement to settle before anybody is paid. A dash means that side
             reported nothing, which is not zero.
@@ -249,7 +266,9 @@ export default function FinanceClosePage() {
                     <TableRow>
                       <TableHead>Employee</TableHead>
                       <TableHead>Department</TableHead>
-                      <TableHead className="text-right">Period balance</TableHead>
+                      <TableHead className="text-right">Opening bank</TableHead>
+                      <TableHead className="text-right">Period</TableHead>
+                      <TableHead className="text-right">Closing bank</TableHead>
                       <TableHead className="text-right">Overtime</TableHead>
                       <TableHead className="text-right">Deducted</TableHead>
                       <TableHead className="text-right">Payroll OT</TableHead>
@@ -266,8 +285,16 @@ export default function FinanceClosePage() {
                         <TableCell className="font-medium">{r.name}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.department ?? "—"}</TableCell>
                         <TableCell className={`text-right font-mono tabular-nums ${
+                          r.openingHours < 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
+                          {r.openingHours.toFixed(2)}
+                        </TableCell>
+                        <TableCell className={`text-right font-mono tabular-nums ${
                           (r.clockedOtHours ?? 0) < 0 ? "text-destructive-strong" : ""}`}>
                           {num(r.clockedOtHours)}
+                        </TableCell>
+                        <TableCell className={`text-right font-mono font-semibold tabular-nums ${
+                          (r.closingHours ?? 0) < 0 ? "text-destructive-strong" : ""}`}>
+                          {num(r.closingHours)}
                         </TableCell>
                         <TableCell className="text-right font-mono font-semibold tabular-nums">
                           {num(r.overtimeHours)}
