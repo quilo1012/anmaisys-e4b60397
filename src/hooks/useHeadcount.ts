@@ -232,6 +232,25 @@ export function useAllocationMutations(onDate: string, shift: string) {
       /** "HH:MM" if they went home early, null if they worked the shift out. */
       leftEarlyAt?: string | null;
     }) => {
+      // What is being written over. Placing somebody on a line replaced an approved
+      // holiday without a word: Ricardo Fernandes was booked off on 11/08, somebody
+      // planned him onto Line 6 that afternoon, and the board simply showed him on the
+      // line. The leave request still said approved, so the two screens disagreed and
+      // neither said why.
+      //
+      // Read before writing rather than refused: he may genuinely have come in, and a
+      // board nobody can override on the day is a board people work around. It just
+      // has to be a decision instead of an accident.
+      let replaced: string | null = null;
+      if (input.status === "assigned" || input.status === "overtime") {
+        const { data: prev } = await supabase
+          .from("daily_allocations")
+          .select("status")
+          .eq("on_date", onDate).eq("shift", shift).eq("employee_id", input.employeeId)
+          .maybeSingle();
+        const was = (prev as { status?: string } | null)?.status;
+        if (was === "holiday" || was === "sick" || was === "unpaid") replaced = was;
+      }
       const { error } = await supabase
         .from("daily_allocations")
         .upsert(
@@ -288,6 +307,15 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // Not fatal: the board placement is the thing the user asked for, and a failure
       // here must not undo it. It surfaces as a warning rather than a rollback.
       if (attErr) toast.warning(`Placed on the board, but the attendance record did not save: ${attErr.message}`);
+
+      if (replaced) {
+        toast.warning(
+          replaced === "holiday"
+            ? "That day was booked as holiday — putting them on a line has replaced it."
+            : `That day was recorded as ${replaced} — putting them on a line has replaced it.`,
+          { duration: 8000 },
+        );
+      }
     },
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message ?? "Could not save the allocation", { id: "headcount-place" }),

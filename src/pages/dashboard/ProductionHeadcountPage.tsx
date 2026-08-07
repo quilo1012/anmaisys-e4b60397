@@ -81,8 +81,18 @@ function dayTypeLabel(iso: string) {
  * or in support, and these decide where the card is drawn. Keeping them apart is what
  * lets Gel Room count as production while sitting beside the capsule machines.
  */
+/**
+ * The three bands the board draws in, in the order somebody reads them.
+ *
+ * "Sectors" was pulled out of the other two: WH Team and Maintenance sat under Support
+ * beside Lab and Office, while Hygiene and Quality sat under Production beside the
+ * lines. They are neither — they are places that serve the whole floor, and having
+ * them split across the two bands meant a supervisor checking hygiene cover had to
+ * look in the wrong half of the screen first.
+ */
 const SECTIONS: { key: string; label: string; accent: string }[] = [
   { key: "production", label: "Production", accent: "text-primary" },
+  { key: "sectors", label: "Sectors", accent: "text-cyan-600" },
   { key: "support", label: "Support", accent: "text-slate-500" },
 ];
 
@@ -100,9 +110,10 @@ const SECTIONS: { key: string; label: string; accent: string }[] = [
  * being saved. Anything unrecognised now lands in the block its `kind` implies,
  * which is wrong at worst and invisible never.
  */
+/** Which band an area is drawn in. `kind` still decides what the totals count. */
 function blockOf(area: HeadcountArea): string {
   const s = (area.section ?? "").toLowerCase();
-  if (s === "production" || s === "support") return s;
+  if (s === "production" || s === "sectors" || s === "support") return s;
   return area.kind === "production" ? "production" : "support";
 }
 
