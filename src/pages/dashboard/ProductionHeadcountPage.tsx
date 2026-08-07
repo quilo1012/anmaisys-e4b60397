@@ -36,6 +36,7 @@ import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialo
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
 import { currentShift } from "@/lib/operationalShift";
+import { SectionHeader } from "@/components/workforce/SectionHeader";
 
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
 let draggedEmployeeId: string | null = null;
@@ -964,13 +965,11 @@ export default function ProductionHeadcountPage() {
       <BackButton className="no-print" />
       <WorkforceTabs />
 
-      <div className="rounded-xl bg-[hsl(215_60%_18%)] p-4 text-white shadow-sm print:bg-white print:text-black">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">Production Headcount</h1>
-            <p className="text-xs text-white/70 print:text-black">Daily allocation of people to production and support areas</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <SectionHeader
+        title="Production Headcount"
+        description="Daily allocation of people to production and support areas"
+      >
+        <>
             <div className="flex items-center gap-1 rounded-lg bg-white/10 p-1 print:bg-transparent">
               <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20 print:hidden" onClick={() => shiftDate(-1)} aria-label="Previous day">
                 <ChevronLeft className="h-4 w-4" />
@@ -1002,9 +1001,8 @@ export default function ProductionHeadcountPage() {
               <Printer className="mr-2 h-4 w-4" />
               Print
             </Button>
-          </div>
-        </div>
-      </div>
+        </>
+      </SectionHeader>
 
       <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="print:hidden">
         <TabsList>

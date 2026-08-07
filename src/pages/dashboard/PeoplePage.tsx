@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
+import { SectionHeader } from "@/components/workforce/SectionHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -82,15 +83,10 @@ export default function PeoplePage() {
         <BackButton />
         <WorkforceTabs />
 
-        <div className="flex items-center gap-3">
-          <Users className="h-6 w-6 text-muted-foreground" />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Employee</h1>
-            <p className="text-sm text-muted-foreground">
-              The employee records the board, Leave and Finance Close all read from
-            </p>
-          </div>
-        </div>
+        <SectionHeader
+          title="Employee"
+          description="The employee records the board, Leave and Finance Close all read from"
+        />
 
         <Tabs defaultValue="people" className="space-y-4">
           <TabsList>

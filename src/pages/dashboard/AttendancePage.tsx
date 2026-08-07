@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
+import { SectionHeader } from "@/components/workforce/SectionHeader";
+import { Figure, FigureRow } from "@/components/workforce/Figure";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -189,14 +191,7 @@ export default function AttendancePage() {
         <BackButton />
         <WorkforceTabs />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Clock className="h-6 w-6 text-muted-foreground" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Time &amp; Attendance</h1>
-              <p className="text-sm text-muted-foreground">Hours clocked, from TimeMoto</p>
-            </div>
-          </div>
+        <SectionHeader title="Time &amp; Attendance" description="Hours clocked, from TimeMoto">
           {canManage && (
             <>
               <input
@@ -206,13 +201,13 @@ export default function AttendancePage() {
                 className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); e.target.value = ""; }}
               />
-              <Button size="sm" onClick={() => fileRef.current?.click()} disabled={busy}>
+              <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()} disabled={busy}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                 Import TimeMoto
               </Button>
             </>
           )}
-        </div>
+        </SectionHeader>
 
         {/* Two records of the same days, kept apart. The clocks are what TimeMoto
             saw; the board marks are what a supervisor wrote down. Merging them would
@@ -230,21 +225,20 @@ export default function AttendancePage() {
           <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => { setPeriodTouched(true); setTo(e.target.value); }} className="mt-1 h-8 w-40" /></div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            { label: "People clocked", value: String(totals.people) },
-            { label: "Hours worked", value: hm(totals.worked) },
-            { label: "Balance", value: hm(totals.balance) },
-            { label: "Absence days", value: String(totals.absenceDays) },
-          ].map((k) => (
-            <Card key={k.label}>
-              <CardContent className="p-3">
-                <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</div>
-                <div className="font-mono text-xl font-bold tabular-nums">{k.value}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* Hours worked leads: this screen exists to say what the clocks recorded, and
+            the other three are how to read that number. */}
+        <FigureRow>
+          <Figure lead label="Hours worked" value={hm(totals.worked)} hint="What TimeMoto recorded" />
+          <Figure
+            label="Balance"
+            value={hm(totals.balance)}
+            // The one figure on this screen that carries a sign, so it is the one that
+            // gets the rule: above the line is worked, below it is owed.
+            tone={totals.balance > 0 ? "earned" : totals.balance < 0 ? "owed" : "neutral"}
+          />
+          <Figure label="People clocked" value={String(totals.people)} />
+          <Figure label="Absence days" value={String(totals.absenceDays)} />
+        </FigureRow>
 
         <Card>
           <CardContent className="p-0">
@@ -270,11 +264,11 @@ export default function AttendancePage() {
                     {byPerson.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{hm(p.worked)}</TableCell>
-                        <TableCell className={`text-right font-mono tabular-nums ${p.balance < 0 ? "text-destructive-strong" : p.balance > 0 ? "text-success-strong" : ""}`}>
+                        <TableCell className="text-right font-figure tabular-nums">{hm(p.worked)}</TableCell>
+                        <TableCell className={`text-right font-figure tabular-nums ${p.balance < 0 ? "text-destructive-strong" : p.balance > 0 ? "text-success-strong" : ""}`}>
                           {hm(p.balance)}
                         </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{p.present}</TableCell>
+                        <TableCell className="text-right font-figure tabular-nums">{p.present}</TableCell>
                         <TableCell className="text-2xs">
                           {Object.keys(p.absences).length === 0
                             ? <span className="text-muted-foreground">—</span>

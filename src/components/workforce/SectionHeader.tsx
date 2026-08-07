@@ -1,0 +1,54 @@
+import { cn } from "@/lib/utils";
+
+/**
+ * One header for the five screens that are one job.
+ *
+ * The board had a navy band; Employee, Annual Leave, Attendance and Finance Close each
+ * had a bare `<h1>` on white. Five screens about the same hundred and seventy-six
+ * people, reached through the same tabs, behind the same PIN — and two different
+ * headers between them, so moving from the board to the close read as leaving the
+ * section rather than turning a page.
+ *
+ * The navy is the board's own, promoted to a token and given to all five. It is the
+ * one heavy element on the page, which is what lets everything under it stay quiet.
+ *
+ * The eyebrow says WORKFORCE on every one of them. Not decoration: it is the answer to
+ * "where am I" for somebody who arrived on the Finance Close from a link and has never
+ * seen the tabs.
+ */
+export function SectionHeader({
+  title, description, children, className,
+}: {
+  title: string;
+  description?: string;
+  /** Controls belonging to this screen — a period picker, Export, Print. */
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <header
+      className={cn(
+        "rounded-xl bg-[hsl(var(--section))] p-4 text-white shadow-sm",
+        // Ink on paper: the navy would print as a solid block and the page is meant to
+        // be handed to somebody.
+        "print:bg-white print:p-0 print:text-black print:shadow-none",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-2xs font-semibold uppercase tracking-[0.18em] text-white/50 print:text-black/50">
+            Workforce
+          </div>
+          <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
+          {description && (
+            <p className="text-xs text-white/70 print:text-black/70">{description}</p>
+          )}
+        </div>
+        {children && (
+          <div className="flex flex-wrap items-center gap-2">{children}</div>
+        )}
+      </div>
+    </header>
+  );
+}

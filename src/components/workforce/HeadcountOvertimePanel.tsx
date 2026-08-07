@@ -155,7 +155,7 @@ export function HeadcountOvertimePanel() {
                 <span className="h-3 flex-1 overflow-hidden rounded bg-muted">
                   <span className={`block h-full ${BAR_TONES[i % BAR_TONES.length]}`} style={{ width: `${(n / deptMax) * 100}%` }} />
                 </span>
-                <span className="w-8 shrink-0 text-right font-mono tabular-nums">{n}</span>
+                <span className="w-8 shrink-0 text-right font-figure tabular-nums">{n}</span>
               </div>
             ))}
           </CardContent>
@@ -171,7 +171,7 @@ export function HeadcountOvertimePanel() {
                 <span className="h-3 flex-1 overflow-hidden rounded bg-muted">
                   <span className={`block h-full ${BAR_TONES[i % BAR_TONES.length]}`} style={{ width: `${(n / shiftMax) * 100}%` }} />
                 </span>
-                <span className="w-8 shrink-0 text-right font-mono tabular-nums">{n}</span>
+                <span className="w-8 shrink-0 text-right font-figure tabular-nums">{n}</span>
               </div>
             ))}
           </CardContent>
@@ -185,7 +185,7 @@ export function HeadcountOvertimePanel() {
               <div key={b.employeeId} className="flex items-center gap-2 border-b py-1 text-2xs last:border-0">
                 <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-muted font-bold">{i + 1}</span>
                 <span className="min-w-0 flex-1 truncate font-medium">{b.name}</span>
-                <span className="shrink-0 font-mono font-bold tabular-nums text-success-strong">+{b.balance}</span>
+                <span className="shrink-0 font-figure font-bold tabular-nums text-success-strong">+{b.balance}</span>
               </div>
             ))}
           </CardContent>
