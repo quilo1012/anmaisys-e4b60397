@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -292,12 +293,7 @@ function OperatorDashboardContent() {
   return (
     <div className="space-y-6 max-w-6xl xl:max-w-7xl mx-auto">
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h2 className="text-2xl font-bold">Operator Panel</h2>
-          <p className="text-muted-foreground">Open a maintenance request</p>
-        </div>
-      </div>
+      <PageHeader title="Operator Panel" description="Open a maintenance request" />
 
       {/* Compact state toggle — Line Stopped vs Line Running */}
       <div className="inline-flex rounded-md border bg-card p-1 text-sm">

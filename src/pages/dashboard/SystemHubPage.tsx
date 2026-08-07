@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useRole } from "@/hooks/useRole";
@@ -82,13 +83,11 @@ export default function SystemHubPage() {
     <div className="space-y-6 p-4 sm:p-6">
       <BackButton />
 
-      <div className="flex items-center gap-3">
-        <SettingsIcon className="h-6 w-6 text-muted-foreground" />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">System</h1>
-          <p className="text-sm text-muted-foreground">Setup, integrations and the audit trail</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={<SettingsIcon className="h-5 w-5 text-muted-foreground" />}
+        title="System"
+        description="Setup, integrations and the audit trail"
+      />
 
       {ORDER.map((cat) => {
         const group = visible.filter((t) => t.category === cat);

@@ -249,7 +249,8 @@ function MyProductionContent() {
               <Factory className="h-6 w-6" />
             </div>
             <div>
-              <div className="text-xl font-bold">My Production</div>
+              {/* Same as the performance screen: the title of the page, in a heading. */}
+              <h1 className="text-xl font-bold">My Production</h1>
               <div className="text-sm text-muted-foreground">
                 {format(new Date(), "EEEE, dd MMM yyyy")} · {shiftLabel} · <span className="font-medium text-foreground">{line || "—"}</span>
                 {profile?.name ? <> · {profile.name}</> : null}
