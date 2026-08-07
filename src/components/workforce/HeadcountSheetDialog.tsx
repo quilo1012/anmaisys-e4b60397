@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { attendanceFromBoard } from "@/lib/attendanceFromBoard";
+import { statusForPlacement } from "@/lib/rotaStatus";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,8 @@ import {
   buildHeadcountWorkbook, parseHeadcountWorkbook, datesBetween,
   type ImportPreview,
 } from "@/lib/headcountSheet";
-import type { HeadcountArea, HeadcountEmployee, Allocation } from "@/hooks/useHeadcount";
+import { useRotaCover } from "@/hooks/useHeadcount";
+import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
 
 /**
  * The board out to the factory's spreadsheet and back again, over a range of days.
@@ -43,6 +45,7 @@ export function HeadcountSheetDialog({
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const rotaCover = useRotaCover();
 
   const close = () => { setPreview(null); onOpenChange(false); };
 
@@ -108,13 +111,24 @@ export function HeadcountSheetDialog({
     if (!preview || preview.matched.length === 0) return;
     setBusy(true);
     try {
-      const rows = preview.matched.map((m) => ({
-        on_date: m.date,
-        shift: m.shift,
-        employee_id: m.employeeId,
-        area_id: m.status === "assigned" || m.status === "overtime" ? m.areaId : null,
-        status: m.status,
-      }));
+      const rows = preview.matched.map((m) => {
+        // The sheet says who was in, not whether they were due in. A month of days is
+        // a month of different weekdays, so each row asks the rota again — otherwise a
+        // Friday night imported from a company sheet lands as an ordinary shift and is
+        // paid as one.
+        const status = statusForPlacement(
+          m.status as AllocStatus,
+          m.status as AllocStatus,
+          rotaCover(m.employeeId, m.date, m.shift),
+        );
+        return {
+          on_date: m.date,
+          shift: m.shift,
+          employee_id: m.employeeId,
+          area_id: status === "assigned" || status === "overtime" ? m.areaId : null,
+          status,
+        };
+      });
       // Upsert on the day/shift/person key the table already enforces, so importing
       // the same sheet twice moves people rather than duplicating them. Anyone
       // already on the day and absent from the file is left alone — the file says
@@ -136,7 +150,9 @@ export function HeadcountSheetDialog({
       // `attendanceFromBoard` because it also runs when a single person is marked by
       // hand, and the two copies had already drifted apart twice.
       const attendance = attendanceFromBoard(
-        preview.matched.map((m) => ({ employeeId: m.employeeId, date: m.date, status: m.status })),
+        // From `rows`, not the preview: the rota may have turned an assigned row into
+        // overtime, and the two records must not disagree about the same day.
+        rows.map((r) => ({ employeeId: r.employee_id, date: r.on_date, status: r.status })),
       );
       const { error: attErr } = await (supabase as any)
         .from("employee_attendance")
