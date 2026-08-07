@@ -70,16 +70,36 @@ function londonOffsetMinutes(at: Date): number {
 }
 
 /**
- * Minutes a run took, or null when either end is missing.
+ * The longest a run can be: one shift.
  *
- * Negative is returned as null rather than as a negative number. A run cannot finish
- * before it starts, and passing the negative on lets it be averaged into a line's
- * speed, where it silently cancels out real minutes.
+ * An item belongs to a session and a session is one shift, so nothing can run for
+ * longer than twelve hours. Three records claim to — 810, 1014 and 1050 minutes — and
+ * all three predate the fix above, when the day was stamped from `new Date()`.
+ */
+const LONGEST_RUN_MIN = 12 * 60;
+
+/**
+ * Minutes a run took, or null when the pair cannot describe one.
+ *
+ * Three ways a pair fails, and all three return null rather than a number, because a
+ * number gets averaged into a line's speed and quietly moves it:
+ *
+ * - **Either end missing.** Nothing to measure.
+ * - **Not positive.** A run cannot finish before it starts, and a negative silently
+ *   cancels out real minutes. Zero is the same: nine records hold a start and a finish
+ *   on the same minute, from a Save that stamped the finish with the clock.
+ * - **Longer than a shift.** A seventeen-hour run on a twelve-hour shift is not a slow
+ *   run, it is a wrong one, and averaging it in makes the line look half as fast as it
+ *   is.
+ *
+ * Null says "this pair cannot be read", which is what a screen should show. It is not
+ * the same as zero, and the difference is the whole point.
  */
 export function runMinutes(startIso: string | null, finishIso: string | null): number | null {
   if (!startIso || !finishIso) return null;
   const a = Date.parse(startIso), b = Date.parse(finishIso);
   if (Number.isNaN(a) || Number.isNaN(b)) return null;
   const mins = Math.round((b - a) / 60_000);
-  return mins > 0 ? mins : null;
+  if (mins <= 0 || mins > LONGEST_RUN_MIN) return null;
+  return mins;
 }
