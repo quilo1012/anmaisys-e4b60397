@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { attendanceForStatus } from "@/lib/attendanceFromBoard";
+import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
 
 export type HeadcountArea = {
@@ -205,6 +206,55 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   return { data, byId, onShift, isLoading };
 }
 
+/**
+ * Whether the rota puts somebody on this board, on this day.
+ *
+ * The roster already works this out to decide who to offer; this exposes the same
+ * answer to the writers, so a placement outside the rota is saved as overtime instead
+ * of relying on somebody remembering to drag the name onto the Overtime card.
+ *
+ * Uses `resolveShiftOn` for the same reason the roster does: the crew somebody held on
+ * that date, not the one they hold now. Backfilling July must not be judged against an
+ * August rota change.
+ */
+export function useRotaCover() {
+  const { data: patterns } = useShiftPatterns();
+  const { data: history } = useShiftHistory();
+  const { data: everyone } = useQuery({
+    queryKey: ["headcount-roster-all"],
+    queryFn: async (): Promise<HeadcountEmployee[]> => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id,full_name,shift_group,department,shift_pattern_id")
+        .eq("active", true)
+        .order("full_name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as HeadcountEmployee[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Takes the date as an argument rather than closing over one: the sheet import
+  // commits a month in a single call, and every row is a different weekday.
+  return useCallback(
+    (employeeId: string, onDate: string, shift: string): RotaCover => {
+      const person = (everyone ?? []).find((e) => e.id === employeeId);
+      if (!person) return { known: false, coversDay: false, onThisBoard: true };
+      const held = resolveShiftOn(history, person, onDate);
+      const pattern = held.shift_pattern_id
+        ? (patterns ?? []).find((p) => p.id === held.shift_pattern_id) ?? null
+        : null;
+      return {
+        known: !!pattern,
+        // Midday, so a timezone an hour either side cannot move the weekday.
+        coversDay: !!pattern && worksOn(pattern.days, new Date(`${onDate}T12:00:00`)),
+        onThisBoard: boardShiftFor(held.shift_group) === shift,
+      };
+    },
+    [everyone, patterns, history],
+  );
+}
+
 export function useAllocations(onDate: string, shift: string) {
   return useQuery({
     queryKey: ["headcount-allocations", onDate, shift],
@@ -222,6 +272,7 @@ export function useAllocations(onDate: string, shift: string) {
 
 export function useAllocationMutations(onDate: string, shift: string) {
   const qc = useQueryClient();
+  const rotaCover = useRotaCover();
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["headcount-allocations", onDate, shift] });
 
@@ -242,15 +293,26 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // board nobody can override on the day is a board people work around. It just
       // has to be a decision instead of an accident.
       let replaced: string | null = null;
+      let was: string | undefined;
       if (input.status === "assigned" || input.status === "overtime") {
         const { data: prev } = await supabase
           .from("daily_allocations")
           .select("status")
           .eq("on_date", onDate).eq("shift", shift).eq("employee_id", input.employeeId)
           .maybeSingle();
-        const was = (prev as { status?: string } | null)?.status;
+        was = (prev as { status?: string } | null)?.status;
         if (was === "holiday" || was === "sick" || was === "unpaid") replaced = was;
       }
+
+      // A shift nobody's rota covers is overtime whether or not anyone remembers to say
+      // so. Eleven people were on the night board on Friday 07/08, which no night rota
+      // covers; ten were saved as "assigned" and paid as an ordinary night.
+      const status = statusForPlacement(
+        input.status,
+        (was ?? null) as AllocStatus | null,
+        rotaCover(input.employeeId, onDate, shift),
+      );
+
       const { error } = await supabase
         .from("daily_allocations")
         .upsert(
@@ -262,8 +324,8 @@ export function useAllocationMutations(onDate: string, shift: string) {
             // column they are working in is the point — wiping it left the board with
             // nowhere to show them but a list of names. Absence and holiday do lose it:
             // they are not at a place that day.
-            area_id: input.status === "assigned" || input.status === "overtime" ? input.areaId : null,
-            status: input.status,
+            area_id: status === "assigned" || status === "overtime" ? input.areaId : null,
+            status,
             // Half a day off. The column has been on this table since it was created
             // and nothing ever wrote to it, so a half-day holiday was recorded as a
             // whole one — the difference between somebody who worked the morning and
@@ -275,7 +337,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
             // Only a working status can carry it — you cannot leave early from a day
             // you were never at.
             left_early_at:
-              input.status === "assigned" || input.status === "overtime"
+              status === "assigned" || status === "overtime"
                 ? input.leftEarlyAt ?? null
                 : null,
           },
@@ -297,7 +359,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // collapse into "absent", which the finance close could only report as an
       // absence of unstated kind — and the kind is what decides whether it is paid.
       // Shared with the sheet import, which is where the two last disagreed.
-      const attendance = attendanceForStatus(input.status);
+      const attendance = attendanceForStatus(status);
       const { error: attErr } = await (supabase as any)
         .from("employee_attendance")
         .upsert(
@@ -361,7 +423,14 @@ export function useAllocationMutations(onDate: string, shift: string) {
           shift,
           employee_id: r.employee_id,
           area_id: r.area_id,
-          status: r.status,
+          // The source day is a different weekday, so the rota has to be asked again.
+          // Copying Thursday night onto Friday copies ten people onto a night no rota
+          // covers — which is how they came to be saved as ordinary shifts.
+          status: statusForPlacement(
+            r.status as AllocStatus,
+            r.status as AllocStatus,
+            rotaCover(r.employee_id, onDate, shift),
+          ),
           half_day: r.half_day,
           note: r.note,
         }));
