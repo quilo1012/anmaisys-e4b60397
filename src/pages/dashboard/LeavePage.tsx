@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
+import { SectionHeader } from "@/components/workforce/SectionHeader";
+import { Figure, FigureRow } from "@/components/workforce/Figure";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -410,7 +412,7 @@ export default function LeavePage() {
         <TableCell className="font-medium">{p?.full_name ?? "Unknown"}</TableCell>
         <TableCell><Badge variant="outline" className="text-2xs">{KIND_LABEL[r.kind]}</Badge></TableCell>
         <TableCell className="text-xs">{r.start_date} → {r.end_date}</TableCell>
-        <TableCell className={`text-right font-mono text-xs tabular-nums ${d.workingDays == null ? "text-destructive-strong" : ""}`}>
+        <TableCell className={`text-right font-figure text-xs tabular-nums ${d.workingDays == null ? "text-destructive-strong" : ""}`}>
           {describeLeaveDays(d)}
         </TableCell>
         <TableCell className="max-w-[220px] truncate text-2xs text-muted-foreground">{r.note ?? "—"}</TableCell>
@@ -445,18 +447,14 @@ export default function LeavePage() {
         <BackButton />
         <WorkforceTabs />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <CalendarDays className="h-6 w-6 text-muted-foreground" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Annual Leave</h1>
-              <p className="text-sm text-muted-foreground">Holiday balances, sickness and unpaid leave</p>
-            </div>
-          </div>
-          <Button size="sm" onClick={() => setShowNew((v) => !v)}>
+        <SectionHeader
+          title="Annual Leave"
+          description={`Holiday balances, sickness and unpaid leave · leave year ${year.from} → ${year.to}`}
+        >
+          <Button size="sm" variant="secondary" onClick={() => setShowNew((v) => !v)}>
             <Plus className="mr-1.5 h-4 w-4" /> Book leave
           </Button>
-        </div>
+        </SectionHeader>
 
         {showNew && (
           <Card>
@@ -506,22 +504,21 @@ export default function LeavePage() {
           </Card>
         )}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {[
-            { label: "Booked days ahead", value: String(kpis.bookedAhead) },
-            { label: `Taken since ${year.from.slice(8)}/${year.from.slice(5, 7)}`, value: String(kpis.takenThisYear) },
-            { label: "Off today", value: String(kpis.offToday) },
-            { label: "Sick today", value: String(kpis.sickToday) },
-            { label: "Unpaid this year", value: String(kpis.unpaidThisYear) },
-          ].map((k) => (
-            <Card key={k.label}>
-              <CardContent className="p-3">
-                <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</div>
-                <div className="font-mono text-xl font-bold tabular-nums">{k.value}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* Booked ahead leads: it is the commitment nobody can take back, and the one
+            figure that decides whether next month's board can be planned. */}
+        <FigureRow>
+          <Figure
+            lead
+            label="Booked days ahead"
+            value={String(kpis.bookedAhead)}
+            unit={kpis.bookedAhead === 1 ? "day" : "days"}
+            hint="Approved and still to come"
+          />
+          <Figure label={`Taken since ${year.from.slice(8)}/${year.from.slice(5, 7)}`} value={String(kpis.takenThisYear)} unit="days" />
+          <Figure label="Off today" value={String(kpis.offToday)} />
+          <Figure label="Sick today" value={String(kpis.sickToday)} tone={kpis.sickToday > 0 ? "owed" : "neutral"} />
+          <Figure label="Unpaid this year" value={String(kpis.unpaidThisYear)} unit="days" tone={kpis.unpaidThisYear > 0 ? "owed" : "neutral"} />
+        </FigureRow>
 
         {byPattern.length > 0 && (
           <div>
@@ -546,13 +543,13 @@ export default function LeavePage() {
                     {byPattern.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{p.people}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{p.taken}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{p.booked}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{p.people}</TableCell>
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{p.taken}</TableCell>
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{p.booked}</TableCell>
+                        <TableCell className="text-right font-figure text-xs tabular-nums">
                           {p.remaining == null ? <span className="text-muted-foreground">—</span> : p.remaining}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">
+                        <TableCell className="text-right font-figure text-xs tabular-nums">
                           {/* BrightPay has not given the Mon–Fri or Sun figures, and nine
                               people are on those. "to confirm" asks for them; a zero
                               would quietly claim they have none. */}
@@ -590,7 +587,7 @@ export default function LeavePage() {
                   <div key={`${d.employee_id}-${d.on_date}`} className="flex items-center gap-2.5 px-3 py-2 text-xs">
                     <span className="font-medium">{person.get(d.employee_id)?.full_name ?? "Unknown"}</span>
                     <Badge variant="outline" className="text-2xs capitalize">{d.status}</Badge>
-                    <span className="ml-auto font-mono text-2xs text-muted-foreground">{d.on_date}</span>
+                    <span className="ml-auto font-figure text-2xs text-muted-foreground">{d.on_date}</span>
                   </div>
                 ))}
                 <p className="px-3 py-2 text-2xs text-muted-foreground">
@@ -616,7 +613,7 @@ export default function LeavePage() {
                       r.kind === "sick" ? "bg-destructive" : r.kind === "unpaid" ? "bg-orange-500" : "bg-primary"}`} />
                     <span className="font-medium">{person.get(r.employee_id)?.full_name ?? "Unknown"}</span>
                     <Badge variant="outline" className="text-2xs">{KIND_LABEL[r.kind]}</Badge>
-                    <span className="ml-auto font-mono text-2xs text-muted-foreground">
+                    <span className="ml-auto font-figure text-2xs text-muted-foreground">
                       {r.start_date === r.end_date ? r.start_date : `${r.start_date} → ${r.end_date}`}
                     </span>
                   </div>
@@ -651,17 +648,17 @@ export default function LeavePage() {
                       <TableRow key={b.id}>
                         <TableCell className="font-medium">{b.name}</TableCell>
                         <TableCell className="text-2xs text-muted-foreground">{b.pattern ?? "no rota"}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{b.taken}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{b.booked}</TableCell>
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{b.taken}</TableCell>
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{b.booked}</TableCell>
                         {/* No entitlement on file is not "no days left" — it is nobody
                             having told us how many there are. BrightPay has not given
                             the Mon–Fri or Sun figures yet. */}
-                        <TableCell className={`text-right font-mono text-xs font-semibold tabular-nums ${
+                        <TableCell className={`text-right font-figure text-xs font-semibold tabular-nums ${
                           b.remaining == null ? "text-muted-foreground"
                             : b.remaining < 0 ? "text-destructive-strong" : ""}`}>
                           {b.remaining == null ? "not set" : b.remaining}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                        <TableCell className="text-right font-figure text-xs tabular-nums text-muted-foreground">
                           {b.total ?? "—"}
                         </TableCell>
                       </TableRow>
@@ -699,9 +696,9 @@ export default function LeavePage() {
                       {absenceCounts.filter((r) => r.sickRolling > 0).map((r) => (
                         <TableRow key={r.id}>
                           <TableCell className="font-medium">{r.name}</TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">{r.sickYear}</TableCell>
-                          <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{r.sickRolling}</TableCell>
-                          <TableCell className={`text-right font-mono text-xs tabular-nums ${
+                          <TableCell className="text-right font-figure text-xs tabular-nums">{r.sickYear}</TableCell>
+                          <TableCell className="text-right font-figure text-xs font-semibold tabular-nums">{r.sickRolling}</TableCell>
+                          <TableCell className={`text-right font-figure text-xs tabular-nums ${
                             r.sickSpells >= 4 ? "text-warning-strong" : "text-muted-foreground"}`}>
                             {r.sickSpells}
                           </TableCell>
@@ -741,8 +738,8 @@ export default function LeavePage() {
                       {absenceCounts.filter((r) => r.unpaidRolling > 0).map((r) => (
                         <TableRow key={r.id}>
                           <TableCell className="font-medium">{r.name}</TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">{r.unpaidYear}</TableCell>
-                          <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">{r.unpaidRolling}</TableCell>
+                          <TableCell className="text-right font-figure text-xs tabular-nums">{r.unpaidYear}</TableCell>
+                          <TableCell className="text-right font-figure text-xs font-semibold tabular-nums">{r.unpaidRolling}</TableCell>
                         </TableRow>
                       ))}
                       {absenceCounts.every((r) => r.unpaidRolling === 0) && (

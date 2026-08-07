@@ -42,7 +42,7 @@ function statusOf(p: PersonRow) {
 function Kpi({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="rounded-xl border bg-card px-3 py-2.5 shadow-sm">
-      <div className="font-mono text-2xl font-bold leading-none tabular-nums">{value}</div>
+      <div className="font-figure text-2xl font-bold leading-none tabular-nums">{value}</div>
       <div className="mt-1.5 truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
       {sub && <div className="truncate text-2xs text-muted-foreground">{sub}</div>}
     </div>
@@ -277,7 +277,7 @@ export function PeopleTable({
                             somebody is on a narrow screen, where its own column is hidden. */}
                         <div className="text-2xs text-muted-foreground md:hidden">{p.department ?? "—"}</div>
                       </TableCell>
-                      <TableCell className="hidden font-mono text-xs sm:table-cell">{p.employee_ref ?? "—"}</TableCell>
+                      <TableCell className="hidden font-figure text-xs sm:table-cell">{p.employee_ref ?? "—"}</TableCell>
                       <TableCell className={cn("hidden md:table-cell", !p.department && "text-muted-foreground")}>
                         {p.department ?? "—"}
                       </TableCell>
@@ -290,7 +290,7 @@ export function PeopleTable({
                           ? <span title={describeDays(p.pattern.days)}>{p.pattern.name}</span>
                           : <span className="text-muted-foreground">—</span>}
                       </TableCell>
-                      <TableCell className="hidden font-mono text-xs xl:table-cell">
+                      <TableCell className="hidden font-figure text-xs xl:table-cell">
                         {p.started_on ? format(new Date(`${p.started_on}T12:00:00`), "dd/MM/yyyy") : "—"}
                       </TableCell>
                       <TableCell>

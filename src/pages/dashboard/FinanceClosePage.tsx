@@ -21,6 +21,8 @@ import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2, type ClosePersonInput,
 } from "@/lib/financeClose";
 import { earlyLeave } from "@/lib/earlyLeave";
+import { SectionHeader } from "@/components/workforce/SectionHeader";
+import { Figure, FigureRow } from "@/components/workforce/Figure";
 
 /**
  * The pay period handed to finance: overtime and time off, per person.
@@ -216,58 +218,48 @@ export default function FinanceClosePage() {
         <BackButton className="print:hidden" />
         <WorkforceTabs />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Calculator className="h-6 w-6 text-muted-foreground" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Finance Close</h1>
-              <p className="text-sm text-muted-foreground">
-                {period ? `${period.name} · ${from} → ${to}` : "No pay period set"}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 print:hidden">
-            <Button size="sm" variant="outline" onClick={() => window.print()}>
-              <Printer className="mr-1.5 h-4 w-4" /> Print
-            </Button>
-            <Button
-              size="sm"
-              disabled={shown.length === 0}
-              onClick={() => downloadCsv(
-                `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}.csv`,
-                CLOSE_HEADERS,
-                closeToCsvRows(shown),
-              )}
-            >
-              <Download className="mr-1.5 h-4 w-4" /> Export
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-3 print:hidden">
-          <div>
-            <Label className="text-xs">Pay period</Label>
-            <Select value={period?.id ?? ""} onValueChange={setPeriodId}>
-              <SelectTrigger className="mt-1 h-9 w-[320px]"><SelectValue placeholder="Choose a period" /></SelectTrigger>
-              <SelectContent>
-                {periods.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} · {p.start_date} → {p.end_date}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-xs">Shift</Label>
-            <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as typeof shiftFilter)}>
-              <SelectTrigger className="mt-1 h-9 w-[180px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Both shifts</SelectItem>
-                <SelectItem value="Day">Day only</SelectItem>
-                <SelectItem value="Night">Night only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+        <SectionHeader
+          title="Finance Close"
+          description={period ? `${period.name} · ${from} → ${to}` : "No pay period set"}
+        >
+          {/* In the header rather than under it: choosing the period and the shift is
+              choosing what the whole page is about, and both were sitting below the
+              title as though they were filters on a table. */}
+          <Select value={period?.id ?? ""} onValueChange={setPeriodId}>
+            <SelectTrigger className="h-9 w-[260px] border-white/25 bg-white/10 text-white">
+              <SelectValue placeholder="Choose a period" />
+            </SelectTrigger>
+            <SelectContent>
+              {periods.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name} · {p.start_date} → {p.end_date}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as typeof shiftFilter)}>
+            <SelectTrigger className="h-9 w-[150px] border-white/25 bg-white/10 text-white"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Both shifts</SelectItem>
+              <SelectItem value="Day">Day only</SelectItem>
+              <SelectItem value="Night">Night only</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
+            <Printer className="mr-1.5 h-4 w-4" /> Print
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="print:hidden"
+            disabled={shown.length === 0}
+            onClick={() => downloadCsv(
+              `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}.csv`,
+              CLOSE_HEADERS,
+              closeToCsvRows(shown),
+            )}
+          >
+            <Download className="mr-1.5 h-4 w-4" /> Export
+          </Button>
+        </SectionHeader>
 
         {/* The split, whatever the filter says. A close read as one number hid that the
             night crew's overtime behaves nothing like the day crews'. */}
@@ -292,11 +284,11 @@ export default function FinanceClosePage() {
                       className={shiftFilter === t.shift ? "bg-muted/50" : undefined}
                     >
                       <TableCell className="font-medium">{t.shift}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.people}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.overtimeHours.toFixed(2)} h</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.owedHours.toFixed(2)} h</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.payrollOtHours.toFixed(2)} h</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
+                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.people}</TableCell>
+                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.overtimeHours.toFixed(2)} h</TableCell>
+                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.owedHours.toFixed(2)} h</TableCell>
+                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.payrollOtHours.toFixed(2)} h</TableCell>
+                      <TableCell className="text-right font-figure text-xs tabular-nums">
                         {t.payrollEmpty ? <span className="text-muted-foreground">not comparable</span> : `${t.deltaHours.toFixed(2)} h`}
                       </TableCell>
                     </TableRow>
@@ -307,33 +299,41 @@ export default function FinanceClosePage() {
           </Card>
         )}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-          {[
-            { label: "People", value: String(totals.people) },
-            // What is paid, not the balance. The balance nets a shortfall against a
-            // surplus and is not itself a figure anybody is paid.
-            { label: "Overtime paid", value: `${totals.overtimeHours.toFixed(2)} h` },
-            { label: "Hours deducted", value: `${totals.owedHours.toFixed(2)} h` },
-            { label: "Payroll OT", value: `${totals.payrollOtHours.toFixed(2)} h` },
-            {
-              label: "Left early",
-              value: `${totals.earlyLeaveHours.toFixed(2)} h`,
-            },
-            {
-              label: "Gap to settle",
-              // Nothing keyed means nothing to compare, and saying "0.00 h" would
-              // tell somebody the two sides agree.
-              value: totals.payrollEmpty ? "not comparable" : `${totals.deltaHours.toFixed(2)} h`,
-            },
-          ].map((k) => (
-            <Card key={k.label}>
-              <CardContent className="p-3">
-                <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</div>
-                <div className="font-mono text-xl font-bold tabular-nums">{k.value}</div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* Overtime paid leads: it is the figure somebody is about to pay, and it was
+            sitting second in a row of six identical boxes with "People" first. */}
+        <FigureRow>
+          <Figure
+            lead
+            label="Overtime paid"
+            value={totals.overtimeHours.toFixed(2)}
+            unit="h"
+            tone="earned"
+            hint="After each person's own shortfall is covered"
+          />
+          <Figure
+            label="Hours deducted"
+            value={totals.owedHours.toFixed(2)}
+            unit="h"
+            tone={totals.owedHours > 0 ? "owed" : "neutral"}
+          />
+          <Figure
+            label="Left early"
+            value={totals.earlyLeaveHours.toFixed(2)}
+            unit="h"
+            tone={totals.earlyLeaveHours > 0 ? "owed" : "neutral"}
+          />
+          <Figure label="Payroll OT" value={totals.payrollOtHours.toFixed(2)} unit="h" />
+          <Figure
+            label="Gap to settle"
+            // Nothing keyed means nothing to compare, and saying "0.00 h" would tell
+            // somebody the two sides agree.
+            value={totals.payrollEmpty ? "—" : totals.deltaHours.toFixed(2)}
+            unit={totals.payrollEmpty ? undefined : "h"}
+            hint={totals.payrollEmpty ? "Nothing keyed to compare" : undefined}
+            tone={!totals.payrollEmpty && Math.abs(totals.deltaHours) >= 1 ? "owed" : "neutral"}
+          />
+          <Figure label="People" value={String(totals.people)} />
+        </FigureRow>
 
         {/* Said before the table, not in a footnote: somebody is about to pay from
             this, and the two columns are not two halves of a total. */}

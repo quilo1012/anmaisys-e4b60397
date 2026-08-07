@@ -120,7 +120,7 @@ export function ShiftBalancePanel({ from, to }: { from: string; to: string }) {
           <Card key={k.label}>
             <CardContent className="p-3">
               <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</div>
-              <div className="font-mono text-xl font-bold tabular-nums">{k.value}</div>
+              <div className="font-figure text-xl font-bold tabular-nums">{k.value}</div>
             </CardContent>
           </Card>
         ))}
@@ -180,13 +180,13 @@ export function ShiftBalancePanel({ from, to }: { from: string; to: string }) {
                           )}
                         </TableCell>
                         <TableCell className="text-2xs text-muted-foreground">{r.patternName ?? "no rota"}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{r.expected ?? "—"}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{r.expected ?? "—"}</TableCell>
+                        <TableCell className="text-right font-figure text-xs tabular-nums text-muted-foreground">
                           {r.holiday || "—"}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{r.needed ?? "—"}</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">{r.present}</TableCell>
-                        <TableCell className={`text-right font-mono text-xs font-bold tabular-nums ${
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{r.needed ?? "—"}</TableCell>
+                        <TableCell className="text-right font-figure text-xs tabular-nums">{r.present}</TableCell>
+                        <TableCell className={`text-right font-figure text-xs font-bold tabular-nums ${
                           r.balance == null ? "text-muted-foreground"
                             : r.balance > 0 ? "text-success-strong"
                             : ok ? "text-destructive-strong" : "text-warning-strong"}`}>

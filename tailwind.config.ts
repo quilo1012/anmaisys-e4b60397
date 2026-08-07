@@ -112,6 +112,8 @@ export default {
   			'accordion-up': 'accordion-up 0.2s ease-out'
   		},
 		fontFamily: {
+			/* Figures only — never body text. See index.html. */
+			figure: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
 			sans: [
 				'Inter',
 				'ui-sans-serif',

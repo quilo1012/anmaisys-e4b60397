@@ -39,6 +39,10 @@
 
     --radius: 0.5rem;
 
+    /* The workforce section's ground. It was hardcoded in the headcount board and
+       nowhere else, which is why the other four screens had no header at all. */
+    --section: 215 60% 18%;
+
     --sidebar-background: 211 64% 33%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 0 0% 100%;
@@ -67,6 +71,8 @@
 
   .dark {
     --background: 220 20% 7%;
+    /* Lifted off the near-black page, or the header disappears into it. */
+    --section: 215 45% 22%;
     --foreground: 210 40% 96%;
 
     --card: 220 20% 10%;
