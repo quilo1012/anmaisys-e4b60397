@@ -14,8 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calculator, Download, Printer, AlertTriangle } from "lucide-react";
 import { downloadCsv } from "@/lib/exportCsv";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
-import { ShiftBalancePanel } from "@/components/workforce/ShiftBalancePanel";
-import { useEmployees, useOvertimeEntries, useOvertimePeriods } from "@/hooks/useWorkforce";
+import { useEmployees, useOvertimeEntries } from "@/hooks/useWorkforce";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2, type ClosePersonInput,
@@ -37,13 +36,15 @@ export default function FinanceClosePage() {
   const [periodId, setPeriodId] = useState<string>("");
 
   // The overtime register, which used to live on the Workforce screen. It is the
-  // source of the Payroll OT column below, so keying it anywhere else meant leaving
-  // this page to fill in the very number this page says is missing.
+  // source of the Payroll OT column, so keying it anywhere else meant leaving this page
+  // to fill in the very number this page says is missing.
+  //
+  // It had a period picker of its own, reading a SECOND table of periods
+  // (`overtime_periods`, two rows, against `workforce_payroll_periods`' twenty-nine).
+  // So the register could sit on June while the close above it read July. Both tables
+  // described the same pay periods; the entries table was empty, so the key was
+  // repointed and the duplicate dropped.
   const { data: otEmployees } = useEmployees();
-  const { data: otPeriods } = useOvertimePeriods();
-  const [otPeriodId, setOtPeriodId] = useState<string | null>(null);
-  const otPeriod = otPeriods?.find((p) => p.id === otPeriodId) ?? otPeriods?.[0] ?? null;
-  const { data: otEntries } = useOvertimeEntries(otPeriod?.id ?? null);
 
   const { data: periods = [] } = useQuery({
     queryKey: ["payroll-periods"],
@@ -64,6 +65,9 @@ export default function FinanceClosePage() {
     return periods.find((p) => p.start_date <= today && p.end_date >= today) ?? periods[0] ?? null;
   }, [periods, periodId]);
 
+  // The register reads the same period as everything else on the page.
+  const { data: otEntries } = useOvertimeEntries(period?.id ?? null);
+
   const from = period?.start_date ?? "";
   const to = period?.end_date ?? "";
 
@@ -72,8 +76,10 @@ export default function FinanceClosePage() {
     enabled: !!period,
     queryFn: async () => {
       const db = supabase as any;
-      const [emp, clocked, opening, payroll, manual, early, rotas] = await Promise.all([
-        db.from("employees").select("id, full_name, department, shift_group, shift_pattern_id").eq("active", true),
+      const [emp, clocked, opening, payroll, manual, board, rotas] = await Promise.all([
+        db.from("employees")
+          .select("id, full_name, department, shift_group, shift_pattern_id, shift_patterns(name, days)")
+          .eq("active", true),
         // Paged, because this is what somebody is paid from. A pay period holds more
         // than a thousand attendance rows and PostgREST caps an unbounded select there
         // silently — the close would simply have counted fewer days for whoever sorted
@@ -106,35 +112,59 @@ export default function FinanceClosePage() {
         // Days somebody came in for and went home part-way through. Nothing has ever
         // counted these: the board stored the time and every screen still recorded a
         // full day.
-        db.from("daily_allocations")
-          .select("employee_id, left_early_at")
-          .gte("on_date", from).lte("on_date", to)
-          .not("left_early_at", "is", null),
+        // The whole board for the period, not just the early leavers. It answers the
+        // other question — how many shifts were they due and how many did they come to
+        // — which used to be a second table underneath this one, over the same people
+        // and the same dates. Paged: this period holds 1524 rows and PostgREST returns
+        // a thousand without a word.
+        fetchAllRows<any>({
+          range: (a, b) => db.from("daily_allocations")
+            .select("employee_id, status, shift, left_early_at")
+            .gte("on_date", from).lte("on_date", to)
+            .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+            .range(a, b),
+        }).then((data: any[]) => ({ data, error: null })),
         db.from("shift_patterns").select("id, starts_at, ends_at, break_minutes"),
       ]);
-      for (const r of [emp, clocked, opening, payroll, manual, early, rotas]) if (r.error) throw r.error;
+      for (const r of [emp, clocked, opening, payroll, manual, board, rotas]) if (r.error) throw r.error;
+
+      // Which boards anybody filled in at all. The night board has gone whole periods
+      // unplanned, and without this every one of its forty-eight people reads as a full
+      // period short — invented deficits burying the two or three that are real.
+      const boardsPlanned = new Set<string>();
+      for (const a of (board.data ?? []) as any[]) if (a.shift) boardsPlanned.add(a.shift);
 
       const byId = new Map<string, ClosePersonInput>();
       for (const e of (emp.data ?? []) as any[]) {
+        const crew = boardShiftFor(e.shift_group);
         byId.set(e.id, {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
-          shift: boardShiftFor(e.shift_group),
+          shift: crew,
           openingBalanceMin: null, clockedBalanceMin: null,
           payrollOtHours: null, absences: {}, daysPresent: 0,
           earlyLeaveHours: 0,
+          patternName: e.shift_patterns?.name ?? null,
+          patternDays: e.shift_patterns?.days ?? null,
+          shiftsWorked: 0, shiftsHoliday: 0,
+          boardPlanned: boardsPlanned.has(crew ?? "Day"),
         });
       }
 
       // The rota is what says how long the shift was, so a person with none on file
-      // contributes nothing here rather than a guessed shortfall.
-      const rotaById = new Map(
-        ((rotas.data ?? []) as any[]).map((p) => [p.id, p]),
-      );
+      // contributes nothing to the early-leave figure rather than a guessed shortfall.
+      const rotaById = new Map(((rotas.data ?? []) as any[]).map((p) => [p.id, p]));
       const patternOf = new Map(
         ((emp.data ?? []) as any[]).map((e) => [e.id, rotaById.get(e.shift_pattern_id)]),
       );
-      for (const a of (early.data ?? []) as any[]) {
+
+      // One pass over the board for both answers it holds: shifts turned up for, and
+      // hours of a shift somebody came in for and did not stay for.
+      for (const a of (board.data ?? []) as any[]) {
         const p = byId.get(a.employee_id); if (!p) continue;
+        if (a.status === "assigned" || a.status === "overtime") p.shiftsWorked += 1;
+        else if (a.status === "holiday") p.shiftsHoliday += 1;
+
+        if (!a.left_early_at) continue;
         const rota = patternOf.get(a.employee_id);
         if (!rota) continue;
         const cut = earlyLeave(a.left_early_at, {
@@ -172,12 +202,20 @@ export default function FinanceClosePage() {
       }
 
       // Only people with something to report in the period.
-      return buildClose([...byId.values()].filter(
-        (p) => p.clockedBalanceMin != null || p.payrollOtHours != null
-          || p.openingBalanceMin != null
-          || p.daysPresent > 0 || Object.keys(p.absences).length > 0
-          || p.earlyLeaveHours > 0,
-      ));
+      // Anybody the period touched — a rota that expected them, a clock that recorded
+      // them, or a mark on the board. The shift side works for everybody today, which
+      // the hours side does not: `attendance_days` is empty until TimeMoto is imported.
+      return buildClose(
+        [...byId.values()].filter(
+          (p) => p.clockedBalanceMin != null || p.payrollOtHours != null
+            || p.openingBalanceMin != null
+            || p.daysPresent > 0 || Object.keys(p.absences).length > 0
+            || p.earlyLeaveHours > 0
+            || p.shiftsWorked > 0 || p.shiftsHoliday > 0
+            || !!p.patternDays?.length,
+        ),
+        from, to,
+      );
     },
   });
 
@@ -332,6 +370,20 @@ export default function FinanceClosePage() {
             hint={totals.payrollEmpty ? "Nothing keyed to compare" : undefined}
             tone={!totals.payrollEmpty && Math.abs(totals.deltaHours) >= 1 ? "owed" : "neutral"}
           />
+          <Figure
+            label="Shifts over rota"
+            value={String(totals.overtimeShifts)}
+            tone={totals.overtimeShifts > 0 ? "earned" : "neutral"}
+            hint="From the board, not the clocks"
+          />
+          <Figure
+            label="Shifts short"
+            value={String(totals.deficitShifts)}
+            tone={totals.deficitShifts > 0 ? "owed" : "neutral"}
+            hint={totals.onUnplannedBoard > 0
+              ? `${totals.onUnplannedBoard} on an unplanned board, excluded`
+              : undefined}
+          />
           <Figure label="People" value={String(totals.people)} />
         </FigureRow>
 
@@ -372,11 +424,42 @@ export default function FinanceClosePage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
+                    {/* A banded row above the column names, because this row carries
+                        two answers that must never be added: the board says whether
+                        somebody turned up, the clocks say how long they stayed.
+                        Somebody who works every shift and goes home at two is level
+                        under SHIFTS and short under HOURS, and without the band a
+                        reader has fifteen columns and no way to tell which question
+                        any of them answered. */}
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead colSpan={3} />
+                      <TableHead
+                        colSpan={3}
+                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
+                      >
+                        Shifts · from the board
+                      </TableHead>
+                      <TableHead
+                        colSpan={5}
+                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
+                      >
+                        Hours · from the clocks
+                      </TableHead>
+                      <TableHead
+                        colSpan={5}
+                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
+                      >
+                        Days away
+                      </TableHead>
+                    </TableRow>
                     <TableRow>
                       <TableHead>Employee</TableHead>
                       <TableHead>Shift</TableHead>
                       <TableHead>Department</TableHead>
-                      <TableHead className="text-right">Opening bank</TableHead>
+                      <TableHead className="border-l text-right">Due</TableHead>
+                      <TableHead className="text-right">Worked</TableHead>
+                      <TableHead className="text-right">+/−</TableHead>
+                      <TableHead className="border-l text-right">Opening bank</TableHead>
                       <TableHead className="text-right">Period</TableHead>
                       <TableHead className="text-right">Closing bank</TableHead>
                       <TableHead className="text-right">Overtime</TableHead>
@@ -396,40 +479,62 @@ export default function FinanceClosePage() {
                         <TableCell className="font-medium">{r.name}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.shift ?? "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.department ?? "—"}</TableCell>
-                        <TableCell className={`text-right font-mono tabular-nums ${
+
+                        {/* Shifts. Whole numbers, so no decimals — a half shift is not
+                            a thing the board can record. */}
+                        <TableCell className="border-l text-right font-figure tabular-nums text-muted-foreground">
+                          {r.shiftsDue ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-figure tabular-nums">{r.shiftsWorked}</TableCell>
+                        <TableCell
+                          className={`text-right font-figure font-semibold tabular-nums ${
+                            r.shiftBalance == null || !r.boardPlanned ? "text-muted-foreground"
+                              : r.shiftBalance > 0 ? "text-success-strong"
+                              : r.shiftBalance < 0 ? "text-warning-strong" : ""}`}
+                          // A board nobody planned makes everybody on it look short. That
+                          // is a fact about the board, not about them, so the figure is
+                          // shown greyed and said out loud rather than left to be read as
+                          // absence.
+                          title={!r.boardPlanned ? "This board was never planned for the period — not an absence" : undefined}
+                        >
+                          {r.shiftBalance == null ? "—"
+                            : `${r.shiftBalance > 0 ? "+" : ""}${r.shiftBalance}`}
+                        </TableCell>
+
+                        <TableCell className={`border-l text-right font-figure tabular-nums ${
                           r.openingHours < 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
                           {r.openingHours.toFixed(2)}
                         </TableCell>
-                        <TableCell className={`text-right font-mono tabular-nums ${
+                        <TableCell className={`text-right font-figure tabular-nums ${
                           (r.clockedOtHours ?? 0) < 0 ? "text-destructive-strong" : ""}`}>
                           {num(r.clockedOtHours)}
                         </TableCell>
-                        <TableCell className={`text-right font-mono font-semibold tabular-nums ${
+                        <TableCell className={`text-right font-figure font-semibold tabular-nums ${
                           (r.closingHours ?? 0) < 0 ? "text-destructive-strong" : ""}`}>
                           {num(r.closingHours)}
                         </TableCell>
-                        <TableCell className="text-right font-mono font-semibold tabular-nums">
+                        <TableCell className="text-right font-figure font-semibold tabular-nums">
                           {num(r.overtimeHours)}
                         </TableCell>
-                        <TableCell className={`text-right font-mono tabular-nums ${
+                        <TableCell className={`text-right font-figure tabular-nums ${
                           (r.owedHours ?? 0) > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
                           {r.owedHours ? r.owedHours.toFixed(2) : "—"}
                         </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{num(r.payrollOtHours)}</TableCell>
-                        <TableCell className={`text-right font-mono font-semibold tabular-nums ${
+                        <TableCell className="text-right font-figure tabular-nums">{num(r.payrollOtHours)}</TableCell>
+                        <TableCell className={`text-right font-figure font-semibold tabular-nums ${
                           r.deltaHours == null ? "text-muted-foreground"
                             : Math.abs(r.deltaHours) >= 1 ? "text-destructive-strong" : ""}`}>
                           {num(r.deltaHours)}
                         </TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{r.daysPresent}</TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{r.sick || "—"}</TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{r.holiday || "—"}</TableCell>
-                        <TableCell className="text-right font-mono tabular-nums">{r.unpaid || "—"}</TableCell>
+                        <TableCell className="text-right font-figure tabular-nums">{r.daysPresent}</TableCell>
+                        <TableCell className="text-right font-figure tabular-nums">{r.sick || "—"}</TableCell>
+                        <TableCell className="text-right font-figure tabular-nums">{r.holiday || "—"}</TableCell>
+                        <TableCell className="text-right font-figure tabular-nums">{r.unpaid || "—"}</TableCell>
                         {/* Hours, where every column beside it is days — a day cut
                             short is not a day off, and rounding it to one would say
                             Elias Soares had a whole day away when he worked two hours
                             of it. */}
-                        <TableCell className={`text-right font-mono tabular-nums ${
+                        <TableCell className={`text-right font-figure tabular-nums ${
                           r.earlyLeaveHours > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
                           {r.earlyLeaveHours ? r.earlyLeaveHours.toFixed(2) : "—"}
                         </TableCell>
@@ -442,12 +547,6 @@ export default function FinanceClosePage() {
           </CardContent>
         </Card>
 
-        {/* The other question, answerable without a clock: how many shifts were they
-            due and how many did they come to. Kept apart from the hours above because
-            somebody who works every shift and leaves at two is level here and short
-            there — merging them would hide which question a number answered. */}
-        <ShiftBalancePanel from={from} to={to} />
-
         {/* Where the Payroll OT column above is filled in. */}
         <div className="space-y-2 print:hidden">
           <h2 className="text-lg font-semibold tracking-tight">Overtime register</h2>
@@ -458,9 +557,7 @@ export default function FinanceClosePage() {
           <OvertimePanel
             employees={otEmployees ?? []}
             entries={otEntries ?? []}
-            periods={otPeriods ?? []}
-            activePeriod={otPeriod}
-            onPeriodChange={setOtPeriodId}
+            activePeriod={period}
           />
         </div>
       </div>
