@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Figure } from "@/components/ui/Figure";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,21 +80,16 @@ export default function ReportsPage() {
           dropped by the print stylesheet. */}
       <BackButton className="print:hidden" />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <FileBarChart className="h-6 w-6 text-muted-foreground" />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
-            <p className="text-sm text-muted-foreground">
-              {periodLabel}
-              {shift !== "ALL" && ` · ${shift === "DAY" ? "Day shift" : "Night shift"}`}
-            </p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="print:hidden">
-          <Printer className="mr-1.5 h-4 w-4" /> Print
-        </Button>
-      </div>
+      <PageHeader
+        icon={<FileBarChart className="h-5 w-5 text-muted-foreground" />}
+        title="Reports"
+        description={`${periodLabel}${shift !== "ALL" ? ` · ${shift === "DAY" ? "Day shift" : "Night shift"}` : ""}`}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="print:hidden">
+            <Printer className="mr-1.5 h-4 w-4" /> Print
+          </Button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <DateRangeFilter

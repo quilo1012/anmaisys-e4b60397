@@ -165,7 +165,9 @@ function OperatorPerformanceContent() {
               <Target className="h-6 w-6" />
             </div>
             <div>
-              <div className="text-xl font-bold">Target & Performance</div>
+              {/* A heading element, not a styled div. This is the screen's title and it was
+                  invisible to heading navigation and to a screen reader. */}
+              <h1 className="text-xl font-bold">Target &amp; Performance</h1>
               <div className="text-sm text-muted-foreground">
                 {format(new Date(), "EEEE, dd MMM yyyy")} · {shiftLabel} · <span className="font-medium text-foreground">{line || "—"}</span>
                 {profile?.name ? <> · {profile.name}</> : null}
