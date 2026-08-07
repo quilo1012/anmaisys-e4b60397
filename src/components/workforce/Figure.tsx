@@ -56,10 +56,14 @@ export function Figure({
       {/* The rule goes above an owed figure and below an earned one, so the sign is
           legible as a position before the digits are read at all. */}
       <div
+        // Three pixels, not two. These screens are read on a tablet on the floor, at
+        // arm's length and often in daylight strong enough to wash a hairline out — the
+        // same reason the tab strip is 36px and the whole pill is the target. Two
+        // pixels is right for a desk and disappears standing up.
         className={cn(
           "mt-1 inline-flex flex-col",
-          tone === "owed" && "border-t-2 border-[hsl(var(--warning-strong))] pt-0.5",
-          tone === "earned" && "border-b-2 border-[hsl(var(--success-strong))] pb-0.5",
+          tone === "owed" && "border-t-[3px] border-[hsl(var(--warning-strong))] pt-0.5",
+          tone === "earned" && "border-b-[3px] border-[hsl(var(--success-strong))] pb-0.5",
         )}
       >
         <span className="flex items-baseline gap-1">
