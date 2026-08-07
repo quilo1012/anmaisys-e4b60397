@@ -51,7 +51,7 @@ export function HeadcountOvertimePanel() {
           .select("id, full_name, department, shift_group, shift_patterns(name, days)")
           .eq("active", true),
         db.from("daily_allocations")
-          .select("employee_id, status, area_id")
+          .select("employee_id, status, area_id, shift")
           .gte("on_date", from).lte("on_date", to),
       ]);
       if (emp.error) throw emp.error;
@@ -64,6 +64,12 @@ export function HeadcountOvertimePanel() {
       const deptOf = new Map(((emp.data ?? []) as any[]).map(
         (e) => [e.id, (e.department ?? "").trim() || "Not set"],
       ));
+
+      // Which boards anybody actually filled in. The night board has never been
+      // planned, so everybody on it reads as a full period short — forty-eight
+      // invented deficits burying the two or three that are real.
+      const boardsPlanned = new Set<string>();
+      for (const a of (allocs.data ?? []) as any[]) if (a.shift) boardsPlanned.add(a.shift);
 
       const counts = new Map<string, { present: number; holiday: number; sick: number; unpaid: number }>();
       const byDept = new Map<string, number>();
@@ -90,6 +96,7 @@ export function HeadcountOvertimePanel() {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
           patternName: e.shift_patterns?.name ?? null,
           patternDays: e.shift_patterns?.days ?? null,
+          boardPlanned: boardsPlanned.has(e.shift_group === "Night" ? "Night" : "Day"),
           ...c,
         };
       });
@@ -188,6 +195,18 @@ export function HeadcountOvertimePanel() {
                 <span>
                   <b>{totals.noBoardRecord}</b> with a rota and no board record at all. They read as a
                   full period short and almost certainly worked it.
+                </span>
+              </div>
+            )}
+            {/* Said apart, and last. A whole board nobody filled in is one job for one
+                person; it is not forty-eight people to look into, and listed as such it
+                buried the two or three that were. */}
+            {totals.onUnplannedBoard > 0 && (
+              <div className="flex gap-2">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground" />
+                <span>
+                  <b>{totals.onUnplannedBoard}</b> on a board nobody planned this period — the night
+                  board is empty, so none of them counts as short.
                 </span>
               </div>
             )}

@@ -30,6 +30,15 @@ export interface ShiftBalanceInput {
   holiday: number;
   sick: number;
   unpaid: number;
+  /**
+   * Whether the board this person belongs to was planned at all in the period.
+   *
+   * The night board has never been filled in, so all forty-eight of its people read as
+   * a full period short. Counted with everybody else that is forty-eight invented
+   * deficits burying the two or three that are real — a warning nobody can act on
+   * teaches people to skip the warnings.
+   */
+  boardPlanned: boolean;
 }
 
 export interface ShiftBalance extends ShiftBalanceInput {
@@ -95,8 +104,10 @@ export interface ShiftTotals {
   /** People short — see `unreliableShort`. */
   inDeficit: number;
   deficitShifts: number;
-  /** People with a rota but not one line on the board in the period. */
+  /** People on a planned board with not one line on it — a gap worth chasing. */
   noBoardRecord: number;
+  /** People whose whole board was never planned. Not their absence; nobody's entry. */
+  onUnplannedBoard: number;
   noPattern: number;
 }
 
@@ -106,15 +117,21 @@ export function shiftTotals(rows: ShiftBalance[]): ShiftTotals {
     people: rows.length,
     inOvertime: withBalance.filter((r) => (r.balance ?? 0) > 0).length,
     overtimeShifts: withBalance.reduce((n, r) => n + Math.max(0, r.balance ?? 0), 0),
-    inDeficit: withBalance.filter((r) => (r.balance ?? 0) < 0).length,
-    deficitShifts: withBalance.reduce((n, r) => n + Math.max(0, -(r.balance ?? 0)), 0),
+    // A board nobody filled in produces a shortfall for everybody on it. That is a
+    // fact about the board, so it is counted as one and kept out of the deficit.
+    inDeficit: withBalance.filter((r) => r.boardPlanned && (r.balance ?? 0) < 0).length,
+    deficitShifts: withBalance.reduce(
+      (n, r) => n + (r.boardPlanned ? Math.max(0, -(r.balance ?? 0)) : 0), 0,
+    ),
     // Nobody works a three-week period without appearing once. A person with a rota
     // and an empty board was not matched by the import — their name is one of the
     // Pedros or Sergios the spreadsheet writes without a surname — and reading their
     // deficit as absence would accuse somebody who came in every day.
     noBoardRecord: rows.filter(
-      (r) => r.patternDays?.length && r.present + r.holiday + r.sick + r.unpaid === 0,
+      (r) => r.boardPlanned && r.patternDays?.length
+        && r.present + r.holiday + r.sick + r.unpaid === 0,
     ).length,
+    onUnplannedBoard: rows.filter((r) => !r.boardPlanned).length,
     noPattern: rows.filter((r) => !r.patternDays?.length).length,
   };
 }
@@ -130,6 +147,8 @@ export function shiftTotals(rows: ShiftBalance[]): ShiftTotals {
  */
 export function shortfallIsReliable(r: ShiftBalance): boolean {
   if ((r.balance ?? 0) >= 0) return true;
+  // Nothing on an unplanned board can be believed either way.
+  if (!r.boardPlanned) return false;
   const marked = r.present + r.holiday + r.sick + r.unpaid;
   return marked > 0 && marked >= (r.needed ?? 0) * 0.5;
 }
