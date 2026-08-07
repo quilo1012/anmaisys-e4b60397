@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import type { PatternDayOverride } from "@/lib/overtime";
 
 /**
@@ -220,13 +221,16 @@ export function useAttendanceRange(fromDate: string, toDate: string) {
   return useQuery({
     queryKey: ["employee_attendance_range", fromDate, toDate],
     queryFn: async (): Promise<Attendance[]> => {
-      const { data, error } = await db
-        .from("employee_attendance")
-        .select("*")
-        .gte("on_date", fromDate)
-        .lte("on_date", toDate);
-      if (error) throw error;
-      return data ?? [];
+      // Paged: a month of marks for the whole factory clears a thousand rows.
+      return await fetchAllRows<Attendance>({
+        range: (a, b) => db
+          .from("employee_attendance")
+          .select("*")
+          .gte("on_date", fromDate)
+          .lte("on_date", toDate)
+          .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+          .range(a, b),
+      });
     },
   });
 }

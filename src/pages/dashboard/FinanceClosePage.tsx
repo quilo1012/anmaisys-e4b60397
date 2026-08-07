@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
@@ -69,13 +70,25 @@ export default function FinanceClosePage() {
       const db = supabase as any;
       const [emp, clocked, payroll, manual] = await Promise.all([
         db.from("employees").select("id, full_name, department").eq("active", true),
-        db.from("attendance_days")
-          .select("employee_id, worked_minutes, balance_minutes, absence_name")
-          .gte("on_date", from).lte("on_date", to),
+        // Paged, because this is what somebody is paid from. A pay period holds more
+        // than a thousand attendance rows and PostgREST caps an unbounded select there
+        // silently — the close would simply have counted fewer days for whoever sorted
+        // last.
+        fetchAllRows<any>({
+          range: (a, b) => db.from("attendance_days")
+            .select("employee_id, worked_minutes, balance_minutes, absence_name")
+            .gte("on_date", from).lte("on_date", to)
+            .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+            .range(a, b),
+        }).then((data: any[]) => ({ data, error: null })),
         db.from("overtime_entries").select("employee_id, hours").eq("period_id", period!.id),
         // `on_date`, not `date` — the column the manual marks actually use.
-        db.from("employee_attendance").select("employee_id, status")
-          .gte("on_date", from).lte("on_date", to),
+        fetchAllRows<any>({
+          range: (a, b) => db.from("employee_attendance").select("employee_id, status")
+            .gte("on_date", from).lte("on_date", to)
+            .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+            .range(a, b),
+        }).then((data: any[]) => ({ data, error: null })),
       ]);
       for (const r of [emp, clocked, payroll, manual]) if (r.error) throw r.error;
 

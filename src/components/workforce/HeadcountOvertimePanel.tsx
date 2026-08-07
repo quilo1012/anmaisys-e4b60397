@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import {
@@ -50,12 +51,19 @@ export function HeadcountOvertimePanel() {
         db.from("employees")
           .select("id, full_name, department, shift_group, shift_patterns(name, days)")
           .eq("active", true),
-        db.from("daily_allocations")
-          .select("employee_id, status, area_id, shift")
-          .gte("on_date", from).lte("on_date", to),
+        // Paged: PostgREST caps an unbounded select at 1000 rows without saying so,
+        // and this period holds 1524. Reading the first thousand reported Felipe
+        // Pinelli three shifts above his rota when he is six and left Fabio Silva,
+        // also six, off the list — a wrong answer that looked like an answer.
+        fetchAllRows<any>({
+          range: (a, b) => db.from("daily_allocations")
+            .select("employee_id, status, area_id, shift")
+            .gte("on_date", from).lte("on_date", to)
+            .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+            .range(a, b),
+        }),
       ]);
       if (emp.error) throw emp.error;
-      if (allocs.error) throw allocs.error;
 
       const shiftOf = new Map(((emp.data ?? []) as any[]).map((e) => [e.id, e.shift_group ?? "Not set"]));
       // The spellings were fixed in `employees` — "Prodcution" was on 28 records and
@@ -69,12 +77,12 @@ export function HeadcountOvertimePanel() {
       // planned, so everybody on it reads as a full period short — forty-eight
       // invented deficits burying the two or three that are real.
       const boardsPlanned = new Set<string>();
-      for (const a of (allocs.data ?? []) as any[]) if (a.shift) boardsPlanned.add(a.shift);
+      for (const a of allocs as any[]) if (a.shift) boardsPlanned.add(a.shift);
 
       const counts = new Map<string, { present: number; holiday: number; sick: number; unpaid: number }>();
       const byDept = new Map<string, number>();
       const byShift = new Map<string, number>();
-      for (const a of (allocs.data ?? []) as any[]) {
+      for (const a of allocs as any[]) {
         const c = counts.get(a.employee_id) ?? { present: 0, holiday: 0, sick: 0, unpaid: 0 };
         if (a.status === "assigned" || a.status === "overtime") c.present += 1;
         else if (a.status === "holiday") c.holiday += 1;
