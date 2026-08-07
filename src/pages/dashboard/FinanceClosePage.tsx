@@ -18,8 +18,9 @@ import { ShiftBalancePanel } from "@/components/workforce/ShiftBalancePanel";
 import { useEmployees, useOvertimeEntries, useOvertimePeriods } from "@/hooks/useWorkforce";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
-  buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePersonInput,
+  buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2, type ClosePersonInput,
 } from "@/lib/financeClose";
+import { earlyLeave } from "@/lib/earlyLeave";
 
 /**
  * The pay period handed to finance: overtime and time off, per person.
@@ -69,8 +70,8 @@ export default function FinanceClosePage() {
     enabled: !!period,
     queryFn: async () => {
       const db = supabase as any;
-      const [emp, clocked, opening, payroll, manual] = await Promise.all([
-        db.from("employees").select("id, full_name, department, shift_group").eq("active", true),
+      const [emp, clocked, opening, payroll, manual, early, rotas] = await Promise.all([
+        db.from("employees").select("id, full_name, department, shift_group, shift_pattern_id").eq("active", true),
         // Paged, because this is what somebody is paid from. A pay period holds more
         // than a thousand attendance rows and PostgREST caps an unbounded select there
         // silently — the close would simply have counted fewer days for whoever sorted
@@ -100,8 +101,16 @@ export default function FinanceClosePage() {
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
         }).then((data: any[]) => ({ data, error: null })),
+        // Days somebody came in for and went home part-way through. Nothing has ever
+        // counted these: the board stored the time and every screen still recorded a
+        // full day.
+        db.from("daily_allocations")
+          .select("employee_id, left_early_at")
+          .gte("on_date", from).lte("on_date", to)
+          .not("left_early_at", "is", null),
+        db.from("shift_patterns").select("id, starts_at, ends_at, break_minutes"),
       ]);
-      for (const r of [emp, clocked, opening, payroll, manual]) if (r.error) throw r.error;
+      for (const r of [emp, clocked, opening, payroll, manual, early, rotas]) if (r.error) throw r.error;
 
       const byId = new Map<string, ClosePersonInput>();
       for (const e of (emp.data ?? []) as any[]) {
@@ -110,7 +119,26 @@ export default function FinanceClosePage() {
           shift: boardShiftFor(e.shift_group),
           openingBalanceMin: null, clockedBalanceMin: null,
           payrollOtHours: null, absences: {}, daysPresent: 0,
+          earlyLeaveHours: 0,
         });
+      }
+
+      // The rota is what says how long the shift was, so a person with none on file
+      // contributes nothing here rather than a guessed shortfall.
+      const rotaById = new Map(
+        ((rotas.data ?? []) as any[]).map((p) => [p.id, p]),
+      );
+      const patternOf = new Map(
+        ((emp.data ?? []) as any[]).map((e) => [e.id, rotaById.get(e.shift_pattern_id)]),
+      );
+      for (const a of (early.data ?? []) as any[]) {
+        const p = byId.get(a.employee_id); if (!p) continue;
+        const rota = patternOf.get(a.employee_id);
+        if (!rota) continue;
+        const cut = earlyLeave(a.left_early_at, {
+          startsAt: rota.starts_at, endsAt: rota.ends_at, breakMinutes: rota.break_minutes,
+        });
+        if (cut) p.earlyLeaveHours = round2(p.earlyLeaveHours + cut.missedHours);
       }
 
       for (const o of (opening.data ?? []) as any[]) {
@@ -145,7 +173,8 @@ export default function FinanceClosePage() {
       return buildClose([...byId.values()].filter(
         (p) => p.clockedBalanceMin != null || p.payrollOtHours != null
           || p.openingBalanceMin != null
-          || p.daysPresent > 0 || Object.keys(p.absences).length > 0,
+          || p.daysPresent > 0 || Object.keys(p.absences).length > 0
+          || p.earlyLeaveHours > 0,
       ));
     },
   });
@@ -278,7 +307,7 @@ export default function FinanceClosePage() {
           </Card>
         )}
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
           {[
             { label: "People", value: String(totals.people) },
             // What is paid, not the balance. The balance nets a shortfall against a
@@ -286,6 +315,10 @@ export default function FinanceClosePage() {
             { label: "Overtime paid", value: `${totals.overtimeHours.toFixed(2)} h` },
             { label: "Hours deducted", value: `${totals.owedHours.toFixed(2)} h` },
             { label: "Payroll OT", value: `${totals.payrollOtHours.toFixed(2)} h` },
+            {
+              label: "Left early",
+              value: `${totals.earlyLeaveHours.toFixed(2)} h`,
+            },
             {
               label: "Gap to settle",
               // Nothing keyed means nothing to compare, and saying "0.00 h" would
@@ -354,6 +387,7 @@ export default function FinanceClosePage() {
                       <TableHead className="text-right">Sick</TableHead>
                       <TableHead className="text-right">Holiday</TableHead>
                       <TableHead className="text-right">Unpaid</TableHead>
+                      <TableHead className="text-right">Left early (h)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -391,6 +425,14 @@ export default function FinanceClosePage() {
                         <TableCell className="text-right font-mono tabular-nums">{r.sick || "—"}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{r.holiday || "—"}</TableCell>
                         <TableCell className="text-right font-mono tabular-nums">{r.unpaid || "—"}</TableCell>
+                        {/* Hours, where every column beside it is days — a day cut
+                            short is not a day off, and rounding it to one would say
+                            Elias Soares had a whole day away when he worked two hours
+                            of it. */}
+                        <TableCell className={`text-right font-mono tabular-nums ${
+                          r.earlyLeaveHours > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
+                          {r.earlyLeaveHours ? r.earlyLeaveHours.toFixed(2) : "—"}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

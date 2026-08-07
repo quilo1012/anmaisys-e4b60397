@@ -5,6 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DEPARTMENTS } from "@/lib/orgNames";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
@@ -115,9 +116,16 @@ export function AddEmployeeDialog() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs" htmlFor="ae-dept">Department</Label>
-              <Input id="ae-dept" value={department} placeholder="Optional"
-                     onChange={(e) => setDepartment(e.target.value)} />
+              <Label className="text-xs">Department</Label>
+              {/* Same seven the board uses. A new starter typed in freehand is how the
+                  fifteen-name mess started. */}
+              <Select value={department || "__none__"} onValueChange={(v) => setDepartment(v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not set</SelectItem>
+                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

@@ -63,6 +63,16 @@ export interface ClosePersonInput {
   /** Day counts by absence reason, however the source spelled it. */
   absences: Record<string, number>;
   daysPresent: number;
+  /**
+   * Hours of a rostered shift somebody came in for and did not stay for.
+   *
+   * Its own figure, never folded into the balance. The balance comes from the clocks
+   * and this comes from the board, and adding a board figure to a clocked one would
+   * count the same missing hours twice the moment TimeMoto is imported. Until then the
+   * board is the only record that Elias Soares went home at eight, so it is reported —
+   * as unpaid hours, which is what they are.
+   */
+  earlyLeaveHours: number;
 }
 
 export interface ClosePerson extends ClosePersonInput {
@@ -154,6 +164,8 @@ export interface CloseTotals {
   sick: number;
   holiday: number;
   unpaid: number;
+  /** Unpaid hours from days somebody came in for and left part-way through. */
+  earlyLeaveHours: number;
   /** People where one side reported and the other did not. */
   unreconciled: number;
   /** Nobody has a payroll figure at all — the whole side of the reconciliation is missing. */
@@ -169,6 +181,7 @@ export function closeTotals(rows: ClosePerson[]): CloseTotals {
     // Summed per person, never netted across people. One person's shortfall does not
     // cancel another's overtime — they are paid separately and owe separately.
     overtimeHours: sum((r) => r.overtimeHours),
+    earlyLeaveHours: sum((r) => r.earlyLeaveHours),
     owedHours: sum((r) => r.owedHours),
     payrollOtHours: sum((r) => r.payrollOtHours),
     deltaHours: sum((r) => r.deltaHours),
@@ -205,6 +218,7 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
     r.holiday,
     r.unpaid,
     r.otherAbsence,
+    r.earlyLeaveHours,
   ]);
 }
 
@@ -213,5 +227,5 @@ export const CLOSE_HEADERS = [
   "Opening bank (h)", "Period balance (h)", "Closing bank (h)",
   "Overtime paid (h)", "Hours owed (h)",
   "Payroll OT (h)", "Delta (h)",
-  "Days present", "Sick", "Holiday", "Unpaid", "Other absence",
+  "Days present", "Sick", "Holiday", "Unpaid", "Other absence", "Early leave (h)",
 ];

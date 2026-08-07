@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePersonInput } from "@/lib/financeClose";
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
-  employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Day",
+  employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Day", earlyLeaveHours: 0,
   openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
 });
 
