@@ -596,7 +596,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
   const [skuChoice, setSkuChoice] = useState<string>("");
   const [skuPopoverOpen, setSkuPopoverOpen] = useState(false);
   const skuInputWrapRef = useRef<HTMLDivElement>(null);
-  const [assembly, setAssembly] = useState(""); // stored in blender_ref
   const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
   const [mfgMonth, setMfgMonth] = useState("");  // "YYYY-MM" — parsed from the batch field
   const [expMonth, setExpMonth] = useState("");  // "YYYY-MM" — parsed from the batch field
@@ -790,7 +789,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     setSkuChoice("");
     setSkuQuery("");
     setSkuDebounced("");
-    setAssembly("");
     setBatch("");
     setMfgMonth("");
     setExpMonth("");
@@ -799,8 +797,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     resetRunFields();
   };
 
-  /** Clear only what changes from one blender to the next. The product, batch and
-   *  assembly stay, because the same SKU normally runs on several blenders. */
+  /** Clear only what changes from one blender to the next. The product and batch
+   *  stay, because the same SKU normally runs on several blenders. */
   const resetRunFields = () => {
     setBlender("");
     setQty("");
@@ -839,7 +837,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     try {
       // 1) Find or create the production_items row for this session + SKU + batch.
       // Multiple batches of the same SKU in one shift are separate items,
-      // distinguished by the batch code (the assembly number is optional).
+      // distinguished by the batch code.
       let findQ = (supabase as any)
         .from("production_items")
         .select("id")
@@ -861,7 +859,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
             planned_qty: 0,
             actual_qty: 0,
             notes: "manual_sku",
-            blender_ref: assembly.trim() || null,
             batch_code: batchClean,
             manufacture_month: mfgClean ? `${mfgClean}-01` : null,
             expiry_month: expClean ? `${expClean}-01` : null,
@@ -901,7 +898,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
         if (batchClean) timePatch.batch_code = batchClean;
         if (mfgClean) timePatch.manufacture_month = `${mfgClean}-01`;
         if (expClean) timePatch.expiry_month = `${expClean}-01`;
-        if (assembly.trim()) timePatch.blender_ref = assembly.trim();
         timePatch.destination = destClean || null;
         timePatch.not_for_eu = notForEu;
         if (Object.keys(timePatch).length) {
@@ -1166,18 +1162,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           )}
         </div>
 
-        {/* Assembly number (optional) */}
-        <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Assembly number <span className="normal-case text-muted-foreground/60">(optional)</span></div>
-          <Input
-            value={assembly}
-            onChange={(e) => setAssembly(e.target.value)}
-            placeholder="e.g. ASM-12345"
-            className="h-11"
-            autoComplete="off"
-          />
-        </div>
-
         {/* Batch code (required) — dates can be typed in the same field.
             "B26188 07/2026 07/2028" → batch B26188, mfg 07/2026, exp 07/2028. */}
         <div className="space-y-1.5">
@@ -1319,28 +1303,40 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           </div>
         </div>
 
+        {/* Two ways to finish, side by side rather than one under the other.
+            The same SKU normally runs on several blenders, so "next blender" is the
+            one an operator reaches for most of the shift — as a thinner outline button
+            underneath the primary it read as the afterthought, and each save meant
+            typing the product again.
+            Stacked on a phone, side by side from sm up: the tablet on the line has the
+            width, and two full-width buttons in a column is a lot of thumb travel. */}
         <div className="space-y-2">
-          <Button
-            type="button"
-            className="h-14 w-full text-base font-semibold"
-            onClick={() => onSave()}
-            disabled={saving}
-          >
-            {saving ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Saving...</> : <><Plus className="h-5 w-5 mr-2" /> Save entry</>}
-          </Button>
-          {/* The same SKU normally runs on several blenders, so saving and clearing
-              the whole form made the operator re-enter the product every time. */}
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 w-full text-base font-semibold"
-            onClick={() => onSave({ keepProduct: true })}
-            disabled={saving}
-          >
-            <Repeat className="h-5 w-5 mr-2" /> Save &amp; next blender
-          </Button>
-          <div className="text-center text-2xs text-muted-foreground">
-            Keeps the product, batch and assembly — you only enter the blender and quantity.
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-14 w-full text-base font-semibold sm:order-2"
+              onClick={() => onSave()}
+              disabled={saving}
+            >
+              {saving
+                ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Saving…</>
+                : <><Plus className="h-5 w-5 mr-2" /> Save &amp; finish</>}
+            </Button>
+            <Button
+              type="button"
+              className="h-14 w-full text-base font-semibold sm:order-1"
+              onClick={() => onSave({ keepProduct: true })}
+              disabled={saving}
+            >
+              {saving
+                ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Saving…</>
+                : <><Repeat className="h-5 w-5 mr-2" /> Save &amp; next blender</>}
+            </Button>
+          </div>
+          <div className="grid gap-1 text-2xs text-muted-foreground sm:grid-cols-2">
+            <span className="sm:order-1">Keeps the product and batch — enter the blender and quantity only.</span>
+            <span className="sm:order-2">Clears the whole form for a different product.</span>
           </div>
         </div>
 
