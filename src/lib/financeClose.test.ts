@@ -3,7 +3,7 @@ import { buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePerso
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
   employeeId: "e1", name: "Ana Silva", department: "Production",
-  clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
+  openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
 });
 
 describe("buildClose", () => {
@@ -121,7 +121,10 @@ describe("the export finance receives", () => {
     const [row] = closeToCsvRows(rows);
     // Opening is known — it is zero, not missing — so it stays a number. Everything
     // downstream of the clocks is blank, because nothing was reported to derive it.
-    for (const i of [2, 3, 4, 5, 6]) expect(row[i]).toBe("");
+    // Opening is known — it is zero, not missing — so it stays a number. Everything
+    // downstream of the clocks is blank, because nothing was reported to derive it.
+    expect(row[2]).toBe(0);
+    for (const i of [3, 4, 5, 6, 7, 8]) expect(row[i]).toBe("");
   });
 });
 
@@ -136,5 +139,45 @@ describe("closeTotals across people", () => {
     expect(t.overtimeHours).toBe(10);
     expect(t.owedHours).toBe(10);
     expect(t.clockedOtHours).toBe(0);
+  });
+});
+
+describe("the bank runs on between periods", () => {
+  // Settling every period to zero was the earlier instruction and is not the one in
+  // force. Both were built; this is the difference between them.
+  it("works a carried shortfall off one for one before paying anything", () => {
+    // Sixteen hours down when the period opened, twelve up inside it. Four still owed,
+    // not twelve to pay — which is what settling each period to zero would have said.
+    const r = buildClose([person({ openingBalanceMin: -16 * 60, clockedBalanceMin: 12 * 60 })])[0];
+    expect(r.clockedOtHours).toBe(12);
+    expect(r.closingHours).toBe(-4);
+    expect(r.overtimeHours).toBe(0);
+    expect(r.owedHours).toBe(4);
+  });
+
+  it("pays what is left once the bank is back above zero", () => {
+    const r = buildClose([person({ openingBalanceMin: -4 * 60, clockedBalanceMin: 10 * 60 })])[0];
+    expect(r.closingHours).toBe(6);
+    expect(r.overtimeHours).toBe(6);
+  });
+
+  it("carries a surplus forward instead of losing it", () => {
+    const r = buildClose([person({ openingBalanceMin: 5 * 60, clockedBalanceMin: 3 * 60 })])[0];
+    expect(r.closingHours).toBe(8);
+  });
+
+  it("measures the payroll claim against the bank, not the period alone", () => {
+    // Somebody twelve hours up inside a period but still four down overall has earned
+    // nothing yet; a claim of twelve is twelve unsupported hours.
+    const r = buildClose([person({
+      openingBalanceMin: -16 * 60, clockedBalanceMin: 12 * 60, payrollOtHours: 12,
+    })])[0];
+    expect(r.deltaHours).toBe(12);
+  });
+
+  it("treats a missing history as zero without calling it settled", () => {
+    const r = buildClose([person({ openingBalanceMin: null, clockedBalanceMin: 6 * 60 })])[0];
+    expect(r.openingHours).toBe(0);
+    expect(r.overtimeHours).toBe(6);
   });
 });
