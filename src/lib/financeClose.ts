@@ -39,6 +39,15 @@ export interface ClosePersonInput {
   name: string;
   department: string | null;
   /**
+   * The board this person is drawn on — "Day", "Night", or null when their crew is not
+   * recorded.
+   *
+   * The crew, not the shift of any one allocation. A pay period is a range of days and
+   * a person belongs to one crew across it, so this groups cleanly: Day and Night are
+   * disjoint, and the two subtotals add up to the whole without counting anybody twice.
+   */
+  shift: string | null;
+  /**
    * Signed minutes carried in from every day before this period — the hour bank as it
    * stood when the period opened.
    *
@@ -182,6 +191,7 @@ export function closeTotals(rows: ClosePerson[]): CloseTotals {
 export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
   return rows.map((r) => [
     r.name,
+    r.shift ?? "",
     r.department ?? "",
     r.openingHours,
     r.clockedOtHours ?? "",
@@ -199,7 +209,7 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
 }
 
 export const CLOSE_HEADERS = [
-  "Employee", "Department",
+  "Employee", "Shift", "Department",
   "Opening bank (h)", "Period balance (h)", "Closing bank (h)",
   "Overtime paid (h)", "Hours owed (h)",
   "Payroll OT (h)", "Delta (h)",

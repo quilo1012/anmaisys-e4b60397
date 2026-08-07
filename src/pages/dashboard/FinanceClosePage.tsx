@@ -16,6 +16,7 @@ import { downloadCsv } from "@/lib/exportCsv";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { ShiftBalancePanel } from "@/components/workforce/ShiftBalancePanel";
 import { useEmployees, useOvertimeEntries, useOvertimePeriods } from "@/hooks/useWorkforce";
+import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePersonInput,
 } from "@/lib/financeClose";
@@ -69,7 +70,7 @@ export default function FinanceClosePage() {
     queryFn: async () => {
       const db = supabase as any;
       const [emp, clocked, opening, payroll, manual] = await Promise.all([
-        db.from("employees").select("id, full_name, department").eq("active", true),
+        db.from("employees").select("id, full_name, department, shift_group").eq("active", true),
         // Paged, because this is what somebody is paid from. A pay period holds more
         // than a thousand attendance rows and PostgREST caps an unbounded select there
         // silently — the close would simply have counted fewer days for whoever sorted
@@ -106,6 +107,7 @@ export default function FinanceClosePage() {
       for (const e of (emp.data ?? []) as any[]) {
         byId.set(e.id, {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
+          shift: boardShiftFor(e.shift_group),
           openingBalanceMin: null, clockedBalanceMin: null,
           payrollOtHours: null, absences: {}, daysPresent: 0,
         });
@@ -148,7 +150,30 @@ export default function FinanceClosePage() {
     },
   });
 
-  const totals = useMemo(() => closeTotals(rows), [rows]);
+  /**
+   * Day, Night, or both together.
+   *
+   * The night crew is forty-eight people on a rota of its own and its overtime behaves
+   * nothing like the day crews' — reading one figure for the whole factory hid which
+   * side of the factory the hours were on. "Both" is the default because the close is a
+   * whole-factory document; the two subtotals add up to it exactly, since a person
+   * belongs to one crew.
+   */
+  const [shiftFilter, setShiftFilter] = useState<"all" | "Day" | "Night">("all");
+  const shown = useMemo(
+    () => (shiftFilter === "all" ? rows : rows.filter((r) => r.shift === shiftFilter)),
+    [rows, shiftFilter],
+  );
+
+  const totals = useMemo(() => closeTotals(shown), [shown]);
+  /** Both crews side by side, so the split is readable without touching the filter. */
+  const byShift = useMemo(
+    () => (["Day", "Night"] as const).map((s) => ({
+      shift: s,
+      ...closeTotals(rows.filter((r) => r.shift === s)),
+    })).filter((t) => t.people > 0),
+    [rows],
+  );
   const num = (n: number | null) => (n == null ? "—" : n.toFixed(2));
 
   return (
@@ -178,11 +203,11 @@ export default function FinanceClosePage() {
             </Button>
             <Button
               size="sm"
-              disabled={rows.length === 0}
+              disabled={shown.length === 0}
               onClick={() => downloadCsv(
                 `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}.csv`,
                 CLOSE_HEADERS,
-                closeToCsvRows(rows),
+                closeToCsvRows(shown),
               )}
             >
               <Download className="mr-1.5 h-4 w-4" /> Export
@@ -190,17 +215,68 @@ export default function FinanceClosePage() {
           </div>
         </div>
 
-        <div className="print:hidden">
-          <Label className="text-xs">Pay period</Label>
-          <Select value={period?.id ?? ""} onValueChange={setPeriodId}>
-            <SelectTrigger className="mt-1 h-9 w-[320px]"><SelectValue placeholder="Choose a period" /></SelectTrigger>
-            <SelectContent>
-              {periods.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name} · {p.start_date} → {p.end_date}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-end gap-3 print:hidden">
+          <div>
+            <Label className="text-xs">Pay period</Label>
+            <Select value={period?.id ?? ""} onValueChange={setPeriodId}>
+              <SelectTrigger className="mt-1 h-9 w-[320px]"><SelectValue placeholder="Choose a period" /></SelectTrigger>
+              <SelectContent>
+                {periods.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name} · {p.start_date} → {p.end_date}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-xs">Shift</Label>
+            <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as typeof shiftFilter)}>
+              <SelectTrigger className="mt-1 h-9 w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Both shifts</SelectItem>
+                <SelectItem value="Day">Day only</SelectItem>
+                <SelectItem value="Night">Night only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+
+        {/* The split, whatever the filter says. A close read as one number hid that the
+            night crew's overtime behaves nothing like the day crews'. */}
+        {byShift.length > 1 && (
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Shift</TableHead>
+                    <TableHead className="text-right">People</TableHead>
+                    <TableHead className="text-right">Overtime paid</TableHead>
+                    <TableHead className="text-right">Hours deducted</TableHead>
+                    <TableHead className="text-right">Payroll OT</TableHead>
+                    <TableHead className="text-right">Gap to settle</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {byShift.map((t) => (
+                    <TableRow
+                      key={t.shift}
+                      className={shiftFilter === t.shift ? "bg-muted/50" : undefined}
+                    >
+                      <TableCell className="font-medium">{t.shift}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.people}</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.overtimeHours.toFixed(2)} h</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.owedHours.toFixed(2)} h</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">{t.payrollOtHours.toFixed(2)} h</TableCell>
+                      <TableCell className="text-right font-mono text-xs tabular-nums">
+                        {t.payrollEmpty ? <span className="text-muted-foreground">not comparable</span> : `${t.deltaHours.toFixed(2)} h`}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           {[
@@ -254,7 +330,7 @@ export default function FinanceClosePage() {
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
-            ) : rows.length === 0 ? (
+            ) : shown.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">
                 Nothing recorded in this period. Overtime arrives from a TimeMoto import on the
                 Attendance page, or from the office keying it into the overtime register.
@@ -265,6 +341,7 @@ export default function FinanceClosePage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Employee</TableHead>
+                      <TableHead>Shift</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead className="text-right">Opening bank</TableHead>
                       <TableHead className="text-right">Period</TableHead>
@@ -280,9 +357,10 @@ export default function FinanceClosePage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((r) => (
+                    {shown.map((r) => (
                       <TableRow key={r.employeeId}>
                         <TableCell className="font-medium">{r.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.shift ?? "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.department ?? "—"}</TableCell>
                         <TableCell className={`text-right font-mono tabular-nums ${
                           r.openingHours < 0 ? "text-warning-strong" : "text-muted-foreground"}`}>

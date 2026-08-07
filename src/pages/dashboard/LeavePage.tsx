@@ -249,20 +249,30 @@ export default function LeavePage() {
       .sort((a, b) => a.start_date.localeCompare(b.start_date));
   }, [requests, today]);
 
+  /**
+   * Counted from the days on the record, not from the requests behind them.
+   *
+   * These cards read `leave_requests` while the balance table under them read
+   * `employee_attendance`, so the two halves of one screen counted different things.
+   * There are 7 requests on file and 169 holiday days: nearly every day off in this
+   * factory is marked straight onto the board, which raises no request at all. "Booked
+   * days ahead: 4" sat above a table showing a hundred and sixty-nine.
+   *
+   * Same source as the balances and the finance close. One number.
+   */
   const kpis = useMemo(() => {
-    const approved = requests.filter((r) => r.status === "approved");
-    const month = today.slice(0, 7);
-    const onDay = (r: Req) => r.start_date <= today && r.end_date >= today;
+    const inYear = (d: string) => d >= year.from && d <= year.to;
+    const holiday = holidayDays.filter((d) => inYear(d.on_date));
     return {
-      pending: requests.filter((r) => r.status === "pending").length,
-      approvedThisMonth: approved.filter((r) => (r.decided_at ?? "").slice(0, 7) === month).length,
-      bookedDays: approved
-        .filter((r) => r.kind === "holiday" && r.end_date >= today)
-        .reduce((a, r) => a + Number(r.working_days ?? 0), 0),
-      offToday: approved.filter(onDay).length,
-      sickToday: approved.filter((r) => r.kind === "sick" && onDay(r)).length,
+      bookedAhead: holiday.filter((d) => d.on_date >= today).length,
+      takenThisYear: holiday.filter((d) => d.on_date < today).length,
+      offToday:
+        holiday.filter((d) => d.on_date === today).length +
+        otherDays.filter((d) => d.on_date === today).length,
+      sickToday: otherDays.filter((d) => d.status === "sick" && d.on_date === today).length,
+      unpaidThisYear: otherDays.filter((d) => d.status === "unpaid" && inYear(d.on_date)).length,
     };
-  }, [requests, today]);
+  }, [holidayDays, otherDays, today, year.from, year.to]);
 
   // A board day is "covered" when an approved request already spans it.
   const uncovered = useMemo(() => {
@@ -277,72 +287,111 @@ export default function LeavePage() {
   const pending = requests.filter((r) => r.status === "pending");
   const decided = requests.filter((r) => r.status !== "pending").slice().reverse();
 
+  /**
+   * Write a booking onto the two records a day off has to appear in.
+   *
+   * Shared by the form and by the decision buttons, because it has to be the same
+   * write: the close counts `employee_attendance` and the board draws
+   * `daily_allocations`, and doing one without the other is how the two screens come
+   * to disagree about the same day.
+   */
+  const applyToRecords = async (r: Pick<Req, "id" | "employee_id" | "kind" | "start_date" | "end_date">) => {
+    const days = leaveDays(r.start_date, r.end_date, patternOf(r.employee_id));
+    if (days.workingDays == null) {
+      throw new Error("No rota on file for this person — set their working pattern first");
+    }
+    if (days.workingDates.length === 0) return;
+
+    const status = r.kind === "sick" ? "sick" : r.kind === "unpaid" ? "unpaid" : "holiday";
+    const { error: attErr } = await (supabase as any).from("employee_attendance").upsert(
+      days.workingDates.map((d) => ({
+        employee_id: r.employee_id, on_date: d, status,
+        note: `Leave request ${r.id.slice(0, 8)}`,
+      })),
+      { onConflict: "employee_id,on_date" },
+    );
+    if (attErr) throw attErr;
+
+    // Where this person is actually drawn, not where their crew says they belong. The
+    // Fri–Mon crew works while the lines run and the factory's own sheets put them on
+    // the day board with everybody else; mapping the crew sent Talita Melech's holiday
+    // to a Weekend board holding nothing but her holiday, while the board people read
+    // showed her missing from the plan.
+    const { data: history } = await (supabase as any)
+      .from("daily_allocations")
+      .select("shift, on_date")
+      .eq("employee_id", r.employee_id)
+      .order("on_date", { ascending: false })
+      .limit(120);
+    const shift = boardShiftForPerson(
+      (history ?? []) as { shift: string; on_date: string }[],
+      today,
+      boardShiftFor(person.get(r.employee_id)?.shift_group),
+    );
+    if (!shift) return;
+    const { error: allocErr } = await (supabase as any).from("daily_allocations").upsert(
+      days.workingDates.map((d) => ({
+        on_date: d, shift, employee_id: r.employee_id, area_id: null, status,
+      })),
+      { onConflict: "on_date,shift,employee_id" },
+    );
+    if (allocErr) throw allocErr;
+  };
+
+  /**
+   * Booking leave here is the approval.
+   *
+   * There was a queue: raise a request, then somebody presses Approve, and only then
+   * does the day reach the board and the payroll record. But the only people who can
+   * reach this screen are the ones who would press Approve — it is behind the workforce
+   * PIN and the `leave.decide` permission — so the queue was a manager approving their
+   * own typing, with a window in between where the leave existed on this page and
+   * nowhere else. Seven requests went through it; a hundred and sixty-nine holidays
+   * were marked straight onto the board instead, which is the same act with one screen
+   * fewer.
+   *
+   * So the form writes the booking and the two records in one go. Nothing is created
+   * pending any more.
+   */
   const create = async () => {
     if (!employeeId || !start || !end || !draft) return;
     setBusy(true);
     try {
-      const { error } = await (supabase as any).from("leave_requests").insert({
+      const { data, error } = await (supabase as any).from("leave_requests").insert({
         employee_id: employeeId, kind, start_date: start, end_date: end,
-        working_days: draft.workingDays, note: note.trim() || null, requested_by: user?.id ?? null,
-      });
+        working_days: draft.workingDays, note: note.trim() || null,
+        requested_by: user?.id ?? null,
+        status: "approved", decided_by: user?.id ?? null, decided_at: new Date().toISOString(),
+      }).select("id, employee_id, kind, start_date, end_date").single();
       if (error) throw error;
-      toast.success("Request raised");
+
+      // If this throws, the booking row is already saved. Said out loud rather than
+      // rolled back, because the row is the record of intent and losing it silently is
+      // worse than a warning to press Re-apply.
+      try {
+        await applyToRecords(data as Req);
+      } catch (e) {
+        toast.warning(`Booked, but the board and payroll records did not save: ${(e as Error).message}`);
+        qc.invalidateQueries({ queryKey: ["leave-requests"] });
+        return;
+      }
+
+      toast.success("Booked and written to the board");
       setShowNew(false); setEmployeeId(""); setStart(""); setEnd(""); setNote("");
       qc.invalidateQueries({ queryKey: ["leave-requests"] });
+      qc.invalidateQueries({ queryKey: ["leave-holiday-days"] });
+      qc.invalidateQueries({ queryKey: ["leave-sick-unpaid-days"] });
+      qc.invalidateQueries({ queryKey: ["leave-board-only"] });
+      qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
 
   const decide = async (r: Req, approve: boolean) => {
     setBusy(true);
     try {
-      if (approve) {
-        const days = leaveDays(r.start_date, r.end_date, patternOf(r.employee_id));
-        if (days.workingDays == null) {
-          toast.error("No rota on file for this person — set their working pattern first");
-          return;
-        }
-        if (days.workingDates.length > 0) {
-          // Both tables, one action. The close counts `employee_attendance`; the board
-          // draws `daily_allocations`. Writing one without the other is how the two
-          // screens come to disagree about the same day off.
-          const status = r.kind === "sick" ? "sick" : r.kind === "unpaid" ? "unpaid" : "holiday";
-          const { error: attErr } = await (supabase as any).from("employee_attendance").upsert(
-            days.workingDates.map((d) => ({
-              employee_id: r.employee_id, on_date: d, status,
-              note: `Leave request ${r.id.slice(0, 8)}`,
-            })),
-            { onConflict: "employee_id,on_date" },
-          );
-          if (attErr) throw attErr;
-
-          // Where this person is actually drawn, not where their crew says they
-          // belong. The Fri–Mon crew works while the lines run and the factory's own
-          // sheets put them on the day board with everybody else; mapping the crew
-          // sent Talita Melech's holiday to a Weekend board holding nothing but her
-          // holiday, while the board people read showed her missing from the plan.
-          const { data: history } = await (supabase as any)
-            .from("daily_allocations")
-            .select("shift, on_date")
-            .eq("employee_id", r.employee_id)
-            .order("on_date", { ascending: false })
-            .limit(120);
-          const shift = boardShiftForPerson(
-            (history ?? []) as { shift: string; on_date: string }[],
-            today,
-            boardShiftFor(person.get(r.employee_id)?.shift_group),
-          );
-          if (shift) {
-            const { error: allocErr } = await (supabase as any).from("daily_allocations").upsert(
-              days.workingDates.map((d) => ({
-                on_date: d, shift, employee_id: r.employee_id,
-                area_id: null, status: r.kind === "sick" ? "sick" : r.kind === "unpaid" ? "unpaid" : "holiday",
-              })),
-              { onConflict: "on_date,shift,employee_id" },
-            );
-            if (allocErr) throw allocErr;
-          }
-        }
-      }
+      // Only reachable for rows raised before booking became immediate. Kept so the
+      // handful still sitting pending can be cleared rather than stranded.
+      if (approve) await applyToRecords(r);
       const { error } = await (supabase as any).from("leave_requests")
         .update({ status: approve ? "approved" : "rejected", decided_by: user?.id ?? null, decided_at: new Date().toISOString() })
         .eq("id", r.id);
@@ -405,7 +454,7 @@ export default function LeavePage() {
             </div>
           </div>
           <Button size="sm" onClick={() => setShowNew((v) => !v)}>
-            <Plus className="mr-1.5 h-4 w-4" /> New request
+            <Plus className="mr-1.5 h-4 w-4" /> Book leave
           </Button>
         </div>
 
@@ -450,7 +499,7 @@ export default function LeavePage() {
                   </p>
                 )}
                 <Button onClick={create} disabled={busy || !employeeId || !start || !end}>
-                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Raise request
+                  {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Book leave
                 </Button>
               </div>
             </CardContent>
@@ -459,16 +508,16 @@ export default function LeavePage() {
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           {[
-            { label: "Pending", value: String(kpis.pending), warn: kpis.pending > 0 },
-            { label: "Approved this month", value: String(kpis.approvedThisMonth) },
-            { label: "Booked days ahead", value: String(kpis.bookedDays) },
+            { label: "Booked days ahead", value: String(kpis.bookedAhead) },
+            { label: `Taken since ${year.from.slice(8)}/${year.from.slice(5, 7)}`, value: String(kpis.takenThisYear) },
             { label: "Off today", value: String(kpis.offToday) },
             { label: "Sick today", value: String(kpis.sickToday) },
+            { label: "Unpaid this year", value: String(kpis.unpaidThisYear) },
           ].map((k) => (
             <Card key={k.label}>
               <CardContent className="p-3">
                 <div className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{k.label}</div>
-                <div className={`font-mono text-xl font-bold tabular-nums ${k.warn ? "text-warning-strong" : ""}`}>{k.value}</div>
+                <div className="font-mono text-xl font-bold tabular-nums">{k.value}</div>
               </CardContent>
             </Card>
           ))}
@@ -711,17 +760,16 @@ export default function LeavePage() {
           </div>
         )}
 
-        <div>
-          <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
-            Waiting for a decision ({pending.length})
-          </h2>
-          <Card>
-            <CardContent className="p-0">
-              {isLoading ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
-              ) : pending.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">Nothing waiting.</div>
-              ) : (
+        {/* Only shown when something is actually waiting. Booking leave here approves
+            it, so nothing new ever lands in this queue — but rows raised before that
+            changed still can, and a queue that is permanently empty is furniture. */}
+        {pending.length > 0 && (
+          <div>
+            <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+              Waiting for a decision ({pending.length}) · raised before booking became immediate
+            </h2>
+            <Card>
+              <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -732,10 +780,10 @@ export default function LeavePage() {
                   {/* Oldest first: whoever has waited longest is at the top. */}
                   <TableBody>{pending.map(row)}</TableBody>
                 </Table>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {decided.length > 0 && (
           <div>
