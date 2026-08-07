@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePersonInput } from "@/lib/financeClose";
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
-  employeeId: "e1", name: "Ana Silva", department: "Production",
+  employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Day",
   openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
 });
 
@@ -121,10 +121,24 @@ describe("the export finance receives", () => {
     const [row] = closeToCsvRows(rows);
     // Opening is known — it is zero, not missing — so it stays a number. Everything
     // downstream of the clocks is blank, because nothing was reported to derive it.
-    // Opening is known — it is zero, not missing — so it stays a number. Everything
-    // downstream of the clocks is blank, because nothing was reported to derive it.
-    expect(row[2]).toBe(0);
-    for (const i of [3, 4, 5, 6, 7, 8]) expect(row[i]).toBe("");
+    //
+    // Found by header name rather than by a hard-coded index: adding the Shift column
+    // shifted every one of these by one, and a test that knows the position of
+    // "Opening bank" only tells you the count changed, not what moved.
+    const at = (header: string) => row[CLOSE_HEADERS.indexOf(header)];
+    expect(at("Opening bank (h)")).toBe(0);
+    for (const h of [
+      "Period balance (h)", "Closing bank (h)", "Overtime paid (h)",
+      "Hours owed (h)", "Payroll OT (h)", "Delta (h)",
+    ]) expect(at(h)).toBe("");
+  });
+
+  it("names the shift beside the person", () => {
+    const [day] = closeToCsvRows(buildClose([person({ shift: "Night" })]));
+    expect(day[CLOSE_HEADERS.indexOf("Shift")]).toBe("Night");
+    // Nobody's crew on file is blank, not a guess at "Day".
+    const [none] = closeToCsvRows(buildClose([person({ shift: null })]));
+    expect(none[CLOSE_HEADERS.indexOf("Shift")]).toBe("");
   });
 });
 
