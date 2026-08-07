@@ -14,6 +14,203 @@ export type Database = {
   }
   public: {
     Tables: {
+      _line_stopped_backfill_bak: {
+        Row: {
+          backfilled_at: string | null
+          id: string
+          new_line_stopped_at: string | null
+        }
+        Insert: {
+          backfilled_at?: string | null
+          id: string
+          new_line_stopped_at?: string | null
+        }
+        Update: {
+          backfilled_at?: string | null
+          id?: string
+          new_line_stopped_at?: string | null
+        }
+        Relationships: []
+      }
+      _wo_linestop_fix_bak_20260804: {
+        Row: {
+          backed_up_at: string | null
+          id: string | null
+          line_resumed_at: string | null
+          line_stopped: boolean | null
+          line_stopped_at: string | null
+          wo_number: number | null
+        }
+        Insert: {
+          backed_up_at?: string | null
+          id?: string | null
+          line_resumed_at?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          wo_number?: number | null
+        }
+        Update: {
+          backed_up_at?: string | null
+          id?: string | null
+          line_resumed_at?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          wo_number?: number | null
+        }
+        Relationships: []
+      }
+      absence_rename_bak_20260805: {
+        Row: {
+          employee_id: string | null
+          on_date: string | null
+          origem: string | null
+          saved_at: string | null
+          status: string | null
+        }
+        Insert: {
+          employee_id?: string | null
+          on_date?: string | null
+          origem?: string | null
+          saved_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          employee_id?: string | null
+          on_date?: string | null
+          origem?: string | null
+          saved_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      attendance_backfill_bak_20260804: {
+        Row: {
+          board_status: string | null
+          employee_id: string | null
+          on_date: string | null
+          saved_at: string | null
+        }
+        Insert: {
+          board_status?: string | null
+          employee_id?: string | null
+          on_date?: string | null
+          saved_at?: string | null
+        }
+        Update: {
+          board_status?: string | null
+          employee_id?: string | null
+          on_date?: string | null
+          saved_at?: string | null
+        }
+        Relationships: []
+      }
+      attendance_days: {
+        Row: {
+          absence_name: string | null
+          balance_minutes: number | null
+          employee_id: string
+          end_time: string | null
+          id: string
+          imported_at: string | null
+          on_date: string
+          overtime_adj_minutes: number | null
+          remarks: string | null
+          scheduled_minutes: number | null
+          source: string | null
+          start_time: string | null
+          worked_minutes: number | null
+        }
+        Insert: {
+          absence_name?: string | null
+          balance_minutes?: number | null
+          employee_id: string
+          end_time?: string | null
+          id?: string
+          imported_at?: string | null
+          on_date: string
+          overtime_adj_minutes?: number | null
+          remarks?: string | null
+          scheduled_minutes?: number | null
+          source?: string | null
+          start_time?: string | null
+          worked_minutes?: number | null
+        }
+        Update: {
+          absence_name?: string | null
+          balance_minutes?: number | null
+          employee_id?: string
+          end_time?: string | null
+          id?: string
+          imported_at?: string | null
+          on_date?: string
+          overtime_adj_minutes?: number | null
+          remarks?: string | null
+          scheduled_minutes?: number | null
+          source?: string | null
+          start_time?: string | null
+          worked_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_days_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_days_bak_20260804: {
+        Row: {
+          absence_name: string | null
+          balance_minutes: number | null
+          employee_id: string | null
+          end_time: string | null
+          id: string | null
+          imported_at: string | null
+          on_date: string | null
+          overtime_adj_minutes: number | null
+          remarks: string | null
+          saved_at: string | null
+          scheduled_minutes: number | null
+          source: string | null
+          start_time: string | null
+          worked_minutes: number | null
+        }
+        Insert: {
+          absence_name?: string | null
+          balance_minutes?: number | null
+          employee_id?: string | null
+          end_time?: string | null
+          id?: string | null
+          imported_at?: string | null
+          on_date?: string | null
+          overtime_adj_minutes?: number | null
+          remarks?: string | null
+          saved_at?: string | null
+          scheduled_minutes?: number | null
+          source?: string | null
+          start_time?: string | null
+          worked_minutes?: number | null
+        }
+        Update: {
+          absence_name?: string | null
+          balance_minutes?: number | null
+          employee_id?: string | null
+          end_time?: string | null
+          id?: string | null
+          imported_at?: string | null
+          on_date?: string | null
+          overtime_adj_minutes?: number | null
+          remarks?: string | null
+          saved_at?: string | null
+          scheduled_minutes?: number | null
+          source?: string | null
+          start_time?: string | null
+          worked_minutes?: number | null
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -391,6 +588,54 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_allocations_bak_20260805: {
+        Row: {
+          area_id: string | null
+          created_at: string | null
+          employee_id: string | null
+          half_day: boolean | null
+          id: string | null
+          is_leader: boolean | null
+          left_early_at: string | null
+          note: string | null
+          on_date: string | null
+          saved_at: string | null
+          shift: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          area_id?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          half_day?: boolean | null
+          id?: string | null
+          is_leader?: boolean | null
+          left_early_at?: string | null
+          note?: string | null
+          on_date?: string | null
+          saved_at?: string | null
+          shift?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          area_id?: string | null
+          created_at?: string | null
+          employee_id?: string | null
+          half_day?: boolean | null
+          id?: string | null
+          is_leader?: boolean | null
+          left_early_at?: string | null
+          note?: string | null
+          on_date?: string | null
+          saved_at?: string | null
+          shift?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       departments: {
         Row: {
           active: boolean
@@ -668,6 +913,60 @@ export type Database = {
           },
         ]
       }
+      downtime_events_dedupe_backup_20260804: {
+        Row: {
+          created_at: string | null
+          duration_minutes: number | null
+          episode_number: number | null
+          id: string | null
+          is_recurrence: boolean | null
+          resumed_at: string | null
+          resumed_by: string | null
+          resumed_by_name: string | null
+          resumed_note: string | null
+          saved_at: string | null
+          stopped_at: string | null
+          stopped_by: string | null
+          stopped_by_name: string | null
+          stopped_reason: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_minutes?: number | null
+          episode_number?: number | null
+          id?: string | null
+          is_recurrence?: boolean | null
+          resumed_at?: string | null
+          resumed_by?: string | null
+          resumed_by_name?: string | null
+          resumed_note?: string | null
+          saved_at?: string | null
+          stopped_at?: string | null
+          stopped_by?: string | null
+          stopped_by_name?: string | null
+          stopped_reason?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_minutes?: number | null
+          episode_number?: number | null
+          id?: string | null
+          is_recurrence?: boolean | null
+          resumed_at?: string | null
+          resumed_by?: string | null
+          resumed_by_name?: string | null
+          resumed_note?: string | null
+          saved_at?: string | null
+          stopped_at?: string | null
+          stopped_by?: string | null
+          stopped_by_name?: string | null
+          stopped_reason?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: []
+      }
       employee_attendance: {
         Row: {
           created_at: string
@@ -819,14 +1118,14 @@ export type Database = {
           department: string | null
           email: string | null
           employee_ref: string | null
+          employment_type: string
           full_name: string
           headcount_area_id: string | null
           id: string
           left_on: string | null
+          manager_id: string | null
           notes: string | null
           position: string | null
-          manager_id: string | null
-          employment_type: string
           shift_group: string | null
           shift_pattern_id: string | null
           source: string
@@ -841,14 +1140,14 @@ export type Database = {
           department?: string | null
           email?: string | null
           employee_ref?: string | null
+          employment_type?: string
           full_name: string
           headcount_area_id?: string | null
           id?: string
           left_on?: string | null
+          manager_id?: string | null
           notes?: string | null
           position?: string | null
-          manager_id?: string | null
-          employment_type?: string
           shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
@@ -863,14 +1162,14 @@ export type Database = {
           department?: string | null
           email?: string | null
           employee_ref?: string | null
+          employment_type?: string
           full_name?: string
           headcount_area_id?: string | null
           id?: string
           left_on?: string | null
+          manager_id?: string | null
           notes?: string | null
           position?: string | null
-          manager_id?: string | null
-          employment_type?: string
           shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
@@ -891,6 +1190,13 @@ export type Database = {
             columns: ["headcount_area_id"]
             isOneToOne: false
             referencedRelation: "headcount_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
             referencedColumns: ["id"]
           },
           {
@@ -962,6 +1268,27 @@ export type Database = {
         }
         Relationships: []
       }
+      employees_backup_dept_spelling: {
+        Row: {
+          department: string | null
+          full_name: string | null
+          id: string | null
+          saved_at: string | null
+        }
+        Insert: {
+          department?: string | null
+          full_name?: string | null
+          id?: string | null
+          saved_at?: string | null
+        }
+        Update: {
+          department?: string | null
+          full_name?: string | null
+          id?: string | null
+          saved_at?: string | null
+        }
+        Relationships: []
+      }
       engineer_scores: {
         Row: {
           engineer_id: string
@@ -1014,34 +1341,40 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          department: string | null
           id: string
           kind: string
           line_id: string | null
           name: string
           section: string
-          department: string | null
+          sheet_group: string | null
+          sheet_label: string | null
           sort_order: number
         }
         Insert: {
           active?: boolean
           created_at?: string
+          department?: string | null
           id?: string
           kind: string
           line_id?: string | null
           name: string
           section?: string
-          department?: string | null
+          sheet_group?: string | null
+          sheet_label?: string | null
           sort_order?: number
         }
         Update: {
           active?: boolean
           created_at?: string
+          department?: string | null
           id?: string
           kind?: string
           line_id?: string | null
           name?: string
           section?: string
-          department?: string | null
+          sheet_group?: string | null
+          sheet_label?: string | null
           sort_order?: number
         }
         Relationships: [
@@ -1360,6 +1693,59 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      leave_requests: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          employee_id: string
+          end_date: string
+          id: string
+          kind: string
+          note: string | null
+          requested_by: string | null
+          start_date: string
+          status: string
+          working_days: number | null
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          employee_id: string
+          end_date: string
+          id?: string
+          kind?: string
+          note?: string | null
+          requested_by?: string | null
+          start_date: string
+          status?: string
+          working_days?: number | null
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          employee_id?: string
+          end_date?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          requested_by?: string | null
+          start_date?: string
+          status?: string
+          working_days?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leave_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       line_chat_messages: {
         Row: {
@@ -1682,6 +2068,7 @@ export type Database = {
           created_at: string
           current_line: string | null
           current_location: string
+          external_id: string | null
           fixed_line: string | null
           health_score: number
           id: string
@@ -1701,6 +2088,7 @@ export type Database = {
           created_at?: string
           current_line?: string | null
           current_location?: string
+          external_id?: string | null
           fixed_line?: string | null
           health_score?: number
           id?: string
@@ -1720,6 +2108,7 @@ export type Database = {
           created_at?: string
           current_line?: string | null
           current_location?: string
+          external_id?: string | null
           fixed_line?: string | null
           health_score?: number
           id?: string
@@ -2010,7 +2399,7 @@ export type Database = {
             foreignKeyName: "overtime_entries_period_id_fkey"
             columns: ["period_id"]
             isOneToOne: false
-            referencedRelation: "overtime_periods"
+            referencedRelation: "workforce_payroll_periods"
             referencedColumns: ["id"]
           },
         ]
@@ -2054,30 +2443,6 @@ export type Database = {
           source?: string | null
           source_note?: string | null
           updated_at?: string | null
-        }
-        Relationships: []
-      }
-      overtime_periods: {
-        Row: {
-          created_at: string
-          ends_on: string
-          id: string
-          label: string
-          starts_on: string
-        }
-        Insert: {
-          created_at?: string
-          ends_on: string
-          id?: string
-          label: string
-          starts_on: string
-        }
-        Update: {
-          created_at?: string
-          ends_on?: string
-          id?: string
-          label?: string
-          starts_on?: string
         }
         Relationships: []
       }
@@ -2428,6 +2793,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          planned: boolean
           severity: string | null
         }
         Insert: {
@@ -2437,6 +2803,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          planned?: boolean
           severity?: string | null
         }
         Update: {
@@ -2446,6 +2813,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          planned?: boolean
           severity?: string | null
         }
         Relationships: []
@@ -3861,31 +4229,37 @@ export type Database = {
       shift_patterns: {
         Row: {
           active: boolean
+          annual_leave_days: number | null
           break_minutes: number
           created_at: string
           days: number[]
           ends_at: string | null
           id: string
+          leave_includes_bank_holidays: boolean | null
           name: string
           starts_at: string | null
         }
         Insert: {
           active?: boolean
+          annual_leave_days?: number | null
           break_minutes?: number
           created_at?: string
           days: number[]
           ends_at?: string | null
           id?: string
+          leave_includes_bank_holidays?: boolean | null
           name: string
           starts_at?: string | null
         }
         Update: {
           active?: boolean
+          annual_leave_days?: number | null
           break_minutes?: number
           created_at?: string
           days?: number[]
           ends_at?: string | null
           id?: string
+          leave_includes_bank_holidays?: boolean | null
           name?: string
           starts_at?: string | null
         }
@@ -4344,6 +4718,183 @@ export type Database = {
         }
         Relationships: []
       }
+      wo_dedupe_backup_20260804: {
+        Row: {
+          arrived_at: string | null
+          checklist_completed: boolean | null
+          closed_at: string | null
+          closed_by: string | null
+          collaborator_ids: string[] | null
+          collaborator_names: string[] | null
+          completed_at: string | null
+          created_at: string | null
+          current_episode: number | null
+          description: string | null
+          engineer_id: string | null
+          engineer_name: string | null
+          engineer_notified_acknowledged_at: string | null
+          engineer_notified_at: string | null
+          finished_at: string | null
+          id: string | null
+          intouch_downtime_code: string | null
+          intouch_machine_id: string | null
+          intouch_machine_name: string | null
+          intouch_stop_code: string | null
+          intouch_stop_reason: string | null
+          line_at_time: string | null
+          line_id: string | null
+          line_resumed_at: string | null
+          line_resumed_by: string | null
+          line_stopped: boolean | null
+          line_stopped_at: string | null
+          line_stopped_by: string | null
+          locked_at: string | null
+          locked_engineer_id: string | null
+          machine: string | null
+          mobile_asset_id: string | null
+          notes: string | null
+          notified_engineers: string[] | null
+          operator_id: string | null
+          operator_signature_name: string | null
+          pause_reason: string | null
+          paused_at: string | null
+          physical_line_id: string | null
+          priority: string | null
+          received_at: string | null
+          recurrence_of_wo_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          reopen_count: number | null
+          requester_name: string | null
+          saved_at: string | null
+          signed_by_name: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes: number | null
+          updated_at: string | null
+          warehouse_location: string | null
+          wo_number: number | null
+          wo_type: string | null
+        }
+        Insert: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Update: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Relationships: []
+      }
       wo_downtime_exclusions: {
         Row: {
           activity: string
@@ -4594,6 +5145,768 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wo_shiftclose_bak_20260804: {
+        Row: {
+          arrived_at: string | null
+          checklist_completed: boolean | null
+          closed_at: string | null
+          closed_by: string | null
+          collaborator_ids: string[] | null
+          collaborator_names: string[] | null
+          completed_at: string | null
+          created_at: string | null
+          current_episode: number | null
+          description: string | null
+          engineer_id: string | null
+          engineer_name: string | null
+          engineer_notified_acknowledged_at: string | null
+          engineer_notified_at: string | null
+          finished_at: string | null
+          id: string | null
+          intouch_downtime_code: string | null
+          intouch_machine_id: string | null
+          intouch_machine_name: string | null
+          intouch_stop_code: string | null
+          intouch_stop_reason: string | null
+          line_at_time: string | null
+          line_id: string | null
+          line_resumed_at: string | null
+          line_resumed_by: string | null
+          line_stopped: boolean | null
+          line_stopped_at: string | null
+          line_stopped_by: string | null
+          locked_at: string | null
+          locked_engineer_id: string | null
+          machine: string | null
+          mobile_asset_id: string | null
+          notes: string | null
+          notified_engineers: string[] | null
+          operator_id: string | null
+          operator_signature_name: string | null
+          pause_reason: string | null
+          paused_at: string | null
+          physical_line_id: string | null
+          priority: string | null
+          received_at: string | null
+          recurrence_of_wo_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          reopen_count: number | null
+          requester_name: string | null
+          saved_at: string | null
+          signed_by_name: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes: number | null
+          updated_at: string | null
+          warehouse_location: string | null
+          wo_number: number | null
+          wo_type: string | null
+        }
+        Insert: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Update: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Relationships: []
+      }
+      wo802_backup_20260804: {
+        Row: {
+          arrived_at: string | null
+          checklist_completed: boolean | null
+          closed_at: string | null
+          closed_by: string | null
+          collaborator_ids: string[] | null
+          collaborator_names: string[] | null
+          completed_at: string | null
+          created_at: string | null
+          current_episode: number | null
+          description: string | null
+          engineer_id: string | null
+          engineer_name: string | null
+          engineer_notified_acknowledged_at: string | null
+          engineer_notified_at: string | null
+          finished_at: string | null
+          id: string | null
+          intouch_downtime_code: string | null
+          intouch_machine_id: string | null
+          intouch_machine_name: string | null
+          intouch_stop_code: string | null
+          intouch_stop_reason: string | null
+          line_at_time: string | null
+          line_id: string | null
+          line_resumed_at: string | null
+          line_resumed_by: string | null
+          line_stopped: boolean | null
+          line_stopped_at: string | null
+          line_stopped_by: string | null
+          locked_at: string | null
+          locked_engineer_id: string | null
+          machine: string | null
+          mobile_asset_id: string | null
+          notes: string | null
+          notified_engineers: string[] | null
+          operator_id: string | null
+          operator_signature_name: string | null
+          pause_reason: string | null
+          paused_at: string | null
+          physical_line_id: string | null
+          priority: string | null
+          received_at: string | null
+          recurrence_of_wo_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          reopen_count: number | null
+          requester_name: string | null
+          saved_at: string | null
+          signed_by_name: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes: number | null
+          updated_at: string | null
+          warehouse_location: string | null
+          wo_number: number | null
+          wo_type: string | null
+        }
+        Insert: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Update: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Relationships: []
+      }
+      wo803_deleted_backup_20260804: {
+        Row: {
+          arrived_at: string | null
+          checklist_completed: boolean | null
+          closed_at: string | null
+          closed_by: string | null
+          collaborator_ids: string[] | null
+          collaborator_names: string[] | null
+          completed_at: string | null
+          created_at: string | null
+          current_episode: number | null
+          description: string | null
+          engineer_id: string | null
+          engineer_name: string | null
+          engineer_notified_acknowledged_at: string | null
+          engineer_notified_at: string | null
+          finished_at: string | null
+          id: string | null
+          intouch_downtime_code: string | null
+          intouch_machine_id: string | null
+          intouch_machine_name: string | null
+          intouch_stop_code: string | null
+          intouch_stop_reason: string | null
+          line_at_time: string | null
+          line_id: string | null
+          line_resumed_at: string | null
+          line_resumed_by: string | null
+          line_stopped: boolean | null
+          line_stopped_at: string | null
+          line_stopped_by: string | null
+          locked_at: string | null
+          locked_engineer_id: string | null
+          machine: string | null
+          mobile_asset_id: string | null
+          notes: string | null
+          notified_engineers: string[] | null
+          operator_id: string | null
+          operator_signature_name: string | null
+          pause_reason: string | null
+          paused_at: string | null
+          physical_line_id: string | null
+          priority: string | null
+          received_at: string | null
+          recurrence_of_wo_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          reopen_count: number | null
+          requester_name: string | null
+          saved_at: string | null
+          signed_by_name: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes: number | null
+          updated_at: string | null
+          warehouse_location: string | null
+          wo_number: number | null
+          wo_type: string | null
+        }
+        Insert: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Update: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Relationships: []
+      }
+      wo803_events_backup_20260804: {
+        Row: {
+          created_at: string | null
+          duration_minutes: number | null
+          episode_number: number | null
+          id: string | null
+          is_recurrence: boolean | null
+          resumed_at: string | null
+          resumed_by: string | null
+          resumed_by_name: string | null
+          resumed_note: string | null
+          saved_at: string | null
+          stopped_at: string | null
+          stopped_by: string | null
+          stopped_by_name: string | null
+          stopped_reason: string | null
+          work_order_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_minutes?: number | null
+          episode_number?: number | null
+          id?: string | null
+          is_recurrence?: boolean | null
+          resumed_at?: string | null
+          resumed_by?: string | null
+          resumed_by_name?: string | null
+          resumed_note?: string | null
+          saved_at?: string | null
+          stopped_at?: string | null
+          stopped_by?: string | null
+          stopped_by_name?: string | null
+          stopped_reason?: string | null
+          work_order_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_minutes?: number | null
+          episode_number?: number | null
+          id?: string | null
+          is_recurrence?: boolean | null
+          resumed_at?: string | null
+          resumed_by?: string | null
+          resumed_by_name?: string | null
+          resumed_note?: string | null
+          saved_at?: string | null
+          stopped_at?: string | null
+          stopped_by?: string | null
+          stopped_by_name?: string | null
+          stopped_reason?: string | null
+          work_order_id?: string | null
+        }
+        Relationships: []
+      }
+      wo804_backup_20260804: {
+        Row: {
+          arrived_at: string | null
+          checklist_completed: boolean | null
+          closed_at: string | null
+          closed_by: string | null
+          collaborator_ids: string[] | null
+          collaborator_names: string[] | null
+          completed_at: string | null
+          created_at: string | null
+          current_episode: number | null
+          description: string | null
+          engineer_id: string | null
+          engineer_name: string | null
+          engineer_notified_acknowledged_at: string | null
+          engineer_notified_at: string | null
+          finished_at: string | null
+          id: string | null
+          intouch_downtime_code: string | null
+          intouch_machine_id: string | null
+          intouch_machine_name: string | null
+          intouch_stop_code: string | null
+          intouch_stop_reason: string | null
+          line_at_time: string | null
+          line_id: string | null
+          line_resumed_at: string | null
+          line_resumed_by: string | null
+          line_stopped: boolean | null
+          line_stopped_at: string | null
+          line_stopped_by: string | null
+          locked_at: string | null
+          locked_engineer_id: string | null
+          machine: string | null
+          mobile_asset_id: string | null
+          notes: string | null
+          notified_engineers: string[] | null
+          operator_id: string | null
+          operator_signature_name: string | null
+          pause_reason: string | null
+          paused_at: string | null
+          physical_line_id: string | null
+          priority: string | null
+          received_at: string | null
+          recurrence_of_wo_id: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
+          reopen_count: number | null
+          requester_name: string | null
+          saved_at: string | null
+          signed_by_name: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes: number | null
+          updated_at: string | null
+          warehouse_location: string | null
+          wo_number: number | null
+          wo_type: string | null
+        }
+        Insert: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Update: {
+          arrived_at?: string | null
+          checklist_completed?: boolean | null
+          closed_at?: string | null
+          closed_by?: string | null
+          collaborator_ids?: string[] | null
+          collaborator_names?: string[] | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_episode?: number | null
+          description?: string | null
+          engineer_id?: string | null
+          engineer_name?: string | null
+          engineer_notified_acknowledged_at?: string | null
+          engineer_notified_at?: string | null
+          finished_at?: string | null
+          id?: string | null
+          intouch_downtime_code?: string | null
+          intouch_machine_id?: string | null
+          intouch_machine_name?: string | null
+          intouch_stop_code?: string | null
+          intouch_stop_reason?: string | null
+          line_at_time?: string | null
+          line_id?: string | null
+          line_resumed_at?: string | null
+          line_resumed_by?: string | null
+          line_stopped?: boolean | null
+          line_stopped_at?: string | null
+          line_stopped_by?: string | null
+          locked_at?: string | null
+          locked_engineer_id?: string | null
+          machine?: string | null
+          mobile_asset_id?: string | null
+          notes?: string | null
+          notified_engineers?: string[] | null
+          operator_id?: string | null
+          operator_signature_name?: string | null
+          pause_reason?: string | null
+          paused_at?: string | null
+          physical_line_id?: string | null
+          priority?: string | null
+          received_at?: string | null
+          recurrence_of_wo_id?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
+          reopen_count?: number | null
+          requester_name?: string | null
+          saved_at?: string | null
+          signed_by_name?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["wo_status"] | null
+          total_paused_minutes?: number | null
+          updated_at?: string | null
+          warehouse_location?: string | null
+          wo_number?: number | null
+          wo_type?: string | null
+        }
+        Relationships: []
       }
       work_order_logs: {
         Row: {
@@ -4871,285 +6184,6 @@ export type Database = {
             columns: ["recurrence_of_wo_id"]
             isOneToOne: false
             referencedRelation: "work_orders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workforce_attendance: {
-        Row: {
-          created_at: string
-          employee_id: string
-          id: string
-          line_id: string | null
-          overtime_hours: number
-          shift: string | null
-          status: string
-          updated_at: string
-          work_date: string
-          worked_hours: number
-        }
-        Insert: {
-          created_at?: string
-          employee_id: string
-          id?: string
-          line_id?: string | null
-          overtime_hours?: number
-          shift?: string | null
-          status?: string
-          updated_at?: string
-          work_date?: string
-          worked_hours?: number
-        }
-        Update: {
-          created_at?: string
-          employee_id?: string
-          id?: string
-          line_id?: string | null
-          overtime_hours?: number
-          shift?: string | null
-          status?: string
-          updated_at?: string
-          work_date?: string
-          worked_hours?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workforce_attendance_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "workforce_employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workforce_attendance_line_id_fkey"
-            columns: ["line_id"]
-            isOneToOne: false
-            referencedRelation: "lines"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workforce_employees: {
-        Row: {
-          active: boolean
-          created_at: string
-          current_line_id: string | null
-          deleted_at: string | null
-          department: string
-          employee_code: string
-          first_name: string
-          id: string
-          last_name: string | null
-          leader_id: string | null
-          leaving_date: string | null
-          notes: string | null
-          role_title: string | null
-          shift: string | null
-          start_date: string | null
-          status: string
-          supervisor_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          active?: boolean
-          created_at?: string
-          current_line_id?: string | null
-          deleted_at?: string | null
-          department?: string
-          employee_code: string
-          first_name: string
-          id?: string
-          last_name?: string | null
-          leader_id?: string | null
-          leaving_date?: string | null
-          notes?: string | null
-          role_title?: string | null
-          shift?: string | null
-          start_date?: string | null
-          status?: string
-          supervisor_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          active?: boolean
-          created_at?: string
-          current_line_id?: string | null
-          deleted_at?: string | null
-          department?: string
-          employee_code?: string
-          first_name?: string
-          id?: string
-          last_name?: string | null
-          leader_id?: string | null
-          leaving_date?: string | null
-          notes?: string | null
-          role_title?: string | null
-          shift?: string | null
-          start_date?: string | null
-          status?: string
-          supervisor_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workforce_employees_current_line_id_fkey"
-            columns: ["current_line_id"]
-            isOneToOne: false
-            referencedRelation: "lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workforce_employees_leader_id_fkey"
-            columns: ["leader_id"]
-            isOneToOne: false
-            referencedRelation: "workforce_employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workforce_employees_supervisor_id_fkey"
-            columns: ["supervisor_id"]
-            isOneToOne: false
-            referencedRelation: "workforce_employees"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workforce_movement_history: {
-        Row: {
-          employee_id: string
-          from_line_id: string | null
-          from_status: string | null
-          id: string
-          moved_at: string
-          moved_by: string | null
-          note: string | null
-          to_line_id: string | null
-          to_status: string | null
-        }
-        Insert: {
-          employee_id: string
-          from_line_id?: string | null
-          from_status?: string | null
-          id?: string
-          moved_at?: string
-          moved_by?: string | null
-          note?: string | null
-          to_line_id?: string | null
-          to_status?: string | null
-        }
-        Update: {
-          employee_id?: string
-          from_line_id?: string | null
-          from_status?: string | null
-          id?: string
-          moved_at?: string
-          moved_by?: string | null
-          note?: string | null
-          to_line_id?: string | null
-          to_status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workforce_movement_history_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "workforce_employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workforce_movement_history_from_line_id_fkey"
-            columns: ["from_line_id"]
-            isOneToOne: false
-            referencedRelation: "lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workforce_movement_history_to_line_id_fkey"
-            columns: ["to_line_id"]
-            isOneToOne: false
-            referencedRelation: "lines"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workforce_overtime: {
-        Row: {
-          approved_at: string | null
-          approved_by: string | null
-          created_at: string
-          created_by: string | null
-          employee_id: string
-          id: string
-          line_id: string | null
-          notes: string | null
-          overtime_hours: number
-          period_id: string | null
-          period_month: string | null
-          reason: string | null
-          scheduled_hours: number | null
-          shift: string | null
-          updated_at: string
-          work_date: string | null
-          worked_hours: number | null
-        }
-        Insert: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string
-          created_by?: string | null
-          employee_id: string
-          id?: string
-          line_id?: string | null
-          notes?: string | null
-          overtime_hours?: number
-          period_id?: string | null
-          period_month?: string | null
-          reason?: string | null
-          scheduled_hours?: number | null
-          shift?: string | null
-          updated_at?: string
-          work_date?: string | null
-          worked_hours?: number | null
-        }
-        Update: {
-          approved_at?: string | null
-          approved_by?: string | null
-          created_at?: string
-          created_by?: string | null
-          employee_id?: string
-          id?: string
-          line_id?: string | null
-          notes?: string | null
-          overtime_hours?: number
-          period_id?: string | null
-          period_month?: string | null
-          reason?: string | null
-          scheduled_hours?: number | null
-          shift?: string | null
-          updated_at?: string
-          work_date?: string | null
-          worked_hours?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workforce_overtime_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "workforce_employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workforce_overtime_line_id_fkey"
-            columns: ["line_id"]
-            isOneToOne: false
-            referencedRelation: "lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workforce_overtime_period_id_fkey"
-            columns: ["period_id"]
-            isOneToOne: false
-            referencedRelation: "workforce_payroll_periods"
             referencedColumns: ["id"]
           },
         ]
