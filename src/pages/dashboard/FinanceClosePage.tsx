@@ -20,8 +20,8 @@ import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2, type ClosePersonInput,
 } from "@/lib/financeClose";
 import { earlyLeave } from "@/lib/earlyLeave";
-import { SectionHeader } from "@/components/workforce/SectionHeader";
-import { Figure, FigureRow } from "@/components/workforce/Figure";
+import { ModuleHeader } from "@/components/ui/ModuleHeader";
+import { Figure, FigureRow } from "@/components/ui/Figure";
 
 /**
  * The pay period handed to finance: overtime and time off, per person.
@@ -256,7 +256,7 @@ export default function FinanceClosePage() {
         <BackButton className="print:hidden" />
         <WorkforceTabs />
 
-        <SectionHeader
+        <ModuleHeader
           title="Finance Close"
           description={period ? `${period.name} · ${from} → ${to}` : "No pay period set"}
         >
@@ -297,7 +297,7 @@ export default function FinanceClosePage() {
           >
             <Download className="mr-1.5 h-4 w-4" /> Export
           </Button>
-        </SectionHeader>
+        </ModuleHeader>
 
         {/* The split, whatever the filter says. A close read as one number hid that the
             night crew's overtime behaves nothing like the day crews'. */}

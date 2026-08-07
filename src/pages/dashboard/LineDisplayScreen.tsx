@@ -279,10 +279,10 @@ export default function LineDisplayScreen() {
 
       <div className="grid grid-cols-4 gap-6">
 
-        <Kpi label="TARGET" value={target.toLocaleString()} accent="text-sky-400" />
-        <Kpi label="ACTUAL" value={actual.toLocaleString()} accent="text-green-400" />
-        <Kpi label="REMAINING" value={remaining.toLocaleString()} accent="text-amber-400" />
-        <Kpi label="SHIFT ENDS IN" value={countdown} accent="text-purple-400" mono />
+        <WallTile label="TARGET" value={target.toLocaleString()} accent="text-sky-400" />
+        <WallTile label="ACTUAL" value={actual.toLocaleString()} accent="text-green-400" />
+        <WallTile label="REMAINING" value={remaining.toLocaleString()} accent="text-amber-400" />
+        <WallTile label="SHIFT ENDS IN" value={countdown} accent="text-purple-400" mono />
       </div>
 
       <div className="bg-slate-900 rounded-2xl p-6">
@@ -391,7 +391,12 @@ export default function LineDisplayScreen() {
   );
 }
 
-function Kpi({ label, value, accent, mono }: { label: string; value: string; accent: string; mono?: boolean }) {
+/**
+ * A tile on the line's wall display. Not the same object as a `Figure`: this is read
+ * from across the floor at 6xl on black, and it shared the name `Kpi` with two other
+ * unrelated components.
+ */
+function WallTile({ label, value, accent, mono }: { label: string; value: string; accent: string; mono?: boolean }) {
   return (
     <div className="bg-slate-900 rounded-2xl p-6 text-center">
       <div className="text-slate-400 text-sm tracking-widest mb-2">{label}</div>

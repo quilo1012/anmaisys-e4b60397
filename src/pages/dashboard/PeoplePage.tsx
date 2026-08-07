@@ -5,7 +5,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
-import { SectionHeader } from "@/components/workforce/SectionHeader";
+import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -83,7 +83,7 @@ export default function PeoplePage() {
         <BackButton />
         <WorkforceTabs />
 
-        <SectionHeader
+        <ModuleHeader
           title="Employee"
           description="The employee records the board, Leave and Finance Close all read from"
         />

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Figure } from "@/components/ui/Figure";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,16 +38,6 @@ function statusOf(p: PersonRow) {
   if (!p.shift_group) return { label: "No shift", cls: "border-amber-500/40 bg-amber-500/10 text-warning-strong" };
   if (!p.pattern) return { label: "No rota", cls: "border-amber-500/40 bg-amber-500/10 text-warning-strong" };
   return { label: "Active", cls: "border-emerald-500/40 bg-emerald-500/10 text-success-strong" };
-}
-
-function Kpi({ label, value, sub }: { label: string; value: number; sub?: string }) {
-  return (
-    <div className="rounded-xl border bg-card px-3 py-2.5 shadow-sm">
-      <div className="font-figure text-2xl font-bold leading-none tabular-nums">{value}</div>
-      <div className="mt-1.5 truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-      {sub && <div className="truncate text-2xs text-muted-foreground">{sub}</div>}
-    </div>
-  );
 }
 
 /**
@@ -181,12 +172,12 @@ export function PeopleTable({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Kpi label="Employees" value={people.length + leftCount} sub="On file" />
-        <Kpi label="Active" value={active.length} sub="Working here" />
-        <Kpi label="Left" value={leftCount} sub="History kept" />
-        <Kpi label="Departments" value={departments.length} />
-        <Kpi label="Agency & contract" value={active.filter((p) => p.employment_type !== "permanent").length} sub="Not permanent" />
-        <Kpi label="No rota" value={active.filter((p) => !p.pattern).length} sub="Due in every day" />
+        <Figure label="Employees" value={String(people.length + leftCount)} hint="On file" />
+        <Figure label="Active" value={String(active.length)} hint="Working here" />
+        <Figure label="Left" value={String(leftCount)} hint="History kept" />
+        <Figure label="Departments" value={String(departments.length)} />
+        <Figure label="Agency & contract" value={String(active.filter((p) => p.employment_type !== "permanent").length)} hint="Not permanent" />
+        <Figure label="No rota" value={String(active.filter((p) => !p.pattern).length)} hint="Due in every day" />
       </div>
 
       <Card>

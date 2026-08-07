@@ -6,8 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
-import { SectionHeader } from "@/components/workforce/SectionHeader";
-import { Figure, FigureRow } from "@/components/workforce/Figure";
+import { ModuleHeader } from "@/components/ui/ModuleHeader";
+import { Figure, FigureRow } from "@/components/ui/Figure";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -191,7 +191,7 @@ export default function AttendancePage() {
         <BackButton />
         <WorkforceTabs />
 
-        <SectionHeader title="Time &amp; Attendance" description="Hours clocked, from TimeMoto">
+        <ModuleHeader title="Time &amp; Attendance" description="Hours clocked, from TimeMoto">
           {canManage && (
             <>
               <input
@@ -207,7 +207,7 @@ export default function AttendancePage() {
               </Button>
             </>
           )}
-        </SectionHeader>
+        </ModuleHeader>
 
         {/* Two records of the same days, kept apart. The clocks are what TimeMoto
             saw; the board marks are what a supervisor wrote down. Merging them would
