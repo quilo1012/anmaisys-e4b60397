@@ -73,6 +73,19 @@ export interface Attendance {
   headcount_area_id: string | null;
 }
 
+/**
+ * A pay period.
+ *
+ * There were two tables of these — `overtime_periods` with two rows and
+ * `workforce_payroll_periods` with twenty-nine — describing the same pay periods. The
+ * Finance Close read one and the overtime register beside it read the other, so the
+ * register could sit on June while the close above it read July, and what is keyed in
+ * the register IS the close's Payroll OT column. `overtime_entries` was empty, so the
+ * key was repointed at the payroll table and the duplicate dropped.
+ *
+ * `label`, `starts_on` and `ends_on` are kept as the names this app already uses,
+ * mapped from the payroll table's own columns at the edge.
+ */
 export interface OvertimePeriod {
   id: string;
   label: string;
@@ -180,9 +193,14 @@ export function useOvertimePeriods() {
   return useQuery({
     queryKey: ["overtime_periods"],
     queryFn: async (): Promise<OvertimePeriod[]> => {
-      const { data, error } = await db.from("overtime_periods").select("*").order("starts_on", { ascending: false });
+      const { data, error } = await db
+        .from("workforce_payroll_periods")
+        .select("id, name, start_date, end_date")
+        .order("start_date", { ascending: false });
       if (error) throw error;
-      return data ?? [];
+      return ((data ?? []) as any[]).map((p) => ({
+        id: p.id, label: p.name, starts_on: p.start_date, ends_on: p.end_date,
+      }));
     },
   });
 }
@@ -496,12 +514,18 @@ export function useEmployeeOvertime(employeeId: string | null) {
     queryFn: async (): Promise<Array<OvertimeEntry & { period: OvertimePeriod }>> => {
       const { data, error } = await db
         .from("overtime_entries")
-        .select("*, period:overtime_periods(*)")
+        .select("*, period:workforce_payroll_periods(id, name, start_date, end_date)")
         .eq("employee_id", employeeId);
       if (error) throw error;
-      return (data ?? []).sort(
-        (a: any, b: any) => String(b.period?.starts_on ?? "").localeCompare(String(a.period?.starts_on ?? "")),
-      );
+      return ((data ?? []) as any[])
+        .map((r) => ({
+          ...r,
+          period: r.period && {
+            id: r.period.id, label: r.period.name,
+            starts_on: r.period.start_date, ends_on: r.period.end_date,
+          },
+        }))
+        .sort((a, b) => String(b.period?.starts_on ?? "").localeCompare(String(a.period?.starts_on ?? "")));
     },
   });
 }

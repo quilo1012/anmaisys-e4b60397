@@ -34,6 +34,8 @@
  * that assumes twenty-eight will drift a week from that date on.
  */
 
+import { expectedShifts } from "@/lib/shiftBalance";
+
 export interface ClosePersonInput {
   employeeId: string;
   name: string;
@@ -73,9 +75,34 @@ export interface ClosePersonInput {
    * as unpaid hours, which is what they are.
    */
   earlyLeaveHours: number;
+
+  /* ---- The board's answer, carried in the same row as the clocks' answer ----
+   *
+   * These were a second table underneath, over the same period and the same people,
+   * and reading one person meant finding their name twice. They are columns now.
+   *
+   * STILL NEVER ADDED to the hours. Somebody who works every shift and goes home at
+   * two is level here and short there; the two answer "did they turn up" and "how long
+   * were they here", and a merged figure would hide which one it came from. Side by
+   * side is what that has always meant — it just did not need to be two tables.
+   */
+  /** The rota's name, for reading a balance against the right expectation. */
+  patternName: string | null;
+  /** ISO weekdays the rota covers. Null when none is on file. */
+  patternDays: number[] | null;
+  /** Shifts marked assigned or overtime on the board. */
+  shiftsWorked: number;
+  /** Booked holiday, which is the only thing that reduces what was owed. */
+  shiftsHoliday: number;
+  /** Whether this person's board was planned at all — an empty board is not absence. */
+  boardPlanned: boolean;
 }
 
 export interface ClosePerson extends ClosePersonInput {
+  /** Shifts the rota called for, less booked holiday. Null when no rota is on file. */
+  shiftsDue: number | null;
+  /** worked − due. Positive is shifts over the rota; negative is shifts short. */
+  shiftBalance: number | null;
   /**
    * Signed hours over the period: what they worked less what they were due. Not
    * overtime — a week under covers a week over inside the same period, and this can
@@ -108,7 +135,11 @@ const UNPAID = /unpaid/i;
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function buildClose(rows: ClosePersonInput[]): ClosePerson[] {
+/**
+ * `from` and `to` bound the period, which the shift side needs and the hours side does
+ * not: hours arrive already summed, shifts have to be counted off a calendar.
+ */
+export function buildClose(rows: ClosePersonInput[], from: string, to: string): ClosePerson[] {
   return rows
     .map((r) => {
       // Summing the period's days is what makes a surplus cover a shortfall: forty
@@ -143,9 +174,17 @@ export function buildClose(rows: ClosePersonInput[]): ClosePerson[] {
         else if (UNPAID.test(reason)) unpaid += n;
         else otherAbsence += n;
       }
+      // The board's side of the same period. Borrowed from `shiftBalance` rather than
+      // rewritten, so there is one definition of "shifts due" — including the rule that
+      // only holiday reduces it, and that it never goes below zero when a rota changed
+      // mid-period.
+      const expected = expectedShifts(r.patternDays, from, to);
+      const shiftsDue = expected == null ? null : Math.max(0, expected - r.shiftsHoliday);
+      const shiftBalance = shiftsDue == null ? null : r.shiftsWorked - shiftsDue;
+
       return {
         ...r, clockedOtHours, openingHours, closingHours, overtimeHours, owedHours,
-        deltaHours, sick, holiday, unpaid, otherAbsence,
+        deltaHours, sick, holiday, unpaid, otherAbsence, shiftsDue, shiftBalance,
       };
     })
     .sort((a, b) => Math.abs(b.deltaHours ?? -1) - Math.abs(a.deltaHours ?? -1) || a.name.localeCompare(b.name));
@@ -166,6 +205,12 @@ export interface CloseTotals {
   unpaid: number;
   /** Unpaid hours from days somebody came in for and left part-way through. */
   earlyLeaveHours: number;
+  /** Shifts worked above the rota, summed over everybody above it. */
+  overtimeShifts: number;
+  /** Shifts short, as a positive number. Excludes anybody whose board was never planned. */
+  deficitShifts: number;
+  /** People whose board was never filled in — nobody's absence, nobody's entry. */
+  onUnplannedBoard: number;
   /** People where one side reported and the other did not. */
   unreconciled: number;
   /** Nobody has a payroll figure at all — the whole side of the reconciliation is missing. */
@@ -182,6 +227,14 @@ export function closeTotals(rows: ClosePerson[]): CloseTotals {
     // cancel another's overtime — they are paid separately and owe separately.
     overtimeHours: sum((r) => r.overtimeHours),
     earlyLeaveHours: sum((r) => r.earlyLeaveHours),
+    overtimeShifts: rows.reduce((n, r) => n + Math.max(0, r.shiftBalance ?? 0), 0),
+    // A board nobody filled in produces a shortfall for everybody on it. That is a
+    // fact about the board, so it is kept out of the deficit rather than counted as
+    // forty-eight people's absence.
+    deficitShifts: rows.reduce(
+      (n, r) => n + (r.boardPlanned ? Math.max(0, -(r.shiftBalance ?? 0)) : 0), 0,
+    ),
+    onUnplannedBoard: rows.filter((r) => !r.boardPlanned).length,
     owedHours: sum((r) => r.owedHours),
     payrollOtHours: sum((r) => r.payrollOtHours),
     deltaHours: sum((r) => r.deltaHours),
@@ -206,6 +259,10 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
     r.name,
     r.shift ?? "",
     r.department ?? "",
+    r.patternName ?? "",
+    r.shiftsDue ?? "",
+    r.shiftsWorked,
+    r.shiftBalance ?? "",
     r.openingHours,
     r.clockedOtHours ?? "",
     r.closingHours ?? "",
@@ -223,7 +280,8 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
 }
 
 export const CLOSE_HEADERS = [
-  "Employee", "Shift", "Department",
+  "Employee", "Shift", "Department", "Rota",
+  "Shifts due", "Shifts worked", "Shifts +/−",
   "Opening bank (h)", "Period balance (h)", "Closing bank (h)",
   "Overtime paid (h)", "Hours owed (h)",
   "Payroll OT (h)", "Delta (h)",

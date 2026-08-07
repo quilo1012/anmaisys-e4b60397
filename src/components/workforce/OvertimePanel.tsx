@@ -8,16 +8,20 @@ import { KpiCard } from "@/components/reports/KpiCard";
 import { Clock, Download, TrendingDown, Users } from "lucide-react";
 import { format } from "date-fns";
 import { downloadCsv } from "@/lib/exportCsv";
-import type { Employee, OvertimeEntry, OvertimePeriod } from "@/hooks/useWorkforce";
+import type { Employee, OvertimeEntry } from "@/hooks/useWorkforce";
 
 const fmtHours = (h: number) => `${h.toFixed(2).replace(/\.00$/, "")}h`;
 
 interface Props {
   employees: Employee[];
   entries: OvertimeEntry[];
-  periods: OvertimePeriod[];
-  activePeriod: OvertimePeriod | null;
-  onPeriodChange: (id: string) => void;
+  /**
+   * The period the page is on. Not chosen here: this panel had a picker of its own,
+   * reading a second table of periods, so the register could sit on June while the
+   * close above it read July — and what is keyed here IS the Payroll OT column up
+   * there. One period per page, chosen once, in the header.
+   */
+  activePeriod: { id: string; name: string; start_date: string; end_date: string } | null;
 }
 
 /**
@@ -32,7 +36,7 @@ interface Props {
  * database refuses to let them be edited here; a correction goes to the sheet and
  * comes back on the next import.
  */
-export function OvertimePanel({ employees, entries, periods, activePeriod, onPeriodChange }: Props) {
+export function OvertimePanel({ employees, entries, activePeriod }: Props) {
   const nameById = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
 
   const rows = useMemo(
@@ -66,14 +70,14 @@ export function OvertimePanel({ employees, entries, periods, activePeriod, onPer
   }, [rows]);
 
   const periodLabel = activePeriod
-    ? `${format(new Date(activePeriod.starts_on), "dd/MM/yyyy")} — ${format(new Date(activePeriod.ends_on), "dd/MM/yyyy")}`
+    ? `${format(new Date(activePeriod.start_date), "dd/MM/yyyy")} — ${format(new Date(activePeriod.end_date), "dd/MM/yyyy")}`
     : null;
 
   const provenance = rows.find((r) => r.importedAt);
 
   function exportCsv() {
     downloadCsv(
-      `overtime_${activePeriod?.starts_on ?? "period"}_to_${activePeriod?.ends_on ?? ""}.csv`,
+      `overtime_${activePeriod?.start_date ?? "period"}_to_${activePeriod?.end_date ?? ""}.csv`,
       ["Employee", "Department", "Hours (balance)", "Note", "Period"],
       rows.map((r) => [r.name, r.department, r.hours, r.note, periodLabel ?? ""]),
     );
@@ -92,12 +96,6 @@ export function OvertimePanel({ employees, entries, periods, activePeriod, onPer
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2 no-print">
-              <Select value={activePeriod?.id ?? ""} onValueChange={onPeriodChange}>
-                <SelectTrigger className="h-9 w-56"><SelectValue placeholder="Period" /></SelectTrigger>
-                <SelectContent>
-                  {periods.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
               <Button variant="outline" size="sm" onClick={exportCsv} disabled={!rows.length}>
                 <Download className="mr-1 h-4 w-4" /> CSV
               </Button>
