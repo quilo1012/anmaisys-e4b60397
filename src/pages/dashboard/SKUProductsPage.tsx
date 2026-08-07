@@ -218,7 +218,15 @@ export default function SKUProductsPage() {
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); setOpen(false); toast.success("Saved"); },
-    onError: (e: Error) => toast.error(e.message),
+    // A code that already exists is the commonest mistake here and it arrived as
+    // `duplicate key value violates unique constraint "sku_products_code_key"` —
+    // which tells somebody that something is broken rather than that the SKU is
+    // already on the list. Three of those in four minutes on 07/08.
+    onError: (e: Error) => toast.error(
+      /sku_products_code_key|duplicate key/i.test(e.message)
+        ? "That SKU code is already on the list. Search for it and edit it instead."
+        : e.message,
+    ),
   });
 
   const del = useMutation({
