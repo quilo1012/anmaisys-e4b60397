@@ -27,6 +27,7 @@ import {
   useChangeShift,
   useReorderAreas,
   useSetShiftPattern,
+  crewBadge,
   type AllocStatus,
   type HeadcountArea,
   type HeadcountEmployee,
@@ -43,7 +44,7 @@ let draggedEmployeeId: string | null = null;
  * the Fri–Mon crew is forty people, and without a tab their allocations were saved
  * and then invisible — 37 of them, on a board that could only show Day and Night.
  */
-type ShiftKey = "Day" | "Night" | "Weekend";
+type ShiftKey = "Day" | "Night";
 type ViewKey = ShiftKey | "Split";
 
 const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
@@ -176,6 +177,7 @@ function Chip({
   overtime,
   half,
   leftEarlyAt,
+  crew,
   draggable,
   onOpen,
   onDragStart,
@@ -194,6 +196,9 @@ function Chip({
   half?: boolean;
   /** Came in and went home early, at this time. A day worked, not a day off. */
   leftEarlyAt?: string | null;
+  /** Which crew they belong to — FRI–MON, WH, NIGHT. Null for the plain day shift,
+      which is most of the board and needs no label to say so. */
+  crew?: string | null;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -234,6 +239,17 @@ function Chip({
         {leader ? "LEAD" : initials(name)}
       </span>
       <span className="truncate">{name}</span>
+      {/* Day and the Fri–Mon crew share this board, so the card has to say which is
+          which. Only the ones that are not the plain day shift are labelled — a badge
+          on every card is a badge that stops being read. */}
+      {crew && (
+        <span
+          title={`${crew} crew`}
+          className="shrink-0 rounded-sm border border-slate-400/40 bg-slate-500/10 px-1 py-px text-[10px] font-bold uppercase leading-tight tracking-wide text-muted-foreground"
+        >
+          {crew}
+        </span>
+      )}
       {/* Half a day, said on the chip. Without it the block reads "2 away" and both
           look identical, when one of them worked the morning. */}
       {half && (
@@ -663,6 +679,7 @@ function ShiftBoard({
                         dimmed={isDimmed(p.full_name)}
                         overtime={isOt}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
+                        crew={crewBadge(p.shift_group)}
                         onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
@@ -868,6 +885,7 @@ function ShiftBoard({
                         tone={block.status === "overtime" ? "overtime" : "away"}
                         half={byEmployee.get(p.id)?.half_day === true}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
+                        crew={crewBadge(p.shift_group)}
                         draggable={canManage}
                         onDragStart={(e) => {
                           draggedEmployeeId = p.id;
@@ -966,10 +984,12 @@ export default function ProductionHeadcountPage() {
 
       <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="print:hidden">
         <TabsList>
+          {/* Two boards, not four. Day carries everybody whose shift runs while the
+              lines do — Mon–Thu, Fri–Mon and the warehouse — which is how the
+              factory's own sheets are drawn. Each card says which crew. */}
           <TabsTrigger value="Day">Day</TabsTrigger>
           <TabsTrigger value="Night">Night</TabsTrigger>
-          <TabsTrigger value="Weekend">Weekend</TabsTrigger>
-          <TabsTrigger value="Split">Split</TabsTrigger>
+          <TabsTrigger value="Split">Both</TabsTrigger>
         </TabsList>
       </Tabs>
 
