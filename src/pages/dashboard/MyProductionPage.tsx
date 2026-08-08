@@ -790,8 +790,21 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     if (selectedSku || skuChoice === MANUAL_SKU) return;
     const typed = skuDebounced.trim().toUpperCase();
     if (typed.length < 3) return;
+    const codes = (searchQ.data ?? []).map((s) => String(s.code ?? "").toUpperCase());
     const exact = (searchQ.data ?? []).find((s) => String(s.code ?? "").toUpperCase() === typed);
-    if (exact) pickSku(exact);
+    if (!exact) return;
+    // A complete code can also be the start of a longer one. CRE250 is the
+    // unflavoured monohydrate AND the first six characters of CRE250BR, CRE250CA,
+    // CRE250SR and CRE250MOROCCO — so an operator heading for the blue raspberry
+    // had the field rewritten to unflavoured the moment he finished "cre250",
+    // two keystrokes before he was done, and the debounce made it look like the
+    // screen had chosen for him.
+    //
+    // Auto-linking is still right when what was typed can only be one product.
+    // While it is a prefix of others, the list stays open and he picks.
+    const isPrefixOfAnother = codes.some((c) => c !== typed && c.startsWith(typed));
+    if (isPrefixOfAnother) return;
+    pickSku(exact);
   }, [skuDebounced, searchQ.data, selectedSku, skuChoice]);
 
   const reset = () => {
