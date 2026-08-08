@@ -77,9 +77,9 @@ function londonParts(at: Date) {
  * Day before Night, wherever a list carries both.
  *
  * The Production Control export had no shift term in its sort at all, so within a date
- * the two came out in whatever order Postgres returned them — which read as Night
- * first. The factory's own spreadsheet runs the day's block above the night's, and the
- * export exists to paste straight into it.
+ * and a line the two came out in whatever order Postgres returned them — which read as
+ * Night first. There it is the LAST term: the line is the outer grouping, and the sheet
+ * follows one line down its two shifts before moving to the next.
  *
  * Unknown shifts sort last rather than throwing: a value the board grows later should
  * not silently jump the queue, and it must never land between the two that matter.
