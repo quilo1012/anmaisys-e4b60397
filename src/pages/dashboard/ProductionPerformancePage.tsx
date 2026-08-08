@@ -760,7 +760,13 @@ export default function ProductionPerformancePage() {
                           : `iTouching, read ${live.ageSeconds}s ago${live.rawStatus != null ? ` · status ${live.rawStatus}` : ""}`
                       }
                     >
-                      <span className="truncate font-display text-2xs font-bold uppercase tracking-[0.1em]">
+                      {/* Verbatim, and NOT uppercased. The stop reason is the name
+                          iTouching itself holds for that code — "Deep Clean", "No
+                          Planned Shift", "Electrical Stop" — and the person reading
+                          this board reads the same words on the iTouching screen.
+                          Case-shifting it here makes it a second name for the same
+                          thing, which is exactly what a shared vocabulary is not. */}
+                      <span className="truncate font-display text-2xs font-bold tracking-[0.1em]">
                         ● {live.label}
                       </span>
                       {/* The age is on the pill, not hidden in a tooltip: a state

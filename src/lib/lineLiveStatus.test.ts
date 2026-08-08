@@ -16,7 +16,7 @@ describe("classifyLive", () => {
   it("reads no stop code as running", () => {
     const r = classifyLive(reading(), now);
     expect(r.state).toBe("RUNNING");
-    expect(r.label).toBe("Running");
+    expect(r.label).toBe("RUNNING");
     expect(r.ageSeconds).toBe(20);
   });
 

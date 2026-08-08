@@ -75,7 +75,9 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
   if (ageSeconds === null || ageSeconds > STALE_AFTER_SECONDS) {
     return {
       state: "NO_SIGNAL",
-      label: reason ? `No signal · last: ${reason}` : "No signal",
+      // Ours, not iTouching's: this describes OUR link to it, not a state it
+      // reports. The stop code keeps its own name inside the message.
+      label: reason ? `NO SIGNAL · last: ${reason}` : "NO SIGNAL",
       ageSeconds,
       rawStatus: reading.status,
       uncatalogued,
@@ -96,8 +98,10 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
   }
 
   // No stop code. Not proof of production — see the Breaks note above — but it is
-  // exactly what iTouching is saying, and it is what the floor reads as running.
-  return { state: "RUNNING", label: "Running", ageSeconds, rawStatus: reading.status, uncatalogued: false };
+  // exactly what iTouching is saying, and RUNNING is iTouching's own word for it:
+  // its screen legend reads RUNNING / STOPPED-NO CODE / UNPLANNED STOP / PLANNED
+  // STOP. The board must not invent a vocabulary the floor does not already read.
+  return { state: "RUNNING", label: "RUNNING", ageSeconds, rawStatus: reading.status, uncatalogued: false };
 }
 
 /**
