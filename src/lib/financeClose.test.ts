@@ -6,7 +6,7 @@ const PERIOD = { from: "2026-07-13", to: "2026-08-09" };
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
   employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Day", earlyLeaveHours: 0,
-  patternName: null, patternDays: null, shiftsWorked: 0, shiftsHoliday: 0, boardPlanned: true,
+  patternName: null, patternDays: null, shiftsWorked: 0, shiftsHoliday: 0, plannedDates: null,
   openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
 });
 
@@ -240,15 +240,43 @@ describe("the board's answer, carried in the same row", () => {
     expect(r.shiftBalance).toBeNull();
   });
 
-  it("keeps an unplanned board out of the deficit", () => {
-    // The night board has gone whole periods unplanned. Counted with everybody else
-    // that is forty-eight invented deficits burying the two or three that are real.
+  it("keeps a board nobody planned out of the deficit", () => {
+    // The night board went twenty-seven of this period's twenty-eight days unplanned.
+    // Counted with everybody else that is forty-eight invented deficits burying the two
+    // or three that are real.
     const t = closeTotals(buildClose([
-      person({ employeeId: "a", ...monThu, shiftsWorked: 0, boardPlanned: false }),
-      person({ employeeId: "b", ...monThu, shiftsWorked: 14, boardPlanned: true }),
+      person({ employeeId: "a", ...monThu, shiftsWorked: 0, plannedDates: new Set() }),
+      person({ employeeId: "b", ...monThu, shiftsWorked: 14, plannedDates: null }),
     ], PERIOD.from, PERIOD.to));
     expect(t.deficitShifts).toBe(2);
+    // Counted, because a clean zero for somebody the board never covered is not the
+    // same as somebody who worked their rota, and the close has to say which.
     expect(t.onUnplannedBoard).toBe(1);
+  });
+
+  it("does not let one planned day make a whole period count", () => {
+    // The bug this replaced: `boardPlanned` was a boolean, and the thirty names on the
+    // Night board on 07/08 flipped all forty-eight of that crew from excluded to a full
+    // period short.
+    const oneDay = new Set(["2026-08-07"]);
+    const [r] = buildClose(
+      [person({ ...monThu, shiftsWorked: 0, plannedDates: oneDay })], PERIOD.from, PERIOD.to,
+    );
+    // 07/08 is a Friday and Mon–Thu does not cover it, so nothing is due at all.
+    expect(r.shiftsDue).toBe(0);
+    expect(r.shiftBalance).toBe(0);
+  });
+
+  it("charges only the rostered days the board was actually filled in for", () => {
+    // Mon–Thu over the period is sixteen shifts. If the board was planned on only four
+    // of those days, four is what can be measured — the other twelve are a gap in the
+    // record, not twelve absences.
+    const four = new Set(["2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16"]);
+    const [r] = buildClose(
+      [person({ ...monThu, shiftsWorked: 3, plannedDates: four })], PERIOD.from, PERIOD.to,
+    );
+    expect(r.shiftsDue).toBe(4);
+    expect(r.shiftBalance).toBe(-1);
   });
 
   it("never adds shifts to hours", () => {
