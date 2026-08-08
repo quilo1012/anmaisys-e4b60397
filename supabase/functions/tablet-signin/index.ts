@@ -82,7 +82,7 @@ async function ensureOperatorIdentity(admin: ReturnType<typeof createClient>, ac
   } else {
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email: acc.email,
-      password: DEFAULT_TABLET_PASSWORD,
+      password: randomProvisioningPassword(),
       email_confirm: true,
       user_metadata: { name: acc.label },
     });
