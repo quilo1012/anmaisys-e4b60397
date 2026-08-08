@@ -23,10 +23,22 @@ import { cn } from "@/lib/utils";
  * seen the tabs.
  */
 export function ModuleHeader({
-  title, description, children, className,
+  title, description, module = "Workforce", children, className,
 }: {
   title: string;
   description?: string;
+  /**
+   * The tab set this screen belongs to — the answer to "where am I".
+   *
+   * Era texto cravado dentro do componente, o que fazia dele um `WorkforceHeader`
+   * com nome de primitivo. Custou uma contradição real: o Production Headcount está
+   * no grupo Production da barra lateral e a banda dizia-lhe Workforce, por isso o
+   * ecrã dava duas respostas diferentes à mesma pergunta.
+   *
+   * Nomeia o conjunto de separadores em que se pode andar, e não o grupo da barra
+   * lateral: é entre separadores que se navega sem sair da página.
+   */
+  module?: string;
   /** Controls belonging to this screen — a period picker, Export, Print. */
   children?: React.ReactNode;
   className?: string;
@@ -43,10 +55,10 @@ export function ModuleHeader({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-2xs font-semibold uppercase tracking-[0.18em] text-white/50 print:text-black/50">
-            Workforce
+          <div className="font-display text-2xs font-semibold uppercase tracking-[0.18em] text-white/60 print:text-black/50">
+            {module}
           </div>
-          <h1 className="truncate text-xl font-bold tracking-tight">{title}</h1>
+          <h1 className="truncate font-display text-xl font-bold tracking-tight">{title}</h1>
           {description && (
             <p className="text-xs text-white/70 print:text-black/70">{description}</p>
           )}
