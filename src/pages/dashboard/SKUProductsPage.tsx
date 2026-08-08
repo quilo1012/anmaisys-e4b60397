@@ -202,10 +202,24 @@ export default function SKUProductsPage() {
   const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
+  // The SKU already on the list under the code being typed, if there is one.
+  //
+  // The database refuses a repeated code and always has; what it cannot do is say
+  // which product already holds it. Somebody typing CRE1KG got "already on the list,
+  // search for it and edit it instead" and then had to go and find it — so the answer
+  // to their real question ("then where is it?") is put next to the field instead.
+  // Compared exactly, minus surrounding spaces, because that is what the unique
+  // constraint compares: flagging ABC against abc would refuse a row Postgres accepts.
+  const clash = useMemo(() => {
+    const code = (editing?.code ?? "").trim();
+    if (!code) return null;
+    return all.find((p) => p.code === code && p.id !== editing?.id) ?? null;
+  }, [all, editing?.code, editing?.id]);
+
   const save = useMutation({
     mutationFn: async (sku: Partial<Sku>) => {
       const payload = {
-        code: sku.code ?? "", name: sku.name ?? "", category: sku.category ?? null,
+        code: (sku.code ?? "").trim(), name: sku.name ?? "", category: sku.category ?? null,
         target_per_hour: sku.target_per_hour ?? 0, weight: sku.weight ?? null, active: sku.active ?? true,
       };
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
@@ -345,11 +359,19 @@ export default function SKUProductsPage() {
               <DialogContent>
                 <DialogHeader><DialogTitle>{editing?.id ? "Edit SKU" : "New SKU"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div><Label>SKU</Label><Input value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} /></div>
+                  <div>
+                    <Label>SKU</Label>
+                    <Input value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} />
+                    {clash && (
+                      <p className="mt-1 text-xs font-medium text-destructive-strong">
+                        Already on the list — {clash.name}. Close this and search for {clash.code} to edit it.
+                      </p>
+                    )}
+                  </div>
                   <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
                   <div><Label>Weight</Label><Input type="number" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
                 </div>
-                <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code || !editing?.name}>Save</Button></DialogFooter>
+                <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>Save</Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
