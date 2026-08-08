@@ -20,6 +20,7 @@ import { getCurrentFactoryShift, getCurrentShiftStart, shiftDateFetchRange, shif
 import { classifyLive, formatStopDuration, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
 import { computePace, PACE_MESSAGES } from "@/lib/linePerformance";
+import { productLabel } from "@/lib/productLabel";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
@@ -452,6 +453,44 @@ export default function ProductionPerformancePage() {
     }
     return out;
   }, [isCurrentShiftView, sessions, skuMap]);
+
+  /**
+   * What each line is actually making, which the board never said.
+   *
+   * The card could report "SKU has no standard rate" without naming the SKU, so a
+   * supervisor was told a product was misconfigured and not which product. And a
+   * line is defined by what is on it right now — the iTouching board leads with
+   * the product for that reason.
+   *
+   * The running item is the one started and not finished. Where nobody recorded
+   * the times, the one with the most made stands in: it is the item the shift has
+   * been spent on, which is the same question answered with worse evidence.
+   */
+  const skuByLine = useMemo(() => {
+    const out = new Map<string, { code: string; name: string; ratePerHour: number; others: number }>();
+    const bySession = new Map<string, SessionAgg[]>();
+    for (const s of sessions) {
+      const arr = bySession.get(s.line) ?? [];
+      arr.push(s);
+      bySession.set(s.line, arr);
+    }
+    for (const [line, ss] of bySession) {
+      const items = ss.flatMap((s) => s.items).filter((i) => i.sku_id);
+      if (!items.length) continue;
+      const running = items.find((i) => i.started_at && !i.finished_at)
+        ?? items.find((i) => !i.finished_at)
+        ?? [...items].sort((a, b) => b.actual - a.actual)[0];
+      const sku = running ? skuMap.get(running.sku_id) : undefined;
+      if (!sku) continue;
+      out.set(line, {
+        code: sku.code,
+        name: productLabel(sku.name),
+        ratePerHour: Number(sku.target_per_hour ?? 0),
+        others: new Set(items.map((i) => i.sku_id)).size - 1,
+      });
+    }
+    return out;
+  }, [sessions, skuMap]);
 
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
@@ -910,6 +949,7 @@ export default function ProductionPerformancePage() {
                 })()}
                 {(() => {
                   const paced = pace?.kind === "PACE" ? pace : null;
+                  const sku = skuByLine.get(l.line);
                   // Where the line should be by now, as a share of the shift's plan.
                   // This is the only new number on the card and it is the one the
                   // board was missing: without it, five hours into twelve, every
@@ -920,6 +960,20 @@ export default function ProductionPerformancePage() {
                   const donePct = l.target > 0 ? Math.min(100, Math.max(0, (l.actual / l.target) * 100)) : 0;
                   return (
                     <>
+                      {/* What is on the line. Quiet, because it is context and not a
+                          measurement — but present, because "made 1,415" is a count
+                          of something and the board never said of what. */}
+                      {sku && (
+                        <div className="mt-2 flex items-baseline gap-2 min-w-0">
+                          <span className="shrink-0 font-figure text-2xs font-bold text-foreground">{sku.code}</span>
+                          <span className="truncate text-2xs text-muted-foreground">{sku.name}</span>
+                          {sku.others > 0 && (
+                            <span className="shrink-0 text-2xs text-muted-foreground/70" title={`${sku.others} other SKU${sku.others === 1 ? "" : "s"} ran on this line in the period`}>
+                              +{sku.others}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-4 flex items-end justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Made</div>
@@ -980,7 +1034,12 @@ export default function ProductionPerformancePage() {
                           must not round them both to 0%. */}
                       {pace && pace.kind !== "PACE" && (
                         <div className="mt-2 font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                          {PACE_MESSAGES[pace.kind]}
+                          {/* Named. Telling a supervisor that "the SKU" has no
+                              standard rate, on a line that ran three of them, is a
+                              fault report with the subject left out. */}
+                          {pace.kind === "NO_RATE" && sku
+                            ? `${sku.code} has no standard rate`
+                            : PACE_MESSAGES[pace.kind]}
                         </div>
                       )}
                     </>

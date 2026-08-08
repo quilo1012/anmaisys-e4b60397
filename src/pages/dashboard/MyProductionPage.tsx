@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { productLabel } from "@/lib/productLabel";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OperatorLineGuard } from "@/components/OperatorLineGuard";
 import { useDeviceLineCtx } from "@/contexts/DeviceLineContext";
@@ -40,14 +41,6 @@ function manualActualQty(row: any): number {
   return Number(row.actual_qty ?? 0);
 }
 
-/** Catalog names carry customs codes ("… [HS CODE:2106909285]") that push the part
- *  the operator actually reads — the flavour or market — out of view. Strip them. */
-function productLabel(name: string | null | undefined): string {
-  return String(name ?? "")
-    .replace(/\[[^\]]*\]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 /** The export market a SKU is for, read from its name/code (Peru, KSA, UAE,
  *  Morocco, Australia). Same product, different label — this tells them apart. */
