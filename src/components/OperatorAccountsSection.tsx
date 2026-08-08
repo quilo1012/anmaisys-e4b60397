@@ -421,14 +421,15 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
 
     for (const line of linesWithoutTablet) {
       const email = buildEmailFromLabel(line.name);
+      const password = generateStrongPassword();
       try {
         await createAcc.mutateAsync({
           email,
-          password: DEFAULT_TABLET_PASSWORD,
+          password,
           label: line.name,
           line_ids: [line.id],
         });
-        results.push({ line_name: line.name, email, status: "created" });
+        results.push({ line_name: line.name, email, status: "created", password });
       } catch (e: any) {
         const msg = describePasswordError(e?.message ?? "Unknown error");
         const skipped = /already|exists|duplicate/i.test(msg);
