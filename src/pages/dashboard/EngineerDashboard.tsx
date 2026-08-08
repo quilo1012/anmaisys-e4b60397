@@ -59,7 +59,7 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   const m = mins % 60;
   const overdue = mins > 60;
   return (
-    <span className={`text-xs font-mono ${overdue ? "text-red-600 dark:text-red-400 font-bold" : "text-amber-700 dark:text-amber-400"}`}>
+    <span className={`text-xs font-mono ${overdue ? "text-destructive-strong font-bold" : "text-warning-strong"}`}>
       ⏱ {h}h {m}m
     </span>
   );
@@ -77,7 +77,7 @@ function WaitTimer({ createdAt }: { createdAt: string }) {
   const urgent = mins > 30;
   return (
     <span
-      className={`text-xs font-mono ${urgent ? "text-red-600 dark:text-red-400 font-bold animate-pulse" : "text-muted-foreground"}`}
+      className={`text-xs font-mono ${urgent ? "text-destructive-strong font-bold animate-pulse" : "text-muted-foreground"}`}
       title="Time since this WO was created"
     >
       ⏳ waiting {h > 0 ? `${h}h ` : ""}{m}m
@@ -95,8 +95,8 @@ function PriorityBadge({ priority }: { priority?: string | null }) {
       variant="outline"
       className={
         isCritical
-          ? "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40 font-bold"
-          : "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40 font-bold"
+          ? "bg-destructive/15 text-destructive-strong border-destructive/40 font-bold"
+          : "bg-warning/15 text-warning-strong border-warning/40 font-bold"
       }
     >
       {isCritical ? "Critical" : "High"}
@@ -108,7 +108,7 @@ function StaleBadge({ wo }: { wo: any }) {
   const isStale = wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320;
   if (!isStale) return null;
   return (
-    <span className="text-xs font-mono font-bold text-orange-600" title="In progress for more than 3 days.">
+    <span className="text-xs font-mono font-bold text-warning-strong" title="In progress for more than 3 days.">
       🕐 Stale
     </span>
   );
@@ -180,7 +180,7 @@ function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: En
              aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Checklist progress">
           <div
             className={cn("h-full transition-all duration-300",
-              requiredIncomplete.length > 0 ? "bg-amber-500" : "bg-emerald-500")}
+              requiredIncomplete.length > 0 ? "bg-warning" : "bg-success")}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -202,9 +202,9 @@ function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: En
                     // somebody wearing gloves.
                     "flex min-h-[44px] cursor-pointer items-center gap-3 rounded-md border px-2.5 py-1.5 transition-colors",
                     isChecked
-                      ? "border-emerald-500/40 bg-emerald-500/10"
+                      ? "border-success/40 bg-success/10"
                       : item.is_required
-                        ? "border-amber-500/40 bg-amber-500/5 hover:bg-amber-500/10"
+                        ? "border-warning/40 bg-warning/5 hover:bg-warning/10"
                         : "border-transparent hover:bg-muted",
                   )}
                 >
@@ -679,13 +679,13 @@ function EngineerDashboardContent() {
               <StatusBadge status={wo.status} />
 
             </div>
-            <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 p-3 border border-amber-300 dark:border-amber-800 flex items-start gap-2">
-              <Lock className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
+            <div className="rounded-md bg-warning/10 dark:bg-warning/20 p-3 border border-warning/30 dark:border-warning flex items-start gap-2">
+              <Lock className="h-4 w-4 text-warning-strong mt-0.5 shrink-0" />
               <div>
-                <p className="font-semibold text-amber-900 dark:text-amber-200 text-sm">
+                <p className="font-semibold text-warning-strong text-sm">
                   Locked to {wo.engineer_name || "another engineer"}
                 </p>
-                <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+                <p className="text-xs text-warning-strong/80">
                   Only the assigned engineer can work on this order. Contact admin to reassign.
                 </p>
               </div>
@@ -754,7 +754,7 @@ function EngineerDashboardContent() {
           <div className="grid grid-cols-2 gap-2 pt-1">
             {wo.status === "open" && (
               <>
-                <Button size="lg" className={`${(wo as any).intouch_stop_code ? "col-span-2" : ""} h-14 text-base font-bold bg-green-600 hover:bg-green-700 text-white`} onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending}>
+                <Button size="lg" className={`${(wo as any).intouch_stop_code ? "col-span-2" : ""} h-14 text-base font-bold bg-success hover:bg-success/90 text-success-foreground`} onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending}>
                   <CheckCircle className="h-5 w-5 mr-2" /> ACCEPT
                 </Button>
                 {!(wo as any).intouch_stop_code && (
@@ -771,18 +771,18 @@ function EngineerDashboardContent() {
               </Button>
             )}
             {wo.status === "arrived" && (
-              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-amber-600 hover:bg-amber-700 text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
+              <Button size="lg" className="col-span-2 h-14 text-base font-bold bg-warning hover:bg-warning/90 text-warning-foreground" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending}>
                 <Play className="h-5 w-5 mr-2" /> START WORK
               </Button>
             )}
             {isInProgress && (
               <>
                 {(wo as any).paused_at ? (
-                  <Button size="lg" variant="outline" className="h-14 text-base border-green-500 text-green-700" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending}>
+                  <Button size="lg" variant="outline" className="h-14 text-base border-success text-success-strong" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending}>
                     <PlayCircle className="h-5 w-5 mr-2" /> RESUME
                   </Button>
                 ) : (
-                  <Button size="lg" variant="outline" className="h-14 text-base border-yellow-500 text-yellow-700" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending}>
+                  <Button size="lg" variant="outline" className="h-14 text-base border-warning text-warning-strong" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending}>
                     <Pause className="h-5 w-5 mr-2" /> PAUSE
                   </Button>
                 )}
@@ -796,7 +796,7 @@ function EngineerDashboardContent() {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="col-span-2 h-12 text-sm border-blue-500 text-blue-700"
+                  className="col-span-2 h-12 text-sm border-primary text-primary"
                   onClick={() => { setCollabDialogWO(wo.id); setCollabPin(""); }}
                 >
                   <Users className="h-4 w-4 mr-2" /> Add Co-Engineer (PIN)
@@ -893,8 +893,8 @@ function EngineerDashboardContent() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
                   <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Active</CardTitle>
-                  <div className="h-9 w-9 rounded-lg bg-amber-500/15 flex items-center justify-center">
-                    <Activity className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  <div className="h-9 w-9 rounded-lg bg-warning/15 flex items-center justify-center">
+                    <Activity className="h-5 w-5 text-warning-strong" />
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
@@ -904,8 +904,8 @@ function EngineerDashboardContent() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
                   <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed Today</CardTitle>
-                  <div className="h-9 w-9 rounded-lg bg-green-500/15 flex items-center justify-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <div className="h-9 w-9 rounded-lg bg-success/15 flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-success-strong" />
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
@@ -951,7 +951,7 @@ function EngineerDashboardContent() {
                     )}
                     {inProgressWOs.length > 0 && (
                       <div className="space-y-3">
-                        <h3 className="text-sm font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">🔧 In Progress · {inProgressWOs.length}</h3>
+                        <h3 className="text-sm font-bold uppercase tracking-wide text-warning-strong">🔧 In Progress · {inProgressWOs.length}</h3>
                         {inProgressWOs.map((wo) => renderMobileWOCard(wo))}
                       </div>
                     )}
@@ -981,7 +981,7 @@ function EngineerDashboardContent() {
                       return (
 
                         <>
-                          <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-red-50" : ""}`}>
+                          <tr key={wo.id} className={`border-b ${wo.priority === "critical" ? "bg-destructive/10" : ""}`}>
                             <td className="p-2 font-mono font-medium">
                               <div className="flex items-center gap-2">
                                 <span className="cursor-pointer hover:underline" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
@@ -1001,7 +1001,7 @@ function EngineerDashboardContent() {
                             <td className="p-2">
                               <div className="flex gap-2 flex-wrap">
                                 {wo.status === "open" && (
-                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-green-600 hover:bg-green-700 text-white dark:text-white" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending} aria-label="Accept maintenance order">
+                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-success hover:bg-success/90 text-success-foreground" onClick={() => handleAcceptClick(wo.id)} disabled={acceptWO.isPending} aria-label="Accept maintenance order">
                                     <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Accept
                                   </Button>
                                 )}
@@ -1011,19 +1011,19 @@ function EngineerDashboardContent() {
                                   </Button>
                                 )}
                                 {wo.status === "arrived" && (
-                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-amber-600 hover:bg-amber-700 text-white dark:text-white" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending} aria-label="Start work">
+                                  <Button size="sm" className="h-11 min-w-11 px-3 touch-manipulation bg-warning hover:bg-warning/90 text-warning-foreground" onClick={() => handleStartClick(wo.id)} disabled={startWO.isPending} aria-label="Start work">
                                     <Play className="h-4 w-4 mr-1.5" aria-hidden="true" /> Start Work
                                   </Button>
                                 )}
                                 {wo.status === "in_progress" && (
                                   <>
                                     {(wo as any).paused_at ? (
-                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-green-500 text-foreground hover:bg-green-500/10" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending} aria-label="Resume maintenance order">
-                                        <PlayCircle className="h-4 w-4 mr-1.5 text-green-600 dark:text-green-400" aria-hidden="true" /> Resume
+                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-success text-foreground hover:bg-success/10" onClick={() => resumeWO.mutate(wo.id)} disabled={resumeWO.isPending} aria-label="Resume maintenance order">
+                                        <PlayCircle className="h-4 w-4 mr-1.5 text-success-strong" aria-hidden="true" /> Resume
                                       </Button>
                                     ) : (
-                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-yellow-500 text-foreground hover:bg-yellow-500/10" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending} aria-label="Pause maintenance order">
-                                        <Pause className="h-4 w-4 mr-1.5 text-yellow-600 dark:text-yellow-400" aria-hidden="true" /> Pause
+                                      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation border-warning text-foreground hover:bg-warning/10" onClick={() => { setPauseDialogWO(wo.id); setPauseReason(""); }} disabled={pauseWO.isPending} aria-label="Pause maintenance order">
+                                        <Pause className="h-4 w-4 mr-1.5 text-warning-strong" aria-hidden="true" /> Pause
                                       </Button>
                                     )}
                                     <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 touch-manipulation" onClick={() => setPartsDialogWO(wo.id)} aria-label="Register parts used">
@@ -1050,11 +1050,11 @@ function EngineerDashboardContent() {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-11 min-w-11 px-3 touch-manipulation border-blue-500 text-foreground hover:bg-blue-500/10"
+                                      className="h-11 min-w-11 px-3 touch-manipulation border-primary text-foreground hover:bg-primary/10"
                                       onClick={() => { setCollabDialogWO(wo.id); setCollabPin(""); }}
                                       aria-label="Add co-engineer via PIN"
                                     >
-                                      <Users className="h-4 w-4 mr-1.5 text-blue-600 dark:text-blue-400" aria-hidden="true" /> Add Co-Engineer (PIN)
+                                      <Users className="h-4 w-4 mr-1.5 text-primary" aria-hidden="true" /> Add Co-Engineer (PIN)
                                     </Button>
                                     {Array.isArray((wo as any).collaborator_names) && (wo as any).collaborator_names.length > 0 && (
                                       <div className="w-full text-xs text-muted-foreground flex flex-wrap gap-1 items-center">

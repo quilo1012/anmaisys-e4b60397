@@ -20,9 +20,9 @@ export interface PersonRow extends Employee {
  *  colour is for the exceptions, which is what somebody is scanning for. */
 const TYPE_LOOK: Record<string, string> = {
   permanent: "text-muted-foreground",
-  agency: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  contractor: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  temporary: "border-amber-500/40 bg-amber-500/10 text-warning-strong",
+  agency: "border-primary/40 bg-primary/10 text-primary",
+  contractor: "border-primary/40 bg-primary/10 text-primary",
+  temporary: "border-warning/40 bg-warning/10 text-warning-strong",
 };
 const TYPES = ["permanent", "agency", "contractor", "temporary"] as const;
 
@@ -34,10 +34,10 @@ const PAGE_SIZES = [25, 50, 100];
 
 /** One state per person, in the colour it is read at a glance. */
 function statusOf(p: PersonRow) {
-  if (!p.active) return { label: "Left", cls: "border-red-500/40 bg-red-500/10 text-destructive-strong" };
-  if (!p.shift_group) return { label: "No shift", cls: "border-amber-500/40 bg-amber-500/10 text-warning-strong" };
-  if (!p.pattern) return { label: "No rota", cls: "border-amber-500/40 bg-amber-500/10 text-warning-strong" };
-  return { label: "Active", cls: "border-emerald-500/40 bg-emerald-500/10 text-success-strong" };
+  if (!p.active) return { label: "Left", cls: "border-destructive/40 bg-destructive/10 text-destructive-strong" };
+  if (!p.shift_group) return { label: "No shift", cls: "border-warning/40 bg-warning/10 text-warning-strong" };
+  if (!p.pattern) return { label: "No rota", cls: "border-warning/40 bg-warning/10 text-warning-strong" };
+  return { label: "Active", cls: "border-success/40 bg-success/10 text-success-strong" };
 }
 
 /**

@@ -300,7 +300,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                             )}
                             {item.title === "Messages" && dmUnread > 0 && (
                               <>
-                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-2xs font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-2xs font-semibold text-destructive-foreground min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
                                   {dmUnread > 9 ? "9+" : dmUnread}
                                 </span>
                                 <span
@@ -311,7 +311,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                             )}
                             {item.title === "Root Diagnostics" && crashCount > 0 && (
                               <>
-                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-2xs font-semibold text-white min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
+                                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-2xs font-semibold text-destructive-foreground min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
                                   {crashCount > 9 ? "9+" : crashCount}
                                 </span>
                                 <span
@@ -358,18 +358,18 @@ const roleTitle: Record<string, string> = {
 };
 
 const roleBadgeClass: Record<string, string> = {
-  admin: "bg-red-500/15 text-red-600 border-red-500/30",
+  admin: "bg-destructive/15 text-destructive-strong border-destructive/30",
   manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
-  supervisor: "bg-amber-500/15 text-warning-strong border-amber-500/30",
+  supervisor: "bg-warning/15 text-warning-strong border-warning/30",
   maintenance_manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
-  planner: "bg-teal-500/15 text-teal-600 border-teal-500/30",
-  engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
-  co_engineer: "bg-blue-500/15 text-blue-600 border-blue-500/30",
-  operator: "bg-emerald-500/15 text-success-strong border-emerald-500/30",
+  planner: "bg-success/15 text-success-strong border-success/30",
+  engineer: "bg-primary/15 text-primary border-primary/30",
+  co_engineer: "bg-primary/15 text-primary border-primary/30",
+  operator: "bg-success/15 text-success-strong border-success/30",
   viewer: "bg-muted text-muted-foreground border-border",
-  warehouse: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-  quality_supervisor: "bg-cyan-500/15 text-cyan-600 border-cyan-500/30",
-  production_office_admin: "bg-indigo-500/15 text-indigo-600 border-indigo-500/30",
+  warehouse: "bg-primary/15 text-primary border-primary/30",
+  quality_supervisor: "bg-primary/15 text-primary border-primary/30",
+  production_office_admin: "bg-primary/15 text-primary border-primary/30",
 };
 
 const routeTitles: Record<string, string> = {

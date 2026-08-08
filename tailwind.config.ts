@@ -112,8 +112,15 @@ export default {
   			'accordion-up': 'accordion-up 0.2s ease-out'
   		},
 		fontFamily: {
-			/* Figures only — never body text. See index.html. */
-			figure: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+			/* Figures only — never body text. See index.html. Os algarismos tabulares vêm
+			   com a face: sem eles as colunas de números continuam a dançar, que é o
+			   problema que esta face existe para resolver. */
+			figure: [
+				['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'].join(', '),
+				{ fontVariantNumeric: 'tabular-nums' },
+			],
+			/* Títulos e placas de secção. Usar com parcimónia: é a voz, não o veículo. */
+			display: ['Archivo', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
 			sans: [
 				'Inter',
 				'ui-sans-serif',

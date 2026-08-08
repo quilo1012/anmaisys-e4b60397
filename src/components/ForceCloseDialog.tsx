@@ -106,7 +106,7 @@ export function ForceCloseDialog({
           </div>
 
           {openStoppage && answer === "running" && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+            <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 {humanMinutes(openMinutes)} of recorded stoppage will be deleted from the downtime figures. The audit log

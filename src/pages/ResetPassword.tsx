@@ -81,7 +81,7 @@ export default function ResetPassword() {
   }
 
   const recoveryBadge = (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200 sm:gap-1.5">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-success-strong ring-1 ring-success sm:gap-1.5">
       <KeyRound className="h-3 w-3" /> Recovery
     </span>
   );
@@ -131,7 +131,7 @@ export default function ResetPassword() {
     <AuthShell title="Reset password" subtitle="Enter your email and we'll send you a recovery link.">
       {sent ? (
         <div className="space-y-4">
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center">
+          <div className="rounded-lg border border-success/30 bg-success/10 p-4 text-center">
             <CheckCircle2 className="mx-auto h-8 w-8 text-success-strong" />
             <h3 className="mt-2 text-sm font-medium text-slate-900">Recovery email sent</h3>
             <p className="mt-1 text-xs text-slate-600">

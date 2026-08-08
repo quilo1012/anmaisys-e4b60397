@@ -182,7 +182,7 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
           {rows.length > 0 && (
             <>
               <div className="flex items-center gap-2 text-sm">
-                <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" />{valid.length} valid</Badge>
+                <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3 text-success-strong" />{valid.length} valid</Badge>
                 {invalid.length > 0 && <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" />{invalid.length} invalid</Badge>}
                 <span className="text-muted-foreground">· {fileName}</span>
               </div>
@@ -203,7 +203,7 @@ export function ImportProductionDialog({ open, onOpenChange, onImported }: {
                         <TableCell>{r.line || "—"}</TableCell>
                         <TableCell className="font-mono text-xs">{r.sku_code || "—"}</TableCell>
                         <TableCell>{r.qty || "—"}</TableCell>
-                        <TableCell className="text-xs">{r.valid ? <span className="text-green-500">OK</span> : <span className="text-destructive-strong">{r.error}</span>}</TableCell>
+                        <TableCell className="text-xs">{r.valid ? <span className="text-success-strong">OK</span> : <span className="text-destructive-strong">{r.error}</span>}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

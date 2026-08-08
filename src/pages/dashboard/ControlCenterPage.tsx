@@ -76,16 +76,16 @@ type LineStatus = "stopped" | "wo_active" | "predictive" | "ok" | "no_itouch";
 
 const lineStatusStyles: Record<LineStatus, { card: string; dot: string; label: string; chip: string }> = {
   stopped: {
-    card: "border-red-500/60 bg-red-500/5 ring-2 ring-red-500/40",
-    dot: "bg-red-500 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]",
+    card: "border-destructive/60 bg-destructive/5 ring-2 ring-destructive/40",
+    dot: "bg-destructive animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.8)]",
     label: "Line Stopped",
-    chip: "bg-red-500/15 text-red-600 dark:text-red-300 border-red-500/40",
+    chip: "bg-destructive/15 text-destructive-strong border-destructive/40",
   },
   wo_active: {
-    card: "border-amber-500/50 bg-amber-500/5",
-    dot: "bg-amber-500 animate-pulse",
+    card: "border-warning/50 bg-warning/5",
+    dot: "bg-warning animate-pulse",
     label: "WO in progress",
-    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40",
+    chip: "bg-warning/15 text-warning-strong border-warning/40",
   },
   predictive: {
     card: "border-purple-500/40 bg-purple-500/5",
@@ -95,9 +95,9 @@ const lineStatusStyles: Record<LineStatus, { card: string; dot: string; label: s
   },
   ok: {
     card: "border-border bg-card",
-    dot: "bg-emerald-500",
+    dot: "bg-success",
     label: "Running",
-    chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40",
+    chip: "bg-success/15 text-success-strong border-success/40",
   },
   no_itouch: {
     card: "border-border bg-card",
@@ -338,16 +338,16 @@ export default function ControlCenterPage() {
   }, [machines, workOrders, predictiveMachines]);
 
   const machineChipColors: Record<string, string> = {
-    green: "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
-    yellow: "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300",
-    red: "bg-red-500/15 border-red-500/50 text-red-700 dark:text-red-300 animate-pulse",
+    green: "bg-success/15 border-success/40 text-success-strong",
+    yellow: "bg-warning/15 border-warning/40 text-warning-strong",
+    red: "bg-destructive/15 border-destructive/50 text-destructive-strong animate-pulse",
     purple: "bg-purple-500/15 border-purple-500/40 text-purple-700 dark:text-purple-300",
   };
 
   const getHealthColor = (score: number) => {
-    if (score >= 70) return "text-success-strong bg-emerald-500/15";
-    if (score >= 40) return "text-warning-strong bg-amber-500/15";
-    return "text-red-600 bg-red-500/15";
+    if (score >= 70) return "text-success-strong bg-success/15";
+    if (score >= 40) return "text-warning-strong bg-warning/15";
+    return "text-destructive-strong bg-destructive/15";
   };
 
   const top5 = engineerScores?.slice(0, 5) || [];
@@ -602,7 +602,7 @@ export default function ControlCenterPage() {
                                 <button
                                   type="button"
                                   onClick={() => navigate("/dashboard/quality")}
-                                  className="inline-flex items-center gap-1 font-medium text-orange-600 hover:underline"
+                                  className="inline-flex items-center gap-1 font-medium text-warning-strong hover:underline"
                                   title="Open quality actions on this line"
                                 >
                                   <AlertTriangle className="h-3 w-3" /> {ls.actions} action{ls.actions > 1 ? "s" : ""}
@@ -714,7 +714,7 @@ export default function ControlCenterPage() {
               <Card>
                 <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
                   <CardTitle className={cn("flex items-center gap-2", tvMode ? "text-xs" : "text-base")}>
-                    <Activity className={tvMode ? "h-3 w-3 text-emerald-500" : "h-4 w-4 text-emerald-500"} />
+                    <Activity className={tvMode ? "h-3 w-3 text-success-strong" : "h-4 w-4 text-success-strong"} />
                     Live Feed
                   </CardTitle>
                 </CardHeader>
@@ -750,7 +750,7 @@ export default function ControlCenterPage() {
                                   {formatDistanceToNow(new Date(wo.created_at), { addSuffix: true })}
                                 </span>
                                 {wo.line_stopped && !wo.line_resumed_at && (
-                                  <span className="text-red-500 font-semibold flex items-center gap-0.5">
+                                  <span className="text-destructive-strong font-semibold flex items-center gap-0.5">
                                     <PowerOff className="h-2.5 w-2.5" /> stopped
                                   </span>
                                 )}
@@ -768,7 +768,7 @@ export default function ControlCenterPage() {
               <Card>
                 <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
                   <CardTitle className={cn("flex items-center gap-2", tvMode ? "text-xs" : "text-base")}>
-                    <Trophy className={tvMode ? "h-3 w-3 text-yellow-500" : "h-4 w-4 text-yellow-500"} /> Top 5
+                    <Trophy className={tvMode ? "h-3 w-3 text-warning-strong" : "h-4 w-4 text-warning-strong"} /> Top 5
                   </CardTitle>
                 </CardHeader>
                 <CardContent className={tvMode ? "p-2 pt-0" : "pt-0"}>
@@ -828,10 +828,10 @@ function KpiTile({
   tvMode: boolean;
 }) {
   const toneStyles: Record<string, string> = {
-    ok: "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300",
-    warning: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    danger: "border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300",
-    info: "border-blue-500/30 bg-blue-500/5 text-blue-700 dark:text-blue-300",
+    ok: "border-success/30 bg-success/5 text-success-strong",
+    warning: "border-warning/40 bg-warning/10 text-warning-strong",
+    danger: "border-destructive/50 bg-destructive/10 text-destructive-strong",
+    info: "border-primary/30 bg-primary/5 text-primary",
   };
   return (
     <Card className={cn("border", toneStyles[tone])}>

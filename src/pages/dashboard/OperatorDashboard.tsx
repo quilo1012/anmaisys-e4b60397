@@ -302,7 +302,7 @@ function OperatorDashboardContent() {
           onClick={() => { setLineStopped(true); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
             "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
-            lineStopped === true ? "bg-red-600 text-white" : "text-muted-foreground hover:bg-accent"
+            lineStopped === true ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-accent"
           )}
         >
           <StopCircle className="h-4 w-4" /> Stopped
@@ -312,7 +312,7 @@ function OperatorDashboardContent() {
           onClick={() => { setLineStopped(false); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
             "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
-            lineStopped === false ? "bg-amber-500 text-white" : "text-muted-foreground hover:bg-accent"
+            lineStopped === false ? "bg-warning text-warning-foreground" : "text-muted-foreground hover:bg-accent"
           )}
         >
           <AlertCircle className="h-4 w-4" /> Running
@@ -346,7 +346,7 @@ function OperatorDashboardContent() {
               </Badge>
             )}
             {lineStopped === true && <Badge variant="destructive" className="ml-2 gap-1"><StopCircle className="h-3 w-3" /> Line Stopped</Badge>}
-            {lineStopped === false && (requestedBy || description) && <Badge className="ml-2 gap-1 bg-amber-500 text-white border-amber-500"><AlertCircle className="h-3 w-3" /> Line Running</Badge>}
+            {lineStopped === false && (requestedBy || description) && <Badge className="ml-2 gap-1 bg-warning text-warning-foreground border-warning"><AlertCircle className="h-3 w-3" /> Line Running</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -549,7 +549,7 @@ function OperatorDashboardContent() {
                         )}
                       >
                         <span>{pd.name}</span>
-                        {hist ? <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-mono text-amber-600 dark:text-amber-400">{hist}x</span> : null}
+                        {hist ? <span className="rounded bg-warning/20 px-1.5 py-0.5 text-xs font-mono text-warning-strong">{hist}x</span> : null}
                       </button>
                     );
                   })}
@@ -651,10 +651,10 @@ function OperatorDashboardContent() {
             {/* Smart Suggestions */}
             {machineSuggestions && (
               <div className="md:col-span-2">
-                <Card className="border-amber-500/30 bg-amber-500/5">
+                <Card className="border-warning/30 bg-warning/5">
                   <CardContent className="p-3 flex flex-wrap gap-4 items-center text-sm">
                     <div className="flex items-center gap-1.5">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                      <AlertTriangle className="h-4 w-4 text-warning-strong" />
                       <span className="font-medium">{machineSuggestions.totalWOs} previous WO(s)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -676,7 +676,7 @@ function OperatorDashboardContent() {
             {/* AI Insights + Auto Priority */}
             {aiInsights && (
               <div className="md:col-span-2">
-                <Card className={cn("border-l-4", autoPriority.priority === "high" ? "border-l-red-500 bg-red-500/5" : autoPriority.priority === "medium" ? "border-l-amber-500 bg-amber-500/5" : "border-l-green-500 bg-green-500/5")}>
+                <Card className={cn("border-l-4", autoPriority.priority === "high" ? "border-l-destructive bg-destructive/5" : autoPriority.priority === "medium" ? "border-l-warning bg-warning/5" : "border-l-success bg-success/5")}>
                   <CardContent className="p-3 space-y-1">
                     <div className="flex items-center gap-2 text-sm">
                       <Zap className="h-4 w-4" />
@@ -698,7 +698,7 @@ function OperatorDashboardContent() {
                 disabled={createWO.isPending}
                 className={cn(
                   "w-full h-14 text-base font-black uppercase tracking-wide touch-manipulation",
-                  lineStopped ? "bg-red-600 hover:bg-red-700 text-white" : "",
+                  lineStopped ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : "",
                 )}
                 title={typeof navigator !== "undefined" && !navigator.onLine ? "Offline — reconnect to submit the request" : undefined}
               >
@@ -778,7 +778,7 @@ function OperatorDashboardContent() {
                        <TableCell><Badge variant="outline" className={cfg.className}>{cfg.label}</Badge></TableCell>
                        <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                        <TableCell className="text-xs">
-                         <Badge variant="outline" className={shift === "day" ? "bg-blue-50 text-blue-700" : "bg-indigo-900/30 text-indigo-200"}>
+                         <Badge variant="outline" className={shift === "day" ? "bg-primary/10 text-primary" : "bg-primary/30 text-primary"}>
                            {shift === "day" ? "Day" : "Night"}
                          </Badge>
                        </TableCell>

@@ -30,9 +30,9 @@ function computeHealth(rows: LogRow[]): Health {
 }
 
 const HEALTH_META: Record<Health, { label: string; className: string; Icon: typeof CheckCircle2 }> = {
-  healthy:   { label: "Healthy",   className: "bg-emerald-500/15 text-success-strong border-emerald-500/30", Icon: CheckCircle2 },
-  degraded:  { label: "Degraded",  className: "bg-amber-500/15 text-warning-strong border-amber-500/30",       Icon: AlertTriangle },
-  down:      { label: "Down",      className: "bg-red-500/15 text-red-600 border-red-500/30",             Icon: XCircle },
+  healthy:   { label: "Healthy",   className: "bg-success/15 text-success-strong border-success/30", Icon: CheckCircle2 },
+  degraded:  { label: "Degraded",  className: "bg-warning/15 text-warning-strong border-warning/30",       Icon: AlertTriangle },
+  down:      { label: "Down",      className: "bg-destructive/15 text-destructive-strong border-destructive/30",             Icon: XCircle },
   unknown:   { label: "No data",   className: "bg-muted text-muted-foreground border-border",             Icon: AlertTriangle },
 };
 
@@ -159,7 +159,7 @@ export function TeamsSetupCard() {
                     {r.success ? (
                       <CheckCircle2 className="h-4 w-4 text-success-strong mt-0.5 shrink-0" />
                     ) : (
-                      <XCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                      <XCircle className="h-4 w-4 text-destructive-strong mt-0.5 shrink-0" />
                     )}
                     <div className="min-w-0">
                       <div className="truncate font-medium">{r.title || r.event}</div>

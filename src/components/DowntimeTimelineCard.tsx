@@ -56,13 +56,13 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
               <div
                 key={e.id}
                 className={`rounded-md border p-3 ${
-                  isOpen ? "border-red-500 bg-red-500/10" : "border-border bg-muted/30"
+                  isOpen ? "border-destructive bg-destructive/10" : "border-border bg-muted/30"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="font-semibold text-sm">
                     🛑 Stop #{idx + 1}
-                    {isOpen && <span className="ml-2 text-red-600 uppercase text-xs">— in progress</span>}
+                    {isOpen && <span className="ml-2 text-destructive-strong uppercase text-xs">— in progress</span>}
                   </p>
                   <span className="text-xs font-mono">
                     {formatDuration(durSec)}{isOpen ? " (live)" : ""}
@@ -90,7 +90,7 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
           })}
           <div className="border-t pt-2 text-sm font-semibold">
             TOTAL: {events.length} stop{events.length === 1 ? "" : "s"} · {formatDuration(totalSeconds)} downtime
-            {ongoing && <span className="text-red-600 ml-1">(includes {formatDuration(ongoingSeconds)} ongoing)</span>}
+            {ongoing && <span className="text-destructive-strong ml-1">(includes {formatDuration(ongoingSeconds)} ongoing)</span>}
           </div>
         </div>
 

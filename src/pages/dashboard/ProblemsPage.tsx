@@ -171,8 +171,8 @@ export default function ProblemsPage() {
         />
 
         {incompleteCount > 0 && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800 px-4 py-3 text-sm">
-            <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 dark:bg-warning/30 dark:border-warning px-4 py-3 text-sm">
+            <div className="flex items-center gap-2 text-warning-strong">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span>
                 <strong>{incompleteCount}</strong> problem{incompleteCount > 1 ? "s are" : " is"} incomplete — missing Category or Description. Complete them to improve reporting accuracy.
@@ -192,7 +192,7 @@ export default function ProblemsPage() {
             quietly removes minutes from every report needs to say how many
             descriptions carry it, or nobody notices it drifting. */}
         {plannedCount > 0 && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
             <span className="font-medium">
               {plannedCount} of {problems?.length ?? 0} marked planned
             </span>
@@ -232,7 +232,7 @@ export default function ProblemsPage() {
                         <TableCell className="font-medium">
                           {p.name}
                           {(!p.category || !p.description) && (
-                            <Badge variant="outline" className="ml-2 text-xs bg-yellow-50 text-yellow-700 border-yellow-200">Incomplete</Badge>
+                            <Badge variant="outline" className="ml-2 text-xs bg-warning/10 text-warning-strong border-warning/30">Incomplete</Badge>
                           )}
                         </TableCell>
                         <TableCell>{p.category || <span className="text-muted-foreground italic">Missing</span>}</TableCell>

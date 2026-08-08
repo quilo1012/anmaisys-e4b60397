@@ -30,18 +30,18 @@ export type KpiAccent =
   | "info";
 
 const ACCENT_CLASS: Record<KpiAccent, string> = {
-  blue: "border-l-blue-500",
-  indigo: "border-l-indigo-500",
-  amber: "border-l-amber-500",
-  green: "border-l-green-500",
+  blue: "border-l-primary",
+  indigo: "border-l-primary",
+  amber: "border-l-warning",
+  green: "border-l-success",
   red: "border-l-destructive",
   purple: "border-l-purple-500",
-  cyan: "border-l-cyan-500",
+  cyan: "border-l-primary",
   muted: "border-l-muted-foreground/40",
-  ok: "border-l-emerald-500",
-  warning: "border-l-amber-500",
+  ok: "border-l-success",
+  warning: "border-l-warning",
   danger: "border-l-destructive",
-  info: "border-l-blue-500",
+  info: "border-l-primary",
 };
 
 /** Colour applied to the number itself, and only when it is non-zero. */

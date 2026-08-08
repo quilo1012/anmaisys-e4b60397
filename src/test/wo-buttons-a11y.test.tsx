@@ -12,8 +12,20 @@
  *
  * NOTE on contrast: axe's color-contrast rule requires a real layout engine
  * with applied CSS. jsdom does not load Tailwind, so we disable that rule
- * here and instead assert that the previously-broken `text-green-700` /
- * `text-yellow-700` (unreadable on the dark theme) are NOT present.
+ * here and assert on the class names instead.
+ *
+ * O que esta guarda protege mudou de forma, mas não de intenção. Guardava contra
+ * `text-green-700` e `text-yellow-700` — cores de um só valor, que não viram com o
+ * tema e por isso desapareciam no escuro. A correcção da altura foi escrever o par à
+ * mão, `text-green-600 dark:text-green-400`.
+ *
+ * Esse par é agora um token: `text-success-strong` e `text-warning-strong` trazem os
+ * dois valores dentro de si (10.6:1 e 10.5:1 sobre o fundo escuro, 5.4:1 e 5.3:1 sobre
+ * o claro). Não são o defeito que a guarda perseguia — são a sua correcção dita uma
+ * vez em vez de duas.
+ *
+ * Por isso a guarda passa a ser sobre a causa e não sobre os sintomas: nenhuma classe
+ * da paleta crua do Tailwind entra nestes botões, porque nenhuma delas vira com o tema.
  */
 import { describe, it, expect } from "vitest";
 import { render } from "@testing-library/react";
@@ -34,20 +46,20 @@ expect.extend(toHaveNoViolations);
 function WOActionButtons() {
   return (
     <div className="flex gap-2 flex-wrap">
-      <Button size="sm" className="h-11 min-w-11 px-3 bg-green-600 hover:bg-green-700 text-white dark:text-white" aria-label="Accept maintenance order">
+      <Button size="sm" className="h-11 min-w-11 px-3 bg-success hover:bg-success/90 text-success-foreground" aria-label="Accept maintenance order">
         <CheckCircle className="h-4 w-4 mr-1.5" aria-hidden="true" /> Accept
       </Button>
       <Button size="sm" className="h-11 min-w-11 px-3 bg-purple-600 hover:bg-purple-700 text-white dark:text-white" aria-label="Mark arrived and start">
         <Activity className="h-4 w-4 mr-1.5" aria-hidden="true" /> Arrived & Start
       </Button>
-      <Button size="sm" className="h-11 min-w-11 px-3 bg-amber-600 hover:bg-amber-700 text-white dark:text-white" aria-label="Start work">
+      <Button size="sm" className="h-11 min-w-11 px-3 bg-warning hover:bg-warning/90 text-warning-foreground" aria-label="Start work">
         <Play className="h-4 w-4 mr-1.5" aria-hidden="true" /> Start Work
       </Button>
-      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-green-500 text-foreground hover:bg-green-500/10" aria-label="Resume maintenance order">
-        <PlayCircle className="h-4 w-4 mr-1.5 text-green-600 dark:text-green-400" aria-hidden="true" /> Resume
+      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-success text-foreground hover:bg-success/10" aria-label="Resume maintenance order">
+        <PlayCircle className="h-4 w-4 mr-1.5 text-success-strong" aria-hidden="true" /> Resume
       </Button>
-      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-yellow-500 text-foreground hover:bg-yellow-500/10" aria-label="Pause maintenance order">
-        <Pause className="h-4 w-4 mr-1.5 text-yellow-600 dark:text-yellow-400" aria-hidden="true" /> Pause
+      <Button size="sm" variant="outline" className="h-11 min-w-11 px-3 border-warning text-foreground hover:bg-warning/10" aria-label="Pause maintenance order">
+        <Pause className="h-4 w-4 mr-1.5 text-warning-strong" aria-hidden="true" /> Pause
       </Button>
       <Button size="sm" variant="outline" className="h-11 min-w-11 px-3" aria-label="Register parts used">
         <Package className="h-4 w-4 mr-1.5" aria-hidden="true" /> Parts
@@ -104,9 +116,12 @@ describe("WO flow critical buttons — accessibility", () => {
   it("does NOT use dark-mode-unreadable text colors on outline buttons", () => {
     const { container } = render(<WOActionButtons />);
     const html = container.innerHTML;
-    // Regression guard: these were the offenders before the fix.
-    expect(html).not.toMatch(/\btext-green-700\b/);
-    expect(html).not.toMatch(/\btext-yellow-700\b/);
+    // Uma cor da paleta crua é um valor só: seja qual for o degrau escolhido, ou falha
+    // no claro ou falha no escuro. É essa a origem do defeito, não um degrau em
+    // particular, por isso a guarda apanha a família inteira.
+    expect(html).not.toMatch(
+      /\btext-(slate|gray|zinc|neutral|emerald|green|teal|amber|yellow|orange|red|rose|blue|sky|indigo|cyan|violet|purple)-\d{2,3}\b/,
+    );
   });
 
   it("has no axe violations (ARIA / name / role)", async () => {

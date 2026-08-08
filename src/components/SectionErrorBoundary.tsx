@@ -47,7 +47,7 @@ export class SectionErrorBoundary extends Component<Props, State> {
     return (
       <div
         role="alert"
-        className="flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-center"
+        className="flex min-h-[140px] flex-col items-center justify-center rounded-lg border border-warning/40 bg-warning/10 p-4 text-center"
       >
         <AlertTriangle className="mb-2 h-5 w-5 text-warning-strong" />
         <p className="text-sm font-semibold">{this.props.title ?? "This section"} could not be shown</p>

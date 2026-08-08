@@ -32,21 +32,21 @@ import { WoTimeline } from "@/components/WoTimeline";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
-  open: { label: "Open", className: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30" },
-  received: { label: "Received", className: "bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30" },
+  open: { label: "Open", className: "bg-primary/10 text-primary border-primary/30 dark:bg-primary/15 dark:text-primary dark:border-primary/30" },
+  received: { label: "Received", className: "bg-primary/10 text-primary border-primary/30 dark:bg-primary/15 dark:text-primary dark:border-primary/30" },
   arrived: { label: "Arrived", className: "bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30" },
-  in_progress: { label: "In Progress", className: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30" },
-  finished: { label: "Finished", className: "bg-teal-100 text-teal-800 border-teal-200 dark:bg-teal-500/15 dark:text-teal-300 dark:border-teal-500/30" },
-  closed: { label: "Closed", className: "bg-green-100 text-green-800 border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/30" },
-  completed: { label: "Completed", className: "bg-green-100 text-green-800 border-green-200 dark:bg-green-500/15 dark:text-green-300 dark:border-green-500/30" },
+  in_progress: { label: "In Progress", className: "bg-warning/10 text-warning-strong border-warning/30 dark:bg-warning/15 dark:text-warning-strong dark:border-warning/30" },
+  finished: { label: "Finished", className: "bg-success/10 text-success-strong border-success/30 dark:bg-success/15 dark:text-success-strong dark:border-success/30" },
+  closed: { label: "Closed", className: "bg-success/10 text-success-strong border-success/30 dark:bg-success/15 dark:text-success-strong dark:border-success/30" },
+  completed: { label: "Completed", className: "bg-success/10 text-success-strong border-success/30 dark:bg-success/15 dark:text-success-strong dark:border-success/30" },
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-500/15 dark:text-gray-300 dark:border-gray-500/30" },
 };
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
   low: { label: "Low", className: "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300 dark:border-slate-500/30" },
-  medium: { label: "Medium", className: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/30" },
-  high: { label: "High", className: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300 dark:border-orange-500/30" },
-  critical: { label: "Critical", className: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 dark:border-red-500/30" },
+  medium: { label: "Medium", className: "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary dark:border-primary/30" },
+  high: { label: "High", className: "bg-warning/10 text-warning-strong dark:bg-warning/15 dark:text-warning-strong dark:border-warning/30" },
+  critical: { label: "Critical", className: "bg-destructive/10 text-destructive-strong dark:bg-destructive/15 dark:text-destructive-strong dark:border-destructive/30" },
 };
 
 function TimelineItem({ icon: Icon, label, time, className }: { icon: React.ComponentType<{ className?: string }>; label: string; time: string | null; className?: string }) {
@@ -366,11 +366,11 @@ export default function WorkOrderDetail() {
             <div className="flex items-center gap-2 flex-wrap mt-1">
               <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
               {(wo as any).wo_type === "warehouse_service" && (
-                <Badge variant="outline" className="text-sm px-3 py-1 bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" title="Warehouse service — not counted as line downtime or OEE loss">Warehouse</Badge>
+                <Badge variant="outline" className="text-sm px-3 py-1 bg-primary/15 text-primary border-primary/30" title="Warehouse service — not counted as line downtime or OEE loss">Warehouse</Badge>
               )}
               <RecurrenceBadge originalWoId={(wo as any).recurrence_of_wo_id} />
               {((wo as any).current_episode ?? 1) > 1 && (
-                <Badge variant="outline" className="text-sm px-3 py-1 border-amber-600 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                <Badge variant="outline" className="text-sm px-3 py-1 border-warning text-warning-strong bg-warning/10 dark:bg-warning/30">
                   🔁 Episode {(wo as any).current_episode}
                   {((wo as any).reopen_count ?? 0) > 0 && ` · reopened ${(wo as any).reopen_count}×`}
                 </Badge>

@@ -352,9 +352,9 @@ export default function IntouchSettingsPage() {
         />
 
         {unmappedLines.length > 0 && (
-          <Card className="border-amber-500/40 bg-amber-500/5">
+          <Card className="border-warning/40 bg-warning/5">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2 text-amber-700 dark:text-amber-300">
+              <CardTitle className="text-lg flex items-center gap-2 text-warning-strong">
                 <AlertCircle className="h-5 w-5" />
                 {unmappedLines.length} line{unmappedLines.length === 1 ? "" : "s"} without iTouching mapping
               </CardTitle>
@@ -365,7 +365,7 @@ export default function IntouchSettingsPage() {
               </p>
               <div className="flex flex-wrap gap-2">
                 {unmappedLines.map((l) => (
-                  <span key={l.id} className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                  <span key={l.id} className="inline-flex items-center rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-xs font-medium text-warning-strong">
                     {l.name}
                   </span>
                 ))}
@@ -380,14 +380,14 @@ export default function IntouchSettingsPage() {
           </Card>
         )}
 
-        <Card className={autoWoEnabled ? "border-emerald-500/50" : "border-amber-500/50"}>
+        <Card className={autoWoEnabled ? "border-success/50" : "border-warning/50"}>
           <CardHeader>
             <CardTitle className="text-lg flex items-center justify-between gap-2">
               <span className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5" />
                 Auto Maintenance Orders from iTouching stop codes
               </span>
-              <span className={"text-xs font-semibold px-2 py-1 rounded " + (autoWoEnabled ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-amber-500/15 text-amber-700 dark:text-amber-300")}>
+              <span className={"text-xs font-semibold px-2 py-1 rounded " + (autoWoEnabled ? "bg-success/15 text-success-strong" : "bg-warning/15 text-warning-strong")}>
                 {autoWoEnabled ? "ON" : "OFF"}
               </span>
             </CardTitle>
@@ -463,8 +463,8 @@ export default function IntouchSettingsPage() {
                 className={
                   "flex items-start gap-2 rounded-md border p-3 text-sm " +
                   (testResult.ok
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                    : "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300")
+                    ? "border-success/40 bg-success/10 text-success-strong"
+                    : "border-destructive/40 bg-destructive/10 text-destructive-strong")
                 }
               >
                 {testResult.ok ? (
@@ -558,10 +558,10 @@ export default function IntouchSettingsPage() {
                 <div className="max-h-48 overflow-auto text-xs font-mono space-y-1">
                   {autoMapResult.details.map((d, i) => (
                     <div key={i} className={
-                      d.status === "saved" ? "text-green-600 dark:text-green-400" :
+                      d.status === "saved" ? "text-success-strong" :
                       d.status === "already" ? "text-muted-foreground" :
-                      d.status === "error" ? "text-red-600 dark:text-red-400" :
-                      "text-amber-600 dark:text-amber-400"
+                      d.status === "error" ? "text-destructive-strong" :
+                      "text-warning-strong"
                     }>
                       [{d.status}] {d.intouch}{d.matched ? ` → ${d.matched}` : ""}{d.reason ? ` (${d.reason})` : ""}
                     </div>
@@ -571,7 +571,7 @@ export default function IntouchSettingsPage() {
             )}
 
             {machineErr && (
-              <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+              <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-strong">
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span className="break-all">{machineErr}</span>
               </div>

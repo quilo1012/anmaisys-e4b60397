@@ -140,7 +140,7 @@ export function SharePointImportDialog({
           </div>
 
           {preview && (
-            <div className="flex items-start gap-2 text-sm bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 p-2 rounded">
+            <div className="flex items-start gap-2 text-sm bg-success/10 text-success-strong p-2 rounded">
               <CheckCircle2 className="h-4 w-4 mt-0.5" />
               {preview.rows.length} registros detectados.
             </div>

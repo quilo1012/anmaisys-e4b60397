@@ -130,7 +130,7 @@ export function TabletBindingsCard() {
   const renderStatus = (row: Row) => {
     if (row.status === "ok") {
       return (
-        <Badge variant="secondary" className="bg-emerald-500/15 text-emerald-500 border-emerald-500/30">
+        <Badge variant="secondary" className="bg-success/15 text-success-strong border-success/30">
           <CheckCircle2 className="h-3 w-3 mr-1" /> Valid
         </Badge>
       );
@@ -150,7 +150,7 @@ export function TabletBindingsCard() {
       );
     }
     return (
-      <Badge variant="secondary" className="bg-amber-500/15 text-amber-500 border-amber-500/30">
+      <Badge variant="secondary" className="bg-warning/15 text-warning-strong border-warning/30">
         <AlertTriangle className="h-3 w-3 mr-1" /> Label ↔ line mismatch
       </Badge>
     );
@@ -180,7 +180,7 @@ export function TabletBindingsCard() {
               <Badge variant="destructive">{invalidCount} need fix</Badge>
             )}
             {unconfirmedCount > 0 && (
-              <Badge variant="secondary" className="bg-amber-500/15 text-amber-500 border-amber-500/30">
+              <Badge variant="secondary" className="bg-warning/15 text-warning-strong border-warning/30">
                 {unconfirmedCount} unconfirmed
               </Badge>
             )}
@@ -230,7 +230,7 @@ export function TabletBindingsCard() {
                       <>
                         {new Date(row.confirmed.at).toLocaleString()}{" "}
                         {row.confirmed.stale && (
-                          <Badge variant="secondary" className="ml-1 bg-amber-500/15 text-amber-500 border-amber-500/30">
+                          <Badge variant="secondary" className="ml-1 bg-warning/15 text-warning-strong border-warning/30">
                             changed
                           </Badge>
                         )}

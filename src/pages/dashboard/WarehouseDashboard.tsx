@@ -147,10 +147,10 @@ export default function WarehouseDashboard() {
   };
 
   const kpiCards = [
-    { label: "Open Requests", value: kpis.openCount, icon: Package, tone: "text-amber-600 dark:text-amber-400" },
-    { label: "In Progress", value: kpis.inProgress, icon: PlayCircle, tone: "text-blue-600 dark:text-blue-400" },
-    { label: "Completed Today", value: kpis.doneToday, icon: CheckCircle2, tone: "text-emerald-600 dark:text-emerald-400" },
-    { label: "Completed This Week", value: kpis.doneWeek, icon: CalendarDays, tone: "text-emerald-600 dark:text-emerald-400" },
+    { label: "Open Requests", value: kpis.openCount, icon: Package, tone: "text-warning-strong" },
+    { label: "In Progress", value: kpis.inProgress, icon: PlayCircle, tone: "text-primary" },
+    { label: "Completed Today", value: kpis.doneToday, icon: CheckCircle2, tone: "text-success-strong" },
+    { label: "Completed This Week", value: kpis.doneWeek, icon: CalendarDays, tone: "text-success-strong" },
     { label: "Total Requests", value: kpis.total, icon: ClipboardList, tone: "text-foreground" },
   ];
 
@@ -210,8 +210,8 @@ export default function WarehouseDashboard() {
                         variant={priority === p ? "default" : "outline"}
                         className={cn(
                           "h-10 capitalize",
-                          priority === p && p === "high" && "bg-red-600 hover:bg-red-600/90",
-                          priority === p && p === "medium" && "bg-amber-500 hover:bg-amber-500/90",
+                          priority === p && p === "high" && "bg-destructive hover:bg-destructive/90",
+                          priority === p && p === "medium" && "bg-warning hover:bg-warning/90",
                         )}
                         onClick={() => setPriority(p)}
                       >

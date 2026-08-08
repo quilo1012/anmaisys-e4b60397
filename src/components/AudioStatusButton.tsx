@@ -44,7 +44,7 @@ export function AudioStatusButton() {
           className={cn(
             "shrink-0 gap-1.5 h-9 font-bold uppercase tracking-wide",
             effectivelyOn
-              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20"
+              ? "border-success text-success-strong bg-success/10 hover:bg-success/20"
               : "animate-pulse"
           )}
         >
@@ -53,7 +53,7 @@ export function AudioStatusButton() {
           <span
             className={cn(
               "h-2 w-2 rounded-full",
-              effectivelyOn ? "bg-emerald-500" : "bg-destructive-foreground"
+              effectivelyOn ? "bg-success" : "bg-destructive-foreground"
             )}
             aria-hidden="true"
           />

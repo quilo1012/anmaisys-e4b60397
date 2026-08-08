@@ -195,6 +195,7 @@ function ManagerDashboardContent() {
         </SectionErrorBoundary>
 
         <PageHeader
+          module="Maintenance"
           title={dashTitle}
           description="Where maintenance stands right now, and how the team performed over the period you choose."
           icon={<LayoutDashboard className="h-5 w-5" />}

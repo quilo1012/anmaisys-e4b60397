@@ -533,14 +533,14 @@ export default function ProductionPerformancePage() {
                   <div className="text-sm text-muted-foreground">
                     {scored.length} {scored.length === 1 ? "line" : "lines"} scored · {sessions.length} sessions
                     {excludedCount > 0 && (
-                      <span className="ml-1 text-amber-600 dark:text-amber-400">· {excludedCount} without RAG target excluded</span>
+                      <span className="ml-1 text-warning-strong">· {excludedCount} without RAG target excluded</span>
                     )}
                   </div>
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                  <Badge className="bg-green-500/15 text-green-600 dark:text-green-400 border border-green-500/40">≥100% Green</Badge>
-                  <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/40">≥80% Amber</Badge>
-                  <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/40">&lt;80% Red</Badge>
+                  <Badge className="bg-success/15 text-success-strong border border-success/40">≥100% Green</Badge>
+                  <Badge className="bg-warning/15 text-warning-strong border border-warning/40">≥80% Amber</Badge>
+                  <Badge className="bg-destructive/15 text-destructive-strong border border-destructive/40">&lt;80% Red</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -567,7 +567,7 @@ export default function ProductionPerformancePage() {
           const missing = sortedByLine.filter((l) => l.notLogged);
           if (missing.length === 0) return null;
           return (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+            <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
                 <b>{missing.length} {missing.length === 1 ? "line has" : "lines have"} a plan but no production logged for this shift.</b>{" "}
@@ -589,11 +589,11 @@ export default function ProductionPerformancePage() {
             // Theme-consistent panel (matches the rest of the app); status is
             // carried by a strong border + accent colours, numbers stay high
             // contrast in both light and dark.
-            const ring = l.eff >= 100 ? "border-emerald-500" : l.eff >= 80 ? "border-amber-500" : "border-red-500";
-            const chip = l.eff >= 100 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30" : l.eff >= 80 ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30" : "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30";
-            const effColor = l.eff >= 100 ? "text-emerald-600 dark:text-emerald-400" : l.eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
-            const gapColor = gap >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
-            const barColor = l.eff >= 100 ? "bg-emerald-500" : l.eff >= 80 ? "bg-amber-500" : "bg-red-500";
+            const ring = l.eff >= 100 ? "border-success" : l.eff >= 80 ? "border-warning" : "border-destructive";
+            const chip = l.eff >= 100 ? "bg-success/10 text-success-strong border-success/30" : l.eff >= 80 ? "bg-warning/10 text-warning-strong border-warning/30" : "bg-destructive/10 text-destructive-strong border-destructive/30";
+            const effColor = l.eff >= 100 ? "text-success-strong" : l.eff >= 80 ? "text-warning-strong" : "text-destructive-strong";
+            const gapColor = gap >= 0 ? "text-success-strong" : "text-destructive-strong";
+            const barColor = l.eff >= 100 ? "bg-success" : l.eff >= 80 ? "bg-warning" : "bg-destructive";
             const handleClick = () => navigate("/dashboard/shift-history");
             const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -616,7 +616,7 @@ export default function ProductionPerformancePage() {
                 </div>
                 {l.notLogged && (
                   <div
-                    className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-amber-700 dark:text-amber-400"
+                    className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-warning-strong"
                     title="This line was planned to run but nothing was logged on My Production, so it reads 0%."
                   >
                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Not logged on the line

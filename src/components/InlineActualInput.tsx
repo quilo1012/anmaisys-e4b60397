@@ -80,7 +80,7 @@ export function InlineActualInput({ itemId, value, disabled, align = "right", in
           editing && "border-primary ring-2 ring-primary/30",
         )}
       />
-      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+      {saved && <Check className="h-4 w-4 text-success-strong" />}
     </div>
   );
 }

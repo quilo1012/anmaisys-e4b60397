@@ -171,7 +171,7 @@ export function TabletProductionView() {
           <div className="text-lg">⚡</div>
           <div
             className={`text-2xl font-bold ${
-              efficiency >= 80 ? "text-emerald-500" : "text-amber-500"
+              efficiency >= 80 ? "text-success-strong" : "text-warning-strong"
             }`}
           >
             {efficiency}%

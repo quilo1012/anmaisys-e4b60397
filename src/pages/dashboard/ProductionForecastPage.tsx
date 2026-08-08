@@ -271,7 +271,7 @@ export default function ProductionForecastPage() {
                     <div className="font-medium flex items-center gap-2">
                       {e.line}
                       {fastest && e.line === fastest.line && (
-                        <Badge className="bg-emerald-600 hover:bg-emerald-600 gap-1"><Zap className="h-3 w-3" /> Fastest</Badge>
+                        <Badge className="bg-success hover:bg-success/90 gap-1"><Zap className="h-3 w-3" /> Fastest</Badge>
                       )}
                       <Badge variant="outline" className="capitalize">{e.source}</Badge>
                     </div>

@@ -23,9 +23,9 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 
 const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
-  HIGH: { label: "HIGH", className: "bg-red-100 text-red-800 border-red-200" },
-  MEDIUM: { label: "MEDIUM", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  LOW: { label: "LOW", className: "bg-green-100 text-green-800 border-green-200" },
+  HIGH: { label: "HIGH", className: "bg-destructive/10 text-destructive-strong border-destructive/30" },
+  MEDIUM: { label: "MEDIUM", className: "bg-warning/10 text-warning-strong border-warning/30" },
+  LOW: { label: "LOW", className: "bg-success/10 text-success-strong border-success/30" },
 };
 
 export default function ReliabilityDashboard() {
@@ -303,11 +303,11 @@ export default function ReliabilityDashboard() {
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-5">
           {[
-            { label: "Total Machines", value: totalMachines, icon: Cog, tint: "text-sky-500", bg: "bg-sky-500/10" },
-            { label: "WOs (Period)", value: totalWOs, icon: Activity, tint: "text-violet-500", bg: "bg-violet-500/10" },
-            { label: "High Risk", value: filteredRisks.filter((r) => r.risk === "HIGH").length, icon: AlertTriangle, tint: "text-red-500", bg: "bg-red-500/10" },
-            { label: "Avg MTTR", value: `${avgMTTR} min`, icon: Clock, tint: "text-amber-500", bg: "bg-amber-500/10" },
-            { label: "Avg MTBF", value: formatMTBF(avgMTBF), icon: TrendingUp, tint: "text-emerald-500", bg: "bg-emerald-500/10" },
+            { label: "Total Machines", value: totalMachines, icon: Cog, tint: "text-primary", bg: "bg-primary/10" },
+            { label: "WOs (Period)", value: totalWOs, icon: Activity, tint: "text-primary", bg: "bg-primary/10" },
+            { label: "High Risk", value: filteredRisks.filter((r) => r.risk === "HIGH").length, icon: AlertTriangle, tint: "text-destructive-strong", bg: "bg-destructive/10" },
+            { label: "Avg MTTR", value: `${avgMTTR} min`, icon: Clock, tint: "text-warning-strong", bg: "bg-warning/10" },
+            { label: "Avg MTBF", value: formatMTBF(avgMTBF), icon: TrendingUp, tint: "text-success-strong", bg: "bg-success/10" },
           ].map((k) => (
             <Card key={k.label}>
               <CardContent className="p-4 flex items-center gap-3">
@@ -425,9 +425,9 @@ export default function ReliabilityDashboard() {
                           <TableCell className="text-sm text-muted-foreground">{r.lastFailure ? format(new Date(r.lastFailure), "dd/MM HH:mm") : "—"}</TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
-                              {r.mtbfWarning && <Badge variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-200">MTBF Warning</Badge>}
-                              {r.recentRepairAlert && <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 border-blue-200">Recent Repair</Badge>}
-                              {r.recurringProblems.length > 0 && <Badge variant="outline" className="text-xs bg-red-100 text-red-800 border-red-200">Recurring</Badge>}
+                              {r.mtbfWarning && <Badge variant="outline" className="text-xs bg-warning/10 text-warning-strong border-warning/30">MTBF Warning</Badge>}
+                              {r.recentRepairAlert && <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">Recent Repair</Badge>}
+                              {r.recurringProblems.length > 0 && <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive-strong border-destructive/30">Recurring</Badge>}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -457,8 +457,8 @@ export default function ReliabilityDashboard() {
                                 )}
                                 {r.recurringProblems.length > 0 && (
                                   <div className="mt-2">
-                                    <p className="text-xs font-medium text-red-700">Recurring Problems (≥3 in 7 days):</p>
-                                    {r.recurringProblems.map((p) => <Badge key={p} variant="outline" className="text-xs mr-1 bg-red-50 text-red-700">{p}</Badge>)}
+                                    <p className="text-xs font-medium text-destructive-strong">Recurring Problems (≥3 in 7 days):</p>
+                                    {r.recurringProblems.map((p) => <Badge key={p} variant="outline" className="text-xs mr-1 bg-destructive/10 text-destructive-strong">{p}</Badge>)}
                                   </div>
                                 )}
                               </div>
@@ -548,9 +548,9 @@ function FailureHeatmap({ workOrders }: { workOrders: Array<{ machine: string; c
   const cellColor = (n: number) => {
     if (n === 0) return "bg-muted/40 text-muted-foreground";
     const ratio = n / max;
-    if (ratio >= 0.66) return "bg-red-500/90 text-white";
-    if (ratio >= 0.33) return "bg-amber-500/80 text-white";
-    return "bg-emerald-500/70 text-white";
+    if (ratio >= 0.66) return "bg-destructive/90 text-destructive-foreground";
+    if (ratio >= 0.33) return "bg-warning/80 text-warning-foreground";
+    return "bg-success/70 text-success-foreground";
   };
 
   return (
@@ -590,9 +590,9 @@ function FailureHeatmap({ workOrders }: { workOrders: Array<{ machine: string; c
             <div className="mt-3 flex items-center gap-3 text-2xs text-muted-foreground">
               <span>Legend:</span>
               <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-muted/40 border" />0</span>
-              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-emerald-500/70" />Low</span>
-              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-amber-500/80" />Mid</span>
-              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-red-500/90" />High</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-success/70" />Low</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-warning/80" />Mid</span>
+              <span className="inline-flex items-center gap-1"><span className="h-3 w-3 rounded bg-destructive/90" />High</span>
             </div>
           </div>
         )}

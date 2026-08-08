@@ -22,14 +22,14 @@ type Shift = "DAY" | "NIGHT";
 const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
 
 function ragColor(pct: number): string {
-  if (pct >= 90) return "bg-green-600";
-  if (pct >= 70) return "bg-amber-500";
-  return "bg-red-600";
+  if (pct >= 90) return "bg-success";
+  if (pct >= 70) return "bg-warning";
+  return "bg-destructive";
 }
 function ragText(pct: number): string {
-  if (pct >= 90) return "text-green-600";
-  if (pct >= 70) return "text-amber-500";
-  return "text-red-600";
+  if (pct >= 90) return "text-success-strong";
+  if (pct >= 70) return "text-warning-strong";
+  return "text-destructive-strong";
 }
 
 function manualActualQty(row: any): number {
@@ -223,7 +223,7 @@ function OperatorPerformanceContent() {
                     </Button>
                   )}
                   {leaderAssigned === false && (
-                    <div className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-500">
+                    <div className="mt-1 flex items-center gap-1 text-xs font-medium text-warning-strong">
                       <AlertCircle className="h-3 w-3" />
                       <span>No leader assigned — ask the Planner to assign a leader.</span>
                     </div>

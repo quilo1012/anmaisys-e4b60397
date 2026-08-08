@@ -79,12 +79,12 @@ export function AreaPicker<T extends PickerPerson>({
         {/* Said before the choice, not after it: putting somebody on a line on a day
             their rota does not cover is a call-in, and the card will say OT day. */}
         {p.otherShift && (
-          <span className="shrink-0 rounded border border-indigo-500/50 bg-indigo-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-indigo-700 dark:text-indigo-300">
+          <span className="shrink-0 rounded border border-primary/50 bg-primary/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-primary">
             {p.otherShift}
           </span>
         )}
         {p.offRota && !p.otherShift && (
-          <span className="shrink-0 rounded border border-amber-500/50 bg-amber-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong">
+          <span className="shrink-0 rounded border border-warning/50 bg-warning/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong">
             Off rota
           </span>
         )}

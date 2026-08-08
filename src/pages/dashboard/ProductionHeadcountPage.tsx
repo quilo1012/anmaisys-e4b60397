@@ -50,10 +50,10 @@ type ShiftKey = "Day" | "Night";
 type ViewKey = ShiftKey | "Split";
 
 const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
-  { status: "sick", label: "Sickness", accent: "border-rose-500/40 bg-rose-500/5" },
-  { status: "unpaid", label: "Unpaid", accent: "border-amber-500/40 bg-amber-500/5" },
-  { status: "holiday", label: "Holidays", accent: "border-amber-500/40 bg-amber-500/5" },
-  { status: "overtime", label: "Overtime", accent: "border-violet-500/40 bg-violet-500/5" },
+  { status: "sick", label: "Sickness", accent: "border-destructive/40 bg-destructive/5" },
+  { status: "unpaid", label: "Unpaid", accent: "border-warning/40 bg-warning/5" },
+  { status: "holiday", label: "Holidays", accent: "border-warning/40 bg-warning/5" },
+  { status: "overtime", label: "Overtime", accent: "border-primary/40 bg-primary/5" },
 ];
 
 function toISO(d: Date) {
@@ -94,7 +94,7 @@ function dayTypeLabel(iso: string) {
  */
 const SECTIONS: { key: string; label: string; accent: string }[] = [
   { key: "production", label: "Production", accent: "text-primary" },
-  { key: "sectors", label: "Sectors", accent: "text-cyan-600" },
+  { key: "sectors", label: "Sectors", accent: "text-primary" },
   { key: "support", label: "Support", accent: "text-slate-500" },
 ];
 
@@ -165,9 +165,9 @@ function initials(name: string) {
  * know which factory it is looking at.
  */
 const LOOK: Record<string, { icon: typeof Sun; rule: string; chip: string; soft: string; ink: string }> = {
-  Day: { icon: Sun, rule: "border-l-amber-500", chip: "bg-amber-500/15 text-warning-strong", soft: "bg-amber-500/10", ink: "text-warning-strong" },
-  Night: { icon: Moon, rule: "border-l-indigo-500", chip: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300", soft: "bg-indigo-500/10", ink: "text-indigo-700 dark:text-indigo-300" },
-  Weekend: { icon: CalendarDays, rule: "border-l-teal-500", chip: "bg-teal-500/15 text-teal-700 dark:text-teal-300", soft: "bg-teal-500/10", ink: "text-teal-700 dark:text-teal-300" },
+  Day: { icon: Sun, rule: "border-l-warning", chip: "bg-warning/15 text-warning-strong", soft: "bg-warning/10", ink: "text-warning-strong" },
+  Night: { icon: Moon, rule: "border-l-primary", chip: "bg-primary/15 text-primary", soft: "bg-primary/10", ink: "text-primary" },
+  Weekend: { icon: CalendarDays, rule: "border-l-success", chip: "bg-success/15 text-success-strong", soft: "bg-success/10", ink: "text-success-strong" },
 };
 
 /**
@@ -218,8 +218,8 @@ function Chip({
   const tones: Record<string, string> = {
     production: "bg-primary/5 border-primary/20",
     support: "bg-muted/40 border-border",
-    away: "bg-amber-500/10 border-amber-500/30",
-    overtime: "bg-violet-500/10 border-violet-500/30",
+    away: "bg-warning/10 border-warning/30",
+    overtime: "bg-primary/10 border-primary/30",
     roster: "bg-card border-border",
   };
   return (
@@ -231,7 +231,7 @@ function Chip({
         // by somebody wearing gloves. A 30px row is a row you miss.
         "inline-flex min-h-[44px] w-full max-w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-medium",
         leader ? "border-primary/40 bg-primary/10 font-semibold"
-          : overtime ? "border-violet-500/40 bg-violet-500/10"
+          : overtime ? "border-primary/40 bg-primary/10"
           : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
         dimmed && "opacity-20",
@@ -279,7 +279,7 @@ function Chip({
       {leftEarlyAt && (
         <span
           title={`Left early — went home at ${leftEarlyAt.slice(0, 5)}`}
-          className="shrink-0 rounded-sm bg-amber-500/20 px-1 py-px text-[10px] font-bold leading-tight text-warning-strong"
+          className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-[10px] font-bold leading-tight text-warning-strong"
         >
           ←{leftEarlyAt.slice(0, 5)}
         </span>
@@ -619,7 +619,7 @@ function ShiftBoard({
         <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
         <KpiPill icon={Wrench} label="Support" value={support} tone="" />
         <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
-        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-violet-600 dark:text-violet-400" : ""} />
+        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
       </div>
 
       {SECTIONS.map((section) => {
@@ -983,7 +983,7 @@ export default function ProductionHeadcountPage() {
             {/* A board showing yesterday is right at 03:00 and baffling unsaid. Drops
                 away the moment the reader moves off it, so it never becomes furniture. */}
             {opened.carriedOver && date === opened.operationalDate && view === opened.shift && (
-              <Badge className="border-violet-300/50 bg-violet-500/25 text-white print:hidden">
+              <Badge className="border-primary/30/50 bg-primary/25 text-white print:hidden">
                 Night still running — filed under {formatLong(date)}
               </Badge>
             )}

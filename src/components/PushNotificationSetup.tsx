@@ -13,7 +13,7 @@ export function PushNotificationSetup() {
   ) : permission === "denied" ? (
     <Badge variant="destructive">Blocked</Badge>
   ) : subscribed ? (
-    <Badge className="bg-green-600 hover:bg-green-700">Active</Badge>
+    <Badge className="bg-success hover:bg-success/90">Active</Badge>
   ) : (
     <Badge variant="secondary">Off</Badge>
   );

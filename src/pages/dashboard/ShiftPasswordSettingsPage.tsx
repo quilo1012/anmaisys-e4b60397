@@ -41,7 +41,7 @@ function ShiftPasswordRow({ code, label, Icon, isSet, onSaved }: {
         <CardTitle className="flex items-center gap-2 text-base">
           <Icon className="h-5 w-5" /> {label}
           {isSet
-            ? <Badge className="ml-1 gap-1 bg-emerald-500/15 text-success-strong border border-emerald-500/40"><CheckCircle2 className="h-3 w-3" /> Password set</Badge>
+            ? <Badge className="ml-1 gap-1 bg-success/15 text-success-strong border border-success/40"><CheckCircle2 className="h-3 w-3" /> Password set</Badge>
             : <Badge variant="secondary" className="ml-1">No password — shift open</Badge>}
         </CardTitle>
       </CardHeader>

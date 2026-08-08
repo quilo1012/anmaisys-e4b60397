@@ -25,7 +25,7 @@ function ChipRow({ label, tone, obj }: { label?: string; tone?: "before" | "afte
     <div className="flex flex-wrap items-center gap-1">
       {label && (
         <span className={cn("text-2xs font-semibold uppercase",
-          tone === "before" ? "text-destructive-strong" : tone === "after" ? "text-green-600 dark:text-green-400" : "text-muted-foreground")}>
+          tone === "before" ? "text-destructive-strong" : tone === "after" ? "text-success-strong" : "text-muted-foreground")}>
           {label}
         </span>
       )}

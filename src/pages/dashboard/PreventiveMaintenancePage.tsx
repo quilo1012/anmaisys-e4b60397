@@ -37,9 +37,9 @@ import { cn } from "@/lib/utils";
 import { KpiCard } from "@/components/reports/KpiCard";
 
 const statusStyle: Record<PmStatus, { label: string; chip: string; ring: string }> = {
-  overdue: { label: "Overdue", chip: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40", ring: "border-l-red-500" },
-  due_soon: { label: "Due Soon", chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40", ring: "border-l-amber-500" },
-  ok: { label: "Scheduled", chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40", ring: "border-l-emerald-500" },
+  overdue: { label: "Overdue", chip: "bg-destructive/15 text-destructive-strong border-destructive/40", ring: "border-l-destructive" },
+  due_soon: { label: "Due Soon", chip: "bg-warning/15 text-warning-strong border-warning/40", ring: "border-l-warning" },
+  ok: { label: "Scheduled", chip: "bg-success/15 text-success-strong border-success/40", ring: "border-l-success" },
   inactive: { label: "Inactive", chip: "bg-muted text-muted-foreground border-border", ring: "border-l-muted" },
 };
 

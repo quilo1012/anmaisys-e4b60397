@@ -59,10 +59,10 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
   if (isBlocked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-lg border-2 border-amber-500/40">
+        <Card className="w-full max-w-lg border-2 border-warning/40">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/10">
-              <Tablet className="h-8 w-8 text-amber-500" />
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-warning/10">
+              <Tablet className="h-8 w-8 text-warning-strong" />
             </div>
             <CardTitle className="text-2xl">
               {account ? "No lines assigned to this account" : "Tablet account not configured"}

@@ -462,7 +462,7 @@ export function AssemblyListImporter({
           {rows.length > 0 && (
             <>
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3 text-green-500" />{matched} / {rows.length} matched</Badge>
+                <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3 text-success-strong" />{matched} / {rows.length} matched</Badge>
                 <Badge variant="outline">Ready: {readyToImport}</Badge>
                 <Badge variant="outline">Total qty: {totalQty.toLocaleString()}</Badge>
                 {rows.length - matched > 0 && (
@@ -515,7 +515,7 @@ export function AssemblyListImporter({
                   </TableHeader>
                   <TableBody>
                     {rows.map((r, i) => (
-                      <TableRow key={i} className={!r.sku_id ? "bg-destructive/10" : !r.line ? "bg-amber-500/10" : ""}>
+                      <TableRow key={i} className={!r.sku_id ? "bg-destructive/10" : !r.line ? "bg-warning/10" : ""}>
                         <TableCell className="font-mono text-xs">{r.raw_code || "—"}</TableCell>
                         <TableCell className="text-xs">{r.raw_name || "—"}</TableCell>
                         <TableCell className="tabular-nums">{r.qty.toLocaleString()}</TableCell>

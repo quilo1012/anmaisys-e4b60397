@@ -319,7 +319,7 @@ export default function AttendancePage() {
                 </div>
 
                 {(preview.unmatched.length > 0 || preview.skipped.length > 0) && (
-                  <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-2xs">
+                  <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
                     <div className="flex items-center gap-1.5 font-semibold text-warning-strong">
                       <AlertTriangle className="h-3.5 w-3.5" /> Not imported
                     </div>

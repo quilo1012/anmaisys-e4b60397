@@ -13,7 +13,7 @@ export default function EngineerPreviewPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <div className="sticky top-0 z-50 border-b border-amber-500/40 bg-amber-500/10 backdrop-blur px-3 py-2 flex flex-wrap items-center gap-2">
+      <div className="sticky top-0 z-50 border-b border-warning/40 bg-warning/10 backdrop-blur px-3 py-2 flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -22,11 +22,11 @@ export default function EngineerPreviewPage() {
         >
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        <div className="flex items-center gap-2 text-amber-300 font-semibold">
+        <div className="flex items-center gap-2 text-warning-strong font-semibold">
           <Eye className="h-4 w-4" />
           Engineer Preview (read-only)
         </div>
-        <div className="ml-auto text-xs text-amber-200/80">
+        <div className="ml-auto text-xs text-warning-strong/80">
           Interactions disabled — view only.
         </div>
       </div>

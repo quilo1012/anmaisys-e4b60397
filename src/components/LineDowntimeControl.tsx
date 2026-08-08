@@ -35,7 +35,7 @@ function PermissionBanner({
     message = `Your role does not allow controlling line downtime. Only the assigned engineer, the operator on the same line, managers and admins can stop or resume the line.`;
   }
   return (
-    <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+    <div className="rounded-md border border-warning/40 bg-warning/10 p-2.5 flex items-start gap-2 text-xs text-warning-strong">
       <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
       <div>
         <p className="font-semibold">Downtime control blocked</p>
@@ -207,26 +207,26 @@ export function LineDowntimeControl({
   if (openEvent) {
     const liveDur = differenceInMinutes(new Date(), new Date(openEvent.stopped_at));
     return (
-      <div className="rounded-lg border-2 border-red-600 bg-red-600/10 p-3 space-y-2">
-        <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+      <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-3 space-y-2">
+        <p className="text-sm font-semibold text-destructive-strong flex items-center gap-1.5">
           <PowerOff className="h-4 w-4" />
           Line stopped since {format(new Date(openEvent.stopped_at), "HH:mm")} ({liveDur}m ago)
         </p>
         {openEvent.stopped_by_name && (
-          <p className="text-xs text-red-700/80">
+          <p className="text-xs text-destructive-strong/80">
             Reported by <span className="font-medium">{openEvent.stopped_by_name}</span>
             {openEvent.stopped_reason ? ` — "${openEvent.stopped_reason}"` : ""}
           </p>
         )}
         {requesterName && (
-          <p className="text-xs text-red-700/70">
+          <p className="text-xs text-destructive-strong/70">
             Order created by <span className="font-medium">{requesterName}</span>
           </p>
         )}
         {canControl ? (
           <Button
             size="lg"
-            className="w-full h-12 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
+            className="w-full h-12 text-base font-bold bg-success hover:bg-success/90 text-success-foreground"
             onClick={handleResume}
             disabled={resumeLine.isPending}
           >
@@ -244,15 +244,15 @@ export function LineDowntimeControl({
     const last = events![events!.length - 1];
     return (
       <>
-        <div className="rounded-lg border border-green-600/40 bg-green-600/10 p-3 space-y-2">
-          <p className="text-sm font-semibold text-green-700 flex items-center gap-1.5">
+        <div className="rounded-lg border border-success/40 bg-success/10 p-3 space-y-2">
+          <p className="text-sm font-semibold text-success-strong flex items-center gap-1.5">
             <CheckCircle2 className="h-4 w-4" /> Line in operation
           </p>
           <p className="text-xs text-muted-foreground">
             Last stop: {format(new Date(last.stopped_at), "HH:mm")}
             {last.resumed_at && ` → ${format(new Date(last.resumed_at), "HH:mm")} (${last.duration_minutes ?? 0}m)`}
           </p>
-          <p className="text-xs flex items-center gap-1 font-medium text-amber-700">
+          <p className="text-xs flex items-center gap-1 font-medium text-warning-strong">
             <AlertTriangle className="h-3 w-3" /> Stops so far: {stopCount} · total: {totalMinutes}m
           </p>
           {canControl ? (
@@ -289,14 +289,14 @@ export function LineDowntimeControl({
       ? differenceInMinutes(new Date(), new Date(woLineStoppedAt))
       : null;
     return (
-      <div className="rounded-lg border-2 border-red-600 bg-red-600/10 p-3 space-y-2">
-        <p className="text-sm font-semibold text-red-700 flex items-center gap-1.5">
+      <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-3 space-y-2">
+        <p className="text-sm font-semibold text-destructive-strong flex items-center gap-1.5">
           <PowerOff className="h-4 w-4" />
           Line stopped
           {woLineStoppedAt && ` since ${format(new Date(woLineStoppedAt), "HH:mm")}`}
           {liveDur !== null && ` (${liveDur}m ago)`}
         </p>
-        <p className="text-xs text-red-700/80">
+        <p className="text-xs text-destructive-strong/80">
           Use the line status banner above to mark the machine back to work.
         </p>
 
@@ -309,7 +309,7 @@ export function LineDowntimeControl({
     <>
       <div className="rounded-md bg-muted/50 px-3 py-2 flex items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-          <CheckCircle2 className="h-4 w-4 text-green-600" /> Line in operation · no stoppage
+          <CheckCircle2 className="h-4 w-4 text-success-strong" /> Line in operation · no stoppage
         </span>
 
         {canControl && workOrderStatus === "in_progress" && (
@@ -415,7 +415,7 @@ function StopDialog({
               the order's downtime. Stopping the line for a break charges the break to
               the repair. */}
           {TEAM_ACTIVITY_REASONS.some((r) => reason.trim().toLowerCase() === r.toLowerCase()) && (
-            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-2xs text-warning-strong">
+            <p className="rounded-md border border-warning/40 bg-warning/10 p-2 text-2xs text-warning-strong">
               A break, filling the blender or brushing and cleaning is the team's time, not the repair's.
               Recorded here it counts as downtime against this order. Use <b>Team activity during stop</b>
               below instead, and it will not.

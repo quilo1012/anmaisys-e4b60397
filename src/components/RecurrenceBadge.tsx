@@ -24,7 +24,7 @@ export function RecurrenceBadge({ originalWoId, compact }: Props) {
             e.stopPropagation();
             navigate(`/dashboard/wo/${originalWoId}`);
           }}
-          className={`inline-flex items-center gap-1 rounded-full border border-amber-500/60 bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/60 font-semibold ${
+          className={`inline-flex items-center gap-1 rounded-full border border-warning/60 bg-warning/10 text-warning-strong dark:bg-warning/40 dark:text-warning-strong hover:bg-warning/90 dark:hover:bg-warning/60 font-semibold ${
             compact ? "px-1.5 py-0 text-2xs" : "px-2 py-0.5 text-xs"
           }`}
           aria-label="Recurrence of previous maintenance order"

@@ -186,7 +186,7 @@ export function OvertimePanel({ employees, entries, activePeriod }: Props) {
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {r.hours < 0 && !r.note ? (
-                      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
+                      <Badge variant="outline" className="border-warning/40 bg-warning/10 text-2xs text-warning-strong">
                         Sickness against banked hours
                       </Badge>
                     ) : (

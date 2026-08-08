@@ -173,7 +173,7 @@ export default function IntouchStopCodesPage() {
         <CardHeader className="space-y-3">
           <CardTitle className="text-base flex flex-wrap items-center gap-2">
             Existing mappings ({rows.length})
-            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+            <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-strong">
               {woCount} open a maintenance order
             </span>
           </CardTitle>

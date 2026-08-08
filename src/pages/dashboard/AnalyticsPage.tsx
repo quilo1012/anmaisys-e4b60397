@@ -796,13 +796,13 @@ export default function AnalyticsPage() {
           <KpiCard accent="indigo" icon={<Timer className="h-4 w-4" />} label="Avg Response" value={fmtMin(kpis.avgResponse)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="amber" icon={<Activity className="h-4 w-4" />} label="Avg MTTR" value={fmtMin(kpis.avgMTTR)} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="purple" icon={<Activity className="h-4 w-4" />} label="Avg MTBF" value={formatMTBF(kpis.avgMTBF / 60)} sublabel={hasNoActivity ? "No activity in selected period" : "Mean Time Between Failures"} />
-          <KpiCard accent={slaCompliance.rate < 80 ? "red" : "green"} icon={<Timer className="h-4 w-4" />} label="SLA Compliance" value={`${slaCompliance.rate}%`} valueClassName={slaCompliance.rate < 80 ? "text-destructive-strong" : "text-green-600"} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent={slaCompliance.rate < 80 ? "red" : "green"} icon={<Timer className="h-4 w-4" />} label="SLA Compliance" value={`${slaCompliance.rate}%`} valueClassName={slaCompliance.rate < 80 ? "text-destructive-strong" : "text-success-strong"} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
         </div>
         {/* Leader Performance — production line leaders aggregated for the range */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" /> Leader Performance
+              <Trophy className="h-5 w-5 text-warning-strong" /> Leader Performance
               <Badge variant="secondary" className="ml-1 text-xs font-normal">{leaderPerf.rows.length} leaders</Badge>
             </CardTitle>
           </CardHeader>
@@ -812,7 +812,7 @@ export default function AnalyticsPage() {
             ) : (
               <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-green-600" : leaderPerf.avgEff >= 80 ? "text-warning-strong" : "text-red-600"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
+                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-success-strong" : leaderPerf.avgEff >= 80 ? "text-warning-strong" : "text-destructive-strong"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-warning-strong" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
@@ -871,7 +871,7 @@ export default function AnalyticsPage() {
                             {r.eff === null ? (
                               <span className="text-muted-foreground" title="No RAG weekly plan for this leader's sessions in the period">—</span>
                             ) : (
-                              <Badge className={`${r.eff >= 100 ? "bg-green-500/15 text-green-600 border-green-500/40" : r.eff >= 80 ? "bg-amber-500/15 text-warning-strong border-amber-500/40" : "bg-red-500/15 text-red-600 border-red-500/40"} border`}>{r.eff.toFixed(1)}%</Badge>
+                              <Badge className={`${r.eff >= 100 ? "bg-success/15 text-success-strong border-success/40" : r.eff >= 80 ? "bg-warning/15 text-warning-strong border-warning/40" : "bg-destructive/15 text-destructive-strong border-destructive/40"} border`}>{r.eff.toFixed(1)}%</Badge>
                             )}
                           </td>
                           <td className="p-2 text-right tabular-nums">
@@ -891,10 +891,10 @@ export default function AnalyticsPage() {
                             {r.openActions === 0 ? (
                               <span className="text-muted-foreground">0</span>
                             ) : (
-                              <Link to="/dashboard/quality" className="font-semibold text-warning-strong hover:underline dark:text-amber-400">
+                              <Link to="/dashboard/quality" className="font-semibold text-warning-strong hover:underline dark:text-warning-strong">
                                 {r.openActions}
                                 <span className="ml-1 text-2xs font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{r.openPoints}p</span>
-                                {r.openCritical > 0 && <span className="ml-1 text-2xs font-bold text-red-600 dark:text-red-400" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}
+                                {r.openCritical > 0 && <span className="ml-1 text-2xs font-bold text-destructive-strong" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}
                               </Link>
                             )}
                           </td>
@@ -1127,7 +1127,7 @@ export default function AnalyticsPage() {
 
         {/* Engineer Ranking */}
         <Card>
-          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-yellow-500" /> Engineer Ranking</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base flex items-center gap-2"><Trophy className="h-5 w-5 text-warning-strong" /> Engineer Ranking</CardTitle></CardHeader>
           <CardContent>
             {!rankedEngineers.length ? (
               <EmptyChart />
@@ -1137,7 +1137,7 @@ export default function AnalyticsPage() {
                 <div className="flex justify-center gap-4 items-end">
                   {rankedEngineers.slice(0, 3).map((eng, i) => {
                     const heights = ["h-28", "h-24", "h-20"];
-                    const medals = [<Award key="g" className="h-6 w-6 text-yellow-500" />, <Award key="s" className="h-5 w-5 text-gray-400" />, <Award key="b" className="h-5 w-5 text-orange-600" />];
+                    const medals = [<Award key="g" className="h-6 w-6 text-warning-strong" />, <Award key="s" className="h-5 w-5 text-gray-400" />, <Award key="b" className="h-5 w-5 text-warning-strong" />];
                     return (
                       <div key={eng.name} className="flex flex-col items-center">
                         {medals[i]}
@@ -1187,8 +1187,8 @@ export default function AnalyticsPage() {
                             {/* Against the targets, not against zero: the old test was
                                 `score > 0`, which pointed the arrow up for everybody. */}
                             {eng.score === null ? <span className="text-muted-foreground">—</span>
-                              : eng.score >= 75 ? <TrendingUp className="h-4 w-4 text-green-500 inline" />
-                              : <TrendingDown className="h-4 w-4 text-red-500 inline" />}
+                              : eng.score >= 75 ? <TrendingUp className="h-4 w-4 text-success-strong inline" />
+                              : <TrendingDown className="h-4 w-4 text-destructive-strong inline" />}
                           </td>
                         </tr>
                       ))}

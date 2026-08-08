@@ -181,7 +181,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
             {q.isLoading ? (
               <Skeleton className="h-8 w-16 mt-1" />
             ) : (
-              <div className={`text-2xl font-bold tabular-nums ${plan > 0 ? (pct >= 90 ? "text-emerald-500" : pct >= 60 ? "text-amber-500" : "text-rose-500") : "text-muted-foreground"}`}>
+              <div className={`text-2xl font-bold tabular-nums ${plan > 0 ? (pct >= 90 ? "text-success-strong" : pct >= 60 ? "text-warning-strong" : "text-destructive-strong") : "text-muted-foreground"}`}>
                 {plan > 0 ? `${pct}%` : "0"}
               </div>
             )}

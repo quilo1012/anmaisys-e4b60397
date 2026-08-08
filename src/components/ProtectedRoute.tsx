@@ -98,7 +98,7 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <div className="text-center space-y-4 max-w-md">
-          <ShieldAlert className={`mx-auto h-12 w-12 ${pendingApproval ? "text-amber-500" : "text-destructive-strong"}`} />
+          <ShieldAlert className={`mx-auto h-12 w-12 ${pendingApproval ? "text-warning-strong" : "text-destructive-strong"}`} />
           <h1 className="text-xl font-semibold text-foreground">
             {pendingApproval ? "Waiting for approval" : "Account deactivated"}
           </h1>

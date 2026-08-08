@@ -48,7 +48,7 @@ export default function OperatorPreviewPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <div className="sticky top-0 z-50 border-b border-amber-500/40 bg-amber-500/10 backdrop-blur px-3 py-2 flex flex-wrap items-center gap-2">
+      <div className="sticky top-0 z-50 border-b border-warning/40 bg-warning/10 backdrop-blur px-3 py-2 flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -57,7 +57,7 @@ export default function OperatorPreviewPage() {
         >
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
-        <div className="flex items-center gap-2 text-amber-300 font-semibold">
+        <div className="flex items-center gap-2 text-warning-strong font-semibold">
           <Eye className="h-4 w-4" />
           Operator Preview (read-only)
         </div>
@@ -78,7 +78,7 @@ export default function OperatorPreviewPage() {
           >
             <RefreshCw className="h-4 w-4 mr-1" /> Refresh all tablets
           </Button>
-          <span className="text-xs text-amber-200/80 hidden sm:inline">Simulating line:</span>
+          <span className="text-xs text-warning-strong/80 hidden sm:inline">Simulating line:</span>
           <Select value={line} onValueChange={handleChange} disabled={isLoading}>
             <SelectTrigger className="h-9 w-56 bg-slate-900/60 border-slate-700 text-white">
               <SelectValue placeholder={isLoading ? "Loading lines…" : "Select a line"} />

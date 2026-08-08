@@ -151,14 +151,14 @@ export default function WeeklyProductionReportPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Best line
+              <CheckCircle2 className="h-4 w-4 text-success-strong" /> Best line
             </CardTitle>
           </CardHeader>
           <CardContent>
             {best ? (
               <>
                 <div className="text-2xl font-bold">{best.line}</div>
-                <p className="text-xs text-emerald-500 mt-1">{fmtPct(best.acc)} accuracy · n={best.count}</p>
+                <p className="text-xs text-success-strong mt-1">{fmtPct(best.acc)} accuracy · n={best.count}</p>
               </>
             ) : <p className="text-sm text-muted-foreground">No data yet</p>}
           </CardContent>
@@ -167,7 +167,7 @@ export default function WeeklyProductionReportPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-muted-foreground flex items-center gap-1">
-              <AlertCircle className="h-4 w-4 text-amber-500" /> Lines needing attention
+              <AlertCircle className="h-4 w-4 text-warning-strong" /> Lines needing attention
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -176,7 +176,7 @@ export default function WeeklyProductionReportPage() {
                 {worst.map((l) => (
                   <div key={l.line} className="flex justify-between text-sm">
                     <span className="font-medium">{l.line}</span>
-                    <span className="text-amber-500">{fmtPct(l.acc)}</span>
+                    <span className="text-warning-strong">{fmtPct(l.acc)}</span>
                   </div>
                 ))}
               </div>
@@ -246,7 +246,7 @@ export default function WeeklyProductionReportPage() {
           ) : (
             <div className="space-y-3">
               {byLine.map((l) => {
-                const color = l.acc >= 75 ? "text-emerald-500" : l.acc >= 60 ? "text-amber-500" : "text-red-500";
+                const color = l.acc >= 75 ? "text-success-strong" : l.acc >= 60 ? "text-warning-strong" : "text-destructive-strong";
                 const biasLabel = Math.abs(l.bias) > 5
                   ? l.bias > 0 ? "actuals run above target" : "actuals run below target"
                   : null;

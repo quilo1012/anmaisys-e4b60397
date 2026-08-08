@@ -51,9 +51,9 @@ const CATEGORIES = ["Mechanical", "Electrical", "Machine", "Maintenance", "Fille
 const LINES = ["Line 1", "Line 2", "Line 3", "Line 4", "Line 5"] as const;
 
 const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
-  HIGH: { label: "HIGH", className: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30" },
-  MEDIUM: { label: "MEDIUM", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
-  LOW: { label: "LOW", className: "bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30" },
+  HIGH: { label: "HIGH", className: "bg-destructive/15 text-destructive-strong border-destructive/30" },
+  MEDIUM: { label: "MEDIUM", className: "bg-warning/15 text-warning-strong border-warning/30" },
+  LOW: { label: "LOW", className: "bg-success/15 text-success-strong border-success/30" },
 };
 
 type ShiftFilter = "all" | "Day" | "Night";
@@ -114,10 +114,10 @@ function nextShiftBoundary(t: number): number {
 function cellColor(minutes: number, max: number): string {
   if (minutes <= 0) return "bg-background";
   const pct = max > 0 ? minutes / max : 0;
-  if (pct < 0.15) return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
-  if (pct < 0.35) return "bg-amber-400/25 text-amber-800 dark:text-amber-200";
-  if (pct < 0.65) return "bg-orange-500/40 text-orange-900 dark:text-orange-100";
-  return "bg-red-600/70 text-white";
+  if (pct < 0.15) return "bg-success/15 text-success-strong";
+  if (pct < 0.35) return "bg-warning/20/25 text-warning-strong";
+  if (pct < 0.65) return "bg-warning/40 text-warning-strong";
+  return "bg-destructive/70 text-destructive-foreground";
 }
 
 interface HeatmapSectionProps {
@@ -286,10 +286,10 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
             </div>
             <div className="flex items-center gap-2 text-2xs uppercase tracking-wider text-muted-foreground">
               <span>Less</span>
-              <span className="h-3 w-5 rounded-sm bg-emerald-500/15 ring-1 ring-inset ring-border" />
-              <span className="h-3 w-5 rounded-sm bg-amber-400/25" />
-              <span className="h-3 w-5 rounded-sm bg-orange-500/40" />
-              <span className="h-3 w-5 rounded-sm bg-red-600/70" />
+              <span className="h-3 w-5 rounded-sm bg-success/15 ring-1 ring-inset ring-border" />
+              <span className="h-3 w-5 rounded-sm bg-warning/20/25" />
+              <span className="h-3 w-5 rounded-sm bg-warning/40" />
+              <span className="h-3 w-5 rounded-sm bg-destructive/70" />
               <span>More</span>
             </div>
           </div>
@@ -383,7 +383,7 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5 text-amber-500" />
+            <Lightbulb className="h-5 w-5 text-warning-strong" />
             Auto Insights
           </CardTitle>
           <CardDescription>Suggested PM windows based on recurring downtime concentration.</CardDescription>
@@ -396,7 +396,7 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
           ) : (
             <ul className="space-y-2">
               {insights.map((msg, i) => (
-                <li key={i} className="text-sm rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                <li key={i} className="text-sm rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
                   {msg}
                 </li>
               ))}
@@ -1192,7 +1192,7 @@ export default function DowntimePage() {
                   <CardContent className="p-4">
                     <div className="text-2xl font-bold">{filteredRisks.filter((r) => r.risk === "HIGH").length}</div>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3 text-red-500" />High Risk Machines
+                      <AlertTriangle className="h-3 w-3 text-destructive-strong" />High Risk Machines
                     </p>
                   </CardContent>
                 </Card>
@@ -1300,7 +1300,7 @@ export default function DowntimePage() {
                                     <Pencil className="h-4 w-4 mr-1" /> Edit
                                   </Button>
                                   {active && (
-                                    <Button size="sm" variant="outline" className="h-10 flex-1 text-green-600 touch-manipulation" onClick={() => handleResolve(r.id)}>
+                                    <Button size="sm" variant="outline" className="h-10 flex-1 text-success-strong touch-manipulation" onClick={() => handleResolve(r.id)}>
                                       <CheckCircle className="h-4 w-4 mr-1" /> Resolve
                                     </Button>
                                   )}
@@ -1353,7 +1353,7 @@ export default function DowntimePage() {
                                   <div className="flex items-center gap-1">
                                     <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                                     {!r.ended_at && (
-                                      <Button size="icon" variant="ghost" className="text-green-600" onClick={() => handleResolve(r.id)} title="Mark Resolved">
+                                      <Button size="icon" variant="ghost" className="text-success-strong" onClick={() => handleResolve(r.id)} title="Mark Resolved">
                                         <CheckCircle className="h-4 w-4" />
                                       </Button>
                                     )}
@@ -1446,9 +1446,9 @@ export default function DowntimePage() {
                                 <TableCell className="text-sm text-muted-foreground">{r.lastFailure ? format(new Date(r.lastFailure), "dd/MM HH:mm") : "—"}</TableCell>
                                 <TableCell>
                                   <div className="flex gap-1 flex-wrap">
-                                    {r.mtbfWarning && <Badge variant="outline" className="text-xs bg-orange-100 text-orange-800 border-orange-200">MTBF Warning</Badge>}
-                                    {r.recentRepairAlert && <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 border-blue-200">Recent Repair</Badge>}
-                                    {r.recurringProblems.length > 0 && <Badge variant="outline" className="text-xs bg-red-100 text-red-800 border-red-200">Recurring</Badge>}
+                                    {r.mtbfWarning && <Badge variant="outline" className="text-xs bg-warning/10 text-warning-strong border-warning/30">MTBF Warning</Badge>}
+                                    {r.recentRepairAlert && <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">Recent Repair</Badge>}
+                                    {r.recurringProblems.length > 0 && <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive-strong border-destructive/30">Recurring</Badge>}
                                   </div>
                                 </TableCell>
                                 <TableCell>
@@ -1478,8 +1478,8 @@ export default function DowntimePage() {
                                       )}
                                       {r.recurringProblems.length > 0 && (
                                         <div className="mt-2">
-                                          <p className="text-xs font-medium text-red-700">Recurring Problems (≥3 in 7 days):</p>
-                                          {r.recurringProblems.map((p) => <Badge key={p} variant="outline" className="text-xs mr-1 bg-red-50 text-red-700">{p}</Badge>)}
+                                          <p className="text-xs font-medium text-destructive-strong">Recurring Problems (≥3 in 7 days):</p>
+                                          {r.recurringProblems.map((p) => <Badge key={p} variant="outline" className="text-xs mr-1 bg-destructive/10 text-destructive-strong">{p}</Badge>)}
                                         </div>
                                       )}
                                     </div>

@@ -600,7 +600,7 @@ export function QualityActionsView() {
           />
           <KpiCard
             label="High / Critical open"
-            icon={<span className="h-2 w-2 rounded-full bg-red-500" />}
+            icon={<span className="h-2 w-2 rounded-full bg-destructive" />}
             value={kpis.openSevere} accent="danger"
             toneValue
             sublabel={kpis.ungraded ? `${kpis.ungraded} action${kpis.ungraded === 1 ? "" : "s"} with no severity` : "Every action graded"}
@@ -669,7 +669,7 @@ export function QualityActionsView() {
                           {validationMeta(a.validation_status).label}
                         </Badge>
                         {isClosed(a) && (
-                          <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-2xs text-success-strong">Closed</Badge>
+                          <Badge variant="outline" className="border-success/40 bg-success/15 text-2xs text-success-strong">Closed</Badge>
                         )}
                         {canManage && (
                           <span onClick={(e) => e.stopPropagation()}>
@@ -733,7 +733,7 @@ export function QualityActionsView() {
                             {validationMeta(a.validation_status).label}
                           </Badge>
                           {a.closed_at && (
-                            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-2xs text-success-strong">
+                            <Badge variant="outline" className="border-success/40 bg-success/15 text-2xs text-success-strong">
                               Closed
                             </Badge>
                           )}
@@ -977,7 +977,7 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
                 <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border p-2">
                   {action.closed_at ? (
                     <>
-                      <Badge variant="outline" className="bg-emerald-500/15 text-success-strong border-emerald-500/40 text-2xs">
+                      <Badge variant="outline" className="bg-success/15 text-success-strong border-success/40 text-2xs">
                         Closed {format(new Date(action.closed_at), "dd/MM/yyyy HH:mm")}
                       </Badge>
                       <span className="text-2xs text-muted-foreground">The verdict cannot change until it is reopened.</span>

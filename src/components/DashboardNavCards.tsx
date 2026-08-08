@@ -108,22 +108,22 @@ function NavCardGrid({ cards }: Props) {
 
 // Category accents — consistent across roles.
 // Operations = blue, Assets = amber, Reports = purple, Admin = red.
-const ASSETS = "bg-amber-500/15 text-amber-600 dark:text-amber-400";
+const ASSETS = "bg-warning/15 text-warning-strong";
 
 export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
   const cards: NavCard[] = [
-    { title: "New Maintenance Order", description: "Submit a maintenance request", url: "#wo-form-anchor", icon: Plus, accent: "bg-emerald-500/15 text-success-strong" },
+    { title: "New Maintenance Order", description: "Submit a maintenance request", url: "#wo-form-anchor", icon: Plus, accent: "bg-success/15 text-success-strong" },
     { title: "My Maintenance Orders", description: "Track your submitted orders", url: "/dashboard/operator", icon: ClipboardList, badge: myOpenWOs },
-    { title: "My Production", description: "View today's line target and enter produced quantities", url: "/dashboard/operator/my-production", icon: Factory, accent: "bg-blue-500/15 text-blue-600" },
+    { title: "My Production", description: "View today's line target and enter produced quantities", url: "/dashboard/operator/my-production", icon: Factory, accent: "bg-primary/15 text-primary" },
   ];
   return <DashboardNavCards cards={cards} />;
 }
 
 export function EngineerNavCards({ assignedCount, stockLow }: { assignedCount?: number; stockLow?: number }) {
   const cards: NavCard[] = [
-    { title: "My Tasks", description: "View assigned maintenance orders", url: "/dashboard/engineer", icon: Wrench, badge: assignedCount, accent: "bg-blue-500/15 text-blue-600" },
+    { title: "My Tasks", description: "View assigned maintenance orders", url: "/dashboard/engineer", icon: Wrench, badge: assignedCount, accent: "bg-primary/15 text-primary" },
     { title: "Preventive Maintenance", description: "Recurring schedules and checklists", url: "/dashboard/preventive", icon: Wrench, accent: ASSETS, category: "Operations" },
-    { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, badge: stockLow, accent: "bg-amber-500/15 text-warning-strong" },
+    { title: "Stock", description: "Spare parts inventory", url: "/dashboard/stock", icon: Package, badge: stockLow, accent: "bg-warning/15 text-warning-strong" },
   ];
   return <DashboardNavCards cards={cards} />;
 }
