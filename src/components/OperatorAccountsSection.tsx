@@ -1010,6 +1010,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                         <code className="font-mono text-xs text-muted-foreground truncate block">
                           {r.email}
                         </code>
+                        {r.password && r.status === "created" && (
+                          <code className="font-mono text-xs bg-background px-2 py-1 rounded border mt-1 inline-block">
+                            {r.password}
+                          </code>
+                        )}
                         {r.reason && r.status === "failed" && (
                           <p className="text-xs text-destructive-strong mt-0.5">{r.reason}</p>
                         )}
