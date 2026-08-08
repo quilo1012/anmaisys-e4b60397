@@ -6,6 +6,12 @@ export type TelemetryErrorType =
   | "UNHANDLED_REJECTION"
   | "RLS_ERROR"
   | "API_ERROR"
+  // A backend refusal the person who hit it can fix by typing something else, on a
+  // screen that already tells them how. Recorded rather than dropped — three duplicate
+  // SKU codes in four minutes is what said the screen should name the SKU already
+  // holding the code — but not a fault. `userCorrectable` decides, one constraint at
+  // a time, and everything unlisted stays a fault.
+  | "USER_ERROR"
   | "REALTIME";
 
 // Best-effort context, set from AuthContext so logs carry the user + role
