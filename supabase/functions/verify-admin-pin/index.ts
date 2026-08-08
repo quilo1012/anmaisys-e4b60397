@@ -17,9 +17,17 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Two different failures used to leave by the same door, both as a bare 401:
+    // no token at all, and a token GoTrue refused. The screen turns 401 into "your
+    // session has expired", which was wrong at least once — on 07/08 the browser
+    // sent a token good enough for PostgREST to accept an insert 100ms later, and
+    // this call still came back 401. Nothing was written down about why, because
+    // userError was discarded. So each case now says which one it was, in the body
+    // and in the function's own log.
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    if (!authHeader?.startsWith("Bearer ") || authHeader === "Bearer undefined") {
+      console.error("No bearer token on the request");
+      return new Response(JSON.stringify({ error: "Unauthorized", message: "verify-admin-pin: no bearer token on the request" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -31,9 +39,16 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // getUser() asks GoTrue, which looks the session up in auth.sessions — so a token
+    // whose signature and expiry are both fine is still refused here once its session
+    // row is gone (signed out elsewhere, refresh-token reuse). PostgREST never checks
+    // that, which is how the same token can be good enough to write a row and not good
+    // enough to open this door. If that is what happened, the reason says so.
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      const reason = userError?.message ?? "no user for this token";
+      console.error("Token rejected by getUser:", reason);
+      return new Response(JSON.stringify({ error: "Unauthorized", message: `verify-admin-pin: token rejected — ${reason}` }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
