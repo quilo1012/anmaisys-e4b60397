@@ -1,7 +1,11 @@
-// Auto-calculates target_qty per SKU in production_items based on the SKU's
-// UPM standard (sku_products.target_per_hour, treated as units-per-minute) and
-// the 660 min available per shift, splitting time evenly across the SKUs
-// scheduled for that line+shift+date. Then refreshes rag_weekly_entries.plan_qty.
+// Auto-calculates target_qty per SKU in production_items from the SKU's hourly
+// standard (sku_products.target_per_hour) over the 660 productive minutes in a
+// shift, split evenly across the SKUs scheduled for that line+shift+date.
+//
+// It does NOT touch rag_weekly_entries. That plan is typed by hand on the RAG
+// Weekly screen and belongs to the planner; this only fills the derived per-item
+// target. The two are different quantities that merely look alike, and this
+// function used to overwrite one with the other every half hour.
 //
 // Auth: admin/manager JWT OR x-cron-secret header matching CRON_SECRET env.
 // Body: { date?: "YYYY-MM-DD", shift?: "DAY"|"NIGHT", line?: string, overwrite?: boolean }
@@ -194,21 +198,25 @@ Deno.serve(async (req) => {
         .upsert(targetOverrides, { onConflict: "sku_id,line,shift" });
     }
 
-    // 4) Refresh rag_weekly_entries.plan_qty = sum of session targets
-    const linesAffected = Array.from(new Set(sessions.map((s) => s.line)));
-    for (const ln of linesAffected) {
-      const sessIdsForLine = sessions.filter((s) => s.line === ln).map((s) => s.id);
-      const itemsForLine = (items ?? []).filter((i: any) => sessIdsForLine.includes(i.session_id));
-      const updatedMap = new Map(updates.map((u) => [u.id, u.target_qty]));
-      const sumTarget = itemsForLine.reduce(
-        (acc: number, i: any) => acc + Number(updatedMap.get(i.id) ?? i.target_qty ?? 0),
-        0,
-      );
-      await admin.from("rag_weekly_entries").upsert(
-        { entry_date: date, line: ln, shift, plan_qty: sumTarget },
-        { onConflict: "entry_date,line,shift" },
-      );
-    }
+    // The RAG Weekly plan is NOT written here, and must not be.
+    //
+    // `rag_weekly_entries.plan_qty` is the planner's own figure, typed by hand on
+    // the RAG Weekly screen. It is a commitment somebody made; it is not the sum
+    // of what the SKU rates imply, and the two are different quantities that only
+    // look alike.
+    //
+    // This function used to overwrite it with that sum every half hour. On 08/08
+    // at 16:30 it replaced six lines of planning at once — Line 1 6,114 → 475,200,
+    // Line 4 8,891 → 475,200, and Line 2 and Line 6 straight to ZERO because their
+    // SKUs carry no rate. The 60x was a separate bug and is fixed; the overwrite
+    // would have destroyed the plan just as thoroughly with correct arithmetic,
+    // and a zero is the worst of them, because a line with no plan and a line
+    // planned to make nothing read the same on every screen downstream.
+    //
+    // What this function is for is `production_items.target_qty`: what the SKU's
+    // standard rate says an item should make in the time it has. That is a
+    // derived figure and it is welcome to be derived. The plan stays the
+    // planner's.
 
     return new Response(JSON.stringify({
       ok: true, date, shift, sessions: sessions.length, items_updated: updates.length,
