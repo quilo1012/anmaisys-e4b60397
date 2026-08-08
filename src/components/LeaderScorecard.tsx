@@ -479,7 +479,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                       {validationMeta(a.validation_status).label}
                     </Badge>
                     {a.closed_at && (
-                      <Badge variant="outline" className="text-2xs bg-emerald-500/15 text-success-strong border-emerald-500/40">
+                      <Badge variant="outline" className="text-2xs bg-success/15 text-success-strong border-success/40">
                         closed {format(new Date(a.closed_at), "dd/MM")}
                       </Badge>
                     )}
@@ -528,7 +528,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
             </div>
 
             {docs.penalised.length === 0 ? (
-              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3">
+              <div className="rounded-lg border border-success/40 bg-success/5 p-3">
                 <p className="text-sm font-semibold text-success-strong">No penalty · 100% compliant</p>
                 <p className="text-2xs text-muted-foreground">
                   No validated {DOCUMENTATION_LABEL.toLowerCase()} action in this period.

@@ -467,7 +467,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                   setAutoResults([]);
                   setAutoOpen(true);
                 }}
-                className="bg-amber-500 hover:bg-amber-600 text-white"
+                className="bg-warning hover:bg-warning/90 text-warning-foreground"
               >
                 <Wand2 className="h-4 w-4 mr-2" />
                 Auto-create {linesWithoutTablet.length} missing tablet
@@ -951,7 +951,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Wand2 className="h-5 w-5 text-amber-500" /> Auto-create Tablet Stations
+              <Wand2 className="h-5 w-5 text-warning-strong" /> Auto-create Tablet Stations
             </DialogTitle>
             <DialogDescription>
               One tablet account will be created per production line that doesn't have one yet,
@@ -1043,7 +1043,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
               <Button
                 onClick={handleAutoCreate}
                 disabled={autoRunning || linesWithoutTablet.length === 0}
-                className="bg-amber-500 hover:bg-amber-600 text-white"
+                className="bg-warning hover:bg-warning/90 text-warning-foreground"
               >
                 {autoRunning && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Create {linesWithoutTablet.length} account

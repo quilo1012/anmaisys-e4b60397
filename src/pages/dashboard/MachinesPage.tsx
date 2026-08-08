@@ -491,7 +491,7 @@ export default function MachinesPage() {
     const label = STATUS_OPTIONS.find((o) => o.value === s)?.label || s || "Active";
     const isActive = s === "active" || !s;
     if (isActive) {
-      return <Badge className="bg-green-600 hover:bg-green-600 text-white border-transparent">{label}</Badge>;
+      return <Badge className="bg-success hover:bg-success/90 text-success-foreground border-transparent">{label}</Badge>;
     }
     const map: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
       in_use: "secondary",
@@ -562,7 +562,7 @@ export default function MachinesPage() {
                         )}
                         {m.code && <span className="font-mono text-muted-foreground">{m.code}</span>}
                         {!m.machine_type && (
-                          <Badge variant="outline" className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/30">Incomplete</Badge>
+                          <Badge variant="outline" className="bg-warning/15 text-warning-strong border-warning/30">Incomplete</Badge>
                         )}
                       </div>
                       <div className="grid grid-cols-3 gap-2 pt-1">
@@ -604,7 +604,7 @@ export default function MachinesPage() {
                           {!m.machine_type && (
                             <Badge
                               variant="outline"
-                              className="ml-2 text-xs bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/30"
+                              className="ml-2 text-xs bg-warning/15 text-warning-strong border-warning/30"
                             >
                               Incomplete
                             </Badge>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { currentShift } from "@/lib/operationalShift";
+import { currentShift, shiftRank } from "@/lib/operationalShift";
 import { shiftTimeToIso } from "@/lib/productionTime";
 
 /** An instant given as a London wall clock, in August (UTC+1). */
@@ -56,5 +56,34 @@ describe("currentShift", () => {
     const typed = shiftTimeToIso("02:00", operationalDate, "NIGHT");
     expect(typed!.slice(0, 10)).toBe("2026-08-07"); // the instant is the 7th…
     expect(operationalDate).toBe("2026-08-06");     // …filed under the 6th
+  });
+});
+
+describe("shiftRank", () => {
+  it("puts Day before Night", () => {
+    expect(shiftRank("DAY")).toBeLessThan(shiftRank("NIGHT"));
+  });
+
+  it("does not care how the shift was spelled", () => {
+    // `production_sessions.shift` is upper case; `daily_allocations.shift` is "Day".
+    for (const d of ["DAY", "Day", " day "]) expect(shiftRank(d)).toBe(0);
+    for (const n of ["NIGHT", "Night", "night"]) expect(shiftRank(n)).toBe(1);
+  });
+
+  it("sorts anything else last, never between the two", () => {
+    for (const other of ["Weekend", "", null, undefined]) {
+      expect(shiftRank(other)).toBeGreaterThan(shiftRank("NIGHT"));
+    }
+  });
+
+  it("orders a mixed list day-block then night-block", () => {
+    const rows = [
+      { shift: "NIGHT", line: "Line 1" }, { shift: "DAY", line: "Line 2" },
+      { shift: "NIGHT", line: "Line 2" }, { shift: "DAY", line: "Line 1" },
+    ];
+    expect(
+      rows.slice().sort((a, b) => shiftRank(a.shift) - shiftRank(b.shift) || a.line.localeCompare(b.line))
+        .map((r) => `${r.shift} ${r.line}`),
+    ).toEqual(["DAY Line 1", "DAY Line 2", "NIGHT Line 1", "NIGHT Line 2"]);
   });
 });

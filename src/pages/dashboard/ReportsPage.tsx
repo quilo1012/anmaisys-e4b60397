@@ -101,7 +101,7 @@ export default function ReportsPage() {
         <ShiftFilter value={shift} onChange={setShift} />
       </div>
 
-      <Section title="Production" icon={Gauge} accent="border-l-emerald-500" to="/dashboard/production-performance" onOpen={navigate}>
+      <Section title="Production" icon={Gauge} accent="border-l-success" to="/dashboard/production-performance" onOpen={navigate}>
         <Figure bare label="Plan" value={s.production.plan.toLocaleString()} />
         <Figure bare label="Actual" value={s.production.actual.toLocaleString()} />
         <Figure bare
@@ -112,7 +112,7 @@ export default function ReportsPage() {
         <Figure bare label="Days planned" value={String(s.production.days)} />
       </Section>
 
-      <Section title="Downtime" icon={Clock} accent="border-l-amber-500" to="/dashboard/downtime" onOpen={navigate}>
+      <Section title="Downtime" icon={Clock} accent="border-l-warning" to="/dashboard/downtime" onOpen={navigate}>
         <Figure bare label="Total" value={mins(s.downtime.minutes)} />
         <Figure bare label="Stoppages" value={String(s.downtime.stops)} />
         <Figure bare
@@ -126,7 +126,7 @@ export default function ReportsPage() {
         />
       </Section>
 
-      <Section title="Maintenance" icon={Wrench} accent="border-l-sky-500" to="/dashboard/work-orders" onOpen={navigate}>
+      <Section title="Maintenance" icon={Wrench} accent="border-l-primary" to="/dashboard/work-orders" onOpen={navigate}>
         <Figure bare label="Raised" value={String(s.maintenance.raised)} />
         <Figure bare
           label="Closed"
@@ -137,7 +137,7 @@ export default function ReportsPage() {
         <Figure bare label="Avg repair" value={s.maintenance.avgRepairMin == null ? "—" : `${s.maintenance.avgRepairMin}m`} />
       </Section>
 
-      <Section title="Quality" icon={AlertTriangle} accent="border-l-rose-500" to="/dashboard/quality" onOpen={navigate}>
+      <Section title="Quality" icon={AlertTriangle} accent="border-l-destructive" to="/dashboard/quality" onOpen={navigate}>
         <Figure bare label="Actions" value={String(s.quality.total)} />
         <Figure bare label="Still open" value={String(s.quality.open)} />
         <Figure bare label="Critical" value={String(s.quality.critical)} />

@@ -1,6 +1,35 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { statusBadgeConfig } from "@/lib/design-tokens";
+
+/**
+ * As variantes viviam em `lib/design-tokens.ts`, um segundo sistema de design paralelo
+ * ao `index.css`: hexes cravados, a marca declarada como sky-500, e escalas próprias de
+ * tipo, espaço e raio que contradiziam os tokens. Nada disso era importado por ninguém
+ * — só este mapa era — por isso o ficheiro saiu e o mapa veio para o seu único
+ * consumidor. Um componente que possui as suas próprias variantes não deixa ninguém em
+ * dúvida sobre qual dos dois sistemas manda.
+ *
+ * As cores passam a descer dos tokens. O distintivo deixa de ser um comprimido de cor
+ * cheia a competir com os dados: fica um fundo a 10%, uma hairline e o texto na
+ * variante forte, que é a que se lê.
+ */
+const statusBadgeConfig = {
+  open: "border border-primary/25 bg-primary/10 text-primary",
+  in_progress: "border border-warning/30 bg-warning/10 text-warning-strong",
+  completed: "border border-success/30 bg-success/10 text-success-strong",
+  cancelled: "border border-border bg-muted text-muted-foreground",
+  pending: "border border-warning/30 bg-warning/10 text-warning-strong",
+  critical: "border border-destructive/30 bg-destructive/10 text-destructive-strong",
+  success: "border border-success/30 bg-success/10 text-success-strong",
+  warning: "border border-warning/30 bg-warning/10 text-warning-strong",
+  error: "border border-destructive/30 bg-destructive/10 text-destructive-strong",
+  info: "border border-primary/25 bg-primary/10 text-primary",
+  low_stock: "border border-destructive/30 bg-destructive/10 text-destructive-strong",
+  normal: "border border-success/30 bg-success/10 text-success-strong",
+  default: "border border-border bg-muted text-muted-foreground",
+} as const;
+
+export type StatusBadgeVariant = keyof typeof statusBadgeConfig;
 
 export interface StatusBadgeProps {
   /** Status value to display (case-insensitive). */
@@ -80,9 +109,9 @@ function getStatusClasses(status: string): string {
 
 function getDotColor(status: string): string {
   const normalized = normalizeStatus(status);
-  if (normalized === "open") return "bg-blue-500";
+  if (normalized === "open") return "bg-primary";
   if (normalized === "in_progress" || normalized === "inprogress" || normalized === "progress") {
-    return "bg-amber-500";
+    return "bg-warning";
   }
   if (
     normalized === "completed" ||
@@ -92,16 +121,16 @@ function getDotColor(status: string): string {
     normalized === "closed" ||
     normalized === "finalized"
   ) {
-    return "bg-green-500";
+    return "bg-success";
   }
-  if (normalized === "cancelled" || normalized === "canceled") return "bg-gray-500";
+  if (normalized === "cancelled" || normalized === "canceled") return "bg-muted-foreground";
   if (normalized === "pending" || normalized === "waiting" || normalized === "hold" || normalized === "on_hold") {
-    return "bg-yellow-500";
+    return "bg-warning";
   }
   if (normalized === "critical" || normalized === "high" || normalized === "urgent" || normalized === "error") {
-    return "bg-red-500";
+    return "bg-destructive";
   }
-  return "bg-gray-500";
+  return "bg-muted-foreground";
 }
 
 export function StatusBadge({

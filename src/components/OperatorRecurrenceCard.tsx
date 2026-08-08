@@ -117,15 +117,15 @@ export function OperatorRecurrenceCard({ wo }: Props) {
 
   return (
     <>
-      <div className="rounded-lg border-2 border-amber-600/60 bg-amber-50 dark:bg-amber-950/20 p-4 print:hidden">
+      <div className="rounded-lg border-2 border-warning/60 bg-warning/10 dark:bg-warning/20 p-4 print:hidden">
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-warning-strong shrink-0 mt-0.5" />
           <div className="flex-1 space-y-2">
             <div>
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+              <p className="text-sm font-semibold text-warning-strong">
                 Machine recently repaired
               </p>
-              <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+              <p className="text-xs text-warning-strong/80">
                 Fix signed off by {wo.engineer_name || "engineer"}
                 {finishedTs && ` ${formatDistanceToNow(new Date(finishedTs), { addSuffix: true })}`}.
                 If the same problem returns, reopen this maintenance order — its time will be

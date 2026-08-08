@@ -53,9 +53,9 @@ const statusConfig = new Proxy({} as Record<string, { label: string; className: 
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
   low: { label: "Low", className: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30" },
-  medium: { label: "Medium", className: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
-  high: { label: "High", className: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30" },
-  critical: { label: "Critical", className: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30" },
+  medium: { label: "Medium", className: "bg-primary/15 text-primary border-primary/30" },
+  high: { label: "High", className: "bg-warning/15 text-warning-strong border-warning/30" },
+  critical: { label: "Critical", className: "bg-destructive/15 text-destructive-strong border-destructive/30" },
 };
 
 const ITEMS_PER_PAGE = 20;
@@ -454,7 +454,7 @@ export default function WorkOrdersPage() {
           <p className="text-sm font-medium">{wo.machine}</p>
           <p className="text-xs text-muted-foreground truncate">{wo.description}</p>
           {unacceptedMinutes(wo) !== null && (
-            <p className="text-2xs font-semibold text-red-600 dark:text-red-400">
+            <p className="text-2xs font-semibold text-destructive-strong">
               Not accepted · {formatWait(unacceptedMinutes(wo)!)}
             </p>
           )}
@@ -778,11 +778,11 @@ export default function WorkOrdersPage() {
               </div>
             ) : viewMode === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
-                <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-blue-500" borderColor="border-l-blue-500" stage="open" />
-                <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-indigo-500" borderColor="border-l-indigo-500" stage="received" />
-                <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-amber-500" borderColor="border-l-amber-500" stage="in_progress" />
-                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-teal-500" borderColor="border-l-teal-500" stage="finished" note="Waiting for the maintenance manager to sign off" />
-                <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-green-500" borderColor="border-l-green-500" stage="closed" />
+                <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-primary" borderColor="border-l-primary" stage="open" />
+                <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-primary" borderColor="border-l-primary" stage="received" />
+                <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-warning" borderColor="border-l-warning" stage="in_progress" />
+                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-success" borderColor="border-l-success" stage="finished" note="Waiting for the maintenance manager to sign off" />
+                <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-success" borderColor="border-l-success" stage="closed" />
               </div>
             ) : (
               <div className="print-content">
@@ -808,14 +808,14 @@ export default function WorkOrdersPage() {
                             </span>
                             <div className="flex items-center gap-1">
                               {(wo as any).wo_type === "warehouse_service" && (
-                                <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
+                                <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
                               )}
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {isStale && (
-                                <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-2xs" title="In progress > 3 days">Stale</Badge>
+                                <Badge variant="outline" className="bg-warning/15 text-warning-strong border-warning/30 text-2xs" title="In progress > 3 days">Stale</Badge>
                               )}
                               {unacceptedMinutes(wo) !== null && (
-                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-2xs" title="No engineer has accepted this order yet">
+                                <Badge variant="outline" className="bg-destructive/15 text-destructive-strong border-destructive/30 text-2xs" title="No engineer has accepted this order yet">
                                   Not accepted · {formatWait(unacceptedMinutes(wo)!)}
                                 </Badge>
                               )}
@@ -897,14 +897,14 @@ export default function WorkOrdersPage() {
                           {isCol("line") && (
                             <TableCell className="text-sm font-medium">
                               {(wo as any).wo_type === "warehouse_service" ? (
-                                <Badge variant="outline" className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
+                                <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30 text-2xs" title="Warehouse service — not counted as line downtime">Warehouse</Badge>
                               ) : (
                                 <span className="flex flex-wrap items-center gap-1">
                                   {woLine}
                                   {(wo as any).wo_type === "preventive" && (
                                     // A preventive order sits in the same list as the
                                     // breakdowns; without this it reads as one.
-                                    <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/15 text-2xs text-success-strong" title="Planned preventive work — books no downtime">
+                                    <Badge variant="outline" className="border-success/40 bg-success/15 text-2xs text-success-strong" title="Planned preventive work — books no downtime">
                                       Preventive
                                     </Badge>
                                   )}
@@ -918,13 +918,13 @@ export default function WorkOrdersPage() {
                             <div className="flex items-center gap-1">
                               <Badge variant="outline" className={cfg.className}>{cfg.label}</Badge>
                               {wo.status === "in_progress" && wo.started_at && differenceInMinutes(new Date(), new Date(wo.started_at)) > 4320 && (
-                                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 text-2xs" variant="outline" title="This maintenance order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
+                                <Badge className="bg-warning/15 text-warning-strong border-warning/30 text-2xs" variant="outline" title="This maintenance order has been in progress for more than 3 days. Consider reviewing or closing it.">Stale</Badge>
                               )}
                               {/* An open order with no received_at has not been accepted by anyone.
                                   Nothing on the board said so, which is how WO-605 waited from
                                   29/07 13:04 to the next morning without anyone noticing. */}
                               {unacceptedMinutes(wo) !== null && (
-                                <Badge variant="outline" className="bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30 text-2xs" title="No engineer has accepted this order yet">
+                                <Badge variant="outline" className="bg-destructive/15 text-destructive-strong border-destructive/30 text-2xs" title="No engineer has accepted this order yet">
                                   Not accepted · {formatWait(unacceptedMinutes(wo)!)}
                                 </Badge>
                               )}

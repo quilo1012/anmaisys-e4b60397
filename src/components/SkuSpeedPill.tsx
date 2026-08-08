@@ -30,7 +30,7 @@ export function SkuSpeedPill({ lineId, skuId, currentUph, className, lineName }:
       className={cn(
         "gap-1 font-normal",
         below
-          ? "border-orange-500/60 bg-orange-500/10 text-orange-600 dark:text-orange-400"
+          ? "border-warning/60 bg-warning/10 text-warning-strong"
           : "border-primary/30 text-muted-foreground",
         className,
       )}

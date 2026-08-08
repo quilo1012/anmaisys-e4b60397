@@ -228,10 +228,10 @@ export function ControlCentreHome() {
                   onClick={() => navigate(a.to)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg border p-2 text-left transition-colors hover:bg-accent/50",
-                    a.tone === "danger" ? "border-destructive/40 bg-destructive/5" : "border-amber-500/40 bg-amber-500/5",
+                    a.tone === "danger" ? "border-destructive/40 bg-destructive/5" : "border-warning/40 bg-warning/5",
                   )}
                 >
-                  <span className={cn("h-2 w-2 shrink-0 rounded-full", a.tone === "danger" ? "bg-destructive" : "bg-amber-500")} />
+                  <span className={cn("h-2 w-2 shrink-0 rounded-full", a.tone === "danger" ? "bg-destructive" : "bg-warning")} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold">{a.label}</span>
                     <span className="block truncate text-2xs text-muted-foreground">{a.detail}</span>
@@ -257,7 +257,7 @@ export function ControlCentreHome() {
                 onClick={() => navigate(`/dashboard/downtime?line=${encodeURIComponent(l.name)}`)}
                 className="flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition-colors hover:bg-accent/50"
               >
-                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", l.stopped ? "bg-destructive" : "bg-emerald-500")} />
+                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", l.stopped ? "bg-destructive" : "bg-success")} />
                 <span className="min-w-0 flex-1 truncate">{l.name}</span>
                 <Badge variant="outline" className="shrink-0 text-2xs">
                   {l.stopped ? `Down · ${l.stopped}` : "Running"}

@@ -71,13 +71,13 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
   const isDay = shift === "day";
 
   return (
-    <Card className={isDay ? "border-amber-500/40" : "border-indigo-500/40"}>
+    <Card className={isDay ? "border-warning/40" : "border-primary/40"}>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           {isDay ? (
-            <Sun className="h-5 w-5 text-amber-500" />
+            <Sun className="h-5 w-5 text-warning-strong" />
           ) : (
-            <Moon className="h-5 w-5 text-indigo-400" />
+            <Moon className="h-5 w-5 text-primary" />
           )}
           {isDay ? "Day Shift" : "Night Shift"}
           <span className="text-xs font-normal text-muted-foreground ml-1">
@@ -99,7 +99,7 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
                 <span className="truncate flex items-center gap-1">
                   {r.label}
                   {r.ongoing && (
-                    <Badge variant="outline" className="text-2xs border-red-500 text-red-600 ml-1">
+                    <Badge variant="outline" className="text-2xs border-destructive text-destructive-strong ml-1">
                       LIVE
                     </Badge>
                   )}
@@ -171,7 +171,7 @@ export function ShiftBreakdownCard({ date: externalDate, onDateChange }: ShiftBr
           <CardTitle className="text-base flex items-center gap-2">
             Shift Breakdown
             {totalLive > 0 && (
-              <Badge variant="outline" className="border-red-500 text-red-600">
+              <Badge variant="outline" className="border-destructive text-destructive-strong">
                 <AlertTriangle className="h-3 w-3 mr-1" /> {totalLive} live
               </Badge>
             )}

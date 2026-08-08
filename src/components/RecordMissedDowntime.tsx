@@ -163,7 +163,7 @@ export function RecordMissedDowntime({
               </Select>
             </div>
 
-            <p className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-2xs">
+            <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" />
               <span>
                 {minutes == null ? "Set both times." : minutes <= 0

@@ -76,7 +76,7 @@ export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }
                       <span
                         className={
                           r.paperwork
-                            ? "rounded border border-amber-300 bg-amber-50 px-2 py-0.5 font-bold text-amber-800"
+                            ? "rounded border border-warning/30 bg-warning/10 px-2 py-0.5 font-bold text-warning-strong"
                             : "text-muted-foreground"
                         }
                       >

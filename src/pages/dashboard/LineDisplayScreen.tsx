@@ -188,12 +188,12 @@ export default function LineDisplayScreen() {
 
   const status = useMemo(() => {
     if (target <= 0) return { label: "NO TARGET", color: "bg-slate-700" };
-    if (pct >= 95) return { label: "ON TARGET", color: "bg-green-600" };
-    if (pct >= 75) return { label: "AT RISK", color: "bg-amber-500" };
-    return { label: "BELOW TARGET", color: "bg-red-600" };
+    if (pct >= 95) return { label: "ON TARGET", color: "bg-success" };
+    if (pct >= 75) return { label: "AT RISK", color: "bg-warning" };
+    return { label: "BELOW TARGET", color: "bg-destructive" };
   }, [pct, target]);
 
-  const barColor = pct >= 95 ? "bg-green-500" : pct >= 75 ? "bg-amber-500" : "bg-red-500";
+  const barColor = pct >= 95 ? "bg-success" : pct >= 75 ? "bg-warning" : "bg-destructive";
 
   const goFullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -237,7 +237,7 @@ export default function LineDisplayScreen() {
             onClick={() => canRequest && navigate("/dashboard/operator")}
             disabled={!canRequest}
             title={canRequest ? "" : "Not authorized for this line"}
-            className="h-12 px-4 bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+            className="h-12 px-4 bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold disabled:opacity-40 disabled:cursor-not-allowed"
           >
             REQUEST WO
           </Button>
@@ -259,17 +259,17 @@ export default function LineDisplayScreen() {
         const p = Number(current.planned_qty ?? 0);
         const a = Number(current.actual_qty ?? 0);
         const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
-        const c = pc >= 95 ? "bg-green-500" : pc >= 75 ? "bg-amber-500" : "bg-red-500";
+        const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
         return (
-          <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-purple-900 border-2 border-indigo-400/40 rounded-2xl p-6 shadow-xl">
+          <div className="bg-gradient-to-r from-primary via-primary to-purple-900 border-2 border-primary/40 rounded-2xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-indigo-300 text-sm tracking-widest font-bold">CURRENT JOB</div>
-              <div className="text-indigo-200 text-2xl font-mono font-bold">
+              <div className="text-primary text-sm tracking-widest font-bold">CURRENT JOB</div>
+              <div className="text-primary text-2xl font-mono font-bold">
                 {a.toLocaleString()} / {p.toLocaleString()}
               </div>
             </div>
             <div className="text-5xl font-black mb-1">{current.sku?.code ?? "—"}</div>
-            <div className="text-2xl text-indigo-100 mb-4">{current.sku?.name ?? ""}</div>
+            <div className="text-2xl text-primary mb-4">{current.sku?.name ?? ""}</div>
             <div className="h-4 bg-slate-900/60 rounded-full overflow-hidden">
               <div className={`h-full ${c} transition-all duration-700`} style={{ width: `${pc}%` }} />
             </div>
@@ -279,9 +279,9 @@ export default function LineDisplayScreen() {
 
       <div className="grid grid-cols-4 gap-6">
 
-        <WallTile label="TARGET" value={target.toLocaleString()} accent="text-sky-400" />
-        <WallTile label="ACTUAL" value={actual.toLocaleString()} accent="text-green-400" />
-        <WallTile label="REMAINING" value={remaining.toLocaleString()} accent="text-amber-400" />
+        <WallTile label="TARGET" value={target.toLocaleString()} accent="text-primary" />
+        <WallTile label="ACTUAL" value={actual.toLocaleString()} accent="text-success-strong" />
+        <WallTile label="REMAINING" value={remaining.toLocaleString()} accent="text-warning-strong" />
         <WallTile label="SHIFT ENDS IN" value={countdown} accent="text-purple-400" mono />
       </div>
 
@@ -305,7 +305,7 @@ export default function LineDisplayScreen() {
               const p = Number(it.planned_qty ?? 0);
               const a = Number(it.actual_qty ?? 0);
               const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
-              const c = pc >= 95 ? "bg-green-500" : pc >= 75 ? "bg-amber-500" : "bg-red-500";
+              const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
               return (
                 <li key={it.id} className="bg-slate-800 rounded-xl p-4">
                   <div className="flex justify-between items-center text-lg mb-2 gap-3">
@@ -325,7 +325,7 @@ export default function LineDisplayScreen() {
                         <span className="font-mono">/ {p.toLocaleString()}</span>
                         <Button
                           size="icon"
-                          className="h-11 w-11 touch-manipulation bg-green-600 hover:bg-green-700"
+                          className="h-11 w-11 touch-manipulation bg-success hover:bg-success/90"
                           disabled={saving}
                           onClick={async () => {
                             const v = Math.max(0, Math.floor(Number(editValue) || 0));

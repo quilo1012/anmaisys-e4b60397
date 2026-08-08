@@ -63,9 +63,9 @@ const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "quali
 function roleBadgeClass(role?: AppRole) {
   if (role === "admin") return "border-destructive/30 bg-destructive/10 text-destructive-strong";
   if (role === "manager") return "border-primary/30 bg-primary/10 text-primary";
-  if (role === "supervisor") return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-  if (role === "maintenance_manager" || role === "planner") return "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300";
-  if (role === "engineer" || role === "co_engineer") return "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300";
+  if (role === "supervisor") return "border-warning/30 bg-warning/10 text-warning-strong";
+  if (role === "maintenance_manager" || role === "planner") return "border-primary/30 bg-primary/10 text-primary";
+  if (role === "engineer" || role === "co_engineer") return "border-primary/30 bg-primary/10 text-primary";
   return "border-muted-foreground/30 bg-muted text-muted-foreground";
 }
 
@@ -192,7 +192,7 @@ function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSave
       />
       <span className="text-muted-foreground text-xs">/h</span>
       {saving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+      {saved && <Check className="h-4 w-4 text-success-strong" />}
     </div>
   );
 }
@@ -780,7 +780,7 @@ export default function ManageUsers() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           {!user.role && !managerBlockedTarget && (
-                            <Button size="sm" className="h-8 gap-1 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => openEditUser(user)}>
+                            <Button size="sm" className="h-8 gap-1 bg-success text-success-foreground hover:bg-success/90" onClick={() => openEditUser(user)}>
                               <Check className="h-4 w-4" /> Approve
                             </Button>
                           )}

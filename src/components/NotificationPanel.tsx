@@ -87,8 +87,8 @@ const typeIcon: Record<NotifType, React.ComponentType<{ className?: string }>> =
 
 const priorityStyles: Record<Priority, { ring: string; dot: string; label: string; badge: string }> = {
   critical: { ring: "border-l-destructive", dot: "bg-destructive", label: "CRITICAL", badge: "bg-destructive text-destructive-foreground" },
-  high:     { ring: "border-l-orange-500", dot: "bg-orange-500", label: "HIGH", badge: "bg-orange-500 text-white" },
-  medium:   { ring: "border-l-amber-500", dot: "bg-amber-500", label: "MEDIUM", badge: "bg-amber-500 text-white" },
+  high:     { ring: "border-l-warning", dot: "bg-warning", label: "HIGH", badge: "bg-warning text-warning-foreground" },
+  medium:   { ring: "border-l-warning", dot: "bg-warning", label: "MEDIUM", badge: "bg-warning text-warning-foreground" },
   low:      { ring: "border-l-muted", dot: "bg-muted-foreground", label: "LOW", badge: "bg-muted text-muted-foreground" },
 };
 

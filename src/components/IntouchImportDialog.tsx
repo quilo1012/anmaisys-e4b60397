@@ -884,16 +884,16 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
                                     <td className="px-3 py-1.5 text-xs text-muted-foreground tabular-nums">{idx + 1}</td>
                                     <td className="px-3 py-1.5">
                                       {running ? (
-                                        <Badge className="text-2xs bg-green-600 hover:bg-green-600">RUNNING</Badge>
+                                        <Badge className="text-2xs bg-success hover:bg-success/90">RUNNING</Badge>
                                       ) : (
                                         <Badge variant="outline" className="text-2xs">Scheduled</Badge>
                                       )}
                                     </td>
                                     <td className="px-3 py-1.5 font-mono text-xs">
                                       {i.sku_id ? (
-                                        <span className="text-green-500">{i.sku_name}</span>
+                                        <span className="text-success-strong">{i.sku_name}</span>
                                       ) : (
-                                        <span className="text-amber-500">{i.sku_code}</span>
+                                        <span className="text-warning-strong">{i.sku_code}</span>
                                       )}
                                     </td>
                                     <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[320px]">{i.description ?? ""}</td>

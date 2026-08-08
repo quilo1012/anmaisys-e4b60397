@@ -26,8 +26,8 @@ import {
  * period's overtime shifts were worked by team leaders.
  */
 const BAR_TONES = [
-  "bg-blue-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500",
-  "bg-violet-500", "bg-cyan-500", "bg-orange-500", "bg-lime-500",
+  "bg-primary", "bg-success", "bg-warning", "bg-destructive",
+  "bg-primary", "bg-primary", "bg-warning", "bg-lime-500",
 ];
 
 export function HeadcountOvertimePanel() {

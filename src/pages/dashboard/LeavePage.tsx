@@ -620,7 +620,7 @@ export default function LeavePage() {
                 {whosOff.map((r) => (
                   <div key={r.id} className="flex items-center gap-2.5 px-3 py-2 text-xs">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${
-                      r.kind === "sick" ? "bg-destructive" : r.kind === "unpaid" ? "bg-orange-500" : "bg-primary"}`} />
+                      r.kind === "sick" ? "bg-destructive" : r.kind === "unpaid" ? "bg-warning" : "bg-primary"}`} />
                     <span className="font-medium">{person.get(r.employee_id)?.full_name ?? "Unknown"}</span>
                     <Badge variant="outline" className="text-2xs">{KIND_LABEL[r.kind]}</Badge>
                     <span className="ml-auto font-figure text-2xs text-muted-foreground">

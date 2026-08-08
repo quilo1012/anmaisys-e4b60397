@@ -17,7 +17,7 @@ export function OnlineEngineersPanel() {
           aria-label={`${count} engineers online`}
         >
           <div className="flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${count > 0 ? "bg-green-500 animate-pulse" : "bg-muted-foreground/40"}`} />
+            <div className={`w-2 h-2 rounded-full ${count > 0 ? "bg-success animate-pulse" : "bg-muted-foreground/40"}`} />
             <span className="text-xs font-medium text-muted-foreground">
               {count} Engineer{count !== 1 ? "s" : ""} Online
             </span>
@@ -49,7 +49,7 @@ export function OnlineEngineersPanel() {
                 return (
                   <li key={e.id} className="px-3 py-2 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                      <div className="w-2 h-2 rounded-full bg-success shrink-0" />
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{e.name}</p>
                         <p className="text-2xs text-muted-foreground truncate" title={SHIFT_LABEL[shift]}>

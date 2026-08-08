@@ -53,10 +53,10 @@ function classifyRecommendation(
 }
 
 const recMeta: Record<RecKind, { label: string; cls: string; icon: any }> = {
-  reduce: { label: "Reduce interval", cls: "bg-red-500/15 text-red-700 border-red-500/30 dark:text-red-300", icon: ArrowDown },
-  no_pm: { label: "No PM scheduled", cls: "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-300", icon: AlertTriangle },
-  ok: { label: "OK — calibrated", cls: "bg-blue-500/15 text-blue-700 border-blue-500/30 dark:text-blue-300", icon: CheckCircle2 },
-  increase: { label: "Can extend", cls: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30 dark:text-emerald-300", icon: ArrowUp },
+  reduce: { label: "Reduce interval", cls: "bg-destructive/15 text-destructive-strong border-destructive/30 dark:text-destructive-strong", icon: ArrowDown },
+  no_pm: { label: "No PM scheduled", cls: "bg-warning/15 text-warning-strong border-warning/30 dark:text-warning-strong", icon: AlertTriangle },
+  ok: { label: "OK — calibrated", cls: "bg-primary/15 text-primary border-primary/30 dark:text-primary", icon: CheckCircle2 },
+  increase: { label: "Can extend", cls: "bg-success/15 text-success-strong border-success/30 dark:text-success-strong", icon: ArrowUp },
 };
 
 export default function PMIntelligencePage() {

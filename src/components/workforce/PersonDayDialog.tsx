@@ -15,11 +15,11 @@ import { earlyLeave } from "@/lib/earlyLeave";
 const BOARD_SHIFTS = ["Day", "Night", "Weekend"] as const;
 
 const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[] = [
-  { value: "assigned", label: "In", hint: "Working their normal day", cls: "border-emerald-500/40 bg-emerald-500/10 text-success-strong" },
-  { value: "overtime", label: "Overtime", hint: "Working, and the day counts as overtime", cls: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300" },
-  { value: "sick", label: "Sickness", hint: "Off ill", cls: "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300" },
-  { value: "unpaid", label: "Unpaid", hint: "Away, and not paid for the day", cls: "border-amber-500/40 bg-amber-500/10 text-warning-strong" },
-  { value: "holiday", label: "Holiday", hint: "Booked leave", cls: "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  { value: "assigned", label: "In", hint: "Working their normal day", cls: "border-success/40 bg-success/10 text-success-strong" },
+  { value: "overtime", label: "Overtime", hint: "Working, and the day counts as overtime", cls: "border-primary/40 bg-primary/10 text-primary" },
+  { value: "sick", label: "Sickness", hint: "Off ill", cls: "border-destructive/40 bg-destructive/10 text-destructive-strong" },
+  { value: "unpaid", label: "Unpaid", hint: "Away, and not paid for the day", cls: "border-warning/40 bg-warning/10 text-warning-strong" },
+  { value: "holiday", label: "Holiday", hint: "Booked leave", cls: "border-primary/40 bg-primary/10 text-primary" },
 ];
 
 /**

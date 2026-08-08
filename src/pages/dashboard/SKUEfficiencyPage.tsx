@@ -26,9 +26,9 @@ type Row = {
 const RANGE_DAYS = [7, 30, 60, 90] as const;
 
 function badgeForEff(eff: number) {
-  if (eff >= 100) return <Badge className="bg-emerald-600 hover:bg-emerald-600">{eff.toFixed(1)}%</Badge>;
-  if (eff >= 85) return <Badge className="bg-amber-500 hover:bg-amber-500">{eff.toFixed(1)}%</Badge>;
-  return <Badge className="bg-red-600 hover:bg-red-600">{eff.toFixed(1)}%</Badge>;
+  if (eff >= 100) return <Badge className="bg-success hover:bg-success/90">{eff.toFixed(1)}%</Badge>;
+  if (eff >= 85) return <Badge className="bg-warning hover:bg-warning/90">{eff.toFixed(1)}%</Badge>;
+  return <Badge className="bg-destructive hover:bg-destructive/90">{eff.toFixed(1)}%</Badge>;
 }
 
 export default function SKUEfficiencyPage() {
@@ -212,7 +212,7 @@ export default function SKUEfficiencyPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base text-red-600">
+              <CardTitle className="flex items-center gap-2 text-base text-destructive-strong">
                 <AlertTriangle className="h-4 w-4" /> Bottom 5 — below 85%
               </CardTitle>
             </CardHeader>
@@ -291,7 +291,7 @@ export default function SKUEfficiencyPage() {
                       <TableCell>{r.line}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.target.toLocaleString()}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.actual.toLocaleString()}</TableCell>
-                      <TableCell className={`text-right tabular-nums ${r.gap < 0 ? "text-red-600" : "text-success-strong"}`}>
+                      <TableCell className={`text-right tabular-nums ${r.gap < 0 ? "text-destructive-strong" : "text-success-strong"}`}>
                         {r.gap > 0 ? "+" : ""}{r.gap.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">{badgeForEff(r.eff)}</TableCell>

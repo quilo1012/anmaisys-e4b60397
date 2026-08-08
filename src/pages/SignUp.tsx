@@ -57,7 +57,7 @@ export default function SignUp() {
     return (
       <AuthShell title="Account created" subtitle="One more step">
         <div className="space-y-4 text-center">
-          <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
+          <CheckCircle2 className="mx-auto h-12 w-12 text-success-strong" />
           <p className="text-sm text-slate-600">
             Check your email to confirm your address, then wait for an administrator to approve your
             account and assign your role. You'll be able to sign in once approved.
@@ -104,7 +104,7 @@ export default function SignUp() {
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/20" />
         </div>
 
-        {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
 
         <button type="submit" disabled={submitting}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1E3A8A] py-2.5 text-sm font-semibold text-white hover:bg-[#1E3A8A]/90 disabled:opacity-60">

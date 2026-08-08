@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { shiftRank } from "@/lib/operationalShift";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -109,7 +110,7 @@ function InlineSkuCell({ itemId, skuId, codeText, displayCode, skus, editable, o
     return displayCode
       ? <span className="font-mono text-xs font-bold whitespace-nowrap">{displayCode}</span>
       : codeText
-        ? <span className="italic text-xs text-amber-600 dark:text-amber-400" title="Not in catalog — admin should reconcile the SKU">{codeText}</span>
+        ? <span className="italic text-xs text-warning-strong" title="Not in catalog — admin should reconcile the SKU">{codeText}</span>
         : <span className="text-xs">—</span>;
   }
   const save = async (id: string) => {
@@ -193,7 +194,7 @@ function InlineLeaderCell({
         </SelectTrigger>
         <SelectContent>{options.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
       </Select>
-      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+      {saved && <Check className="h-4 w-4 text-success-strong" />}
     </div>
   );
 }
@@ -234,7 +235,7 @@ function InlineSessionNumberCell({
         }}
         className="h-8 w-20 text-right px-2 tabular-nums"
       />
-      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+      {saved && <Check className="h-4 w-4 text-success-strong" />}
     </div>
   );
 }
@@ -306,7 +307,7 @@ function InlineUnitToggle({
     <div className="flex items-center gap-1">
       {btn("tubs", "Tubs")}
       {btn("bags", "Bags")}
-      {saved && <Check className="h-4 w-4 text-emerald-500" />}
+      {saved && <Check className="h-4 w-4 text-success-strong" />}
     </div>
   );
 }
@@ -357,7 +358,7 @@ function InlineUnitQtyInput({
         }}
         className="h-8 w-24 text-right px-2 tabular-nums text-sm"
       />
-      <span className="w-3">{saved && <Check className="h-3 w-3 text-emerald-500" />}</span>
+      <span className="w-3">{saved && <Check className="h-3 w-3 text-success-strong" />}</span>
     </div>
   );
 }
@@ -585,6 +586,12 @@ export default function ShiftHistoryPage() {
     (fSku === "__all__" || s.production_items.some((i) => i.sku_id === fSku))
   ).sort((a, b) => {
     if (a.session_date !== b.session_date) return a.session_date < b.session_date ? 1 : -1;
+    // Day's block above Night's, which the sort did not say at all — within a date the
+    // two came out in whatever order Postgres returned them, and it read as Night
+    // first. Before the line, not after: the factory's spreadsheet runs a day block and
+    // then a night block, and this export exists to paste straight into it.
+    const sr = shiftRank(a.shift) - shiftRank(b.shift);
+    if (sr !== 0) return sr;
     const lr = lineRank(a.line) - lineRank(b.line);
     if (lr !== 0) return lr;
     return (a.line ?? "").localeCompare(b.line ?? "");
@@ -985,7 +992,7 @@ export default function ShiftHistoryPage() {
                                 className={cn(
                                   "border-b transition-colors hover:bg-muted/40",
                                   rowBg,
-                                  noLeader && "bg-yellow-500/10 hover:bg-yellow-500/20",
+                                  noLeader && "bg-warning/10 hover:bg-warning/20",
                                 )}
                               >
                                 <td className="px-3 py-2 whitespace-nowrap text-xs tabular-nums">
@@ -997,7 +1004,7 @@ export default function ShiftHistoryPage() {
                                     className={cn(
                                       "text-2xs font-semibold px-1.5 py-0",
                                       s.shift === "DAY"
-                                        ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                                        ? "border-primary/40 bg-primary/10 text-primary"
                                         : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
                                     )}
                                   >
@@ -1165,7 +1172,7 @@ export default function ShiftHistoryPage() {
                       return (
                         <TableCard
                           key={`m-${s.id}-${i.id ?? idx}`}
-                          className={cn(noLeader && "border-yellow-500/50 bg-yellow-500/5")}
+                          className={cn(noLeader && "border-warning/50 bg-warning/5")}
                           title={
                             <span className="flex items-center gap-2">
                               <InlineSkuCell
@@ -1182,7 +1189,7 @@ export default function ShiftHistoryPage() {
                                 className={cn(
                                   "text-2xs font-semibold px-1.5 py-0",
                                   s.shift === "DAY"
-                                    ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                                    ? "border-primary/40 bg-primary/10 text-primary"
                                     : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
                                 )}
                               >

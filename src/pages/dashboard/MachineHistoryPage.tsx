@@ -6,9 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 
 const PRIORITY_BADGE: Record<string, string> = {
-  critical: "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30",
-  high: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30",
-  medium: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30",
+  critical: "bg-destructive/15 text-destructive-strong border-destructive/30",
+  high: "bg-warning/15 text-warning-strong border-warning/30",
+  medium: "bg-warning/15 text-warning-strong border-warning/30",
   low: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30",
 };
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,7 @@ export default function MachineHistoryPage() {
   const { data: locationLog, isLoading: logLoading } = useMachineLocationLog(machine?.id);
 
   const healthScore = machine?.health_score ?? 100;
-  const healthColor = healthScore >= 70 ? "text-green-600" : healthScore >= 40 ? "text-yellow-600" : "text-red-600";
+  const healthColor = healthScore >= 70 ? "text-success-strong" : healthScore >= 40 ? "text-warning-strong" : "text-destructive-strong";
 
   const machineWOs = useMemo(
     () => allWOs?.filter((w) => w.machine === machineName).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) ?? [],
@@ -71,7 +71,7 @@ export default function MachineHistoryPage() {
       .map(([month, count]) => ({ month: format(new Date(month + "-01"), "MMM yy"), count }));
   }, [machineWOs]);
 
-  const reliabilityColor = stats.reliability > 80 ? "text-green-600" : stats.reliability > 50 ? "text-yellow-600" : "text-red-600";
+  const reliabilityColor = stats.reliability > 80 ? "text-success-strong" : stats.reliability > 50 ? "text-warning-strong" : "text-destructive-strong";
 
   return (
     <DashboardLayout>

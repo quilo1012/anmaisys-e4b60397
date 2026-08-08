@@ -54,23 +54,23 @@ export default function LineHubScreen() {
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl w-full mx-auto">
         <button
           onClick={() => navigate("/dashboard/line-display")}
-          className="group bg-gradient-to-br from-sky-600 to-sky-800 hover:from-sky-500 hover:to-sky-700 rounded-3xl p-12 flex flex-col items-center justify-center gap-6 transition-all active:scale-95 shadow-2xl"
+          className="group bg-gradient-to-br from-primary to-primary hover:from-primary hover:to-primary rounded-3xl p-12 flex flex-col items-center justify-center gap-6 transition-all active:scale-95 shadow-2xl"
         >
           <Target className="h-32 w-32 text-white group-hover:scale-110 transition-transform" strokeWidth={1.5} />
           <div className="text-center">
             <div className="text-5xl font-black mb-2">TARGET</div>
-            <div className="text-sky-100 text-xl">View shift target & progress</div>
+            <div className="text-primary text-xl">View shift target & progress</div>
           </div>
         </button>
 
         <button
           onClick={() => navigate("/dashboard/operator")}
-          className="group bg-gradient-to-br from-amber-600 to-red-700 hover:from-amber-500 hover:to-red-600 rounded-3xl p-12 flex flex-col items-center justify-center gap-6 transition-all active:scale-95 shadow-2xl"
+          className="group bg-gradient-to-br from-warning to-destructive hover:from-warning hover:to-destructive rounded-3xl p-12 flex flex-col items-center justify-center gap-6 transition-all active:scale-95 shadow-2xl"
         >
           <Wrench className="h-32 w-32 text-white group-hover:scale-110 transition-transform" strokeWidth={1.5} />
           <div className="text-center">
             <div className="text-5xl font-black mb-2">REQUEST</div>
-            <div className="text-amber-100 text-xl">Open a maintenance order</div>
+            <div className="text-warning-strong text-xl">Open a maintenance order</div>
           </div>
         </button>
       </div>

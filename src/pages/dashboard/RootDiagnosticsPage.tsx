@@ -23,12 +23,12 @@ const rpc = supabase as unknown as {
 };
 
 const TYPE_COLOR: Record<string, string> = {
-  REACT_CRASH: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30",
-  JS_ERROR: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30",
-  UNHANDLED_REJECTION: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30",
-  RLS_ERROR: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
-  API_ERROR: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
-  REALTIME: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30",
+  REACT_CRASH: "bg-destructive/15 text-destructive-strong border-destructive/30",
+  JS_ERROR: "bg-destructive/15 text-destructive-strong border-destructive/30",
+  UNHANDLED_REJECTION: "bg-warning/15 text-warning-strong border-warning/30",
+  RLS_ERROR: "bg-warning/15 text-warning-strong border-warning/30",
+  API_ERROR: "bg-warning/15 text-warning-strong border-warning/30",
+  REALTIME: "bg-primary/15 text-primary border-primary/30",
 };
 
 export default function RootDiagnosticsPage() {

@@ -20,10 +20,10 @@ import { useRole } from "@/hooks/useRole";
 
 /** Day and Night read at a glance; the weekend crews are quieter on purpose. */
 const SHIFT_BADGE: Record<string, string> = {
-  Day: "border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong",
-  Night: "border-indigo-500/40 bg-indigo-500/10 text-2xs text-indigo-700 dark:text-indigo-300",
+  Day: "border-warning/40 bg-warning/10 text-2xs text-warning-strong",
+  Night: "border-primary/40 bg-primary/10 text-2xs text-primary",
   Weekend: "border-slate-500/40 bg-slate-500/10 text-2xs text-muted-foreground",
-  "Warehouse Day": "border-orange-500/40 bg-orange-500/10 text-2xs text-orange-700 dark:text-orange-300",
+  "Warehouse Day": "border-warning/40 bg-warning/10 text-2xs text-warning-strong",
   "Warehouse Weekend": "border-slate-500/40 bg-slate-500/10 text-2xs text-muted-foreground",
 };
 

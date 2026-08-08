@@ -14,8 +14,8 @@ interface Props {
 }
 
 const sideBadgeClass = (s: MachineSide | string) =>
-  s === "A" ? "bg-blue-100 text-blue-800 border-blue-200"
-  : s === "B" ? "bg-orange-100 text-orange-800 border-orange-200"
+  s === "A" ? "bg-primary/10 text-primary border-primary/30"
+  : s === "B" ? "bg-warning/10 text-warning-strong border-warning/30"
   : "bg-slate-100 text-slate-700 border-slate-200";
 
 export function MachineSelector({ lineId, side, machineName, onChange }: Props) {

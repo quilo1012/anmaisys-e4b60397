@@ -133,7 +133,7 @@ $$);`;
             <div className="grid sm:grid-cols-2 gap-3">
               <div className="rounded-lg border p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Sun className="h-4 w-4 text-amber-500" />
+                  <Sun className="h-4 w-4 text-warning-strong" />
                   <div>
                     <div className="font-medium text-sm">Day Shift (06:00–18:00)</div>
                     {s.last_sent_day_at && <div className="text-2xs text-muted-foreground">Last sent: {new Date(s.last_sent_day_at).toLocaleString("en-GB")}</div>}
@@ -143,7 +143,7 @@ $$);`;
               </div>
               <div className="rounded-lg border p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Moon className="h-4 w-4 text-indigo-400" />
+                  <Moon className="h-4 w-4 text-primary" />
                   <div>
                     <div className="font-medium text-sm">Night Shift (18:00–06:00)</div>
                     {s.last_sent_night_at && <div className="text-2xs text-muted-foreground">Last sent: {new Date(s.last_sent_night_at).toLocaleString("en-GB")}</div>}

@@ -186,7 +186,7 @@ export function WoTimeline({ workOrderId }: Props) {
                     not have to work out which entries are the order's own spine. */}
                 <span
                   className={`absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full ${
-                    s.kind === "pause" ? "bg-amber-500"
+                    s.kind === "pause" ? "bg-warning"
                       : s.kind === "stop" ? "bg-destructive"
                       : filled ? "bg-primary" : "bg-muted"
                   }`}
@@ -231,9 +231,9 @@ export function WoTimeline({ workOrderId }: Props) {
           {/* Co-engineer joined events */}
           {collabLogs.map((d) => (
             <li key={d.id} className="ml-4">
-              <span className="absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-blue-500" />
+              <span className="absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-primary" />
               <div className="flex items-baseline justify-between gap-3">
-                <p className="text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                <p className="text-sm font-medium text-primary flex items-center gap-1">
                   <Users className="h-3.5 w-3.5" />
                   Co-engineer joined{d.engineer_name ? ` — ${d.engineer_name}` : ""}
                 </p>

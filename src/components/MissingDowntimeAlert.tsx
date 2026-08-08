@@ -67,7 +67,7 @@ export function MissingDowntimeAlert({ from, to }: { from: Date; to: Date }) {
   const total = orders.reduce((n, o) => n + (o.mins ?? 0), 0);
 
   return (
-    <Card className="border-amber-500/40 bg-amber-500/5">
+    <Card className="border-warning/40 bg-warning/5">
       <CardContent className="p-3">
         <div className="flex items-start gap-2">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-strong" />

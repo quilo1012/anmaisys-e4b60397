@@ -21,7 +21,7 @@ type OAuthNamespace = {
 const oauth = (supabase.auth as unknown as { oauth: OAuthNamespace }).oauth;
 
 const consentBadge = (
-  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-100 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-sky-700 ring-1 ring-sky-200 sm:gap-1.5">
+  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-primary ring-1 ring-primary sm:gap-1.5">
     <ShieldCheck className="h-3 w-3" /> Consent
   </span>
 );

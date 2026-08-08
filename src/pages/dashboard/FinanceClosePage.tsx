@@ -398,7 +398,7 @@ export default function FinanceClosePage() {
 
         {/* Said before the table, not in a footnote: somebody is about to pay from
             this, and the two columns are not two halves of a total. */}
-        <p className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-2xs">
+        <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" />
           <span>
             Hours are not settled week by week, and the balance <b>runs on between periods</b> — it is

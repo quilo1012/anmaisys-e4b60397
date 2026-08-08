@@ -49,18 +49,18 @@ export function LineStatusBanner({
       return (
         <div
           className={cn(
-            "rounded-lg border-2 border-red-600 bg-red-600/10 p-4 animate-pulse",
+            "rounded-lg border-2 border-destructive bg-destructive/10 p-4 animate-pulse",
             className,
           )}
         >
           <div className="flex items-start gap-3">
-            <PowerOff className="h-12 w-12 text-red-600 shrink-0" aria-hidden="true" />
+            <PowerOff className="h-12 w-12 text-destructive-strong shrink-0" aria-hidden="true" />
             <div className="flex-1">
-              <p className="text-xl font-bold text-red-700 uppercase tracking-wide">
+              <p className="text-xl font-bold text-destructive-strong uppercase tracking-wide">
                 Line Stopped
               </p>
               {lineStoppedAt && (
-                <p className="text-sm text-red-700/80 mt-1">
+                <p className="text-sm text-destructive-strong/80 mt-1">
                   Stopped at:{" "}
                   <span className="font-semibold">
                     {format(new Date(lineStoppedAt), "dd/MM/yyyy HH:mm")}
@@ -68,7 +68,7 @@ export function LineStatusBanner({
                 </p>
               )}
               {stoppedDuration !== null && (
-                <p className="text-sm text-red-700/80">
+                <p className="text-sm text-destructive-strong/80">
                   Currently down for:{" "}
                   <span className="font-mono font-bold">
                     {stoppedDuration}m
@@ -83,7 +83,7 @@ export function LineStatusBanner({
     return (
       <div
         className={cn(
-          "rounded-md bg-red-600 text-white px-3 py-2 flex items-center gap-2 text-sm font-semibold animate-pulse",
+          "rounded-md bg-destructive text-destructive-foreground px-3 py-2 flex items-center gap-2 text-sm font-semibold animate-pulse",
           className,
         )}
         role="status"
@@ -105,24 +105,24 @@ export function LineStatusBanner({
       return (
         <div
           className={cn(
-            "rounded-lg border-2 border-green-600 bg-green-600/10 p-4",
+            "rounded-lg border-2 border-success bg-success/10 p-4",
             className,
           )}
         >
           <div className="flex items-start gap-3">
-            <CheckCircle2 className="h-12 w-12 text-green-600 shrink-0" aria-hidden="true" />
+            <CheckCircle2 className="h-12 w-12 text-success-strong shrink-0" aria-hidden="true" />
             <div className="flex-1">
-              <p className="text-xl font-bold text-green-700 uppercase tracking-wide">
+              <p className="text-xl font-bold text-success-strong uppercase tracking-wide">
                 In Operation
               </p>
-              <p className="text-sm text-green-700/80 mt-1">
+              <p className="text-sm text-success-strong/80 mt-1">
                 Resumed at:{" "}
                 <span className="font-semibold">
                   {format(new Date(lineResumedAt), "dd/MM/yyyy HH:mm")}
                 </span>
               </p>
               {totalDowntime !== null && (
-                <p className="text-sm text-green-700/80">
+                <p className="text-sm text-success-strong/80">
                   Total downtime:{" "}
                   <span className="font-mono font-bold">{totalDowntime}m</span>
                 </p>
@@ -138,7 +138,7 @@ export function LineStatusBanner({
     return (
       <div
         className={cn(
-          "rounded-md bg-green-600/15 text-green-800 dark:text-green-300 px-3 py-2 flex items-center gap-2 text-sm font-medium border border-green-600/40",
+          "rounded-md bg-success/15 text-success-strong px-3 py-2 flex items-center gap-2 text-sm font-medium border border-success/40",
           className,
         )}
       >

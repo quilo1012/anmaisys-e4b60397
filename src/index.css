@@ -4,121 +4,140 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    /* "paper" — o chão da página. Frio, para viver ao lado do inox, não creme. Mais
+       fundo que os 98% anteriores: a 98% um cartão branco não se destacava do fundo e
+       toda a interface pedia sombras para se ler. Aqui a hairline chega. */
+    --background: 213 27% 94%;
+    /* "ink" — preto com laivo azul-verde, não preto puro. */
+    --foreground: 215 40% 9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 215 40% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 215 40% 9%;
 
-    /* 46% not 50%: white on 50% lightness is 4.16:1, below the 4.5:1 AA needs for
-       normal text, and every primary button in the app is white on this colour. */
-    --primary: 211 78% 46%;
+    /* O azul da marca, mais fundo (era 78% 46%). Deu autoridade e folga: branco sobre
+       ele mede 6.65:1, contra os 4.5:1 do mínimo AA, e os botões primários são todos
+       branco sobre esta cor. */
+    --primary: 207 88% 35%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 214 20% 92%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 213 22% 90%;
+    --secondary-foreground: 215 40% 9%;
 
-    --muted: 214 20% 95%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 213 24% 93%;
+    --muted-foreground: 214 14% 42%;
 
-    --accent: 210 40% 98.0392%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 213 24% 93%;
+    --accent-foreground: 215 40% 9%;
 
-    /* 50% not 60%: at 60% both white-on-red (3.61:1) and red-on-white (3.78:1) failed
-       AA, and `text-destructive-strong` is used in 157 places. */
-    --destructive: 0 84% 50%;
-    /* Pure white, not 98%: the 2% tint dropped white-on-red to 4.33:1, just under AA. */
+    /* "stop" — vermelho de sinalética, não o red-500 de doçaria. Passa nas duas
+       direcções de uma só vez: branco sobre ele e ele sobre branco medem ambos 6.60:1,
+       o que é raro e é por isso que serve de preenchimento e de texto sem variante. */
+    --destructive: 3 73% 41%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 24% 88%;
-    --input: 214 24% 88%;
-    --ring: 211 78% 46%;
+    --border: 214 20% 85%;
+    --input: 214 20% 85%;
+    --ring: 207 88% 35%;
 
-    --radius: 0.5rem;
+    /* 10px no cartão (lg), 8px no controlo (md), 6px no chip (sm). Substitui os oito
+       raios que conviviam à mão. */
+    --radius: 0.625rem;
 
     /* The workforce section's ground. It was hardcoded in the headcount board and
        nowhere else, which is why the other four screens had no header at all. */
     --section: 215 60% 18%;
 
-    --sidebar-background: 211 64% 33%;
+    /* A barra lateral desce do azul médio para um azul-tinta. Contra o paper frio lê-se
+       como mobiliário, não como um segundo elemento de marca a competir com os dados. */
+    --sidebar-background: 210 42% 15%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 211 64% 33%;
-    --sidebar-accent: 211 60% 42%;
+    --sidebar-primary-foreground: 210 42% 15%;
+    --sidebar-accent: 210 38% 24%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 211 55% 40%;
-    --sidebar-ring: 211 70% 60%;
+    --sidebar-border: 210 34% 24%;
+    --sidebar-ring: 207 88% 55%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
-    --warning: 43 96% 56%;
-    --warning-foreground: 222 47% 11%;
+    /* "go" e "hold". Sinalética, não emerald-500/amber-500: as cores que já estão
+       pintadas no chão da fábrica. Ambas com branco por cima (5.39:1 e 5.32:1). */
+    --success: 154 81% 26%;
+    --success-foreground: 0 0% 100%;
+    /* O âmbar é o único que não passa nos dois sentidos ao mesmo tempo: a 35% de
+       luminosidade branco sobre ele dá 4.33:1, abaixo de AA. Daí 31%, e texto branco. */
+    --warning: 36 95% 31%;
+    --warning-foreground: 0 0% 100%;
 
-    /* Text-safe variants of the two status colours. The brand green and amber are
-       fills: as text on a white card they measure 2.30:1 and 1.69:1, both far below
-       AA — which is why every screen had reached for `text-emerald-700` and
-       `text-amber-600` by hand instead of using the tokens. These are the same hues,
-       dark enough to read: 5.07:1 and 5.09:1. */
-    --success-strong: 142 72% 29%;
-    --warning-strong: 32 90% 34%;
-    /* Red as TEXT. The fill passes AA now, but only just (4.53:1); this has headroom
-       at 5.4:1 for the error messages and negative figures that use it most. */
-    --destructive-strong: 0 84% 45%;
+    /* As variantes de texto passam a ser as mesmas cores. Antes o verde e o âmbar de
+       preenchimento mediam 2.30:1 e 1.69:1 como texto — inutilizáveis — e era por isso
+       que cada ecrã escrevia `text-emerald-700` à mão em vez de usar o token. Agora o
+       preenchimento já é escuro o suficiente para ler, e há um valor por estado em vez
+       de dois. É esta unificação que torna a migração das 1290 classes mecânica. */
+    --success-strong: 154 81% 26%;
+    --warning-strong: 36 95% 31%;
+    --destructive-strong: 3 73% 41%;
   }
 
   .dark {
-    --background: 220 20% 7%;
+    /* O escuro assenta no mesmo "ink" do claro (215°), não num cinzento à parte. */
+    --background: 215 28% 8%;
     /* Lifted off the near-black page, or the header disappears into it. */
-    --section: 215 45% 22%;
-    --foreground: 210 40% 96%;
+    --section: 215 40% 20%;
+    --foreground: 213 27% 95%;
 
-    --card: 220 20% 10%;
-    --card-foreground: 210 40% 96%;
+    --card: 215 26% 11%;
+    --card-foreground: 213 27% 95%;
 
-    --popover: 220 20% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 215 26% 11%;
+    --popover-foreground: 213 27% 95%;
 
-    --primary: 211 78% 55%;
+    --primary: 207 80% 56%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 20% 16%;
-    --secondary-foreground: 210 40% 96%;
+    --secondary: 215 22% 17%;
+    --secondary-foreground: 213 27% 95%;
 
-    --muted: 220 20% 14%;
-    --muted-foreground: 215 20% 60%;
+    --muted: 215 22% 15%;
+    --muted-foreground: 214 16% 62%;
 
-    --accent: 38 92% 50%;
-    --accent-foreground: 220 20% 7%;
+    /* Era âmbar (38 92% 50%). O `accent` só é usado como superfície de hover — em 52
+       sítios — por isso um âmbar aqui acendia o menu inteiro ao passar o rato. */
+    --accent: 215 22% 17%;
+    --accent-foreground: 213 27% 95%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 4 74% 60%;
+    /* Tinta, não branco. No escuro os três preenchimentos de estado sobem de
+       luminosidade para se lerem sobre a página quase preta, e a essa altura o branco
+       por cima deles mede 3.62:1 (stop), 2.62:1 (go) e 2.30:1 (hold) — todos abaixo de
+       AA. A tinta por cima mede 5.21:1, 7.19:1 e 7.99:1. O primeiro plano tem de virar
+       com o preenchimento; se só um dos dois virar, o botão fica ilegível num tema. */
+    --destructive-foreground: 215 28% 8%;
 
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 211 78% 55%;
+    --border: 215 20% 19%;
+    --input: 215 20% 19%;
+    --ring: 207 80% 56%;
 
     /* On a dark card the fills are too dark to read, so these go the other way. */
-    --success-strong: 142 60% 62%;
-    --warning-strong: 43 90% 62%;
+    --success-strong: 152 62% 60%;
+    --warning-strong: 38 85% 64%;
     /* On a dark card the fill measures 3.71:1 as text — AA-large only. 5.96:1 here. */
-    --destructive-strong: 0 80% 68%;
+    --destructive-strong: 4 82% 71%;
 
-    --sidebar-background: 211 64% 28%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 211 64% 28%;
-    --sidebar-accent: 211 60% 38%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 211 55% 36%;
-    --sidebar-ring: 211 70% 60%;
+    --sidebar-background: 215 30% 11%;
+    --sidebar-foreground: 213 27% 95%;
+    --sidebar-primary: 207 80% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 24% 18%;
+    --sidebar-accent-foreground: 213 27% 95%;
+    --sidebar-border: 215 22% 18%;
+    --sidebar-ring: 207 80% 56%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 220 20% 7%;
+    --success: 152 66% 43%;
+    --success-foreground: 215 28% 8%;
+    --warning: 38 78% 50%;
+    --warning-foreground: 215 28% 8%;
   }
 }
 

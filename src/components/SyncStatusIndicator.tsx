@@ -50,9 +50,9 @@ export function SyncStatusIndicator({ isSyncing, error, label = "Sync", classNam
 
   const cfg = {
     idle:    { Icon: CircleDashed, cls: "bg-muted text-muted-foreground border-border", text: "Idle" },
-    syncing: { Icon: RefreshCw,    cls: "bg-blue-500/15 text-blue-400 border-blue-500/30", text: "Syncing…" },
-    success: { Icon: CheckCircle2, cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30", text: lastSuccess ? `Synced ${formatDistanceToNow(lastSuccess, { addSuffix: true })}` : "Synced" },
-    error:   { Icon: AlertCircle,  cls: "bg-red-500/15 text-red-400 border-red-500/30", text: lastError ? `Sync failed: ${lastError.slice(0, 60)}` : "Sync failed" },
+    syncing: { Icon: RefreshCw,    cls: "bg-primary/15 text-primary border-primary/30", text: "Syncing…" },
+    success: { Icon: CheckCircle2, cls: "bg-success/15 text-success-strong border-success/30", text: lastSuccess ? `Synced ${formatDistanceToNow(lastSuccess, { addSuffix: true })}` : "Synced" },
+    error:   { Icon: AlertCircle,  cls: "bg-destructive/15 text-destructive-strong border-destructive/30", text: lastError ? `Sync failed: ${lastError.slice(0, 60)}` : "Sync failed" },
   }[state];
 
   const { Icon } = cfg;

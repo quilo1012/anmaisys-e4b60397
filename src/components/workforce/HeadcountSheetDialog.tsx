@@ -224,19 +224,19 @@ export function HeadcountSheetDialog({
             {preview && (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline" className="border-emerald-500/40 text-success-strong">
+                  <Badge variant="outline" className="border-success/40 text-success-strong">
                     {preview.matched.length} matched
                   </Badge>
                   <Badge variant="outline">{preview.days.length} day(s)</Badge>
                   {preview.unmatchedNames.length > 0 && (
-                    <Badge variant="outline" className="border-amber-500/40 text-warning-strong">
+                    <Badge variant="outline" className="border-warning/40 text-warning-strong">
                       {preview.unmatchedNames.length} not matched
                     </Badge>
                   )}
                 </div>
 
                 {(preview.unmatchedNames.length > 0 || preview.unknownColumns.length > 0 || preview.skippedSheets.length > 0) && (
-                  <div className="max-h-52 space-y-2 overflow-y-auto rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-2xs">
+                  <div className="max-h-52 space-y-2 overflow-y-auto rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
                     <div className="flex items-center gap-1.5 font-semibold text-warning-strong">
                       <AlertTriangle className="h-3.5 w-3.5" /> These will not be imported
                     </div>

@@ -32,7 +32,7 @@ export function UnmappedLinesBanner() {
   const names = data.map((l) => l.name).join(", ");
 
   return (
-    <div className="w-full flex items-center justify-between gap-2 bg-amber-500/15 text-amber-800 dark:text-amber-200 border-b border-amber-500/30 text-xs py-1 px-3">
+    <div className="w-full flex items-center justify-between gap-2 bg-warning/15 text-warning-strong border-b border-warning/30 text-xs py-1 px-3">
       <div className="flex items-center gap-1.5 min-w-0">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">
@@ -42,7 +42,7 @@ export function UnmappedLinesBanner() {
       <button
         type="button"
         onClick={() => navigate("/dashboard/intouch-settings")}
-        className="shrink-0 rounded border border-amber-600/40 bg-amber-500/20 hover:bg-amber-500/30 px-2 py-0.5 text-xs font-semibold"
+        className="shrink-0 rounded border border-warning/40 bg-warning/20 hover:bg-warning/30 px-2 py-0.5 text-xs font-semibold"
       >
         Fix
       </button>

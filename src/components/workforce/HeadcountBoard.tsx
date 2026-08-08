@@ -28,10 +28,10 @@ const UNPLACED = "__unplaced__";
 const BOARD_SHIFTS = ["Day", "Night", "Warehouse Day"] as const;
 
 const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
-  present:  { label: "In",       cls: "border-emerald-500/40 bg-emerald-500/15 text-success-strong" },
-  absent:   { label: "Absent",   cls: "border-red-500/40 bg-red-500/15 text-destructive-strong" },
-  sick:     { label: "Sick",     cls: "border-amber-500/40 bg-amber-500/15 text-warning-strong" },
-  holiday:  { label: "Holiday",  cls: "border-blue-500/40 bg-blue-500/15 text-blue-700 dark:text-blue-300" },
+  present:  { label: "In",       cls: "border-success/40 bg-success/15 text-success-strong" },
+  absent:   { label: "Absent",   cls: "border-destructive/40 bg-destructive/15 text-destructive-strong" },
+  sick:     { label: "Sick",     cls: "border-warning/40 bg-warning/15 text-warning-strong" },
+  holiday:  { label: "Holiday",  cls: "border-primary/40 bg-primary/15 text-primary" },
   training: { label: "Training", cls: "border-purple-500/40 bg-purple-500/15 text-purple-700 dark:text-purple-300" },
   // Agreed and unpaid, which is not the same as an absence nobody agreed to.
   unpaid:   { label: "Unpaid",   cls: "border-slate-500/40 bg-slate-500/15 text-muted-foreground" },
@@ -117,7 +117,7 @@ function EmployeeCard({
         {offRota && (
           <span
             title="Working outside their own rota — an overtime day. Hours still come from the payroll sheet."
-            className="shrink-0 rounded border border-amber-500/50 bg-amber-500/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong"
+            className="shrink-0 rounded border border-warning/50 bg-warning/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong"
           >
             OT day
           </span>

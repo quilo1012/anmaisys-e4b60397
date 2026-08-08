@@ -48,8 +48,8 @@ export function DailyIssueSummary({
 
   return (
     <div className="mb-1.5 space-y-1 rounded border border-dashed bg-muted/30 p-1.5">
-      <Section label="Day" list={day} icon={Sun} tone="text-amber-600 dark:text-amber-400" />
-      <Section label="Night" list={night} icon={Moon} tone="text-indigo-600 dark:text-indigo-400" />
+      <Section label="Day" list={day} icon={Sun} tone="text-warning-strong" />
+      <Section label="Night" list={night} icon={Moon} tone="text-primary" />
       {canEdit && (
         <button
           type="button"

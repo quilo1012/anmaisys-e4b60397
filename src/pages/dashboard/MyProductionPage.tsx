@@ -390,7 +390,7 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
               {totalTarget > 0 ? (
                 (() => {
                   const pct = (Number(produced || 0) / totalTarget) * 100;
-                  const cls = pct >= 90 ? "text-success-strong" : pct >= 70 ? "text-warning-strong" : "text-red-600";
+                  const cls = pct >= 90 ? "text-success-strong" : pct >= 70 ? "text-warning-strong" : "text-destructive-strong";
                   return <span className={`text-lg font-semibold tabular-nums ${cls}`}>{pct.toFixed(1)}%</span>;
                 })()
               ) : (
@@ -522,7 +522,7 @@ function TargetMeta({ target, produced }: { target: number; produced: number }) 
         <b className="tabular-nums text-foreground">{remaining.toLocaleString()}</b> left
       </div>
       <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-success" : "bg-primary"}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -1005,14 +1005,14 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           const closedAt = sh === "NIGHT" ? "06:15" : "18:15";
           if (msLeft <= 0) {
             return (
-              <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-700 dark:text-red-300">
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-strong">
                 <b>Logging closed for this shift at {closedAt}.</b> Ask a manager to record it — they can still enter it for you.
               </div>
             );
           }
           if (msLeft <= 30 * 60_000) {
             return (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+              <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
                 <b>Logging closes at {closedAt}</b> — {Math.ceil(msLeft / 60_000)} min left. Enter what the line made before then.
               </div>
             );
@@ -1180,7 +1180,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           </button>
 
           {!selectedSku && skuQuery.trim() && (
-            <div className="text-2xs text-amber-600 dark:text-amber-400">
+            <div className="text-2xs text-warning-strong">
               Not linked to the catalog — will be logged exactly as typed. Admin reconciles it later.
             </div>
           )}
@@ -1301,7 +1301,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="flex items-center gap-1.5">
-              <Button type="button" className="h-11 shrink-0 bg-green-600 hover:bg-green-700 text-white" onClick={() => setStartTime(nowHM())}>
+              <Button type="button" className="h-11 shrink-0 bg-success hover:bg-success/90 text-success-foreground" onClick={() => setStartTime(nowHM())}>
                 <Play className="h-4 w-4 mr-1" /> Start
               </Button>
               <Input
@@ -1313,7 +1313,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <Button type="button" className="h-11 shrink-0 bg-red-600 hover:bg-red-700 text-white" onClick={() => setFinishTime(nowHM())}>
+              <Button type="button" className="h-11 shrink-0 bg-destructive hover:bg-destructive/90 text-destructive-foreground" onClick={() => setFinishTime(nowHM())}>
                 <Square className="h-4 w-4 mr-1" /> Finish
               </Button>
               <Input
@@ -1530,10 +1530,10 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                         <span className="text-2xs text-muted-foreground">Assembly {assembly}</span>
                       )}
                       {dest && (
-                        <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-2xs font-medium">→ {dest}</span>
+                        <span className="inline-flex items-center rounded bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary px-1.5 py-0.5 text-2xs font-medium">→ {dest}</span>
                       )}
                       {nfe && (
-                        <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
+                        <span className="inline-flex items-center rounded bg-warning/10 text-warning-strong dark:bg-warning/15 dark:text-warning-strong px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
                       )}
                       {(e.started_at || e.finished_at) && (
                         <span className="text-2xs text-muted-foreground">
@@ -1584,7 +1584,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                     <span className="text-xs text-muted-foreground truncate">{productLabel(it.sku?.name)}</span>
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 px-1.5 py-0.5 text-2xs font-medium">No blender</span>
+                    <span className="inline-flex items-center rounded bg-warning/10 text-warning-strong px-1.5 py-0.5 text-2xs font-medium">No blender</span>
                     {it.blender_ref && <span className="text-2xs text-muted-foreground">Assembly {it.blender_ref}</span>}
                     {it.batch_code && (
                       <span className="font-mono text-2xs text-foreground/80 truncate">
@@ -1595,10 +1595,10 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       </span>
                     )}
                     {it.destination && (
-                      <span className="inline-flex items-center rounded bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300 px-1.5 py-0.5 text-2xs font-medium">→ {it.destination}</span>
+                      <span className="inline-flex items-center rounded bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary px-1.5 py-0.5 text-2xs font-medium">→ {it.destination}</span>
                     )}
                     {it.not_for_eu && (
-                      <span className="inline-flex items-center rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
+                      <span className="inline-flex items-center rounded bg-warning/10 text-warning-strong dark:bg-warning/15 dark:text-warning-strong px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
                     )}
                   </div>
 

@@ -498,7 +498,7 @@ export default function Login() {
           aria-live="polite"
           className={`mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:pointer-events-none ${
             authed
-              ? "bg-emerald-600"
+              ? "bg-success"
               : "bg-[#1E3A8A] hover:bg-[#1E40AF] disabled:opacity-60"
           }`}
         >

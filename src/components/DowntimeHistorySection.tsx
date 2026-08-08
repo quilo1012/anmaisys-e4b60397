@@ -211,7 +211,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                   return (
                     <TableRow
                       key={e.id}
-                      className={isOpen ? "bg-red-500/10 hover:bg-red-500/15" : ""}
+                      className={isOpen ? "bg-destructive/10 hover:bg-destructive/15" : ""}
                     >
                       <TableCell className="font-mono text-xs">{filtered.length - idx}</TableCell>
                       <TableCell className="font-mono text-xs whitespace-nowrap">
@@ -225,7 +225,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                         {e.resumed_at ? (
                           format(new Date(e.resumed_at), "dd/MM HH:mm")
                         ) : (
-                          <span className="text-red-600 font-semibold uppercase">ongoing</span>
+                          <span className="text-destructive-strong font-semibold uppercase">ongoing</span>
                         )}
                       </TableCell>
                       <TableCell className="text-xs">{e.resumed_by_name || "—"}</TableCell>
@@ -234,7 +234,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">
                         {formatMinutes(dur)}
-                        {isOpen && <span className="text-red-600 ml-1">(live)</span>}
+                        {isOpen && <span className="text-destructive-strong ml-1">(live)</span>}
                       </TableCell>
                       <TableCell>
                         {e.is_recurrence ? (

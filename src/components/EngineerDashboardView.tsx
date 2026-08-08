@@ -75,19 +75,19 @@ export function EngineerDashboardView() {
         <TabsContent value="open">
           <OrderTable
             list={openOrders}
-            icon={<Hammer className="h-4 w-4 text-amber-500" />}
+            icon={<Hammer className="h-4 w-4 text-warning-strong" />}
           />
         </TabsContent>
         <TabsContent value="in_progress">
           <OrderTable
             list={inProgressOrders}
-            icon={<Clock className="h-4 w-4 text-blue-500" />}
+            icon={<Clock className="h-4 w-4 text-primary" />}
           />
         </TabsContent>
         <TabsContent value="completed">
           <OrderTable
             list={completedOrders}
-            icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+            icon={<CheckCircle2 className="h-4 w-4 text-success-strong" />}
           />
         </TabsContent>
       </Tabs>

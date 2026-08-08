@@ -139,7 +139,7 @@ export function EmployeeDetailPanel({
           <SheetDescription className="flex flex-wrap items-center gap-1">
             <Badge variant="outline" className="text-2xs">{lineName}</Badge>
             {employee.source === "import_overtime" && (
-              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-2xs text-warning-strong">
+              <Badge variant="outline" className="border-warning/40 bg-warning/10 text-2xs text-warning-strong">
                 From overtime sheet
               </Badge>
             )}

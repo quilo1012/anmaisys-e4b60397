@@ -105,9 +105,9 @@ function lineNamesMatch(a: string | null | undefined, b: string | null | undefin
 }
 
 function ragColor(pct: number): string {
-  if (pct >= 95) return "bg-green-600";
-  if (pct >= 80) return "bg-amber-500";
-  return "bg-red-600";
+  if (pct >= 95) return "bg-success";
+  if (pct >= 80) return "bg-warning";
+  return "bg-destructive";
 }
 
 interface ItemRow {
@@ -691,7 +691,7 @@ export default function LineProductionScreen() {
               <Button
                 size="lg"
                 variant="outline"
-                className="h-12 border-green-500/60 text-green-600 dark:text-green-400"
+                className="h-12 border-success/60 text-success-strong"
                 onClick={() => setTargetUnlock(null)}
                 title="Click to lock again"
               >
@@ -720,7 +720,7 @@ export default function LineProductionScreen() {
 
             <Button
               size="lg"
-              className="h-12 bg-red-600 hover:bg-red-700 text-white"
+              className="h-12 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               onClick={() => setRequestOpen(true)}
               disabled={!line}
             >
@@ -792,8 +792,8 @@ export default function LineProductionScreen() {
       )}
 
       {line && hasItouch && !ragPlanQ.isLoading && (ragPlanQ.data ?? 0) <= 0 && (
-        <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="p-4 text-sm text-amber-600 dark:text-amber-300">
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="p-4 text-sm text-warning-strong">
             No RAG Weekly target set for <span className="font-medium">{line}</span> · {shift} · {activeSessionDate}. Ask your manager to add it or import from iTouching. You can still record Actual above.
           </CardContent>
         </Card>
@@ -828,10 +828,10 @@ export default function LineProductionScreen() {
 
 
       {intouchGoodMissing && (
-        <Card className="mb-3 border-amber-500/50 bg-amber-500/10">
+        <Card className="mb-3 border-warning/50 bg-warning/10">
           <CardContent className="p-3 flex items-start gap-2 text-sm">
-            <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <div className="flex-1 text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="h-4 w-4 mt-0.5 text-warning-strong shrink-0" />
+            <div className="flex-1 text-warning-strong">
               <strong>iTouching machine not mapped</strong> for {line}. Current Shift will show 0 until this line is mapped in iTouching Settings → Machine Map.
             </div>
           </CardContent>
@@ -849,9 +849,9 @@ export default function LineProductionScreen() {
           {(() => {
             const eff = totals.pct;
             const gap = totals.actual - totals.target;
-            const borderColor = eff >= 100 ? "border-green-500" : eff >= 80 ? "border-amber-500" : "border-red-500";
-            const headerBg = eff >= 100 ? "bg-green-500/15" : eff >= 80 ? "bg-amber-500/15" : "bg-red-500/15";
-            const headerText = eff >= 100 ? "text-green-600 dark:text-green-400" : eff >= 80 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+            const borderColor = eff >= 100 ? "border-success" : eff >= 80 ? "border-warning" : "border-destructive";
+            const headerBg = eff >= 100 ? "bg-success/15" : eff >= 80 ? "bg-warning/15" : "bg-destructive/15";
+            const headerText = eff >= 100 ? "text-success-strong" : eff >= 80 ? "text-warning-strong" : "text-destructive-strong";
             return (
               <Card className={cn("overflow-hidden border-l-4 mb-4", borderColor)}>
                 <div className={cn("px-4 py-2 flex items-center justify-between", headerBg, headerText)}>
@@ -869,7 +869,7 @@ export default function LineProductionScreen() {
                         <span className="font-medium tabular-nums text-muted-foreground">{intouchLive.toLocaleString("en-US")}</span>
                       </div>
                     )}
-                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-green-500" : "text-red-500")}>{gap.toLocaleString("en-US")}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Gap</span><span className={cn("font-semibold tabular-nums", gap >= 0 ? "text-success-strong" : "text-destructive-strong")}>{gap.toLocaleString("en-US")}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Remaining</span><span className="font-semibold tabular-nums">{totals.remaining.toLocaleString("en-US")}</span></div>
                   </div>
                 </CardContent>
@@ -1133,7 +1133,7 @@ const SkuCard = memo(function SkuCard({
       onClick={() => onOpen({ ...item, target_qty: effTarget })}
       className={cn(
         "cursor-pointer active:scale-[0.99] transition relative",
-        !hideTarget && done && "bg-emerald-500/10 border-emerald-500/40",
+        !hideTarget && done && "bg-success/10 border-success/40",
       )}
     >
       {canManage && (
@@ -1308,7 +1308,7 @@ function RequestOrderDialog({
       >
         <DialogHeader>
           <DialogTitle className={dialogTitleResponsive}>
-            <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-500 shrink-0" />
+            <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-destructive-strong shrink-0" />
             <span className="truncate">Request Maintenance — {line}</span>
           </DialogTitle>
         </DialogHeader>
@@ -1322,7 +1322,7 @@ function RequestOrderDialog({
               <Button
                 type="button"
                 variant={lineStatus === "stopped" ? "default" : "outline"}
-                className={`h-12 sm:h-14 text-sm sm:text-base whitespace-normal ${lineStatus === "stopped" ? "bg-red-600 hover:bg-red-700 text-white" : ""}`}
+                className={`h-12 sm:h-14 text-sm sm:text-base whitespace-normal ${lineStatus === "stopped" ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" : ""}`}
                 onClick={() => setLineStatus("stopped")}
               >
                 🛑 Machine stopped
@@ -1330,7 +1330,7 @@ function RequestOrderDialog({
               <Button
                 type="button"
                 variant={lineStatus === "running" ? "default" : "outline"}
-                className={`h-12 sm:h-14 text-sm sm:text-base whitespace-normal ${lineStatus === "running" ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}`}
+                className={`h-12 sm:h-14 text-sm sm:text-base whitespace-normal ${lineStatus === "running" ? "bg-warning hover:bg-warning/90 text-warning-foreground" : ""}`}
                 onClick={() => { setLineStatus("running"); setPriority("medium"); }}
               >
                 ⚙️ Running — needs maintenance
@@ -1382,7 +1382,7 @@ function RequestOrderDialog({
         <DialogFooter className={dialogFooterResponsive}>
           <Button variant="outline" className={dialogPrimaryActionResponsive} onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button
-            className={`${dialogPrimaryActionResponsive} bg-red-600 hover:bg-red-700 text-white`}
+            className={`${dialogPrimaryActionResponsive} bg-destructive hover:bg-destructive/90 text-destructive-foreground`}
             onClick={submit}
             disabled={createWO.isPending}
           >
