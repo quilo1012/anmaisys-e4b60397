@@ -17,6 +17,7 @@ import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Do
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { classifyLive, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
@@ -184,6 +185,45 @@ export default function ProductionPerformancePage() {
       return (data ?? []) as { name: string }[];
     },
   });
+
+  /**
+   * What iTouching says each line is doing right now.
+   *
+   * Read from `v_line_live_status`, not from `intouch_machine_map`: that table is
+   * readable by four roles and this page by seven, so a supervisor — who lands
+   * here — would otherwise get an empty pill on every card and no reason why.
+   *
+   * Deliberately independent of the period filters above. The pace is about the
+   * shift being reported on; this is about the minute you are standing in, and a
+   * line can be behind for the shift and running perfectly right now.
+   */
+  const { data: liveRows = [] } = useQuery({
+    queryKey: ["line-live-status"],
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: false,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the view is newer than the generated types
+      const { data, error } = await (supabase as any)
+        .from("v_line_live_status")
+        .select("line, machine, status, reason, planned, seen_at");
+      if (error) throw error;
+      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null }[];
+    },
+  });
+
+  const liveByLine = useMemo(() => {
+    const norm = (s: string | null | undefined) => String(s ?? "").trim().toLowerCase();
+    const m = new Map<string, LiveReading>();
+    for (const r of liveRows) {
+      m.set(norm(r.line), {
+        status: r.status,
+        reason: r.reason,
+        planned: r.planned,
+        seenAt: r.seen_at ? new Date(r.seen_at) : null,
+      });
+    }
+    return m;
+  }, [liveRows]);
 
   const { data: leaders = [] } = useQuery({
     queryKey: ["line_leaders_active"],
@@ -705,6 +745,34 @@ export default function ProductionPerformancePage() {
                       </div>
                     )}
                   </div>
+                {/* What the line is doing RIGHT NOW, which is a different question
+                    from how the shift has gone and is allowed to disagree with it:
+                    a line can be behind on the shift because of a breakdown this
+                    morning and be running perfectly at this minute. */}
+                {(() => {
+                  const live = classifyLive(liveByLine.get(l.line.trim().toLowerCase()), new Date());
+                  return (
+                    <div
+                      className={`mt-2 flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${LIVE_TONE[live.state]}`}
+                      title={
+                        live.ageSeconds == null
+                          ? "iTouching has never reported this machine"
+                          : `iTouching, read ${live.ageSeconds}s ago${live.rawStatus != null ? ` · status ${live.rawStatus}` : ""}`
+                      }
+                    >
+                      <span className="truncate font-display text-2xs font-bold uppercase tracking-[0.1em]">
+                        ● {live.label}
+                      </span>
+                      {/* The age is on the pill, not hidden in a tooltip: a state
+                          nobody has confirmed for ten minutes is not a state. */}
+                      {live.ageSeconds != null && (
+                        <span className="shrink-0 font-mono text-2xs tabular-nums opacity-70">
+                          {live.ageSeconds < 90 ? `${live.ageSeconds}s` : `${Math.floor(live.ageSeconds / 60)}m`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="mt-4 flex items-end justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Actual</div>
