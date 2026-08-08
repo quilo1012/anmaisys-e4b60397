@@ -145,7 +145,10 @@ Deno.serve(async (req) => {
     const skuIds = Array.from(new Set((items ?? []).map((i: any) => i.sku_id)));
     const { data: skus } = await admin
       .from("sku_products").select("id, code, name, target_per_hour").in("id", skuIds);
-    const upmById = new Map<string, number>(
+    // Named for what the column holds. It used to be `upmById` — units per
+    // MINUTE — while being filled from `target_per_hour`, and the arithmetic
+    // below believed the name.
+    const perHourById = new Map<string, number>(
       (skus ?? []).map((s: any) => [s.id, Number(s.target_per_hour) || 0]),
     );
 
@@ -165,9 +168,14 @@ Deno.serve(async (req) => {
       const minutesPerSku = SHIFT_MINUTES / arr.length;
       for (const it of arr) {
         if (!overwrite && Number(it.target_qty ?? 0) > 0) continue;
-        const upm = upmById.get(it.sku_id) ?? 0;
-        if (upm <= 0) continue;
-        const target = Math.round(upm * minutesPerSku);
+        const perHour = perHourById.get(it.sku_id) ?? 0;
+        if (perHour <= 0) continue;
+        // An hourly rate over a window measured in minutes. Multiplying the two
+        // straight together inflated every target sixty-fold: COLMAR runs at
+        // 720/h, and on 08/08 Line 1 was given a target of 475,200 for the shift
+        // against the 7,920 it can actually make. Four RAG rows were overwritten
+        // with those figures before anyone read the board.
+        const target = Math.round((perHour / 60) * minutesPerSku);
         updates.push({ id: it.id, target_qty: target, planned_qty: target });
         targetOverrides.push({ sku_id: it.sku_id, line: sess.line, shift: sess.shift, target_qty: target });
       }
