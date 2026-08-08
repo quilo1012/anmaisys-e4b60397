@@ -3,7 +3,7 @@
  *
  * Replaces the duplicated `statusConfig` maps that were scattered across
  * OperatorDashboard / EngineerDashboard / WorkOrdersPage. The previous
- * variants used `bg-blue-100 text-blue-800` style classes, which are
+ * variants used `bg-primary/10 text-primary` style classes, which are
  * unreadable on the dark theme (light text on near-white bg). These
  * use `<color>-500/15` tinted bg + `<color>-700 dark:<color>-300` text
  * for WCAG-AA contrast in both themes.
@@ -26,11 +26,11 @@ export interface WoStatusEntry {
 export const woStatusConfig: Record<string, WoStatusEntry> = {
   open: {
     label: "Open",
-    className: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
+    className: "bg-primary/15 text-primary border-primary/30",
   },
   received: {
     label: "Received",
-    className: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
+    className: "bg-primary/15 text-primary border-primary/30",
   },
   arrived: {
     label: "Arrived",
@@ -38,19 +38,19 @@ export const woStatusConfig: Record<string, WoStatusEntry> = {
   },
   in_progress: {
     label: "In Progress",
-    className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
+    className: "bg-warning/15 text-warning-strong border-warning/30",
   },
   finished: {
     label: "Finished",
-    className: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30",
+    className: "bg-success/15 text-success-strong border-success/30",
   },
   closed: {
     label: "Closed",
-    className: "bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30",
+    className: "bg-success/15 text-success-strong border-success/30",
   },
   completed: {
     label: "Completed",
-    className: "bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30",
+    className: "bg-success/15 text-success-strong border-success/30",
   },
   force_closed: {
     label: "Force Closed",
@@ -68,7 +68,7 @@ export function getWoStatusConfig(status: string | null | undefined): WoStatusEn
  * "auto priority" preview chip and elsewhere.
  */
 export const priorityChipClass: Record<string, string> = {
-  high: "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30",
-  medium: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
-  low: "bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30",
+  high: "bg-destructive/15 text-destructive-strong border-destructive/30",
+  medium: "bg-warning/15 text-warning-strong border-warning/30",
+  low: "bg-success/15 text-success-strong border-success/30",
 };

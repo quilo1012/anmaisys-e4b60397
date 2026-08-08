@@ -18,13 +18,13 @@ export interface RoleStripe {
 }
 
 const ROLE_STRIPES: Array<RoleStripe & { match: RegExp }> = [
-  { match: /supervisor/i,             label: "Supervisor",  short: "SUP",  cls: "bg-rose-500 text-white" },
-  { match: /team\s*lead/i,            label: "Team Leader", short: "LEAD", cls: "bg-violet-500 text-white" },
-  { match: /technician|maintenance/i, label: "Technician",  short: "TEC",  cls: "bg-sky-500 text-white" },
-  { match: /lab|blender/i,            label: "Lab",         short: "LAB",  cls: "bg-teal-500 text-white" },
-  { match: /quality/i,                label: "Quality",     short: "QA",   cls: "bg-amber-500 text-black" },
-  { match: /warehouse|wh\b/i,         label: "Warehouse",   short: "WH",   cls: "bg-orange-500 text-white" },
-  { match: /office|admin/i,           label: "Office",      short: "OFF",  cls: "bg-slate-500 text-white" },
+  { match: /supervisor/i,             label: "Supervisor",  short: "SUP",  cls: "bg-destructive text-destructive-foreground" },
+  { match: /team\s*lead/i,            label: "Team Leader", short: "LEAD", cls: "bg-primary text-primary-foreground" },
+  { match: /technician|maintenance/i, label: "Technician",  short: "TEC",  cls: "bg-primary text-primary-foreground" },
+  { match: /lab|blender/i,            label: "Lab",         short: "LAB",  cls: "bg-success text-success-foreground" },
+  { match: /quality/i,                label: "Quality",     short: "QA",   cls: "bg-warning text-warning-foreground" },
+  { match: /warehouse|wh\b/i,         label: "Warehouse",   short: "WH",   cls: "bg-warning text-warning-foreground" },
+  { match: /office|admin/i,           label: "Office",      short: "OFF",  cls: "bg-muted-foreground text-background" },
 ];
 
 /**

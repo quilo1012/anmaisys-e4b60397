@@ -22,9 +22,9 @@ import { useRole } from "@/hooks/useRole";
 const SHIFT_BADGE: Record<string, string> = {
   Day: "border-warning/40 bg-warning/10 text-2xs text-warning-strong",
   Night: "border-primary/40 bg-primary/10 text-2xs text-primary",
-  Weekend: "border-slate-500/40 bg-slate-500/10 text-2xs text-muted-foreground",
+  Weekend: "border-border bg-muted text-2xs text-muted-foreground",
   "Warehouse Day": "border-warning/40 bg-warning/10 text-2xs text-warning-strong",
-  "Warehouse Weekend": "border-slate-500/40 bg-slate-500/10 text-2xs text-muted-foreground",
+  "Warehouse Weekend": "border-border bg-muted text-2xs text-muted-foreground",
 };
 
 /**

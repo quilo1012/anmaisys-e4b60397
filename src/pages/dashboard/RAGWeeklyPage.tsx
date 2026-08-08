@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload, FileBarChart } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -715,6 +716,15 @@ export default function RAGWeeklyPage() {
   return (
     <DashboardLayout>
       <div className="p-3 md:p-6 space-y-4">
+        {/* O ecrã abria directamente no navegador de semanas, que é um controlo e não
+            um título: dizia em que semana se está, nunca em que ecrã. */}
+        <PageHeader
+          module="Reports"
+          title="Weekly RAG"
+          description="Red, amber and green by line for the week, with the issues behind each rating."
+          icon={<FileBarChart className="h-5 w-5" />}
+        />
+
         <Card className="border-l-4 border-l-primary border-primary/20 shadow-md bg-gradient-to-br from-background to-muted/30">
           <CardHeader className="flex flex-col gap-3 p-3 md:p-6">
             <div className="flex flex-row items-center justify-between gap-2 flex-wrap">

@@ -24,9 +24,9 @@ export interface QualityStatus {
 }
 
 export const QUALITY_STATUSES: QualityStatus[] = [
-  { value: "todo", label: "To do", badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40", color: "hsl(38 92% 50%)" },
-  { value: "in_progress", label: "In progress", badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/40", color: "hsl(217 91% 60%)" },
-  { value: "complete", label: "Complete", badge: "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/40", color: "hsl(142 76% 36%)" },
+  { value: "todo", label: "To do", badge: "bg-warning/15 text-warning-strong border-warning/40", color: "hsl(38 92% 50%)" },
+  { value: "in_progress", label: "In progress", badge: "bg-primary/15 text-primary border-primary/40", color: "hsl(217 91% 60%)" },
+  { value: "complete", label: "Complete", badge: "bg-success/15 text-success-strong border-success/40", color: "hsl(142 76% 36%)" },
 ];
 
 export function statusMeta(value: string | null | undefined): QualityStatus {
@@ -45,10 +45,10 @@ export interface QualitySeverity {
 }
 
 export const QUALITY_SEVERITIES: QualitySeverity[] = [
-  { value: "low", label: "Low", badge: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/40", accent: "border-l-slate-400", points: 1 },
-  { value: "medium", label: "Medium", badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40", accent: "border-l-amber-400", points: 2 },
-  { value: "high", label: "High", badge: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/40", accent: "border-l-orange-500", points: 3 },
-  { value: "critical", label: "Critical", badge: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/40", accent: "border-l-red-500", points: 4 },
+  { value: "low", label: "Low", badge: "bg-muted text-muted-foreground border-border", accent: "border-l-muted-foreground", points: 1 },
+  { value: "medium", label: "Medium", badge: "bg-warning/15 text-warning-strong border-warning/40", accent: "border-l-warning", points: 2 },
+  { value: "high", label: "High", badge: "bg-warning/15 text-warning-strong border-warning/40", accent: "border-l-warning", points: 3 },
+  { value: "critical", label: "Critical", badge: "bg-destructive/15 text-destructive-strong border-destructive/40", accent: "border-l-destructive", points: 4 },
 ];
 
 export function severityMeta(value: string | null | undefined): QualitySeverity | null {
@@ -124,9 +124,9 @@ export interface ValidationState {
 }
 
 export const VALIDATION_STATES: ValidationState[] = [
-  { value: "open", label: "Open", badge: "bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/40", hint: "Raised, not yet investigated. No effect on any score." },
-  { value: "under_investigation", label: "Under investigation", badge: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/40", hint: "Being looked into. No effect on any score." },
-  { value: "validated", label: "Validated", badge: "bg-red-500/15 text-destructive-strong border-red-500/40", hint: "Confirmed by Quality. This is the only state that affects the leader's score." },
+  { value: "open", label: "Open", badge: "bg-muted text-muted-foreground border-border", hint: "Raised, not yet investigated. No effect on any score." },
+  { value: "under_investigation", label: "Under investigation", badge: "bg-primary/15 text-primary border-primary/40", hint: "Being looked into. No effect on any score." },
+  { value: "validated", label: "Validated", badge: "bg-destructive/15 text-destructive-strong border-destructive/40", hint: "Confirmed by Quality. This is the only state that affects the leader's score." },
   { value: "rejected", label: "Rejected", badge: "bg-muted text-muted-foreground border-border", hint: "Not a real deviation. No effect on any score." },
 ];
 

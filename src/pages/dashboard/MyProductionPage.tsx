@@ -840,6 +840,29 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     if (!blenderLabel || !Number.isFinite(blenderNum) || blenderNum < 1) { toast.error("Enter the blender (e.g. 3 or 7/8)"); return; }
     if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
 
+    // Both times, always.
+    //
+    // They were optional, and an optional field on a tablet at the end of a shift is a
+    // field that stays empty. The record then says a quantity was made and nothing
+    // about when — it counts towards the line's output and not towards its speed, and
+    // the gap only shows up weeks later when somebody asks how fast the line ran.
+    //
+    // The Start and Finish buttons fill each field with the current time in one tap.
+    // This is a field to press, not a form to fight.
+    if (!startTime) { toast.error("Enter the start time — tap Start or type it"); return; }
+    if (!finishTime) { toast.error("Enter the finish time — tap Finish or type it"); return; }
+
+    // A finish that is not after the start is a contradiction the operator can see and
+    // fix in two seconds, so it is caught here rather than stored and puzzled over
+    // later. D26213 is on file with a finish fifteen minutes BEFORE its start, and
+    // nobody can say now what was meant.
+    const startCheck = hmToIso(startTime, logDate, logShift);
+    const finishCheck = hmToIso(finishTime, logDate, logShift);
+    if (startCheck && finishCheck && runMinutes(startCheck, finishCheck) == null) {
+      toast.error("The finish time must be after the start time");
+      return;
+    }
+
     const skuId: string | null = selectedSku?.id ?? null;
     const skuText: string | null = selectedSku ? null : rawCode;
 
@@ -934,25 +957,17 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
 
       // Each blender keeps its OWN start/finish, so several blenders on the same
       // SKU don't overwrite each other's times.
-      // Saving marks the end of the run, so stamp Finish when it was left blank.
+      // Both times were checked above, so they are simply written.
       //
-      // But never a Finish that is not after the Start. An operator who types the
-      // current time into Start and saves straight away got both fields on the same
-      // minute, and a run of zero minutes is not a short run — it is a record that
-      // cannot be read. Nine of them are on file: five on 27/07 alone, at 09:59, 10:01,
-      // 10:02, 11:09 and 16:40, each with its two times identical to the minute.
-      //
-      // An unfinished run is honest. A zero-length one is not, and it is the kind of
-      // wrong that looks finished.
-      const entryTimes: Record<string, string | null> = {};
-      const startIso = startTime ? hmToIso(startTime, logDate, logShift) : null;
-      if (startTime) entryTimes.started_at = startIso;
-
-      const finishIso = hmToIso(finishTime || nowHM(), logDate, logShift);
-      const stampedNotTyped = !finishTime;
-      if (finishIso && !(stampedNotTyped && startIso && runMinutes(startIso, finishIso) == null)) {
-        entryTimes.finished_at = finishIso;
-      }
+      // Saving used to stamp Finish with the clock when it was left blank, and an
+      // operator who typed the current time into Start and saved straight away got both
+      // fields on the same minute — nine such records are on file, five on 27/07 alone.
+      // Requiring the field removes the guess rather than guarding it: nothing here
+      // invents a time any more.
+      const entryTimes: Record<string, string | null> = {
+        started_at: startCheck,
+        finished_at: finishCheck,
+      };
 
       if (existingEntry?.id) {
         const { error: upErr } = await (supabase as any)
@@ -1292,7 +1307,11 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
         {/* Production time (optional) — Start/Finish stamp + editable */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">Production time <span className="normal-case text-muted-foreground/60">(optional)</span></div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              Production time
+              {/* Said on the label, not discovered at the Save button. */}
+              <span className="ml-1 normal-case text-destructive-strong">required</span>
+            </div>
             {hmDurationMin(startTime, finishTime) != null && (
               <div className="text-xs font-medium text-muted-foreground">
                 Duration: {Math.floor(hmDurationMin(startTime, finishTime)! / 60)}h {hmDurationMin(startTime, finishTime)! % 60}m

@@ -9,7 +9,7 @@ const PRIORITY_BADGE: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive-strong border-destructive/30",
   high: "bg-warning/15 text-warning-strong border-warning/30",
   medium: "bg-warning/15 text-warning-strong border-warning/30",
-  low: "bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30",
+  low: "bg-muted text-muted-foreground border-border",
 };
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

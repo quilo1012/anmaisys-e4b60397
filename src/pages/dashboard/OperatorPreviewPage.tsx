@@ -47,13 +47,13 @@ export default function OperatorPreviewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-wall text-wall-ink">
       <div className="sticky top-0 z-50 border-b border-warning/40 bg-warning/10 backdrop-blur px-3 py-2 flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
           size="sm"
           onClick={() => navigate(-1)}
-          className="h-9 bg-slate-900/60 border-slate-700 text-white hover:bg-slate-800"
+          className="h-9 bg-wall-panel/60 border-wall-line text-wall-ink hover:bg-wall-line"
         >
           <ArrowLeft className="h-4 w-4 mr-1" /> Back
         </Button>
@@ -65,7 +65,7 @@ export default function OperatorPreviewPage() {
           <Button
             size="sm"
             variant="outline"
-            className="h-9 bg-slate-900/60 border-slate-700 text-white hover:bg-slate-800"
+            className="h-9 bg-wall-panel/60 border-wall-line text-wall-ink hover:bg-wall-line"
             onClick={async () => {
               const ch = supabase.channel("tablet-control");
               await new Promise<void>((resolve) => {
@@ -80,7 +80,7 @@ export default function OperatorPreviewPage() {
           </Button>
           <span className="text-xs text-warning-strong/80 hidden sm:inline">Simulating line:</span>
           <Select value={line} onValueChange={handleChange} disabled={isLoading}>
-            <SelectTrigger className="h-9 w-56 bg-slate-900/60 border-slate-700 text-white">
+            <SelectTrigger className="h-9 w-56 bg-wall-panel/60 border-wall-line text-wall-ink">
               <SelectValue placeholder={isLoading ? "Loading lines…" : "Select a line"} />
             </SelectTrigger>
             <SelectContent>
@@ -98,7 +98,7 @@ export default function OperatorPreviewPage() {
         {line ? (
           <LineProductionScreen />
         ) : (
-          <div className="p-10 text-center text-slate-400">Select a line to preview.</div>
+          <div className="p-10 text-center text-wall-ink-muted">Select a line to preview.</div>
         )}
       </div>
     </div>

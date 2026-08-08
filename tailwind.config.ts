@@ -54,6 +54,22 @@ export default {
   				DEFAULT: 'hsl(var(--accent))',
   				foreground: 'hsl(var(--accent-foreground))'
   			},
+  			/* Fixo nos dois temas — o ecrã de parede é sempre escuro. Ver index.css. */
+  			wall: {
+  				DEFAULT: 'hsl(var(--wall))',
+  				panel: 'hsl(var(--wall-panel))',
+  				line: 'hsl(var(--wall-line))',
+  				ink: 'hsl(var(--wall-ink))',
+  				'ink-muted': 'hsl(var(--wall-ink-muted))'
+  			},
+  			/* Fixo nos dois temas — o cartão de autenticação é sempre claro. Ver index.css. */
+  			auth: {
+  				field: 'hsl(var(--auth-field))',
+  				'field-top': 'hsl(var(--auth-field-top))',
+  				brand: 'hsl(var(--auth-brand))',
+  				ink: 'hsl(var(--auth-ink))',
+  				'ink-muted': 'hsl(var(--auth-ink-muted))'
+  			},
   			success: {
   				DEFAULT: 'hsl(var(--success))',
   				foreground: 'hsl(var(--success-foreground))',
