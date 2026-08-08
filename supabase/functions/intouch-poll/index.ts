@@ -520,12 +520,20 @@ Deno.serve(async (req) => {
       }).eq("intouch_machine_id", s.MachineID);
 
       // The status is written above whatever the toggle says, so the screens stay
-      // honest. Everything past this point either opens an order or edits one, which
-      // is exactly what the toggle exists to hold back.
-      if (!autoWoEnabled) {
-        results.skipped.push(`${m.intouch_machine_name} (status read; auto orders are OFF)`);
-        continue;
-      }
+      // honest.
+      //
+      // This used to `continue` here, on the stated grounds that "everything past
+      // this point either opens an order or edits one". That was not true, and the
+      // untrue half is measurement: the production-downtime tracking below writes
+      // `production_downtimes`, which is not an order and calls nobody out. With
+      // the toggle off — which it has been — the poll read ten machines a minute
+      // and recorded not one minute of stoppage. `production_downtimes` has been
+      // empty since 29/07, and `planned_stop_minutes()` reads from it, so the line
+      // board cannot deduct a deep clean from the time a line is judged on.
+      //
+      // The toggle now sits where its own comment says it belongs: in front of the
+      // two blocks that touch a work order, and nowhere else. Measuring a stoppage
+      // is reading. Calling out an engineer is the automatic act.
 
       if (currentStatus == null) {
         results.skipped.push(`${m.intouch_machine_name} (unknown status)`);
@@ -586,7 +594,7 @@ Deno.serve(async (req) => {
       // The ORDER is not closed. iTouching knows the machine is running again; it does
       // not know whether the repair is finished, and closing is the maintenance
       // manager's signature to give.
-      if (!isDown) {
+      if (!isDown && autoWoEnabled) {
         try {
           const { data: resumedWOs } = await admin
             .from("work_orders")
@@ -640,6 +648,13 @@ Deno.serve(async (req) => {
             .eq("intouch_machine_id", s.MachineID);
         }
         results.skipped.push(`${m.intouch_machine_name} (${codeName} → production downtime)`);
+        continue;
+      }
+
+      // Past here the poll only opens or edits work orders, which is what the
+      // toggle exists to hold back. The stoppage above was measured either way.
+      if (!autoWoEnabled) {
+        results.skipped.push(`${m.intouch_machine_name} (status read; auto orders are OFF)`);
         continue;
       }
 
