@@ -16,8 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
-import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftStart, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { classifyLive, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
+import { computePace, PACE_MESSAGES } from "@/lib/linePerformance";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
@@ -31,7 +32,7 @@ interface SessionAgg {
   id: string; session_date: string; shift: string; line: string;
   leader_name: string | null; locked: boolean;
   target: number; actual: number; eff: number;
-  items: { sku_id: string; actual: number }[];
+  items: { sku_id: string; actual: number; started_at: string | null; finished_at: string | null }[];
 }
 
 type RagRowT = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
@@ -239,11 +240,11 @@ export default function ProductionPerformancePage() {
     queryFn: async () => {
       // Paginate past the ~1000-row PostgREST cap so SKUs beyond 1000 resolve.
       const pageSize = 1000;
-      const rows: { id: string; code: string; name: string }[] = [];
+      const rows: { id: string; code: string; name: string; target_per_hour: number | null }[] = [];
       for (let offset = 0; ; offset += pageSize) {
-        const { data, error } = await supabase.from("sku_products").select("id, code, name").order("code").range(offset, offset + pageSize - 1);
+        const { data, error } = await supabase.from("sku_products").select("id, code, name, target_per_hour").order("code").range(offset, offset + pageSize - 1);
         if (error) throw error;
-        const page = (data ?? []) as { id: string; code: string; name: string }[];
+        const page = (data ?? []) as { id: string; code: string; name: string; target_per_hour: number | null }[];
         rows.push(...page);
         if (page.length < pageSize) break;
       }
@@ -289,7 +290,7 @@ export default function ProductionPerformancePage() {
     refetchIntervalInBackground: false,
     queryFn: async () => {
       let q = supabase.from("production_sessions")
-        .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, target_qty, planned_qty, actual_qty)")
+        .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, target_qty, planned_qty, actual_qty, started_at, finished_at)")
         .gte("session_date", range.from).lte("session_date", range.to);
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
@@ -317,14 +318,14 @@ export default function ProductionPerformancePage() {
         ragActualMap.set(k, r.actual_qty);
       }
 
-      const sessions: SessionAgg[] = (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null }[] }) => {
+      const sessions: SessionAgg[] = (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; started_at: string | null; finished_at: string | null }[] }) => {
         const items = s.production_items ?? [];
         const key = `${s.session_date}|${s.line}|${s.shift}`;
         const target = ragPlanMap.get(key) ?? 0;
         const itemsActual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
         const ragActual = ragActualMap.get(key) ?? 0;
         const actual = ragActual > 0 ? ragActual : itemsActual;
-        return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0) })) };
+        return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0), started_at: i.started_at ?? null, finished_at: i.finished_at ?? null })) };
       });
 
       return { sessions, ragRows };
@@ -393,6 +394,53 @@ export default function ProductionPerformancePage() {
   };
   const sortedByLine = useMemo(() => [...byLine].sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line)), [byLine]);
   const sortedLines = useMemo(() => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)), [lines]);
+
+  /**
+   * Where each line SHOULD be by now, which is only a question worth asking about
+   * the shift currently running.
+   *
+   * "Expected so far" over a week is meaningless — the week is over, the whole
+   * plan was the target — so the mark on the scale appears for the running shift
+   * and for nothing else. A board that draws it anyway is inventing precision.
+   */
+  const isCurrentShiftView = useMemo(() => {
+    const cur = getCurrentFactoryShift();
+    return (
+      period === "day" &&
+      range.from === range.to &&
+      range.from === cur.sessionDate &&
+      shift === (cur.shiftCode === "night" ? "NIGHT" : "DAY")
+    );
+  }, [period, range.from, range.to, shift]);
+
+  const paceByLine = useMemo(() => {
+    const out = new Map<string, ReturnType<typeof computePace>>();
+    if (!isCurrentShiftView) return out;
+    const now = new Date();
+    const shiftStart = getCurrentShiftStart(now);
+    const byLineSessions = new Map<string, SessionAgg[]>();
+    for (const s of sessions) {
+      const arr = byLineSessions.get(s.line) ?? [];
+      arr.push(s);
+      byLineSessions.set(s.line, arr);
+    }
+    for (const [line, ss] of byLineSessions) {
+      const items = ss.flatMap((s) => s.items).map((i) => ({
+        ratePerHour: skuMap.get(i.sku_id)?.target_per_hour ?? null,
+        produced: i.actual,
+        startedAt: i.started_at ? new Date(i.started_at) : null,
+        finishedAt: i.finished_at ? new Date(i.finished_at) : null,
+      }));
+      out.set(line, computePace({
+        items,
+        shiftStart,
+        now,
+        hasSession: true,
+        hasLeader: ss.some((s) => !!s.leader_name),
+      }));
+    }
+    return out;
+  }, [isCurrentShiftView, sessions, skuMap]);
 
   const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
   const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
@@ -627,7 +675,13 @@ export default function ProductionPerformancePage() {
             // the floor / on a line TV. Status colours: green on-target, amber
             // setup/near, red below-target (pulsing).
             const gap = l.actual - l.target;
-            const status = l.eff >= 100 ? "On target" : l.eff >= 80 ? "Setup" : "Below target";
+            const status = (() => {
+              const p = paceByLine.get(l.line);
+              if (p && p.kind !== "PACE") return "No reading";
+              const v = p?.kind === "PACE" ? p.pct : l.eff;
+              if (p?.kind === "PACE") return v >= 95 ? "On pace" : v >= 75 ? "Behind" : "Critical";
+              return v >= 100 ? "On target" : v >= 80 ? "Setup" : "Below target";
+            })();
             // O estado vem da barra, uma vez.
             //
             // Estava dito cinco vezes no mesmo cartão — borda de 2 px a toda a volta,
@@ -642,10 +696,17 @@ export default function ProductionPerformancePage() {
             // onde já se está a ler. O `animate-pulse` sai — num painel, o que pisca
             // não se pode ignorar nem quando já foi visto, e não respeita quem pediu
             // menos movimento.
-            const railState: RailState = l.eff >= 100 ? "go" : l.eff >= 80 ? "hold" : "stop";
-            const effColor = l.eff >= 100 ? "text-success-strong" : l.eff >= 80 ? "text-warning-strong" : "text-destructive-strong";
-            const gapColor = gap >= 0 ? "text-success-strong" : "text-destructive-strong";
-            const barColor = l.eff >= 100 ? "bg-success" : l.eff >= 80 ? "bg-warning" : "bg-destructive";
+            // For the shift that is running, the verdict is the PACE — measured
+            // against the time already worked. For a week or a month it stays the
+            // plain comparison against the plan, which is the right question once
+            // the period is over. 95/75 are the thresholds already on the floor.
+            const pace = paceByLine.get(l.line);
+            const score = pace?.kind === "PACE" ? pace.pct : l.eff;
+            const scored = pace ? pace.kind === "PACE" : true;
+            const railState: RailState = !scored ? "idle" : score >= 95 ? "go" : score >= 75 ? "hold" : "stop";
+            const effColor = !scored
+              ? "text-muted-foreground"
+              : score >= 95 ? "text-success-strong" : score >= 75 ? "text-warning-strong" : "text-destructive-strong";
             const handleClick = () => navigate("/dashboard/shift-history");
             const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -664,7 +725,18 @@ export default function ProductionPerformancePage() {
                 className="cursor-pointer transition-colors hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="truncate font-display text-xl font-bold uppercase tracking-wide text-foreground">{l.line}</div>
+                  <div className="min-w-0">
+                    <div className="truncate font-display text-xl font-bold uppercase tracking-[0.02em] text-foreground">{l.line}</div>
+                    {/* O nome da máquina no iTouching, que é como a manutenção lhe
+                        chama. Duas casas para a mesma linha só é confusão enquanto
+                        uma delas estiver escondida. */}
+                    {(() => {
+                      const machine = liveRows.find((r) => r.line?.trim().toLowerCase() === l.line.trim().toLowerCase())?.machine;
+                      return machine && machine.trim().toLowerCase() !== l.line.trim().toLowerCase() ? (
+                        <div className="truncate text-2xs text-muted-foreground">{machine}</div>
+                      ) : null;
+                    })()}
+                  </div>
                   {/* A etiqueta nomeia o estado; a barra ao lado é que o colore. Pintá-la
                       também seria dizer a mesma coisa duas vezes a três centímetros de
                       distância, e deixaria a percentagem sem ser a única coisa colorida
@@ -672,7 +744,9 @@ export default function ProductionPerformancePage() {
                       o estado também sobrevive a quem não distingue as três cores. */}
                   <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">{status}</span>
                 </div>
-                {l.notLogged && (
+                {/* Não repetido. Quando o ritmo já diz "no order" ou "nobody logged
+                    in", este aviso é a mesma frase a dois centímetros da outra. */}
+                {l.notLogged && (!pace || pace.kind === "PACE") && (
                   <div
                     className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-warning-strong"
                     title="This line was planned to run but nothing was logged on My Production, so it reads 0%."
@@ -697,7 +771,7 @@ export default function ProductionPerformancePage() {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-10 w-full text-xs bg-background/60">
+                      <SelectTrigger className="h-8 w-full border-transparent bg-muted/50 text-xs hover:border-border focus:border-border">
                         <SelectValue placeholder="— Assign leader —" />
                       </SelectTrigger>
                       <SelectContent>
@@ -779,26 +853,84 @@ export default function ProductionPerformancePage() {
                     </div>
                   );
                 })()}
-                <div className="mt-4 flex items-end justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Actual</div>
-                    <div className="font-figure text-4xl font-bold leading-none text-foreground">{l.actual.toLocaleString("en-US")}</div>
-                    <div className="mt-1 text-xs text-muted-foreground tabular-nums">/ {l.target.toLocaleString("en-US")} target</div>
-                  </div>
-                  <div className={`text-right ${effColor}`}>
-                    <div className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Perf</div>
-                    <div className="font-figure text-3xl font-bold leading-none">{Math.round(l.eff)}%</div>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold uppercase tracking-wider text-muted-foreground">Gap</span>
-                    <span className={`font-figure text-lg font-bold ${gapColor}`}>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")}</span>
-                  </div>
-                  <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div className={`h-full ${barColor}`} style={{ width: `${Math.min(100, Math.max(0, l.eff))}%` }} />
-                  </div>
-                </div>
+                {(() => {
+                  const paced = pace?.kind === "PACE" ? pace : null;
+                  // Where the line should be by now, as a share of the shift's plan.
+                  // This is the only new number on the card and it is the one the
+                  // board was missing: without it, five hours into twelve, every
+                  // line is compared against seven hours nobody has worked yet.
+                  const tickPct = paced && l.target > 0
+                    ? Math.min(100, Math.max(0, (paced.expected / l.target) * 100))
+                    : null;
+                  const donePct = l.target > 0 ? Math.min(100, Math.max(0, (l.actual / l.target) * 100)) : 0;
+                  return (
+                    <>
+                      <div className="mt-4 flex items-end justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Made</div>
+                          <div className="font-figure text-[2.5rem] font-bold leading-none text-foreground">
+                            {l.actual.toLocaleString("en-US")}
+                          </div>
+                          <div className="mt-1 font-figure text-xs text-muted-foreground">
+                            {paced
+                              ? `${Math.round(paced.expected).toLocaleString("en-US")} due by now`
+                              : `${l.target.toLocaleString("en-US")} planned`}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                            {paced ? "Pace" : "Of plan"}
+                          </div>
+                          {/* The one figure that carries colour. The rail says WHICH
+                              state from across the room; this says HOW MUCH where the
+                              eye has already landed. Everything else on the card is
+                              foreground or muted — four colour carriers on one card is
+                              how a board teaches people to stop looking at it. */}
+                          <div className={`font-figure text-3xl font-bold leading-none ${effColor}`}>
+                            {Math.round(paced ? paced.pct : l.eff)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* The scale. The fill is what the line has made; the notch is
+                          where it should be. The distance between them IS the report,
+                          and no other screen in this app draws it. */}
+                      <div className="mt-3.5">
+                        <div className="relative h-2.5 w-full overflow-hidden rounded-sm bg-muted">
+                          <div className="h-full bg-foreground/25" style={{ width: `${donePct}%` }} />
+                          {tickPct != null && (
+                            <div
+                              className="absolute inset-y-0 w-px bg-foreground"
+                              style={{ left: `${tickPct}%` }}
+                              aria-hidden
+                            />
+                          )}
+                        </div>
+                        <div className="mt-1.5 flex items-baseline justify-between font-figure text-2xs text-muted-foreground">
+                          <span>
+                            {paced ? (
+                              <>
+                                {gap >= 0 ? "+" : ""}{Math.round(paced.produced - paced.expected).toLocaleString("en-US")} vs due
+                              </>
+                            ) : (
+                              <>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs plan</>
+                            )}
+                          </span>
+                          <span className="text-muted-foreground/70">{l.target.toLocaleString("en-US")}</span>
+                        </div>
+                      </div>
+
+                      {/* Said once, at the bottom, in words. A line with no order and
+                          a line that made nothing are different facts and the card
+                          must not round them both to 0%. */}
+                      {pace && pace.kind !== "PACE" && (
+                        <div className="mt-2 font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                          {PACE_MESSAGES[pace.kind]}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </StatusRail>
             );
           })}
