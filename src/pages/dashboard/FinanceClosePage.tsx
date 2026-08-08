@@ -119,7 +119,7 @@ export default function FinanceClosePage() {
         // a thousand without a word.
         fetchAllRows<any>({
           range: (a, b) => db.from("daily_allocations")
-            .select("employee_id, status, shift, left_early_at")
+            .select("employee_id, on_date, status, shift, left_early_at")
             .gte("on_date", from).lte("on_date", to)
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
@@ -128,11 +128,20 @@ export default function FinanceClosePage() {
       ]);
       for (const r of [emp, clocked, opening, payroll, manual, board, rotas]) if (r.error) throw r.error;
 
-      // Which boards anybody filled in at all. The night board has gone whole periods
-      // unplanned, and without this every one of its forty-eight people reads as a full
-      // period short — invented deficits burying the two or three that are real.
-      const boardsPlanned = new Set<string>();
-      for (const a of (board.data ?? []) as any[]) if (a.shift) boardsPlanned.add(a.shift);
+      // Which DAYS each board was filled in for, not merely whether it ever was.
+      //
+      // This was a set of shift names, and one planned day made a whole period count.
+      // The Night board holds thirty names on 07/08 and nothing on the other
+      // twenty-seven days of this period, so that single day flipped all forty-eight of
+      // the night crew from excluded to a full period short. The Day board is empty on
+      // 31/07 and holds two names on 06/08 — two Fridays and Thursdays that would read
+      // as everybody failing to turn up.
+      const plannedByShift = new Map<string, Set<string>>();
+      for (const a of (board.data ?? []) as any[]) {
+        if (!a.shift) continue;
+        if (!plannedByShift.has(a.shift)) plannedByShift.set(a.shift, new Set());
+        plannedByShift.get(a.shift)!.add(a.on_date);
+      }
 
       const byId = new Map<string, ClosePersonInput>();
       for (const e of (emp.data ?? []) as any[]) {
@@ -146,7 +155,7 @@ export default function FinanceClosePage() {
           patternName: e.shift_patterns?.name ?? null,
           patternDays: e.shift_patterns?.days ?? null,
           shiftsWorked: 0, shiftsHoliday: 0,
-          boardPlanned: boardsPlanned.has(crew ?? "Day"),
+          plannedDates: plannedByShift.get(crew ?? "Day") ?? new Set<string>(),
         });
       }
 
@@ -381,7 +390,7 @@ export default function FinanceClosePage() {
             value={String(totals.deficitShifts)}
             tone={totals.deficitShifts > 0 ? "owed" : "neutral"}
             hint={totals.onUnplannedBoard > 0
-              ? `${totals.onUnplannedBoard} on an unplanned board, excluded`
+              ? `${totals.onUnplannedBoard} have a rota but no board — nothing to measure`
               : undefined}
           />
           <Figure label="People" value={String(totals.people)} />
@@ -488,14 +497,15 @@ export default function FinanceClosePage() {
                         <TableCell className="text-right font-figure tabular-nums">{r.shiftsWorked}</TableCell>
                         <TableCell
                           className={`text-right font-figure font-semibold tabular-nums ${
-                            r.shiftBalance == null || !r.boardPlanned ? "text-muted-foreground"
+                            r.shiftBalance == null ? "text-muted-foreground"
                               : r.shiftBalance > 0 ? "text-success-strong"
                               : r.shiftBalance < 0 ? "text-warning-strong" : ""}`}
-                          // A board nobody planned makes everybody on it look short. That
-                          // is a fact about the board, not about them, so the figure is
-                          // shown greyed and said out loud rather than left to be read as
-                          // absence.
-                          title={!r.boardPlanned ? "This board was never planned for the period — not an absence" : undefined}
+                          // Shifts due is counted only over days somebody filled the
+                          // board in, so a gap in the board cannot read as an absence.
+                          // Said out loud when the board covers none of their days.
+                          title={r.plannedDates?.size === 0
+                            ? "This board was not planned on any day of the period — nothing to measure against"
+                            : undefined}
                         >
                           {r.shiftBalance == null ? "—"
                             : `${r.shiftBalance > 0 ? "+" : ""}${r.shiftBalance}`}

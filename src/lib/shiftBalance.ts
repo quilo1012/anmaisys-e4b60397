@@ -55,6 +55,19 @@ export function expectedShifts(
   patternDays: number[] | null | undefined,
   from: string,
   to: string,
+  /**
+   * The days somebody actually filled the board in for this person's shift.
+   *
+   * A day the board was never planned cannot be a day somebody failed to turn up. In
+   * the period 13/07–09/08 the Day board is empty on 31/07 and holds two names on
+   * 06/08, and the Night board is empty on twenty-seven of the twenty-eight days —
+   * without this, everybody on days reads two shifts short for a Friday nobody
+   * planned, and the whole night crew reads a full period short.
+   *
+   * Omit it and every rostered day counts, which is right when the board is complete
+   * and only then.
+   */
+  plannedDates?: ReadonlySet<string> | null,
 ): number | null {
   if (!patternDays?.length) return null;
   const start = Date.parse(`${from}T00:00:00Z`);
@@ -63,9 +76,12 @@ export function expectedShifts(
   const days = new Set(patternDays);
   let n = 0;
   for (let t = start; t <= end; t += 86_400_000) {
+    const d = new Date(t);
     // getUTCDay is 0-6 from Sunday; the rotas are stored 1-7 from Monday.
-    const iso = new Date(t).getUTCDay() || 7;
-    if (days.has(iso)) n += 1;
+    const iso = d.getUTCDay() || 7;
+    if (!days.has(iso)) continue;
+    if (plannedDates && !plannedDates.has(d.toISOString().slice(0, 10))) continue;
+    n += 1;
   }
   return n;
 }

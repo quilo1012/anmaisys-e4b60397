@@ -94,8 +94,18 @@ export interface ClosePersonInput {
   shiftsWorked: number;
   /** Booked holiday, which is the only thing that reduces what was owed. */
   shiftsHoliday: number;
-  /** Whether this person's board was planned at all — an empty board is not absence. */
-  boardPlanned: boolean;
+  /**
+   * The days of the period somebody filled the board in for this person's shift.
+   *
+   * Not a boolean. It WAS one — "was this board planned at all" — and one planned day
+   * was enough to make the whole period count. The Night board holds thirty names on
+   * 07/08 and nothing on the other twenty-seven days of the period, so a single flag
+   * turned all forty-eight of that crew from excluded into a full period short.
+   *
+   * Per day, a day the board was never planned cannot be a day somebody failed to turn
+   * up. Null means the caller does not know, and every rostered day counts.
+   */
+  plannedDates: ReadonlySet<string> | null;
 }
 
 export interface ClosePerson extends ClosePersonInput {
@@ -178,7 +188,7 @@ export function buildClose(rows: ClosePersonInput[], from: string, to: string): 
       // rewritten, so there is one definition of "shifts due" — including the rule that
       // only holiday reduces it, and that it never goes below zero when a rota changed
       // mid-period.
-      const expected = expectedShifts(r.patternDays, from, to);
+      const expected = expectedShifts(r.patternDays, from, to, r.plannedDates);
       const shiftsDue = expected == null ? null : Math.max(0, expected - r.shiftsHoliday);
       const shiftBalance = shiftsDue == null ? null : r.shiftsWorked - shiftsDue;
 
@@ -207,9 +217,9 @@ export interface CloseTotals {
   earlyLeaveHours: number;
   /** Shifts worked above the rota, summed over everybody above it. */
   overtimeShifts: number;
-  /** Shifts short, as a positive number. Excludes anybody whose board was never planned. */
+  /** Shifts short, as a positive number, counted only over days the board was planned. */
   deficitShifts: number;
-  /** People whose board was never filled in — nobody's absence, nobody's entry. */
+  /** People whose board was not filled in on a single day of the period. */
   onUnplannedBoard: number;
   /** People where one side reported and the other did not. */
   unreconciled: number;
@@ -231,10 +241,14 @@ export function closeTotals(rows: ClosePerson[]): CloseTotals {
     // A board nobody filled in produces a shortfall for everybody on it. That is a
     // fact about the board, so it is kept out of the deficit rather than counted as
     // forty-eight people's absence.
-    deficitShifts: rows.reduce(
-      (n, r) => n + (r.boardPlanned ? Math.max(0, -(r.shiftBalance ?? 0)) : 0), 0,
-    ),
-    onUnplannedBoard: rows.filter((r) => !r.boardPlanned).length,
+    deficitShifts: rows.reduce((n, r) => n + Math.max(0, -(r.shiftBalance ?? 0)), 0),
+    // People with a rota whose board covers none of the days that rota called for.
+    //
+    // Their shifts due is zero, so they cannot show a deficit — which is correct and
+    // also silent. Forty-eight night-crew people reading a clean zero is not the same
+    // as forty-eight people who worked their rota, and the close has to say which. It
+    // is a gap in the record, and a gap that looks like agreement is the worst kind.
+    onUnplannedBoard: rows.filter((r) => r.patternDays?.length && r.shiftsDue === 0).length,
     owedHours: sum((r) => r.owedHours),
     payrollOtHours: sum((r) => r.payrollOtHours),
     deltaHours: sum((r) => r.deltaHours),
