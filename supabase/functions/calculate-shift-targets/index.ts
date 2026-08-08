@@ -9,11 +9,27 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
 
+/**
+ * `.strict()` stays, and the caller it was built for is now in it.
+ *
+ * The 30-minute cron has always posted `{"source":"cron-30min"}` — read it back with
+ * `SELECT command FROM cron.job WHERE jobname = 'calculate-shift-targets-30min'`. The
+ * schema did not know `source`, so `.strict()` rejected every scheduled run with a 400
+ * and no target was ever calculated on a schedule.
+ *
+ * Provenance rather than an escape hatch: a scheduler saying who it is should not have
+ * to be smuggled in, and dropping `.strict()` to fix this would have let a typo in
+ * `overwrite` through in silence, which is the failure strictness exists to catch.
+ */
 const BodySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   shift: z.enum(["DAY", "NIGHT"]).optional(),
   line: z.string().max(100).nullable().optional(),
   overwrite: z.boolean().optional(),
+  /** Who called. Logged, never acted on. */
+  source: z.string().max(50).optional(),
+  /** When the caller fired. `intouch-poll`'s cron sends one; accepted for symmetry. */
+  at: z.string().max(40).optional(),
 }).strict();
 
 const corsHeaders = {
@@ -85,9 +101,17 @@ Deno.serve(async (req) => {
   try { rawBody = req.method === "POST" ? await req.json() : {}; } catch { /* empty */ }
   const parsed = BodySchema.safeParse(rawBody);
   if (!parsed.success) {
-    return new Response(JSON.stringify({ ok: false, error: parsed.error.flatten().fieldErrors }), {
-      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Both halves of the flattened error, not just `fieldErrors`.
+    //
+    // An unrecognised key is a FORM error, not a field error — there is no field to
+    // hang it on — so reporting `fieldErrors` alone answered `{"ok":false,"error":{}}`.
+    // That is what the cron got every half hour: a 400 that said nothing, on a
+    // schedule nobody was watching, for a reason the response had thrown away.
+    const flat = parsed.error.flatten();
+    return new Response(
+      JSON.stringify({ ok: false, error: { form: flat.formErrors, fields: flat.fieldErrors } }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
   const body = parsed.data;
 
