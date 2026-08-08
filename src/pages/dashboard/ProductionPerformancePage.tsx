@@ -8,7 +8,7 @@ import { StatusRail, type RailState } from "@/components/ui/StatusRail";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
 import { LineIndicators } from "@/components/production/LineIndicators";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -873,7 +873,16 @@ export default function ProductionPerformancePage() {
                     from how the shift has gone and is allowed to disagree with it:
                     a line can be behind on the shift because of a breakdown this
                     morning and be running perfectly at this minute. */}
-                {(() => {
+                {/* Only while looking at the shift that is RUNNING.
+                    A live pill beside a finished shift's numbers is two different
+                    days on one card: at 21:39 on a night shift, with the filter on
+                    Day 08/08, the board showed 4,517 made between 06:00 and 18:00
+                    and, an inch below it, "RUNNING, 26 seconds ago" — which is a
+                    statement about a shift whose figures are nowhere on the card.
+
+                    The notch on the scale is withheld for exactly this reason and
+                    this was the same rule left unapplied. */
+                isCurrentShiftView && (() => {
                   const live = classifyLive(liveByLine.get(l.line.trim().toLowerCase()), new Date());
                   // iTouching's own colour for this exact stop code, so the two
                   // screens name the same stop with the same colour and nobody has
