@@ -26,13 +26,13 @@ export default function LineHubScreen() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col p-8">
+    <div className="min-h-screen bg-wall text-wall-ink flex flex-col p-8">
       <header className="flex items-center justify-between mb-12">
         <div>
           <h1 className="text-5xl font-black tracking-tight">
             {profile?.production_line ?? "Line"}
           </h1>
-          <p className="text-slate-400 text-xl mt-2">
+          <p className="text-wall-ink-muted text-xl mt-2">
             {profile?.name ? `${profile.name} · ` : ""}
             {SHIFT_LABEL[shift]}
           </p>
@@ -56,7 +56,7 @@ export default function LineHubScreen() {
           onClick={() => navigate("/dashboard/line-display")}
           className="group bg-gradient-to-br from-primary to-primary hover:from-primary hover:to-primary rounded-3xl p-12 flex flex-col items-center justify-center gap-6 transition-all active:scale-95 shadow-2xl"
         >
-          <Target className="h-32 w-32 text-white group-hover:scale-110 transition-transform" strokeWidth={1.5} />
+          <Target className="h-32 w-32 text-wall-ink group-hover:scale-110 transition-transform" strokeWidth={1.5} />
           <div className="text-center">
             <div className="text-5xl font-black mb-2">TARGET</div>
             <div className="text-primary text-xl">View shift target & progress</div>
@@ -67,7 +67,7 @@ export default function LineHubScreen() {
           onClick={() => navigate("/dashboard/operator")}
           className="group bg-gradient-to-br from-warning to-destructive hover:from-warning hover:to-destructive rounded-3xl p-12 flex flex-col items-center justify-center gap-6 transition-all active:scale-95 shadow-2xl"
         >
-          <Wrench className="h-32 w-32 text-white group-hover:scale-110 transition-transform" strokeWidth={1.5} />
+          <Wrench className="h-32 w-32 text-wall-ink group-hover:scale-110 transition-transform" strokeWidth={1.5} />
           <div className="text-center">
             <div className="text-5xl font-black mb-2">REQUEST</div>
             <div className="text-warning-strong text-xl">Open a maintenance order</div>

@@ -78,6 +78,36 @@
     --success-strong: 154 81% 26%;
     --warning-strong: 36 95% 31%;
     --destructive-strong: 3 73% 41%;
+
+    /* A superfície de autenticação.
+       O cartão de login é claro por decisão, não por esquecimento: está sempre sobre o
+       banner do site, e o `AuthShell` diz isso desde que existe. Por isso estes cinco
+       valores NÃO são repetidos no bloco `.dark` — se virassem com o tema, o cartão
+       branco ficaria com texto branco por cima. (O `/login` corre mesmo com a classe
+       `dark` posta: quem a retira é o `DashboardLayout`, e o login não passa por lá.)
+       O que os traz para dentro do sistema não é passarem a temáticos, é virem da
+       mesma paleta: a tinta e a marca são as mesmas do resto da app, e o campo é o
+       mesmo azul-tinta da barra lateral. Entra-se no sistema pela cor em que se vai
+       trabalhar. */
+    --auth-field: 210 42% 15%;
+    --auth-field-top: 210 42% 23%;
+    --auth-brand: 207 88% 35%;
+    --auth-ink: 215 40% 9%;
+    --auth-ink-muted: 214 14% 42%;
+
+    /* O ecrã de parede, e os de linha.
+       Fixos como os de autenticação, e pela razão inversa: um ecrã pendurado sobre a
+       linha é sempre escuro, porque é lido a três metros e muitas vezes com luz de dia
+       a bater-lhe. Se virasse com o tema, a preferência que um supervisor guardou no
+       seu portátil apagaria o ecrã da fábrica — e ninguém na linha saberia porquê.
+       Também não são repetidos em `.dark`.
+       9.14:1 do texto secundário sobre o fundo: é folga a mais para uma secretária e a
+       justa para três metros. */
+    --wall: 215 40% 6%;
+    --wall-panel: 215 30% 13%;
+    --wall-line: 215 24% 22%;
+    --wall-ink: 0 0% 100%;
+    --wall-ink-muted: 214 18% 70%;
   }
 
   .dark {

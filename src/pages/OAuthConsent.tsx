@@ -86,7 +86,7 @@ export default function OAuthConsent() {
   if (error) {
     return (
       <AuthShell badge={consentBadge} title="Authorization error" subtitle="We couldn't complete this request.">
-        <p className="text-sm text-slate-600">{error}</p>
+        <p className="text-sm text-auth-ink">{error}</p>
       </AuthShell>
     );
   }
@@ -95,7 +95,7 @@ export default function OAuthConsent() {
     return (
       <AuthShell badge={consentBadge} title="Preparing authorization" subtitle="Verifying the client request…">
         <div className="flex items-center justify-center py-6">
-          <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          <Loader2 className="h-6 w-6 animate-spin text-auth-ink-muted" />
         </div>
       </AuthShell>
     );
@@ -109,21 +109,21 @@ export default function OAuthConsent() {
       title={`Connect ${clientName}`}
       subtitle={`${clientName} is requesting access to your AN Maintenance account.`}
     >
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-auth-ink">
         It will act on your behalf using your permissions. Approve only if you trust this application.
       </p>
       <div className="mt-6 flex gap-3">
         <button
           disabled={busy}
           onClick={() => decide(true)}
-          className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#1E3A8A] text-sm font-semibold text-white transition-colors hover:bg-[#1E40AF] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60"
+          className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[hsl(var(--auth-brand))] text-sm font-semibold text-white transition-colors hover:bg-[hsl(var(--auth-brand) / 0.85)] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve"}
         </button>
         <button
           disabled={busy}
           onClick={() => decide(false)}
-          className="flex-1 inline-flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-60"
+          className="flex-1 inline-flex h-11 items-center justify-center rounded-lg border border-auth-ink/15 bg-white text-sm font-medium text-auth-ink transition-colors hover:bg-auth-ink/5 disabled:opacity-60"
         >
           Deny
         </button>

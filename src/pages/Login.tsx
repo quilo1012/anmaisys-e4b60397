@@ -54,15 +54,20 @@ const ENVIRONMENTS: Array<{
   key: Env; mode: Mode; label: string; tagline: string; profile: string;
   icon: typeof Monitor; color: string; tint: string;
 }> = [
+  // As três cores são CATEGÓRICAS: dizem que dispositivo é, não se algo corre bem. Por
+  // isso ficam três matizes distintas e não descem dos tokens de estado — pintar o
+  // tablet de `go` verde diria "está tudo bem com o tablet", que não é uma afirmação
+  // que este ecrã faça. O que mudou foi virem todas do mesmo registo de saturação, e o
+  // desktop passar a ser o azul da marca em vez de um azul aproximado.
   { key: "desktop", mode: "staff", label: "Desktop", tagline: "Management & Administration",
     profile: "Admin, Manager, Supervisor, Engineering, Planning",
-    icon: Monitor, color: "#1E3A8A", tint: "rgba(30,58,138,0.08)" },
+    icon: Monitor, color: "hsl(var(--auth-brand))", tint: "hsl(var(--auth-brand) / 0.08)" },
   { key: "tablet", mode: "tablet", label: "Tablet", tagline: "Line Operation",
     profile: "Operator, Technician, Maintenance, Production",
-    icon: Tablet, color: "#16A34A", tint: "rgba(22,163,74,0.08)" },
+    icon: Tablet, color: "hsl(158 84% 28%)", tint: "hsl(158 84% 28% / 0.08)" },
   { key: "mobile", mode: "staff", label: "Mobile", tagline: "Quick Operational Access",
     profile: "External technician, Leader, Field",
-    icon: Smartphone, color: "#7C3AED", tint: "rgba(124,58,237,0.08)" },
+    icon: Smartphone, color: "hsl(266 68% 42%)", tint: "hsl(266 68% 42% / 0.08)" },
 ];
 
 /** Soft role↔environment mismatch note (informational; access still follows role). */
@@ -357,7 +362,7 @@ export default function Login() {
                 <Icon className="h-5 w-5" />
               </span>
               <span className="text-xs font-bold uppercase tracking-wide" style={{ color: active ? env.color : undefined }}>{env.label}</span>
-              <span className="text-2xs leading-tight text-slate-500">{env.tagline}</span>
+              <span className="text-2xs leading-tight text-auth-ink-muted">{env.tagline}</span>
             </button>
           );
         })}
@@ -367,9 +372,9 @@ export default function Login() {
       <div className="mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
         style={{ borderColor: selectedEnv.color, background: selectedEnv.tint }}>
         <selectedEnv.icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: selectedEnv.color }} />
-        <span className="text-slate-700">
+        <span className="text-auth-ink">
           <b>Selected environment: {selectedEnv.label}</b> — Expected role: {selectedEnv.profile}.
-          <span className="text-slate-500"> Enter your credentials to continue.</span>
+          <span className="text-auth-ink-muted"> Enter your credentials to continue.</span>
         </span>
       </div>
 
@@ -385,7 +390,7 @@ export default function Login() {
             operators — those force role `operator` server-side in tablet-signin, so
             an engineer must NOT go through them or they'd lose their own role. */}
         {environment === "tablet" && (
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100/80 p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-auth-ink/5 p-1">
             {([
               { m: "tablet" as Mode, label: "Shared tablet", hint: "Operators" },
               { m: "staff" as Mode, label: "My account", hint: "Engineers & staff" },
@@ -396,11 +401,11 @@ export default function Login() {
                 onClick={() => switchMode(opt.m)}
                 aria-pressed={mode === opt.m}
                 className={`rounded-md px-3 py-2 text-center transition-colors ${
-                  mode === opt.m ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  mode === opt.m ? "bg-white text-auth-ink shadow-sm" : "text-auth-ink-muted hover:text-auth-ink"
                 }`}
               >
                 <span className="block text-sm font-medium">{opt.label}</span>
-                <span className="block text-2xs text-slate-400">{opt.hint}</span>
+                <span className="block text-2xs text-auth-ink-muted">{opt.hint}</span>
               </button>
             ))}
           </div>
@@ -409,17 +414,17 @@ export default function Login() {
         {mode === "tablet" ? (
           /* ── Tablet selector ─────────────────────────── */
           <div className="space-y-1.5">
-            <label htmlFor="tablet" className="text-sm font-medium text-slate-700">
+            <label htmlFor="tablet" className="text-sm font-medium text-auth-ink">
               Tablet / Line
             </label>
             <div className="relative">
-              <Tablet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Tablet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
               <select
                 id="tablet"
                 value={tabletAccountId}
                 onChange={(e) => setTabletAccountId(e.target.value)}
                 required
-                className="h-12 w-full appearance-none rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                className="h-12 w-full appearance-none rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-auth-ink transition-all hover:border-auth-brand/40 focus:border-auth-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-auth-brand/20"
               >
                 <option value="" disabled>
                   {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
@@ -442,11 +447,11 @@ export default function Login() {
         ) : (
           /* ── Staff email ─────────────────────────────── */
           <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-slate-700">
+            <label htmlFor="email" className="text-sm font-medium text-auth-ink">
               Email
             </label>
             <div className="relative">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
               <input
                 id="email"
                 type="email"
@@ -455,7 +460,7 @@ export default function Login() {
                 placeholder="you@appliednutrition.com"
                 required
                 autoComplete="email"
-                className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+                className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-auth-ink transition-all placeholder:text-auth-ink-muted hover:border-auth-brand/40 focus:border-auth-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-auth-brand/20"
               />
             </div>
           </div>
@@ -463,11 +468,11 @@ export default function Login() {
 
         {/* Password */}
         <div className="space-y-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-slate-700">
+          <label htmlFor="password" className="text-sm font-medium text-auth-ink">
             Password
           </label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
             <input
               id="password"
               type={showPassword ? "text" : "password"}
@@ -477,12 +482,12 @@ export default function Login() {
               minLength={6}
               required
               autoComplete="current-password"
-              className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 hover:border-slate-400 focus:border-[#1E3A8A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E3A8A]/20"
+              className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-11 text-sm text-auth-ink transition-all placeholder:text-auth-ink-muted hover:border-auth-brand/40 focus:border-auth-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-auth-brand/20"
             />
             <button
               type="button"
               onClick={() => setShowPassword((s) => !s)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-slate-400 transition-colors hover:text-slate-700"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-auth-ink-muted transition-colors hover:text-auth-ink"
               aria-label={showPassword ? "Hide password" : "Show password"}
               tabIndex={-1}
             >
@@ -499,7 +504,7 @@ export default function Login() {
           className={`mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:pointer-events-none ${
             authed
               ? "bg-success"
-              : "bg-[#1E3A8A] hover:bg-[#1E40AF] disabled:opacity-60"
+              : "bg-[hsl(var(--auth-brand))] hover:bg-[hsl(var(--auth-brand) / 0.85)] disabled:opacity-60"
           }`}
         >
           {lockedMsLeft > 0 ? (
@@ -529,15 +534,15 @@ export default function Login() {
         )}
       </form>
       {mode === "staff" && (
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm text-auth-ink-muted">
           Don't have an account?{" "}
-          <button type="button" onClick={() => navigate("/signup")} className="font-semibold text-[#1E3A8A] hover:underline">
+          <button type="button" onClick={() => navigate("/signup")} className="font-semibold text-[hsl(var(--auth-brand))] hover:underline">
             Create account
           </button>
         </p>
       )}
 
-      <p className="mt-5 border-t border-white/50 pt-3 text-center text-2xs leading-relaxed text-slate-500">
+      <p className="mt-5 border-t border-white/50 pt-3 text-center text-2xs leading-relaxed text-auth-ink-muted">
         🔒 Secure connection · 🛡 Role-based access control · 📋 All actions are audited
       </p>
     </AuthShell>

@@ -34,7 +34,7 @@ const STATUS_META: Record<AttendanceStatus, { label: string; cls: string }> = {
   holiday:  { label: "Holiday",  cls: "border-primary/40 bg-primary/15 text-primary" },
   training: { label: "Training", cls: "border-purple-500/40 bg-purple-500/15 text-purple-700 dark:text-purple-300" },
   // Agreed and unpaid, which is not the same as an absence nobody agreed to.
-  unpaid:   { label: "Unpaid",   cls: "border-slate-500/40 bg-slate-500/15 text-muted-foreground" },
+  unpaid:   { label: "Unpaid",   cls: "border-border bg-muted text-muted-foreground" },
 };
 
 // No overtime here on purpose. The board answers who is in today; overtime is a

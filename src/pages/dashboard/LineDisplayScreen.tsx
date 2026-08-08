@@ -187,7 +187,7 @@ export default function LineDisplayScreen() {
   const countdown = formatCountdown(end.getTime() - now.getTime());
 
   const status = useMemo(() => {
-    if (target <= 0) return { label: "NO TARGET", color: "bg-slate-700" };
+    if (target <= 0) return { label: "NO TARGET", color: "bg-wall-line" };
     if (pct >= 95) return { label: "ON TARGET", color: "bg-success" };
     if (pct >= 75) return { label: "AT RISK", color: "bg-warning" };
     return { label: "BELOW TARGET", color: "bg-destructive" };
@@ -202,10 +202,10 @@ export default function LineDisplayScreen() {
 
   if (!line) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-8 text-center">
+      <div className="min-h-screen bg-wall text-wall-ink flex items-center justify-center p-8 text-center">
         <div>
           <h1 className="text-4xl font-bold mb-4">No Production Line Assigned</h1>
-          <p className="text-xl text-slate-400">
+          <p className="text-xl text-wall-ink-muted">
             Ask an admin to assign a production line to your account.
           </p>
         </div>
@@ -214,11 +214,11 @@ export default function LineDisplayScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-6 flex flex-col gap-6">
+    <div className="min-h-screen bg-wall text-wall-ink p-6 flex flex-col gap-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-5xl font-black tracking-tight">{line}</h1>
-          <p className="text-slate-400 text-xl mt-1">{SHIFT_LABEL[shift]}</p>
+          <p className="text-wall-ink-muted text-xl mt-1">{SHIFT_LABEL[shift]}</p>
         </div>
         <div className="flex items-center gap-4">
           <div className={`px-6 py-3 rounded-xl text-2xl font-bold ${status.color}`}>{status.label}</div>
@@ -226,7 +226,7 @@ export default function LineDisplayScreen() {
             <div className="text-4xl font-mono font-bold">
               {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </div>
-            <div className="text-sm text-slate-400">
+            <div className="text-sm text-wall-ink-muted">
               Updated {rag?.updated_at ? new Date(rag.updated_at).toLocaleTimeString("en-GB") : "—"}
             </div>
           </div>
@@ -270,7 +270,7 @@ export default function LineDisplayScreen() {
             </div>
             <div className="text-5xl font-black mb-1">{current.sku?.code ?? "—"}</div>
             <div className="text-2xl text-primary mb-4">{current.sku?.name ?? ""}</div>
-            <div className="h-4 bg-slate-900/60 rounded-full overflow-hidden">
+            <div className="h-4 bg-wall-panel/60 rounded-full overflow-hidden">
               <div className={`h-full ${c} transition-all duration-700`} style={{ width: `${pc}%` }} />
             </div>
           </div>
@@ -285,20 +285,20 @@ export default function LineDisplayScreen() {
         <WallTile label="SHIFT ENDS IN" value={countdown} accent="text-purple-400" mono />
       </div>
 
-      <div className="bg-slate-900 rounded-2xl p-6">
+      <div className="bg-wall-panel rounded-2xl p-6">
         <div className="flex justify-between mb-3 text-xl">
-          <span className="text-slate-400">Progress</span>
+          <span className="text-wall-ink-muted">Progress</span>
           <span className="font-bold">{pct.toFixed(1)}%</span>
         </div>
-        <div className="h-12 bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-12 bg-wall-line rounded-full overflow-hidden">
           <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${pct}%` }} />
         </div>
       </div>
 
-      <div className="bg-slate-900 rounded-2xl p-6 flex-1">
+      <div className="bg-wall-panel rounded-2xl p-6 flex-1">
         <h2 className="text-2xl font-bold mb-4">SKUs this shift</h2>
         {!items?.length ? (
-          <p className="text-slate-500 text-xl">No SKUs scheduled yet.</p>
+          <p className="text-wall-ink-muted text-xl">No SKUs scheduled yet.</p>
         ) : (
           <ul className="space-y-3">
             {items.map((it) => {
@@ -307,10 +307,10 @@ export default function LineDisplayScreen() {
               const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
               const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
               return (
-                <li key={it.id} className="bg-slate-800 rounded-xl p-4">
+                <li key={it.id} className="bg-wall-line rounded-xl p-4">
                   <div className="flex justify-between items-center text-lg mb-2 gap-3">
                     <span className="font-semibold flex-1 min-w-0 truncate">
-                      {it.sku?.code ?? "—"} <span className="text-slate-400 font-normal">{it.sku?.name ?? ""}</span>
+                      {it.sku?.code ?? "—"} <span className="text-wall-ink-muted font-normal">{it.sku?.name ?? ""}</span>
                     </span>
                     {editingId === it.id ? (
                       <div className="flex items-center gap-2">
@@ -319,7 +319,7 @@ export default function LineDisplayScreen() {
                           inputMode="numeric"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          className="w-24 h-9 bg-slate-900 text-white"
+                          className="w-24 h-9 bg-wall-panel text-wall-ink"
                           autoFocus
                         />
                         <span className="font-mono">/ {p.toLocaleString()}</span>
@@ -365,7 +365,7 @@ export default function LineDisplayScreen() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-11 w-11 touch-manipulation text-slate-400 hover:text-white"
+                            className="h-11 w-11 touch-manipulation text-wall-ink-muted hover:text-wall-ink"
                             onClick={() => {
                               setEditingId(it.id);
                               setEditValue(String(a));
@@ -377,7 +377,7 @@ export default function LineDisplayScreen() {
                       </div>
                     )}
                   </div>
-                  <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+                  <div className="h-3 bg-wall-line rounded-full overflow-hidden">
                     <div className={`h-full ${c}`} style={{ width: `${pc}%` }} />
                   </div>
                 </li>
@@ -398,8 +398,8 @@ export default function LineDisplayScreen() {
  */
 function WallTile({ label, value, accent, mono }: { label: string; value: string; accent: string; mono?: boolean }) {
   return (
-    <div className="bg-slate-900 rounded-2xl p-6 text-center">
-      <div className="text-slate-400 text-sm tracking-widest mb-2">{label}</div>
+    <div className="bg-wall-panel rounded-2xl p-6 text-center">
+      <div className="text-wall-ink-muted text-sm tracking-widest mb-2">{label}</div>
       <div className={`${accent} ${mono ? "font-mono" : ""} text-6xl font-black tabular-nums`}>{value}</div>
     </div>
   );

@@ -95,7 +95,7 @@ function dayTypeLabel(iso: string) {
 const SECTIONS: { key: string; label: string; accent: string }[] = [
   { key: "production", label: "Production", accent: "text-primary" },
   { key: "sectors", label: "Sectors", accent: "text-primary" },
-  { key: "support", label: "Support", accent: "text-slate-500" },
+  { key: "support", label: "Support", accent: "text-muted-foreground" },
 ];
 
 /**
@@ -258,7 +258,7 @@ function Chip({
       {crew && (
         <span
           title={`${crew} crew`}
-          className="shrink-0 rounded-sm border border-slate-400/40 bg-slate-500/10 px-1 py-px text-[10px] font-bold uppercase leading-tight tracking-wide text-muted-foreground"
+          className="shrink-0 rounded-sm border border-muted-foreground/40 bg-muted px-1 py-px text-[10px] font-bold uppercase leading-tight tracking-wide text-muted-foreground"
         >
           {crew}
         </span>
@@ -664,7 +664,7 @@ function ShiftBoard({
               disabled={!canManage}
               onDrop={() => handleDrop({ areaId: area.id, status: "assigned" })(readDrag() ?? "")}
             >
-              <Card className={cn("h-full overflow-hidden border-l-4", area.kind === "production" ? "border-l-primary" : "border-l-slate-400")}>
+              <Card className={cn("h-full overflow-hidden border-l-4", area.kind === "production" ? "border-l-primary" : "border-l-muted-foreground")}>
                 <CardHeader
                   className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "bg-primary/5" : "bg-muted", canManage && "cursor-pointer hover:brightness-95")}
                   onClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
@@ -983,7 +983,7 @@ export default function ProductionHeadcountPage() {
             {/* A board showing yesterday is right at 03:00 and baffling unsaid. Drops
                 away the moment the reader moves off it, so it never becomes furniture. */}
             {opened.carriedOver && date === opened.operationalDate && view === opened.shift && (
-              <Badge className="border-primary/30/50 bg-primary/25 text-white print:hidden">
+              <Badge className="border-primary/30/50 bg-primary/25 text-primary-foreground print:hidden">
                 Night still running — filed under {formatLong(date)}
               </Badge>
             )}

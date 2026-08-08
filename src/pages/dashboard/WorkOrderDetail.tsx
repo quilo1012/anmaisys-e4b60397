@@ -43,7 +43,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
-  low: { label: "Low", className: "bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-300 dark:border-slate-500/30" },
+  low: { label: "Low", className: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground dark:border-border" },
   medium: { label: "Medium", className: "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary dark:border-primary/30" },
   high: { label: "High", className: "bg-warning/10 text-warning-strong dark:bg-warning/15 dark:text-warning-strong dark:border-warning/30" },
   critical: { label: "Critical", className: "bg-destructive/10 text-destructive-strong dark:bg-destructive/15 dark:text-destructive-strong dark:border-destructive/30" },

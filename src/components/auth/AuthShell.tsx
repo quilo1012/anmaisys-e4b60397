@@ -36,7 +36,7 @@ export function AuthShell({
   return (
     <div
       className="relative flex min-h-screen w-full items-start justify-center overflow-hidden p-4 pt-[6vh] sm:pt-[9vh]"
-      style={{ backgroundColor: "#172554" }}
+      style={{ backgroundColor: "hsl(var(--auth-field))" }}
     >
       {hasBanner ? (
         <>
@@ -48,7 +48,10 @@ export function AuthShell({
         <div
           className="absolute inset-0"
           aria-hidden="true"
-          style={{ backgroundImage: "linear-gradient(180deg, #1E3A8A 0%, #172554 100%)" }}
+          // Azul-tinta em cima e em baixo, e não o azul da marca a descer para tinta.
+          // O campo é mobiliário: quem entra vai dar à barra lateral, que é este mesmo
+          // azul. A marca já está no logótipo e no botão — não precisa do fundo todo.
+          style={{ backgroundImage: "linear-gradient(180deg, hsl(var(--auth-field-top)) 0%, hsl(var(--auth-field)) 100%)" }}
         />
       )}
 
@@ -64,8 +67,8 @@ export function AuthShell({
         {/* Body — title, subtitle, form */}
         <div className="space-y-6 px-8 py-8 sm:px-10">
           <div className="space-y-2 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
-            {subtitle && <p className="text-sm leading-relaxed text-slate-600">{subtitle}</p>}
+            <h1 className="text-2xl font-semibold tracking-tight text-auth-ink">{title}</h1>
+            {subtitle && <p className="text-sm leading-relaxed text-auth-ink">{subtitle}</p>}
           </div>
 
           {children}
@@ -73,7 +76,7 @@ export function AuthShell({
 
         {/* Slim footer */}
         <div className="border-t border-white/40 px-8 py-4 text-center">
-          <p className="text-2xs font-medium tracking-wide text-slate-600">
+          <p className="text-2xs font-medium tracking-wide text-auth-ink">
             Encrypted connection · Audited access · © {year} Applied Nutrition
           </p>
         </div>

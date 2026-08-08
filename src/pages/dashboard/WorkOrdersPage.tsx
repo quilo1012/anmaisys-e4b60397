@@ -52,7 +52,7 @@ const statusConfig = new Proxy({} as Record<string, { label: string; className: 
 });
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
-  low: { label: "Low", className: "bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30" },
+  low: { label: "Low", className: "bg-muted text-muted-foreground border-border" },
   medium: { label: "Medium", className: "bg-primary/15 text-primary border-primary/30" },
   high: { label: "High", className: "bg-warning/15 text-warning-strong border-warning/30" },
   critical: { label: "Critical", className: "bg-destructive/15 text-destructive-strong border-destructive/30" },

@@ -11,7 +11,7 @@ interface ShiftFilterProps {
 const OPTIONS: { value: ShiftValue; label: string; emoji: string; hint: string; ring: string }[] = [
   { value: "ALL", label: "All", emoji: "🌗", hint: "All shifts", ring: "data-[active=true]:bg-primary data-[active=true]:text-primary-foreground" },
   { value: "DAY", label: "Day", emoji: "☀️", hint: "06–18", ring: "data-[active=true]:bg-warning data-[active=true]:text-warning-foreground" },
-  { value: "NIGHT", label: "Night", emoji: "🌙", hint: "18–06", ring: "data-[active=true]:bg-primary data-[active=true]:text-white" },
+  { value: "NIGHT", label: "Night", emoji: "🌙", hint: "18–06", ring: "data-[active=true]:bg-primary data-[active=true]:text-primary-foreground" },
 ];
 
 export function ShiftFilter({ value, onChange, className }: ShiftFilterProps) {
