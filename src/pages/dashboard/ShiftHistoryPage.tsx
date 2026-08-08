@@ -586,15 +586,17 @@ export default function ShiftHistoryPage() {
     (fSku === "__all__" || s.production_items.some((i) => i.sku_id === fSku))
   ).sort((a, b) => {
     if (a.session_date !== b.session_date) return a.session_date < b.session_date ? 1 : -1;
-    // Day's block above Night's, which the sort did not say at all — within a date the
-    // two came out in whatever order Postgres returned them, and it read as Night
-    // first. Before the line, not after: the factory's spreadsheet runs a day block and
-    // then a night block, and this export exists to paste straight into it.
-    const sr = shiftRank(a.shift) - shiftRank(b.shift);
-    if (sr !== 0) return sr;
     const lr = lineRank(a.line) - lineRank(b.line);
     if (lr !== 0) return lr;
-    return (a.line ?? "").localeCompare(b.line ?? "");
+    const ln = (a.line ?? "").localeCompare(b.line ?? "");
+    if (ln !== 0) return ln;
+    // Day then Night, WITHIN each line — Line 1 Day, Line 1 Night, Line 2 Day, and so
+    // on. The sort carried no shift term at all, so the two came out in whatever order
+    // Postgres returned them and it read as Night first.
+    //
+    // The line is the outer grouping, not the shift: the sheet follows a line down its
+    // two shifts before moving to the next line.
+    return shiftRank(a.shift) - shiftRank(b.shift);
   }), [sessions, fLine, fShift, fLeader, fSku]);
 
   // Totals for the selected range — powers the KPI bar and the per-line summary.

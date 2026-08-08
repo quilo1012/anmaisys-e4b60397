@@ -76,14 +76,16 @@ describe("shiftRank", () => {
     }
   });
 
-  it("orders a mixed list day-block then night-block", () => {
+  it("takes each line down its two shifts before the next line", () => {
+    // The order Production Control is read in: the LINE is the outer grouping and the
+    // shift decides within it. Not two blocks of every line — Daniel corrected this.
     const rows = [
       { shift: "NIGHT", line: "Line 1" }, { shift: "DAY", line: "Line 2" },
       { shift: "NIGHT", line: "Line 2" }, { shift: "DAY", line: "Line 1" },
     ];
     expect(
-      rows.slice().sort((a, b) => shiftRank(a.shift) - shiftRank(b.shift) || a.line.localeCompare(b.line))
-        .map((r) => `${r.shift} ${r.line}`),
-    ).toEqual(["DAY Line 1", "DAY Line 2", "NIGHT Line 1", "NIGHT Line 2"]);
+      rows.slice().sort((a, b) => a.line.localeCompare(b.line) || shiftRank(a.shift) - shiftRank(b.shift))
+        .map((r) => `${r.line} ${r.shift}`),
+    ).toEqual(["Line 1 DAY", "Line 1 NIGHT", "Line 2 DAY", "Line 2 NIGHT"]);
   });
 });
