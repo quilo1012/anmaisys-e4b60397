@@ -663,7 +663,7 @@ export function QualityActionsView() {
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailId(a.id); } }}
                     className="w-full cursor-pointer rounded-lg border p-3 text-left transition-colors hover:bg-accent/40 active:scale-[0.99]">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-sm font-semibold">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
+                      <span className="font-figure text-sm font-semibold">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
                       <div className="flex items-center gap-1">
                         <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
                           {validationMeta(a.validation_status).label}
@@ -726,7 +726,7 @@ export function QualityActionsView() {
                     return (
                     <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailId(a.id)}>
                       <TableCell className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</TableCell>
-                      <TableCell className="font-mono text-xs">{a.action_no ?? "—"}</TableCell>
+                      <TableCell className="font-figure text-xs">{a.action_no ?? "—"}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
@@ -837,7 +837,7 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
       onClick={() => onOpen(a.id)}
       className={cn("rounded-md border border-l-4 bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", sev?.accent ?? "border-l-transparent")}>
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono text-xs font-semibold text-foreground">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
+        <span className="font-figure text-xs font-semibold text-foreground">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
         {sev && (
           <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={`${sev.label} — ${sev.points} point${sev.points === 1 ? "" : "s"}`}>
             {sev.label} · {sev.points}p
@@ -847,8 +847,8 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
       {a.description && <p className="mt-1 line-clamp-2 text-xs">{a.description}</p>}
       {(a.sku || a.batch) && (
         <div className="mt-1.5 flex flex-wrap gap-1 text-2xs">
-          {a.sku && <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">SKU {a.sku}</span>}
-          {a.batch && <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">Batch {a.batch}</span>}
+          {a.sku && <span className="rounded bg-muted px-1.5 py-0.5 font-figure text-muted-foreground">SKU {a.sku}</span>}
+          {a.batch && <span className="rounded bg-muted px-1.5 py-0.5 font-figure text-muted-foreground">Batch {a.batch}</span>}
         </div>
       )}
       {(a.labels?.length ?? 0) > 0 && (
@@ -936,7 +936,7 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
           <>
             <DialogHeader>
               <DialogTitle className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-sm">{action.action_no ?? "Issue"}</span>
+                <span className="font-figure text-sm">{action.action_no ?? "Issue"}</span>
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
@@ -1383,8 +1383,8 @@ function TopRecurringIssues({ actions }: { actions: QualityAction[] }) {
                 {r.lines.size ? Array.from(r.lines).join(", ") : "No line recorded"}
               </span>
             </span>
-            <span className="shrink-0 font-mono font-bold">{r.count}×</span>
-            <span className="shrink-0 font-mono text-2xs text-muted-foreground">{r.points} pts</span>
+            <span className="shrink-0 font-figure font-bold">{r.count}×</span>
+            <span className="shrink-0 font-figure text-2xs text-muted-foreground">{r.points} pts</span>
           </div>
         ))}
       </CardContent>

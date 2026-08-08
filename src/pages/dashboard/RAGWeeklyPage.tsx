@@ -715,11 +715,15 @@ export default function RAGWeeklyPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-3 md:p-6 space-y-4">
+      {/* Sem padding próprio: o shell já dá `p-3 sm:p-4 md:p-6` a toda a área de
+          conteúdo, e este ecrã somava-lhe outro tanto — 48 px de margem no desktop
+          contra os 24 px de todos os outros. Era por isso que a RAG parecia encolhida
+          ao lado das restantes. `space-y-6` é o degrau entre secções da escada. */}
+      <div className="space-y-6">
         {/* O ecrã abria directamente no navegador de semanas, que é um controlo e não
             um título: dizia em que semana se está, nunca em que ecrã. */}
         <PageHeader
-          module="Reports"
+          module="Production"
           title="Weekly RAG"
           description="Red, amber and green by line for the week, with the issues behind each rating."
           icon={<FileBarChart className="h-5 w-5" />}
@@ -994,7 +998,7 @@ export default function RAGWeeklyPage() {
               <div className="max-h-40 overflow-auto mt-2 space-y-1">
                 {inconsistencies.slice(0, 25).map((r) => (
                   <div key={r.ref} className="flex flex-wrap gap-2 items-center border-l-2 border-warning/60 pl-2 py-0.5">
-                    <span className="font-mono font-semibold">WO #{r.ref}</span>
+                    <span className="font-figure font-semibold">WO #{r.ref}</span>
                     <span className="text-muted-foreground">{r.line}</span>
                     <span className="text-muted-foreground">· total {r.total} min across {r.cells.length} shifts:</span>
                     {r.cells.map((c) => (
@@ -2162,12 +2166,12 @@ function DowntimeBreakdownPopover({
                       // one order, throwing away every cached query on the way.
                       <Link
                         to={`/dashboard/work-orders?wo=${encodeURIComponent(s.ref)}`}
-                        className="font-mono text-2xs text-primary hover:underline"
+                        className="font-figure text-2xs text-primary hover:underline"
                       >
                         {woLabel}
                       </Link>
                     ) : (
-                      <div className="font-mono text-2xs">{woLabel}</div>
+                      <div className="font-figure text-2xs">{woLabel}</div>
                     )}
                     {statusBadge(s.status)}
                     {(s.machine || s.reason) && (
@@ -2177,8 +2181,8 @@ function DowntimeBreakdownPopover({
                     )}
                   </td>
 
-                  <td className="px-2 py-1.5 font-mono text-2xs">{fmtTs(s.clampedStart)}</td>
-                  <td className="px-2 py-1.5 font-mono text-2xs">
+                  <td className="px-2 py-1.5 font-figure text-2xs">{fmtTs(s.clampedStart)}</td>
+                  <td className="px-2 py-1.5 font-figure text-2xs">
                     {s.ongoing ? <span className="text-destructive-strong font-semibold">ongoing</span> : fmtTs(s.clampedEnd)}
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold">{s.minutes}</td>

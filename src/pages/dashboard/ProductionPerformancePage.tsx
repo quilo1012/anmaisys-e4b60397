@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusRail, type RailState } from "@/components/ui/StatusRail";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
 import { LineIndicators } from "@/components/production/LineIndicators";
 import { supabase } from "@/integrations/supabase/client";
@@ -424,6 +425,7 @@ export default function ProductionPerformancePage() {
 
         <div className="space-y-3">
           <PageHeader
+            module="Production"
             title="Production Performance"
             description="Output against target by line, leader and shift."
             icon={<BarChart3 className="h-5 w-5" />}
@@ -585,12 +587,22 @@ export default function ProductionPerformancePage() {
             // the floor / on a line TV. Status colours: green on-target, amber
             // setup/near, red below-target (pulsing).
             const gap = l.actual - l.target;
-            const status = l.eff >= 100 ? "ON TARGET" : l.eff >= 80 ? "SETUP" : "BELOW TARGET";
-            // Theme-consistent panel (matches the rest of the app); status is
-            // carried by a strong border + accent colours, numbers stay high
-            // contrast in both light and dark.
-            const ring = l.eff >= 100 ? "border-success" : l.eff >= 80 ? "border-warning" : "border-destructive";
-            const chip = l.eff >= 100 ? "bg-success/10 text-success-strong border-success/30" : l.eff >= 80 ? "bg-warning/10 text-warning-strong border-warning/30" : "bg-destructive/10 text-destructive-strong border-destructive/30";
+            const status = l.eff >= 100 ? "On target" : l.eff >= 80 ? "Setup" : "Below target";
+            // O estado vem da barra, uma vez.
+            //
+            // Estava dito cinco vezes no mesmo cartão — borda de 2 px a toda a volta,
+            // um chip cheio, a eficiência colorida, o desvio colorido e a barra — e a
+            // pulsar quando abaixo do alvo. Com nove linhas no ecrã isso é nove cartões
+            // contornados a verde, âmbar e vermelho, com um a piscar em permanência: o
+            // olho não pousa em lado nenhum e os números, que são o que o ecrã existe
+            // para mostrar, ficam a competir com a própria moldura.
+            //
+            // Ficam dois portadores, e cada um faz um trabalho diferente: a barra diz
+            // QUE estado é, de relance e de longe; a cor no número diz QUANTO, no sítio
+            // onde já se está a ler. O `animate-pulse` sai — num painel, o que pisca
+            // não se pode ignorar nem quando já foi visto, e não respeita quem pediu
+            // menos movimento.
+            const railState: RailState = l.eff >= 100 ? "go" : l.eff >= 80 ? "hold" : "stop";
             const effColor = l.eff >= 100 ? "text-success-strong" : l.eff >= 80 ? "text-warning-strong" : "text-destructive-strong";
             const gapColor = gap >= 0 ? "text-success-strong" : "text-destructive-strong";
             const barColor = l.eff >= 100 ? "bg-success" : l.eff >= 80 ? "bg-warning" : "bg-destructive";
@@ -602,17 +614,23 @@ export default function ProductionPerformancePage() {
               }
             };
             return (
-              <div
+              <StatusRail
                 key={l.line}
+                state={railState}
                 role="button"
                 tabIndex={0}
                 onClick={handleClick}
                 onKeyDown={handleKeyDown}
-                className={`cursor-pointer rounded-xl border-2 ${ring} bg-card p-4 shadow-sm transition-transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-primary`}
+                className="cursor-pointer transition-colors hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="text-xl font-black uppercase tracking-wide text-foreground truncate">{l.line}</div>
-                  <span className={`shrink-0 rounded-full border px-2.5 py-1 text-2xs font-bold uppercase tracking-wider ${chip} ${l.eff < 80 ? "animate-pulse" : ""}`}>● {status}</span>
+                  <div className="truncate font-display text-xl font-bold uppercase tracking-wide text-foreground">{l.line}</div>
+                  {/* A etiqueta nomeia o estado; a barra ao lado é que o colore. Pintá-la
+                      também seria dizer a mesma coisa duas vezes a três centímetros de
+                      distância, e deixaria a percentagem sem ser a única coisa colorida
+                      dentro do cartão — que é onde o olho deve pousar. Dito por extenso,
+                      o estado também sobrevive a quem não distingue as três cores. */}
+                  <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">{status}</span>
                 </div>
                 {l.notLogged && (
                   <div
@@ -690,24 +708,24 @@ export default function ProductionPerformancePage() {
                 <div className="mt-4 flex items-end justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Actual</div>
-                    <div className="font-mono text-4xl font-bold leading-none text-foreground tabular-nums">{l.actual.toLocaleString("en-US")}</div>
+                    <div className="font-figure text-4xl font-bold leading-none text-foreground">{l.actual.toLocaleString("en-US")}</div>
                     <div className="mt-1 text-xs text-muted-foreground tabular-nums">/ {l.target.toLocaleString("en-US")} target</div>
                   </div>
                   <div className={`text-right ${effColor}`}>
                     <div className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">Perf</div>
-                    <div className="font-mono text-3xl font-bold leading-none tabular-nums">{Math.round(l.eff)}%</div>
+                    <div className="font-figure text-3xl font-bold leading-none">{Math.round(l.eff)}%</div>
                   </div>
                 </div>
                 <div className="mt-3">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold uppercase tracking-wider text-muted-foreground">Gap</span>
-                    <span className={`font-mono text-lg font-bold tabular-nums ${gapColor}`}>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")}</span>
+                    <span className={`font-figure text-lg font-bold ${gapColor}`}>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")}</span>
                   </div>
                   <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted">
                     <div className={`h-full ${barColor}`} style={{ width: `${Math.min(100, Math.max(0, l.eff))}%` }} />
                   </div>
                 </div>
-              </div>
+              </StatusRail>
             );
           })}
         </div>

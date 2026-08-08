@@ -325,6 +325,7 @@ export default function SKUProductsPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
+          module="Production"
           title="SKU Products"
           description="Upload Excel (.xlsx) with SKU (or product_code) and Description (or name); Category, TargetPerHour and Weight are optional. Legacy .csv is still accepted."
           icon={<Boxes className="h-5 w-5" />}
@@ -393,7 +394,7 @@ export default function SKUProductsPage() {
                 {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
                 {pageRows.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell className="font-mono">{p.code}</TableCell>
+                    <TableCell className="font-figure">{p.code}</TableCell>
                     <TableCell>{p.name}</TableCell>
                     <TableCell>{p.weight ?? "—"}</TableCell>
                     <TableCell>{p.active ? <Badge className="bg-success hover:bg-success/90 text-success-foreground border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>

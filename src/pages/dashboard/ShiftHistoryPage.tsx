@@ -64,7 +64,7 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowA
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" className={cn("w-full justify-between font-normal", triggerClassName)}>
-          <span className={cn("truncate", triggerCodeOnly && "font-mono text-xs")}>{triggerText}</span>
+          <span className={cn("truncate", triggerCodeOnly && "font-figure text-xs")}>{triggerText}</span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -88,7 +88,7 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowA
               onClick={() => { onChange(s.id); setOpen(false); setQ(""); }}
               className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-accent">
               <span className="text-sm font-medium leading-tight">{skuLabel(s.name)}</span>
-              <span className="font-mono text-xs text-muted-foreground">{s.code}</span>
+              <span className="font-figure text-xs text-muted-foreground">{s.code}</span>
             </button>
           ))}
         </div>
@@ -108,7 +108,7 @@ function InlineSkuCell({ itemId, skuId, codeText, displayCode, skus, editable, o
   const [saving, setSaving] = useState(false);
   if (!editable) {
     return displayCode
-      ? <span className="font-mono text-xs font-bold whitespace-nowrap">{displayCode}</span>
+      ? <span className="font-figure text-xs font-bold whitespace-nowrap">{displayCode}</span>
       : codeText
         ? <span className="italic text-xs text-warning-strong" title="Not in catalog — admin should reconcile the SKU">{codeText}</span>
         : <span className="text-xs">—</span>;
@@ -769,6 +769,7 @@ export default function ShiftHistoryPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
+          module="Production"
           title="Production Control"
           description={
             viewMode === "monthly"
@@ -1069,7 +1070,7 @@ export default function ShiftHistoryPage() {
                                       type="text"
                                       defaultValue={i.batch_code ?? ""}
                                       placeholder="B#"
-                                      className="w-[80px] h-7 px-1 text-xs font-mono rounded border bg-background"
+                                      className="w-[80px] h-7 px-1 text-xs font-figure rounded border bg-background"
                                       onBlur={async (e) => {
                                         const v = e.target.value.trim() || null;
                                         if (v === (i.batch_code ?? null)) return;
@@ -1080,7 +1081,7 @@ export default function ShiftHistoryPage() {
                                       }}
                                     />
                                   ) : (
-                                    <span className="text-xs font-mono">{i.batch_code || "—"}</span>
+                                    <span className="text-xs font-figure">{i.batch_code || "—"}</span>
                                   )}
                                   {(i.manufacture_month || i.expiry_month) && (
                                     <div className="mt-0.5 text-2xs text-muted-foreground whitespace-nowrap">
@@ -1236,7 +1237,7 @@ export default function ShiftHistoryPage() {
                                 type="text"
                                 defaultValue={i.batch_code ?? ""}
                                 placeholder="B#"
-                                className="w-full h-8 px-2 text-xs font-mono rounded border bg-background"
+                                className="w-full h-8 px-2 text-xs font-figure rounded border bg-background"
                                 onBlur={async (e) => {
                                   const v = e.target.value.trim() || null;
                                   if (v === (i.batch_code ?? null)) return;
@@ -1246,7 +1247,7 @@ export default function ShiftHistoryPage() {
                                   else { toast.success("Batch saved"); qc.invalidateQueries({ queryKey: ["shift_history"] }); }
                                 }}
                               />
-                            ) : (<span className="font-mono">{i.batch_code || "—"}</span>)}
+                            ) : (<span className="font-figure">{i.batch_code || "—"}</span>)}
                           />
                           <TableCardField label="Blender" value={<span className="tabular-nums">{blenders.length ? blenders.join(", ") : "—"}</span>} />
                           {(i.sku_id || i.sku_code_text) && (
@@ -1287,7 +1288,7 @@ export default function ShiftHistoryPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete this SKU row?</AlertDialogTitle>
               <AlertDialogDescription>
-                Removes only <b className="font-mono">{deletingItem?.code}</b> from this shift. The rest of the line's production stays.
+                Removes only <b className="font-figure">{deletingItem?.code}</b> from this shift. The rest of the line's production stays.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

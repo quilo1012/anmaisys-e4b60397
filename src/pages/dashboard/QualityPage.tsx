@@ -12,6 +12,7 @@ export default function QualityPage() {
         {/* The system's page header, like every other screen — the page had a bare
             icon and title with no description. */}
         <PageHeader
+          module="Production"
           title="Quality"
           description="Log quality actions, track them to completion, and score them by severity."
           icon={<ShieldCheck className="h-5 w-5" />}
