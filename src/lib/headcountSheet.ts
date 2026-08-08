@@ -1,4 +1,6 @@
 import * as XLSX from "xlsx";
+import { keepsLeadership } from "@/lib/leaderMark";
+import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
 
 /** Rows that label a block or a total rather than naming a person. */
@@ -332,6 +334,79 @@ export function parseHeadcountWorkbook(
 
   out.unknownColumns = [...unknown];
   return out;
+}
+
+/** One row the import is about to write. */
+export interface ImportRow {
+  on_date: string;
+  shift: string;
+  employee_id: string;
+  area_id: string | null;
+  status: AllocStatus;
+  is_leader: boolean;
+}
+
+/** Who holds a column on a day, as the board already has it. */
+export interface StandingLeader {
+  on_date: string;
+  shift: string;
+  employee_id: string;
+  area_id: string | null;
+}
+
+/**
+ * What a matched sheet becomes on the board.
+ *
+ * Two things are decided here rather than in the dialog, because both are rules about
+ * the table and neither is about the file.
+ *
+ * **The rota is asked for every row.** The sheet says who was in, not whether they
+ * were due in, and a range import is a month of different weekdays: a Friday night
+ * imported from a company sheet is nobody's rota and has to be saved as overtime, or
+ * it is paid as an ordinary night.
+ *
+ * **The leader's mark stays with the column.** The import used to write `area_id` and
+ * say nothing about `is_leader`, so a sheet that moved the leader of Line 1 onto
+ * Line 5 carried the mark into a column that already had one — see `keepsLeadership`.
+ * Postgres refuses the whole statement, so a month of board failed on one square.
+ */
+export function rowsToImport(input: {
+  matched: ImportedAllocation[];
+  /** The rota, asked per person per date — the board's `useRotaCover`. */
+  cover: (employeeId: string, date: string, shift: string) => RotaCover;
+  /** The leaders already standing on the days being written. */
+  leaders: StandingLeader[];
+}): ImportRow[] {
+  const key = (on_date: string, shift: string, employee_id: string) =>
+    `${on_date}|${shift}|${employee_id}`;
+  // Per day and per board: leading Line 1 on Friday says nothing about Saturday, and
+  // nothing about the night board of the same date.
+  const led = new Map(
+    input.leaders.map((l) => [key(l.on_date, l.shift, l.employee_id), l.area_id ?? null]),
+  );
+
+  return input.matched.map((m) => {
+    const status = statusForPlacement(
+      m.status,
+      m.status,
+      input.cover(m.employeeId, m.date, m.shift),
+    );
+    // Absence loses the column, exactly as a placement on the board does: they are not
+    // at a place that day.
+    const area_id = status === "assigned" || status === "overtime" ? m.areaId : null;
+    const k = key(m.date, m.shift, m.employeeId);
+    return {
+      on_date: m.date,
+      shift: m.shift,
+      employee_id: m.employeeId,
+      area_id,
+      status,
+      is_leader: keepsLeadership(
+        led.has(k) ? { area_id: led.get(k) ?? null, is_leader: true } : null,
+        { areaId: area_id, status },
+      ),
+    };
+  });
 }
 
 /** Every date from `from` to `to`, inclusive. */

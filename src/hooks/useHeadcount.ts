@@ -2,8 +2,9 @@ import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { attendanceForStatus } from "@/lib/attendanceFromBoard";
-import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
+import { attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
+import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from "@/lib/copyBoard";
+import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
 
 export type HeadcountArea = {
@@ -270,6 +271,206 @@ export function useAllocations(onDate: string, shift: string) {
   });
 }
 
+/**
+ * Where a copy takes its placements from.
+ *
+ * `last` is the button itself and the answer most mornings. `day` is a date off the
+ * menu, for the mornings it is not. `matrix` is the board as it is meant to look
+ * rather than as it looked once — see `useHeadcountMatrix`.
+ */
+export type CopySource =
+  | { kind: "last" }
+  | { kind: "day"; on_date: string }
+  | { kind: "matrix"; matrix: MatrixKind };
+
+/**
+ * Which of a board's two standards.
+ *
+ * Monday and Friday are the days one crew hands the factory to another — Fri–Mon
+ * finishing as Mon–Thu starts, Tue–Fri finishing as Fri–Mon starts — and they are not
+ * staffed like a Wednesday. Never inferred from the date: the menu shows both with the
+ * number each has due in today, so the choice is made in front of somebody. A rule
+ * guessing it would be a rule to get wrong the first time a rota changes.
+ */
+export type MatrixKind = "normal" | "changeover";
+
+export const MATRIX_KINDS: { kind: MatrixKind; label: string; hint: string }[] = [
+  { kind: "normal", label: "standard day", hint: "the middle of the week, one crew steady on each line" },
+  { kind: "changeover", label: "changeover day", hint: "a crew finishing and a crew starting — Mondays and Fridays" },
+];
+
+/**
+ * `headcount_matrix` in one cast rather than four.
+ *
+ * The table is newer than the generated types — the same reason `headcount_areas` is
+ * cast a hundred lines above. Keeping it to one place means the day the types are
+ * regenerated there is one line to delete, not a hunt.
+ */
+const matrixTable = () => (supabase as any).from("headcount_matrix");
+
+/** One standing place on a board: this person, this column. */
+export type MatrixRow = {
+  employee_id: string;
+  area_id: string | null;
+  saved_from: string | null;
+};
+
+/** One board's standard, with how much of it this day would actually get. */
+export type Matrix = {
+  kind: MatrixKind;
+  label: string;
+  hint: string;
+  rows: MatrixRow[];
+  /** The people in it whose rota puts them on this board on the day being planned. */
+  due: MatrixRow[];
+  savedFrom: string | null;
+};
+
+/**
+ * The standard board for a shift, and who of it is due in on a given day.
+ *
+ * The matrix holds everybody, and no day has everybody: every weekday here is a
+ * crossover between two rotas — Monday is Mon–Thu plus Fri–Mon, Friday is Tue–Fri plus
+ * Fri–Mon — so the matrix is only ever half true of a date until the rota is asked.
+ * `due` is that half, and it is what the menu counts, because a menu offering "72" and
+ * then writing 83 or 40 is a menu nobody trusts twice.
+ *
+ * The rota is deliberately not stored with the matrix. Somebody moved from Mon–Thu to
+ * Tue–Fri changes which days they are offered on from that moment, with nobody having
+ * to remember to save the matrix again.
+ */
+export function useHeadcountMatrix(shift: string, onDate: string) {
+  const rotaCover = useRotaCover();
+  const { data, isLoading } = useQuery({
+    queryKey: ["headcount-matrix", shift],
+    queryFn: async (): Promise<Array<MatrixRow & { kind: MatrixKind }>> => {
+      const { data, error } = await matrixTable()
+        .select("employee_id,area_id,saved_from,kind")
+        .eq("shift", shift);
+      if (error) throw error;
+      return (data ?? []) as Array<MatrixRow & { kind: MatrixKind }>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const matrices = useMemo<Matrix[]>(() => {
+    const all = data ?? [];
+    return MATRIX_KINDS.map(({ kind, label, hint }) => {
+      const rows = all.filter((r) => r.kind === kind);
+      return {
+        kind,
+        label,
+        hint,
+        rows,
+        due: rows.filter((r) => !isOffRota(rotaCover(r.employee_id, onDate, shift))),
+        savedFrom: rows[0]?.saved_from ?? null,
+      };
+    });
+  }, [data, rotaCover, onDate, shift]);
+
+  return { matrices, isLoading };
+}
+
+/**
+ * Makes this board the standard its shift goes back to.
+ *
+ * Saved from a day rather than built on a screen of its own: a matrix that was a real
+ * board on a real morning is one somebody has already checked, and the way to change it
+ * is the way you already know — arrange a day, save it again.
+ *
+ * The new rows are written before the old ones are cleared. The other order is one
+ * statement away from an empty matrix if the second half fails, and a matrix with two
+ * people too many is a thing you can see and fix.
+ */
+export function useSaveMatrix(onDate: string, shift: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (kind: MatrixKind) => {
+      const { data, error } = await supabase
+        .from("daily_allocations")
+        .select("employee_id,area_id")
+        .eq("shift", shift)
+        .eq("on_date", onDate)
+        .in("status", ["assigned", "overtime"]);
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ employee_id: string; area_id: string | null }>;
+      // Saving an empty board would wipe the standard with a day nobody had filled in
+      // yet — the likeliest morning for somebody to press this by mistake.
+      if (rows.length === 0) throw new Error(`Nobody is on the ${shift} board today, so there is no matrix to save`);
+
+      const savedBy = (await supabase.auth.getUser()).data.user?.id ?? null;
+      const { error: upErr } = await matrixTable()
+        .upsert(
+          rows.map((r) => ({
+            shift,
+            kind,
+            employee_id: r.employee_id,
+            area_id: r.area_id,
+            saved_from: onDate,
+            saved_by: savedBy,
+          })),
+          { onConflict: "shift,kind,employee_id" },
+        );
+      if (upErr) throw upErr;
+
+      // Only this kind is cleared. The other standard of the same board is a separate
+      // answer to a separate day and must survive a save it had no part in.
+      const { error: delErr } = await matrixTable()
+        .delete()
+        .eq("shift", shift)
+        .eq("kind", kind)
+        .not("employee_id", "in", `(${rows.map((r) => r.employee_id).join(",")})`);
+      // Not fatal: the standard is saved, it just still names people this board no
+      // longer has. Saying so is better than undoing the part that worked.
+      if (delErr) toast.warning(`Matrix saved, but the people who left it are still on it: ${delErr.message}`);
+
+      return { count: rows.length, label: MATRIX_KINDS.find((k) => k.kind === kind)?.label ?? kind };
+    },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["headcount-matrix", shift] });
+      toast.success(`${shift} ${r.label} matrix saved — ${r.count} people, from ${onDate}`, { id: "headcount-matrix" });
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Could not save the matrix", { id: "headcount-matrix" }),
+  });
+}
+
+/**
+ * The earlier days this board could be copied from, with how many people each holds.
+ *
+ * Only days somebody worked. A day carrying nothing but two holiday marks is not a
+ * board — 06/08 and 09/08 to 13/08 are exactly that — and offering it would offer an
+ * empty one. The count is what makes the menu a decision rather than a guess: it is
+ * the difference between a full Tuesday and a skeleton Saturday, said before pressing.
+ *
+ * The block is deliberately larger than the ten days shown — a thousand rows is a
+ * fortnight of a full board — and asks for exactly what PostgREST caps a response at.
+ * Asking for more would hide the cut: the answer would come back short of what was
+ * asked for and look complete. At the cap, a full block means the oldest date in it
+ * may be the half of one that fitted, and `copyableDays` drops that date rather than
+ * show a Tuesday of seventy-five with twelve against it.
+ */
+const COPYABLE_BLOCK = 1000;
+
+export function useCopyableDays(onDate: string, shift: string) {
+  return useQuery({
+    queryKey: ["headcount-copyable-days", onDate, shift],
+    queryFn: async (): Promise<CopyableDay[]> => {
+      const { data, error } = await supabase
+        .from("daily_allocations")
+        .select("on_date,employee_id")
+        .eq("shift", shift)
+        .lt("on_date", onDate)
+        .in("status", ["assigned", "overtime"])
+        .order("on_date", { ascending: false })
+        .limit(COPYABLE_BLOCK);
+      if (error) throw error;
+      const rows = (data ?? []) as Array<{ on_date: string; employee_id: string }>;
+      return copyableDays(rows, { maybeTruncated: rows.length >= COPYABLE_BLOCK });
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
 export function useAllocationMutations(onDate: string, shift: string) {
   const qc = useQueryClient();
   const rotaCover = useRotaCover();
@@ -282,6 +483,12 @@ export function useAllocationMutations(onDate: string, shift: string) {
       halfDay?: boolean;
       /** "HH:MM" if they went home early, null if they worked the shift out. */
       leftEarlyAt?: string | null;
+      /**
+       * True when the status is the thing being chosen, not a side effect of moving
+       * somebody. Set by the day dialog's controls; left off by every drag and picker,
+       * where "assigned" only ever means "put them here".
+       */
+      explicit?: boolean;
     }) => {
       // What is being written over. Placing somebody on a line replaced an approved
       // holiday without a word: Ricardo Fernandes was booked off on 11/08, somebody
@@ -292,16 +499,21 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // Read before writing rather than refused: he may genuinely have come in, and a
       // board nobody can override on the day is a board people work around. It just
       // has to be a decision instead of an accident.
+      //
+      // Read for every placement now, not only the working ones, because the row also
+      // says where they stand and whether they lead it — and both decide what this
+      // write is allowed to be.
+      const { data: prevRow } = await supabase
+        .from("daily_allocations")
+        .select("status,area_id,is_leader")
+        .eq("on_date", onDate).eq("shift", shift).eq("employee_id", input.employeeId)
+        .maybeSingle();
+      const prev = prevRow as { status?: string; area_id?: string | null; is_leader?: boolean } | null;
+      const was = prev?.status;
       let replaced: string | null = null;
-      let was: string | undefined;
-      if (input.status === "assigned" || input.status === "overtime") {
-        const { data: prev } = await supabase
-          .from("daily_allocations")
-          .select("status")
-          .eq("on_date", onDate).eq("shift", shift).eq("employee_id", input.employeeId)
-          .maybeSingle();
-        was = (prev as { status?: string } | null)?.status;
-        if (was === "holiday" || was === "sick" || was === "unpaid") replaced = was;
+      if ((input.status === "assigned" || input.status === "overtime")
+        && (was === "holiday" || was === "sick" || was === "unpaid")) {
+        replaced = was;
       }
 
       // A shift nobody's rota covers is overtime whether or not anyone remembers to say
@@ -311,6 +523,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
         input.status,
         (was ?? null) as AllocStatus | null,
         rotaCover(input.employeeId, onDate, shift),
+        input.explicit === true,
       );
 
       const { error } = await supabase
@@ -340,6 +553,24 @@ export function useAllocationMutations(onDate: string, shift: string) {
               status === "assigned" || status === "overtime"
                 ? input.leftEarlyAt ?? null
                 : null,
+            // Moving somebody out of a column ends their leadership of it.
+            //
+            // Leadership is a fact about a column on a day — `one_leader_per_area` is a
+            // unique index over (day, shift, area) where `is_leader` — and this write
+            // used to change the column and leave the mark behind. Dragging the leader
+            // of Line 1 onto Line 2, which already had one, made two leaders of Line 2
+            // and Postgres refused the whole statement: "duplicate key value violates
+            // unique constraint daily_allocations_one_leader_per_area", in those words,
+            // to somebody who had only dragged a card. Nothing saved, and nothing said
+            // what to do about it.
+            //
+            // Leaving the column, or stopping working the day at all, drops the mark.
+            // It is claimed on the column itself, and one press puts it back.
+            is_leader:
+              prev?.is_leader === true
+              && (status === "assigned" || status === "overtime")
+              && input.areaId !== null
+              && input.areaId === (prev?.area_id ?? null),
           },
           { onConflict: "on_date,shift,employee_id" },
         );
@@ -397,59 +628,186 @@ export function useAllocationMutations(onDate: string, shift: string) {
     onError: (e: Error) => toast.error(e.message ?? "Could not remove the allocation", { id: "headcount-remove" }),
   });
 
-  /** Copies the most recent previous day of the same day-type into this day. */
+  /**
+   * Fills this day with the last day this board had people on it.
+   *
+   * It used to look for the most recent day of the same *type* — weekday, Saturday or
+   * Sunday — inside a three-week window, and to throw "No previous day of the same
+   * type found" when there was none. The night board is two days old, so on it that
+   * was every weekend: Saturday 08/08 was typed in by hand, a name a minute for
+   * twenty minutes, while the button sat there refusing to offer the Friday night
+   * standing right behind it. No day in this table's history was ever filled by it.
+   *
+   * The last day worked is now simply the last day worked. A day that holds nothing
+   * but a couple of holiday marks is not one — 06/08 and 09/08 to 13/08 are each two
+   * or three absences and no one else — so the search is for somebody working, which
+   * is also the only thing that gets copied. See `rowsToCopy` for what does not.
+   *
+   * A date can be named instead, from the menu of days `useCopyableDays` builds. The
+   * last day worked is the one wanted most mornings, but not on a Monday: the day
+   * behind it is a Sunday of thirty people and the board being planned is a weekday of
+   * seventy. Naming the day is the same copy with the search skipped — every rule
+   * below it is untouched, because which day it came from changes nothing about who
+   * may be written over.
+   *
+   * Or the matrix: the board as it is meant to look, rather than as it looked once.
+   * That one is filtered by the rota before anything else happens — the matrix holds
+   * everybody on the board and only some of them are due in on any given date. Every
+   * weekday here is a crossover: Monday is the Mon–Thu crew and the Fri–Mon crew,
+   * Friday is Tue–Fri and Fri–Mon, and copying the lot onto a Friday would put the
+   * thirty-nine of Mon–Thu on a day they are not due and record every one of them as
+   * overtime.
+   */
   const copyLastLikeDay = useMutation({
-    mutationFn: async () => {
-      const dayType = (d: string) => {
-        const w = new Date(`${d}T12:00:00`).getDay();
-        return w === 0 ? "sun" : w === 6 ? "sat" : "week";
-      };
-      const target = dayType(onDate);
-      // Bounded by date, not by a row count. `daily_allocations` holds 1638 rows and
-      // gains about sixty a day, so a ceiling of 2000 was weeks from being reached —
-      // and a table this reads by working backwards from today only needs the last few
-      // weeks. Three weeks always contains a weekday, a Saturday and a Sunday.
-      const since = new Date(`${onDate}T12:00:00`);
-      since.setDate(since.getDate() - 21);
-      const { data, error } = await supabase
+    mutationFn: async (from: CopySource = { kind: "last" }) => {
+      let source: string | null = from.kind === "day" ? from.on_date : null;
+      const matrixKind = from.kind === "matrix" ? from.matrix : null;
+      if (from.kind === "last") {
+        const { data: last, error: srcErr } = await supabase
+          .from("daily_allocations")
+          .select("on_date")
+          .eq("shift", shift)
+          .lt("on_date", onDate)
+          .in("status", ["assigned", "overtime"])
+          .order("on_date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (srcErr) throw srcErr;
+        source = (last as { on_date: string } | null)?.on_date ?? null;
+        if (!source) throw new Error(`No earlier day on the ${shift} board has anybody to copy`);
+      }
+
+      // Where the placements come from, and what this day already says. Read together
+      // because the second decides who is left out of the first.
+      const [srcRows, hereRows] = await Promise.all([
+        source === null
+          ? matrixTable().select("employee_id,area_id").eq("shift", shift).eq("kind", matrixKind)
+          : supabase.from("daily_allocations").select("employee_id,area_id,status").eq("shift", shift).eq("on_date", source),
+        supabase.from("daily_allocations").select("employee_id").eq("shift", shift).eq("on_date", onDate),
+      ]);
+      if (srcRows.error) throw srcRows.error;
+      if (hereRows.error) throw hereRows.error;
+
+      // The matrix says where somebody stands, never that they are in. Anybody the
+      // rota does not put on this board on this date is dropped here rather than
+      // written down as working outside their rota — they are simply not due.
+      // Unknown is not off, exactly as everywhere else: an unrecorded rota is kept.
+      const placements: BoardPlacement[] = source === null
+        ? ((srcRows.data ?? []) as Array<{ employee_id: string; area_id: string | null }>)
+            .filter((r) => !isOffRota(rotaCover(r.employee_id, onDate, shift)))
+            .map((r) => ({ employee_id: r.employee_id, area_id: r.area_id, status: "assigned" }))
+        : ((srcRows.data ?? []) as BoardPlacement[]);
+      const label = source ?? `the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix`;
+
+      const here = (hereRows.data ?? []) as Array<{ employee_id: string }>;
+      const onBoard = new Set(here.map((r) => r.employee_id));
+      const working = placements.filter((r) => r.status === "assigned" || r.status === "overtime");
+      // A named day can be a day nobody worked, and a matrix can be empty or hold
+      // nobody due in today. Said plainly, because "nobody was copied" and "nobody was
+      // there" are different answers and only one of them means try another day.
+      if (working.length === 0) {
+        throw new Error(
+          source === null
+            ? `Nobody in the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix is due in on this day`
+            : `Nobody worked the ${shift} board on ${source}`,
+        );
+      }
+      const candidates = [...new Set(
+        working.filter((r) => !onBoard.has(r.employee_id)).map((r) => r.employee_id),
+      )];
+
+      // The other two things this day can already say about somebody.
+      //
+      // A day off is recorded twice — `daily_allocations` and `employee_attendance` —
+      // and the two are not always both there. Eleven days in the last week hold an
+      // attendance row with no board row behind it, several of them holiday, sick and
+      // unpaid: leave booked before anybody was placed, or booked on a day whose board
+      // nobody has opened. Those people are not at work, and copying them onto a line
+      // would have overwritten approved leave with a day the close pays for.
+      //
+      // And a leaver keeps the days they worked — the history is theirs — so they are
+      // still on the source day. Copied forward they would land on a board that draws
+      // only active people: a row nobody can see, nobody can drag off, and payroll
+      // counts anyway.
+      const [awayRows, activeRows] = candidates.length
+        ? await Promise.all([
+            supabase.from("employee_attendance").select("employee_id,status").eq("on_date", onDate).in("employee_id", candidates),
+            supabase.from("employees").select("id").eq("active", true).in("id", candidates),
+          ])
+        : [{ data: [], error: null }, { data: [], error: null }];
+      if (awayRows.error) throw awayRows.error;
+      if (activeRows.error) throw activeRows.error;
+      const away = ((awayRows.data ?? []) as Array<{ employee_id: string; status: string }>)
+        .filter((r) => r.status !== "present")
+        .map((r) => r.employee_id);
+      const active = new Set(((activeRows.data ?? []) as Array<{ id: string }>).map((r) => r.id));
+      const gone = candidates.filter((id) => !active.has(id));
+
+      const payload = rowsToCopy({
+        source: placements,
+        onDate,
+        shift,
+        alreadyOnTheDay: [...onBoard, ...away, ...gone],
+        cover: (id) => rotaCover(id, onDate, shift),
+      });
+      if (payload.length === 0) {
+        return { source: label, written: 0, kept: here.length, away: away.length, gone: gone.length };
+      }
+
+      // Ignoring duplicates rather than overwriting them, so nothing already on the
+      // day can be replaced by a race between the reads above and this write. The rows
+      // that come back are the ones that were actually inserted, which is what the
+      // count and the payroll write below are both built from — claiming a row a race
+      // dropped would be the same lie in two places.
+      const { data: written, error: upErr } = await supabase
         .from("daily_allocations")
-        .select("on_date,employee_id,area_id,status,half_day,note")
-        .eq("shift", shift)
-        .lt("on_date", onDate)
-        .gte("on_date", since.toISOString().slice(0, 10))
-        .order("on_date", { ascending: false });
-      if (error) throw error;
-      const rows = (data ?? []) as Array<Pick<Allocation, "on_date" | "employee_id" | "area_id" | "status" | "half_day" | "note">>;
-      const source = rows.find((r) => dayType(r.on_date) === target)?.on_date;
-      if (!source) throw new Error("No previous day of the same type found");
-      const payload = rows
-        .filter((r) => r.on_date === source)
-        .map((r) => ({
-          on_date: onDate,
-          shift,
-          employee_id: r.employee_id,
-          area_id: r.area_id,
-          // The source day is a different weekday, so the rota has to be asked again.
-          // Copying Thursday night onto Friday copies ten people onto a night no rota
-          // covers — which is how they came to be saved as ordinary shifts.
-          status: statusForPlacement(
-            r.status as AllocStatus,
-            r.status as AllocStatus,
-            rotaCover(r.employee_id, onDate, shift),
-          ),
-          half_day: r.half_day,
-          note: r.note,
-        }));
-      if (payload.length === 0) throw new Error("The last matching day has no allocations");
-      const { error: upErr } = await supabase
-        .from("daily_allocations")
-        .upsert(payload, { onConflict: "on_date,shift,employee_id" });
+        .upsert(payload, { onConflict: "on_date,shift,employee_id", ignoreDuplicates: true })
+        .select("employee_id,status");
       if (upErr) throw upErr;
-      return { source, count: payload.length };
+      const inserted = (written ?? []) as Array<{ employee_id: string; status: string }>;
+
+      // Payroll hears about it too, for the same reason `place` tells it: a day filled
+      // only from here would otherwise be a full board the finance close cannot see.
+      // Only for the rows just created — everybody this day already had a word about,
+      // on the board or in payroll, was left out long before this line.
+      if (inserted.length) {
+        const { error: attErr } = await supabase
+          .from("employee_attendance")
+          .upsert(
+            attendanceFromBoard(inserted.map((p) => ({ employeeId: p.employee_id, date: onDate, status: p.status }))),
+            { onConflict: "employee_id,on_date" },
+          );
+        if (attErr) toast.warning(`Copied onto the board, but the attendance records did not save: ${attErr.message}`);
+      }
+
+      return { source: label, written: inserted.length, kept: here.length, away: away.length, gone: gone.length };
     },
     onSuccess: (r) => {
       invalidate();
-      toast.success(`Copied ${r.count} allocations from ${r.source}`, { id: "headcount-copy" });
+      // The screens that read the other half of what this wrote. A copy that fills a
+      // board also fills sixty attendance rows, and Leave and the finance close would
+      // otherwise go on showing the day as empty until something else refetched them.
+      qc.invalidateQueries({ queryKey: ["employee_attendance"] });
+      qc.invalidateQueries({ queryKey: ["employee_attendance_range"] });
+      // This day has just become one of the days another day can be copied from.
+      qc.invalidateQueries({ queryKey: ["headcount-copyable-days"] });
+      // Nobody to copy is not a failure — it is the answer to the question, and a red
+      // toast for it reads like the button is broken again.
+      if (r.written === 0) {
+        toast.info(`Everybody in ${r.source} is already accounted for on this day`, { id: "headcount-copy" });
+        return;
+      }
+      const left = [
+        r.kept > 0 ? `${r.kept} already on this board` : null,
+        r.away > 0 ? `${r.away} booked off` : null,
+        r.gone > 0 ? `${r.gone} no longer with us` : null,
+      ].filter(Boolean);
+      toast.success(
+        left.length
+          ? `Copied ${r.written} people from ${r.source}. Left as they were: ${left.join(", ")}.`
+          : `Copied ${r.written} people from ${r.source}`,
+        { id: "headcount-copy" },
+      );
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not copy the last day", { id: "headcount-copy" }),
   });
@@ -501,13 +859,36 @@ export function useChangeShift(onDate: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ employeeId, shiftGroup }: { employeeId: string; shiftGroup: string }) => {
+      // The rota this move must not disturb. A position row carries the crew and the
+      // rota together, so writing one without reading the other would blank it.
+      const { data: held, error: readErr } = await supabase
+        .from("employees")
+        .select("shift_pattern_id")
+        .eq("id", employeeId)
+        .single();
+      if (readErr) throw readErr;
+
       const { error } = await supabase.from("employees").update({ shift_group: shiftGroup }).eq("id", employeeId);
       if (error) throw error;
+
+      // And the record of it, which is what every date-aware read actually asks.
+      // See `recordPosition`: the column alone was never enough.
+      await recordPosition({
+        employeeId,
+        onDate,
+        shiftGroup,
+        shiftPatternId: (held as { shift_pattern_id: string | null }).shift_pattern_id,
+        note: "Shift changed on the headcount board",
+      });
+
       const board = boardShiftFor(shiftGroup);
       if (board) {
+        // The mark stays behind with the board it was on: leading Line 1 on days says
+        // nothing about Line 1 on nights, and carrying it across could land a second
+        // leader in a column that already has one — the same index, the same refusal.
         const { error: moveErr } = await supabase
           .from("daily_allocations")
-          .update({ shift: board })
+          .update({ shift: board, is_leader: false })
           .eq("employee_id", employeeId)
           .gte("on_date", onDate);
         if (moveErr) throw moveErr;
@@ -516,10 +897,48 @@ export function useChangeShift(onDate: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
       qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+      qc.invalidateQueries({ queryKey: ["employee_shift_history"] });
       toast.success("Shift changed. Days already past keep the shift they were worked on.");
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not change the shift"),
   });
+}
+
+/**
+ * Write down where somebody stands from a date.
+ *
+ * `employees.shift_group` and `employees.shift_pattern_id` are where the app looks
+ * when it is not asking about a date. `employee_shift_history` is where it looks when
+ * it is — and it is asking about a date every time it decides whether a shift is an
+ * ordinary day or overtime, because July must be judged against July's rota.
+ *
+ * The board's two controls wrote only the columns. So a rota changed here reached
+ * every screen and none of the rules: Josiley Rocon was put on Fri–Mon days, the
+ * history still said Mon–Thu days, and the Saturday he was due in was saved as
+ * overtime — while the dialog showed Fri–Mon back to the person who had just set it.
+ * Eighty of a hundred and ninety-four active people had drifted the same way.
+ *
+ * Effective from the board's own date, not from today. Somebody correcting Tuesday's
+ * board on Thursday means Tuesday, and that is also the date the allocations move on.
+ */
+async function recordPosition(input: {
+  employeeId: string;
+  onDate: string;
+  shiftGroup: string | null;
+  shiftPatternId: string | null;
+  note: string;
+}) {
+  const { error } = await (supabase as any).from("employee_shift_history").upsert(
+    {
+      employee_id: input.employeeId,
+      shift_group: input.shiftGroup,
+      shift_pattern_id: input.shiftPatternId,
+      effective_from: input.onDate,
+      note: input.note,
+    },
+    { onConflict: "employee_id,effective_from" },
+  );
+  if (error) throw error;
 }
 
 /**
@@ -556,19 +975,37 @@ export function useReorderAreas() {
  * for both days and nights, so folding them into one list would make one of the two
  * unanswerable.
  */
-export function useSetShiftPattern() {
+export function useSetShiftPattern(onDate: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ employeeId, patternId }: { employeeId: string; patternId: string | null }) => {
+      // The crew this change must not disturb — the position row holds both.
+      const { data: held, error: readErr } = await supabase
+        .from("employees")
+        .select("shift_group")
+        .eq("id", employeeId)
+        .single();
+      if (readErr) throw readErr;
+
       const { error } = await supabase
         .from("employees")
         .update({ shift_pattern_id: patternId })
         .eq("id", employeeId);
       if (error) throw error;
+
+      await recordPosition({
+        employeeId,
+        onDate,
+        shiftGroup: (held as { shift_group: string | null }).shift_group,
+        shiftPatternId: patternId,
+        note: "Rota changed on the headcount board",
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
-      toast.success("Rota changed. Which days they are due in follows it from now on.");
+      qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+      qc.invalidateQueries({ queryKey: ["employee_shift_history"] });
+      toast.success("Rota changed. Which days they are due in follows it from this day on.");
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not change the rota"),
   });

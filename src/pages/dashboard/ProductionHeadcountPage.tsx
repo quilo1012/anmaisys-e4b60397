@@ -3,8 +3,27 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronLeft, ChevronRight, Printer, Download, Upload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search } from "lucide-react";
+import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +43,9 @@ import {
   useShiftRoster,
   useAllocations,
   useAllocationMutations,
+  useCopyableDays,
+  useHeadcountMatrix,
+  useSaveMatrix,
   useChangeShift,
   useReorderAreas,
   useSetShiftPattern,
@@ -33,6 +55,7 @@ import {
   type HeadcountEmployee,
 } from "@/hooks/useHeadcount";
 import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialog";
+import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
 import { currentShift } from "@/lib/operationalShift";
@@ -61,6 +84,10 @@ function toISO(d: Date) {
 }
 function formatLong(iso: string) {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+/** "Fri 07 Aug" — the weekday first, because that is what a day is chosen by. */
+function formatWeekday(iso: string) {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
 }
 function dayTypeLabel(iso: string) {
   const w = new Date(`${iso}T12:00:00`).getDay();
@@ -144,7 +171,7 @@ function SectionLabel({
       )}
       <span className={accent}>{children}</span>
       {count !== undefined && (
-        <span className="rounded-full bg-muted px-1.5 font-mono text-2xs font-bold">{count}</span>
+        <span className="rounded-full bg-muted px-1.5 font-figure text-2xs font-bold">{count}</span>
       )}
       <span className="h-px flex-1 bg-border" />
     </button>
@@ -384,7 +411,7 @@ function KpiPill({
     <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", highlight ? cn(tone, "border-transparent") : "bg-card")}>
       <div className="flex items-center gap-1.5">
         <Icon className={cn("h-3.5 w-3.5 shrink-0", highlight ? "" : "text-muted-foreground")} />
-        <span className={cn("font-mono text-2xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
+        <span className={cn("font-figure text-2xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
       </div>
       <div className="mt-1.5 truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
     </div>
@@ -435,12 +462,16 @@ function ShiftBoard({
   }, [openSections]);
   const changeShift = useChangeShift(onDate);
   const reorder = useReorderAreas();
-  const setPattern = useSetShiftPattern();
+  const setPattern = useSetShiftPattern(onDate);
   const { data: patterns = [] } = useShiftPatterns();
   // A little distance first, so a tap on the heading is not read as a drag.
   const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   const { place, remove, copyLastLikeDay, setLeader } = useAllocationMutations(onDate, shift);
+  const { data: copyableDays = [], isLoading: copyableLoading } = useCopyableDays(onDate, shift);
+  const matrix = useHeadcountMatrix(shift, onDate);
+  const saveMatrix = useSaveMatrix(onDate, shift);
+  const [matrixOpen, setMatrixOpen] = useState(false);
 
   const byEmployee = useMemo(() => {
     const m = new Map<string, (typeof allocations)[number]>();
@@ -584,11 +615,150 @@ function ShiftBoard({
               className="h-8 w-44 pl-8 text-xs"
             />
           </div>
+          {/* Named for what it does. "Copy from last same day" promised a matching
+              weekday, and on a board without one it could only fail — which is what it
+              did every time it was pressed on a weekend night.
+
+              Split, because the last day worked is the right answer most mornings and
+              the wrong one on a Monday, where the day behind is a Sunday of thirty and
+              the board being planned is a weekday of seventy. The press does the
+              common thing; the arrow names a day instead, with its headcount beside it
+              so the choice is made before the copy rather than read off the toast
+              afterwards. */}
           {canManage && (
-            <Button size="sm" variant="outline" className="h-8 print:hidden" onClick={() => copyLastLikeDay.mutate()} disabled={copyLastLikeDay.isPending}>
-              <CopyPlus className="mr-2 h-4 w-4" />
-              Copy from last same day
-            </Button>
+            <div className="flex print:hidden">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-r-none border-r-0"
+                title={`Fills this board from the last ${shift.toLowerCase()} day anybody worked. Nobody already on this day is changed.`}
+                onClick={() => copyLastLikeDay.mutate({ kind: "last" })}
+                disabled={copyLastLikeDay.isPending}
+              >
+                <CopyPlus className="mr-2 h-4 w-4" />
+                Copy from the last day
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 rounded-l-none px-2"
+                    aria-label="Copy from another day"
+                    disabled={copyLastLikeDay.isPending}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Copy this board from
+                  </DropdownMenuLabel>
+                  {/* The matrix first, and apart, because it is a different kind of
+                      answer: the board as it should look, not as it looked once. The
+                      count is the people it holds who are actually due in today —
+                      every weekday is a crossover of two rotas, so the matrix's own
+                      total would be a number this day never sees. */}
+                  {matrix.matrices.map((m) => (
+                    <DropdownMenuItem
+                      key={m.kind}
+                      onSelect={() => copyLastLikeDay.mutate({ kind: "matrix", matrix: m.kind })}
+                      disabled={m.due.length === 0}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Star className="h-3.5 w-3.5 shrink-0 text-primary" />
+                          {shift} · {m.label}
+                        </span>
+                        <span className="block truncate pl-5 text-2xs text-muted-foreground">
+                          {m.rows.length === 0
+                            ? "none saved yet"
+                            : m.due.length === 0
+                              ? `${m.rows.length} people, none of them due in today`
+                              : `of ${m.rows.length}, due in today${m.savedFrom ? ` · saved ${formatWeekday(m.savedFrom)}` : ""}`}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-figure text-xs font-bold tabular-nums">
+                        {m.due.length || "—"}
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuItem
+                    onSelect={() => setMatrixOpen(true)}
+                    className="pl-5 text-2xs text-muted-foreground"
+                  >
+                    See what the matrices hold
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {copyableLoading && <div className="px-2 py-1.5 text-xs text-muted-foreground">Looking…</div>}
+                  {!copyableLoading && copyableDays.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                      No earlier {shift.toLowerCase()} day has anybody on it yet.
+                    </div>
+                  )}
+                  {copyableDays.map((d, i) => (
+                    <DropdownMenuItem
+                      key={d.on_date}
+                      onSelect={() => copyLastLikeDay.mutate({ kind: "day", on_date: d.on_date })}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="truncate">
+                        {formatWeekday(d.on_date)}
+                        {i === 0 && <span className="ml-1.5 text-2xs text-muted-foreground">last</span>}
+                      </span>
+                      <span className="shrink-0 font-figure text-xs font-bold tabular-nums">{d.people}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+          {/* Saving is separate from copying and says what it replaces before it does
+              it. Two actions rather than two buttons: the question a board answers is
+              which day it is a standard *for*, and asking it here is asking it once,
+              at the only moment somebody knows — with the board they just arranged in
+              front of them. A press by accident on a half-arranged board would
+              otherwise quietly become what every future day starts from. */}
+          {canManage && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-8 print:hidden" disabled={saveMatrix.isPending}>
+                  <Star className="mr-2 h-4 w-4" />
+                  Save as matrix
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>What is this board the standard for?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {assignedCount} people, as they stand on {formatWeekday(onDate)}, become one of the two standards
+                    the {shift.toLowerCase()} board is copied from. Days already planned are not touched, and the other
+                    standard is left alone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-2">
+                  {matrix.matrices.map((m) => (
+                    <AlertDialogAction
+                      key={m.kind}
+                      onClick={() => saveMatrix.mutate(m.kind)}
+                      className="flex h-auto w-full flex-col items-start gap-0.5 py-2 text-left"
+                    >
+                      <span className="font-bold">Save as the {m.label} matrix</span>
+                      <span className="text-2xs font-normal opacity-80">
+                        {m.hint}
+                        {m.rows.length > 0 && (
+                          <> · replaces {m.rows.length}{m.savedFrom ? ` saved from ${formatWeekday(m.savedFrom)}` : ""}</>
+                        )}
+                      </span>
+                    </AlertDialogAction>
+                  ))}
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
           {/* The two numbers side by side, because apart they invite the wrong sum:
               46 assigned out of 82 due in is a shift half planned, and "46" alone
@@ -596,7 +766,7 @@ function ShiftBoard({
               nobody has to work out where the other 36 went. */}
           <div className={cn("rounded-lg px-3 py-1.5 text-right", look.soft)}>
             <div className="flex items-baseline justify-end gap-1.5">
-              <b className={cn("font-mono text-xl font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
+              <b className={cn("font-figure text-xl font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
               <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
                 / {roster.length} {showAll ? "on this shift" : "on the rota"}
               </span>
@@ -673,7 +843,7 @@ function ShiftBoard({
                   {canManage && grip}
                   <CardTitle className="truncate text-sm font-bold">{area.name}</CardTitle>
                   <span className={cn(
-                    "grid h-6 min-w-[1.75rem] shrink-0 place-items-center rounded-full border bg-background px-2 font-mono text-sm font-bold",
+                    "grid h-6 min-w-[1.75rem] shrink-0 place-items-center rounded-full border bg-background px-2 font-figure text-sm font-bold",
                     people.length ? (area.kind === "production" ? "text-primary" : "text-foreground") : "text-muted-foreground/50",
                   )}>
                     {people.length}
@@ -722,6 +892,20 @@ function ShiftBoard({
         </div>
         );
       })}
+
+
+      {/* The standard this board is copied from, read by crew rather than by column —
+          which is the only way a crossover day makes sense. Opened from the copy menu,
+          because the question it answers is "what would that give me". */}
+      <MatrixDialog
+        open={matrixOpen}
+        onOpenChange={setMatrixOpen}
+        shift={shift}
+        onDate={onDate}
+        matrices={matrix.matrices}
+        areas={areas}
+        employeeById={employeeById}
+      />
 
       {/* Filling a line by dragging seventy cards is the reason people go back to the
           spreadsheet. The column heading opens a search over the whole shift — the same
@@ -813,12 +997,16 @@ function ShiftBoard({
             areas={areas}
             canManage={canManage}
             halfDay={alloc?.half_day === true}
+            // Explicit, like the status buttons: the day already says how it counts and
+            // this only says how much of it was worked. Without that, ticking Half day
+            // on somebody off their rota re-ran the rule and quietly made them overtime.
             onSetHalfDay={(v) => place.mutate({
               employeeId: editing,
               areaId: alloc?.area_id ?? null,
               status: (alloc?.status as AllocStatus | undefined) ?? "unpaid",
               halfDay: v,
               leftEarlyAt: leftEarly,
+              explicit: true,
             })}
             leftEarlyAt={leftEarly}
             onSetLeftEarlyAt={(v) => place.mutate({
@@ -827,6 +1015,7 @@ function ShiftBoard({
               status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
               halfDay: alloc?.half_day === true,
               leftEarlyAt: v,
+              explicit: true,
             })}
             onSetStatus={(st) => place.mutate({
               employeeId: editing,
@@ -838,6 +1027,11 @@ function ShiftBoard({
               // out would silently clear an early finish somebody had recorded. The
               // mutation itself drops it when the status stops being a day worked.
               leftEarlyAt: leftEarly,
+              // These five buttons are the one place a person says how the day counts,
+              // so what they say stands — over the rota's guess and over a mark already
+              // on the row. Pressing In on somebody wrongly marked overtime used to
+              // write "assigned" and get "overtime" straight back.
+              explicit: true,
             })}
             onSetArea={(id) => place.mutate({
               employeeId: editing,

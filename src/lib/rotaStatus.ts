@@ -23,7 +23,8 @@
  *   pay them for it.
  * - **Anything already away** — holiday, sick and unpaid are statements about the
  *   person, not about the rota, and are never rewritten.
- * - **Overtime already set** — a manual mark always survives.
+ * - **Overtime already set** — a mark survives every move. Only somebody saying so on
+ *   the status control itself takes it off again; see `explicit` below.
  */
 
 export type AllocStatus = "assigned" | "overtime" | "holiday" | "sick" | "unpaid";
@@ -55,14 +56,25 @@ export function isOffRota(cover: RotaCover): boolean {
  *
  * `requested` is what the drop asked for; `current` is what the row already says, so a
  * mark made by hand is not undone by a later drag between areas.
+ *
+ * `explicit` separates the two things that both arrive here as "assigned": a move,
+ * which says only where somebody is, and a choice made on the status control, which
+ * says how the day counts. Without it the rule was one-way — every path could turn
+ * overtime on and none could turn it off, so pressing **In** on somebody wrongly
+ * marked wrote "assigned", got "overtime" back, and looked like a dead button. A
+ * person is the last word on their own day; the rota only supplies the default.
  */
 export function statusForPlacement(
   requested: AllocStatus,
   current: AllocStatus | null | undefined,
   cover: RotaCover,
+  explicit = false,
 ): AllocStatus {
   // Away statuses say something about the person, not about the rota.
   if (requested !== "assigned") return requested;
+  // Somebody chose this, knowing what it says. It stands over both the existing mark
+  // and the rota's own guess.
+  if (explicit) return "assigned";
   // An existing overtime mark is a decision somebody made. Moving them between lines
   // must not cancel it.
   if (current === "overtime") return "overtime";

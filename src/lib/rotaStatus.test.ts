@@ -56,8 +56,37 @@ describe("statusForPlacement", () => {
   });
 
   it("moves somebody back off overtime is still a manual act", () => {
-    // Dropping onto an area cannot clear overtime, so the only way back is the status
-    // control itself — which passes a status other than "assigned".
+    // Dropping onto an area cannot clear overtime. Only the status control can, and it
+    // says so by asking explicitly — see the tests below.
     expect(statusForPlacement("assigned", "overtime", wrongDay)).toBe("overtime");
+  });
+});
+
+describe("statusForPlacement, asked explicitly", () => {
+  it("clears an overtime mark when somebody chooses In", () => {
+    // Josiley Rocon, Saturday 08/08: on his own rota, on his own board, and marked
+    // overtime. Pressing In wrote "assigned", the guard turned it straight back into
+    // "overtime", and the dialog redrew exactly as it was. There was no way out of an
+    // overtime mark from the one control meant to undo it.
+    expect(statusForPlacement("assigned", "overtime", on, true)).toBe("assigned");
+  });
+
+  it("lets a supervisor call an off-rota day a normal one", () => {
+    // The rota decides the default, not the answer. Somebody who says this Saturday
+    // counts as an ordinary day is stating a fact the rota does not know.
+    expect(statusForPlacement("assigned", "overtime", wrongDay, true)).toBe("assigned");
+    expect(statusForPlacement("assigned", null, wrongDay, true)).toBe("assigned");
+  });
+
+  it("still never rewrites an away status", () => {
+    for (const s of ["holiday", "sick", "unpaid"] as const) {
+      expect(statusForPlacement(s, "overtime", on, true)).toBe(s);
+    }
+  });
+
+  it("is not what a drag does", () => {
+    // The flag is the difference between "put him on Line 2" and "this day is normal".
+    expect(statusForPlacement("assigned", "overtime", on)).toBe("overtime");
+    expect(statusForPlacement("assigned", null, wrongDay)).toBe("overtime");
   });
 });

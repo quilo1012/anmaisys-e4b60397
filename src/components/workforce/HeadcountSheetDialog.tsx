@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { attendanceFromBoard } from "@/lib/attendanceFromBoard";
-import { statusForPlacement } from "@/lib/rotaStatus";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Download, Upload, AlertTriangle, Loader2 } from "lucide-react";
 import {
-  buildHeadcountWorkbook, parseHeadcountWorkbook, datesBetween,
-  type ImportPreview,
+  buildHeadcountWorkbook, parseHeadcountWorkbook, datesBetween, rowsToImport,
+  type ImportPreview, type StandingLeader,
 } from "@/lib/headcountSheet";
 import { useRotaCover } from "@/hooks/useHeadcount";
-import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
+import type { HeadcountArea, HeadcountEmployee, Allocation } from "@/hooks/useHeadcount";
 
 /**
  * The board out to the factory's spreadsheet and back again, over a range of days.
@@ -111,24 +110,30 @@ export function HeadcountSheetDialog({
     if (!preview || preview.matched.length === 0) return;
     setBusy(true);
     try {
-      const rows = preview.matched.map((m) => {
-        // The sheet says who was in, not whether they were due in. A month of days is
-        // a month of different weekdays, so each row asks the rota again — otherwise a
-        // Friday night imported from a company sheet lands as an ordinary shift and is
-        // paid as one.
-        const status = statusForPlacement(
-          m.status as AllocStatus,
-          m.status as AllocStatus,
-          rotaCover(m.employeeId, m.date, m.shift),
-        );
-        return {
-          on_date: m.date,
-          shift: m.shift,
-          employee_id: m.employeeId,
-          area_id: status === "assigned" || status === "overtime" ? m.areaId : null,
-          status,
-        };
+      // Who leads a column on the days about to be written over.
+      //
+      // The import writes `area_id` and used to say nothing about the mark, so a sheet
+      // that moved the leader of one line onto another carried the mark into a column
+      // that already had one — and `daily_allocations_one_leader_per_area` refuses the
+      // whole statement, so a month of board failed on a single square. `rowsToImport`
+      // decides what each row keeps; this only reads what there is to keep.
+      //
+      // Paged for the same reason the export is: a two-month range of both boards runs
+      // past the thousand rows PostgREST returns without a word, and a leader read off
+      // the far side of the cut would look like somebody who leads nothing — which
+      // silently takes their line off them.
+      const days = [...new Set(preview.matched.map((m) => m.date))];
+      const leaders = await fetchAllRows<StandingLeader>({
+        range: async (a, b) => await supabase
+          .from("daily_allocations")
+          .select("on_date,shift,employee_id,area_id")
+          .in("on_date", days)
+          .eq("is_leader", true)
+          .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+          .range(a, b),
       });
+
+      const rows = rowsToImport({ matched: preview.matched, cover: rotaCover, leaders });
       // Upsert on the day/shift/person key the table already enforces, so importing
       // the same sheet twice moves people rather than duplicating them. Anyone
       // already on the day and absent from the file is left alone — the file says

@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
 import {
-  buildHeadcountWorkbook, parseHeadcountWorkbook, parseSheetDate, datesBetween,
+  buildHeadcountWorkbook, parseHeadcountWorkbook, parseSheetDate, datesBetween, rowsToImport,
+  type ImportedAllocation,
 } from "@/lib/headcountSheet";
 import type { HeadcountArea, HeadcountEmployee, Allocation } from "@/hooks/useHeadcount";
+import type { AllocStatus } from "@/lib/rotaStatus";
 
 const area = (id: string, name: string, kind = "production"): HeadcountArea => ({
   id, name, kind, section: "main_lines", department: null, sort_order: 0, active: true,
@@ -279,5 +281,60 @@ describe("one area written several ways in the same workbook", () => {
     });
     expect(p.unknownColumns).toContain("Bottling");
     expect(p.matched[0].areaId).toBe("br");
+  });
+});
+
+/**
+ * `daily_allocations_one_leader_per_area` is a unique index over (day, shift, area)
+ * where `is_leader`. The import writes `area_id` and says nothing about the mark, so a
+ * sheet that moves the leader of Line 1 onto Line 5 carries the mark with them — and
+ * Line 5 already has one. Postgres refuses the whole statement and a month of board
+ * fails on one square, with "duplicate key value violates unique constraint" as the
+ * only thing said about it.
+ */
+describe("rowsToImport, and the leader mark", () => {
+  const ON = { known: true, coversDay: true, onThisBoard: true };
+  const OFF = { known: true, coversDay: false, onThisBoard: true };
+  const sheet = (areaId: string | null, status: AllocStatus = "assigned"): ImportedAllocation =>
+    ({ date: "2026-08-08", shift: "Day", employeeId: "e1", areaId, status });
+  const leads = (area_id: string | null) =>
+    [{ on_date: "2026-08-08", shift: "Day", employee_id: "e1", area_id }];
+
+  const rows = (matched: ImportedAllocation[], leaders = leads("l1"), cover = () => ON) =>
+    rowsToImport({ matched, leaders, cover });
+
+  it("drops the mark when the sheet puts the leader in another column", () => {
+    expect(rows([sheet("l5")])[0].is_leader).toBe(false);
+  });
+
+  it("keeps the mark when the sheet puts them back where they stand", () => {
+    // Re-importing the same file must not cost every leader their line.
+    expect(rows([sheet("l1")])[0].is_leader).toBe(true);
+  });
+
+  it("drops the mark when the sheet says they were off", () => {
+    // A holiday has no column, so it can lead none.
+    const row = rows([sheet("l1", "holiday")])[0];
+    expect(row.is_leader).toBe(false);
+    expect(row.area_id).toBeNull();
+  });
+
+  it("never invents a mark for somebody who leads nothing", () => {
+    expect(rows([sheet("l1")], [])[0].is_leader).toBe(false);
+  });
+
+  it("does not read one day's leader onto another day", () => {
+    // The index is per day and per board: leading Line 1 on Friday says nothing about
+    // Saturday, and a range import writes both in one statement.
+    const other = [{ on_date: "2026-08-07", shift: "Day", employee_id: "e1", area_id: "l1" }];
+    expect(rows([sheet("l1")], other)[0].is_leader).toBe(false);
+    const night = [{ on_date: "2026-08-08", shift: "Night", employee_id: "e1", area_id: "l1" }];
+    expect(rows([sheet("l1")], night)[0].is_leader).toBe(false);
+  });
+
+  it("still asks the rota about every row", () => {
+    // The extraction must not lose the reason the import reads the rota at all: a day
+    // nobody's rota covers is overtime, and is paid as one.
+    expect(rows([sheet("l1")], [], () => OFF)[0].status).toBe("overtime");
   });
 });
