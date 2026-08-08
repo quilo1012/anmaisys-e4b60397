@@ -392,11 +392,18 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   };
 
   // ── Auto-create missing tablets (one per line) ───────────
-  const DEFAULT_TABLET_PASSWORD = "Tablet@AN2026!";
+  // SECURITY: each tablet gets its own randomly generated password.
+  // No shared/default credential exists anywhere in code.
   const [autoOpen, setAutoOpen] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoResults, setAutoResults] = useState<
-    { line_name: string; email: string; status: "created" | "skipped" | "failed"; reason?: string }[]
+    {
+      line_name: string;
+      email: string;
+      status: "created" | "skipped" | "failed";
+      reason?: string;
+      password?: string;
+    }[]
   >([]);
 
   const linesWithoutTablet = useMemo(() => {
@@ -414,14 +421,15 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
 
     for (const line of linesWithoutTablet) {
       const email = buildEmailFromLabel(line.name);
+      const password = generateStrongPassword();
       try {
         await createAcc.mutateAsync({
           email,
-          password: DEFAULT_TABLET_PASSWORD,
+          password,
           label: line.name,
           line_ids: [line.id],
         });
-        results.push({ line_name: line.name, email, status: "created" });
+        results.push({ line_name: line.name, email, status: "created", password });
       } catch (e: any) {
         const msg = describePasswordError(e?.message ?? "Unknown error");
         const skipped = /already|exists|duplicate/i.test(msg);
@@ -955,21 +963,20 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             </DialogTitle>
             <DialogDescription>
               One tablet account will be created per production line that doesn't have one yet,
-              using the same default password. Change each password individually afterwards.
+              each with its own randomly generated password shown once in the results.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
-              <div className="font-medium mb-1">Default password (same for all):</div>
-              <code className="font-mono text-xs bg-background px-2 py-1 rounded border">
-                {DEFAULT_TABLET_PASSWORD}
-              </code>
-              <p className="text-xs text-muted-foreground mt-2">
-                Write it down — you'll need it to log in on each tablet. Then use{" "}
-                <strong>Reset password</strong> per station to change it.
+              <div className="font-medium mb-1">Unique password per station</div>
+              <p className="text-xs text-muted-foreground">
+                Each tablet account gets its own randomly generated strong password. The
+                passwords are shown once in the results below — copy them before closing this
+                dialog. You can change any of them later with <strong>Reset password</strong>.
               </p>
             </div>
+
 
             {autoResults.length === 0 ? (
               <>
@@ -1003,6 +1010,11 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
                         <code className="font-mono text-xs text-muted-foreground truncate block">
                           {r.email}
                         </code>
+                        {r.password && r.status === "created" && (
+                          <code className="font-mono text-xs bg-background px-2 py-1 rounded border mt-1 inline-block">
+                            {r.password}
+                          </code>
+                        )}
                         {r.reason && r.status === "failed" && (
                           <p className="text-xs text-destructive-strong mt-0.5">{r.reason}</p>
                         )}

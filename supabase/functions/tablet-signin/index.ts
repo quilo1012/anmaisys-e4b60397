@@ -7,7 +7,14 @@ const BodySchema = z.object({
   password: z.string().min(1).max(200),
 });
 
-const DEFAULT_TABLET_PASSWORD = "Tablet@AN2026!";
+// SECURITY: no shared/default password exists. When an auth identity has to be
+// provisioned on the fly, it gets a random, unguessable password that nobody
+// knows — the admin must set a real one via reset-operator-password.
+function randomProvisioningPassword() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return `Tp!${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
 
 // In-memory rate limit: 5 failed attempts per account_id in a 5-min window → 429.
 // Resets on successful sign-in. Per-instance only (best-effort), acceptable here
@@ -75,7 +82,7 @@ async function ensureOperatorIdentity(admin: ReturnType<typeof createClient>, ac
   } else {
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email: acc.email,
-      password: DEFAULT_TABLET_PASSWORD,
+      password: randomProvisioningPassword(),
       email_confirm: true,
       user_metadata: { name: acc.label },
     });
