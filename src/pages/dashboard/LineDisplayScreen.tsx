@@ -3,7 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCurrentFactoryShift, getCurrentShiftEnd, SHIFT_LABEL } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, SHIFT_LABEL } from "@/lib/shifts";
+import {
+  computePace,
+  balanceLabel,
+  lastEntryAgeMinutes,
+  PACE_MESSAGES,
+  VERDICT_LABEL,
+  VERDICT_COLOR,
+} from "@/lib/linePerformance";
 import { ArrowLeft, Maximize2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +33,10 @@ type ProductionItem = {
   id: string;
   planned_qty: number | null;
   actual_qty: number | null;
-  sku: { code: string | null; name: string | null } | null;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string | null;
+  sku: { code: string | null; name: string | null; target_per_hour: number | null } | null;
 };
 
 function formatCountdown(ms: number) {
@@ -135,27 +146,35 @@ export default function LineDisplayScreen() {
     },
   });
 
-  const { data: items } = useQuery({
+  const { data: itemsData } = useQuery({
     queryKey: ["prod-items-live", date, line, shift],
     enabled: !!line,
     queryFn: async () => {
       const { data: sessions, error: e1 } = await supabase
         .from("production_sessions")
-        .select("id")
+        .select("id, leader_name")
         .eq("session_date", date)
         .eq("line", line!)
         .eq("shift", shiftDb);
       if (e1) throw e1;
       const ids = (sessions ?? []).map((s: any) => s.id);
-      if (!ids.length) return [] as ProductionItem[];
+      // No session at all is a different answer from a session with no items,
+      // so the absence is reported rather than flattened into an empty list.
+      if (!ids.length) return { hasSession: false, hasLeader: false, items: [] as ProductionItem[] };
       const { data, error } = await supabase
         .from("production_items")
-        .select("id, planned_qty, actual_qty, sku:sku_products(code, name)")
+        .select("id, planned_qty, actual_qty, started_at, finished_at, updated_at, sku:sku_products(code, name, target_per_hour)")
         .in("session_id", ids);
       if (error) throw error;
-      return (data ?? []) as unknown as ProductionItem[];
+      return {
+        hasSession: true,
+        hasLeader: (sessions ?? []).some((s) => !!s.leader_name),
+        items: (data ?? []) as unknown as ProductionItem[],
+      };
     },
   });
+
+  const items = itemsData?.items;
 
   // Realtime subscriptions
   useEffect(() => {
@@ -180,20 +199,49 @@ export default function LineDisplayScreen() {
 
   const target = Number(rag?.plan_qty ?? 0);
   const actual = Number(rag?.actual_qty ?? 0);
-  const remaining = Math.max(0, target - actual);
-  const pct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
 
   const end = useMemo(() => getCurrentShiftEnd(now), [now]);
+  const start = useMemo(() => getCurrentShiftStart(now), [now]);
   const countdown = formatCountdown(end.getTime() - now.getTime());
 
-  const status = useMemo(() => {
-    if (target <= 0) return { label: "NO TARGET", color: "bg-wall-line" };
-    if (pct >= 95) return { label: "ON TARGET", color: "bg-success" };
-    if (pct >= 75) return { label: "AT RISK", color: "bg-warning" };
-    return { label: "BELOW TARGET", color: "bg-destructive" };
-  }, [pct, target]);
+  // The shift's commitment stays on the bar — it is what the plan promised, and
+  // the countdown is against it. What changed is the VERDICT: it now reads the
+  // pace against the time already worked, so five hours into twelve a line that
+  // is keeping up stops being told it is failing.
+  const pace = useMemo(
+    () =>
+      computePace({
+        shiftStart: start,
+        now,
+        hasSession: itemsData?.hasSession ?? false,
+        hasLeader: itemsData?.hasLeader ?? false,
+        items: (items ?? []).map((it) => ({
+          ratePerHour: it.sku?.target_per_hour ?? null,
+          produced: Number(it.actual_qty ?? 0),
+          startedAt: it.started_at ? new Date(it.started_at) : null,
+          finishedAt: it.finished_at ? new Date(it.finished_at) : null,
+          plannedQty: it.planned_qty,
+        })),
+      }),
+    [items, itemsData, start, now],
+  );
 
-  const barColor = pct >= 95 ? "bg-success" : pct >= 75 ? "bg-warning" : "bg-destructive";
+  const entryAge = useMemo(
+    () => lastEntryAgeMinutes((items ?? []).map((it) => it.updated_at), now),
+    [items, now],
+  );
+
+  const pct = pace.kind === "PACE" ? pace.pct : 0;
+  const status =
+    pace.kind === "PACE"
+      ? { label: VERDICT_LABEL[pace.verdict], color: VERDICT_COLOR[pace.verdict] }
+      : { label: PACE_MESSAGES[pace.kind].toUpperCase(), color: "bg-wall-line" };
+
+  // The bar keeps showing progress against the shift plan; only its colour is
+  // driven by the pace, so a line that is on pace is not painted red by a plan
+  // it still has seven hours to finish.
+  const planPct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
+  const barColor = pace.kind === "PACE" ? VERDICT_COLOR[pace.verdict] : "bg-wall-line";
 
   const goFullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -281,17 +329,30 @@ export default function LineDisplayScreen() {
 
         <WallTile label="TARGET" value={target.toLocaleString()} accent="text-primary" />
         <WallTile label="ACTUAL" value={actual.toLocaleString()} accent="text-success-strong" />
-        <WallTile label="REMAINING" value={remaining.toLocaleString()} accent="text-warning-strong" />
+        <WallTile label="REMAINING" value={balanceLabel(target, actual)} accent="text-warning-strong" />
         <WallTile label="SHIFT ENDS IN" value={countdown} accent="text-purple-400" mono />
       </div>
 
       <div className="bg-wall-panel rounded-2xl p-6">
         <div className="flex justify-between mb-3 text-xl">
-          <span className="text-wall-ink-muted">Progress</span>
-          <span className="font-bold">{pct.toFixed(1)}%</span>
+          <span className="text-wall-ink-muted">Pace — against the target for the time worked so far</span>
+          <span className="font-bold">
+            {pace.kind === "PACE" ? `${pct.toFixed(1)}%` : PACE_MESSAGES[pace.kind]}
+          </span>
         </div>
         <div className="h-12 bg-wall-line rounded-full overflow-hidden">
-          <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${pct}%` }} />
+          {/* Width is still progress against the shift plan — that is what the
+              countdown is for. Only the colour follows the pace. */}
+          <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${planPct}%` }} />
+        </div>
+        {/* The screen states its own imprecision rather than leaving it to be
+            found out. Both notes are removable the day their cause is fixed. */}
+        <div className="mt-3 text-sm text-wall-ink-muted space-y-1">
+          <p>Planned stops (deep clean, breaks, no planned shift) are not yet deducted — the pace reads slightly low.</p>
+          <p>
+            Figures are operator entries, not a live machine count
+            {entryAge != null ? ` · last entry ${entryAge} min ago` : " · nothing entered yet"}.
+          </p>
         </div>
       </div>
 
