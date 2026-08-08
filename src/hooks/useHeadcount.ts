@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from "@/lib/copyBoard";
+import { keepsLeadership } from "@/lib/leaderMark";
 import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
 
@@ -553,24 +554,12 @@ export function useAllocationMutations(onDate: string, shift: string) {
               status === "assigned" || status === "overtime"
                 ? input.leftEarlyAt ?? null
                 : null,
-            // Moving somebody out of a column ends their leadership of it.
-            //
-            // Leadership is a fact about a column on a day — `one_leader_per_area` is a
-            // unique index over (day, shift, area) where `is_leader` — and this write
-            // used to change the column and leave the mark behind. Dragging the leader
-            // of Line 1 onto Line 2, which already had one, made two leaders of Line 2
-            // and Postgres refused the whole statement: "duplicate key value violates
-            // unique constraint daily_allocations_one_leader_per_area", in those words,
-            // to somebody who had only dragged a card. Nothing saved, and nothing said
-            // what to do about it.
-            //
-            // Leaving the column, or stopping working the day at all, drops the mark.
-            // It is claimed on the column itself, and one press puts it back.
-            is_leader:
-              prev?.is_leader === true
-              && (status === "assigned" || status === "overtime")
-              && input.areaId !== null
-              && input.areaId === (prev?.area_id ?? null),
+            // Moving somebody out of a column ends their leadership of it. The rule is
+            // in `keepsLeadership`, with the index it exists to satisfy and the evening
+            // it was learnt on. The sheet import writes `area_id` too and asks the same
+            // function: the rule had already been written twice, and the second copy is
+            // how the import came to carry a mark the board would have dropped.
+            is_leader: keepsLeadership(prev, { areaId: input.areaId, status }),
           },
           { onConflict: "on_date,shift,employee_id" },
         );
