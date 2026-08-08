@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyLive, STALE_AFTER_SECONDS, type LiveReading } from "./lineLiveStatus";
+import { classifyLive, formatStopDuration, STALE_AFTER_SECONDS, type LiveReading } from "./lineLiveStatus";
 
 const now = new Date("2026-08-08T17:00:00.000Z");
 const secondsAgo = (s: number) => new Date(now.getTime() - s * 1000);
@@ -100,5 +100,63 @@ describe("classifyLive — nothing to read", () => {
       expect(r.rawStatus).toBe(status);
       expect(r.state).toBe("RUNNING");
     }
+  });
+});
+
+describe("how long the line has been stopped", () => {
+  it("times a stop from when the poll first saw it", () => {
+    const r = classifyLive(
+      reading({ status: 7, reason: "Filling Blender/ Blending", planned: true, stopSince: secondsAgo(1169) }),
+      now,
+    );
+    expect(r.stoppedForSeconds).toBe(1169);
+    expect(formatStopDuration(r.stoppedForSeconds)).toBe("0:19:29");
+  });
+
+  it("times nothing while the line is running", () => {
+    // A counter beside "RUNNING" would be timing nothing, and iTouching's own
+    // board puts a clock beside a stop and not beside a running line.
+    const r = classifyLive(reading({ stopSince: secondsAgo(900) }), now);
+    expect(r.state).toBe("RUNNING");
+    expect(r.stoppedForSeconds).toBeNull();
+  });
+
+  it("has no counter for a stop nobody started tracking", () => {
+    // Maintenance stops carry a work order and are timed by the order's clock.
+    const r = classifyLive(reading({ status: 7, reason: "Electrical Issue", planned: false, stopSince: null }), now);
+    expect(r.state).toBe("UNPLANNED_STOP");
+    expect(r.stoppedForSeconds).toBeNull();
+  });
+
+  it("keeps counting a stop whose reading has gone stale", () => {
+    const r = classifyLive(
+      reading({ status: 7, reason: "Breaks", planned: true, stopSince: secondsAgo(3600), seenAt: secondsAgo(600) }),
+      now,
+    );
+    expect(r.state).toBe("NO_SIGNAL");
+    expect(formatStopDuration(r.stoppedForSeconds)).toBe("1:00:00");
+  });
+
+  it("never counts backwards", () => {
+    const r = classifyLive(
+      reading({ status: 7, reason: "Breaks", planned: true, stopSince: new Date(now.getTime() + 5000) }),
+      now,
+    );
+    expect(r.stoppedForSeconds).toBe(0);
+  });
+});
+
+describe("formatStopDuration", () => {
+  it("writes H:MM:SS the way the iTouching board does", () => {
+    expect(formatStopDuration(0)).toBe("0:00:00");
+    expect(formatStopDuration(59)).toBe("0:00:59");
+    expect(formatStopDuration(1169)).toBe("0:19:29");
+    expect(formatStopDuration(7898)).toBe("2:11:38");
+    expect(formatStopDuration(36000)).toBe("10:00:00");
+  });
+
+  it("has nothing to write without a duration", () => {
+    expect(formatStopDuration(null)).toBeNull();
+    expect(formatStopDuration(-1)).toBeNull();
   });
 });

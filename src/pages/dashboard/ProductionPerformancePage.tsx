@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -17,7 +17,7 @@ import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Do
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { getCurrentFactoryShift, getCurrentShiftStart, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
-import { classifyLive, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
+import { classifyLive, formatStopDuration, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { computePace, PACE_MESSAGES } from "@/lib/linePerformance";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
@@ -206,11 +206,20 @@ export default function ProductionPerformancePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the view is newer than the generated types
       const { data, error } = await (supabase as any)
         .from("v_line_live_status")
-        .select("line, machine, status, reason, planned, seen_at");
+        .select("line, machine, status, reason, planned, seen_at, stop_since");
       if (error) throw error;
-      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null }[];
+      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null; stop_since: string | null }[];
     },
   });
+
+  // The board's own second hand. The live read arrives every 20s; a stop counter
+  // that jumped twenty seconds at a time would read as broken, and this is the one
+  // number on the page that has to move to be believed.
+  const [, setSecond] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSecond((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const liveByLine = useMemo(() => {
     const norm = (s: string | null | undefined) => String(s ?? "").trim().toLowerCase();
@@ -221,6 +230,7 @@ export default function ProductionPerformancePage() {
         reason: r.reason,
         planned: r.planned,
         seenAt: r.seen_at ? new Date(r.seen_at) : null,
+        stopSince: r.stop_since ? new Date(r.stop_since) : null,
       });
     }
     return m;
@@ -843,13 +853,31 @@ export default function ProductionPerformancePage() {
                       <span className="truncate font-display text-2xs font-bold tracking-[0.1em]">
                         ● {live.label}
                       </span>
-                      {/* The age is on the pill, not hidden in a tooltip: a state
-                          nobody has confirmed for ten minutes is not a state. */}
-                      {live.ageSeconds != null && (
-                        <span className="shrink-0 font-mono text-2xs tabular-nums opacity-70">
-                          {live.ageSeconds < 90 ? `${live.ageSeconds}s` : `${Math.floor(live.ageSeconds / 60)}m`}
-                        </span>
-                      )}
+                      {/* How long the line has been in this stop, in iTouching's own
+                          H:MM:SS, so the two screens can be read side by side without
+                          anyone converting anything. It counts on the board's clock,
+                          not on the poll's, because a stop counter that only moved
+                          every twenty seconds would read as broken.
+
+                          When there is no stop to time, the reading's own age takes
+                          the slot — a state nobody has confirmed for ten minutes is
+                          not a state. */}
+                      {(() => {
+                        const stopFor = formatStopDuration(live.stoppedForSeconds);
+                        if (stopFor) {
+                          return (
+                            <span className="shrink-0 font-figure text-2xs font-bold" title="How long this stop has been running, as first seen by the poll">
+                              {stopFor}
+                            </span>
+                          );
+                        }
+                        if (live.ageSeconds == null) return null;
+                        return (
+                          <span className="shrink-0 font-figure text-2xs opacity-70">
+                            {live.ageSeconds < 90 ? `${live.ageSeconds}s` : `${Math.floor(live.ageSeconds / 60)}m`}
+                          </span>
+                        );
+                      })()}
                     </div>
                   );
                 })()}

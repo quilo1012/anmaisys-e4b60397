@@ -32,7 +32,14 @@ SELECT DISTINCT ON (l.name)
     ELSE 'Unmapped stop code'
   END                                      AS reason,
   c.planned                                AS planned,
-  m.last_seen_at                           AS seen_at
+  m.last_seen_at                           AS seen_at,
+  -- When the poll FIRST SAW this stop, which is not the same as when the stop
+  -- began: it is accurate to the poll's one-minute interval, and for a stop that
+  -- was already running before tracking was fixed on 08/08 it reads from the
+  -- moment tracking started. The board says "for" rather than "since" for that
+  -- reason. Null for a maintenance stop — those carry a work order, and the
+  -- order's own clock is the one that counts against it.
+  m.prod_dt_started_at                     AS stop_since
 FROM public.intouch_machine_map m
 JOIN public.lines l
   ON l.id = m.line_id

@@ -40,6 +40,14 @@ export interface LiveReading {
   planned: boolean | null;
   /** `intouch_machine_map.last_seen_at`. */
   seenAt: Date | null;
+  /**
+   * `intouch_machine_map.prod_dt_started_at` — when the poll FIRST SAW this stop.
+   * Not when the stop began: the poll runs once a minute, and a stop already
+   * running before tracking was fixed on 08/08 reads from the moment tracking
+   * started. Null for maintenance stops, which carry a work order and are timed
+   * by the order's own clock.
+   */
+  stopSince?: Date | null;
 }
 
 export interface LiveStatus {
@@ -55,11 +63,17 @@ export interface LiveStatus {
    * guess. The label is still shown — wrong and visible beats absent.
    */
   uncatalogued: boolean;
+  /**
+   * How long the line has been in this stop, in seconds, or null when there is
+   * nothing to time. Counts up on the board's own clock so it moves every second
+   * rather than every poll.
+   */
+  stoppedForSeconds: number | null;
 }
 
 export function classifyLive(reading: LiveReading | null | undefined, now: Date): LiveStatus {
   if (!reading) {
-    return { state: "NOT_MAPPED", label: "No machine mapped", ageSeconds: null, rawStatus: null, uncatalogued: false };
+    return { state: "NOT_MAPPED", label: "No machine mapped", ageSeconds: null, rawStatus: null, uncatalogued: false, stoppedForSeconds: null };
   }
 
   const ageSeconds = reading.seenAt
@@ -68,6 +82,12 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
 
   const reason = (reason_ => (reason_ && reason_.trim() ? reason_.trim() : null))(reading.reason);
   const uncatalogued = !!reason && reading.planned === null;
+  // Only a stop has a duration. A running line showing a counter would be timing
+  // nothing, and iTouching's own board puts a clock beside a stop and not beside
+  // "Running".
+  const stoppedForSeconds = reason && reading.stopSince
+    ? Math.max(0, Math.floor((now.getTime() - reading.stopSince.getTime()) / 1000))
+    : null;
 
   // Stale first, and it keeps the reason visible. A line that went down and then
   // fell silent is still down as far as anyone knows; blanking the label would
@@ -81,6 +101,7 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
       ageSeconds,
       rawStatus: reading.status,
       uncatalogued,
+      stoppedForSeconds,
     };
   }
 
@@ -94,6 +115,7 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
       ageSeconds,
       rawStatus: reading.status,
       uncatalogued,
+      stoppedForSeconds,
     };
   }
 
@@ -101,7 +123,7 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
   // exactly what iTouching is saying, and RUNNING is iTouching's own word for it:
   // its screen legend reads RUNNING / STOPPED-NO CODE / UNPLANNED STOP / PLANNED
   // STOP. The board must not invent a vocabulary the floor does not already read.
-  return { state: "RUNNING", label: "RUNNING", ageSeconds, rawStatus: reading.status, uncatalogued: false };
+  return { state: "RUNNING", label: "RUNNING", ageSeconds, rawStatus: reading.status, uncatalogued: false, stoppedForSeconds: null };
 }
 
 /**
@@ -118,3 +140,15 @@ export const LIVE_TONE: Record<LiveState, string> = {
   NO_SIGNAL: "bg-muted text-muted-foreground border-border",
   NOT_MAPPED: "bg-muted text-muted-foreground border-border",
 };
+
+/**
+ * H:MM:SS, the way the iTouching board writes a stop's duration, so the two
+ * screens can be compared at a glance without anyone converting anything.
+ */
+export function formatStopDuration(seconds: number | null): string | null {
+  if (seconds == null || seconds < 0) return null;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
