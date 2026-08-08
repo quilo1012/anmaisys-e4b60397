@@ -5,7 +5,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  // anmaisys-e4b60397/ is an accidental clone of this repo (see .gitignore).
+  // Without it here, every file gets linted twice and the counts double.
+  { ignores: ["dist", "anmaisys-e4b60397"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
