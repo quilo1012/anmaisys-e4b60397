@@ -392,11 +392,18 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
   };
 
   // ── Auto-create missing tablets (one per line) ───────────
-  const DEFAULT_TABLET_PASSWORD = "Tablet@AN2026!";
+  // SECURITY: each tablet gets its own randomly generated password.
+  // No shared/default credential exists anywhere in code.
   const [autoOpen, setAutoOpen] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [autoResults, setAutoResults] = useState<
-    { line_name: string; email: string; status: "created" | "skipped" | "failed"; reason?: string }[]
+    {
+      line_name: string;
+      email: string;
+      status: "created" | "skipped" | "failed";
+      reason?: string;
+      password?: string;
+    }[]
   >([]);
 
   const linesWithoutTablet = useMemo(() => {
