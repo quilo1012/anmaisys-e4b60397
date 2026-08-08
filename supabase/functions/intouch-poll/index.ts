@@ -455,15 +455,46 @@ Deno.serve(async (req) => {
     );
     const unknownCodes = [...seenCodes].filter((k) => !codeLookup.has(k));
 
-    if (unknownCodes.length > 0) {
+    // A code we have never seen is not the only reason to ask iTouching what its
+    // codes are called. A code we already hold can be RENAMED there, and until
+    // now nothing ever noticed: the upsert below carried ignoreDuplicates, so an
+    // existing row's label was written once and never again.
+    //
+    // On 08/08 iTouching showed Filler Line 3 as "Filling Blender/ Blending" and
+    // this system showed "Electrical Stop" — same GUID, two names, and the wrong
+    // one was the one with requires_wo on it. A stop that raises an order under a
+    // name nobody on the floor recognises is worse than no name at all.
+    //
+    // So it also refreshes on age. /api/DowntimeCode is a short list and this
+    // asks for it at most once an hour, which is nothing against the daily egress
+    // the poll already lives inside.
+    const REFRESH_CODES_AFTER_MS = 60 * 60 * 1000;
+    let codesAreStale = true;
+    try {
+      const { data: newest } = await admin
+        .from("intouch_stop_code_map")
+        .select("updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const last = newest?.updated_at ? new Date(newest.updated_at).getTime() : 0;
+      codesAreStale = Date.now() - last > REFRESH_CODES_AFTER_MS;
+    } catch { /* ask iTouching if we cannot tell */ }
+
+    if (unknownCodes.length > 0 || codesAreStale) {
       try {
         const codes: Array<{ ID: string; Name: string; Active: boolean }> =
           await it(`/api/DowntimeCode`);
         if (codes?.length) {
+          const seenIso = new Date().toISOString();
           for (const c of codes) {
             const k = normalizeStopCode(c.ID);
             if (k) uuidToName.set(k, c.Name ?? "");
           }
+
+          // New codes arrive with requires_wo off. Whether a stop calls out an
+          // engineer is an admin's decision, and a code appearing in a catalogue
+          // is not that decision being made.
           await admin.from("intouch_stop_code_map").upsert(
             codes
               .filter((c) => c.ID)
@@ -472,9 +503,40 @@ Deno.serve(async (req) => {
                 label: c.Name || `iTouching ${c.ID}`,
                 requires_wo: false,
                 active: c.Active !== false,
+                updated_at: seenIso,
               })),
             { onConflict: "stop_code", ignoreDuplicates: true },
           );
+
+          // Existing codes: the NAME and whether iTouching still offers it belong
+          // to iTouching and are taken from it. `requires_wo`, `category` and
+          // `default_priority` belong to an admin here and are never touched —
+          // which is the whole reason this is a second statement rather than an
+          // upsert with ignoreDuplicates turned off.
+          for (const c of codes) {
+            const k = normalizeStopCode(c.ID);
+            if (!k) continue;
+            const row = codeLookup.get(k) as { label?: string | null; active?: boolean } | undefined;
+            if (!row) continue; // just inserted above
+            const name = c.Name || `iTouching ${c.ID}`;
+            const stillOffered = c.Active !== false;
+            if (row.label === name && row.active === stillOffered) continue;
+            await admin.from("intouch_stop_code_map")
+              .update({ label: name, active: stillOffered, updated_at: seenIso })
+              .eq("stop_code", k);
+            results.skipped.push(`stop code renamed: "${row.label}" → "${name}"`);
+            // Keep this run honest too, rather than making the floor wait a minute
+            // for the name it is already looking at on the iTouching screen.
+            row.label = name;
+            row.active = stillOffered;
+          }
+
+          // Stamp the whole set as seen, so the hourly check measures when we last
+          // ASKED and not when a name last happened to change. Without this, a
+          // catalogue that never changes would be re-fetched every single poll.
+          await admin.from("intouch_stop_code_map")
+            .update({ updated_at: seenIso })
+            .in("stop_code", codes.filter((c) => c.ID).map((c) => normalizeStopCode(c.ID)));
         }
       } catch (e) {
         results.errors.push(`DowntimeCode list: ${(e as Error).message}`);
