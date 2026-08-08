@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { getCurrentFactoryShift, getCurrentShiftStart, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { classifyLive, formatStopDuration, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
+import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
 import { computePace, PACE_MESSAGES } from "@/lib/linePerformance";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
@@ -835,14 +836,33 @@ export default function ProductionPerformancePage() {
                     morning and be running perfectly at this minute. */}
                 {(() => {
                   const live = classifyLive(liveByLine.get(l.line.trim().toLowerCase()), new Date());
+                  // iTouching's own colour for this exact stop code, so the two
+                  // screens name the same stop with the same colour and nobody has
+                  // to translate between them mid-shift. It identifies WHICH stop
+                  // this is; how the line is doing stays on the rail, and the two
+                  // are allowed to disagree — a line can be on a planned clean and
+                  // still be the worst performer of the shift.
+                  //
+                  // Carried at low alpha with the text left on `foreground`, because
+                  // twelve hues chosen for a white industrial panel cannot all be
+                  // read against in a dark theme. The solid dot is where the hue is
+                  // stated at full strength.
+                  const hue = live.state === "RUNNING"
+                    ? ITOUCH_RUNNING
+                    : (live.state === "PLANNED_STOP" || live.state === "UNPLANNED_STOP")
+                      ? stopColour(live.label)
+                      : null;
+                  const ambiguous = isAmbiguousStop(live.label);
                   return (
                     <div
-                      className={`mt-2 flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${LIVE_TONE[live.state]}`}
-                      title={
+                      className={`mt-2 flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${hue ? "text-foreground" : LIVE_TONE[live.state]}`}
+                      style={hue ? { backgroundColor: `${hue}1F`, borderColor: `${hue}59` } : undefined}
+                      title={[
                         live.ageSeconds == null
                           ? "iTouching has never reported this machine"
-                          : `iTouching, read ${live.ageSeconds}s ago${live.rawStatus != null ? ` · status ${live.rawStatus}` : ""}`
-                      }
+                          : `iTouching, read ${live.ageSeconds}s ago${live.rawStatus != null ? ` · status ${live.rawStatus}` : ""}`,
+                        ambiguous ? "iTouching holds two codes called Metal Detected, in two colours; they cannot be told apart from here" : null,
+                      ].filter(Boolean).join(" · ")}
                     >
                       {/* Verbatim, and NOT uppercased. The stop reason is the name
                           iTouching itself holds for that code — "Deep Clean", "No
@@ -850,8 +870,15 @@ export default function ProductionPerformancePage() {
                           this board reads the same words on the iTouching screen.
                           Case-shifting it here makes it a second name for the same
                           thing, which is exactly what a shared vocabulary is not. */}
-                      <span className="truncate font-display text-2xs font-bold tracking-[0.1em]">
-                        ● {live.label}
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: hue ?? "currentColor" }}
+                          aria-hidden
+                        />
+                        <span className="truncate font-display text-2xs font-bold tracking-[0.1em]">
+                          {live.label}{ambiguous ? " *" : ""}
+                        </span>
                       </span>
                       {/* How long the line has been in this stop, in iTouching's own
                           H:MM:SS, so the two screens can be read side by side without
