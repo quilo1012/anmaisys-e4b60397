@@ -399,11 +399,24 @@ Deno.serve(async (req) => {
       .from("intouch_stop_code_map")
       .select("stop_code, label, default_priority, requires_wo, active");
 
-    // Behaviour — which stops open a WO, which are tracked as production downtime —
-    // is decided by ACTIVE codes only, as before.
+    // The third time this file learns the same lesson, and the last map still
+    // getting it wrong.
+    //
+    // This one was active-only, and it is what decides whether a stop is TRACKED
+    // as production downtime: `isProdCode` reads it, and an inactive code returns
+    // undefined, so the clock never starts. Every planned code in the Admin Centre
+    // is currently inactive — Breaks, Brushing and Cleaning, Mechanical Stop, No
+    // Planned Shift — so on 08/08 all ten mapped machines carried a stop code and
+    // not one was being tracked. production_downtimes has had no rows since 29/07
+    // for this reason, which in turn makes planned_stop_minutes() return zero for
+    // every line, which is why the pace on the line board cannot yet deduct a deep
+    // clean from the time a line is judged on.
+    //
+    // Deactivating a code in the Admin Centre says "stop offering this to
+    // operators". It has never meant "stop measuring the stops we already see",
+    // any more than it meant stop naming them or stop calling out an engineer.
     const codeLookup = new Map(
-      (codeMap ?? []).filter((c) => c.active === true)
-        .map((c) => [normalizeStopCode(c.stop_code), c]),
+      (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c]),
     );
 
     // Naming is a different question, and it reads EVERY code, active or not.
@@ -421,18 +434,19 @@ Deno.serve(async (req) => {
     // Whether a stop raises an order is the same kind of question as what it is
     // called, and it reads EVERY code too.
     //
-    // `codeLookup` is active-only on purpose — it decides live behaviour. But
     // `requires_wo` is a standing instruction from an admin, not a live one, and
-    // reading it through the active-only map meant a deactivated code fell through
+    // reading it through an active-only map meant a deactivated code fell through
     // the guard below as though nobody had ever mapped it. "Alarm" has been flagged
     // `requires_wo = false` since June and inactive since July, and it still raised
     // WO-639 and WO-640 on Line 2 — labelled "iTouching stop Alarm", because the
     // same miss sent the name down the fallback as well. Deactivating a code must
     // not change what a stop is called, and it must not change whether it calls out
     // an engineer.
-    const codeDecision = new Map(
-      (codeMap ?? []).map((c) => [normalizeStopCode(c.stop_code), c]),
-    );
+    //
+    // Now that `codeLookup` reads every code as well, this is that same map. Kept
+    // under its own name because the question it answers is a different one, and
+    // splitting them again is how the active-only filter came back the last time.
+    const codeDecision = codeLookup;
 
     const seenCodes = new Set(
       (statuses ?? [])
