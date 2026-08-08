@@ -6271,6 +6271,17 @@ export type Database = {
         }
         Relationships: []
       }
+      v_line_live_status: {
+        Row: {
+          line: string | null
+          machine: string | null
+          planned: boolean | null
+          reason: string | null
+          seen_at: string | null
+          status: number | null
+        }
+        Relationships: []
+      }
       v_wo_downtime_total: {
         Row: {
           has_open_stop: boolean | null
