@@ -969,15 +969,14 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
 
           <div className="space-y-3 py-2">
             <div className="rounded-md border bg-muted/30 p-3 text-sm">
-              <div className="font-medium mb-1">Default password (same for all):</div>
-              <code className="font-mono text-xs bg-background px-2 py-1 rounded border">
-                {DEFAULT_TABLET_PASSWORD}
-              </code>
-              <p className="text-xs text-muted-foreground mt-2">
-                Write it down — you'll need it to log in on each tablet. Then use{" "}
-                <strong>Reset password</strong> per station to change it.
+              <div className="font-medium mb-1">Unique password per station</div>
+              <p className="text-xs text-muted-foreground">
+                Each tablet account gets its own randomly generated strong password. The
+                passwords are shown once in the results below — copy them before closing this
+                dialog. You can change any of them later with <strong>Reset password</strong>.
               </p>
             </div>
+
 
             {autoResults.length === 0 ? (
               <>
