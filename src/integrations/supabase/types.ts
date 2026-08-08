@@ -1387,6 +1387,54 @@ export type Database = {
           },
         ]
       }
+      headcount_matrix: {
+        Row: {
+          area_id: string | null
+          created_at: string
+          employee_id: string
+          id: string
+          saved_by: string | null
+          saved_from: string | null
+          shift: string
+          updated_at: string
+        }
+        Insert: {
+          area_id?: string | null
+          created_at?: string
+          employee_id: string
+          id?: string
+          saved_by?: string | null
+          saved_from?: string | null
+          shift: string
+          updated_at?: string
+        }
+        Update: {
+          area_id?: string | null
+          created_at?: string
+          employee_id?: string
+          id?: string
+          saved_by?: string | null
+          saved_from?: string | null
+          shift?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "headcount_matrix_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "headcount_areas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "headcount_matrix_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       intouch_exclusion_map: {
         Row: {
           active: boolean
