@@ -352,19 +352,33 @@ export default function WorkOrderDetail() {
           </div>
         </div>
 
-        {/* Screen-only title with badges */}
+        {/* Screen-only title with badges.
+            A ordem estava ao contrário. O topo a 24 px era o nome de quem abriu a
+            ordem, e a referência — o que identifica esta página, o que se diz em voz
+            alta na linha e o que se escreve na caixa de pesquisa — estava em cinzento
+            pequeno na terceira linha. Quem chega aqui por uma notificação precisa de
+            confirmar QUE ordem é antes de saber de quem veio.
+            Agora a referência é o título, em Plex Mono porque é um código; a linha e a
+            máquina dizem onde é; e o requerente desce para onde os outros campos estão.
+            Uma página de detalhe não usa o `PageHeader` de propósito: aquele nomeia uma
+            secção, este nomeia um registo, e carrega estado ao vivo. */}
         <div className="flex items-start justify-between gap-4 print:hidden">
-          <div className="flex flex-col gap-1 min-w-0 flex-1">
-            <h2 className="text-2xl font-bold truncate" title={wo.requester_name}>
-              {wo.requester_name}
+          <div className="flex flex-col min-w-0 flex-1">
+            <div className="mb-1 font-display text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+              Maintenance · Work order
+            </div>
+            <h2 className="truncate font-figure text-[27px] font-semibold leading-tight tracking-tight" title={woLabel}>
+              {woLabel}
             </h2>
-            <p className="text-base text-muted-foreground truncate" title={wo.machine || (wo as any).line_at_time || ""}>
+            <p className="mt-1 truncate text-base text-muted-foreground" title={wo.machine || (wo as any).line_at_time || ""}>
               {(wo as any).wo_type === "warehouse_service"
                 ? `Warehouse · ${(wo as any).warehouse_location || "—"}`
                 : ([((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—")}
             </p>
-            <div className="flex items-center gap-2 flex-wrap mt-1">
-              <p className="text-muted-foreground text-sm font-mono">{woLabel}</p>
+            <div className="flex items-center gap-2 flex-wrap mt-2">
+              <p className="truncate text-sm text-muted-foreground" title={wo.requester_name}>
+                Raised by {wo.requester_name}
+              </p>
               {(wo as any).wo_type === "warehouse_service" && (
                 <Badge variant="outline" className="text-sm px-3 py-1 bg-primary/15 text-primary border-primary/30" title="Warehouse service — not counted as line downtime or OEE loss">Warehouse</Badge>
               )}
