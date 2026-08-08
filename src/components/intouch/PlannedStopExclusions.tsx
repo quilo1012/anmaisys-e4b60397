@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StopCodeDot } from "@/components/intouch/StopCodeDot";
 import { toast } from "sonner";
 import { Timer } from "lucide-react";
 import { activityLabel } from "@/lib/downtimeExclusions";
@@ -119,7 +120,12 @@ export function PlannedStopExclusions() {
               return (
                 <div key={c.code_id} className="flex items-center justify-between gap-3 rounded-lg border p-2">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">{c.name}</div>
+                    {/* The colour iTouching paints it, so the list somebody switches
+                        these on and off in reads like the panel they came from. */}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <StopCodeDot name={c.name} />
+                      <span className="truncate text-sm font-medium">{c.name}</span>
+                    </div>
                     <div className="flex items-center gap-1 text-2xs text-muted-foreground">
                       <span>#{c.code_id}</span>
                       {m && <Badge variant="outline" className="text-[9px] leading-4">{activityLabel(m.activity)}</Badge>}

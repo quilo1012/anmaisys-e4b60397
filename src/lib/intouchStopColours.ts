@@ -91,6 +91,18 @@ export function isAmbiguousStop(name: string | null | undefined): boolean {
   return !!name && AMBIGUOUS_STOP_NAMES.has(norm(name));
 }
 
+/**
+ * The pill an iTouching colour is worn in, everywhere it is worn.
+ *
+ * Twelve hues chosen for a white industrial panel cannot all be read against in a
+ * dark theme, so the hue tints the background and states itself at full strength in
+ * the dot, while the label stays on `foreground`. The two alphas are the rule, and
+ * they live here so a second screen cannot quietly pick a third pair.
+ */
+export function stopTint(hue: string): { backgroundColor: string; borderColor: string } {
+  return { backgroundColor: `${hue}1F`, borderColor: `${hue}59` };
+}
+
 /** Every colour in the scheme, for a legend. */
 export const STOP_COLOUR_GROUPS: Array<{ colour: string; label: string }> = [
   { colour: FAULT, label: "Equipment fault" },

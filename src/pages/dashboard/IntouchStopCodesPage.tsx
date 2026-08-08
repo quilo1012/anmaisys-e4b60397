@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StopCodeDot } from "@/components/intouch/StopCodeDot";
 import { PlannedStopExclusions } from "@/components/intouch/PlannedStopExclusions";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2, Save, Radar } from "lucide-react";
@@ -216,9 +217,17 @@ export default function IntouchStopCodesPage() {
                             className="font-mono text-xs"
                             onChange={(e) => patch(r.id, { stop_code: e.target.value })} />
                         </TableCell>
+                        {/* The colour iTouching paints this label, if it paints it
+                            at all. This table is where a label is typed, and a name
+                            that has drifted from iTouching's own — a stray space, a
+                            different word — is a name the board can no longer colour.
+                            The dot appearing as you finish typing is the check. */}
                         <TableCell>
-                          <Input value={m.label}
-                            onChange={(e) => patch(r.id, { label: e.target.value })} />
+                          <div className="flex items-center gap-1.5">
+                            <StopCodeDot name={m.label} />
+                            <Input value={m.label}
+                              onChange={(e) => patch(r.id, { label: e.target.value })} />
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Select value={m.default_priority}
