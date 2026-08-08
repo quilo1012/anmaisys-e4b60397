@@ -963,7 +963,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
             </DialogTitle>
             <DialogDescription>
               One tablet account will be created per production line that doesn't have one yet,
-              using the same default password. Change each password individually afterwards.
+              each with its own randomly generated password shown once in the results.
             </DialogDescription>
           </DialogHeader>
 
