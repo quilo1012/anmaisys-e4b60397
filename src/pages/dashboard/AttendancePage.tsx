@@ -22,6 +22,7 @@ import { useRole } from "@/hooks/useRole";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { useEmployees } from "@/hooks/useWorkforce";
 import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/timeMotoSheet";
+import { splitAbsences } from "@/lib/absenceKind";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
@@ -115,7 +116,19 @@ export default function AttendancePage() {
       m.set(d.employee_id, cur);
     }
     return [...m.entries()]
-      .map(([id, v]) => ({ id, name: nameById.get(id) ?? "Unknown", ...v }))
+      .map(([id, v]) => {
+        // Booked holiday is not an absence. It was asked for, granted and paid, and it
+        // comes off an entitlement that has a balance — so it is counted, like the days
+        // present beside it. What is left is the unplanned time, which is read for its
+        // reason rather than its total.
+        const split = splitAbsences(v.absences);
+        return {
+          id, name: nameById.get(id) ?? "Unknown", ...v,
+          holiday: split.holiday,
+          unplanned: split.unplanned,
+          unplannedDays: split.sick + split.unpaid + split.other,
+        };
+      })
       .sort((a, b) => b.worked - a.worked);
   }, [days, nameById]);
 
@@ -123,8 +136,11 @@ export default function AttendancePage() {
     worked: byPerson.reduce((a, p) => a + p.worked, 0),
     balance: byPerson.reduce((a, p) => a + p.balance, 0),
     people: byPerson.length,
-    absenceDays: days.filter((d) => d.absence_name).length,
-  }), [byPerson, days]);
+    // Summed off the same split the rows are drawn from, not counted again off the raw
+    // days. Counting twice is how a header and the column under it start disagreeing.
+    holidayDays: byPerson.reduce((a, p) => a + p.holiday, 0),
+    absenceDays: byPerson.reduce((a, p) => a + p.unplannedDays, 0),
+  }), [byPerson]);
 
   const readFile = async (file: File) => {
     setBusy(true);
@@ -237,7 +253,15 @@ export default function AttendancePage() {
             tone={totals.balance > 0 ? "earned" : totals.balance < 0 ? "owed" : "neutral"}
           />
           <Figure label="People clocked" value={String(totals.people)} />
-          <Figure label="Absence days" value={String(totals.absenceDays)} />
+          <Figure label="Holiday days" value={String(totals.holidayDays)} />
+          <Figure
+            label="Absence days"
+            value={String(totals.absenceDays)}
+            // The hint is here and not on the holiday figure because this is the number
+            // that changed meaning: it used to include holiday, and read as absenteeism
+            // that a shift could act on when most of it was booked leave.
+            hint="Sick, unpaid or unexplained"
+          />
         </FigureRow>
 
         <Card>
@@ -257,7 +281,8 @@ export default function AttendancePage() {
                       <TableHead className="text-right">Worked</TableHead>
                       <TableHead className="text-right">Balance</TableHead>
                       <TableHead className="text-right">Days present</TableHead>
-                      <TableHead>Absences</TableHead>
+                      <TableHead className="text-right">Holiday</TableHead>
+                      <TableHead>Absence</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -269,10 +294,19 @@ export default function AttendancePage() {
                           {hm(p.balance)}
                         </TableCell>
                         <TableCell className="text-right font-figure tabular-nums">{p.present}</TableCell>
+                        {/* A count, set like the days present next to it, because that is
+                            what a holiday is: days off an entitlement. A dash where there
+                            are none, so the column shows at a glance who was away. */}
+                        <TableCell className="text-right font-figure tabular-nums">
+                          {p.holiday === 0 ? <span className="text-muted-foreground">—</span> : p.holiday}
+                        </TableCell>
+                        {/* Names rather than a number: on an unplanned day the reason is
+                            the thing being read. "Sickness ×1" and "Unpaid Leave ×1" are
+                            two different conversations. */}
                         <TableCell className="text-2xs">
-                          {Object.keys(p.absences).length === 0
+                          {Object.keys(p.unplanned).length === 0
                             ? <span className="text-muted-foreground">—</span>
-                            : Object.entries(p.absences).map(([k, n]) => `${k} ×${n}`).join(" · ")}
+                            : Object.entries(p.unplanned).map(([k, n]) => `${k} ×${n}`).join(" · ")}
                         </TableCell>
                       </TableRow>
                     ))}

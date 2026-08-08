@@ -35,6 +35,7 @@
  */
 
 import { expectedShifts } from "@/lib/shiftBalance";
+import { splitAbsences } from "@/lib/absenceKind";
 
 export interface ClosePersonInput {
   employeeId: string;
@@ -138,10 +139,9 @@ export interface ClosePerson extends ClosePersonInput {
   otherAbsence: number;
 }
 
-/** Names the two sources use for the same thing, folded to one word. */
-const SICK = /sick/i;
-const HOLIDAY = /holiday|vacation|annual/i;
-const UNPAID = /unpaid/i;
+// The fold from "Vacation" and "Unpaid Leave" to one vocabulary used to live here as
+// three regexes. It moved to `absenceKind` when Time & Attendance needed the same
+// question answered, because two copies of it would eventually answer differently.
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -177,13 +177,7 @@ export function buildClose(rows: ClosePersonInput[], from: string, to: string): 
           ? null
           : round2(r.payrollOtHours - overtimeHours);
 
-      let sick = 0, holiday = 0, unpaid = 0, otherAbsence = 0;
-      for (const [reason, n] of Object.entries(r.absences)) {
-        if (SICK.test(reason)) sick += n;
-        else if (HOLIDAY.test(reason)) holiday += n;
-        else if (UNPAID.test(reason)) unpaid += n;
-        else otherAbsence += n;
-      }
+      const { sick, holiday, unpaid, other: otherAbsence } = splitAbsences(r.absences);
       // The board's side of the same period. Borrowed from `shiftBalance` rather than
       // rewritten, so there is one definition of "shifts due" — including the rule that
       // only holiday reduces it, and that it never goes below zero when a rota changed
