@@ -593,6 +593,13 @@ Deno.serve(async (req) => {
       // When the machine is healthy, clear any stale downtime code. A previous
       // reset that left status=running but kept a stop code must not count as a
       // real running → stopped transition later.
+      //
+      // Two versions of the clock above met here: this one guards on `codeKey`, the
+      // normalised code, and the other on `currentDowntimeCode != null`. iTouching
+      // sends an EMPTY STRING for a machine that is not stopped, and an empty string
+      // is not null — so that guard put a stop clock on every running machine in the
+      // factory. Harmless on screen, because the view refuses to time a line with no
+      // code, and wrong in the table, which is where the next reader looks.
       await admin.from("intouch_machine_map").update({
         last_status: currentStatus,
         last_downtime_code: currentDowntimeCode,
