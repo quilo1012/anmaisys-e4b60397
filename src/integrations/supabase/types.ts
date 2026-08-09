@@ -1393,6 +1393,7 @@ export type Database = {
           created_at: string
           employee_id: string
           id: string
+          kind: string
           saved_by: string | null
           saved_from: string | null
           shift: string
@@ -1403,6 +1404,7 @@ export type Database = {
           created_at?: string
           employee_id: string
           id?: string
+          kind?: string
           saved_by?: string | null
           saved_from?: string | null
           shift: string
@@ -1413,6 +1415,7 @@ export type Database = {
           created_at?: string
           employee_id?: string
           id?: string
+          kind?: string
           saved_by?: string | null
           saved_from?: string | null
           shift?: string
@@ -1467,6 +1470,7 @@ export type Database = {
           machine_name: string | null
           prod_dt_code: string | null
           prod_dt_started_at: string | null
+          stop_since_at: string | null
           updated_at: string
         }
         Insert: {
@@ -1482,6 +1486,7 @@ export type Database = {
           machine_name?: string | null
           prod_dt_code?: string | null
           prod_dt_started_at?: string | null
+          stop_since_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -1497,6 +1502,7 @@ export type Database = {
           machine_name?: string | null
           prod_dt_code?: string | null
           prod_dt_started_at?: string | null
+          stop_since_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -6327,6 +6333,7 @@ export type Database = {
           reason: string | null
           seen_at: string | null
           status: number | null
+          stop_since: string | null
         }
         Relationships: []
       }

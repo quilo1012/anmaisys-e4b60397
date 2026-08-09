@@ -356,7 +356,7 @@ Deno.serve(async (req) => {
     // 1. Active machines mapped to our system
     const { data: mapped, error: mErr } = await admin
       .from("intouch_machine_map")
-      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, prod_dt_started_at, prod_dt_code")
+      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, prod_dt_started_at, prod_dt_code, stop_since_at")
       .eq("active", true);
     if (mErr) throw mErr;
     if (!mapped?.length) {
@@ -574,11 +574,20 @@ Deno.serve(async (req) => {
       // When the machine is healthy, clear any stale downtime code. A previous
       // reset that left status=running but kept a stop code must not count as a
       // real running → stopped transition later.
+      let stopSinceAt: string | null = null;
+      if (currentDowntimeCode != null) {
+        if (previousCodeKey !== codeKey) {
+          stopSinceAt = now;
+        } else {
+          stopSinceAt = (m.stop_since_at as string | null) ?? now;
+        }
+      }
       await admin.from("intouch_machine_map").update({
         last_status: currentStatus,
         last_downtime_code: currentDowntimeCode,
         last_seen_at: now,
         updated_at: now,
+        stop_since_at: stopSinceAt,
       }).eq("intouch_machine_id", s.MachineID);
 
       // The status is written above whatever the toggle says, so the screens stay
