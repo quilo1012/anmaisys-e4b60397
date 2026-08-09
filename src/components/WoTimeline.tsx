@@ -220,7 +220,7 @@ export function WoTimeline({ workOrderId }: Props) {
                   <p className="text-sm font-medium text-destructive-strong flex items-center gap-1">
                     <XCircle className="h-3.5 w-3.5" /> Declined by {d.engineer_name}
                   </p>
-                  <span className="text-xs font-mono text-muted-foreground">
+                  <span className="text-xs font-figure text-muted-foreground">
                     {format(new Date(d.created_at), "dd/MM HH:mm:ss")}
                   </span>
                 </div>
@@ -237,7 +237,7 @@ export function WoTimeline({ workOrderId }: Props) {
                   <Users className="h-3.5 w-3.5" />
                   Co-engineer joined{d.engineer_name ? ` — ${d.engineer_name}` : ""}
                 </p>
-                <span className="text-xs font-mono text-muted-foreground">
+                <span className="text-xs font-figure text-muted-foreground">
                   {format(new Date(d.created_at), "dd/MM HH:mm:ss")}
                 </span>
               </div>
@@ -253,7 +253,7 @@ export function WoTimeline({ workOrderId }: Props) {
                   {d.action.replace(/[_-]/g, " ")}
                   {d.engineer_name ? ` — ${d.engineer_name}` : ""}
                 </p>
-                <span className="text-xs font-mono text-muted-foreground">
+                <span className="text-xs font-figure text-muted-foreground">
                   {format(new Date(d.created_at), "dd/MM HH:mm:ss")}
                 </span>
               </div>
@@ -280,7 +280,7 @@ export function WoTimeline({ workOrderId }: Props) {
                   const excl = exclusionOverlapMs(s, e, toExclusionIntervals(exclusions));
                   return (
                     <li key={d.id} className="flex items-baseline gap-1.5 text-2xs text-muted-foreground">
-                      <span className="font-mono">{format(new Date(d.stopped_at), "HH:mm")}</span>
+                      <span className="font-figure">{format(new Date(d.stopped_at), "HH:mm")}</span>
                       <span className="min-w-0 flex-1 truncate">
                         {d.stopped_reason || "no reason recorded"}
                         {d.is_recurrence && <span className="ml-1 text-destructive-strong">again</span>}

@@ -64,7 +64,7 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
                     🛑 Stop #{idx + 1}
                     {isOpen && <span className="ml-2 text-destructive-strong uppercase text-xs">— in progress</span>}
                   </p>
-                  <span className="text-xs font-mono">
+                  <span className="text-xs font-figure">
                     {formatDuration(durSec)}{isOpen ? " (live)" : ""}
                   </span>
                 </div>
@@ -113,7 +113,7 @@ export function DowntimeTimelineCard({ workOrderId }: Props) {
                 return (
                   <tr key={e.id}>
                     <td className="border border-black px-2 py-1">{idx + 1}</td>
-                    <td className="border border-black px-2 py-1 font-mono">{format(new Date(e.stopped_at), "dd/MM HH:mm:ss")}</td>
+                    <td className="border border-black px-2 py-1 font-figure">{format(new Date(e.stopped_at), "dd/MM HH:mm:ss")}</td>
                     <td className="border border-black px-2 py-1 font-mono">
                       {e.resumed_at ? format(new Date(e.resumed_at), "dd/MM HH:mm:ss") : "—"}
                     </td>

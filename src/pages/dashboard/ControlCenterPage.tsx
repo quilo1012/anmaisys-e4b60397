@@ -505,7 +505,7 @@ export default function ControlCenterPage() {
                               <TableCell><StatusBadge status={wo.status} label={sc.label} /></TableCell>
                               <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
                               <TableCell>{wo.engineer_name || "—"}</TableCell>
-                              <TableCell className="font-mono">{formatDowntime(downMin)}</TableCell>
+                              <TableCell className="font-figure">{formatDowntime(downMin)}</TableCell>
                               <TableCell className="text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>
                             </TableRow>
                           );
@@ -527,7 +527,7 @@ export default function ControlCenterPage() {
                         <TableCardField label="Line" value={machine ? getZoneFor(machine) : "Unassigned"} />
                         <TableCardField label="Problem" value={wo.description || "—"} block />
                         <TableCardField label="Engineer" value={wo.engineer_name || "—"} />
-                        <TableCardField label="Downtime" value={<span className="font-mono">{formatDowntime(downMin)}</span>} />
+                        <TableCardField label="Downtime" value={<span className="font-figure">{formatDowntime(downMin)}</span>} />
                         <TableCardField label="Created" value={<span className="text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</span>} />
                       </TableCard>
                     );
@@ -641,11 +641,11 @@ export default function ControlCenterPage() {
                                     <p className={cn("font-medium truncate", tvMode ? "text-2xs" : "text-xs")}>{m.name}</p>
                                     <div className="flex items-center justify-between mt-1">
                                       {ms.woCount > 0 ? (
-                                        <span className="text-2xs font-mono">{ms.woCount} WO</span>
+                                        <span className="text-2xs font-figure">{ms.woCount} WO</span>
                                       ) : (
                                         <span className="text-2xs opacity-70">OK</span>
                                       )}
-                                      <span className={cn("rounded px-1 font-mono font-bold flex items-center gap-0.5", getHealthColor(hs), tvMode ? "text-[8px]" : "text-2xs")}>
+                                      <span className={cn("rounded px-1 font-figure font-bold flex items-center gap-0.5", getHealthColor(hs), tvMode ? "text-[8px]" : "text-2xs")}>
                                         <Heart className="h-2.5 w-2.5" /> {hs}
                                       </span>
                                     </div>
@@ -693,7 +693,7 @@ export default function ControlCenterPage() {
                                   <span className="text-2xs text-muted-foreground shrink-0">
                                     {wo.engineer_name || "—"}
                                   </span>
-                                  <span className="font-mono text-2xs shrink-0">
+                                  <span className="font-figure text-2xs shrink-0">
                                     {formatDowntime(downMin)}
                                   </span>
                                 </button>

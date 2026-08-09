@@ -171,12 +171,12 @@ export function MonthlySummary({ employees }: Props) {
                     {STATUSES.map((s) => (
                       <TableCell
                         key={s}
-                        className={`text-right font-mono tabular-nums ${r[s] === 0 ? "text-muted-foreground" : ""}`}
+                        className={`text-right font-figure ${r[s] === 0 ? "text-muted-foreground" : ""}`}
                       >
                         {r[s]}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right font-mono tabular-nums font-semibold">{r.recorded}</TableCell>
+                    <TableCell className="text-right font-figure font-semibold">{r.recorded}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -276,7 +276,7 @@ export default function ProductionForecastPage() {
                       <Badge variant="outline" className="capitalize">{e.source}</Badge>
                     </div>
                     <div className="flex items-center gap-3 text-sm">
-                      <span className="text-muted-foreground">UPM: <span className="font-mono">{e.upm.toFixed(2)}</span></span>
+                      <span className="text-muted-foreground">UPM: <span className="font-figure">{e.upm.toFixed(2)}</span></span>
                       <span className="text-muted-foreground">Runs: {e.runs}</span>
                     </div>
                   </div>
@@ -304,7 +304,7 @@ export default function ProductionForecastPage() {
                           : Math.round(e.upm * SHIFT_MIN);
                         return (
                           <span key={i} className="mr-2">
-                            Shift {i + 1}: <span className="font-mono">{Math.max(0, units).toLocaleString()}</span>
+                            Shift {i + 1}: <span className="font-figure">{Math.max(0, units).toLocaleString()}</span>
                           </span>
                         );
                       })}

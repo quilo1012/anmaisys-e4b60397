@@ -94,7 +94,7 @@ export function MissingDowntimeAlert({ from, to }: { from: Date; to: Date }) {
                   <span className="shrink-0 font-medium">{o.line_at_time ?? o.machine ?? "—"}</span>
                   <span className="min-w-0 flex-1 truncate text-muted-foreground">{o.description}</span>
                   {o.mins != null && (
-                    <span className="shrink-0 font-mono tabular-nums text-warning-strong">
+                    <span className="shrink-0 font-figure text-warning-strong">
                       {Math.floor(o.mins / 60)}h {String(o.mins % 60).padStart(2, "0")}m
                     </span>
                   )}

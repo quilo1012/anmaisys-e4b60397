@@ -419,7 +419,7 @@ export function EmployeeDetailPanel({
               <>
                 <div className="rounded border p-2">
                   <div className="text-2xs uppercase text-muted-foreground">Across all periods</div>
-                  <div className={cn("font-mono text-2xl font-bold", total < 0 && "text-destructive-strong")}>
+                  <div className={cn("font-figure text-2xl font-bold", total < 0 && "text-destructive-strong")}>
                     {total}h
                   </div>
                 </div>
@@ -429,7 +429,7 @@ export function EmployeeDetailPanel({
                       <div className="truncate font-medium">{o.period?.label ?? "—"}</div>
                       {o.note && <div className="truncate text-2xs text-muted-foreground">{o.note}</div>}
                     </div>
-                    <span className={cn("shrink-0 font-mono font-bold", Number(o.hours) < 0 && "text-destructive-strong")}>
+                    <span className={cn("shrink-0 font-figure font-bold", Number(o.hours) < 0 && "text-destructive-strong")}>
                       {Number(o.hours)}h
                     </span>
                   </div>

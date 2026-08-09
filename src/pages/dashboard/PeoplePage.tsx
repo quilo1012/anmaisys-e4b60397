@@ -155,7 +155,7 @@ export default function PeoplePage() {
                         <TableCell className={r.department ? "" : "text-muted-foreground"}>
                           {r.department ?? "to confirm"}
                         </TableCell>
-                        <TableCell className="font-mono text-xs tabular-nums">
+                        <TableCell className="font-figure text-xs">
                           {r.left_on
                             ? format(new Date(`${r.left_on}T12:00:00`), "dd/MM/yyyy")
                             : <span className="font-sans text-muted-foreground">no date recorded</span>}

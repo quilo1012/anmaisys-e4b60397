@@ -1282,7 +1282,7 @@ export default function DowntimePage() {
                               <div className="flex items-center justify-between text-xs text-muted-foreground">
                                 <Badge variant="outline">{r.category}</Badge>
                                 <span>{format(new Date(r.started_at), "dd/MM HH:mm")}</span>
-                                <span className="font-mono">{getDuration(r)}</span>
+                                <span className="font-figure">{getDuration(r)}</span>
                               </div>
                               {r.source === "wo_event" ? (
                                 <Button
@@ -1335,7 +1335,7 @@ export default function DowntimePage() {
                               <TableCell><Badge variant="outline">{r.category}</Badge></TableCell>
                               <TableCell className="max-w-[200px] truncate">{r.reason}</TableCell>
                               <TableCell className="text-sm whitespace-nowrap">{format(new Date(r.started_at), "dd/MM HH:mm")}</TableCell>
-                              <TableCell className="font-mono text-sm">{getDuration(r)}</TableCell>
+                              <TableCell className="font-figure text-sm">{getDuration(r)}</TableCell>
                               <TableCell>
                                 {r.ended_at ? <StatusBadge status="resolved" /> : <StatusBadge status="active" />}
                               </TableCell>

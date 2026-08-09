@@ -70,7 +70,7 @@ export function LineStatusBanner({
               {stoppedDuration !== null && (
                 <p className="text-sm text-destructive-strong/80">
                   Currently down for:{" "}
-                  <span className="font-mono font-bold">
+                  <span className="font-figure font-bold">
                     {stoppedDuration}m
                   </span>
                 </p>
@@ -92,7 +92,7 @@ export function LineStatusBanner({
         <PowerOff className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>LINE STOPPED</span>
         {stoppedDuration !== null && (
-          <span className="font-mono">· {stoppedDuration}m ago</span>
+          <span className="font-figure">· {stoppedDuration}m ago</span>
         )}
         {machine && <span className="opacity-80">· {machine}</span>}
       </div>
@@ -124,7 +124,7 @@ export function LineStatusBanner({
               {totalDowntime !== null && (
                 <p className="text-sm text-success-strong/80">
                   Total downtime:{" "}
-                  <span className="font-mono font-bold">{totalDowntime}m</span>
+                  <span className="font-figure font-bold">{totalDowntime}m</span>
                 </p>
               )}
               <p className="text-xs text-muted-foreground mt-2">
@@ -145,7 +145,7 @@ export function LineStatusBanner({
         <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span>LINE RUNNING</span>
         {totalDowntime !== null && (
-          <span className="font-mono">· downtime: {totalDowntime}m</span>
+          <span className="font-figure">· downtime: {totalDowntime}m</span>
         )}
       </div>
     );

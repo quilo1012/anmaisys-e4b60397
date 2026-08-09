@@ -163,7 +163,7 @@ function LiveClock() {
   const timeLong = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const date = now.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
   return (
-    <div className="hidden xs:flex sm:flex text-xs sm:text-sm font-mono text-muted-foreground tabular-nums items-center">
+    <div className="hidden xs:flex sm:flex text-xs sm:text-sm font-figure text-muted-foreground items-center">
       <span className="font-semibold text-foreground sm:hidden">{timeShort}</span>
       <span className="hidden sm:inline font-semibold text-foreground">{timeLong}</span>
       <span className="mx-2 hidden md:inline">—</span>

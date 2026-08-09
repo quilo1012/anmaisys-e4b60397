@@ -555,7 +555,7 @@ export default function IntouchSettingsPage() {
                 <div className="font-medium">
                   Auto-map summary: {autoMapResult.saved} saved · {autoMapResult.matched - autoMapResult.saved} already mapped · {autoMapResult.skipped} skipped · {autoMapResult.total} total
                 </div>
-                <div className="max-h-48 overflow-auto text-xs font-mono space-y-1">
+                <div className="max-h-48 overflow-auto text-xs font-figure space-y-1">
                   {autoMapResult.details.map((d, i) => (
                     <div key={i} className={
                       d.status === "saved" ? "text-success-strong" :

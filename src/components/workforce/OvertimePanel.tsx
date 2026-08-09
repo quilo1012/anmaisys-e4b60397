@@ -180,7 +180,7 @@ export function OvertimePanel({ employees, entries, activePeriod }: Props) {
                     {r.department || "to confirm"}
                   </TableCell>
                   <TableCell
-                    className={`text-right font-mono tabular-nums ${r.hours < 0 ? "font-bold text-destructive-strong" : ""}`}
+                    className={`text-right font-figure ${r.hours < 0 ? "font-bold text-destructive-strong" : ""}`}
                   >
                     {fmtHours(r.hours)}
                   </TableCell>
