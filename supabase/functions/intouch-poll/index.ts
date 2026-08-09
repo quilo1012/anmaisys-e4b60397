@@ -356,7 +356,7 @@ Deno.serve(async (req) => {
     // 1. Active machines mapped to our system
     const { data: mapped, error: mErr } = await admin
       .from("intouch_machine_map")
-      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, prod_dt_started_at, prod_dt_code")
+      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, stop_since_at, prod_dt_started_at, prod_dt_code")
       .eq("active", true);
     if (mErr) throw mErr;
     if (!mapped?.length) {
@@ -570,6 +570,25 @@ Deno.serve(async (req) => {
       const previousCodeKey = normalizeStopCode(m.last_downtime_code);
       const hadPreviousSnapshot = Boolean(m.last_seen_at);
 
+      // How long this line has been down, for the board — and for nothing else.
+      //
+      // Not `prod_dt_started_at`. That column is the production-downtime ledger's
+      // bookkeeping: it opens only for codes that do NOT require a work order, and
+      // it is deliberately cleared when maintenance takes the stoppage over, so the
+      // same minutes are not billed twice. Correct for the ledger, and useless as an
+      // answer to "how long has this line been standing still" — which is the
+      // question the performance board asks, and which came back null for 23 of the
+      // 48 mapped codes. The card then filled the slot with the age of the last
+      // poll: "Filling Blender/ Blending — 78s", on a stop that had run for hours.
+      //
+      // The same code still there → the clock is left alone. A different code, or a
+      // stop where there was none → it starts now. No code at all → nothing to time.
+      // The reading is stamped in the same statement as the status it belongs to, so
+      // a machine can never be seen stopped with no clock on it.
+      const stopSinceAt = !codeKey
+        ? null
+        : (previousCodeKey === codeKey && m.stop_since_at ? m.stop_since_at : now);
+
       // Persist last-seen status before deciding, so first poll becomes a safe baseline.
       // When the machine is healthy, clear any stale downtime code. A previous
       // reset that left status=running but kept a stop code must not count as a
@@ -578,6 +597,7 @@ Deno.serve(async (req) => {
         last_status: currentStatus,
         last_downtime_code: currentDowntimeCode,
         last_seen_at: now,
+        stop_since_at: stopSinceAt,
         updated_at: now,
       }).eq("intouch_machine_id", s.MachineID);
 

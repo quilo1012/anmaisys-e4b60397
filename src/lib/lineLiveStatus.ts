@@ -142,6 +142,46 @@ export const LIVE_TONE: Record<LiveState, string> = {
 };
 
 /**
+ * The one number the card writes beside the stop reason — and WHICH number it is.
+ *
+ * There is a single slot to the right of the reason, and it used to carry two
+ * different quantities without ever saying which: the stop's duration when one
+ * was being tracked, and the READING'S AGE when it was not. Both are seconds,
+ * both in the same figure style, in the same place. Line 1 sat in "Filling
+ * Blender/ Blending" and the card read "78s" — the age of the last poll, on a
+ * stop that had been running far longer. In the slot where a stop's duration
+ * goes, that is not an approximation, it is a different fact wearing its clothes.
+ *
+ * So the kind is returned with the text and the card styles the two apart. When
+ * a stop has no clock the card says so — an empty slot reads as "just stopped",
+ * and "we are not timing this one" is a different thing to say.
+ */
+export type StopClockKind = "STOP" | "UNTIMED" | "AGE";
+
+export interface StopClock {
+  kind: StopClockKind;
+  text: string;
+}
+
+export function stopClock(live: LiveStatus): StopClock | null {
+  const stopped = live.state === "PLANNED_STOP" || live.state === "UNPLANNED_STOP"
+    // A stop that has gone quiet is still a stop, and its clock is the one worth
+    // reading — the label already carries "NO SIGNAL · last: …".
+    || (live.state === "NO_SIGNAL" && live.stoppedForSeconds != null);
+
+  if (stopped) {
+    const timed = formatStopDuration(live.stoppedForSeconds);
+    return timed ? { kind: "STOP", text: timed } : { kind: "UNTIMED", text: "—" };
+  }
+
+  if (live.ageSeconds == null) return null;
+  return {
+    kind: "AGE",
+    text: live.ageSeconds < 90 ? `${live.ageSeconds}s` : `${Math.floor(live.ageSeconds / 60)}m`,
+  };
+}
+
+/**
  * H:MM:SS, the way the iTouching board writes a stop's duration, so the two
  * screens can be compared at a glance without anyone converting anything.
  */

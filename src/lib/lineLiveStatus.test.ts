@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyLive, formatStopDuration, STALE_AFTER_SECONDS, type LiveReading } from "./lineLiveStatus";
+import { classifyLive, formatStopDuration, stopClock, STALE_AFTER_SECONDS, type LiveReading } from "./lineLiveStatus";
 
 const now = new Date("2026-08-08T17:00:00.000Z");
 const secondsAgo = (s: number) => new Date(now.getTime() - s * 1000);
@@ -143,6 +143,54 @@ describe("how long the line has been stopped", () => {
       now,
     );
     expect(r.stoppedForSeconds).toBe(0);
+  });
+});
+
+describe("the one number beside the stop reason", () => {
+  // O cartão tem UMA ranhura à direita da razão, e até aqui punha nela duas
+  // grandezas diferentes sem dizer qual: o tempo da paragem quando havia um, e
+  // a IDADE DA LEITURA quando não havia. As duas escrevem-se em segundos e no
+  // mesmo estilo. Line 1 esteve em "Filling Blender/ Blending" — um código
+  // requires_wo, que nunca recebia relógio — e o cartão mostrou "78s" ao lado
+  // de uma paragem que já durava muito mais do que isso. Lia-se como o tempo da
+  // paragem porque está no lugar do tempo da paragem.
+  it("times the stop when the stop has a clock", () => {
+    const live = classifyLive(
+      reading({ status: 7, reason: "Filling Blender/ Blending", planned: true, stopSince: secondsAgo(1169) }),
+      now,
+    );
+    expect(stopClock(live)).toEqual({ kind: "STOP", text: "0:19:29" });
+  });
+
+  it("never passes the reading's age off as the stop's duration", () => {
+    const live = classifyLive(
+      reading({ status: 7, reason: "Filling Blender/ Blending", planned: true, seenAt: secondsAgo(78), stopSince: null }),
+      now,
+    );
+    const clock = stopClock(live);
+    expect(clock?.kind).not.toBe("AGE");
+    expect(clock?.text).not.toBe("78s");
+  });
+
+  it("says the stop is untimed rather than saying nothing", () => {
+    // Uma ranhura vazia lê-se como "acabou de parar". O cartão tem de admitir
+    // que não sabe há quanto tempo, que é um facto diferente.
+    const live = classifyLive(
+      reading({ status: 7, reason: "Electrical Stop", planned: null, stopSince: null }),
+      now,
+    );
+    expect(stopClock(live)).toEqual({ kind: "UNTIMED", text: "—" });
+  });
+
+  it("ages the reading while the line is running", () => {
+    // Aqui o número é honesto: não há paragem para cronometrar, e o que importa
+    // é há quanto tempo ninguém confirma este estado.
+    expect(stopClock(classifyLive(reading({ seenAt: secondsAgo(20) }), now))).toEqual({ kind: "AGE", text: "20s" });
+    expect(stopClock(classifyLive(reading({ seenAt: secondsAgo(600) }), now))).toEqual({ kind: "AGE", text: "10m" });
+  });
+
+  it("has nothing to say about a machine nobody ever read", () => {
+    expect(stopClock(classifyLive(null, now))).toBeNull();
   });
 });
 
