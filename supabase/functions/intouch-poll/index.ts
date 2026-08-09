@@ -356,7 +356,7 @@ Deno.serve(async (req) => {
     // 1. Active machines mapped to our system
     const { data: mapped, error: mErr } = await admin
       .from("intouch_machine_map")
-      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, prod_dt_started_at, prod_dt_code")
+      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, prod_dt_started_at, prod_dt_code, stop_since_at")
       .eq("active", true);
     if (mErr) throw mErr;
     if (!mapped?.length) {
