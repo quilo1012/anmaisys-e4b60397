@@ -194,6 +194,54 @@ export function buildClose(rows: ClosePersonInput[], from: string, to: string): 
     .sort((a, b) => Math.abs(b.deltaHours ?? -1) - Math.abs(a.deltaHours ?? -1) || a.name.localeCompare(b.name));
 }
 
+/**
+ * The crew somebody belongs to, when the record does not say which.
+ *
+ * A sentinel rather than a filtered-out null: a person with no crew on file is still
+ * paid, and a filter with no bucket for them would drop them from every view but
+ * "all". Silent omission from the document finance pays from is the one failure this
+ * file exists to prevent.
+ */
+export const NO_CREW = "__none__";
+
+/**
+ * The five crews, in the order the factory reads them: the two that run the lines all
+ * week, then the Fri–Mon crew, then the warehouse.
+ *
+ * This is the CREW, not the board. `boardShiftFor` folds these onto the two wall
+ * charts that are actually planned — right for the board, wrong here. A pay period is
+ * not a wall chart, and folding Weekend into Day put forty people into a subtotal of
+ * seventy-seven with no way to ask for them separately.
+ */
+const KNOWN_CREWS = ["Day", "Night", "Weekend", "Warehouse Day", "Warehouse Weekend"];
+
+/**
+ * The crews these rows actually hold, in a stable order.
+ *
+ * Derived, not hardcoded: a crew added to `employees` next month appears in the filter
+ * without anybody editing this list, and a crew nobody is on does not offer an empty
+ * view. Unknown crews sort in after the known ones so a typo in `shift_group` shows up
+ * rather than hiding.
+ */
+export function closeCrews(rows: ClosePerson[]): string[] {
+  const seen = new Set(rows.map((r) => r.shift ?? NO_CREW));
+  return [
+    ...KNOWN_CREWS.filter((c) => seen.has(c)),
+    ...[...seen].filter((c) => c !== NO_CREW && !KNOWN_CREWS.includes(c)).sort(),
+    ...(seen.has(NO_CREW) ? [NO_CREW] : []),
+  ];
+}
+
+/** One crew's rows. The crews are disjoint, so the subtotals add up to the whole. */
+export function filterByCrew(rows: ClosePerson[], crew: string): ClosePerson[] {
+  return rows.filter((r) => (r.shift ?? NO_CREW) === crew);
+}
+
+/** What a crew is called on screen. Only the sentinel needs saying out loud. */
+export function crewLabel(crew: string): string {
+  return crew === NO_CREW ? "No crew recorded" : crew;
+}
+
 export interface CloseTotals {
   people: number;
   /** Signed hours accrued in the period. Can be negative; not overtime. */

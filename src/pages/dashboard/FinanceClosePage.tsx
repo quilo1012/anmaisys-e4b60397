@@ -17,7 +17,8 @@ import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useEmployees, useOvertimeEntries } from "@/hooks/useWorkforce";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
-  buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2, type ClosePersonInput,
+  buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
+  closeCrews, filterByCrew, crewLabel, NO_CREW, type ClosePersonInput,
 } from "@/lib/financeClose";
 import { earlyLeave } from "@/lib/earlyLeave";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -145,7 +146,21 @@ export default function FinanceClosePage() {
 
       const byId = new Map<string, ClosePersonInput>();
       for (const e of (emp.data ?? []) as any[]) {
-        const crew = boardShiftFor(e.shift_group);
+        // The crew and the board are two different answers and this used to ask for
+        // one of them twice.
+        //
+        // `boardShiftFor` folds the five crews onto the two wall charts the factory
+        // plans, so Weekend, Warehouse Day and Warehouse Weekend all came back "Day":
+        // fifty-eight people inside a subtotal of seventy-seven, and no filter that
+        // could ask for any of them. The close groups by CREW — it is what says which
+        // days somebody was due in.
+        //
+        // The board is still what `plannedDates` has to be read from. `daily_
+        // allocations.shift` only ever holds Day and Night, so looking that up by crew
+        // would find nothing for the Fri–Mon crew and hand all forty of them an empty
+        // set — every one of them reading as a full period over their rota.
+        const crew = (e.shift_group as string | null) ?? null;
+        const board = boardShiftFor(e.shift_group);
         byId.set(e.id, {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
           shift: crew,
@@ -155,7 +170,7 @@ export default function FinanceClosePage() {
           patternName: e.shift_patterns?.name ?? null,
           patternDays: e.shift_patterns?.days ?? null,
           shiftsWorked: 0, shiftsHoliday: 0,
-          plannedDates: plannedByShift.get(crew ?? "Day") ?? new Set<string>(),
+          plannedDates: plannedByShift.get(board ?? "Day") ?? new Set<string>(),
         });
       }
 
@@ -229,29 +244,47 @@ export default function FinanceClosePage() {
   });
 
   /**
-   * Day, Night, or both together.
+   * One crew, or the whole factory.
    *
-   * The night crew is forty-eight people on a rota of its own and its overtime behaves
-   * nothing like the day crews' — reading one figure for the whole factory hid which
-   * side of the factory the hours were on. "Both" is the default because the close is a
-   * whole-factory document; the two subtotals add up to it exactly, since a person
-   * belongs to one crew.
+   * The night crew is sixty people on a rota of its own and the Fri–Mon crew is forty
+   * more; their overtime behaves nothing like the Mon–Thu crews' — reading one figure
+   * for the whole factory hid which side of it the hours were on. This offered two
+   * choices and the factory has five crews, so three of them had no view at all.
+   *
+   * "Everybody" is the default because the close is a whole-factory document; the
+   * subtotals add up to it exactly, since a person belongs to one crew.
    */
-  const [shiftFilter, setShiftFilter] = useState<"all" | "Day" | "Night">("all");
+  const [shiftFilter, setShiftFilter] = useState<string>("all");
+  const crews = useMemo(() => closeCrews(rows), [rows]);
+  // A crew that emptied when the period changed must not leave the page showing
+  // nothing with a filter nobody can see the effect of.
+  const crew = shiftFilter !== "all" && !crews.includes(shiftFilter) ? "all" : shiftFilter;
   const shown = useMemo(
-    () => (shiftFilter === "all" ? rows : rows.filter((r) => r.shift === shiftFilter)),
-    [rows, shiftFilter],
+    () => (crew === "all" ? rows : filterByCrew(rows, crew)),
+    [rows, crew],
   );
 
   const totals = useMemo(() => closeTotals(shown), [shown]);
-  /** Both crews side by side, so the split is readable without touching the filter. */
+  /** Every crew side by side, so the split is readable without touching the filter. */
   const byShift = useMemo(
-    () => (["Day", "Night"] as const).map((s) => ({
-      shift: s,
-      ...closeTotals(rows.filter((r) => r.shift === s)),
-    })).filter((t) => t.people > 0),
-    [rows],
+    () => crews.map((s) => ({ shift: s, ...closeTotals(filterByCrew(rows, s)) }))
+      .filter((t) => t.people > 0),
+    [rows, crews],
   );
+
+  /**
+   * The register below, narrowed to the same crew.
+   *
+   * Filtered on the ENTRY's employee, not by handing the panel a shorter employee
+   * list: the panel builds its rows from the entries and looks each name up, so a
+   * shortened list would have turned the other crews' rows into "Employee no longer on
+   * file" instead of hiding them.
+   */
+  const otShown = useMemo(() => {
+    if (crew === "all") return otEntries ?? [];
+    const crewById = new Map((otEmployees ?? []).map((e) => [e.id, e.shift_group ?? NO_CREW]));
+    return (otEntries ?? []).filter((e) => crewById.get(e.employee_id) === crew);
+  }, [otEntries, otEmployees, crew]);
   const num = (n: number | null) => (n == null ? "—" : n.toFixed(2));
 
   return (
@@ -282,12 +315,13 @@ export default function FinanceClosePage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={shiftFilter} onValueChange={(v) => setShiftFilter(v as typeof shiftFilter)}>
-            <SelectTrigger className="h-9 w-[150px] border-white/25 bg-white/10 text-white"><SelectValue /></SelectTrigger>
+          <Select value={crew} onValueChange={setShiftFilter}>
+            <SelectTrigger className="h-9 w-[190px] border-white/25 bg-white/10 text-white"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Both shifts</SelectItem>
-              <SelectItem value="Day">Day only</SelectItem>
-              <SelectItem value="Night">Night only</SelectItem>
+              <SelectItem value="all">Every crew</SelectItem>
+              {crews.map((c) => (
+                <SelectItem key={c} value={c}>{crewLabel(c)}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
@@ -328,9 +362,9 @@ export default function FinanceClosePage() {
                   {byShift.map((t) => (
                     <TableRow
                       key={t.shift}
-                      className={shiftFilter === t.shift ? "bg-muted/50" : undefined}
+                      className={crew === t.shift ? "bg-muted/50" : undefined}
                     >
-                      <TableCell className="font-medium">{t.shift}</TableCell>
+                      <TableCell className="font-medium">{crewLabel(t.shift)}</TableCell>
                       <TableCell className="text-right font-figure text-xs tabular-nums">{t.people}</TableCell>
                       <TableCell className="text-right font-figure text-xs tabular-nums">{t.overtimeHours.toFixed(2)} h</TableCell>
                       <TableCell className="text-right font-figure text-xs tabular-nums">{t.owedHours.toFixed(2)} h</TableCell>
@@ -563,10 +597,13 @@ export default function FinanceClosePage() {
           <p className="text-sm text-muted-foreground">
             Hours keyed from the payroll sheet. What is entered here becomes the
             <b> Payroll OT</b> column above.
+            {crew !== "all" && (
+              <> Showing the <b>{crewLabel(crew)}</b> crew only, to match the filter above.</>
+            )}
           </p>
           <OvertimePanel
             employees={otEmployees ?? []}
-            entries={otEntries ?? []}
+            entries={otShown}
             activePeriod={period}
           />
         </div>
