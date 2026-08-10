@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, type ClosePersonInput } from "@/lib/financeClose";
+import {
+  buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, closeCrews, filterByCrew, NO_CREW,
+  closeDepartments, filterClose, departmentLabel, NO_DEPARTMENT,
+  type ClosePersonInput,
+} from "@/lib/financeClose";
 
 /** 13/07–09/08/2026: the period this file was written against, 28 days. */
 const PERIOD = { from: "2026-07-13", to: "2026-08-09" };
@@ -299,5 +303,110 @@ describe("the board's answer, carried in the same row", () => {
     expect(at("Shifts due")).toBe(16);
     expect(at("Shifts worked")).toBe(18);
     expect(at("Shifts +/−")).toBe(2);
+  });
+});
+
+/**
+ * The crews the close groups by.
+ *
+ * The page read `boardShiftFor`, which folds five crews onto the two wall charts the
+ * factory actually plans — so Weekend, Warehouse Day and Warehouse Weekend all arrived
+ * here labelled "Day". Fifty-eight people sat in a subtotal of seventy-seven, and the
+ * filter had no way to ask for any of them.
+ *
+ * The board fold is right for the board and wrong for the close: a pay period is not a
+ * wall chart, and the crew is what says which days somebody was due in.
+ */
+describe("closeCrews", () => {
+  const crewed = (shift: string | null, id: string) => person({ shift, employeeId: id, name: id });
+  const build = (...c: (string | null)[]) =>
+    buildClose(c.map((s, i) => crewed(s, `e${i}`)), PERIOD.from, PERIOD.to);
+
+  it("keeps the weekend crew out of Day", () => {
+    expect(closeCrews(build("Day", "Weekend", "Night"))).toEqual(["Day", "Night", "Weekend"]);
+  });
+
+  it("names the warehouse crews rather than folding them into days", () => {
+    expect(closeCrews(build("Warehouse Day", "Warehouse Weekend")))
+      .toEqual(["Warehouse Day", "Warehouse Weekend"]);
+  });
+
+  it("offers only the crews the period actually holds", () => {
+    expect(closeCrews(build("Day", "Day", "Night"))).toEqual(["Day", "Night"]);
+  });
+
+  it("offers a place for somebody whose crew was never recorded, so they cannot hide", () => {
+    // One row on file has a null shift_group. Under a crew filter with no bucket for
+    // them they would vanish from every view except "all" — a person dropping out of a
+    // document somebody is paid from.
+    expect(closeCrews(build("Day", null))).toEqual(["Day", NO_CREW]);
+    expect(filterByCrew(build("Day", null), NO_CREW)).toHaveLength(1);
+  });
+
+  it("splits the subtotals with nobody counted twice", () => {
+    const rows = build("Day", "Weekend", "Weekend", "Night");
+    const perCrew = closeCrews(rows).map((c) => filterByCrew(rows, c).length);
+    expect(perCrew).toEqual([1, 1, 2]);
+    expect(perCrew.reduce((a, b) => a + b, 0)).toBe(rows.length);
+  });
+});
+
+/**
+ * The department, asked for alongside the crew.
+ *
+ * "Production weekend" is not a crew and never was. The Weekend crew is forty people
+ * and thirty-one of them are on the lines; the other nine are Hygiene, Lab and Office,
+ * who work the same days and are not what somebody asking for weekend production
+ * means. Crew alone could not separate them, so the close offered a subtotal of forty
+ * to a question about thirty-one.
+ *
+ * Two filters that compose, rather than a "Production Weekend" entry welded into the
+ * crew list: the same select also answers Production Night, Hygiene Weekend and the
+ * eleven other pairs, none of which would have existed as hardcoded options.
+ */
+describe("closeDepartments", () => {
+  const at = (department: string | null, shift: string | null, id: string) =>
+    person({ department, shift, employeeId: id, name: id });
+  const build = (...p: [string | null, string | null][]) =>
+    buildClose(p.map(([d, s], i) => at(d, s, `e${i}`)), PERIOD.from, PERIOD.to);
+
+  it("offers only the departments the period actually holds, alphabetically", () => {
+    const rows = build(["Production", "Day"], ["Hygiene", "Weekend"], ["Production", "Night"]);
+    expect(closeDepartments(rows)).toEqual(["Hygiene", "Production"]);
+  });
+
+  it("narrows to production weekend without touching the other weekend departments", () => {
+    const rows = build(
+      ["Production", "Weekend"], ["Production", "Weekend"],
+      ["Hygiene", "Weekend"], ["Production", "Day"],
+    );
+    expect(filterClose(rows, { crew: "Weekend", department: "Production" })).toHaveLength(2);
+  });
+
+  it("leaves the rows alone when neither filter is set", () => {
+    const rows = build(["Production", "Day"], ["Office", "Night"]);
+    expect(filterClose(rows, { crew: "all", department: "all" })).toEqual(rows);
+  });
+
+  it("takes either filter on its own", () => {
+    const rows = build(["Production", "Day"], ["Production", "Weekend"], ["Office", "Weekend"]);
+    expect(filterClose(rows, { crew: "all", department: "Production" })).toHaveLength(2);
+    expect(filterClose(rows, { crew: "Weekend", department: "all" })).toHaveLength(2);
+  });
+
+  it("keeps a blank department out of the named ones rather than inventing a department", () => {
+    // Eight active records carry an empty string, not a null. Trimmed to the same
+    // bucket, because a filter entry labelled "" is unclickable and unreadable.
+    const rows = build(["Production", "Day"], [null, "Night"], ["   ", "Night"]);
+    expect(closeDepartments(rows)).toEqual(["Production", NO_DEPARTMENT]);
+    expect(filterClose(rows, { crew: "all", department: NO_DEPARTMENT })).toHaveLength(2);
+    expect(departmentLabel(NO_DEPARTMENT)).toBe("No department recorded");
+  });
+
+  it("splits the subtotals with nobody counted twice", () => {
+    const rows = build(["Production", "Day"], ["Production", "Night"], ["Lab", "Day"], [null, "Day"]);
+    const per = closeDepartments(rows)
+      .map((d) => filterClose(rows, { crew: "all", department: d }).length);
+    expect(per.reduce((a, b) => a + b, 0)).toBe(rows.length);
   });
 });

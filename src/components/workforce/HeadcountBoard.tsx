@@ -219,7 +219,7 @@ function UnplacedTray({
         <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
           Not on a line
         </span>
-        <span className="font-mono text-xs text-muted-foreground">{count}</span>
+        <span className="font-figure text-xs text-muted-foreground">{count}</span>
         {canEdit && (
           <span className="text-2xs text-muted-foreground no-print">
             Drag onto a line below to place them
@@ -497,7 +497,7 @@ export function HeadcountBoard({
                 )}
               >
                 {g}
-                <span className="ml-1.5 font-mono opacity-70">{n}</span>
+                <span className="ml-1.5 font-figure opacity-70">{n}</span>
               </button>
             );
           })}
@@ -521,7 +521,7 @@ export function HeadcountBoard({
           ].map((t) => (
             <div key={t.k} className="rounded-lg border bg-card px-3 py-2">
               <div className="truncate text-2xs uppercase tracking-wider text-muted-foreground">{t.k}</div>
-              <div className={cn("font-mono text-2xl font-bold tabular-nums leading-tight", t.tone)}>{t.v}</div>
+              <div className={cn("font-figure text-2xl font-bold leading-tight", t.tone)}>{t.v}</div>
               <div className="truncate text-2xs text-muted-foreground">{t.s}</div>
             </div>
           ))}

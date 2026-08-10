@@ -91,7 +91,7 @@ export function AudioStatusButton() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="alert-volume" className="text-sm">Volume</Label>
-            <span className="text-xs font-mono tabular-nums text-muted-foreground">{pct}%</span>
+            <span className="text-xs font-figure text-muted-foreground">{pct}%</span>
           </div>
           <Slider
             id="alert-volume"

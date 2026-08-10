@@ -262,7 +262,7 @@ export default function WeeklyProductionReportPage() {
                           </Badge>
                         )}
                       </span>
-                      <span className={`font-mono ${color}`}>{fmtPct(l.acc)} · n={l.count}</span>
+                      <span className={`font-figure ${color}`}>{fmtPct(l.acc)} · n={l.count}</span>
                     </div>
                     <Progress value={l.acc} className="h-2" />
                   </div>

@@ -104,14 +104,14 @@ function ShiftPanel({ shift, events, windowStart, windowEnd }: ShiftPanelProps) 
                     </Badge>
                   )}
                 </span>
-                <span className="font-mono">{fmtDur(r.minutes)}</span>
+                <span className="font-figure">{fmtDur(r.minutes)}</span>
               </div>
             ))}
           </div>
         )}
         <div className="border-t pt-2 flex items-center justify-between">
           <span className="text-sm font-semibold">Total</span>
-          <span className="font-mono font-bold">{fmtDur(total)}</span>
+          <span className="font-figure font-bold">{fmtDur(total)}</span>
         </div>
         <div className="text-xs text-muted-foreground">
           Stops: {events.length}

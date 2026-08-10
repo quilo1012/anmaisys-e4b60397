@@ -69,7 +69,7 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
         >
           <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
           Department headcount
-          <span className="font-mono text-2xs font-bold normal-case tracking-normal text-foreground">
+          <span className="font-figure text-2xs font-bold normal-case tracking-normal text-foreground">
             {totals.actual} on the books
             {totals.budget > 0 && ` · ${totals.budget} funded`}
           </span>
@@ -108,18 +108,18 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
                           className="ml-auto h-8 w-20 text-right font-mono text-xs"
                         />
                       ) : (
-                        <span className="font-mono text-xs">{r.budget || "—"}</span>
+                        <span className="font-figure text-xs">{r.budget || "—"}</span>
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm font-semibold tabular-nums">{r.actual}</TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">{r.inToday}</TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">
+                    <TableCell className="text-right font-figure text-sm font-semibold">{r.actual}</TableCell>
+                    <TableCell className="text-right font-figure text-sm">{r.inToday}</TableCell>
+                    <TableCell className="text-right font-figure text-sm">
                       {r.onBoard || <span className="text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">
+                    <TableCell className="text-right font-figure text-sm">
                       {r.agency || <span className="text-muted-foreground">—</span>}
                     </TableCell>
-                    <TableCell className="text-right font-mono text-sm font-semibold tabular-nums">
+                    <TableCell className="text-right font-figure text-sm font-semibold">
                       {r.vacancies === null ? (
                         <span className="text-2xs font-normal text-muted-foreground">no budget set</span>
                       ) : (
@@ -135,12 +135,12 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
                 ))}
                 <TableRow className="border-t-2 font-semibold">
                   <TableCell>Total</TableCell>
-                  <TableCell className="text-right font-mono text-xs">{totals.budget || "—"}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">{totals.actual}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">{totals.inToday}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">{totals.onBoard || "—"}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">{totals.agency || "—"}</TableCell>
-                  <TableCell className="text-right font-mono text-sm tabular-nums">
+                  <TableCell className="text-right font-figure text-xs">{totals.budget || "—"}</TableCell>
+                  <TableCell className="text-right font-figure text-sm">{totals.actual}</TableCell>
+                  <TableCell className="text-right font-figure text-sm">{totals.inToday}</TableCell>
+                  <TableCell className="text-right font-figure text-sm">{totals.onBoard || "—"}</TableCell>
+                  <TableCell className="text-right font-figure text-sm">{totals.agency || "—"}</TableCell>
+                  <TableCell className="text-right font-figure text-sm">
                     {totals.budget > 0 ? totals.budget - totals.actual : <span className="text-2xs font-normal text-muted-foreground">—</span>}
                   </TableCell>
                 </TableRow>

@@ -653,7 +653,7 @@ export default function WorkOrderDetail() {
                     <li key={i} className="text-sm print:text-[8pt]">
                       <div className="flex items-baseline gap-2">
                         <span className="-ml-7 w-5 text-center inline-block">{iconFor(e.icon)}</span>
-                        <span className="font-mono text-xs print:text-[7pt] text-muted-foreground">{format(new Date(e.ts), "dd/MM HH:mm:ss")}</span>
+                        <span className="font-figure text-xs print:text-[7pt] text-muted-foreground">{format(new Date(e.ts), "dd/MM HH:mm:ss")}</span>
                         <span className="font-medium">{e.title}</span>
                         {e.delta && <span className="text-xs print:text-[7pt] text-muted-foreground">— {e.delta}</span>}
                       </div>

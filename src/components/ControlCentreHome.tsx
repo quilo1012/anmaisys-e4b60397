@@ -285,7 +285,7 @@ export function ControlCentreHome() {
               <div key={o.line} className="rounded-lg border p-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-xs font-semibold">{o.line}</span>
-                  <span className="shrink-0 font-mono text-2xs text-muted-foreground">{o.issues[0].count}×</span>
+                  <span className="shrink-0 font-figure text-2xs text-muted-foreground">{o.issues[0].count}×</span>
                 </div>
                 <div className="truncate text-2xs text-muted-foreground">{o.issues[0].description}</div>
                 <div className="truncate text-2xs text-muted-foreground">{o.issues[0].machine}</div>
@@ -324,7 +324,7 @@ function Tile({
         {rows.map((r) => (
           <div key={r.label} className="flex items-baseline justify-between gap-2">
             <span className="truncate text-xs text-muted-foreground">{r.label}</span>
-            <span className={cn("font-mono text-xl font-bold tabular-nums", r.tone && toneClass[r.tone])}>{r.value}</span>
+            <span className={cn("font-figure text-xl font-bold", r.tone && toneClass[r.tone])}>{r.value}</span>
           </div>
         ))}
         {footer && <p className="pt-1 text-2xs text-muted-foreground">{footer}</p>}

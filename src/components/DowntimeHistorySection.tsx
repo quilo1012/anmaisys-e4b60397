@@ -213,8 +213,8 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                       key={e.id}
                       className={isOpen ? "bg-destructive/10 hover:bg-destructive/15" : ""}
                     >
-                      <TableCell className="font-mono text-xs">{filtered.length - idx}</TableCell>
-                      <TableCell className="font-mono text-xs whitespace-nowrap">
+                      <TableCell className="font-figure text-xs">{filtered.length - idx}</TableCell>
+                      <TableCell className="font-figure text-xs whitespace-nowrap">
                         {format(new Date(e.stopped_at), "dd/MM HH:mm")}
                       </TableCell>
                       <TableCell className="text-xs">{e.stopped_by_name || "—"}</TableCell>
@@ -232,7 +232,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                       <TableCell className="text-xs max-w-[200px] truncate" title={e.resumed_note || ""}>
                         {e.resumed_note || "—"}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs">
+                      <TableCell className="text-right font-figure text-xs">
                         {formatMinutes(dur)}
                         {isOpen && <span className="text-destructive-strong ml-1">(live)</span>}
                       </TableCell>
@@ -273,7 +273,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                 return (
                   <tr key={e.id}>
                     <td className="border border-black px-2 py-1">{idx + 1}</td>
-                    <td className="border border-black px-2 py-1 font-mono">
+                    <td className="border border-black px-2 py-1 font-figure">
                       {format(new Date(e.stopped_at), "dd/MM HH:mm")}
                     </td>
                     <td className="border border-black px-2 py-1 font-mono">

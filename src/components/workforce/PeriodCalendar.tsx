@@ -170,14 +170,14 @@ export function PeriodCalendar() {
                         <div className="font-medium">{r.name}</div>
                         <div className="text-2xs text-muted-foreground">{describeDays(r.days)}</div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
+                      <TableCell className="text-right font-figure text-xs text-muted-foreground">
                         {r.people}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs font-bold tabular-nums">{r.shifts}</TableCell>
-                      <TableCell className="text-right font-mono text-xs tabular-nums">
+                      <TableCell className="text-right font-figure text-xs font-bold">{r.shifts}</TableCell>
+                      <TableCell className="text-right font-figure text-xs">
                         {r.perShift == null ? "—" : `${r.perShift}h`}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs font-semibold tabular-nums">
+                      <TableCell className="text-right font-figure text-xs font-semibold">
                         {r.total == null ? "—" : `${r.total}h`}
                       </TableCell>
                     </TableRow>

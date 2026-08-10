@@ -271,7 +271,7 @@ export default function LineDisplayScreen() {
         <div className="flex items-center gap-4">
           <div className={`px-6 py-3 rounded-xl text-2xl font-bold ${status.color}`}>{status.label}</div>
           <div className="text-right">
-            <div className="text-4xl font-mono font-bold">
+            <div className="text-4xl font-figure font-bold">
               {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </div>
             <div className="text-sm text-wall-ink-muted">
@@ -312,7 +312,7 @@ export default function LineDisplayScreen() {
           <div className="bg-gradient-to-r from-primary via-primary to-purple-900 border-2 border-primary/40 rounded-2xl p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <div className="text-primary text-sm tracking-widest font-bold">CURRENT JOB</div>
-              <div className="text-primary text-2xl font-mono font-bold">
+              <div className="text-primary text-2xl font-figure font-bold">
                 {a.toLocaleString()} / {p.toLocaleString()}
               </div>
             </div>
@@ -383,7 +383,7 @@ export default function LineDisplayScreen() {
                           className="w-24 h-9 bg-wall-panel text-wall-ink"
                           autoFocus
                         />
-                        <span className="font-mono">/ {p.toLocaleString()}</span>
+                        <span className="font-figure">/ {p.toLocaleString()}</span>
                         <Button
                           size="icon"
                           className="h-11 w-11 touch-manipulation bg-success hover:bg-success/90"
@@ -419,7 +419,7 @@ export default function LineDisplayScreen() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span className="font-mono">
+                        <span className="font-figure">
                           {a.toLocaleString()} / {p.toLocaleString()}
                         </span>
                         {canRequest && (
@@ -461,7 +461,7 @@ function WallTile({ label, value, accent, mono }: { label: string; value: string
   return (
     <div className="bg-wall-panel rounded-2xl p-6 text-center">
       <div className="text-wall-ink-muted text-sm tracking-widest mb-2">{label}</div>
-      <div className={`${accent} ${mono ? "font-mono" : ""} text-6xl font-black tabular-nums`}>{value}</div>
+      <div className={`${accent} ${mono ? "font-figure" : ""} text-6xl font-black`}>{value}</div>
     </div>
   );
 }

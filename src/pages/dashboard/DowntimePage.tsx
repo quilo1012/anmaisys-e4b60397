@@ -20,7 +20,8 @@ import {
   TrendingUp, ChevronDown, History, Cog, Printer, FileText, FileSpreadsheet, Lightbulb,
 } from "lucide-react";
 import { generateDowntimeReportPDF, type DowntimeReportInput } from "@/lib/downtimeReport";
-import { computeHeatmap } from "@/lib/downtimeHeatmap";
+import { computeHeatmap, DAYS, SHIFTS, shiftOf, londonAllParts, type Shift } from "@/lib/downtimeHeatmap";
+import { isMostlyUnresumed } from "@/lib/downtimeAttribution";
 import * as XLSX from "xlsx";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
@@ -39,7 +40,7 @@ import {
 } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line } from "recharts";
 import { useNavigate } from "react-router-dom";
-import { reconcileMinutes, unionMs, type Interval } from "@/lib/downtimeReconcile";
+import { reconcileMinutes, unionMs } from "@/lib/downtimeReconcile";
 import { useAllWoExclusions } from "@/hooks/useWoExclusions";
 import { exclusionsFor, splitRangeByExclusions, subtractExclusionMinutes } from "@/lib/downtimeExclusions";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
@@ -58,58 +59,7 @@ const riskBadge: Record<RiskLevel, { label: string; className: string }> = {
 
 type ShiftFilter = "all" | "Day" | "Night";
 
-/* ────────────────────────── Heatmap helpers (moved from DowntimeHeatmapPage) ───────────────────────── */
-
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
-const SHIFTS = ["Day", "Night"] as const;
-type Shift = (typeof SHIFTS)[number];
-
-interface Cell { minutes: number; count: number }
-
-function shiftOf(hour: number): Shift {
-  return hour >= 6 && hour < 18 ? "Day" : "Night";
-}
-
-function londonAllParts(at: Date) {
-  const dtf = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London", hour12: false,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-  });
-  const p = Object.fromEntries(
-    dtf.formatToParts(at).filter((x) => x.type !== "literal").map((x) => [x.type, x.value]),
-  ) as Record<string, string>;
-  return {
-    year: +p.year, month: +p.month, day: +p.day,
-    hour: +p.hour === 24 ? 0 : +p.hour,
-    minute: +p.minute, second: +p.second,
-  };
-}
-
-function londonOffsetMinutes(at: Date): number {
-  const p = londonAllParts(at);
-  const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
-  return Math.round((asUTC - at.getTime()) / 60000);
-}
-
-function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
-  const naive = Date.UTC(y, mo - 1, d, h, 0, 0);
-  const off = londonOffsetMinutes(new Date(naive));
-  return naive - off * 60000;
-}
-
-function unionMinutes(intervals: Interval[]): number {
-  const ms = unionMs(intervals);
-  if (ms <= 0) return 0;
-  return Math.max(1, Math.round(ms / 60_000));
-}
-
-function nextShiftBoundary(t: number): number {
-  const p = londonAllParts(new Date(t));
-  if (p.hour < 6) return londonWallToUtc(p.year, p.month, p.day, 6);
-  if (p.hour < 18) return londonWallToUtc(p.year, p.month, p.day, 18);
-  return londonWallToUtc(p.year, p.month, p.day + 1, 6);
-}
+/* ────────────────────────── Pattern Matrix ───────────────────────── */
 
 function cellColor(minutes: number, max: number): string {
   if (minutes <= 0) return "bg-background";
@@ -130,120 +80,13 @@ interface HeatmapSectionProps {
 }
 
 function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFilter }: HeatmapSectionProps) {
-  const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax, grandTotalMinutes } = useMemo(() => {
-    const perLineIntervals = new Map<string, Map<string, Interval[]>>();
-    const perLineCounts = new Map<string, Map<string, number>>();
-    const lineAllIntervals = new Map<string, Interval[]>();
-    // Cross-line intervals so the Totals row and grand total are wall-clock
-    // (overlapping stops on different lines counted once), matching the Overview.
-    const allKeyIntervals = new Map<string, Interval[]>();
-    const globalIntervals: Interval[] = [];
-
-    for (const r of records ?? []) {
-      if (!r.started_at) continue;
-      const line = r.line || "—";
-      if (lineFilter !== "all" && line !== lineFilter) continue;
-      const start = new Date(r.started_at).getTime();
-      const end = r.ended_at ? new Date(r.ended_at).getTime() : Date.now();
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      if (end <= fromMs || start >= toMs) continue;
-      const clampedStart = Math.max(start, fromMs);
-      const clampedEnd = Math.min(end, toMs);
-      if (clampedEnd <= clampedStart) continue;
-
-      const li = perLineIntervals.get(line) ?? new Map<string, Interval[]>();
-      perLineIntervals.set(line, li);
-      const lc = perLineCounts.get(line) ?? new Map<string, number>();
-      perLineCounts.set(line, lc);
-
-      const allIvs = lineAllIntervals.get(line) ?? [];
-      lineAllIntervals.set(line, allIvs);
-
-      let cursor = clampedStart;
-      while (cursor < clampedEnd) {
-        const boundary = Math.min(nextShiftBoundary(cursor), clampedEnd);
-        if (boundary > cursor) {
-          const parts = londonAllParts(new Date(cursor));
-          const jsWd = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
-          const dayIdx = (jsWd + 6) % 7;
-          const shift = shiftOf(parts.hour);
-          if (shiftFilter === "all" || shift === shiftFilter) {
-            const key = `${dayIdx}-${shift}`;
-            const ivs = li.get(key) ?? [];
-            ivs.push([cursor, boundary]);
-            li.set(key, ivs);
-            allIvs.push([cursor, boundary]);
-            const ak = allKeyIntervals.get(key) ?? [];
-            ak.push([cursor, boundary]);
-            allKeyIntervals.set(key, ak);
-            globalIntervals.push([cursor, boundary]);
-          }
-        }
-        cursor = boundary;
-      }
-
-      const sp = londonAllParts(new Date(clampedStart));
-      const sJsWd = new Date(Date.UTC(sp.year, sp.month - 1, sp.day)).getUTCDay();
-      const startShift = shiftOf(sp.hour);
-      if (shiftFilter === "all" || startShift === shiftFilter) {
-        const startKey = `${(sJsWd + 6) % 7}-${startShift}`;
-        lc.set(startKey, (lc.get(startKey) ?? 0) + 1);
-      }
-    }
-
-    const perLine = new Map<string, Map<string, Cell>>();
-    const dayShiftTotals = new Map<string, Cell>();
-    const lineTotals = new Map<string, Cell>();
-    let grandMax = 0;
-
-    perLineIntervals.forEach((buckets, line) => {
-      const cells = new Map<string, Cell>();
-      const counts = perLineCounts.get(line);
-      buckets.forEach((ivs, key) => {
-        const minutes = unionMinutes(ivs);
-        const count = counts?.get(key) ?? 0;
-        cells.set(key, { minutes, count });
-        if (minutes > grandMax) grandMax = minutes;
-      });
-      perLine.set(line, cells);
-      const totalMin = unionMinutes(lineAllIntervals.get(line) ?? []);
-      const totalCount = Array.from(counts?.values() ?? []).reduce((a, b) => a + b, 0);
-      lineTotals.set(line, { minutes: totalMin, count: totalCount });
-    });
-
-    // Totals row and grand total are wall-clock unions across lines (parallel
-    // stops counted once) — the same basis as the Overview's Total Downtime.
-    allKeyIntervals.forEach((ivs, key) => dayShiftTotals.set(key, { minutes: unionMinutes(ivs), count: 0 }));
-    const grandTotalMinutes = unionMinutes(globalIntervals);
-
-    const lines = Array.from(perLine.keys()).sort((a, b) => {
-      const ma = /line\s*(\d+)/i.exec(a)?.[1];
-      const mb = /line\s*(\d+)/i.exec(b)?.[1];
-      if (ma && mb) return Number(ma) - Number(mb);
-      return a.localeCompare(b);
-    });
-
-    const insights: string[] = [];
-    for (const line of lines) {
-      const lm = perLine.get(line)!;
-      const total = lineTotals.get(line)?.minutes ?? 0;
-      if (total < 60) continue;
-      let worst: { key: string; minutes: number } | null = null;
-      lm.forEach((cell, key) => {
-        if (!worst || cell.minutes > worst.minutes) worst = { key, minutes: cell.minutes };
-      });
-      if (worst && worst.minutes / total >= 0.35) {
-        const [d, s] = worst.key.split("-");
-        const dayName = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][Number(d)];
-        const pmDay = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Number(d)];
-        insights.push(
-          `${dayName} ${s} shift concentrates ${Math.round((worst.minutes / total) * 100)}% of ${line}'s downtime (${formatMinutes(worst.minutes)}). Consider scheduling PM on ${pmDay} ${s === "Day" ? "night" : "day"}.`,
-        );
-      }
-    }
-
-    return { matrix: perLine, lines, lineTotals, dayShiftTotals, insights, grandMax, grandTotalMinutes };
-  }, [records, fromMs, toMs, lineFilter, shiftFilter]);
+  // The same aggregation the PDF uses. This block used to be a byte-for-byte copy
+  // of computeHeatmap living here, next to an import of the module it duplicated —
+  // two sources of truth for one table, only one of which anyone would think to fix.
+  const { matrix, lines, lineTotals, dayShiftTotals, insights, grandMax, grandTotalMinutes } = useMemo(
+    () => computeHeatmap(records, fromMs, toMs, lineFilter, shiftFilter),
+    [records, fromMs, toMs, lineFilter, shiftFilter],
+  );
 
   // Calendar date (dd/MM) under each weekday column — shown only when the range
   // hits that weekday exactly once (i.e. a single week); blank for multi-week ranges.
@@ -282,6 +125,8 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
               <CardDescription>
                 Cells show each line's downtime by day and shift. Totals are wall-clock — parallel
                 stops on different lines counted once — so they match the Overview. Europe/London time.
+                A dagger marks a cell that is mostly time nobody resumed: the shift-close job or
+                iTouching stamped the end, so it says the line was down, not for how long.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2 text-2xs uppercase tracking-wider text-muted-foreground">
@@ -291,6 +136,7 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
               <span className="h-3 w-5 rounded-sm bg-warning/40" />
               <span className="h-3 w-5 rounded-sm bg-destructive/70" />
               <span>More</span>
+              <span className="ml-2 border-l border-border pl-2 normal-case tracking-normal">† auto-closed</span>
             </div>
           </div>
         </CardHeader>
@@ -333,17 +179,24 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                     </td>
                     {DAYS.map((_, di) =>
                       visibleShifts.map((s) => {
-                        const c = lm.get(`${di}-${s}`) ?? { minutes: 0, count: 0 };
+                        const c = lm.get(`${di}-${s}`) ?? { minutes: 0, count: 0, systemMinutes: 0 };
                         const hasData = c.minutes > 0;
+                        const unresumed = isMostlyUnresumed(c);
                         return (
                           <td
                             key={`${line}-${di}-${s}`}
                             className={`text-center rounded-md ${hasData ? cellColor(c.minutes, grandMax) : "bg-muted/20"}`}
-                            title={`${line} • ${DAYS[di]} ${s}: ${formatMinutes(c.minutes)} (${c.count} events)`}
+                            title={
+                              `${line} • ${DAYS[di]} ${s}: ${formatMinutes(c.minutes)} (${c.count} events)` +
+                              (c.systemMinutes > 0
+                                ? ` — ${formatMinutes(c.systemMinutes)} of it auto-closed at a shift boundary, not resumed by anyone`
+                                : "")
+                            }
                           >
                             <div className="px-1 py-1.5 leading-tight">
                               <div className="font-semibold tabular-nums">
                                 {hasData ? formatMinutes(c.minutes) : <span className="text-muted-foreground/40">—</span>}
+                                {unresumed && <span className="ml-0.5 align-super text-2xs opacity-70">†</span>}
                               </div>
                               {c.count > 0 && <div className="text-2xs opacity-80 tabular-nums">{c.count}×</div>}
                             </div>
@@ -351,7 +204,12 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                         );
                       }),
                     )}
-                    <td className="p-2 text-right font-semibold tabular-nums border-l border-border/60">{formatMinutes(total)}</td>
+                    <td className="p-2 text-right font-semibold tabular-nums border-l border-border/60">
+                      {formatMinutes(total)}
+                      {isMostlyUnresumed(lineTotals.get(line)) && (
+                        <span className="ml-0.5 align-super text-2xs opacity-70">†</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -362,10 +220,11 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
                   <td className="p-2 font-semibold sticky left-0 bg-card">Totals</td>
                   {DAYS.map((_, di) =>
                     visibleShifts.map((s) => {
-                      const c = dayShiftTotals.get(`${di}-${s}`) ?? { minutes: 0, count: 0 };
+                      const c = dayShiftTotals.get(`${di}-${s}`) ?? { minutes: 0, count: 0, systemMinutes: 0 };
                       return (
                         <td key={`tot-${di}-${s}`} className="text-center p-1 font-semibold tabular-nums text-muted-foreground">
                           {c.minutes > 0 ? formatMinutes(c.minutes) : "—"}
+                          {isMostlyUnresumed(c) && <span className="ml-0.5 align-super text-2xs opacity-70">†</span>}
                         </td>
                       );
                     }),
@@ -386,7 +245,11 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
             <Lightbulb className="h-5 w-5 text-warning-strong" />
             Auto Insights
           </CardTitle>
-          <CardDescription>Suggested PM windows based on recurring downtime concentration.</CardDescription>
+          <CardDescription>
+            Suggested PM windows based on recurring downtime concentration. A line whose worst cell
+            is mostly auto-closed time gets a caution instead of a recommendation — there is no
+            measured stoppage there to plan against.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {insights.length === 0 ? (
@@ -395,9 +258,16 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
             </p>
           ) : (
             <ul className="space-y-2">
-              {insights.map((msg, i) => (
-                <li key={i} className="text-sm rounded-md border border-warning/30 bg-warning/10 px-3 py-2">
-                  {msg}
+              {insights.map((insight, i) => (
+                <li
+                  key={i}
+                  className={`text-sm rounded-md border px-3 py-2 ${
+                    insight.verified
+                      ? "border-warning/30 bg-warning/10"
+                      : "border-muted-foreground/25 bg-muted/40 text-muted-foreground"
+                  }`}
+                >
+                  {insight.text}
                 </li>
               ))}
             </ul>
@@ -913,7 +783,7 @@ export default function DowntimePage() {
         topProblem: m.topProblemCount > 1 ? `${m.topProblem} (×${m.topProblemCount})` : m.topProblem,
       })),
     matrix,
-    insights: hm.insights,
+    insights: hm.insights.map((i) => i.text),
     };
   };
 
@@ -1282,7 +1152,7 @@ export default function DowntimePage() {
                               <div className="flex items-center justify-between text-xs text-muted-foreground">
                                 <Badge variant="outline">{r.category}</Badge>
                                 <span>{format(new Date(r.started_at), "dd/MM HH:mm")}</span>
-                                <span className="font-mono">{getDuration(r)}</span>
+                                <span className="font-figure">{getDuration(r)}</span>
                               </div>
                               {r.source === "wo_event" ? (
                                 <Button
@@ -1335,7 +1205,7 @@ export default function DowntimePage() {
                               <TableCell><Badge variant="outline">{r.category}</Badge></TableCell>
                               <TableCell className="max-w-[200px] truncate">{r.reason}</TableCell>
                               <TableCell className="text-sm whitespace-nowrap">{format(new Date(r.started_at), "dd/MM HH:mm")}</TableCell>
-                              <TableCell className="font-mono text-sm">{getDuration(r)}</TableCell>
+                              <TableCell className="font-figure text-sm">{getDuration(r)}</TableCell>
                               <TableCell>
                                 {r.ended_at ? <StatusBadge status="resolved" /> : <StatusBadge status="active" />}
                               </TableCell>

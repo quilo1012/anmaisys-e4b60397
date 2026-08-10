@@ -59,7 +59,7 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   const m = mins % 60;
   const overdue = mins > 60;
   return (
-    <span className={`text-xs font-mono ${overdue ? "text-destructive-strong font-bold" : "text-warning-strong"}`}>
+    <span className={`text-xs font-figure ${overdue ? "text-destructive-strong font-bold" : "text-warning-strong"}`}>
       ⏱ {h}h {m}m
     </span>
   );
@@ -171,7 +171,7 @@ function InlineChecklist({ wo, currentEngineer }: { wo: any; currentEngineer: En
           </h4>
           <Badge
             variant={requiredIncomplete.length > 0 ? "destructive" : "default"}
-            className="font-mono text-xs tabular-nums"
+            className="font-figure text-xs"
           >
             {completedCount}/{checklistItems.length}
           </Badge>

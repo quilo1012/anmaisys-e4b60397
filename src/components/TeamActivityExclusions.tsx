@@ -130,7 +130,7 @@ export function TeamActivityExclusions({ workOrderId, lineStopped }: Props) {
                     </Badge>
                   )}
                 </span>
-                <span className="font-mono shrink-0">{mins}m</span>
+                <span className="font-figure shrink-0">{mins}m</span>
               </div>
             );
           })}

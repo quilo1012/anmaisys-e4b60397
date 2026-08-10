@@ -419,6 +419,13 @@ select:-webkit-autofill {
     font-weight: 700 !important;
     text-align: left;
   }
+  /* A heading over a column of figures belongs over the figures.
+     The rule above beats Tailwind's `text-right` on specificity — element plus class
+     against class alone — so every numeric column in the app printed with its heading
+     shoved to the left of digits aligned right. Two selectors, one for the class the
+     markup already carries and one for the alignment it inherits from the column. */
+  .print-content th.text-right { text-align: right; }
+  .print-content th.text-center { text-align: center; }
 
   /* Print header block */
   .print-header {

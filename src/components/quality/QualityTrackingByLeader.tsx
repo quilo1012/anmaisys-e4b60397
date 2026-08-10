@@ -68,8 +68,8 @@ export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }
                   >
                     <td className="py-2.5 pr-2 font-semibold">{r.leader}</td>
                     <td className="py-2.5 px-2 text-muted-foreground">{r.shifts}</td>
-                    <td className="py-2.5 px-2 text-center font-mono font-bold">{r.total}</td>
-                    <td className={`py-2.5 px-2 text-center font-mono ${r.open ? "font-bold text-warning-strong" : "text-muted-foreground"}`}>
+                    <td className="py-2.5 px-2 text-center font-figure font-bold">{r.total}</td>
+                    <td className={`py-2.5 px-2 text-center font-figure ${r.open ? "font-bold text-warning-strong" : "text-muted-foreground"}`}>
                       {r.open}
                     </td>
                     <td className="py-2.5 px-2 text-center">
@@ -89,12 +89,12 @@ export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }
                       )}
                     </td>
                     <td
-                      className={`py-2.5 px-2 text-center font-mono ${r.highCritical ? "font-bold text-destructive" : "text-muted-foreground"}`}
+                      className={`py-2.5 px-2 text-center font-figure ${r.highCritical ? "font-bold text-destructive" : "text-muted-foreground"}`}
                     >
                       {r.highCritical}
                     </td>
                     {/* Neutral, not red: these are points on the record, not a fine. */}
-                    <td className="py-2.5 pl-2 text-right font-mono font-bold tabular-nums">
+                    <td className="py-2.5 pl-2 text-right font-figure font-bold">
                       {pointsLabel(r)}
                     </td>
                   </tr>
