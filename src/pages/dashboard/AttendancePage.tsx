@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Upload, Loader2, AlertTriangle, CalendarClock } from "lucide-react";
+import { Clock, Upload, Loader2, AlertTriangle, CalendarClock, Printer } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { useEmployees } from "@/hooks/useWorkforce";
@@ -25,6 +25,9 @@ import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/tim
 import { splitAbsences } from "@/lib/absenceKind";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** `13/07/2026`. The factory reads dates day-first, and a printed sheet is read here. */
+const fmtDate = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
 
 /** `7h 30m`, `−1h 15m`, or a dash. Signed, because a balance that loses its sign is a lie. */
 function hm(mins: number | null | undefined): string {
@@ -104,6 +107,10 @@ export default function AttendancePage() {
   });
 
   const nameById = useMemo(() => new Map(roster.map((e) => [e.id, e.full_name])), [roster]);
+  // Already fetched and never read. A sheet of a hundred and seventy-six names is
+  // handed to somebody who supervises one department, and without it they have to know
+  // every name in the factory to find their own dozen.
+  const deptById = useMemo(() => new Map(roster.map((e) => [e.id, e.department])), [roster]);
 
   const byPerson = useMemo(() => {
     const m = new Map<string, { worked: number; balance: number; present: number; absences: Record<string, number> }>();
@@ -123,14 +130,14 @@ export default function AttendancePage() {
         // reason rather than its total.
         const split = splitAbsences(v.absences);
         return {
-          id, name: nameById.get(id) ?? "Unknown", ...v,
+          id, name: nameById.get(id) ?? "Unknown", department: deptById.get(id) ?? null, ...v,
           holiday: split.holiday,
           unplanned: split.unplanned,
           unplannedDays: split.sick + split.unpaid + split.other,
         };
       })
       .sort((a, b) => b.worked - a.worked);
-  }, [days, nameById]);
+  }, [days, nameById, deptById]);
 
   const totals = useMemo(() => ({
     worked: byPerson.reduce((a, p) => a + p.worked, 0),
@@ -203,11 +210,28 @@ export default function AttendancePage() {
         title="Time &amp; Attendance"
         description="Hours, balances and absence reasons for every employee. Enter the admin PIN to open."
       >
-      <div className="space-y-4">
-        <BackButton />
-        <WorkforceTabs />
+      {/* `print-content` is what the global print sheet hangs its rules off; without it
+          the table keeps its screen scroll container and the right-hand columns simply
+          do not come out on paper. `print-landscape` turns the sheet: seven columns of
+          names, hours and reasons is wider than portrait can hold without splitting a
+          person's row across two pages. */}
+      <div className="space-y-4 print-content print-landscape">
+        <BackButton className="no-print" />
+        <div className="no-print"><WorkforceTabs /></div>
 
-        <ModuleHeader title="Time &amp; Attendance" description="Hours clocked, from TimeMoto">
+        <ModuleHeader
+          title="Time &amp; Attendance"
+          // The period, on the band, because the band is the only part of this screen
+          // that survives onto paper — and a sheet of hours with no dates on it is a
+          // sheet nobody can file or check.
+          description={`Hours clocked, from TimeMoto · ${fmtDate(from)} → ${fmtDate(to)}`}
+          // Every `<header>` is hidden in print. This one carries the title and the
+          // period, which is what makes the printout a document rather than a grid.
+          className="print-keep"
+        >
+          <Button size="sm" variant="secondary" onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" /> Print
+          </Button>
           {canManage && (
             <>
               <input
@@ -230,13 +254,18 @@ export default function AttendancePage() {
             hide which one a number came from, and right now the clocks are empty
             while the board is not. */}
         <Tabs defaultValue="clocks" className="space-y-4">
-          <TabsList>
+          {/* The tab strip is a control, and on paper a control is a row of grey boxes
+              saying which one you could have pressed. Which record this IS gets said in
+              the band above instead. */}
+          <TabsList className="no-print">
             <TabsTrigger value="clocks">Clocks (TimeMoto)</TabsTrigger>
             <TabsTrigger value="marks">Board marks</TabsTrigger>
           </TabsList>
 
           <TabsContent value="clocks" className="space-y-4">
-        <div className="flex flex-wrap items-end gap-2">
+        {/* The dates chosen here are printed in the band, so the pickers themselves are
+            two empty boxes on paper. */}
+        <div className="flex flex-wrap items-end gap-2 no-print">
           <div><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => { setPeriodTouched(true); setFrom(e.target.value); }} className="mt-1 h-8 w-40" /></div>
           <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => { setPeriodTouched(true); setTo(e.target.value); }} className="mt-1 h-8 w-40" /></div>
         </div>
@@ -276,24 +305,55 @@ export default function AttendancePage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
+                    {/* A banded row over the column names, because the six figures under
+                        it answer two questions that must not be added: how LONG somebody
+                        was here, and how many DAYS they were or were not. Somebody who
+                        clocks every day and leaves at two is whole on days and short on
+                        hours, and without the band a reader has six columns and no way
+                        to tell which question any of them answered. */}
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead colSpan={2} />
+                      <TableHead
+                        colSpan={2}
+                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
+                      >
+                        Hours
+                      </TableHead>
+                      <TableHead
+                        colSpan={3}
+                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
+                      >
+                        Days
+                      </TableHead>
+                    </TableRow>
+                    {/* Widths on the figures, none on the words. Six unsized columns
+                        spread evenly across a 1900px window, so a name sat at the far
+                        left and its hours at the far right with a hand's width of white
+                        between them — a row nobody could read across without a finger on
+                        the screen. Fixed here, the digits line up in a column and the
+                        slack goes to the reason column, which is the one that varies. */}
                     <TableRow>
                       <TableHead>Employee</TableHead>
-                      <TableHead className="text-right">Worked</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                      <TableHead className="text-right">Days present</TableHead>
-                      <TableHead className="text-right">Holiday</TableHead>
-                      <TableHead>Absence</TableHead>
+                      <TableHead className="w-[9rem]">Department</TableHead>
+                      <TableHead className="w-[6.5rem] border-l text-right">Worked</TableHead>
+                      <TableHead className="w-[6.5rem] text-right">Balance</TableHead>
+                      <TableHead className="w-[5rem] border-l text-right">Present</TableHead>
+                      <TableHead className="w-[5rem] text-right">Holiday</TableHead>
+                      <TableHead className="w-[13rem]">Absence</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {byPerson.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{hm(p.worked)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {p.department ?? "—"}
+                        </TableCell>
+                        <TableCell className="border-l text-right font-figure tabular-nums">{hm(p.worked)}</TableCell>
                         <TableCell className={`text-right font-figure tabular-nums ${p.balance < 0 ? "text-destructive-strong" : p.balance > 0 ? "text-success-strong" : ""}`}>
                           {hm(p.balance)}
                         </TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{p.present}</TableCell>
+                        <TableCell className="border-l text-right font-figure tabular-nums">{p.present}</TableCell>
                         {/* A count, set like the days present next to it, because that is
                             what a holiday is: days off an entitlement. A dash where there
                             are none, so the column shows at a glance who was away. */}
