@@ -18,7 +18,9 @@ import { useEmployees, useOvertimeEntries } from "@/hooks/useWorkforce";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
-  closeCrews, filterByCrew, crewLabel, NO_CREW, type ClosePersonInput,
+  closeCrews, filterByCrew, crewLabel, NO_CREW,
+  closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT,
+  type ClosePersonInput,
 } from "@/lib/financeClose";
 import { earlyLeave } from "@/lib/earlyLeave";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -255,22 +257,56 @@ export default function FinanceClosePage() {
    * subtotals add up to it exactly, since a person belongs to one crew.
    */
   const [shiftFilter, setShiftFilter] = useState<string>("all");
-  const crews = useMemo(() => closeCrews(rows), [rows]);
-  // A crew that emptied when the period changed must not leave the page showing
-  // nothing with a filter nobody can see the effect of.
+
+  /**
+   * And one department, which is the other half of the question people actually ask.
+   *
+   * "Production weekend" is not a crew. The Weekend crew is forty people and thirty-one
+   * of them are on the lines; the rest are Hygiene, Lab and Office working the same
+   * days. Asked for by crew alone, a question about thirty-one came back as a subtotal
+   * of forty.
+   *
+   * A second select rather than a "Production Weekend" entry in the first: composed,
+   * the same two answer Production Night and Hygiene Weekend too, and the crew list
+   * stays a list of crews.
+   */
+  const [deptFilter, setDeptFilter] = useState<string>("all");
+  const departments = useMemo(() => closeDepartments(rows), [rows]);
+  // Departments are read off the WHOLE period, not off the chosen crew: narrowing both
+  // ways round would make each select rewrite the other's options as you used them.
+  const department = deptFilter !== "all" && !departments.includes(deptFilter) ? "all" : deptFilter;
+
+  // The crews are read off the chosen department, so picking Warehouse does not leave
+  // Night in the list offering a view of nobody.
+  const inDept = useMemo(
+    () => filterClose(rows, { crew: "all", department }),
+    [rows, department],
+  );
+  const crews = useMemo(() => closeCrews(inDept), [inDept]);
+  // A crew that emptied when the period or the department changed must not leave the
+  // page showing nothing with a filter nobody can see the effect of.
   const crew = shiftFilter !== "all" && !crews.includes(shiftFilter) ? "all" : shiftFilter;
   const shown = useMemo(
-    () => (crew === "all" ? rows : filterByCrew(rows, crew)),
-    [rows, crew],
+    () => filterClose(rows, { crew, department }),
+    [rows, crew, department],
   );
 
   const totals = useMemo(() => closeTotals(shown), [shown]);
-  /** Every crew side by side, so the split is readable without touching the filter. */
+  /**
+   * Every crew side by side, so the split is readable without touching the filter.
+   * Within the chosen department, so the subtotals still add up to the table below.
+   */
   const byShift = useMemo(
-    () => crews.map((s) => ({ shift: s, ...closeTotals(filterByCrew(rows, s)) }))
+    () => crews.map((s) => ({ shift: s, ...closeTotals(filterByCrew(inDept, s)) }))
       .filter((t) => t.people > 0),
-    [rows, crews],
+    [inDept, crews],
   );
+
+  /** What the page is showing, said out loud — it is printed and handed to somebody. */
+  const scope = [
+    department === "all" ? null : departmentLabel(department),
+    crew === "all" ? null : crewLabel(crew),
+  ].filter(Boolean).join(" · ");
 
   /**
    * The register below, narrowed to the same crew.
@@ -281,10 +317,21 @@ export default function FinanceClosePage() {
    * file" instead of hiding them.
    */
   const otShown = useMemo(() => {
-    if (crew === "all") return otEntries ?? [];
-    const crewById = new Map((otEmployees ?? []).map((e) => [e.id, e.shift_group ?? NO_CREW]));
-    return (otEntries ?? []).filter((e) => crewById.get(e.employee_id) === crew);
-  }, [otEntries, otEmployees, crew]);
+    if (crew === "all" && department === "all") return otEntries ?? [];
+    const byId = new Map((otEmployees ?? []).map((e) => [e.id, {
+      crew: e.shift_group ?? NO_CREW,
+      department: (e.department ?? "").trim() || NO_DEPARTMENT,
+    }]));
+    return (otEntries ?? []).filter((e) => {
+      const who = byId.get(e.employee_id);
+      // Keyed against somebody no longer on file: there is no crew or department to
+      // match, so they only appear under the unfiltered view. Which is where anybody
+      // reconciling the register will be looking for them.
+      if (!who) return false;
+      return (crew === "all" || who.crew === crew)
+        && (department === "all" || who.department === department);
+    });
+  }, [otEntries, otEmployees, crew, department]);
   const num = (n: number | null) => (n == null ? "—" : n.toFixed(2));
 
   return (
@@ -300,7 +347,9 @@ export default function FinanceClosePage() {
 
         <ModuleHeader
           title="Finance Close"
-          description={period ? `${period.name} · ${from} → ${to}` : "No pay period set"}
+          description={period
+            ? `${period.name} · ${from} → ${to}${scope ? ` · ${scope} only` : ""}`
+            : "No pay period set"}
         >
           {/* In the header rather than under it: choosing the period and the shift is
               choosing what the whole page is about, and both were sitting below the
@@ -312,6 +361,18 @@ export default function FinanceClosePage() {
             <SelectContent>
               {periods.map((p) => (
                 <SelectItem key={p.id} value={p.id}>{p.name} · {p.start_date} → {p.end_date}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Department first, crew second — it is the order the question is asked in
+              ("production weekend"), and the department is what narrows the crew list
+              rather than the other way round. */}
+          <Select value={department} onValueChange={setDeptFilter}>
+            <SelectTrigger className="h-9 w-[190px] border-white/25 bg-white/10 text-white"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Every department</SelectItem>
+              {departments.map((d) => (
+                <SelectItem key={d} value={d}>{departmentLabel(d)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -332,8 +393,12 @@ export default function FinanceClosePage() {
             variant="secondary"
             className="print:hidden"
             disabled={shown.length === 0}
+            // The filter goes in the filename. A close of thirty-one people and a close
+            // of a hundred and seventy-six are the same file otherwise, and the one
+            // that lands in payroll's inbox is whichever was downloaded second.
             onClick={() => downloadCsv(
-              `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}.csv`,
+              `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}${
+                scope ? `-${scope.replace(/\W+/g, "-").toLowerCase()}` : ""}.csv`,
               CLOSE_HEADERS,
               closeToCsvRows(shown),
             )}
@@ -459,9 +524,14 @@ export default function FinanceClosePage() {
             {isLoading ? (
               <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
             ) : shown.length === 0 ? (
+              // An empty filter and an empty period are different facts, and the period
+              // message read as "the factory recorded nothing" when it meant "nobody in
+              // Warehouse works nights".
               <div className="p-6 text-center text-sm text-muted-foreground">
-                Nothing recorded in this period. Overtime arrives from a TimeMoto import on the
-                Attendance page, or from the office keying it into the overtime register.
+                {scope
+                  ? <>Nobody in <b>{scope}</b> in this period.</>
+                  : <>Nothing recorded in this period. Overtime arrives from a TimeMoto import on the
+                     Attendance page, or from the office keying it into the overtime register.</>}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -597,8 +667,8 @@ export default function FinanceClosePage() {
           <p className="text-sm text-muted-foreground">
             Hours keyed from the payroll sheet. What is entered here becomes the
             <b> Payroll OT</b> column above.
-            {crew !== "all" && (
-              <> Showing the <b>{crewLabel(crew)}</b> crew only, to match the filter above.</>
+            {scope && (
+              <> Showing <b>{scope}</b> only, to match the filter above.</>
             )}
           </p>
           <OvertimePanel

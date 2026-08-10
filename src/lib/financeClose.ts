@@ -242,6 +242,64 @@ export function crewLabel(crew: string): string {
   return crew === NO_CREW ? "No crew recorded" : crew;
 }
 
+/**
+ * The department somebody works in, when the record does not say which.
+ *
+ * The same reasoning as `NO_CREW`, and needed for the same reason: eight active
+ * records carry an empty string in `department`. A filter with no bucket for them
+ * would drop eight paid people out of every view but "all".
+ */
+export const NO_DEPARTMENT = "__no_department__";
+
+/** Blank, whitespace and null are the same fact: nobody wrote a department down. */
+const departmentOf = (r: ClosePerson) => (r.department ?? "").trim() || NO_DEPARTMENT;
+
+/**
+ * The departments these rows hold, alphabetically, with the unrecorded bucket last.
+ *
+ * Derived rather than listed, because `employees.department` is free text and has
+ * already carried "Prodcution" on twenty-eight records. A hardcoded set would have
+ * silently dropped those people from every department view; derived, the typo appears
+ * as a line of its own and gets fixed.
+ */
+export function closeDepartments(rows: ClosePerson[]): string[] {
+  const seen = new Set(rows.map(departmentOf));
+  return [
+    ...[...seen].filter((d) => d !== NO_DEPARTMENT).sort((a, b) => a.localeCompare(b)),
+    ...(seen.has(NO_DEPARTMENT) ? [NO_DEPARTMENT] : []),
+  ];
+}
+
+/** What a department is called on screen. Only the sentinel needs saying out loud. */
+export function departmentLabel(department: string): string {
+  return department === NO_DEPARTMENT ? "No department recorded" : department;
+}
+
+/**
+ * The rows a reader asked for: one crew, one department, or the pair of them.
+ *
+ * The pair is the point. "Production weekend" is not a crew — the Weekend crew is
+ * forty people and only thirty-one of them are on the lines, the rest being Hygiene,
+ * Lab and Office working the same days. Crew alone answered a question about
+ * thirty-one people with a subtotal of forty.
+ *
+ * Composed rather than welded into a "Production Weekend" crew entry: the same two
+ * selects also answer Production Night and Hygiene Weekend, which nobody would have
+ * thought to hardcode.
+ *
+ * "all" on either side means that side was not asked about, so the rows come back
+ * untouched — never an empty view because a filter was left at its default.
+ */
+export function filterClose(
+  rows: ClosePerson[],
+  { crew, department }: { crew: string; department: string },
+): ClosePerson[] {
+  return rows.filter(
+    (r) => (crew === "all" || (r.shift ?? NO_CREW) === crew)
+      && (department === "all" || departmentOf(r) === department),
+  );
+}
+
 export interface CloseTotals {
   people: number;
   /** Signed hours accrued in the period. Can be negative; not overtime. */
