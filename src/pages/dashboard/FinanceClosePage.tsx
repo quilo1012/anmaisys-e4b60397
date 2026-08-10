@@ -11,8 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calculator, Download, Printer, AlertTriangle } from "lucide-react";
+import { Calculator, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { downloadCsv } from "@/lib/exportCsv";
+import { exportClosePdf, exportCloseExcel, type CloseExportInput } from "@/lib/financeCloseExports";
+import { CLOSE_COLUMNS, closeBandSpans } from "@/lib/financeCloseColumns";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useEmployees, useOvertimeEntries } from "@/hooks/useWorkforce";
 import { boardShiftFor } from "@/hooks/useHeadcount";
@@ -309,6 +315,26 @@ export default function FinanceClosePage() {
   ].filter(Boolean).join(" · ");
 
   /**
+   * The filter goes in the filename, whatever the format.
+   *
+   * A close of thirty-one people and a close of a hundred and seventy-six are the same
+   * file otherwise, and the one that lands in payroll's inbox is whichever was
+   * downloaded second.
+   */
+  const fileBase = `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}${
+    scope ? `-${scope.replace(/\W+/g, "-").toLowerCase()}` : ""}`;
+
+  /** Everything the PDF and the workbook need, built once for both. */
+  const exportInput = (): CloseExportInput => ({
+    periodName: period?.name ?? "No period",
+    from, to, scope,
+    rows: shown,
+    totals,
+    byCrew: byShift.map((t) => ({ crew: crewLabel(t.shift), totals: t })),
+    fileBase,
+  });
+
+  /**
    * The register below, narrowed to the same crew.
    *
    * Filtered on the ENTRY's employee, not by handing the panel a shorter employee
@@ -388,23 +414,42 @@ export default function FinanceClosePage() {
           <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
             <Printer className="mr-1.5 h-4 w-4" /> Print
           </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="print:hidden"
-            disabled={shown.length === 0}
-            // The filter goes in the filename. A close of thirty-one people and a close
-            // of a hundred and seventy-six are the same file otherwise, and the one
-            // that lands in payroll's inbox is whichever was downloaded second.
-            onClick={() => downloadCsv(
-              `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}${
-                scope ? `-${scope.replace(/\W+/g, "-").toLowerCase()}` : ""}.csv`,
-              CLOSE_HEADERS,
-              closeToCsvRows(shown),
-            )}
-          >
-            <Download className="mr-1.5 h-4 w-4" /> Export
-          </Button>
+          {/* Three formats for three jobs, behind one button. The PDF is the sheet you
+              hand somebody, the workbook is the one payroll sums, and the CSV is what
+              feeds another system. They were one CSV, and the print button was the only
+              way to get a readable page out of an eighteen-column table. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="secondary" className="print:hidden" disabled={shown.length === 0}>
+                <Download className="mr-1.5 h-4 w-4" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {/* Caught, because building a PDF is async and a rejected promise here
+                  would be a click that does nothing and says nothing — on the one
+                  screen where "no file arrived" is indistinguishable from "the period
+                  is empty". */}
+              <DropdownMenuItem onSelect={() => {
+                exportClosePdf(exportInput()).catch((e) => {
+                  toast.error("The PDF could not be built.", { description: String(e?.message ?? e) });
+                });
+              }}>
+                <FileText className="mr-2 h-4 w-4" /> PDF · to hand over
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => {
+                try { exportCloseExcel(exportInput()); } catch (e: any) {
+                  toast.error("The workbook could not be built.", { description: String(e?.message ?? e) });
+                }
+              }}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel · to add up
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => downloadCsv(
+                `${fileBase}.csv`, CLOSE_HEADERS, closeToCsvRows(shown),
+              )}>
+                <FileDown className="mr-2 h-4 w-4" /> CSV · to feed another system
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </ModuleHeader>
 
         {/* The split, whatever the filter says. A close read as one number hid that the
@@ -545,45 +590,39 @@ export default function FinanceClosePage() {
                         reader has fifteen columns and no way to tell which question
                         any of them answered. */}
                     <TableRow className="hover:bg-transparent">
-                      <TableHead colSpan={3} />
-                      <TableHead
-                        colSpan={3}
-                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
-                      >
-                        Shifts · from the board
-                      </TableHead>
-                      <TableHead
-                        colSpan={5}
-                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
-                      >
-                        Hours · from the clocks
-                      </TableHead>
-                      <TableHead
-                        colSpan={5}
-                        className="border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
-                      >
-                        Days away
-                      </TableHead>
+                      {/* Counted off CLOSE_COLUMNS, not written by hand. Written by hand
+                          they read 3 + 3 + 5 + 5 over a table of EIGHTEEN columns, so
+                          everything past the tenth sat one band to the left: Payroll OT
+                          and Δ were printed under "Days away" — hours labelled as days
+                          of absence, on the sheet somebody is paid from — and the last
+                          two columns had no band at all. */}
+                      {closeBandSpans().map((b) => (
+                        <TableHead
+                          key={b.band}
+                          colSpan={b.span}
+                          className={b.label
+                            ? "border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
+                            : undefined}
+                        >
+                          {b.label}
+                        </TableHead>
+                      ))}
                     </TableRow>
+                    {/* Same source as the band above it, so a column added to one can
+                        never leave the other a cell short. */}
                     <TableRow>
-                      <TableHead>Employee</TableHead>
-                      <TableHead>Shift</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead className="border-l text-right">Due</TableHead>
-                      <TableHead className="text-right">Worked</TableHead>
-                      <TableHead className="text-right">+/−</TableHead>
-                      <TableHead className="border-l text-right">Opening bank</TableHead>
-                      <TableHead className="text-right">Period</TableHead>
-                      <TableHead className="text-right">Closing bank</TableHead>
-                      <TableHead className="text-right">Overtime</TableHead>
-                      <TableHead className="text-right">Deducted</TableHead>
-                      <TableHead className="text-right">Payroll OT</TableHead>
-                      <TableHead className="text-right">Δ</TableHead>
-                      <TableHead className="text-right">Present</TableHead>
-                      <TableHead className="text-right">Sick</TableHead>
-                      <TableHead className="text-right">Holiday</TableHead>
-                      <TableHead className="text-right">Unpaid</TableHead>
-                      <TableHead className="text-right">Left early (h)</TableHead>
+                      {CLOSE_COLUMNS.map((c, i) => (
+                        <TableHead
+                          key={c.key}
+                          className={[
+                            c.align === "right" ? "text-right" : "",
+                            // A rule where a band starts, so the eye can see the join.
+                            i > 0 && CLOSE_COLUMNS[i - 1].band !== c.band ? "border-l" : "",
+                          ].filter(Boolean).join(" ") || undefined}
+                        >
+                          {c.header}
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -640,7 +679,7 @@ export default function FinanceClosePage() {
                             : Math.abs(r.deltaHours) >= 1 ? "text-destructive-strong" : ""}`}>
                           {num(r.deltaHours)}
                         </TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{r.daysPresent}</TableCell>
+                        <TableCell className="border-l text-right font-figure tabular-nums">{r.daysPresent}</TableCell>
                         <TableCell className="text-right font-figure tabular-nums">{r.sick || "—"}</TableCell>
                         <TableCell className="text-right font-figure tabular-nums">{r.holiday || "—"}</TableCell>
                         <TableCell className="text-right font-figure tabular-nums">{r.unpaid || "—"}</TableCell>
@@ -648,7 +687,7 @@ export default function FinanceClosePage() {
                             short is not a day off, and rounding it to one would say
                             Elias Soares had a whole day away when he worked two hours
                             of it. */}
-                        <TableCell className={`text-right font-figure tabular-nums ${
+                        <TableCell className={`border-l text-right font-figure tabular-nums ${
                           r.earlyLeaveHours > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
                           {r.earlyLeaveHours ? r.earlyLeaveHours.toFixed(2) : "—"}
                         </TableCell>
