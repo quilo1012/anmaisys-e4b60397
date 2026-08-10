@@ -2,15 +2,31 @@
 // Matrix and the PDF report so they never diverge. Buckets each stop into
 // weekday × shift cells (splitting across shift boundaries), unions overlapping
 // intervals, and derives per-line / per-cell / grand totals + PM insights.
-import { type Interval, unionMs } from "./downtimeReconcile";
-import { formatMinutes } from "./formatDuration";
+import { type Interval, unionMinutes } from "./downtimeReconcile";
+import { buildPatternInsight, isSystemClosed, type PatternInsight } from "./downtimeAttribution";
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 export const SHIFTS = ["Day", "Night"] as const;
 export type Shift = (typeof SHIFTS)[number];
-export interface Cell { minutes: number; count: number }
 
-export interface HeatmapRecord { line?: string | null; started_at?: string | null; ended_at?: string | null }
+export interface Cell {
+  minutes: number;
+  count: number;
+  /** Of `minutes`, how many came from stops the system closed rather than a person. */
+  systemMinutes: number;
+}
+
+export interface HeatmapRecord {
+  line?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  /** Manual rows carry a typed end time, so the boundary heuristic must skip them. */
+  source?: "manual" | "wo_event";
+  /** Who pressed Resume, and what note was left — see isSystemClosed. */
+  resumed_by?: string | null;
+  resumed_by_name?: string | null;
+  notes?: string | null;
+}
 
 export function shiftOf(hour: number): Shift {
   return hour >= 6 && hour < 18 ? "Day" : "Night";
@@ -44,12 +60,6 @@ function londonWallToUtc(y: number, mo: number, d: number, h: number): number {
   return naive - off * 60000;
 }
 
-function unionMinutes(intervals: Interval[]): number {
-  const ms = unionMs(intervals);
-  if (ms <= 0) return 0;
-  return Math.max(1, Math.round(ms / 60_000));
-}
-
 export function nextShiftBoundary(t: number): number {
   const p = londonAllParts(new Date(t));
   if (p.hour < 6) return londonWallToUtc(p.year, p.month, p.day, 6);
@@ -64,7 +74,21 @@ export interface HeatmapResult {
   dayShiftTotals: Map<string, Cell>;
   grandMax: number;
   grandTotalMinutes: number;
-  insights: string[];
+  /** Of `grandTotalMinutes`, the share nobody resumed. */
+  grandSystemMinutes: number;
+  insights: PatternInsight[];
+}
+
+/** Interval buckets kept twice: every stop, and only the system-closed ones. */
+interface Buckets {
+  all: Interval[];
+  system: Interval[];
+}
+
+function bucket(map: Map<string, Buckets>, key: string): Buckets {
+  const b = map.get(key) ?? { all: [], system: [] };
+  map.set(key, b);
+  return b;
 }
 
 export function computeHeatmap(
@@ -74,11 +98,11 @@ export function computeHeatmap(
   lineFilter: string,
   shiftFilter: "all" | Shift,
 ): HeatmapResult {
-  const perLineIntervals = new Map<string, Map<string, Interval[]>>();
+  const perLineIntervals = new Map<string, Map<string, Buckets>>();
   const perLineCounts = new Map<string, Map<string, number>>();
-  const lineAllIntervals = new Map<string, Interval[]>();
-  const allKeyIntervals = new Map<string, Interval[]>();
-  const globalIntervals: Interval[] = [];
+  const lineAllIntervals = new Map<string, Buckets>();
+  const allKeyIntervals = new Map<string, Buckets>();
+  const globalIntervals: Buckets = { all: [], system: [] };
 
   for (const r of records ?? []) {
     if (!r.started_at) continue;
@@ -92,12 +116,15 @@ export function computeHeatmap(
     const clampedEnd = Math.min(end, toMs);
     if (clampedEnd <= clampedStart) continue;
 
-    const li = perLineIntervals.get(line) ?? new Map<string, Interval[]>();
+    // A clock closed this one, not a person — its minutes are evidence the line
+    // was down, but not a measurement of how long.
+    const unresumed = isSystemClosed(r);
+
+    const li = perLineIntervals.get(line) ?? new Map<string, Buckets>();
     perLineIntervals.set(line, li);
     const lc = perLineCounts.get(line) ?? new Map<string, number>();
     perLineCounts.set(line, lc);
-    const allIvs = lineAllIntervals.get(line) ?? [];
-    lineAllIntervals.set(line, allIvs);
+    const lineBucket = bucket(lineAllIntervals, line);
 
     let cursor = clampedStart;
     while (cursor < clampedEnd) {
@@ -109,14 +136,11 @@ export function computeHeatmap(
         const shift = shiftOf(parts.hour);
         if (shiftFilter === "all" || shift === shiftFilter) {
           const key = `${dayIdx}-${shift}`;
-          const ivs = li.get(key) ?? [];
-          ivs.push([cursor, boundary]);
-          li.set(key, ivs);
-          allIvs.push([cursor, boundary]);
-          const ak = allKeyIntervals.get(key) ?? [];
-          ak.push([cursor, boundary]);
-          allKeyIntervals.set(key, ak);
-          globalIntervals.push([cursor, boundary]);
+          const slice: Interval = [cursor, boundary];
+          for (const b of [bucket(li, key), lineBucket, bucket(allKeyIntervals, key), globalIntervals]) {
+            b.all.push(slice);
+            if (unresumed) b.system.push(slice);
+          }
         }
       }
       cursor = boundary;
@@ -139,20 +163,27 @@ export function computeHeatmap(
   perLineIntervals.forEach((buckets, line) => {
     const cells = new Map<string, Cell>();
     const counts = perLineCounts.get(line);
-    buckets.forEach((ivs, key) => {
-      const minutes = unionMinutes(ivs);
+    buckets.forEach((b, key) => {
+      const minutes = unionMinutes(b.all);
       const count = counts?.get(key) ?? 0;
-      cells.set(key, { minutes, count });
+      cells.set(key, { minutes, count, systemMinutes: unionMinutes(b.system) });
       if (minutes > grandMax) grandMax = minutes;
     });
     matrix.set(line, cells);
-    const totalMin = unionMinutes(lineAllIntervals.get(line) ?? []);
+    const lineBucket = lineAllIntervals.get(line) ?? { all: [], system: [] };
     const totalCount = Array.from(counts?.values() ?? []).reduce((a, b) => a + b, 0);
-    lineTotals.set(line, { minutes: totalMin, count: totalCount });
+    lineTotals.set(line, {
+      minutes: unionMinutes(lineBucket.all),
+      count: totalCount,
+      systemMinutes: unionMinutes(lineBucket.system),
+    });
   });
 
-  allKeyIntervals.forEach((ivs, key) => dayShiftTotals.set(key, { minutes: unionMinutes(ivs), count: 0 }));
-  const grandTotalMinutes = unionMinutes(globalIntervals);
+  allKeyIntervals.forEach((b, key) =>
+    dayShiftTotals.set(key, { minutes: unionMinutes(b.all), count: 0, systemMinutes: unionMinutes(b.system) }),
+  );
+  const grandTotalMinutes = unionMinutes(globalIntervals.all);
+  const grandSystemMinutes = unionMinutes(globalIntervals.system);
 
   const lines = Array.from(matrix.keys()).sort((a, b) => {
     const ma = /line\s*(\d+)/i.exec(a)?.[1];
@@ -161,22 +192,25 @@ export function computeHeatmap(
     return a.localeCompare(b);
   });
 
-  const insights: string[] = [];
+  const insights: PatternInsight[] = [];
   for (const line of lines) {
-    const lm = matrix.get(line)!;
-    const total = lineTotals.get(line)?.minutes ?? 0;
-    if (total < 60) continue;
-    let worst: { key: string; minutes: number } | null = null;
-    lm.forEach((cell, key) => { if (!worst || cell.minutes > worst.minutes) worst = { key, minutes: cell.minutes }; });
-    if (worst && worst.minutes / total >= 0.35) {
-      const [d, s] = worst.key.split("-");
-      const dayName = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][Number(d)];
-      const pmDay = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Number(d)];
-      insights.push(
-        `${dayName} ${s} shift concentrates ${Math.round((worst.minutes / total) * 100)}% of ${line}'s downtime (${formatMinutes(worst.minutes)}). Consider scheduling PM on ${pmDay} ${s === "Day" ? "night" : "day"}.`,
-      );
-    }
+    const cells = Array.from(matrix.get(line)!.entries()).map(([key, c]) => ({
+      key,
+      minutes: c.minutes,
+      systemMinutes: c.systemMinutes,
+    }));
+    const insight = buildPatternInsight(line, lineTotals.get(line)?.minutes ?? 0, cells);
+    if (insight) insights.push(insight);
   }
 
-  return { matrix, lines, lineTotals, dayShiftTotals, grandMax, grandTotalMinutes, insights };
+  return {
+    matrix,
+    lines,
+    lineTotals,
+    dayShiftTotals,
+    grandMax,
+    grandTotalMinutes,
+    grandSystemMinutes,
+    insights,
+  };
 }

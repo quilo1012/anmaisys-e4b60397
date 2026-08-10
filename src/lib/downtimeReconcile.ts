@@ -59,6 +59,19 @@ export function unionMs(intervals: Interval[]): number {
   return acc;
 }
 
+/**
+ * Union of intervals in whole minutes.
+ *
+ * Plain rounding, deliberately: anything under thirty seconds is not a minute of
+ * downtime. The Pattern Matrix used to floor every non-empty interval to 1, and a
+ * stop auto-closed at 06:00:00.049 left a 49-millisecond sliver on the far side of
+ * the shift boundary that surfaced as a minute of downtime on a day the line never
+ * stopped — and made the column totals exceed the grand total by that minute.
+ */
+export function unionMinutes(intervals: Interval[]): number {
+  return Math.round(unionMs(intervals) / 60_000);
+}
+
 /** Convenience: union of raw stops, clamped, returned in minutes (rounded). */
 export function reconcileMinutes(
   stops: RawStop[],

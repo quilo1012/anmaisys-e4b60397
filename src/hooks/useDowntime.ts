@@ -15,6 +15,12 @@ export interface DowntimeRecord {
   created_at: string;
   source?: "manual" | "wo_event";
   source_event_id?: string;
+  /**
+   * Who ended the stop. Null on a work-order stop means nobody did — the
+   * shift-close job or iTouching wrote the end time. See isSystemClosed.
+   */
+  resumed_by?: string | null;
+  resumed_by_name?: string | null;
 }
 
 export function useDowntime() {
@@ -75,6 +81,8 @@ export function useDowntime() {
           started_at: event.stopped_at,
           ended_at: event.resumed_at,
           reported_by: event.stopped_by,
+          resumed_by: event.resumed_by ?? null,
+          resumed_by_name: event.resumed_by_name ?? null,
           work_order_id: event.work_order_id,
           notes: event.resumed_note || null,
           created_at: event.created_at,
@@ -114,6 +122,8 @@ export function useDowntime() {
           started_at: w.line_stopped_at,
           ended_at: w.line_resumed_at,
           reported_by: w.line_stopped_by,
+          resumed_by: w.line_resumed_by ?? null,
+          resumed_by_name: null,
           work_order_id: w.id,
           notes: null,
           created_at: w.created_at,
