@@ -527,15 +527,36 @@ export default function ProductionPerformancePage() {
 
     const pct = (numer / denom) * 100;
     const band = scoreBand(basis, pct);
+
+    /**
+     * A percentagem IMPRESSA é sempre a fatia do plano — a mesma pergunta que os
+     * cartões passaram a responder em grande, e a mesma que quem tem a folha na
+     * mão consegue conferir: feito a dividir pelo planeado do período.
+     *
+     * A COR e o veredicto continuam a vir do ritmo enquanto o turno corre, e é
+     * essa a divisão de trabalho: a lâmpada diz se se está a perder AGORA, o
+     * número diz quanto do turno já está feito. Imprimir o ritmo aqui punha no
+     * ecrã uma percentagem que não batia com nenhuma das duas somas escritas a
+     * um palmo dela — nem com o anel, nem com o "feito / planeado".
+     */
+    const attainedPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
+    const lines = `${scored.length} ${scored.length === 1 ? "line" : "lines"}`;
+
     return {
       state: BAND_RAIL[band],
       verdict: (paced ? FACTORY_PACE_VERDICT : FACTORY_PLAN_VERDICT)[band],
-      value: `${Math.round(pct)}%`,
+      value: `${Math.round(attainedPct)}%`,
       basis: paced
-        ? `${scored.length} ${scored.length === 1 ? "line" : "lines"} · against what is due by now`
-        : `${scored.length} ${scored.length === 1 ? "line" : "lines"} · against the period plan`,
-      detail: `${Math.round(numer).toLocaleString("en-US")} / ${Math.round(denom).toLocaleString("en-US")}`,
-      pct,
+        ? `${lines} · of the full shift plan`
+        : `${lines} · against the period plan`,
+      // Em peças, contra o alvo, e nada mais. O ritmo esteve escrito aqui — "60%
+      // of what is due by now" — e era a última percentagem no ecrã com um
+      // denominador que não está em lado nenhum na folha. Continua a decidir a
+      // cor e o veredicto acima; deixa de ser um número a competir com o outro.
+      detail: paced
+        ? `${totalActual.toLocaleString("en-US")} / ${totalTarget.toLocaleString("en-US")}`
+        : `${Math.round(numer).toLocaleString("en-US")} / ${Math.round(denom).toLocaleString("en-US")}`,
+      pct: attainedPct,
       paced,
     };
   }, [byLine, paceByLine, isCurrentShiftView]);
@@ -796,13 +817,13 @@ export default function ProductionPerformancePage() {
               <CardContent className="p-0">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-5 p-5">
                   {/* O mesmo número da barra de andon, e nunca um segundo.
-                      Este anel mostrava o feito a dividir pelo plano INTEIRO do período
-                      — a meio de um turno de doze horas, 7% por construção. Com a barra
-                      lá em cima a dizer 96%, eram duas percentagens da mesma fábrica no
-                      mesmo ecrã, a dois palmos uma da outra. O rótulo diz contra o quê
-                      é que se mediu, que é o que faltava para os dois números poderem
-                      ser o mesmo sem mentir. */}
-                  <CircularProgress value={factory.pct} size={104} strokeWidth={9} sublabel={factory.paced ? "Pace" : "Attained"} />
+                      Duas percentagens da mesma fábrica no mesmo ecrã, a dois palmos
+                      uma da outra, era o defeito antigo — e resolveu-se pelos dois
+                      lados a dizerem a mesma coisa: quanto do plano do período já está
+                      feito. É a conta que os números em peças aqui ao lado mostram
+                      escrita por extenso, e o ritmo, que tem outro denominador, vive
+                      agora na linha de baixo da barra e nos cartões. */}
+                  <CircularProgress value={factory.pct} size={104} strokeWidth={9} sublabel="Attained" />
                   <div className="min-w-[13rem] flex-1">
                     <div className="font-display text-2xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
                       Overall performance
@@ -1091,15 +1112,21 @@ export default function ProductionPerformancePage() {
                   );
                 })()}
                 {(() => {
-                  const paced = pace?.kind === "PACE" ? pace : null;
                   const sku = skuByLine.get(l.line);
-                  // Where the line should be by now, as a share of the shift's plan.
-                  // This is the only new number on the card and it is the one the
-                  // board was missing: without it, five hours into twelve, every
-                  // line is compared against seven hours nobody has worked yet.
-                  const tickPct = paced && l.target > 0
-                    ? Math.min(100, Math.max(0, (paced.expected / l.target) * 100))
-                    : null;
+                  // Um denominador, e é o que está escrito na folha.
+                  //
+                  // O cartão media o feito contra duas coisas ao mesmo tempo: o
+                  // número grande dizia 60% (299 do que já era devido a esta hora)
+                  // por cima de uma barra a 9% (299 do plano do turno), e o único
+                  // dos dois que alguém podia conferir era o que não era um número.
+                  // Quem lê o painel não tem como saber que os dois 299 são o mesmo
+                  // 299 dividido por coisas diferentes — e um painel que precisa de
+                  // ser explicado deixa de ser lido.
+                  //
+                  // Agora o cartão conta uma coisa só: feito, alvo, e a fatia. O
+                  // ritmo continua a decidir a COR (ver `lineScore`), porque às
+                  // cinco horas de doze 9% do plano não é um veredicto — mas deixa
+                  // de imprimir um segundo número ao lado do primeiro.
                   const donePct = l.target > 0 ? Math.min(100, Math.max(0, (l.actual / l.target) * 100)) : 0;
                   return (
                     <>
@@ -1151,51 +1178,44 @@ export default function ProductionPerformancePage() {
                             {l.actual.toLocaleString("en-US")}
                           </div>
                           <div className="mt-1.5 font-figure text-xs text-muted-foreground">
-                            {paced
-                              ? `${Math.round(paced.expected).toLocaleString("en-US")} due by now`
-                              : `${l.target.toLocaleString("en-US")} planned`}
+                            {l.target.toLocaleString("en-US")} target
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                            {score?.basis === "PACE" ? "Pace" : "Of plan"}
+                            Of target
                           </div>
                           {/* The one figure that carries colour. The rail says WHICH
                               state from across the room; this says HOW MUCH where the
                               eye has already landed. Everything else on the card is
                               foreground or muted — four colour carriers on one card is
-                              how a board teaches people to stop looking at it. */}
+                              how a board teaches people to stop looking at it.
+
+                              O número é a fatia do alvo do turno — 299 de 3.233 — e é
+                              o mesmo facto que a barra logo abaixo enche e que o 3.233
+                              ao lado dela nomeia. Três sítios, uma conta.
+
+                              A COR continua a vir do ritmo: a cinco horas de doze, 9%
+                              do alvo não é um veredicto, e pintar de vermelho uma linha
+                              que está a andar bem só porque ainda faltam sete horas é o
+                              que fazia a fábrica deixar de olhar para o painel. */}
                           <div className={`mt-1 font-figure text-[2rem] font-bold leading-none tracking-[-0.02em] ${effColor}`}>
-                            {Math.round(score ? score.pct : l.eff)}%
+                            {Math.round(score ? score.attainedPct : l.eff)}%
                           </div>
                         </div>
                       </div>
 
-                      {/* The scale. The fill is what the line has made; the notch is
-                          where it should be. The distance between them IS the report,
-                          and no other screen in this app draws it. */}
+                      {/* A escala. O enchimento é o que a linha fez, o fim da barra é
+                          o alvo do turno, e a distância entre os dois É o relatório.
+                          Havia aqui um entalhe a marcar "onde devia estar a esta hora"
+                          — saiu com o ritmo, porque era a terceira voz a falar de uma
+                          medida que o cartão já não imprime. */}
                       <div className="mt-3.5">
                         <div className="relative h-2 w-full overflow-hidden rounded-[2px] bg-foreground/[0.09]">
                           <div className="h-full bg-foreground/40" style={{ width: `${donePct}%` }} />
-                          {tickPct != null && (
-                            <div
-                              className="absolute inset-y-0 w-[2px] -translate-x-1/2 bg-foreground"
-                              style={{ left: `${tickPct}%` }}
-                              title="Where the line should be by now"
-                              aria-hidden
-                            />
-                          )}
                         </div>
                         <div className="mt-2 flex items-baseline justify-between font-figure text-2xs text-muted-foreground">
-                          <span>
-                            {paced ? (
-                              <>
-                                {gap >= 0 ? "+" : ""}{Math.round(paced.produced - paced.expected).toLocaleString("en-US")} vs due
-                              </>
-                            ) : (
-                              <>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs plan</>
-                            )}
-                          </span>
+                          <span>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs target</span>
                           <span className="text-muted-foreground/70">{l.target.toLocaleString("en-US")}</span>
                         </div>
                       </div>

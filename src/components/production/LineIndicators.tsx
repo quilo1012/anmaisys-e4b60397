@@ -128,6 +128,26 @@ export function LineIndicators({
 
   const anyScrap = rows.some((r) => r.scrapPct !== null);
 
+  /**
+   * O somatório, ao fundo.
+   *
+   * Um livro de fábrica fecha sempre as colunas: sem ele, quem quer saber o que a
+   * fábrica planeou e o que fez tem de somar oito linhas de cabeça, e é essa a
+   * primeira pergunta que se faz a uma tabela por linha. A atingimento é a razão dos
+   * totais e não a média das razões — nove linhas pequenas não valem tanto como uma
+   * linha grande, e uma média simples diria que sim.
+   */
+  const totals = useMemo(() => {
+    const target = rows.reduce((a, r) => a + r.target, 0);
+    const actual = rows.reduce((a, r) => a + r.actual, 0);
+    return {
+      target, actual,
+      eff: target > 0 ? (actual / target) * 100 : 0,
+      qualityPoints: rows.reduce((a, r) => a + r.qualityPoints, 0),
+      openActions: rows.reduce((a, r) => a + r.openActions, 0),
+    };
+  }, [rows]);
+
   return (
     <Card className="break-inside-avoid">
       <CardHeader className="pb-3">
@@ -144,39 +164,48 @@ export function LineIndicators({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          {/* O livro da fábrica: chapas em caixa alta, algarismos tabulares, e as
+              colunas fechadas no fim. A face de algarismos é a mesma dos cartões — as
+              colunas só se comparam de relance se os dígitos tiverem todos a mesma
+              largura. */}
+          <table className="w-full min-w-[46rem] text-left text-xs">
             <thead>
-              <tr className="border-b text-2xs font-bold uppercase text-muted-foreground">
-                <th className="py-2 pr-2">Line</th>
-                <th className="py-2 px-2 text-right">Plan</th>
-                <th className="py-2 px-2 text-right">Produced</th>
-                <th className="py-2 px-2 text-right">Attainment</th>
-                <th className="py-2 px-2 text-right">Scrap</th>
-                <th className="py-2 px-2 text-right">Quality pts</th>
-                <th className="py-2 px-2 text-right">Open actions</th>
-                <th className="py-2 pl-2 text-right">Team size</th>
+              <tr className="border-b border-border">
+                {["Line", "Plan", "Produced", "Attainment", "Scrap", "Quality pts", "Open actions", "Team size"].map((h, i) => (
+                  <th
+                    key={h}
+                    className={cn(
+                      "py-2.5 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground",
+                      i === 0 ? "pr-2" : "px-2 text-right",
+                      i === 7 && "pl-2 pr-0",
+                    )}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y font-medium">
+            <tbody className="divide-y divide-border/60">
               {rows.map((r) => (
-                <tr key={r.line}>
-                  <td className="py-2 pr-2 font-semibold">{r.line}</td>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums">{r.target.toLocaleString()}</td>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums">{r.actual.toLocaleString()}</td>
-                  <td className={cn("py-2 px-2 text-right font-mono font-bold tabular-nums",
-                    r.eff >= 100 ? "text-success-strong" : r.eff >= 80 ? "text-warning-strong" : "text-destructive-strong")}>
+                <tr key={r.line} className="transition-colors hover:bg-muted/40">
+                  <td className="py-2.5 pr-2 font-display font-bold uppercase tracking-[0.02em] text-foreground">{r.line}</td>
+                  <td className="px-2 py-2.5 text-right font-figure text-muted-foreground">{r.target.toLocaleString()}</td>
+                  <td className="px-2 py-2.5 text-right font-figure font-bold text-foreground">{r.actual.toLocaleString()}</td>
+                  <td className={cn("px-2 py-2.5 text-right font-figure font-bold",
+                    r.target === 0 ? "text-muted-foreground"
+                      : r.eff >= 100 ? "text-success-strong" : r.eff >= 80 ? "text-warning-strong" : "text-destructive-strong")}>
                     {r.target > 0 ? `${Math.round(r.eff)}%` : "—"}
                   </td>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums">
+                  <td className="px-2 py-2.5 text-right font-figure">
                     {r.scrapPct === null
                       ? <span className="font-sans text-muted-foreground" title={`Recorded on ${r.scrapCoverage} items`}>not recorded</span>
-                      : <span className={cn(r.scrapPct > 2 && "text-destructive-strong")}>{r.scrapPct.toFixed(1)}%</span>}
+                      : <span className={cn(r.scrapPct > 2 && "font-bold text-destructive-strong")}>{r.scrapPct.toFixed(1)}%</span>}
                   </td>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums">{r.qualityPoints}</td>
-                  <td className={cn("py-2 px-2 text-right font-mono tabular-nums", r.openActions && "text-warning-strong font-bold")}>
+                  <td className="px-2 py-2.5 text-right font-figure">{r.qualityPoints}</td>
+                  <td className={cn("px-2 py-2.5 text-right font-figure", r.openActions && "font-bold text-warning-strong")}>
                     {r.openActions}
                   </td>
-                  <td className="py-2 pl-2 text-right font-mono tabular-nums">
+                  <td className="py-2.5 pl-2 text-right font-figure">
                     {r.staff ?? <span className="font-sans text-muted-foreground">—</span>}
                   </td>
                 </tr>
@@ -185,6 +214,28 @@ export function LineIndicators({
                 <tr><td colSpan={8} className="py-6 text-center text-muted-foreground">Nothing planned or logged in this period.</td></tr>
               )}
             </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className="border-t-2 border-border">
+                  <td className="py-2.5 pr-2 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">All lines</td>
+                  <td className="px-2 py-2.5 text-right font-figure text-muted-foreground">{totals.target.toLocaleString()}</td>
+                  <td className="px-2 py-2.5 text-right font-figure font-bold text-foreground">{totals.actual.toLocaleString()}</td>
+                  <td className={cn("px-2 py-2.5 text-right font-figure font-bold",
+                    totals.target === 0 ? "text-muted-foreground"
+                      : totals.eff >= 100 ? "text-success-strong" : totals.eff >= 80 ? "text-warning-strong" : "text-destructive-strong")}>
+                    {totals.target > 0 ? `${Math.round(totals.eff)}%` : "—"}
+                  </td>
+                  {/* Sucata não fecha: sem ela registada em todos os artigos, uma soma
+                      seria uma percentagem de uma produção que não foi toda medida. */}
+                  <td className="px-2 py-2.5 text-right font-sans text-muted-foreground">—</td>
+                  <td className="px-2 py-2.5 text-right font-figure font-bold text-foreground">{totals.qualityPoints}</td>
+                  <td className={cn("px-2 py-2.5 text-right font-figure font-bold", totals.openActions ? "text-warning-strong" : "text-foreground")}>
+                    {totals.openActions}
+                  </td>
+                  <td className="py-2.5 pl-2 text-right font-sans text-muted-foreground">—</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 

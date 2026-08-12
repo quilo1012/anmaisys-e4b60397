@@ -1,25 +1,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { railEdge, type RailState } from "@/lib/rail";
 
-/**
- * A barra de estado.
- *
- * Uma barra no bordo de tudo o que tem estado — cartão de linha, ordem de trabalho,
- * acção de qualidade, célula de alocação. É a marcação pintada no chão da fábrica
- * trazida para o ecrã, e é o único sítio de onde a cor entra.
- *
- * A razão de existir é mecânica, não decorativa. Havia 1290 classes de cor escritas à
- * mão espalhadas por 102 ficheiros — `bg-emerald-500` aqui, `text-amber-600` ali — cada
- * uma uma decisão tomada de novo, e é essa repetição que faz o sistema parecer montado
- * por várias mãos. Um mecanismo com quatro estados não deixa margem para a próxima
- * decisão ser diferente da anterior.
- *
- * A cor aparece duas vezes e as duas em surdina: a barra, e um banho a 9% que se esvai
- * ao longo do cartão. Um preenchimento cheio faria o estado gritar mais alto do que o
- * número que o cartão existe para mostrar, e num painel com seis cartões grita-se
- * todos ao mesmo tempo, que é o mesmo que não gritar nenhum.
- */
-export type RailState = "go" | "hold" | "stop" | "idle";
+/* Reexportados: a barra em texto vive em `@/lib/rail` — uma tabela de constantes não
+   pode depender de um componente React só para saber que cor tem um estado. Quem já os
+   importava daqui continua a importá-los daqui. */
+export { railEdge };
+export type { RailState };
 
 /**
  * A cor desce dos tokens por uma variável, e não por uma classe por estado, para que a
@@ -40,12 +27,41 @@ export interface StatusRailProps extends React.HTMLAttributes<HTMLDivElement> {
    * risco real de pôr o estado num bordo em vez de num preenchimento.
    */
   size?: "desk" | "floor";
+  /**
+   * Enche a altura da célula da grelha, e passa o conteúdo a coluna flex.
+   *
+   * Num painel, os cartões são lidos aos pares e às linhas: o olho corre na
+   * horizontal pela mesma medida em quatro linhas de enchimento. Se um cartão tiver
+   * mais uma legenda do que o vizinho, o número grande desce dois centímetros e a
+   * leitura horizontal deixa de existir. Com isto, o filho pode empurrar o bloco de
+   * medida com `mt-auto` e os quatro números assentam na mesma linha.
+   */
+  fill?: boolean;
   asChild?: never;
 }
 
+/**
+ * A barra de estado.
+ *
+ * Uma barra no bordo de tudo o que tem estado — cartão de linha, ordem de trabalho,
+ * acção de qualidade, célula de alocação. É a marcação pintada no chão da fábrica
+ * trazida para o ecrã, e é o único sítio de onde a cor entra.
+ *
+ * A razão de existir é mecânica, não decorativa. Havia 1290 classes de cor escritas à
+ * mão espalhadas por 102 ficheiros — `bg-emerald-500` aqui, `text-amber-600` ali — cada
+ * uma uma decisão tomada de novo, e é essa repetição que faz o sistema parecer montado
+ * por várias mãos. Um mecanismo com quatro estados não deixa margem para a próxima
+ * decisão ser diferente da anterior.
+ *
+ * A cor aparece duas vezes e as duas em surdina: a barra, e um banho a 9% que se esvai
+ * ao longo do cartão. Um preenchimento cheio faria o estado gritar mais alto do que o
+ * número que o cartão existe para mostrar, e num painel com seis cartões grita-se
+ * todos ao mesmo tempo, que é o mesmo que não gritar nenhum.
+ */
 export function StatusRail({
   state = "idle",
   size = "desk",
+  fill = false,
   className,
   children,
   ...props
@@ -54,6 +70,7 @@ export function StatusRail({
     <div
       className={cn(
         "relative overflow-hidden rounded-lg border bg-card",
+        fill && "flex h-full flex-col",
         size === "desk" ? "p-5 pl-[calc(1.25rem+3px)]" : "p-5 pl-[calc(1.25rem+8px)]",
         RAIL_COLOR[state],
         // A barra.
@@ -69,7 +86,7 @@ export function StatusRail({
     >
       {/* Posicionado, e depois do ::after na ordem de pintura, para que o banho fique
           por baixo do conteúdo em vez de por cima dele. */}
-      <div className="relative z-10">{children}</div>
+      <div className={cn("relative z-10", fill && "flex min-h-0 flex-1 flex-col")}>{children}</div>
     </div>
   );
 }
