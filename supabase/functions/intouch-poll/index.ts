@@ -3,6 +3,7 @@
 // to be called every 1-2 minutes by pg_cron.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { readStop, HEALTHY_STATUS } from "./stopReading.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -16,10 +17,11 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false },
 });
 
-// iTouching status codes: only a confirmed transition into downtime with an
-// explicitly approved DowntimeCode may open a WO. This prevents stale/old stop
-// codes from creating orders when a machine is first mapped or re-enabled.
-const HEALTHY_STATUS = new Set<number>([1, 2]);
+// `HEALTHY_STATUS` is imported from `stopReading.ts`, where the rule it belongs
+// to now lives. Here it means one thing only: the baseline for opening a work
+// order. A new WO needs a confirmed transition — a poll that saw the machine
+// running with no code, then saw it stopped — so a stale code on a machine
+// being mapped or re-enabled cannot raise one on its own.
 
 // ── iTouching quota / timeout helpers ──────────────────────────────────────
 const ITOUCH_TIMEOUT_MS = 10_000;
@@ -554,18 +556,21 @@ Deno.serve(async (req) => {
 
       const currentStatus = parseStatus(s.Status);
       const previousStatus = parseStatus(m.last_status);
-      const currentIsHealthy = currentStatus != null && HEALTHY_STATUS.has(currentStatus);
       const rawDowntimeCode = s.DowntimeCode ?? null;
       const rawCodeKey = normalizeStopCode(rawDowntimeCode);
       const rawMappedCode = rawCodeKey ? codeLookup.get(rawCodeKey) : undefined;
 
-      // Some iTouching screens keep Status=1 (running) while the operator has
-      // already selected a maintenance stop reason. If that reason is explicitly
-      // configured as requires_wo=true, treat it as a maintenance stop anyway.
-      const maintenanceCodeWhileHealthy = currentIsHealthy
-        && !!rawCodeKey
-        && rawMappedCode?.requires_wo === true;
-      const currentDowntimeCode = currentIsHealthy && !maintenanceCodeWhileHealthy ? null : rawDowntimeCode;
+      // An active stop code is a stop, whatever the status says — the rule, and
+      // the evidence for it, are in `stopReading.ts`. It used to be the reverse
+      // here: a code arriving on status 1 or 2 was deleted unless it required a
+      // work order, which is how Filler Line 4 spent a 1:35 Deep Clean reading
+      // RUNNING in green and left no downtime record behind it.
+      const reading = readStop({
+        status: currentStatus,
+        rawCode: rawDowntimeCode,
+        requiresWo: rawMappedCode?.requires_wo === true,
+      });
+      const currentDowntimeCode = reading.code;
       const codeKey = normalizeStopCode(currentDowntimeCode);
       const previousCodeKey = normalizeStopCode(m.last_downtime_code);
       const hadPreviousSnapshot = Boolean(m.last_seen_at);
@@ -629,7 +634,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const isDown = !!codeKey && (!currentIsHealthy || maintenanceCodeWhileHealthy);
+      const isDown = reading.isDown;
       const codeName = uuidToName.get(codeKey) ?? codeKey;
       const mapped_code = codeLookup.get(codeKey);
       const prevMappedCode = m.prod_dt_code ? codeLookup.get(normalizeStopCode(m.prod_dt_code)) : null;
