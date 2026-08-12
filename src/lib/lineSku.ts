@@ -174,9 +174,14 @@ export function identifyItemSku(item: LineSkuItem, catalogue: SkuCatalogue): Ite
  *
  * A line is defined by what is on it at this minute — iTouching's own board leads
  * with the product for that reason — so the running item wins: started and not
- * finished. Where nobody recorded the times, the item with the most made stands
- * in. That is the same question answered with worse evidence, and it is the
- * common case on this board: on 12/08 every line's last item was already closed.
+ * finished.
+ *
+ * When every item is closed, which is the common case and not the exception, the
+ * one STARTED LAST answers instead. This used to be the biggest run of the shift,
+ * and the two are different questions: over 30 days they disagree on 50 of the 94
+ * multi-SKU sessions, and on 40 of those the biggest run names a product the line
+ * had already moved off. Only where not one row carries a start time does the
+ * quantity decide — there is nothing left to order the shift by.
  *
  * With NOTHING logged, iTouching's running job answers instead — see `LiveJob`.
  * It never outranks a production row: a row has a quantity behind it and can be
@@ -193,8 +198,22 @@ export function pickLineSku(
     .filter((x): x is { item: LineSkuItem; id: ItemSkuIdentity } => x.id !== null);
   if (!identified.length) return liveJobSku(live, catalogue);
 
+  // Tudo fechado — o caso comum, e o que este ramo respondia mal. A ordem que
+  // começou POR ÚLTIMO é aquela para que a linha foi montada mais recentemente;
+  // a maior corrida do turno é outra pergunta. Em 94 sessões multi-SKU de 30
+  // dias as duas respostas divergem em 50, e em 40 dessas a maior nomeia um
+  // produto que a linha já não estava a fazer. Line 6, 12/08: MORCW2S fez 800 e
+  // fechou às 14:10; CW2S fez 692 das 14:11 às 16:42, e era o CW2S que lá estava.
+  const lastStarted = identified
+    .map((x) => ({ x, at: Date.parse(x.item.started_at ?? "") }))
+    .filter((s) => Number.isFinite(s.at))
+    .sort((a, b) => b.at - a.at)[0]?.x;
+
   const chosen = identified.find((x) => x.item.started_at && !x.item.finished_at)
     ?? identified.find((x) => !x.item.finished_at)
+    ?? lastStarted
+    // Sem uma única hora de início registada não há nada que ordene o turno, e a
+    // maior corrida volta a ser a melhor prova que resta.
     ?? [...identified].sort((a, b) => b.item.actual - a.item.actual)[0];
 
   const rate = chosen.id.row?.target_per_hour == null ? null : Number(chosen.id.row.target_per_hour);

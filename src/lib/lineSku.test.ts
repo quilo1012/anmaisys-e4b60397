@@ -62,7 +62,29 @@ describe("pickLineSku — what the line is making", () => {
     expect(sku?.code).toBe("ABEENG");
   });
 
-  it("falls back to the item the shift was spent on when every item is closed", () => {
+  // Line 6, 12/08, tal como está na base: MORCW2S fez 800 e fechou às 14:10, o
+  // CW2S fez 692 das 14:11 às 16:42. Ao fim do turno está tudo fechado — o caso
+  // comum — e a maior corrida punha na parede, em corpo 5xl, um produto que a
+  // linha tinha deixado de fazer duas horas e meia antes. Em 30 dias isso
+  // aconteceu em 40 de 94 sessões multi-SKU.
+  it("every item closed: the one started last is the one the line was set up for", () => {
+    const sku = pickLineSku([
+      item({ sku_id: "sku-morcw", actual: 800, started_at: "2026-08-12T13:50:00Z", finished_at: "2026-08-12T14:10:00Z" }),
+      item({ sku_code_text: "ABEENG", actual: 692, started_at: "2026-08-12T14:11:00Z", finished_at: "2026-08-12T16:42:00Z" }),
+    ], catalogue);
+    expect(sku?.code).toBe("ABEENG");
+  });
+
+  it("a hora de início decide, e não a ordem em que as linhas chegam", () => {
+    const velha = item({ sku_id: "sku-bfwp", actual: 5000, started_at: "2026-08-12T05:20:00Z", finished_at: "2026-08-12T09:00:00Z" });
+    const nova = item({ sku_code_text: "ABEENG", actual: 10, started_at: "2026-08-12T15:00:00Z", finished_at: "2026-08-12T16:00:00Z" });
+    expect(pickLineSku([velha, nova], catalogue)?.code).toBe("ABEENG");
+    expect(pickLineSku([nova, velha], catalogue)?.code).toBe("ABEENG");
+  });
+
+  // Sem uma única hora de início não há nada que ordene o turno. Aí — e só aí — a
+  // maior corrida volta a ser a melhor prova que resta.
+  it("falls back to the item the shift was spent on when nothing carries a start time", () => {
     const sku = pickLineSku([
       item({ sku_id: "sku-bfwp", actual: 214, finished_at: "2026-08-12T09:30:00Z" }),
       item({ sku_id: "sku-morcw", actual: 539, finished_at: "2026-08-12T09:30:00Z" }),
