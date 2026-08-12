@@ -18,10 +18,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
-import { getCurrentFactoryShift, getCurrentShiftStart, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
-import { computePace, lineScore, scoreBand, PACE_MESSAGES, PACE_STATUS, PACE_NEEDS_ACTION, type ScoreBand, type ScoreBasis } from "@/lib/linePerformance";
+import { shiftClockPct, lineReading, BEHIND_TOLERANCE_PTS, BAND_STATUS, LINE_STATUS, LINE_MESSAGES, LINE_NEEDS_ACTION, type ScoreBand } from "@/lib/linePerformance";
 import { AndonBar } from "@/components/ui/AndonBar";
 import { cn } from "@/lib/utils";
 import { ANDON_FIELD } from "@/lib/rail";
@@ -39,8 +39,12 @@ type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
  * the plate read the plan's 100/80 while the colour read the pace's 95/75, so a
  * line at 97% was captioned "Setup" and printed in green.
  *
- * Two vocabularies, because a pace and a share of the plan are different claims:
- * "On pace" is about this minute, "On target" is about the whole period.
+ * Havia aqui DUAS gramáticas — uma para o ritmo ("On pace", sobre este minuto) e
+ * outra para o plano ("On target", sobre o período inteiro) — e a escolha entre
+ * elas dependia de o ritmo ter conseguido ser calculado. Com o relógio há uma
+ * pergunta só, em todos os períodos: quanto do alvo está feito, contra quanto do
+ * tempo passou. As palavras vivem agora no `linePerformance.ts`, ao lado da conta
+ * que as decide (`BAND_STATUS`), e o que fica aqui é só o vestuário.
  */
 const BAND_RAIL: Record<ScoreBand, RailState> = { GO: "go", HOLD: "hold", STOP: "stop" };
 const BAND_TEXT: Record<ScoreBand, string> = {
@@ -48,12 +52,9 @@ const BAND_TEXT: Record<ScoreBand, string> = {
   HOLD: "text-warning-strong",
   STOP: "text-destructive-strong",
 };
-const PACE_BAND_STATUS: Record<ScoreBand, string> = { GO: "On pace", HOLD: "Behind", STOP: "Critical" };
-const PLAN_BAND_STATUS: Record<ScoreBand, string> = { GO: "On target", HOLD: "Setup", STOP: "Below target" };
-/* O andon fala da fábrica inteira e precisa das suas próprias palavras: "Setup" é o
-   que se diz de uma linha que está a mudar de formato, não de um turno. */
-const FACTORY_PACE_VERDICT: Record<ScoreBand, string> = { GO: "On pace", HOLD: "Behind pace", STOP: "Critical" };
-const FACTORY_PLAN_VERDICT: Record<ScoreBand, string> = { GO: "On target", HOLD: "Behind plan", STOP: "Below target" };
+/* O andon fala da fábrica inteira e precisa das suas próprias palavras: "Behind"
+   dito de uma linha é um formato a mudar; dito da fábrica é um turno a perder-se. */
+const FACTORY_VERDICT: Record<ScoreBand, string> = { GO: "On target", HOLD: "Behind plan", STOP: "Below target" };
 
 interface SessionAgg {
   id: string; session_date: string; shift: string; line: string;
@@ -445,37 +446,46 @@ export default function ProductionPerformancePage() {
     );
   }, [period, range.from, range.to, shift]);
 
-  const paceByLine = useMemo(() => {
-    const out = new Map<string, ReturnType<typeof computePace>>();
-    if (!isCurrentShiftView) return out;
+  /**
+   * Quanto do turno já passou — a única coisa de que a cor do painel precisa
+   * além dos números que os cartões já imprimem.
+   *
+   * Cem por cento fora do turno a correr: numa semana ou num mês o período
+   * fechou e o plano inteiro era devido, e é assim que a mesma regra serve os
+   * dois casos sem uma segunda gramática.
+   *
+   * O `new Date()` vive dentro do memo, como vivia o do ritmo: avança quando os
+   * dados avançam. Um relógio a andar sozinho repintava nove cartões a cada
+   * segundo para mover uma marca um pixel.
+   */
+  const elapsedPct = useMemo(() => {
+    if (!isCurrentShiftView) return 100;
     const now = new Date();
-    const shiftStart = getCurrentShiftStart(now);
-    const byLineSessions = new Map<string, SessionAgg[]>();
+    return shiftClockPct(getCurrentShiftStart(now), getCurrentShiftEnd(now), now);
+  }, [isCurrentShiftView, sessions]);
+
+  /**
+   * As portas do turno a correr, por linha: quem está registado e quantas ordens
+   * estão abertas. Fora do turno a correr fica vazio, e o cartão não pergunta —
+   * um mês não tem líder ao turno, e responder "não" por ausência de pergunta
+   * enchia o ecrã de faltas que ninguém pode ir resolver.
+   *
+   * Já não se lê nada do catálogo de SKUs aqui. Lia-se o `target_per_hour` para
+   * o ritmo, e era essa leitura que punha "SKU has no standard rate" em âmbar na
+   * Line 2 a 12/08, com 1.832 peças feitas contra ABEENG.
+   */
+  const gatesByLine = useMemo(() => {
+    const out = new Map<string, { hasLeader: boolean; orderCount: number }>();
+    if (!isCurrentShiftView) return out;
     for (const s of sessions) {
-      const arr = byLineSessions.get(s.line) ?? [];
-      arr.push(s);
-      byLineSessions.set(s.line, arr);
-    }
-    for (const [line, ss] of byLineSessions) {
-      const items = ss.flatMap((s) => s.items).map((i) => ({
-        // Resolved by link OR by the text code. Line 2, 12/08: 1.832 feitas contra
-        // ABEENG, que tem 720/h — e o cartão dizia "SKU has no standard rate"
-        // porque a linha de produção tinha `sku_id` a NULL e mais nada foi tentado.
-        ratePerHour: resolveItemSku(i, catalogue)?.target_per_hour ?? null,
-        produced: i.actual,
-        startedAt: i.started_at ? new Date(i.started_at) : null,
-        finishedAt: i.finished_at ? new Date(i.finished_at) : null,
-      }));
-      out.set(line, computePace({
-        items,
-        shiftStart,
-        now,
-        hasSession: true,
-        hasLeader: ss.some((s) => !!s.leader_name),
-      }));
+      const prev = out.get(s.line);
+      out.set(s.line, {
+        hasLeader: (prev?.hasLeader ?? false) || !!s.leader_name,
+        orderCount: (prev?.orderCount ?? 0) + s.items.length,
+      });
     }
     return out;
-  }, [isCurrentShiftView, sessions, catalogue]);
+  }, [isCurrentShiftView, sessions]);
 
   /**
    * O veredicto da fábrica, numa medida só — o que a barra de andon acende.
@@ -484,14 +494,13 @@ export default function ProductionPerformancePage() {
    * VERDE por uma conta e um cartão dissesse vermelho por outra, era o ecrã que perdia
    * a autoridade: é o que se lê de longe e é o que ninguém vai conferir.
    *
-   * A base muda com o que se está a ver, e tem de mudar. Contra o plano inteiro do
-   * turno, às 21:39 de um turno que acaba às 06:00 a fábrica leria 7% — não porque
-   * esteja a perder, mas porque faltam nove horas de plano. Uma lâmpada vermelha todas
-   * as noites até às quatro da manhã é uma lâmpada que ninguém volta a olhar. Enquanto
-   * o turno corre mede-se contra o que já era devido a esta hora; quando o período
-   * fecha, contra o plano, que aí é a pergunta certa.
+   * Uma pergunta só, e a mesma que os cartões respondem: quanto do plano está feito,
+   * contra quanto do tempo já passou. Às 21:39 de um turno que acaba às 06:00 a
+   * fábrica lê 7% do plano com 30% do turno passado, e a lâmpada acende por causa da
+   * distância entre os dois, não por causa do 7% — uma lâmpada vermelha todas as
+   * noites até às quatro da manhã é uma lâmpada que ninguém volta a olhar.
    *
-   * Soma-se produzido e devido de TODAS as linhas antes de dividir, e não a média das
+   * Soma-se feito e planeado de TODAS as linhas antes de dividir, e não a média das
    * percentagens: nove linhas pequenas não valem o mesmo que uma linha grande, e uma
    * média simples diria que sim.
    */
@@ -500,66 +509,37 @@ export default function ProductionPerformancePage() {
     const totalTarget = scored.reduce((a, l) => a + l.target, 0);
     const totalActual = scored.reduce((a, l) => a + l.actual, 0);
 
-    let expected = 0;
-    let produced = 0;
-    let pacedLines = 0;
-    for (const l of scored) {
-      const p = paceByLine.get(l.line);
-      if (p?.kind !== "PACE") continue;
-      expected += p.expected;
-      produced += p.produced;
-      pacedLines += 1;
-    }
-
-    // A base do ritmo só serve enquanto houver alguma coisa devida por alguma linha.
-    // Na primeira meia hora de um turno o "devido até agora" é praticamente zero, e
-    // dividir por ele dava percentagens de milhares.
-    const paced = isCurrentShiftView && pacedLines > 0 && expected >= 1;
-    const basis: ScoreBasis = paced ? "PACE" : "PLAN";
-    const denom = paced ? expected : totalTarget;
-    const numer = paced ? produced : totalActual;
-
-    // Sem plano não há veredicto. Um ecrã verde numa fábrica sem ordens, ou vermelho
-    // numa que ainda não abriu, é o ecrã a inventar uma leitura que não tem.
-    if (denom <= 0) {
-      return { state: "idle" as RailState, verdict: "No plan", value: null as string | null, basis: "Nothing planned for this period", detail: undefined as string | undefined, pct: 0, paced: false };
-    }
-
-    const pct = (numer / denom) * 100;
-    const band = scoreBand(basis, pct);
-
-    /**
-     * A percentagem IMPRESSA é sempre a fatia do plano — a mesma pergunta que os
-     * cartões passaram a responder em grande, e a mesma que quem tem a folha na
-     * mão consegue conferir: feito a dividir pelo planeado do período.
-     *
-     * A COR e o veredicto continuam a vir do ritmo enquanto o turno corre, e é
-     * essa a divisão de trabalho: a lâmpada diz se se está a perder AGORA, o
-     * número diz quanto do turno já está feito. Imprimir o ritmo aqui punha no
-     * ecrã uma percentagem que não batia com nenhuma das duas somas escritas a
-     * um palmo dela — nem com o anel, nem com o "feito / planeado".
-     */
-    const attainedPct = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
+    const reading = lineReading({ target: totalTarget, actual: totalActual, elapsedPct });
     const lines = `${scored.length} ${scored.length === 1 ? "line" : "lines"}`;
 
+    // Sem plano não há veredicto. Um ecrã verde numa fábrica sem ordens, ou vermelho
+    // numa que ainda não abriu, é o ecrã a inventar uma leitura que não tem. O mesmo
+    // vale para uma fábrica com plano e sem nada escrito.
+    if (reading.kind !== "SCORED") {
+      return {
+        state: (LINE_NEEDS_ACTION[reading.kind] ? "hold" : "idle") as RailState,
+        verdict: LINE_STATUS[reading.kind],
+        value: null as string | null,
+        basis: LINE_MESSAGES[reading.kind],
+        detail: undefined as string | undefined,
+        pct: 0,
+      };
+    }
+
     return {
-      state: BAND_RAIL[band],
-      verdict: (paced ? FACTORY_PACE_VERDICT : FACTORY_PLAN_VERDICT)[band],
-      value: `${Math.round(attainedPct)}%`,
-      basis: paced
-        ? `${lines} · of the full shift plan`
+      state: BAND_RAIL[reading.band],
+      verdict: FACTORY_VERDICT[reading.band],
+      // Feito sobre planeado, e é a conta que as duas somas aqui ao lado mostram
+      // escrita por extenso. O ritmo esteve aqui, com outro denominador, e era a
+      // única percentagem do ecrã que não batia com nenhum dos números vizinhos.
+      value: `${Math.round(reading.attainedPct)}%`,
+      basis: isCurrentShiftView
+        ? `${lines} · ${Math.round(elapsedPct)}% of the shift has passed`
         : `${lines} · against the period plan`,
-      // Em peças, contra o alvo, e nada mais. O ritmo esteve escrito aqui — "60%
-      // of what is due by now" — e era a última percentagem no ecrã com um
-      // denominador que não está em lado nenhum na folha. Continua a decidir a
-      // cor e o veredicto acima; deixa de ser um número a competir com o outro.
-      detail: paced
-        ? `${totalActual.toLocaleString("en-US")} / ${totalTarget.toLocaleString("en-US")}`
-        : `${Math.round(numer).toLocaleString("en-US")} / ${Math.round(denom).toLocaleString("en-US")}`,
-      pct: attainedPct,
-      paced,
+      detail: `${totalActual.toLocaleString("en-US")} / ${totalTarget.toLocaleString("en-US")}`,
+      pct: reading.attainedPct,
     };
-  }, [byLine, paceByLine, isCurrentShiftView]);
+  }, [byLine, elapsedPct, isCurrentShiftView]);
 
 
   /**
@@ -804,14 +784,16 @@ export default function ProductionPerformancePage() {
           const totalActual = scored.reduce((a, l) => a + l.actual, 0);
           const excludedCount = byLine.length - scored.length;
           const variance = totalActual - totalTarget;
-          /* A chave diz o critério que está mesmo a ser aplicado.
-             Os cartões pontuam ao ritmo — 95/75 contra o tempo já trabalhado — enquanto
-             se olha para o turno a correr, e contra o plano — 100/80 — quando o período
-             já fechou. Uma legenda fixa em 100/80 estava a explicar as cores erradas
-             durante metade das horas do dia. */
+          /* A chave diz o critério que está mesmo a ser aplicado, e agora diz-o contra
+             um número que está no ecrã.
+             Esteve aqui "≥95% on pace" por cima de cartões que imprimiam 9%: os limiares
+             eram do ritmo, o ritmo tinha deixado de ser impresso, e ninguém no chão podia
+             fechar a conta entre a legenda e o que via. O critério é a distância ao
+             relógio do turno — que está escrito na barra de andon, aqui em cima. */
+          const behind = `${BEHIND_TOLERANCE_PTS} pts`;
           const key: [string, string, string][] = isCurrentShiftView
-            ? [["bg-success", "≥95%", "on pace"], ["bg-warning", "75–94%", "behind"], ["bg-destructive", "<75%", "critical"]]
-            : [["bg-success", "≥100%", "on target"], ["bg-warning", "80–99%", "behind"], ["bg-destructive", "<80%", "critical"]];
+            ? [["bg-success", "≥", "keeping up with the clock"], ["bg-warning", `−${behind}`, "behind the clock"], ["bg-destructive", `>${behind}`, "behind the clock"]]
+            : [["bg-success", "≥100%", "on target"], ["bg-warning", "85–99%", "behind"], ["bg-destructive", "<85%", "critical"]];
           return (
             <Card>
               <CardContent className="p-0">
@@ -835,7 +817,7 @@ export default function ProductionPerformancePage() {
                       <span className="text-muted-foreground"> / {totalTarget.toLocaleString("en-US")}</span>
                     </div>
                     <div className="mt-1.5 text-xs text-muted-foreground">
-                      Units made, against the {factory.paced ? "full shift plan" : "period plan"}
+                      Units made, against the {isCurrentShiftView ? "full shift plan" : "period plan"}
                     </div>
                   </div>
                   {/* A chave, à voz mais baixa do painel, e com o nome de quem ela
@@ -918,7 +900,7 @@ export default function ProductionPerformancePage() {
                 <b className="text-warning-strong">{missing.length} {missing.length === 1 ? "line has" : "lines have"} a plan but nothing logged on My Production.</b>{" "}
                 <span className="text-muted-foreground">
                   {missing.map((l) => l.line).join(", ")}. Until the quantities are logged
-                  {isCurrentShiftView ? " these lines cannot be paced" : " the period reads 0% for them"}.
+                  {isCurrentShiftView ? " these lines cannot be scored" : " the period reads 0% for them"}.
                 </span>
               </div>
             </div>
@@ -948,34 +930,33 @@ export default function ProductionPerformancePage() {
             // onde já se está a ler. O `animate-pulse` sai — num painel, o que pisca
             // não se pode ignorar nem quando já foi visto, e não respeita quem pediu
             // menos movimento.
-            // For the shift that is running, the verdict is the PACE — measured
-            // against the time already worked. For a week or a month it stays the
-            // plain comparison against the plan, which is the right question once
-            // the period is over. 95/75 are the thresholds already on the floor.
-            const pace = paceByLine.get(l.line);
-            // The pace that could NOT be given, when that is the case. It is the
-            // subject of the footer note and of the amber rail, and it survives a
-            // line that scores on the plan anyway: a missing standard rate is a
-            // fault about the SKU, and it stays named either way.
-            const gapKind = pace && pace.kind !== "PACE" ? pace.kind : null;
-            // One reading, and everything on the card is dressed from it — the
-            // plate, the rail and the figure. See `lineScore`: the card colours
-            // the number it prints, on that number's own thresholds.
-            const score = lineScore(pace, l.target, l.actual);
-            // Each gap names itself. "No reading" was the board describing its own
-            // difficulty, and it read the same on a line waiting for an order as on
-            // a line whose SKU has no standard — two different people, two
-            // different jobs, one word.
-            const status = score
-              ? (score.basis === "PACE" ? PACE_BAND_STATUS : PLAN_BAND_STATUS)[score.band]
-              : gapKind ? PACE_STATUS[gapKind] : "—";
+            // Uma leitura, e o cartão inteiro é vestido dela — a chapa, o filete e
+            // o número. Feito sobre o alvo, contra quanto do turno já passou: a
+            // mesma pergunta num turno a correr e num mês fechado, onde o relógio
+            // está nos 100% porque o período todo já era devido.
+            const gates = gatesByLine.get(l.line);
+            const reading = lineReading({
+              target: l.target,
+              actual: l.actual,
+              elapsedPct,
+              hasSession: isCurrentShiftView ? l.hasSession : undefined,
+              hasLeader: isCurrentShiftView ? (gates?.hasLeader ?? false) : undefined,
+              orderCount: isCurrentShiftView ? (gates?.orderCount ?? 0) : undefined,
+            });
+            const score = reading.kind === "SCORED" ? reading : null;
+            // Cada falta nomeia-se. "No reading" era o painel a descrever a
+            // dificuldade dele, e lia-se igual numa linha à espera de ordem e numa
+            // linha sem ninguém registado. Uma delas deixou de existir: a taxa
+            // padrão do SKU já não é precisa para nada.
+            const gapKind = reading.kind !== "SCORED" ? reading.kind : null;
+            const status = score ? BAND_STATUS[score.band] : gapKind ? LINE_STATUS[gapKind] : "—";
             // An unmeasurable line is grey unless it is somebody's job. Nothing
-            // entered, nobody logged in and a SKU with no standard all take the
-            // amber rail: the risk in each is that it stays unnoticed to the end
-            // of the shift, and grey is how a card asks not to be looked at.
+            // entered and nobody logged in take the amber rail: the risk in each is
+            // that it stays unnoticed to the end of the shift, and grey is how a
+            // card asks not to be looked at.
             const railState: RailState = score
               ? BAND_RAIL[score.band]
-              : gapKind && PACE_NEEDS_ACTION[gapKind] ? "hold" : "idle";
+              : gapKind && LINE_NEEDS_ACTION[gapKind] ? "hold" : "idle";
             const effColor = score ? BAND_TEXT[score.band] : "text-muted-foreground";
             const handleClick = () => navigate("/dashboard/shift-history");
             const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1195,24 +1176,39 @@ export default function ProductionPerformancePage() {
                               o mesmo facto que a barra logo abaixo enche e que o 3.233
                               ao lado dela nomeia. Três sítios, uma conta.
 
-                              A COR continua a vir do ritmo: a cinco horas de doze, 9%
-                              do alvo não é um veredicto, e pintar de vermelho uma linha
-                              que está a andar bem só porque ainda faltam sete horas é o
-                              que fazia a fábrica deixar de olhar para o painel. */}
+                              A COR sai da distância entre este número e o do relógio,
+                              logo por baixo. É por isso que o relógio está escrito: a
+                              cinco horas de doze, 9% do alvo não é um veredicto por si
+                              — 9% contra 42% do turno é. */}
                           <div className={`mt-1 font-figure text-[2rem] font-bold leading-none tracking-[-0.02em] ${effColor}`}>
                             {Math.round(score ? score.attainedPct : l.eff)}%
+                          </div>
+                          {/* O outro metade da conta da cor, em surdina. A ranhura fica
+                              mesmo num período fechado, onde não há relógio a correr,
+                              para os cartões de uma fila assentarem no mesmo rodapé. */}
+                          <div className="mt-1.5 h-4 font-figure text-xs text-muted-foreground">
+                            {isCurrentShiftView ? `${Math.round(elapsedPct)}% of shift` : ""}
                           </div>
                         </div>
                       </div>
 
-                      {/* A escala. O enchimento é o que a linha fez, o fim da barra é
-                          o alvo do turno, e a distância entre os dois É o relatório.
-                          Havia aqui um entalhe a marcar "onde devia estar a esta hora"
-                          — saiu com o ritmo, porque era a terceira voz a falar de uma
-                          medida que o cartão já não imprime. */}
+                      {/* A escala. O enchimento é o que a linha fez, a marca é onde o
+                          relógio do turno já vai, e a distância entre as duas É o
+                          relatório — e é literalmente a conta de que sai a cor do
+                          número aqui em cima. O entalhe que aqui esteve marcava o
+                          ritmo, uma medida que o cartão não imprimia; este marca uma
+                          que está escrita duas linhas acima. */}
                       <div className="mt-3.5">
                         <div className="relative h-2 w-full overflow-hidden rounded-[2px] bg-foreground/[0.09]">
                           <div className="h-full bg-foreground/40" style={{ width: `${donePct}%` }} />
+                          {isCurrentShiftView && (
+                            <div
+                              className="absolute inset-y-0 w-[2px] -translate-x-1/2 bg-foreground"
+                              style={{ left: `${elapsedPct}%` }}
+                              title={`${Math.round(elapsedPct)}% of the shift has passed`}
+                              aria-hidden
+                            />
+                          )}
                         </div>
                         <div className="mt-2 flex items-baseline justify-between font-figure text-2xs text-muted-foreground">
                           <span>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs target</span>
@@ -1237,31 +1233,28 @@ export default function ProductionPerformancePage() {
                           //
                           // Agora é o triângulo que carrega o significado, e diz o
                           // mesmo que a barra do bordo: isto é de alguém.
-                          const note = pace && pace.kind !== "PACE"
-                            // Named. Telling a supervisor that "the SKU" has no
-                            // standard rate, on a line that ran three of them, is a
-                            // fault report with the subject left out.
+                          const note = gapKind
                             ? {
-                                text: pace.kind === "NO_RATE" && sku
-                                  // Two different faults, and telling them apart is
-                                  // the difference between "go and set a rate" and
-                                  // "this product does not exist here". The Tablet
-                                  // Line ran 3.441 of "Vitamin  d3 and k2" on 12/08,
-                                  // which is not a code in SKU Products at all.
-                                  ? sku.uncatalogued
-                                    ? `“${sku.code}” is not in SKU Products`
-                                    : `${sku.code} has no standard rate`
-                                  : PACE_MESSAGES[pace.kind],
-                                act: PACE_NEEDS_ACTION[pace.kind],
-                                why: pace.kind === "NOTHING_LOGGED"
+                                text: LINE_MESSAGES[gapKind],
+                                act: LINE_NEEDS_ACTION[gapKind],
+                                why: gapKind === "NOTHING_LOGGED"
                                   ? "The line has a session and an order, but no quantity has been logged on My Production this shift. Nothing here can tell that apart from a line that made nothing."
-                                  : pace.kind === "NO_RATE"
-                                    ? sku?.uncatalogued
-                                      ? "The product on this order does not match any code in SKU Products, so there is nothing to pace it against. Fix the code on the order, or add the product."
-                                      : "Pace needs units/hour on the SKU. Set it in SKU Products and this line starts scoring."
-                                    : undefined,
+                                  : undefined,
                               }
-                            : l.notLogged
+                            // Um produto que não está no catálogo continua a ser uma
+                            // falha, e continua a ser nomeada — mas já não é uma falha
+                            // de PONTUAÇÃO. A linha pontua na mesma, porque o relógio
+                            // não precisa de saber o que ela está a fazer; o que não se
+                            // consegue é dizer o que foi feito. A Tablet Line fez 3.441
+                            // de "Vitamin  d3 and k2" a 12/08, que não é um código em
+                            // SKU Products.
+                            : sku?.uncatalogued
+                              ? {
+                                  text: `“${sku.code}” is not in SKU Products`,
+                                  act: true,
+                                  why: "The product on this order does not match any code in SKU Products, so the board cannot say what this line made. Fix the code on the order, or add the product.",
+                                }
+                              : l.notLogged
                               ? {
                                   text: "Nothing logged for this period",
                                   act: true,

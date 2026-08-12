@@ -205,15 +205,24 @@ describe("identifyItemSku — one product, one row, on every screen", () => {
   });
 });
 
-describe("the rate a line is paced against", () => {
-  it("is found through the text code too, so the line still gets a pace", () => {
+/**
+ * A cadência padrão do SKU.
+ *
+ * Já não pontua nada: o painel passou a medir contra o relógio do turno, e a
+ * razão está escrita no cabeçalho do `linePerformance.ts`. Continua a ser lida
+ * porque é uma coluna real que o planeamento usa — e continua a ser resolvida
+ * pelo código em texto, que é o que a mantém honesta.
+ */
+describe("the rate the catalogue carries", () => {
+  it("is found through the text code too, not only through the link", () => {
     const sku = pickLineSku([item({ sku_code_text: "ABEENG", actual: 1832 })], catalogue);
     expect(sku?.ratePerHour).toBe(720);
   });
 
   // MORCW2CNC tem target_per_hour = 0 — 208 SKUs activos têm. Zero não é uma
-  // cadência e não pode passar por uma; é a ausência de um padrão, e o cartão
-  // tem de continuar a dizer "sem padrão" com o nome do produto ao lado.
+  // cadência e não pode passar por uma; é a ausência de um padrão, e foi esta
+  // ausência, repetida por mais de duzentos produtos, que acabou por matar a
+  // pontuação por ritmo.
   it("treats a zero standard as no standard", () => {
     const sku = pickLineSku([item({ sku_id: "sku-morcw", actual: 214 })], catalogue);
     expect(sku?.code).toBe("MORCW2CNC");

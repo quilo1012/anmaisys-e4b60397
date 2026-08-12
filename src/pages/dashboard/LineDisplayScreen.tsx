@@ -5,13 +5,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, SHIFT_LABEL } from "@/lib/shifts";
 import {
-  computePace,
-  lineScore,
+  shiftClockPct,
+  lineReading,
   balanceLabel,
   lastEntryAgeMinutes,
-  PACE_MESSAGES,
-  VERDICT_LABEL,
-  VERDICT_COLOR,
+  BAND_STATUS,
+  BAND_BG,
+  LINE_STATUS,
+  LINE_MESSAGES,
 } from "@/lib/linePerformance";
 import { ArrowLeft, Maximize2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -205,26 +206,26 @@ export default function LineDisplayScreen() {
   const start = useMemo(() => getCurrentShiftStart(now), [now]);
   const countdown = formatCountdown(end.getTime() - now.getTime());
 
-  // The shift's commitment stays on the bar — it is what the plan promised, and
-  // the countdown is against it. What changed is the VERDICT: it now reads the
-  // pace against the time already worked, so five hours into twelve a line that
-  // is keeping up stops being told it is failing.
-  const pace = useMemo(
+  // Quanto do turno já passou. É a única coisa de que a cor deste ecrã precisa
+  // além do que já está nos mosaicos — e ao contrário da taxa padrão do SKU,
+  // que aqui esteve e que a maior parte dos produtos não tem, está no relógio
+  // da parede ao lado deste ecrã.
+  const elapsedPct = useMemo(() => shiftClockPct(start, end, now), [start, end, now]);
+
+  // A mesma leitura que veste o cartão do board, pela mesma função: se um dia
+  // forem duas contas, é este ecrã que perde a autoridade, porque é o que se lê
+  // de longe e ninguém confere.
+  const reading = useMemo(
     () =>
-      computePace({
-        shiftStart: start,
-        now,
+      lineReading({
+        target,
+        actual,
+        elapsedPct,
         hasSession: itemsData?.hasSession ?? false,
         hasLeader: itemsData?.hasLeader ?? false,
-        items: (items ?? []).map((it) => ({
-          ratePerHour: it.sku?.target_per_hour ?? null,
-          produced: Number(it.actual_qty ?? 0),
-          startedAt: it.started_at ? new Date(it.started_at) : null,
-          finishedAt: it.finished_at ? new Date(it.finished_at) : null,
-          plannedQty: it.planned_qty,
-        })),
+        orderCount: (items ?? []).length,
       }),
-    [items, itemsData, start, now],
+    [target, actual, elapsedPct, itemsData, items],
   );
 
   const entryAge = useMemo(
@@ -232,30 +233,20 @@ export default function LineDisplayScreen() {
     [items, now],
   );
 
-  // A mesma leitura que veste o cartão do board, pela mesma função: se um dia
-  // forem duas contas, é este ecrã que perde a autoridade, porque é o que se lê
-  // de longe e ninguém confere. Nulo quando há um plano e nada escrito — 0% aí
-  // não é uma medição, é a ausência de uma.
-  const score = lineScore(pace, target, actual);
-  // O que a barra imprime: feito a dividir pelo alvo do turno — os dois
-  // mosaicos ACTUAL e TARGET que estão um palmo acima. Estava aqui o ritmo,
-  // "60%" contra o que era devido a esta hora, e era a única percentagem do
-  // ecrã cujo denominador não está escrito em lado nenhum na parede.
-  const measure = score
-    ? `${score.attainedPct.toFixed(1)}%`
-    : pace.kind !== "PACE"
-      ? PACE_MESSAGES[pace.kind]
-      : "—";
-  const status =
-    pace.kind === "PACE"
-      ? { label: VERDICT_LABEL[pace.verdict], color: VERDICT_COLOR[pace.verdict] }
-      : { label: PACE_MESSAGES[pace.kind].toUpperCase(), color: "bg-wall-line" };
+  const scored = reading.kind === "SCORED" ? reading : null;
+  // Feito a dividir pelo alvo do turno — os dois mosaicos ACTUAL e TARGET que
+  // estão um palmo acima. Nada mais: o "60%" do ritmo que aqui esteve era a
+  // única percentagem do ecrã cujo denominador não está escrito na parede.
+  const measure = scored ? `${scored.attainedPct.toFixed(1)}%` : LINE_MESSAGES[reading.kind];
+  const status = scored
+    ? { label: BAND_STATUS[scored.band].toUpperCase(), color: BAND_BG[scored.band] }
+    : { label: LINE_STATUS[reading.kind].toUpperCase(), color: "bg-wall-line" };
 
-  // The bar keeps showing progress against the shift plan; only its colour is
-  // driven by the pace, so a line that is on pace is not painted red by a plan
-  // it still has seven hours to finish.
+  // A largura é o feito sobre o alvo; a marca é onde o relógio já vai. A
+  // distância entre as duas É o relatório, e é a mesma distância de que a cor
+  // sai — nada nesta barra vem de um número que não esteja nela.
   const planPct = target > 0 ? Math.min(100, (actual / target) * 100) : 0;
-  const barColor = pace.kind === "PACE" ? VERDICT_COLOR[pace.verdict] : "bg-wall-line";
+  const barColor = scored ? BAND_BG[scored.band] : "bg-wall-line";
 
   const goFullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -352,17 +343,25 @@ export default function LineDisplayScreen() {
           <span className="text-wall-ink-muted">Made — against the shift target</span>
           <span className="font-bold">{measure}</span>
         </div>
-        <div className="h-12 bg-wall-line rounded-full overflow-hidden">
-          {/* Largura e percentagem dizem agora a mesma coisa — feito sobre o alvo
-              do turno. Só a COR é que continua a vir do ritmo: às cinco horas de
-              doze, uma linha que está a aguentar não pode ser pintada de vermelho
-              pelas sete horas que ainda ninguém trabalhou. */}
+        <div className="relative h-12 bg-wall-line rounded-full overflow-hidden">
           <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${planPct}%` }} />
+          {/* A marca do relógio: onde o turno já vai. É contra ela que a cor da
+              barra é decidida, e é por isso que está desenhada — a cor deste
+              ecrã não pode sair de um número que não esteja no ecrã. */}
+          <div
+            className="absolute inset-y-0 w-1 -translate-x-1/2 bg-wall-ink"
+            style={{ left: `${elapsedPct}%` }}
+            aria-hidden
+          />
+        </div>
+        <div className="mt-2 flex justify-between text-lg text-wall-ink-muted">
+          <span>{Math.round(elapsedPct)}% of the shift has passed</span>
+          <span>{actual.toLocaleString()} / {target.toLocaleString()}</span>
         </div>
         {/* The screen states its own imprecision rather than leaving it to be
             found out. Both notes are removable the day their cause is fixed. */}
         <div className="mt-3 text-sm text-wall-ink-muted space-y-1">
-          <p>Planned stops (deep clean, breaks, no planned shift) are not yet deducted — the colour reads slightly harsh.</p>
+          <p>Planned stops (deep clean, breaks, no planned shift) count as shift time — the mark sits slightly ahead of the work.</p>
           <p>
             Figures are operator entries, not a live machine count
             {entryAge != null ? ` · last entry ${entryAge} min ago` : " · nothing entered yet"}.
