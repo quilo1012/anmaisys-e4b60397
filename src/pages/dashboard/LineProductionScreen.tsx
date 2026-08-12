@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getShiftWindows } from "@/hooks/useShiftDowntime";
+import { shiftClockPct, lineReading, BAND_BG, BAND_STATUS } from "@/lib/linePerformance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -370,6 +371,37 @@ export default function LineProductionScreen() {
     const pct = target > 0 ? (actual / target) * 100 : 0;
     return { target, actual, remaining, pct };
   }, [items, ragPlanQ.data]);
+
+  /**
+   * Quanto do turno já passou — o denominador que faltava a este ecrã.
+   *
+   * O tablet comparava o acumulado com o plano do TURNO INTEIRO e pintava a
+   * moldura abaixo de 80%. Às 11h de um turno que abre às 6h e fecha às 18h,
+   * uma linha exactamente a horas lê 41,6% e fica vermelha — durante cerca de
+   * dez das doze horas, todos os dias, no ecrã onde os números são escritos.
+   * É o mesmo erro que o board corrigiu em ee062e29 e que aqui sobreviveu.
+   *
+   * A janela sai de `getShiftWindows(activeSessionDate)` e não do turno
+   * corrente: esta página deixa escolher o turno, e `getCurrentShiftEnd(now)`
+   * responderia sobre outro. `shiftClockPct` fecha nas duas pontas, por isso um
+   * turno já fechado dá 100 — o plano todo era devido — e um ainda por abrir dá
+   * zero.
+   */
+  const shiftWindow = useMemo(() => {
+    const w = getShiftWindows(activeSessionDate);
+    return shift === "DAY" ? { start: w.dayStart, end: w.dayEnd } : { start: w.nightStart, end: w.nightEnd };
+  }, [activeSessionDate, shift]);
+
+  const elapsedPct = useMemo(
+    () => shiftClockPct(shiftWindow.start, shiftWindow.end, now),
+    [shiftWindow, now],
+  );
+
+  /** A mesma leitura, e a mesma cor, que o board e o ecrã de parede. */
+  const reading = useMemo(
+    () => lineReading({ target: totals.target, actual: totals.actual, elapsedPct }),
+    [totals.target, totals.actual, elapsedPct],
+  );
 
   const intouchLive = Number((sessionQ.data as any)?.intouch_good_total ?? 0);
 
@@ -857,9 +889,13 @@ export default function LineProductionScreen() {
                 pintava a moldura INTEIRA do cartão de verde ou de vermelho. Um cartão
                 contornado a cor grita mais alto do que o número que ele existe para
                 mostrar, que é o problema que a barra resolve. */
-            const railState: RailState = eff >= 100 ? "go" : eff >= 80 ? "hold" : "stop";
-            const headerBg = eff >= 100 ? "bg-success/15" : eff >= 80 ? "bg-warning/15" : "bg-destructive/15";
-            const headerText = eff >= 100 ? "text-success-strong" : eff >= 80 ? "text-warning-strong" : "text-destructive-strong";
+            /* A cor sai do relógio, e não de `eff >= 100 / 80` escrito aqui. Eram
+               limiares próprios desta página, e diziam vermelho a meio de um turno
+               por causa das horas que ninguém ainda tinha trabalhado. */
+            const band = reading.kind === "SCORED" ? reading.band : null;
+            const railState: RailState = band === "GO" ? "go" : band === "HOLD" ? "hold" : band === "STOP" ? "stop" : "idle";
+            const headerBg = band === "GO" ? "bg-success/15" : band === "HOLD" ? "bg-warning/15" : band === "STOP" ? "bg-destructive/15" : "bg-muted";
+            const headerText = band === "GO" ? "text-success-strong" : band === "HOLD" ? "text-warning-strong" : band === "STOP" ? "text-destructive-strong" : "text-muted-foreground";
             return (
               <Card className={cn("mb-4 overflow-hidden", railEdge(railState))}>
                 <div className={cn("px-4 py-2 flex items-center justify-between", headerBg, headerText)}>
@@ -896,9 +932,22 @@ export default function LineProductionScreen() {
               </div>
               <div className="h-5 w-full overflow-hidden rounded-full bg-muted">
                 <div
-                  className={cn("h-full transition-all", ragColor(totals.pct))}
+                  className={cn("h-full transition-all", reading.kind === "SCORED" ? BAND_BG[reading.band] : "bg-muted-foreground/30")}
                   style={{ width: `${Math.min(100, totals.pct)}%` }}
                 />
+              </div>
+              {/* As duas parcelas que produzem a cor, ambas escritas. Sem o relógio
+                  ao lado, "41,6%" a meio da manhã não diz se é atraso ou se é a
+                  hora que é — e era com esse número sozinho que a barra ficava
+                  vermelha. */}
+              <div className="flex items-center justify-between text-sm text-muted-foreground tabular-nums">
+                <span>Shift elapsed {elapsedPct.toFixed(0)}%</span>
+                {reading.kind === "SCORED" && (
+                  <span>
+                    {BAND_STATUS[reading.band]}
+                    {reading.band !== "GO" && ` · ${(elapsedPct - reading.attainedPct).toFixed(0)} pts behind the clock`}
+                  </span>
+                )}
               </div>
               {sessionQ.data.leader_name && (
                 <div className="text-sm text-muted-foreground">
