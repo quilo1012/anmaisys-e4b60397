@@ -67,7 +67,8 @@ export interface ClosePersonInput {
   absences: Record<string, number>;
   daysPresent: number;
   /**
-   * Hours of a rostered shift somebody came in for and did not stay for.
+   * Hours of a rostered shift somebody came in for and was not there for — the part
+   * before a late arrival, the part after an early finish, or both on the same day.
    *
    * Its own figure, never folded into the balance. The balance comes from the clocks
    * and this comes from the board, and adding a board figure to a clocked one would
@@ -75,7 +76,7 @@ export interface ClosePersonInput {
    * board is the only record that Elias Soares went home at eight, so it is reported —
    * as unpaid hours, which is what they are.
    */
-  earlyLeaveHours: number;
+  partDayHours: number;
 
   /* ---- The board's answer, carried in the same row as the clocks' answer ----
    *
@@ -314,7 +315,7 @@ export interface CloseTotals {
   holiday: number;
   unpaid: number;
   /** Unpaid hours from days somebody came in for and left part-way through. */
-  earlyLeaveHours: number;
+  partDayHours: number;
   /** Shifts worked above the rota, summed over everybody above it. */
   overtimeShifts: number;
   /** Shifts short, as a positive number, counted only over days the board was planned. */
@@ -336,7 +337,7 @@ export function closeTotals(rows: ClosePerson[]): CloseTotals {
     // Summed per person, never netted across people. One person's shortfall does not
     // cancel another's overtime — they are paid separately and owe separately.
     overtimeHours: sum((r) => r.overtimeHours),
-    earlyLeaveHours: sum((r) => r.earlyLeaveHours),
+    partDayHours: sum((r) => r.partDayHours),
     overtimeShifts: rows.reduce((n, r) => n + Math.max(0, r.shiftBalance ?? 0), 0),
     // A board nobody filled in produces a shortfall for everybody on it. That is a
     // fact about the board, so it is kept out of the deficit rather than counted as
@@ -389,7 +390,7 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
     r.holiday,
     r.unpaid,
     r.otherAbsence,
-    r.earlyLeaveHours,
+    r.partDayHours,
   ]);
 }
 
@@ -399,5 +400,5 @@ export const CLOSE_HEADERS = [
   "Opening bank (h)", "Period balance (h)", "Closing bank (h)",
   "Overtime paid (h)", "Hours owed (h)",
   "Payroll OT (h)", "Delta (h)",
-  "Days present", "Sick", "Holiday", "Unpaid", "Other absence", "Early leave (h)",
+  "Days present", "Sick", "Holiday", "Unpaid", "Other absence", "Part day (h)",
 ];

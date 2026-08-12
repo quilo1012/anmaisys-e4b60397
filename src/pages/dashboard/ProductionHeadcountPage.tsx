@@ -217,6 +217,7 @@ function Chip({
   overtime,
   half,
   leftEarlyAt,
+  arrivedLateAt,
   crew,
   draggable,
   onOpen,
@@ -236,6 +237,8 @@ function Chip({
   half?: boolean;
   /** Came in and went home early, at this time. A day worked, not a day off. */
   leftEarlyAt?: string | null;
+  /** Came in after the shift started, at this time. Also a day worked, not a day off. */
+  arrivedLateAt?: string | null;
   /** Which crew they belong to — FRI–MON, WH, NIGHT. Null for the plain day shift,
       which is most of the board and needs no label to say so. */
   crew?: string | null;
@@ -298,6 +301,17 @@ function Chip({
           className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-[10px] font-bold leading-tight text-muted-foreground"
         >
           ½
+        </span>
+      )}
+      {/* Came in late. Same arrow, pointing the other way: the column counts them as in
+          all day, and the line was a body short until nine. Before the early-finish mark
+          because that is the order the day happened in. */}
+      {arrivedLateAt && (
+        <span
+          title={`Arrived late — came in at ${arrivedLateAt.slice(0, 5)}`}
+          className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-[10px] font-bold leading-tight text-warning-strong"
+        >
+          {arrivedLateAt.slice(0, 5)}→
         </span>
       )}
       {/* Went home early. On the chip because the column counts them as in — which
@@ -862,6 +876,7 @@ function ShiftBoard({
                         dimmed={isDimmed(p.full_name)}
                         overtime={isOt}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
+                        arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                         crew={crewBadge(p.shift_group)}
                         onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
@@ -986,6 +1001,7 @@ function ShiftBoard({
         if (!person) return null;
         // Postgres hands back `14:00:00`; the time input wants `14:00`.
         const leftEarly = alloc?.left_early_at ? alloc.left_early_at.slice(0, 5) : null;
+        const arrivedLate = alloc?.arrived_late_at ? alloc.arrived_late_at.slice(0, 5) : null;
         return (
           <PersonDayDialog
             open
@@ -1006,6 +1022,7 @@ function ShiftBoard({
               status: (alloc?.status as AllocStatus | undefined) ?? "unpaid",
               halfDay: v,
               leftEarlyAt: leftEarly,
+              arrivedLateAt: arrivedLate,
               explicit: true,
             })}
             leftEarlyAt={leftEarly}
@@ -1015,6 +1032,17 @@ function ShiftBoard({
               status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
               halfDay: alloc?.half_day === true,
               leftEarlyAt: v,
+              arrivedLateAt: arrivedLate,
+              explicit: true,
+            })}
+            arrivedLateAt={arrivedLate}
+            onSetArrivedLateAt={(v) => place.mutate({
+              employeeId: editing,
+              areaId: alloc?.area_id ?? null,
+              status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
+              halfDay: alloc?.half_day === true,
+              leftEarlyAt: leftEarly,
+              arrivedLateAt: v,
               explicit: true,
             })}
             onSetStatus={(st) => place.mutate({
@@ -1027,6 +1055,7 @@ function ShiftBoard({
               // out would silently clear an early finish somebody had recorded. The
               // mutation itself drops it when the status stops being a day worked.
               leftEarlyAt: leftEarly,
+              arrivedLateAt: arrivedLate,
               // These five buttons are the one place a person says how the day counts,
               // so what they say stands — over the rota's guess and over a mark already
               // on the row. Pressing In on somebody wrongly marked overtime used to
@@ -1039,6 +1068,7 @@ function ShiftBoard({
               status: alloc?.status === "overtime" ? "overtime" : "assigned",
               halfDay: alloc?.half_day === true,
               leftEarlyAt: leftEarly,
+              arrivedLateAt: arrivedLate,
             })}
             onSetShift={(sg) => changeShift.mutate({ employeeId: editing, shiftGroup: sg })}
             patterns={patterns}
@@ -1092,6 +1122,7 @@ function ShiftBoard({
                         tone={block.status === "overtime" ? "overtime" : "away"}
                         half={byEmployee.get(p.id)?.half_day === true}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
+                        arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                         crew={crewBadge(p.shift_group)}
                         draggable={canManage}
                         onDragStart={(e) => {

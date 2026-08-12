@@ -110,7 +110,7 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   const cards: { label: string; value: string; color?: RGB; accent?: RGB }[] = [
     { label: "Overtime paid", value: hrs(t.overtimeHours), color: GREEN_TX, accent: GREEN_TX },
     { label: "Hours deducted", value: hrs(t.owedHours), color: t.owedHours > 0 ? AMBER_TX : INK },
-    { label: "Left early", value: hrs(t.earlyLeaveHours), color: t.earlyLeaveHours > 0 ? AMBER_TX : INK },
+    { label: "Part day", value: hrs(t.partDayHours), color: t.partDayHours > 0 ? AMBER_TX : INK },
     { label: "Payroll OT", value: hrs(t.payrollOtHours) },
     // A dash, never "0.00 h" — see closeWarningText.
     { label: "Gap to settle", value: t.payrollEmpty ? "—" : hrs(t.deltaHours), color: !t.payrollEmpty && Math.abs(t.deltaHours) >= 1 ? AMBER_TX : INK },
@@ -247,7 +247,7 @@ export function buildCloseWorkbook(input: CloseExportInput) {
     ["Figure", "Value", "Unit"],
     ["Overtime paid", t.overtimeHours, "h"],
     ["Hours deducted", t.owedHours, "h"],
-    ["Left early", t.earlyLeaveHours, "h"],
+    ["Part day", t.partDayHours, "h"],
     ["Payroll OT", t.payrollOtHours, "h"],
     // Null, not 0 — an empty cell is the only honest way to write "nothing to compare"
     // in a column somebody might sum.

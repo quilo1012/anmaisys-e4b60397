@@ -7,7 +7,7 @@ import {
 const PERIOD = { from: "2026-07-13", to: "2026-08-09" };
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
-  employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Weekend", earlyLeaveHours: 0,
+  employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Weekend", partDayHours: 0,
   patternName: null, patternDays: null, shiftsWorked: 0, shiftsHoliday: 0, plannedDates: null,
   openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
 });
@@ -41,7 +41,7 @@ describe("the bands over the close", () => {
   it("keeps the early-leave hours out of the clocked band, because the board is its source", () => {
     // Reported apart for the reason financeClose.ts labours: adding a board figure to a
     // clocked one counts the same missing hours twice once TimeMoto is imported.
-    expect(CLOSE_COLUMNS.find((c) => c.key === "earlyLeaveHours")!.band).toBe("boardHours");
+    expect(CLOSE_COLUMNS.find((c) => c.key === "partDayHours")!.band).toBe("boardHours");
     expect(BAND_LABELS.boardHours).toBe("Hours · from the board");
     expect(BAND_LABELS.clockedHours).toBe("Hours · from the clocks");
   });

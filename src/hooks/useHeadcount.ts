@@ -44,6 +44,8 @@ export type Allocation = {
   half_day: boolean | null;
   /** They came in and went home early, at this time. Null means they worked the shift out. */
   left_early_at: string | null;
+  /** They came in after the shift started, at this time. Null means they were in on time. */
+  arrived_late_at: string | null;
   note: string | null;
   /** Leads this area on this day. A line can lead differently tomorrow. */
   is_leader: boolean | null;
@@ -263,7 +265,7 @@ export function useAllocations(onDate: string, shift: string) {
     queryFn: async (): Promise<Allocation[]> => {
       const { data, error } = await supabase
         .from("daily_allocations")
-        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,note,is_leader")
+        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,note,is_leader")
         .eq("on_date", onDate)
         .eq("shift", shift);
       if (error) throw error;
@@ -484,6 +486,8 @@ export function useAllocationMutations(onDate: string, shift: string) {
       halfDay?: boolean;
       /** "HH:MM" if they went home early, null if they worked the shift out. */
       leftEarlyAt?: string | null;
+      /** "HH:MM" if they came in after the shift started, null if they were on time. */
+      arrivedLateAt?: string | null;
       /**
        * True when the status is the thing being chosen, not a side effect of moving
        * somebody. Set by the day dialog's controls; left off by every drag and picker,
@@ -553,6 +557,14 @@ export function useAllocationMutations(onDate: string, shift: string) {
             left_early_at:
               status === "assigned" || status === "overtime"
                 ? input.leftEarlyAt ?? null
+                : null,
+            // The other end of the same day, and the same rule: a late start is only a
+            // late start if there was a shift to be late for. The board could say "went
+            // home early" and had no way at all to say "came in at nine", so three hours
+            // of a line running short lived nowhere.
+            arrived_late_at:
+              status === "assigned" || status === "overtime"
+                ? input.arrivedLateAt ?? null
                 : null,
             // Moving somebody out of a column ends their leadership of it. The rule is
             // in `keepsLeadership`, with the index it exists to satisfy and the evening
