@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeLeaderScore, displayScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 
 const noActions: never[] = [];
 
@@ -83,5 +83,65 @@ describe("displayScore", () => {
   it("leaves a genuine 100 alone", () => {
     const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: [] });
     expect(displayScore(r.final)).toBe(100);
+  });
+});
+
+describe("rankLeadersByScore", () => {
+  const rows = [
+    { leader: "Ana", score: 74 },
+    { leader: "Bruno", score: 91 },
+    { leader: "Carla", score: 83 },
+  ];
+
+  it("ranks by score, best first", () => {
+    const rank = rankLeadersByScore(rows);
+    expect(rank.get("Bruno")).toBe(1);
+    expect(rank.get("Carla")).toBe(2);
+    expect(rank.get("Ana")).toBe(3);
+  });
+
+  /**
+   * The regression this exists for.
+   *
+   * The Leader Performance table hands 🥇🥈🥉 to rows 0, 1 and 2 of whatever order the
+   * table is currently in, and every one of its eleven columns is sortable. Sorting by
+   * "Open Actions" descending gave the gold medal to the leader with the most open
+   * actions; sorting by "Doc errors" gave it to whoever had made the most paperwork
+   * errors. A medal is a statement about a person, so it cannot be a property of a row
+   * index.
+   */
+  it("is the same rank whatever order the rows arrive in", () => {
+    const forwards = rankLeadersByScore(rows);
+    const backwards = rankLeadersByScore([...rows].reverse());
+    const byName = rankLeadersByScore([...rows].sort((a, b) => a.leader.localeCompare(b.leader)));
+    for (const name of ["Ana", "Bruno", "Carla"]) {
+      expect(backwards.get(name)).toBe(forwards.get(name));
+      expect(byName.get(name)).toBe(forwards.get(name));
+    }
+  });
+
+  it("leaves a leader with nothing measurable unranked, rather than last", () => {
+    const rank = rankLeadersByScore([...rows, { leader: "Dinis", score: null }]);
+    expect(rank.get("Dinis")).toBeNull();
+    // And an unranked leader must not push anybody down the list.
+    expect(rank.get("Ana")).toBe(3);
+  });
+
+  it("shares a rank between equal scores, and skips the one they used up", () => {
+    // Two leaders on 91 are both first. Nobody is second; the next is third.
+    const rank = rankLeadersByScore([
+      { leader: "Ana", score: 91 },
+      { leader: "Bruno", score: 91 },
+      { leader: "Carla", score: 70 },
+    ]);
+    expect(rank.get("Ana")).toBe(1);
+    expect(rank.get("Bruno")).toBe(1);
+    expect(rank.get("Carla")).toBe(3);
+  });
+
+  it("ranks nobody when nobody has a score", () => {
+    const rank = rankLeadersByScore([{ leader: "Ana", score: null }, { leader: "Bruno", score: null }]);
+    expect(rank.get("Ana")).toBeNull();
+    expect(rank.get("Bruno")).toBeNull();
   });
 });

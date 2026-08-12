@@ -1,221 +1,160 @@
 import { describe, it, expect } from "vitest";
 import {
-  computePace,
-  balanceLabel,
-  lastEntryAgeMinutes,
-  WARMUP_MINUTES,
-  type PaceItem,
+  shiftClockPct,
+  clockBand,
+  lineReading,
+  BEHIND_TOLERANCE_PTS,
 } from "./linePerformance";
 
-// A day shift starting at 06:00 London. The tests move `now` around it rather
-// than mocking the clock, so they say what hour of the shift they are testing.
-const shiftStart = new Date("2026-08-08T06:00:00.000Z");
-const at = (hoursIn: number) => new Date(shiftStart.getTime() + hoursIn * 3600_000);
+/**
+ * O relógio do turno substituiu o ritmo.
+ *
+ * O que morreu aqui, e porquê: o ritmo comparava o que a linha fez com o que
+ * devia ter feito segundo a taxa padrão do SKU (peças/hora) vezes o tempo
+ * trabalhado. Duas coisas o afundaram. A primeira é que mais de duzentos SKUs
+ * activos têm `target_per_hour` a zero ou nulo, por isso para a maior parte dos
+ * produtos o número não existia. A segunda é que, depois de o cartão passar a
+ * imprimir a fatia do alvo, o ritmo continuou a decidir a COR sem estar escrito
+ * em lado nenhum: o painel mostrava 9%, uma luz verde, e uma legenda a dizer
+ * que verde era ≥95%. Nenhum supervisor podia fechar essa conta.
+ *
+ * A regra nova usa o relógio, que está na parede e não precisa de base de
+ * dados: quanto do turno já passou contra quanto do alvo já está feito. Os dois
+ * números ficam ambos no ecrã, e é a distância entre eles que dá a cor.
+ */
 
-const item = (over: Partial<PaceItem> = {}): PaceItem => ({
-  ratePerHour: 1200,
-  produced: 0,
-  startedAt: null,
-  finishedAt: null,
-  ...over,
-});
+const DAY_START = new Date("2026-08-12T06:00:00Z");
+const DAY_END = new Date("2026-08-12T18:00:00Z");
+/** `h` horas depois do início do turno. */
+const at = (h: number) => new Date(DAY_START.getTime() + h * 3_600_000);
 
-const base = { shiftStart, hasSession: true, hasLeader: true };
-
-describe("computePace — the states that are not a percentage", () => {
-  it("no session is 'line not started', not zero percent", () => {
-    const r = computePace({ ...base, hasSession: false, items: [], now: at(5) });
-    expect(r.kind).toBe("NO_SESSION");
+describe("shiftClockPct — quanto do turno já passou", () => {
+  it("é 0 no instante em que o turno abre", () => {
+    expect(shiftClockPct(DAY_START, DAY_END, DAY_START)).toBe(0);
   });
 
-  it("a session with no items is 'no order' — the Tablet Line case today", () => {
-    const r = computePace({ ...base, items: [], now: at(5) });
-    expect(r.kind).toBe("NO_ORDER");
+  it("é 50 a meio de um turno de doze horas", () => {
+    expect(shiftClockPct(DAY_START, DAY_END, at(6))).toBe(50);
   });
 
-  it("a session nobody logged into is its own state", () => {
-    const r = computePace({ ...base, hasLeader: false, items: [item()], now: at(5) });
-    expect(r.kind).toBe("NO_LEADER");
+  it("dá as cinco horas de doze do cartão da Line 1", () => {
+    expect(shiftClockPct(DAY_START, DAY_END, at(5))).toBeCloseTo(41.67, 1);
   });
 
-  it("a SKU with no standard rate cannot be paced", () => {
-    const r = computePace({ ...base, items: [item({ ratePerHour: null, produced: 900 })], now: at(5) });
-    expect(r.kind).toBe("NO_RATE");
+  it("não passa dos 100 quando o turno já acabou e ninguém fechou o ecrã", () => {
+    expect(shiftClockPct(DAY_START, DAY_END, at(19))).toBe(100);
   });
 
-  it("zero produced and no data are different answers", () => {
-    const zero = computePace({ ...base, items: [item({ produced: 0 })], now: at(5) });
-    const none = computePace({ ...base, items: [], now: at(5) });
-    expect(zero.kind).toBe("PACE");
-    expect(none.kind).toBe("NO_ORDER");
-  });
-});
-
-describe("computePace — a shift that just started", () => {
-  it("does not divide by an expectation of nearly zero", () => {
-    const r = computePace({ ...base, items: [item({ produced: 5 })], now: at(0.05) }); // 3 min in
-    expect(r.kind).toBe("WARMING_UP");
+  it("não desce abaixo de zero antes de o turno abrir", () => {
+    expect(shiftClockPct(DAY_START, DAY_END, at(-2))).toBe(0);
   });
 
-  it("stays in warm-up right up to the threshold, then paces", () => {
-    const justBefore = computePace({
-      ...base,
-      items: [item({ produced: 100 })],
-      now: new Date(shiftStart.getTime() + (WARMUP_MINUTES - 1) * 60_000),
-    });
-    const justAfter = computePace({
-      ...base,
-      items: [item({ produced: 100 })],
-      now: new Date(shiftStart.getTime() + (WARMUP_MINUTES + 1) * 60_000),
-    });
-    expect(justBefore.kind).toBe("WARMING_UP");
-    expect(justAfter.kind).toBe("PACE");
+  it("atravessa a meia-noite sem se enganar — o turno da noite é 18:00 às 06:00", () => {
+    const nightStart = new Date("2026-08-12T18:00:00Z");
+    const nightEnd = new Date("2026-08-13T06:00:00Z");
+    const twoAm = new Date("2026-08-13T02:00:00Z");
+    expect(shiftClockPct(nightStart, nightEnd, twoAm)).toBeCloseTo(66.67, 1);
   });
 
-  it("never reports a wild percentage from the first units of the shift", () => {
-    // 40 units in the first 2 minutes against 1200/h would be 1000%.
-    const r = computePace({ ...base, items: [item({ produced: 40 })], now: at(0.033) });
-    expect(r.kind).toBe("WARMING_UP");
+  it("não rebenta com um turno de duração zero", () => {
+    expect(shiftClockPct(DAY_START, DAY_START, DAY_START)).toBe(100);
   });
 });
 
-describe("computePace — the verdict", () => {
-  it("measures against the time elapsed, not the whole shift", () => {
-    // 1200/h for 5h = 6000 expected. The old screen compared 5760 against a
-    // 13,200-unit shift plan and called this line BELOW TARGET at 44%.
-    const r = computePace({ ...base, items: [item({ produced: 5760 })], now: at(5) });
-    expect(r.kind).toBe("PACE");
-    if (r.kind !== "PACE") return;
-    expect(Math.round(r.expected)).toBe(6000);
-    expect(Math.round(r.pct)).toBe(96);
-    expect(r.verdict).toBe("ON_TARGET");
+describe("clockBand — a cor sai da distância entre dois números que estão no ecrã", () => {
+  it("é verde quando o feito acompanha o tempo passado", () => {
+    expect(clockBand(45, 42)).toBe("GO");
   });
 
-  it("uses 95/75, the thresholds already on the floor", () => {
-    const pctFor = (produced: number) => {
-      const r = computePace({ ...base, items: [item({ produced })], now: at(5) });
-      return r.kind === "PACE" ? r.verdict : r.kind;
-    };
-    expect(pctFor(5700)).toBe("ON_TARGET"); // 95.0%
-    expect(pctFor(5699)).toBe("AT_RISK"); // 94.98%
-    expect(pctFor(4500)).toBe("AT_RISK"); // 75.0%
-    expect(pctFor(4499)).toBe("BELOW_TARGET"); // 74.98%
+  it("é verde no empate exacto", () => {
+    expect(clockBand(42, 42)).toBe("GO");
   });
 
-  it("does not clamp a line running above standard", () => {
-    const r = computePace({ ...base, items: [item({ produced: 7800 })], now: at(5) });
-    expect(r.kind).toBe("PACE");
-    if (r.kind !== "PACE") return;
-    expect(Math.round(r.pct)).toBe(130);
+  it("continua verde para uma linha à frente do relógio, sem tecto", () => {
+    expect(clockBand(130, 50)).toBe("GO");
   });
 
-  it("measures a finished item over its own run, not the whole shift", () => {
-    // Ran 06:00–08:00 at standard, then nothing. Two hours in it is on pace;
-    // charging it for the five hours since would read 40%.
-    const r = computePace({
-      ...base,
-      items: [item({ produced: 2400, startedAt: at(0), finishedAt: at(2) })],
-      now: at(5),
-    });
-    expect(r.kind).toBe("PACE");
-    if (r.kind !== "PACE") return;
-    expect(Math.round(r.expected)).toBe(2400);
-    expect(r.verdict).toBe("ON_TARGET");
+  it(`é âmbar até ${BEHIND_TOLERANCE_PTS} pontos atrás do relógio, inclusive`, () => {
+    expect(clockBand(42 - BEHIND_TOLERANCE_PTS, 42)).toBe("HOLD");
   });
 
-  it("measures the open item from when it started", () => {
-    // The second SKU came on an hour ago. It is judged on that hour.
-    const r = computePace({
-      ...base,
-      items: [
-        item({ produced: 2400, startedAt: at(0), finishedAt: at(2) }),
-        item({ produced: 1150, startedAt: at(4) }),
-      ],
-      now: at(5),
-    });
-    expect(r.kind).toBe("PACE");
-    if (r.kind !== "PACE") return;
-    expect(Math.round(r.expected)).toBe(3600); // 2400 + 1200
-    expect(r.verdict).toBe("ON_TARGET");
+  it("é vermelho assim que passa dessa tolerância", () => {
+    expect(clockBand(42 - BEHIND_TOLERANCE_PTS - 0.1, 42)).toBe("STOP");
   });
 
-  it("falls back to the shift start when nobody recorded one", () => {
-    // Line 3 and Line 4 both look like this today: output logged, no start time.
-    const r = computePace({ ...base, items: [item({ produced: 853, startedAt: null })], now: at(5) });
-    expect(r.kind).toBe("PACE");
-    if (r.kind !== "PACE") return;
-    expect(Math.round(r.expected)).toBe(6000);
-    expect(r.verdict).toBe("BELOW_TARGET");
+  it("dá vermelho à Line 1 do screenshot: 9% feito, 42% do turno passado", () => {
+    expect(clockBand(9.25, 41.67)).toBe("STOP");
   });
 
-  it("counts output from an unrated SKU while pacing only the rated one", () => {
-    const r = computePace({
-      ...base,
-      items: [item({ produced: 5760 }), item({ ratePerHour: 0, produced: 400 })],
-      now: at(5),
-    });
-    expect(r.kind).toBe("PACE");
-    if (r.kind !== "PACE") return;
-    expect(r.produced).toBe(6160);
-    expect(Math.round(r.expected)).toBe(6000);
+  it("não pinta de vermelho uma linha nos primeiros minutos do turno", () => {
+    // Era isto que o WARMUP_MINUTES do ritmo andava a remendar: com o relógio
+    // não é preciso caso especial nenhum, porque aos 5% de turno decorrido
+    // ninguém pode estar mais de 15 pontos atrás.
+    expect(clockBand(0, 5)).toBe("HOLD");
+  });
+
+  it("num período fechado volta a ser a leitura de sempre contra o plano", () => {
+    expect(clockBand(100, 100)).toBe("GO");
+    expect(clockBand(85, 100)).toBe("HOLD");
+    expect(clockBand(84.9, 100)).toBe("STOP");
   });
 });
 
-describe("computePace — the night shift crossing midnight", () => {
-  it("measures from 18:00 through to the small hours without a negative window", () => {
-    const nightStart = new Date("2026-08-07T18:00:00.000Z");
-    const twoAm = new Date("2026-08-08T02:00:00.000Z"); // 8h in, next calendar day
-    const r = computePace({
-      ...base,
-      shiftStart: nightStart,
-      items: [item({ produced: 9600 })],
-      now: twoAm,
-    });
-    expect(r.kind).toBe("PACE");
-    if (r.kind !== "PACE") return;
-    expect(Math.round(r.expected)).toBe(9600);
-    expect(r.verdict).toBe("ON_TARGET");
+describe("lineReading — os estados que não são uma percentagem", () => {
+  const base = { hasSession: true, hasLeader: true, orderCount: 1, target: 3233, actual: 299, elapsedPct: 41.67 };
+
+  it("pontua a Line 1: 299 de 3.233 às cinco horas de doze", () => {
+    const r = lineReading(base);
+    expect(r.kind).toBe("SCORED");
+    if (r.kind !== "SCORED") return;
+    expect(r.attainedPct).toBeCloseTo(9.25, 2);
+    expect(r.elapsedPct).toBeCloseTo(41.67, 2);
+    expect(r.band).toBe("STOP");
   });
 
-  it("never returns a negative expectation if a clock skews backwards", () => {
-    const r = computePace({
-      ...base,
-      items: [item({ produced: 100, startedAt: at(6) })],
-      now: at(5),
-    });
-    // The open item's window is clamped at zero, so the only expectation left
-    // is none — which is warm-up, not a division by a negative.
-    expect(r.kind).toBe("WARMING_UP");
-  });
-});
-
-describe("balanceLabel", () => {
-  it("says COMPLETE instead of a negative balance", () => {
-    expect(balanceLabel(5000, 5412)).toBe("COMPLETE");
-    expect(balanceLabel(5000, 5000)).toBe("COMPLETE");
+  it("sem plano não há veredicto — um ecrã não inventa uma leitura que não tem", () => {
+    expect(lineReading({ ...base, target: 0 }).kind).toBe("NO_PLAN");
   });
 
-  it("shows what is left while the order is open", () => {
-    expect(balanceLabel(5000, 4600)).toBe("400");
+  it("a linha que não abriu diz que não abriu, antes de tudo o resto", () => {
+    expect(lineReading({ ...base, hasSession: false, orderCount: 0 }).kind).toBe("NO_SESSION");
   });
 
-  it("has nothing to say without a plan", () => {
-    expect(balanceLabel(0, 100)).toBe("—");
-    expect(balanceLabel(null, 100)).toBe("—");
-  });
-});
-
-describe("lastEntryAgeMinutes", () => {
-  it("reports the age of the most recent entry", () => {
-    const now = at(5);
-    const age = lastEntryAgeMinutes(
-      [at(3).toISOString(), at(4.5).toISOString(), null],
-      now,
-    );
-    expect(age).toBe(30);
+  it("sem ordem aberta, é isso que se diz", () => {
+    expect(lineReading({ ...base, orderCount: 0 }).kind).toBe("NO_ORDER");
   });
 
-  it("is null when nobody has typed anything", () => {
-    expect(lastEntryAgeMinutes([null, undefined], at(5))).toBeNull();
+  it("sem líder registado, é isso que se diz", () => {
+    expect(lineReading({ ...base, hasLeader: false }).kind).toBe("NO_LEADER");
+  });
+
+  it("nada escrito não é um zero medido", () => {
+    // Nada neste sistema distingue uma linha que não fez nada de uma linha cuja
+    // produção ninguém escreveu, e dividir 0 pelo alvo afirma a primeira.
+    expect(lineReading({ ...base, actual: 0 }).kind).toBe("NOTHING_LOGGED");
+  });
+
+  it("um período fechado não é interrogado sobre sessões nem líderes", () => {
+    // Semana e mês não têm turno a correr: o chamador omite as portas e o alvo
+    // inteiro já era devido.
+    const r = lineReading({ target: 10000, actual: 9600, elapsedPct: 100 });
+    expect(r.kind).toBe("SCORED");
+    if (r.kind !== "SCORED") return;
+    expect(r.band).toBe("HOLD");
+  });
+
+  it("não corta a percentagem aos 100 — uma linha a 144% do plano é para se ver", () => {
+    const r = lineReading({ target: 3338, actual: 4799, elapsedPct: 100 });
+    expect(r.kind).toBe("SCORED");
+    if (r.kind !== "SCORED") return;
+    expect(r.attainedPct).toBeCloseTo(143.77, 1);
+    expect(r.band).toBe("GO");
+  });
+
+  it("já não pergunta pela taxa padrão do SKU, que era a falha que nunca se resolvia", () => {
+    // O ritmo devolvia NO_RATE e a linha ficava sem cor nenhuma. Com o relógio,
+    // uma linha sem taxa nenhuma registada pontua como qualquer outra.
+    const r = lineReading({ ...base, actual: 1500 });
+    expect(r.kind).toBe("SCORED");
   });
 });

@@ -9,13 +9,6 @@ export interface ReportSummary {
   quality: { total: number; open: number; critical: number };
 }
 
-const EMPTY: ReportSummary = {
-  production: { plan: 0, actual: 0, efficiencyPct: null, days: 0 },
-  downtime: { minutes: 0, stops: 0, worstLine: null, worstMinutes: 0 },
-  maintenance: { raised: 0, closed: 0, avgResponseMin: null, avgRepairMin: null },
-  quality: { total: 0, open: 0, critical: 0 },
-};
-
 const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length / 60) : null);
 
 /**
@@ -76,7 +69,16 @@ export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" 
             db.from("v_wo_downtime_total").select("work_order_id, total_minutes, stop_count").in("work_order_id", ids),
             db.from("v_wo_metrics").select("id, response_time_sec, active_repair_sec, status").in("id", ids),
           ])
-        : [{ data: [] }, { data: [] }];
+        : [{ data: [], error: null }, { data: [], error: null }];
+
+      // The three reads above throw on error. These two did not, and a failed read and
+      // a quiet period are the same empty array — so a downtime view that could not be
+      // read was reported as a period with no downtime in it: zero minutes, zero
+      // stoppages, no worst line, a dash for the average response. Underneath, the page
+      // promised that a dash means nothing was recorded, which is the one thing it did
+      // not mean. Zero is an answer, and it has to be earned.
+      if (totals.error) throw new Error(`v_wo_downtime_total: ${totals.error.message}`);
+      if (metrics.error) throw new Error(`v_wo_metrics: ${metrics.error.message}`);
 
       const lineOf = new Map<string, string>(
         woRows.map((w: any) => [w.id, (w.line?.name ?? w.line_at_time ?? "—").trim()]),
@@ -126,6 +128,13 @@ export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" 
         },
       };
     },
-    placeholderData: EMPTY,
+    // No placeholder here, deliberately.
+    //
+    // It used to hand back a report of zeros while the reads were still in flight, and
+    // a placeholder puts the query in `success` from the very first render — so the
+    // page could not tell "still loading" from "a period in which nothing happened",
+    // and neither could the person reading it. A summary showing zero downtime,
+    // zero orders and zero quality actions is a strong claim about a week. It should
+    // not be made before the answer has arrived.
   });
 }

@@ -158,3 +158,53 @@ export function computeLeaderScore(
     },
   };
 }
+
+/** Anything with a name and a score can be ranked; the table row carries far more. */
+export interface RankableLeader {
+  leader: string;
+  score: number | null;
+}
+
+/**
+ * A leader's rank, by score, independent of how the table happens to be sorted.
+ *
+ * The Leader Performance table awarded 🥇🥈🥉 to rows 0, 1 and 2 of the current sort,
+ * and all eleven of its columns are sortable. Sorting by "Open Actions" descending
+ * handed the gold medal to the leader with the most open actions; sorting by "Doc
+ * errors" handed it to whoever had made the most paperwork errors. The medal was never
+ * a statement about a leader — it was a statement about a row index, wearing the
+ * costume of one.
+ *
+ * So rank is computed here, from the score and nothing else, and the medal travels with
+ * the person when the reader re-sorts the table.
+ *
+ * Competition ranking, not sequential: two leaders on the same score are both first,
+ * and the next is third. The alternative was breaking the tie on the name, which hands
+ * one of two identical performances a better medal for beginning with an earlier
+ * letter.
+ *
+ * A null score is unranked, not last. `computeLeaderScore` returns null when there was
+ * nothing measurable in the period, and ordering that below a genuine 40 would turn
+ * "we have no reading" into "the worst reading", which is the failure this file's
+ * `final: number | null` exists to prevent.
+ */
+export function rankLeadersByScore(rows: readonly RankableLeader[]): Map<string, number | null> {
+  const out = new Map<string, number | null>();
+  const scored = rows.filter((r): r is RankableLeader & { score: number } => r.score !== null);
+  const descending = [...scored].sort((a, b) => b.score - a.score);
+
+  let rank = 0;
+  let previousScore: number | null = null;
+  descending.forEach((row, index) => {
+    // A new score takes the position it actually sits at, so a shared first place
+    // consumes second and the next leader is third.
+    if (previousScore === null || row.score !== previousScore) {
+      rank = index + 1;
+      previousScore = row.score;
+    }
+    out.set(row.leader, rank);
+  });
+
+  for (const r of rows) if (!out.has(r.leader)) out.set(r.leader, null);
+  return out;
+}

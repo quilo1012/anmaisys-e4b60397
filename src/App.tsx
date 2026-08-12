@@ -111,6 +111,7 @@ const PMIntelligencePage = lazyWithReload(() => import("./pages/dashboard/PMInte
 
 const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProductionPage"));
 const OperatorPerformancePage = lazyWithReload(() => import("./pages/dashboard/OperatorPerformancePage"));
+const LeaderMyScorecardPage = lazyWithReload(() => import("./pages/dashboard/LeaderMyScorecardPage"));
 const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
 const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/PermissionsMatrixPage"));
 const RootDiagnosticsPage = lazyWithReload(() => import("./pages/dashboard/RootDiagnosticsPage"));
@@ -288,6 +289,20 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["operator"]} requiredAction="production.performance.view">
                       <OperatorPerformancePage />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* A line leader's own scorecard.
+                    Deliberately gated by neither role nor action: leaders have no
+                    account in this system, and the tablet they reach it from is signed
+                    in as its line rather than as a person. The PIN is the gate, and it
+                    is checked in the database — a session that cannot produce a
+                    leader's PIN sees nothing here but the keypad. */}
+                <Route
+                  path="/dashboard/leader/scorecard"
+                  element={
+                    <ProtectedRoute>
+                      <LeaderMyScorecardPage />
                     </ProtectedRoute>
                   }
                 />

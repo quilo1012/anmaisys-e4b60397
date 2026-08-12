@@ -109,15 +109,18 @@ function OperatorPerformanceContent() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, planned_qty, actual_qty, notes, created_at, updated_at, sku:sku_products(code, name)")
+        .select("id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, created_at, updated_at, sku:sku_products(code, name)")
         .eq("session_id", sessionId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
       return (data || []).map((r: any) => ({
         id: r.id,
         sku_id: r.sku_id,
-        code: r.sku?.code || "—",
-        name: r.sku?.name || "—",
+        // A row typed on the line carries its product in `sku_code_text` and has
+        // no `sku_id` at all — the operator saw "—" beside a quantity they had
+        // just entered against a named product.
+        code: r.sku?.code || r.sku_code_text || "—",
+        name: r.sku?.name || r.sku_code_text || "—",
         target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
         actual_qty: manualActualQty(r),
         is_manual: String(r.notes ?? "").startsWith("manual_sku"),

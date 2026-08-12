@@ -16,8 +16,16 @@
 const PAGE = 1000;
 
 export interface PagedQuery<T> {
-  /** Fetch rows [from, to] inclusive, as PostgREST's `.range()` takes them. */
-  range: (from: number, to: number) => Promise<{ data: T[] | null; error: unknown }>;
+  /**
+   * Fetch rows [from, to] inclusive, as PostgREST's `.range()` takes them.
+   *
+   * `PromiseLike`, not `Promise`: a PostgrestFilterBuilder is a thenable and nothing
+   * more — it has no `catch` or `finally` until it is awaited. Typed as `Promise` it
+   * failed to assign, and the way out every caller reached for was `supabase as any`,
+   * which throws away the column types of the very select being paged. `await` takes
+   * a thenable natively, so the loop below is unchanged.
+   */
+  range: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>;
 }
 
 /**

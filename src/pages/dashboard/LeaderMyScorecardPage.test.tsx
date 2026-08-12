@@ -1,0 +1,240 @@
+/**
+ * The leader's own scorecard, end to end from the keypad.
+ *
+ * The point of these is the gate, not the arithmetic — computeScorecard is tested on
+ * its own in src/lib/leaderScorecard.test.ts. What has to hold here is that nothing
+ * about a leader reaches the screen before a leader's PIN does, that a refusal from
+ * the database is shown in words the floor can act on, and that the screen carries no
+ * way to look up somebody else.
+ */
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
+
+const rpc = vi.fn();
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    rpc: (...args: unknown[]) => rpc(...args),
+    from: () => ({
+      select: () => ({
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      }),
+    }),
+  },
+}));
+
+// The layout drags in the sidebar, realtime subscriptions and auth. None of that is
+// what these tests are about.
+vi.mock("@/components/DashboardLayout", () => ({
+  DashboardLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+import LeaderMyScorecardPage from "@/pages/dashboard/LeaderMyScorecardPage";
+
+const EMPTY_PAYLOAD = {
+  success: true,
+  leader: { id: "l1", name: "Kleyve", line: "Line 3", lines: ["Line 3", "Line 4"] },
+  period: { from: "2026-08-11", to: "2026-08-11", shift: "night" },
+  actions: [], completes: [], sessions: [], rag: [], items: [], work_orders: [],
+};
+
+function renderPage() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <LeaderMyScorecardPage />
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+}
+
+/**
+ * The OTP field is a single input behind four slots. Four digits submit on their own,
+ * which is how it behaves under a thumb on the floor.
+ */
+const typePin = async (pin: string) => {
+  const input = document.querySelector("input") as HTMLInputElement;
+  await act(async () => {
+    fireEvent.change(input, { target: { value: pin } });
+  });
+};
+
+beforeEach(() => {
+  rpc.mockReset();
+});
+
+describe("LeaderMyScorecardPage", () => {
+  it("shows nothing but the keypad before a PIN is entered", () => {
+    renderPage();
+    expect(screen.getByRole("heading", { name: /my scorecard/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /open my scorecard/i })).toBeInTheDocument();
+    // No score, no leader, no way to pick one.
+    expect(screen.queryByText(/final score/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("sends the PIN to the database and never a leader id", async () => {
+    rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+    renderPage();
+    await typePin("4821");
+
+    await waitFor(() => expect(rpc).toHaveBeenCalled());
+    const [fn, args] = rpc.mock.calls[0] as [string, Record<string, unknown>];
+    expect(fn).toBe("leader_self_scorecard");
+    expect(args._pin).toBe("4821");
+    expect(Object.keys(args)).not.toContain("_leader_id");
+  });
+
+  it("opens on the leader's own card once the PIN is accepted", async () => {
+    rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+    renderPage();
+    await typePin("4821");
+
+    expect(await screen.findByRole("heading", { name: "Kleyve" })).toBeInTheDocument();
+    expect(screen.getByText(/final score/i)).toBeInTheDocument();
+    // Both lines they lead, so they can see the card covers all of them.
+    expect(screen.getByText("Line 3")).toBeInTheDocument();
+    expect(screen.getByText("Line 4")).toBeInTheDocument();
+  });
+
+  it("offers this shift and this month, and no other period", async () => {
+    rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+    renderPage();
+    await typePin("4821");
+
+    await screen.findByRole("heading", { name: "Kleyve" });
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0]).toHaveTextContent(/this shift/i);
+    expect(tabs[1]).toHaveTextContent(/this month/i);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("asks the database again, for the month, when the month is chosen", async () => {
+    rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+    renderPage();
+    await typePin("4821");
+
+    await screen.findByRole("heading", { name: "Kleyve" });
+    rpc.mockClear();
+    fireEvent.click(screen.getAllByRole("tab")[1]);
+
+    await waitFor(() => expect(rpc).toHaveBeenCalled());
+    const args = (rpc.mock.calls[0] as [string, Record<string, string>])[1];
+    expect(args._shift).toBe("all");
+    expect(args._from).toMatch(/-01$/);      // the first of the month
+    expect(args._to).not.toBe(args._from);   // …through to today
+  });
+
+  it("says what a wrong PIN was, and how many tries are left", async () => {
+    rpc.mockResolvedValue({ data: { success: false, error: "invalid_pin", remaining: 3 }, error: null });
+    renderPage();
+    await typePin("0000");
+
+    expect(await screen.findByText(/incorrect pin\. 3 attempts left/i)).toBeInTheDocument();
+    expect(screen.queryByText(/final score/i)).not.toBeInTheDocument();
+  });
+
+  it("tells an engineer their PIN is the wrong kind, rather than counting it against them", async () => {
+    rpc.mockResolvedValue({ data: { success: false, error: "not_a_leader", engineer_name: "Murilo" }, error: null });
+    renderPage();
+    await typePin("1234");
+
+    expect(await screen.findByText(/murilo is an engineer pin, not a line leader's/i)).toBeInTheDocument();
+  });
+
+  it("holds the keypad shut while the database says it is locked", async () => {
+    rpc.mockResolvedValue({ data: { success: false, error: "locked", locked_seconds: 30, remaining: 0 }, error: null });
+    renderPage();
+    await typePin("0000");
+
+    expect(await screen.findByText(/too many attempts\. wait 30s/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /wait 30s/i })).toBeDisabled();
+  });
+
+  /**
+   * This screen is opened on a line tablet, on a phone in a pocket, and on an office
+   * desktop, and it has to be usable on all three. jsdom performs no layout and loads
+   * no Tailwind, so — as in wo-buttons-a11y.test.tsx — these guard the classes that
+   * carry the behaviour rather than the pixels they produce.
+   */
+  describe("on a tablet, a phone and a desktop", () => {
+    it("gives the keypad targets a gloved thumb can hit", async () => {
+      renderPage();
+      // WCAG 2.5.5 asks for 44×44. The slots are 56 and the button 48. Scoped by
+      // border-input so the lock badge above them, which is also h-14, is not counted.
+      const slots = document.querySelectorAll(".h-14.w-14.border-input");
+      expect(slots).toHaveLength(4);
+      expect(screen.getByRole("button", { name: /open my scorecard/i }).className).toMatch(/\bh-12\b/);
+    });
+
+    it("caps its width instead of fixing it, so a desktop does not get a stretched column", async () => {
+      rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+      renderPage();
+      await typePin("4821");
+      await screen.findByRole("heading", { name: "Kleyve" });
+
+      const page = document.querySelector(".max-w-3xl") as HTMLElement;
+      expect(page).toBeTruthy();
+      expect(page.className).toMatch(/\bw-full\b/);
+      expect(page.className).toMatch(/\bmx-auto\b/);
+      // A width in pixels anywhere on the page is a width that will be wrong on one
+      // of the three devices.
+      expect(page.outerHTML).not.toMatch(/style="[^"]*width:\s*\d+px/);
+    });
+
+    it("wraps the header instead of pushing Print and Export off the edge", async () => {
+      rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+      renderPage();
+      await typePin("4821");
+      await screen.findByRole("heading", { name: "Kleyve" });
+
+      // This is exactly how the manager's dialog once lost the same two buttons.
+      const print = screen.getByRole("button", { name: /print/i });
+      const header = print.closest(".flex-wrap");
+      expect(header).toBeTruthy();
+      expect(screen.getByRole("button", { name: /export/i })).toBeInTheDocument();
+    });
+
+    it("keeps the period buttons tappable and lets their labels run onto a second line", async () => {
+      rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+      renderPage();
+      await typePin("4821");
+      await screen.findByRole("heading", { name: "Kleyve" });
+
+      for (const tab of screen.getAllByRole("tab")) {
+        expect(tab.className).toMatch(/\bmin-h-11\b/);      // 44px, however long the label
+        expect(tab.className).toMatch(/whitespace-normal/); // "This month · August" must not clip
+      }
+    });
+
+    it("stacks the figures two-up on a phone and four-up above it", async () => {
+      rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+      renderPage();
+      await typePin("4821");
+      await screen.findByText(/total actions/i);
+
+      const grid = screen.getByText(/total actions/i).closest(".grid") as HTMLElement;
+      expect(grid.className).toMatch(/grid-cols-2/);
+      expect(grid.className).toMatch(/sm:grid-cols-4/);
+    });
+  });
+
+  it("locks back to the keypad, and forgets the leader, when Lock is pressed", async () => {
+    rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+    renderPage();
+    await typePin("4821");
+
+    await screen.findByRole("heading", { name: "Kleyve" });
+    fireEvent.click(screen.getByRole("button", { name: /^lock$/i }));
+
+    expect(await screen.findByRole("button", { name: /open my scorecard/i })).toBeInTheDocument();
+    expect(screen.queryByText("Kleyve")).not.toBeInTheDocument();
+  });
+});

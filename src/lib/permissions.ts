@@ -275,6 +275,24 @@ export function defaultCan(role: Role, action: Action): boolean {
 /** Returns true if the given role can perform the action. Null role → false. */
 export function can(role: Role | null | undefined, action: Action): boolean {
   if (!role) return false;
+
+  // O admin passa sempre, e a regra vive aqui.
+  //
+  // O `ProtectedRoute` escreve-a no seu próprio comentário desde que existe — "admin
+  // always passes (no self-lockout)" — mas cumpria-a só para si. A matriz de
+  // permissões guarda em QUEM está a editar (`if (!isAdmin) return`) e não em QUAL o
+  // papel editado, e desenha célula para todos os papéis, admin incluído. Um admin que
+  // desligasse o seu próprio `reports.analytics` ficava com a rota aberta e sem a
+  // entrada de menu que lá chega: o ecrã continuava a ser dele e não havia nada em que
+  // clicar. A promessa cumpria-se numa camada e quebrava-se na de cima, que é o pior
+  // dos dois mundos — a entrada desaparece e nada explica porquê.
+  //
+  // Os overrides continuam a valer para todos os outros papéis, nos dois sentidos. E a
+  // visibilidade por dispositivo fica de fora de propósito: esconder um ecrã no tablet
+  // é uma decisão sobre um ecrã pequeno, não um cadeado, e o desktop continua a mostrar
+  // tudo o que o papel alcança.
+  if (role === "admin") return true;
+
   const key = `${role}:${action}`;
   if (key in OVERRIDES) return OVERRIDES[key];
   return MATRIX[action]?.includes(role) ?? false;
@@ -337,6 +355,25 @@ export function canUseLineChat(role: Role | null | undefined): boolean {
 /** Direct Messages visibility (Contact supervisor/manager). */
 export function canUseDirectMessages(role: Role | null | undefined): boolean {
   return can(role, "chat.dm");
+}
+
+/**
+ * Printing or exporting a report — Analytics, Reports, and anything else that puts a
+ * period on paper.
+ *
+ * It exists because the Analytics page had the rule written out by hand:
+ * `role !== "admin" && (role !== "manager" && role !== "maintenance_manager")`. That is
+ * a fourth authorization model living beside the matrix, and it disagreed with it in
+ * both directions — a supervisor holds `reports.export` and was refused, a
+ * maintenance_manager holds neither `reports.export` nor `reports.analytics` and was
+ * waved through by a branch he could never reach.
+ *
+ * Named rather than inlined, like canUseLineChat above: a screen asks "may this person
+ * print?", not "is this person one of these four strings", and only the second of those
+ * questions can drift away from the matrix without anybody noticing.
+ */
+export function canPrintReport(role: Role | null | undefined): boolean {
+  return can(role, "reports.export");
 }
 
 /**

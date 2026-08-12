@@ -51,6 +51,7 @@ import {
   dialogControlResponsive,
   dialogPrimaryActionResponsive,
 } from "@/components/ResponsiveDialogShell";
+import { railEdge, type RailState } from "@/lib/rail";
 
 
 type Shift = "DAY" | "NIGHT";
@@ -291,7 +292,7 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, target_qty, actual_qty, intouch_qty, display_order, created_at, sku:sku_products(code, name)")
+        .select("id, sku_id, sku_code_text, target_qty, actual_qty, intouch_qty, display_order, created_at, sku:sku_products(code, name)")
         .eq("session_id", sessionQ.data!.id)
         .order("display_order", { ascending: true })
         .order("created_at", { ascending: true });
@@ -306,8 +307,11 @@ export default function LineProductionScreen() {
         return {
           id: r.id,
           sku_id: r.sku_id,
-          code: r.sku?.code || "—",
-          name: r.sku?.name || "—",
+          // Um cartão desta linha entrado à mão traz o produto em `sku_code_text`
+          // e `sku_id` a NULL. O ecrã da própria linha mostrava "—" no lugar do
+          // produto, ao lado da quantidade que o operador acabara de registar.
+          code: r.sku?.code || r.sku_code_text || "—",
+          name: r.sku?.name || r.sku_code_text || "—",
           target_qty: Number(r.target_qty ?? r.planned_qty ?? 0),
           actual_qty: actualNum > 0 ? actualNum : intouchNum,
           intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
@@ -744,7 +748,7 @@ export default function LineProductionScreen() {
                 {syncSkus.isPending ? "Syncing…" : "Sync SKUs"}
               </Button>
             )}
-            <div className="flex items-center gap-2 text-2xl font-mono tabular-nums">
+            <div className="flex items-center gap-2 text-2xl font-figure">
               <Clock className="h-6 w-6" />
               {now.toLocaleTimeString("en-GB", { hour12: false })}
             </div>
@@ -849,11 +853,15 @@ export default function LineProductionScreen() {
           {(() => {
             const eff = totals.pct;
             const gap = totals.actual - totals.target;
-            const borderColor = eff >= 100 ? "border-success" : eff >= 80 ? "border-warning" : "border-destructive";
+            /* Era `border-success` — sem o `-l`, com `border-l-4` a seguir, isto
+                pintava a moldura INTEIRA do cartão de verde ou de vermelho. Um cartão
+                contornado a cor grita mais alto do que o número que ele existe para
+                mostrar, que é o problema que a barra resolve. */
+            const railState: RailState = eff >= 100 ? "go" : eff >= 80 ? "hold" : "stop";
             const headerBg = eff >= 100 ? "bg-success/15" : eff >= 80 ? "bg-warning/15" : "bg-destructive/15";
             const headerText = eff >= 100 ? "text-success-strong" : eff >= 80 ? "text-warning-strong" : "text-destructive-strong";
             return (
-              <Card className={cn("overflow-hidden border-l-4 mb-4", borderColor)}>
+              <Card className={cn("mb-4 overflow-hidden", railEdge(railState))}>
                 <div className={cn("px-4 py-2 flex items-center justify-between", headerBg, headerText)}>
                   <div className="font-semibold">{line}</div>
                   <div className="text-xs">{sessionQ.data.leader_name ?? "—"} · {shift}</div>
@@ -1015,7 +1023,7 @@ export default function LineProductionScreen() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="rounded-lg bg-muted p-4 text-right text-5xl font-mono tabular-nums min-h-[80px]">
+            <div className="rounded-lg bg-muted p-4 text-right text-5xl font-figure min-h-[80px]">
               {pad || "0"}
             </div>
             {editing && editing.target_qty > 0 && (

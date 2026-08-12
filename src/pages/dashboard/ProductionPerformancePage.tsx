@@ -5,6 +5,8 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusRail, type RailState } from "@/components/ui/StatusRail";
+import { ControlPlate, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
+import { ConsoleCell } from "@/components/ui/ConsoleStrip";
 import { LeaderScorecard } from "@/components/LeaderScorecard";
 import { LineIndicators } from "@/components/production/LineIndicators";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,25 +18,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
-import { getCurrentFactoryShift, getCurrentShiftStart, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
-import { classifyLive, formatStopDuration, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
+import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
-import { computePace, PACE_MESSAGES } from "@/lib/linePerformance";
-import { productLabel } from "@/lib/productLabel";
+import { shiftClockPct, lineReading, BEHIND_TOLERANCE_PTS, BAND_STATUS, LINE_STATUS, LINE_MESSAGES, LINE_NEEDS_ACTION, type ScoreBand } from "@/lib/linePerformance";
+import { AndonBar } from "@/components/ui/AndonBar";
+import { cn } from "@/lib/utils";
+import { ANDON_FIELD } from "@/lib/rail";
+import { buildSkuCatalogue, pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/lib/lineSku";
 import { EmptyState } from "@/components/EmptyState";
-import { format, parseISO, addDays, subDays, addWeeks, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, LineChart, Line } from "recharts";
+import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { CircularProgress } from "@/components/ui/circular-progress";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
+
+/**
+ * The three carriers of a band, in one place, so a card cannot say GO in the
+ * plate, HOLD on the rail and STOP in the figure. They came apart once already:
+ * the plate read the plan's 100/80 while the colour read the pace's 95/75, so a
+ * line at 97% was captioned "Setup" and printed in green.
+ *
+ * Havia aqui DUAS gramáticas — uma para o ritmo ("On pace", sobre este minuto) e
+ * outra para o plano ("On target", sobre o período inteiro) — e a escolha entre
+ * elas dependia de o ritmo ter conseguido ser calculado. Com o relógio há uma
+ * pergunta só, em todos os períodos: quanto do alvo está feito, contra quanto do
+ * tempo passou. As palavras vivem agora no `linePerformance.ts`, ao lado da conta
+ * que as decide (`BAND_STATUS`), e o que fica aqui é só o vestuário.
+ */
+const BAND_RAIL: Record<ScoreBand, RailState> = { GO: "go", HOLD: "hold", STOP: "stop" };
+const BAND_TEXT: Record<ScoreBand, string> = {
+  GO: "text-success-strong",
+  HOLD: "text-warning-strong",
+  STOP: "text-destructive-strong",
+};
+/* O andon fala da fábrica inteira e precisa das suas próprias palavras: "Behind"
+   dito de uma linha é um formato a mudar; dito da fábrica é um turno a perder-se. */
+const FACTORY_VERDICT: Record<ScoreBand, string> = { GO: "On target", HOLD: "Behind plan", STOP: "Below target" };
 
 interface SessionAgg {
   id: string; session_date: string; shift: string; line: string;
   leader_name: string | null; locked: boolean;
   target: number; actual: number; eff: number;
-  items: { sku_id: string; actual: number; started_at: string | null; finished_at: string | null }[];
+  // `sku_code_text` travels with `sku_id` everywhere, because either one of them
+  // can be the only place the product is named — see `lineSku.ts`.
+  items: LineSkuItem[];
 }
 
 type RagRowT = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
@@ -208,9 +236,9 @@ export default function ProductionPerformancePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the view is newer than the generated types
       const { data, error } = await (supabase as any)
         .from("v_line_live_status")
-        .select("line, machine, status, reason, planned, seen_at, stop_since");
+        .select("line, machine, status, reason, planned, seen_at, stop_since, job_code, job_name, job_state, job_seen_at");
       if (error) throw error;
-      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null; stop_since: string | null }[];
+      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null; stop_since: string | null; job_code: string | null; job_name: string | null; job_state: string | null; job_seen_at: string | null }[];
     },
   });
 
@@ -233,6 +261,28 @@ export default function ProductionPerformancePage() {
         planned: r.planned,
         seenAt: r.seen_at ? new Date(r.seen_at) : null,
         stopSince: r.stop_since ? new Date(r.stop_since) : null,
+      });
+    }
+    return m;
+  }, [liveRows]);
+
+  /**
+   * O que o iTouching tem em cada máquina, para as linhas que ninguém escreveu.
+   *
+   * Separado da leitura de estado acima porque responde a outra pergunta e vale
+   * outra coisa: nomeia o produto e não mede nada. O poll grava-o por máquina —
+   * ver `liveJob.ts` — e o cartão recusa-o quando envelhece.
+   */
+  const liveJobByLine = useMemo(() => {
+    const norm = (s: string | null | undefined) => String(s ?? "").trim().toLowerCase();
+    const m = new Map<string, LiveJob>();
+    for (const r of liveRows) {
+      if (!r.job_code) continue;
+      m.set(norm(r.line), {
+        code: r.job_code,
+        name: r.job_name,
+        seenAt: r.job_seen_at ? new Date(r.job_seen_at) : null,
+        state: r.job_state === "running" ? "running" : "next",
       });
     }
     return m;
@@ -263,7 +313,9 @@ export default function ProductionPerformancePage() {
       return rows;
     },
   });
-  const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
+  // By id AND by code: half the rows on the board identify their product only by
+  // the code as text, with `sku_id` never resolved by the import. See `lineSku.ts`.
+  const catalogue = useMemo(() => buildSkuCatalogue(skus), [skus]);
 
   type RagRow = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
 
@@ -302,7 +354,7 @@ export default function ProductionPerformancePage() {
     refetchIntervalInBackground: false,
     queryFn: async () => {
       let q = supabase.from("production_sessions")
-        .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, target_qty, planned_qty, actual_qty, started_at, finished_at)")
+        .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, sku_code_text, target_qty, planned_qty, actual_qty, started_at, finished_at)")
         .gte("session_date", range.from).lte("session_date", range.to);
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
@@ -330,14 +382,14 @@ export default function ProductionPerformancePage() {
         ragActualMap.set(k, r.actual_qty);
       }
 
-      const sessions: SessionAgg[] = (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; started_at: string | null; finished_at: string | null }[] }) => {
+      const sessions: SessionAgg[] = (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string | null; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; started_at: string | null; finished_at: string | null }[] }) => {
         const items = s.production_items ?? [];
         const key = `${s.session_date}|${s.line}|${s.shift}`;
         const target = ragPlanMap.get(key) ?? 0;
         const itemsActual = items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
         const ragActual = ragActualMap.get(key) ?? 0;
         const actual = ragActual > 0 ? ragActual : itemsActual;
-        return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id, actual: Number(i.actual_qty ?? 0), started_at: i.started_at ?? null, finished_at: i.finished_at ?? null })) };
+        return { id: s.id, session_date: s.session_date, shift: s.shift, line: s.line, leader_name: s.leader_name, locked: s.locked, target, actual, eff: target > 0 ? (actual / target) * 100 : 0, items: items.map((i) => ({ sku_id: i.sku_id ?? null, sku_code_text: i.sku_code_text ?? null, actual: Number(i.actual_qty ?? 0), started_at: i.started_at ?? null, finished_at: i.finished_at ?? null })) };
       });
 
       return { sessions, ragRows };
@@ -346,27 +398,6 @@ export default function ProductionPerformancePage() {
 
   const sessions = useMemo(() => queryResult?.sessions ?? [], [queryResult]);
   const ragRows = useMemo(() => queryResult?.ragRows ?? [], [queryResult]);
-
-  const topSkus = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of sessions) for (const i of s.items) {
-      if (!i.sku_id) continue;
-      m.set(i.sku_id, (m.get(i.sku_id) ?? 0) + i.actual);
-    }
-    return Array.from(m.entries())
-      .map(([sku_id, actual]) => ({ label: skuMap.get(sku_id)?.code ?? "?", name: skuMap.get(sku_id)?.name ?? "", actual }))
-      .sort((a, b) => b.actual - a.actual).slice(0, 10);
-  }, [sessions, skuMap]);
-
-  const byLeader = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of sessions) {
-      if (!s.leader_name) continue;
-      m.set(s.leader_name, (m.get(s.leader_name) ?? 0) + s.actual);
-    }
-    return Array.from(m.entries()).map(([leader, actual]) => ({ leader, actual }))
-      .sort((a, b) => b.actual - a.actual).slice(0, 10);
-  }, [sessions]);
 
   // Build byLine from the UNION of RAG Weekly plan rows and production_sessions,
   // so lines with a plan but no session yet still appear (Actual = 0).
@@ -385,16 +416,6 @@ export default function ProductionPerformancePage() {
     );
     return { DAY: of("DAY"), NIGHT: of("NIGHT") };
   }, [sessions, ragRows, leaderFilter]);
-
-  const trend = useMemo(() => {
-    const map = new Map<string, { date: string; target: number; actual: number }>();
-    for (const s of sessions) {
-      const cur = map.get(s.session_date) ?? { date: s.session_date, target: 0, actual: 0 };
-      cur.target += s.target; cur.actual += s.actual;
-      map.set(s.session_date, cur);
-    }
-    return Array.from(map.values()).map((x) => ({ ...x, eff: x.target > 0 ? (x.actual / x.target) * 100 : 0 })).sort((a, b) => a.date.localeCompare(b.date));
-  }, [sessions]);
 
   const lineRank = (name: string) => {
     const n = (name ?? "").toLowerCase();
@@ -425,34 +446,101 @@ export default function ProductionPerformancePage() {
     );
   }, [period, range.from, range.to, shift]);
 
-  const paceByLine = useMemo(() => {
-    const out = new Map<string, ReturnType<typeof computePace>>();
-    if (!isCurrentShiftView) return out;
+  /**
+   * Quanto do turno já passou — a única coisa de que a cor do painel precisa
+   * além dos números que os cartões já imprimem.
+   *
+   * Cem por cento fora do turno a correr: numa semana ou num mês o período
+   * fechou e o plano inteiro era devido, e é assim que a mesma regra serve os
+   * dois casos sem uma segunda gramática.
+   *
+   * O `new Date()` vive dentro do memo, como vivia o do ritmo: avança quando os
+   * dados avançam. Um relógio a andar sozinho repintava nove cartões a cada
+   * segundo para mover uma marca um pixel.
+   */
+  const elapsedPct = useMemo(() => {
+    if (!isCurrentShiftView) return 100;
     const now = new Date();
-    const shiftStart = getCurrentShiftStart(now);
-    const byLineSessions = new Map<string, SessionAgg[]>();
+    return shiftClockPct(getCurrentShiftStart(now), getCurrentShiftEnd(now), now);
+  }, [isCurrentShiftView, sessions]);
+
+  /**
+   * As portas do turno a correr, por linha: quem está registado e quantas ordens
+   * estão abertas. Fora do turno a correr fica vazio, e o cartão não pergunta —
+   * um mês não tem líder ao turno, e responder "não" por ausência de pergunta
+   * enchia o ecrã de faltas que ninguém pode ir resolver.
+   *
+   * Já não se lê nada do catálogo de SKUs aqui. Lia-se o `target_per_hour` para
+   * o ritmo, e era essa leitura que punha "SKU has no standard rate" em âmbar na
+   * Line 2 a 12/08, com 1.832 peças feitas contra ABEENG.
+   */
+  const gatesByLine = useMemo(() => {
+    const out = new Map<string, { hasLeader: boolean; orderCount: number }>();
+    if (!isCurrentShiftView) return out;
     for (const s of sessions) {
-      const arr = byLineSessions.get(s.line) ?? [];
-      arr.push(s);
-      byLineSessions.set(s.line, arr);
-    }
-    for (const [line, ss] of byLineSessions) {
-      const items = ss.flatMap((s) => s.items).map((i) => ({
-        ratePerHour: skuMap.get(i.sku_id)?.target_per_hour ?? null,
-        produced: i.actual,
-        startedAt: i.started_at ? new Date(i.started_at) : null,
-        finishedAt: i.finished_at ? new Date(i.finished_at) : null,
-      }));
-      out.set(line, computePace({
-        items,
-        shiftStart,
-        now,
-        hasSession: true,
-        hasLeader: ss.some((s) => !!s.leader_name),
-      }));
+      const prev = out.get(s.line);
+      out.set(s.line, {
+        hasLeader: (prev?.hasLeader ?? false) || !!s.leader_name,
+        orderCount: (prev?.orderCount ?? 0) + s.items.length,
+      });
     }
     return out;
-  }, [isCurrentShiftView, sessions, skuMap]);
+  }, [isCurrentShiftView, sessions]);
+
+  /**
+   * O veredicto da fábrica, numa medida só — o que a barra de andon acende.
+   *
+   * Corre pela MESMA função que dá a banda a cada cartão. Se o ecrã inteiro dissesse
+   * VERDE por uma conta e um cartão dissesse vermelho por outra, era o ecrã que perdia
+   * a autoridade: é o que se lê de longe e é o que ninguém vai conferir.
+   *
+   * Uma pergunta só, e a mesma que os cartões respondem: quanto do plano está feito,
+   * contra quanto do tempo já passou. Às 21:39 de um turno que acaba às 06:00 a
+   * fábrica lê 7% do plano com 30% do turno passado, e a lâmpada acende por causa da
+   * distância entre os dois, não por causa do 7% — uma lâmpada vermelha todas as
+   * noites até às quatro da manhã é uma lâmpada que ninguém volta a olhar.
+   *
+   * Soma-se feito e planeado de TODAS as linhas antes de dividir, e não a média das
+   * percentagens: nove linhas pequenas não valem o mesmo que uma linha grande, e uma
+   * média simples diria que sim.
+   */
+  const factory = useMemo(() => {
+    const scored = byLine.filter((l) => l.target > 0);
+    const totalTarget = scored.reduce((a, l) => a + l.target, 0);
+    const totalActual = scored.reduce((a, l) => a + l.actual, 0);
+
+    const reading = lineReading({ target: totalTarget, actual: totalActual, elapsedPct });
+    const lines = `${scored.length} ${scored.length === 1 ? "line" : "lines"}`;
+
+    // Sem plano não há veredicto. Um ecrã verde numa fábrica sem ordens, ou vermelho
+    // numa que ainda não abriu, é o ecrã a inventar uma leitura que não tem. O mesmo
+    // vale para uma fábrica com plano e sem nada escrito.
+    if (reading.kind !== "SCORED") {
+      return {
+        state: (LINE_NEEDS_ACTION[reading.kind] ? "hold" : "idle") as RailState,
+        verdict: LINE_STATUS[reading.kind],
+        value: null as string | null,
+        basis: LINE_MESSAGES[reading.kind],
+        detail: undefined as string | undefined,
+        pct: 0,
+      };
+    }
+
+    return {
+      state: BAND_RAIL[reading.band],
+      verdict: FACTORY_VERDICT[reading.band],
+      // Feito sobre planeado, e é a conta que as duas somas aqui ao lado mostram
+      // escrita por extenso. O ritmo esteve aqui, com outro denominador, e era a
+      // única percentagem do ecrã que não batia com nenhum dos números vizinhos.
+      value: `${Math.round(reading.attainedPct)}%`,
+      basis: isCurrentShiftView
+        ? `${lines} · ${Math.round(elapsedPct)}% of the shift has passed`
+        : `${lines} · against the period plan`,
+      detail: `${totalActual.toLocaleString("en-US")} / ${totalTarget.toLocaleString("en-US")}`,
+      pct: reading.attainedPct,
+    };
+  }, [byLine, elapsedPct, isCurrentShiftView]);
+
 
   /**
    * What each line is actually making, which the board never said.
@@ -462,38 +550,36 @@ export default function ProductionPerformancePage() {
    * line is defined by what is on it right now — the iTouching board leads with
    * the product for that reason.
    *
-   * The running item is the one started and not finished. Where nobody recorded
-   * the times, the one with the most made stands in: it is the item the shift has
-   * been spent on, which is the same question answered with worse evidence.
+   * Which item, and how the product is identified when the row carries no link to
+   * the catalogue, are both in `lineSku.ts` — the same rule the wallboard uses, in
+   * one place, because reading `sku_id` alone left three of six lines unnamed.
    */
   const skuByLine = useMemo(() => {
-    const out = new Map<string, { code: string; name: string; ratePerHour: number; others: number }>();
+    const out = new Map<string, ReturnType<typeof pickLineSku>>();
     const bySession = new Map<string, SessionAgg[]>();
     for (const s of sessions) {
       const arr = bySession.get(s.line) ?? [];
       arr.push(s);
       bySession.set(s.line, arr);
     }
-    for (const [line, ss] of bySession) {
-      const items = ss.flatMap((s) => s.items).filter((i) => i.sku_id);
-      if (!items.length) continue;
-      const running = items.find((i) => i.started_at && !i.finished_at)
-        ?? items.find((i) => !i.finished_at)
-        ?? [...items].sort((a, b) => b.actual - a.actual)[0];
-      const sku = running ? skuMap.get(running.sku_id) : undefined;
-      if (!sku) continue;
-      out.set(line, {
-        code: sku.code,
-        name: productLabel(sku.name),
-        ratePerHour: Number(sku.target_per_hour ?? 0),
-        others: new Set(items.map((i) => i.sku_id)).size - 1,
-      });
+    // Every line the board can draw, not only the ones with a session: a line
+    // whose order nobody has written down is exactly the case iTouching answers,
+    // and keying off the sessions alone would skip it. `now` is read once so the
+    // whole board ages the jobs against the same instant.
+    const now = new Date();
+    const lineNames = new Set<string>([...bySession.keys(), ...byLine.map((l) => l.line), ...lines.map((l) => l.name)]);
+    for (const line of lineNames) {
+      const items = (bySession.get(line) ?? []).flatMap((s) => s.items);
+      const job = liveJobByLine.get(line.trim().toLowerCase());
+      // Only while looking at the shift that is running. iTouching's job is a
+      // statement about this minute, and beside a finished shift's figures it
+      // would be two different days on one card — the same rule the live pill
+      // and the pace notch already follow.
+      const sku = pickLineSku(items, catalogue, isCurrentShiftView ? { job, now } : undefined);
+      if (sku) out.set(line, sku);
     }
     return out;
-  }, [sessions, skuMap]);
-
-  const ragFill = (e: number) => e >= 100 ? "hsl(142 76% 36%)" : e >= 80 ? "hsl(38 92% 50%)" : "hsl(0 84% 60%)";
-  const medal = (i: number) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null;
+  }, [sessions, catalogue, byLine, lines, liveJobByLine, isCurrentShiftView]);
 
   const buildReport = (output: "save" | "dataurl" | "bloburl") => {
     const scored = sortedByLine.filter((l) => l.target > 0);
@@ -548,7 +634,20 @@ export default function ProductionPerformancePage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      {/* O ecrã fica verde, âmbar ou vermelho.
+          O banho sangra para fora do padding do shell — margens negativas do tamanho
+          exacto do padding, com o padding reposto por dentro — para que seja o ECRÃ a
+          ficar da cor e não um cartão dentro dele. A 7% não tira legibilidade a nada:
+          o que se lê a três metros é a barra, e o que se lê a trinta centímetros são os
+          números, que continuam sobre o mesmo fundo de sempre. */}
+      <div className={cn("-m-3 space-y-6 p-3 transition-colors duration-500 sm:-m-4 sm:p-4 md:-m-6 md:p-6", ANDON_FIELD[factory.state])}>
+        <AndonBar
+          state={factory.state}
+          verdict={factory.verdict}
+          value={factory.value}
+          basis={factory.basis}
+          detail={factory.detail}
+        />
         {/* Landing screen for supervisors and the production office — same opening. */}
 
         <SectionErrorBoundary title="Leader scorecard">
@@ -569,8 +668,14 @@ export default function ProductionPerformancePage() {
             icon={<BarChart3 className="h-5 w-5" />}
             actions={<Button variant="outline" size="sm" onClick={printReport}><Printer className="h-4 w-4 mr-1" />Print report</Button>}
           />
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
-            <div className="flex items-center gap-2">
+          {/* A placa de comando.
+              Seis controlos soltos por cima de um painel são um formulário; o que eles
+              na verdade são é a afinação do instrumento que está por baixo. Juntos numa
+              placa, com uma chapa em cada um e um filete a separar as datas dos filtros,
+              lêem-se como o que são — e o painel volta a começar no primeiro número. */}
+          <ControlPlate>
+            <ControlField label="Date range" className="w-full lg:w-auto">
+            <div className="flex items-center gap-1.5">
               <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
@@ -586,12 +691,12 @@ export default function ProductionPerformancePage() {
               <Input type="date" value={date} onChange={(e) => {
                 setDate(e.target.value);
                 if (period !== "custom") { setPeriod("custom"); if (endDate < e.target.value) setEndDate(e.target.value); }
-              }} className="flex-1 sm:w-40 sm:flex-none min-w-0" />
-              <span className="text-xs text-muted-foreground shrink-0">to</span>
+              }} className="min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none" />
+              <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">to</span>
               <Input type="date" value={endDate} min={date} onChange={(e) => {
                 setEndDate(e.target.value);
                 if (period !== "custom") setPeriod("custom");
-              }} className="flex-1 sm:w-40 sm:flex-none min-w-0" />
+              }} className="min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none" />
               <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
@@ -605,7 +710,11 @@ export default function ProductionPerformancePage() {
                 setDate(format(step, "yyyy-MM-dd"));
               }}><ChevronRight className="h-4 w-4" /></Button>
             </div>
-            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+            </ControlField>
+
+            <ControlDivider />
+
+            <ControlField label="Period" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={period} onValueChange={(v) => {
                 const p = v as Period;
                 if (p === "custom" && endDate < date) setEndDate(date);
@@ -622,10 +731,14 @@ export default function ProductionPerformancePage() {
                   <SelectItem value="custom">Custom</SelectItem>
                 </SelectContent>
               </Select>
+            </ControlField>
+            <ControlField label="Shift" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
                 <SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
               </Select>
+            </ControlField>
+            <ControlField label="Line" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={lineFilter} onValueChange={setLineFilter}>
                 <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -633,6 +746,8 @@ export default function ProductionPerformancePage() {
                   {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </ControlField>
+            <ControlField label="Leader" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={leaderFilter} onValueChange={setLeaderFilter}>
                 <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="All leaders" /></SelectTrigger>
                 <SelectContent>
@@ -640,19 +755,25 @@ export default function ProductionPerformancePage() {
                   {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {/* The scorecard belongs here: production runs the leaders, and this is
-                  the screen where their lines, shifts and output already are. It used
-                  to open from Quality, which only ever saw one third of the score. */}
-              {leaderFilter !== "__all__" && (
-                <Button variant="outline" size="sm" className="gap-1" onClick={() => setScorecardFor(leaderFilter)}>
-                  <Medal className="h-4 w-4" /> Scorecard
-                </Button>
-              )}
+            </ControlField>
+            {/* The scorecard belongs here: production runs the leaders, and this is
+                the screen where their lines, shifts and output already are. It used
+                to open from Quality, which only ever saw one third of the score. */}
+            {leaderFilter !== "__all__" && (
+              <Button variant="outline" className="gap-1.5" onClick={() => setScorecardFor(leaderFilter)}>
+                <Medal className="h-4 w-4" /> Scorecard
+              </Button>
+            )}
+
+            {/* O que está de facto a ser mostrado, resolvido. Com o período em semana
+                ou em mês, as duas caixas de data não dizem onde a semana começa nem
+                onde acaba, e é essa a pergunta a que este canto responde. */}
+            <div className="ml-auto self-end pb-2.5 text-right">
+              <div className="font-figure text-xs font-bold leading-none text-foreground">
+                {range.from === range.to ? format(parseISO(range.from), "dd MMM yyyy") : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`}
+              </div>
             </div>
-            <span className="text-xs text-muted-foreground whitespace-nowrap sm:ml-auto">
-              {range.from === range.to ? format(parseISO(range.from), "dd MMM yyyy") : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`}
-            </span>
-          </div>
+          </ControlPlate>
         </div>
 
 
@@ -661,26 +782,81 @@ export default function ProductionPerformancePage() {
           const scored = byLine.filter((l) => l.target > 0);
           const totalTarget = scored.reduce((a, l) => a + l.target, 0);
           const totalActual = scored.reduce((a, l) => a + l.actual, 0);
-          const overall = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
           const excludedCount = byLine.length - scored.length;
+          const variance = totalActual - totalTarget;
+          /* A chave diz o critério que está mesmo a ser aplicado, e agora diz-o contra
+             um número que está no ecrã.
+             Esteve aqui "≥95% on pace" por cima de cartões que imprimiam 9%: os limiares
+             eram do ritmo, o ritmo tinha deixado de ser impresso, e ninguém no chão podia
+             fechar a conta entre a legenda e o que via. O critério é a distância ao
+             relógio do turno — que está escrito na barra de andon, aqui em cima. */
+          const behind = `${BEHIND_TOLERANCE_PTS} pts`;
+          const key: [string, string, string][] = isCurrentShiftView
+            ? [["bg-success", "≥", "keeping up with the clock"], ["bg-warning", `−${behind}`, "behind the clock"], ["bg-destructive", `>${behind}`, "behind the clock"]]
+            : [["bg-success", "≥100%", "on target"], ["bg-warning", "85–99%", "behind"], ["bg-destructive", "<85%", "critical"]];
           return (
             <Card>
-              <CardContent className="p-6 flex items-center gap-6 flex-wrap">
-                <CircularProgress value={overall} size={120} strokeWidth={10} sublabel="Overall" />
-                <div className="flex-1 min-w-[200px]">
-                  <div className="text-xs uppercase text-muted-foreground">Overall Performance</div>
-                  <div className="text-2xl font-bold">{totalActual.toLocaleString("en-US")} / {totalTarget.toLocaleString("en-US")}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {scored.length} {scored.length === 1 ? "line" : "lines"} scored · {sessions.length} sessions
-                    {excludedCount > 0 && (
-                      <span className="ml-1 text-warning-strong">· {excludedCount} without RAG target excluded</span>
-                    )}
+              <CardContent className="p-0">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-5 p-5">
+                  {/* O mesmo número da barra de andon, e nunca um segundo.
+                      Duas percentagens da mesma fábrica no mesmo ecrã, a dois palmos
+                      uma da outra, era o defeito antigo — e resolveu-se pelos dois
+                      lados a dizerem a mesma coisa: quanto do plano do período já está
+                      feito. É a conta que os números em peças aqui ao lado mostram
+                      escrita por extenso, e o ritmo, que tem outro denominador, vive
+                      agora na linha de baixo da barra e nos cartões. */}
+                  <CircularProgress value={factory.pct} size={104} strokeWidth={9} sublabel="Attained" />
+                  <div className="min-w-[13rem] flex-1">
+                    <div className="font-display text-2xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                      Overall performance
+                    </div>
+                    {/* Feito e planeado na mesma linha, e o planeado em surdina: são o
+                        mesmo facto lido em duas metades, e só uma delas é a notícia. */}
+                    <div className="mt-1.5 font-figure text-[2rem] font-bold leading-none text-foreground">
+                      {totalActual.toLocaleString("en-US")}
+                      <span className="text-muted-foreground"> / {totalTarget.toLocaleString("en-US")}</span>
+                    </div>
+                    <div className="mt-1.5 text-xs text-muted-foreground">
+                      Units made, against the {isCurrentShiftView ? "full shift plan" : "period plan"}
+                    </div>
+                  </div>
+                  {/* A chave, à voz mais baixa do painel, e com o nome de quem ela
+                      explica: são as cores das BARRAS dos cartões, não do anel ao lado.
+                      Três chips cheios punham as três cores de sinalética no ecrã com
+                      mais força do que qualquer linha que as estivesse a merecer. */}
+                  <div className="flex flex-col gap-2">
+                    <span className="font-display text-2xs font-bold uppercase leading-none tracking-[0.12em] text-muted-foreground">
+                      Line status
+                    </span>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      {key.map(([swatch, band, meaning]) => (
+                        <span key={band} className="flex items-center gap-1.5 whitespace-nowrap text-2xs text-muted-foreground">
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${swatch}`} aria-hidden />
+                          <span className="font-figure font-bold text-foreground">{band}</span>
+                          {meaning}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  <Badge className="bg-success/15 text-success-strong border border-success/40">≥100% Green</Badge>
-                  <Badge className="bg-warning/15 text-warning-strong border border-warning/40">≥80% Amber</Badge>
-                  <Badge className="bg-destructive/15 text-destructive-strong border border-destructive/40">&lt;80% Red</Badge>
+                {/* A régua. O que estava numa frase corrida em cinzento — quatro factos
+                    separados por pontos — passa a quatro medidas com a sua chapa, que é
+                    como se lê um número que se vai comparar com o de ontem. */}
+                <div className="grid grid-cols-2 divide-x divide-y border-t sm:grid-cols-4 sm:divide-y-0">
+                  <ConsoleCell
+                    label="Variance"
+                    value={`${variance >= 0 ? "+" : ""}${variance.toLocaleString("en-US")}`}
+                    hint="units against plan"
+                    tone={variance > 0 ? "text-success-strong" : "text-foreground"}
+                  />
+                  <ConsoleCell label="Lines scored" value={String(scored.length)} hint={`of ${byLine.length} with activity`} />
+                  <ConsoleCell label="Sessions" value={String(sessions.length)} hint="logged in the period" />
+                  <ConsoleCell
+                    label="No RAG target"
+                    value={String(excludedCount)}
+                    hint={excludedCount > 0 ? "excluded from the score" : "every line has a plan"}
+                    tone={excludedCount > 0 ? "text-warning-strong" : "text-muted-foreground"}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -707,31 +883,39 @@ export default function ProductionPerformancePage() {
           const missing = sortedByLine.filter((l) => l.notLogged);
           if (missing.length === 0) return null;
           return (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning-strong">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            /* A mesma barra dos cartões, num aviso. Antes o parágrafo inteiro era
+               âmbar, e um bloco de três linhas em cor de sinalética grita mais alto do
+               que a linha que está mesmo parada. Fica o veredicto em âmbar; a
+               explicação, que é o que se lê depois de já se ter percebido, em cinzento. */
+            <div className="flex items-start gap-2.5 rounded-lg border border-l-[3px] border-warning/35 border-l-warning bg-warning/[0.07] px-4 py-3 text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-strong" />
               <div>
-                <b>{missing.length} {missing.length === 1 ? "line has" : "lines have"} a plan but no production logged for this shift.</b>{" "}
-                {missing.map((l) => l.line).join(", ")} {missing.length === 1 ? "reads" : "read"} 0% because nothing was
-                entered on My Production, not necessarily because nothing was made.
+                {/* Um aviso, e não uma desculpa.
+                    Isto dizia que as linhas liam 0% "não necessariamente porque
+                    nada foi feito" — o painel a retirar, por baixo, o veredicto
+                    que tinha acabado de dar por cima. Um número que precisa de
+                    um rodapé a desdizê-lo não é um número; era o cartão que
+                    estava errado, e é lá que foi corrigido. Aqui fica o que
+                    isto sempre foi: a lista de quem falta, num sítio só. */}
+                <b className="text-warning-strong">{missing.length} {missing.length === 1 ? "line has" : "lines have"} a plan but nothing logged on My Production.</b>{" "}
+                <span className="text-muted-foreground">
+                  {missing.map((l) => l.line).join(", ")}. Until the quantities are logged
+                  {isCurrentShiftView ? " these lines cannot be scored" : " the period reads 0% for them"}.
+                </span>
               </div>
             </div>
           );
         })()}
 
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {/* `items-stretch` com o `fill` do cartão: numa fila, todos os cartões têm a
+            altura do mais alto, e a medida de cada um encosta ao mesmo fundo. */}
+        <div className="grid items-stretch gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sortedByLine.map((l) => {
 
             // Industrial Andon panel — high-contrast dark, readable from across
             // the floor / on a line TV. Status colours: green on-target, amber
             // setup/near, red below-target (pulsing).
             const gap = l.actual - l.target;
-            const status = (() => {
-              const p = paceByLine.get(l.line);
-              if (p && p.kind !== "PACE") return "No reading";
-              const v = p?.kind === "PACE" ? p.pct : l.eff;
-              if (p?.kind === "PACE") return v >= 95 ? "On pace" : v >= 75 ? "Behind" : "Critical";
-              return v >= 100 ? "On target" : v >= 80 ? "Setup" : "Below target";
-            })();
             // O estado vem da barra, uma vez.
             //
             // Estava dito cinco vezes no mesmo cartão — borda de 2 px a toda a volta,
@@ -746,17 +930,34 @@ export default function ProductionPerformancePage() {
             // onde já se está a ler. O `animate-pulse` sai — num painel, o que pisca
             // não se pode ignorar nem quando já foi visto, e não respeita quem pediu
             // menos movimento.
-            // For the shift that is running, the verdict is the PACE — measured
-            // against the time already worked. For a week or a month it stays the
-            // plain comparison against the plan, which is the right question once
-            // the period is over. 95/75 are the thresholds already on the floor.
-            const pace = paceByLine.get(l.line);
-            const score = pace?.kind === "PACE" ? pace.pct : l.eff;
-            const scored = pace ? pace.kind === "PACE" : true;
-            const railState: RailState = !scored ? "idle" : score >= 95 ? "go" : score >= 75 ? "hold" : "stop";
-            const effColor = !scored
-              ? "text-muted-foreground"
-              : score >= 95 ? "text-success-strong" : score >= 75 ? "text-warning-strong" : "text-destructive-strong";
+            // Uma leitura, e o cartão inteiro é vestido dela — a chapa, o filete e
+            // o número. Feito sobre o alvo, contra quanto do turno já passou: a
+            // mesma pergunta num turno a correr e num mês fechado, onde o relógio
+            // está nos 100% porque o período todo já era devido.
+            const gates = gatesByLine.get(l.line);
+            const reading = lineReading({
+              target: l.target,
+              actual: l.actual,
+              elapsedPct,
+              hasSession: isCurrentShiftView ? l.hasSession : undefined,
+              hasLeader: isCurrentShiftView ? (gates?.hasLeader ?? false) : undefined,
+              orderCount: isCurrentShiftView ? (gates?.orderCount ?? 0) : undefined,
+            });
+            const score = reading.kind === "SCORED" ? reading : null;
+            // Cada falta nomeia-se. "No reading" era o painel a descrever a
+            // dificuldade dele, e lia-se igual numa linha à espera de ordem e numa
+            // linha sem ninguém registado. Uma delas deixou de existir: a taxa
+            // padrão do SKU já não é precisa para nada.
+            const gapKind = reading.kind !== "SCORED" ? reading.kind : null;
+            const status = score ? BAND_STATUS[score.band] : gapKind ? LINE_STATUS[gapKind] : "—";
+            // An unmeasurable line is grey unless it is somebody's job. Nothing
+            // entered and nobody logged in take the amber rail: the risk in each is
+            // that it stays unnoticed to the end of the shift, and grey is how a
+            // card asks not to be looked at.
+            const railState: RailState = score
+              ? BAND_RAIL[score.band]
+              : gapKind && LINE_NEEDS_ACTION[gapKind] ? "hold" : "idle";
+            const effColor = score ? BAND_TEXT[score.band] : "text-muted-foreground";
             const handleClick = () => navigate("/dashboard/shift-history");
             const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -768,23 +969,29 @@ export default function ProductionPerformancePage() {
               <StatusRail
                 key={l.line}
                 state={railState}
+                fill
                 role="button"
                 tabIndex={0}
                 onClick={handleClick}
                 onKeyDown={handleKeyDown}
                 className="cursor-pointer transition-colors hover:border-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                <div className="flex items-start justify-between gap-2">
+                {/* A chapa da linha.
+                    Duas alturas fixas, não duas alturas conforme calhar: o nome da
+                    máquina ocupa a sua linha mesmo quando não existe. Quatro cartões
+                    lado a lado são lidos na horizontal, e basta um deles ter uma
+                    legenda a menos para que o número grande do vizinho desça dois
+                    centímetros e essa leitura deixe de existir. */}
+                <div className="flex items-baseline justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="truncate font-display text-xl font-bold uppercase tracking-[0.02em] text-foreground">{l.line}</div>
+                    <div className="truncate font-display text-xl font-bold uppercase leading-none tracking-[0.02em] text-foreground">{l.line}</div>
                     {/* O nome da máquina no iTouching, que é como a manutenção lhe
                         chama. Duas casas para a mesma linha só é confusão enquanto
                         uma delas estiver escondida. */}
                     {(() => {
                       const machine = liveRows.find((r) => r.line?.trim().toLowerCase() === l.line.trim().toLowerCase())?.machine;
-                      return machine && machine.trim().toLowerCase() !== l.line.trim().toLowerCase() ? (
-                        <div className="truncate text-2xs text-muted-foreground">{machine}</div>
-                      ) : null;
+                      const named = machine && machine.trim().toLowerCase() !== l.line.trim().toLowerCase() ? machine : null;
+                      return <div className="mt-1.5 h-4 truncate text-2xs text-muted-foreground">{named}</div>;
                     })()}
                   </div>
                   {/* A etiqueta nomeia o estado; a barra ao lado é que o colore. Pintá-la
@@ -794,81 +1001,6 @@ export default function ProductionPerformancePage() {
                       o estado também sobrevive a quem não distingue as três cores. */}
                   <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">{status}</span>
                 </div>
-                {/* Não repetido. Quando o ritmo já diz "no order" ou "nobody logged
-                    in", este aviso é a mesma frase a dois centímetros da outra. */}
-                {l.notLogged && (!pace || pace.kind === "PACE") && (
-                  <div
-                    className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-warning-strong"
-                    title="This line was planned to run but nothing was logged on My Production, so it reads 0%."
-                  >
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Not logged on the line
-                  </div>
-                )}
-                <div
-                  className="mt-2"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                >
-                    <Select
-                      value={l.leader ?? "__none__"}
-                      disabled={savingLeaderFor === l.line}
-                      onValueChange={(v) => {
-                        if (v === "__new__") {
-                          setAddingLeaderFor(l.line);
-                          setNewLeaderName("");
-                        } else {
-                          setLeaderForLine(l.line, v === "__none__" ? null : v, l.hasSession);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-full border-transparent bg-muted/50 text-xs hover:border-border focus:border-border">
-                        <SelectValue placeholder="— Assign leader —" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— None —</SelectItem>
-                        {/* Keep the assigned leader selectable even if deactivated/renamed. */}
-                        {l.leader && !leaders.some((ld) => ld.name === l.leader) && (
-                          <SelectItem value={l.leader}>{l.leader} (inactive)</SelectItem>
-                        )}
-                        {leaders.map((ld) => (
-                          <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
-                        ))}
-                        <SelectItem value="__new__">+ Add new leader…</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {addingLeaderFor === l.line && (
-                      <div className="flex items-center gap-1 mt-1">
-                        <Input
-                          autoFocus
-                          value={newLeaderName}
-                          onChange={(e) => setNewLeaderName(e.target.value)}
-                          onKeyDown={(e) => {
-                            e.stopPropagation();
-                            if (e.key === "Enter") addNewLeader(l.line, l.hasSession);
-                            if (e.key === "Escape") { setAddingLeaderFor(null); setNewLeaderName(""); }
-                          }}
-                          placeholder="Leader name"
-                          className="h-9 w-36 text-xs"
-                        />
-                        <Button
-                          size="sm"
-                          className="h-9 px-2 text-xs"
-                          disabled={savingLeaderFor === l.line || !newLeaderName.trim()}
-                          onClick={() => addNewLeader(l.line, l.hasSession)}
-                        >
-                          Add
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-9 px-2 text-xs"
-                          onClick={() => { setAddingLeaderFor(null); setNewLeaderName(""); }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    )}
-                  </div>
                 {/* What the line is doing RIGHT NOW, which is a different question
                     from how the shift has gone and is allowed to disagree with it:
                     a line can be behind on the shift because of a breakdown this
@@ -903,7 +1035,7 @@ export default function ProductionPerformancePage() {
                   const ambiguous = isAmbiguousStop(live.label);
                   return (
                     <div
-                      className={`mt-2 flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 ${hue ? "text-foreground" : LIVE_TONE[live.state]}`}
+                      className={`mt-3 flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 ${hue ? "text-foreground" : LIVE_TONE[live.state]}`}
                       style={hue ? { backgroundColor: `${hue}1F`, borderColor: `${hue}59` } : undefined}
                       title={[
                         live.ageSeconds == null
@@ -936,20 +1068,24 @@ export default function ProductionPerformancePage() {
 
                           When there is no stop to time, the reading's own age takes
                           the slot — a state nobody has confirmed for ten minutes is
-                          not a state. */}
+                          not a state. Which of the two is on screen is `kind`, and it
+                          is not left to the reader to work out: the stop's duration is
+                          the bold figure, the reading's age is the quiet one, and a
+                          stop nobody is timing says so instead of borrowing the age. */}
                       {(() => {
-                        const stopFor = formatStopDuration(live.stoppedForSeconds);
-                        if (stopFor) {
-                          return (
-                            <span className="shrink-0 font-figure text-2xs font-bold" title="How long this stop has been running, as first seen by the poll">
-                              {stopFor}
-                            </span>
-                          );
-                        }
-                        if (live.ageSeconds == null) return null;
+                        const clock = stopClock(live);
+                        if (!clock) return null;
+                        const title = clock.kind === "STOP"
+                          ? "How long this stop has been running, as first seen by the poll"
+                          : clock.kind === "UNTIMED"
+                            ? "This stop is not being timed — the poll has not recorded a start for it"
+                            : "How long ago iTouching last reported this machine";
                         return (
-                          <span className="shrink-0 font-figure text-2xs opacity-70">
-                            {live.ageSeconds < 90 ? `${live.ageSeconds}s` : `${Math.floor(live.ageSeconds / 60)}m`}
+                          <span
+                            className={`shrink-0 font-figure text-2xs ${clock.kind === "STOP" ? "font-bold" : "opacity-70"}`}
+                            title={title}
+                          >
+                            {clock.text}
                           </span>
                         );
                       })()}
@@ -957,103 +1093,268 @@ export default function ProductionPerformancePage() {
                   );
                 })()}
                 {(() => {
-                  const paced = pace?.kind === "PACE" ? pace : null;
                   const sku = skuByLine.get(l.line);
-                  // Where the line should be by now, as a share of the shift's plan.
-                  // This is the only new number on the card and it is the one the
-                  // board was missing: without it, five hours into twelve, every
-                  // line is compared against seven hours nobody has worked yet.
-                  const tickPct = paced && l.target > 0
-                    ? Math.min(100, Math.max(0, (paced.expected / l.target) * 100))
-                    : null;
+                  // Um denominador, e é o que está escrito na folha.
+                  //
+                  // O cartão media o feito contra duas coisas ao mesmo tempo: o
+                  // número grande dizia 60% (299 do que já era devido a esta hora)
+                  // por cima de uma barra a 9% (299 do plano do turno), e o único
+                  // dos dois que alguém podia conferir era o que não era um número.
+                  // Quem lê o painel não tem como saber que os dois 299 são o mesmo
+                  // 299 dividido por coisas diferentes — e um painel que precisa de
+                  // ser explicado deixa de ser lido.
+                  //
+                  // Agora o cartão conta uma coisa só: feito, alvo, e a fatia. O
+                  // ritmo continua a decidir a COR (ver `lineScore`), porque às
+                  // cinco horas de doze 9% do plano não é um veredicto — mas deixa
+                  // de imprimir um segundo número ao lado do primeiro.
                   const donePct = l.target > 0 ? Math.min(100, Math.max(0, (l.actual / l.target) * 100)) : 0;
                   return (
                     <>
                       {/* What is on the line. Quiet, because it is context and not a
                           measurement — but present, because "made 1,415" is a count
-                          of something and the board never said of what. */}
-                      {sku && (
-                        <div className="mt-2 flex items-baseline gap-2 min-w-0">
-                          <span className="shrink-0 font-figure text-2xs font-bold text-foreground">{sku.code}</span>
-                          <span className="truncate text-2xs text-muted-foreground">{sku.name}</span>
-                          {sku.others > 0 && (
-                            <span className="shrink-0 text-2xs text-muted-foreground/70" title={`${sku.others} other SKU${sku.others === 1 ? "" : "s"} ran on this line in the period`}>
-                              +{sku.others}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <div className="mt-4 flex items-end justify-between gap-3">
+                          of something and the board never said of what.
+
+                          A ranhura é fixa mesmo quando está vazia: uma linha sem SKU
+                          registado não pode puxar o número grande para cima e
+                          desalinhá-lo dos vizinhos. */}
+                      <div className="mt-2.5 flex h-4 min-w-0 items-baseline gap-2">
+                        {sku && (
+                          <>
+                            <span className="shrink-0 font-figure text-2xs font-bold text-foreground">{sku.code}</span>
+                            <span className="truncate text-2xs text-muted-foreground">{sku.name}</span>
+                            {sku.others > 0 && (
+                              <span className="shrink-0 text-2xs text-muted-foreground/70" title={`${sku.others} other SKU${sku.others === 1 ? "" : "s"} ran on this line in the period`}>
+                                +{sku.others}
+                              </span>
+                            )}
+                            {/* Onde o produto foi sabido, quando não foi aqui.
+                                Um produto que veio do iTouching nomeia a linha e não
+                                mede nada: não há quantidade registada contra ele e o
+                                ritmo continua a dizer "No order". Sem esta marca, o
+                                cartão dava as duas coisas pelo mesmo facto — e uma
+                                delas ninguém escreveu. "Next" separa a linha que está
+                                a FAZER o produto da que está a ser montada para ele,
+                                que é o caso da Line 2 em Line Preparation. */}
+                            {sku.source === "itouch" && (
+                              <span
+                                className="shrink-0 font-display text-2xs uppercase tracking-[0.1em] text-muted-foreground/70"
+                                title={sku.liveState === "next"
+                                  ? "iTouching has this job next in the queue on this machine — the line is not making it yet, and no order for it is logged here"
+                                  : "iTouching reports this job as running on this machine. Nothing is logged against it here, so there is no quantity to measure"}
+                              >
+                                · iTouching{sku.liveState === "next" ? ", next" : ""}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      {/* `mt-auto`: a medida encosta ao fundo do cartão. É o que faz com
+                          que os quatro números grandes de uma fila assentem na mesma
+                          linha, seja qual for o que cada linha tenha para dizer acima. */}
+                      <div className="mt-auto flex items-end justify-between gap-3 pt-5">
                         <div className="min-w-0">
-                          <div className="text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Made</div>
-                          <div className="font-figure text-[2.5rem] font-bold leading-none text-foreground">
+                          <div className="font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Made</div>
+                          <div className="mt-1 font-figure text-[2.5rem] font-bold leading-none tracking-[-0.02em] text-foreground">
                             {l.actual.toLocaleString("en-US")}
                           </div>
-                          <div className="mt-1 font-figure text-xs text-muted-foreground">
-                            {paced
-                              ? `${Math.round(paced.expected).toLocaleString("en-US")} due by now`
-                              : `${l.target.toLocaleString("en-US")} planned`}
+                          <div className="mt-1.5 font-figure text-xs text-muted-foreground">
+                            {l.target.toLocaleString("en-US")} target
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                            {paced ? "Pace" : "Of plan"}
+                          <div className="font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                            Of target
                           </div>
                           {/* The one figure that carries colour. The rail says WHICH
                               state from across the room; this says HOW MUCH where the
                               eye has already landed. Everything else on the card is
                               foreground or muted — four colour carriers on one card is
-                              how a board teaches people to stop looking at it. */}
-                          <div className={`font-figure text-3xl font-bold leading-none ${effColor}`}>
-                            {Math.round(paced ? paced.pct : l.eff)}%
+                              how a board teaches people to stop looking at it.
+
+                              O número é a fatia do alvo do turno — 299 de 3.233 — e é
+                              o mesmo facto que a barra logo abaixo enche e que o 3.233
+                              ao lado dela nomeia. Três sítios, uma conta.
+
+                              A COR sai da distância entre este número e o do relógio,
+                              logo por baixo. É por isso que o relógio está escrito: a
+                              cinco horas de doze, 9% do alvo não é um veredicto por si
+                              — 9% contra 42% do turno é. */}
+                          <div className={`mt-1 font-figure text-[2rem] font-bold leading-none tracking-[-0.02em] ${effColor}`}>
+                            {Math.round(score ? score.attainedPct : l.eff)}%
+                          </div>
+                          {/* O outro metade da conta da cor, em surdina. A ranhura fica
+                              mesmo num período fechado, onde não há relógio a correr,
+                              para os cartões de uma fila assentarem no mesmo rodapé. */}
+                          <div className="mt-1.5 h-4 font-figure text-xs text-muted-foreground">
+                            {isCurrentShiftView ? `${Math.round(elapsedPct)}% of shift` : ""}
                           </div>
                         </div>
                       </div>
 
-                      {/* The scale. The fill is what the line has made; the notch is
-                          where it should be. The distance between them IS the report,
-                          and no other screen in this app draws it. */}
+                      {/* A escala. O enchimento é o que a linha fez, a marca é onde o
+                          relógio do turno já vai, e a distância entre as duas É o
+                          relatório — e é literalmente a conta de que sai a cor do
+                          número aqui em cima. O entalhe que aqui esteve marcava o
+                          ritmo, uma medida que o cartão não imprimia; este marca uma
+                          que está escrita duas linhas acima. */}
                       <div className="mt-3.5">
-                        <div className="relative h-2.5 w-full overflow-hidden rounded-sm bg-muted">
-                          <div className="h-full bg-foreground/25" style={{ width: `${donePct}%` }} />
-                          {tickPct != null && (
+                        <div className="relative h-2 w-full overflow-hidden rounded-[2px] bg-foreground/[0.09]">
+                          <div className="h-full bg-foreground/40" style={{ width: `${donePct}%` }} />
+                          {isCurrentShiftView && (
                             <div
-                              className="absolute inset-y-0 w-px bg-foreground"
-                              style={{ left: `${tickPct}%` }}
+                              className="absolute inset-y-0 w-[2px] -translate-x-1/2 bg-foreground"
+                              style={{ left: `${elapsedPct}%` }}
+                              title={`${Math.round(elapsedPct)}% of the shift has passed`}
                               aria-hidden
                             />
                           )}
                         </div>
-                        <div className="mt-1.5 flex items-baseline justify-between font-figure text-2xs text-muted-foreground">
-                          <span>
-                            {paced ? (
-                              <>
-                                {gap >= 0 ? "+" : ""}{Math.round(paced.produced - paced.expected).toLocaleString("en-US")} vs due
-                              </>
-                            ) : (
-                              <>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs plan</>
-                            )}
-                          </span>
+                        <div className="mt-2 flex items-baseline justify-between font-figure text-2xs text-muted-foreground">
+                          <span>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs target</span>
                           <span className="text-muted-foreground/70">{l.target.toLocaleString("en-US")}</span>
                         </div>
                       </div>
 
-                      {/* Said once, at the bottom, in words. A line with no order and
-                          a line that made nothing are different facts and the card
-                          must not round them both to 0%. */}
-                      {pace && pace.kind !== "PACE" && (
-                        <div className="mt-2 font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                          {/* Named. Telling a supervisor that "the SKU" has no
-                              standard rate, on a line that ran three of them, is a
-                              fault report with the subject left out. */}
-                          {pace.kind === "NO_RATE" && sku
-                            ? `${sku.code} has no standard rate`
-                            : PACE_MESSAGES[pace.kind]}
-                        </div>
-                      )}
+                      {/* Uma ranhura, duas notas, nunca as duas ao mesmo tempo: ou o
+                          ritmo não pôde ser medido, ou pôde e ninguém registou nada. E
+                          de altura fixa, como as de cima — é a última linha antes do
+                          filete, e é ela que mantém o rodapé alinhado nos quatro
+                          cartões. Dito uma vez e por palavras: uma linha sem ordem e
+                          uma linha que não fez nada são factos diferentes, e o cartão
+                          não os pode arredondar os dois a 0%. */}
+                      <div className="mt-2.5 flex h-4 items-center gap-1.5">
+                        {(() => {
+                          // Uma nota, uma regra. Havia duas escritas aqui — a do
+                          // ritmo em versaletes cinzentos e a do "não registado" em
+                          // âmbar com triângulo — e qual delas aparecia dependia de
+                          // se o cartão tinha conseguido pontuar. O mesmo facto
+                          // mudava de voz consoante o caminho que o levou ao ecrã.
+                          //
+                          // Agora é o triângulo que carrega o significado, e diz o
+                          // mesmo que a barra do bordo: isto é de alguém.
+                          const note = gapKind
+                            ? {
+                                text: LINE_MESSAGES[gapKind],
+                                act: LINE_NEEDS_ACTION[gapKind],
+                                why: gapKind === "NOTHING_LOGGED"
+                                  ? "The line has a session and an order, but no quantity has been logged on My Production this shift. Nothing here can tell that apart from a line that made nothing."
+                                  : undefined,
+                              }
+                            // Um produto que não está no catálogo continua a ser uma
+                            // falha, e continua a ser nomeada — mas já não é uma falha
+                            // de PONTUAÇÃO. A linha pontua na mesma, porque o relógio
+                            // não precisa de saber o que ela está a fazer; o que não se
+                            // consegue é dizer o que foi feito. A Tablet Line fez 3.441
+                            // de "Vitamin  d3 and k2" a 12/08, que não é um código em
+                            // SKU Products.
+                            : sku?.uncatalogued
+                              ? {
+                                  text: `“${sku.code}” is not in SKU Products`,
+                                  act: true,
+                                  why: "The product on this order does not match any code in SKU Products, so the board cannot say what this line made. Fix the code on the order, or add the product.",
+                                }
+                              : l.notLogged
+                              ? {
+                                  text: "Nothing logged for this period",
+                                  act: true,
+                                  why: "This line was planned to run but no production was logged on My Production, so it reads 0%.",
+                                }
+                              : null;
+                          if (!note) return null;
+                          return (
+                            <span
+                              className={`flex min-w-0 items-center gap-1.5 text-2xs ${note.act ? "font-semibold text-warning-strong" : "text-muted-foreground"}`}
+                              title={note.why}
+                            >
+                              {note.act && <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+                              {/* Em caixa de frase, e não em versaletes espacejados:
+                                  isto é uma frase, não uma chapa de coluna, e um
+                                  código como UAEABECIB perde a própria forma dentro
+                                  de uma corrida de maiúsculas espacejadas. */}
+                              <span className="truncate">{note.text}</span>
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </>
                   );
                 })()}
+                {/* O controlo, no fim e do outro lado de um filete.
+                    Estava entre o nome da linha e o estado da máquina, e um campo de
+                    formulário aí fazia o painel inteiro parecer um formulário. A ordem
+                    de leitura de um instrumento é primeiro o que ele diz, e só depois o
+                    que se lhe mexe. */}
+                <div
+                  className="mt-3.5 border-t border-border/80 pt-3"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                      Leader
+                    </span>
+                    <Select
+                      value={l.leader ?? "__none__"}
+                      disabled={savingLeaderFor === l.line}
+                      onValueChange={(v) => {
+                        if (v === "__new__") {
+                          setAddingLeaderFor(l.line);
+                          setNewLeaderName("");
+                        } else {
+                          setLeaderForLine(l.line, v === "__none__" ? null : v, l.hasSession);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 flex-1 border-transparent bg-muted/60 text-xs hover:border-border focus:border-border">
+                        <SelectValue placeholder="— Assign —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {/* Keep the assigned leader selectable even if deactivated/renamed. */}
+                        {l.leader && !leaders.some((ld) => ld.name === l.leader) && (
+                          <SelectItem value={l.leader}>{l.leader} (inactive)</SelectItem>
+                        )}
+                        {leaders.map((ld) => (
+                          <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
+                        ))}
+                        <SelectItem value="__new__">+ Add new leader…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {addingLeaderFor === l.line && (
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <Input
+                        autoFocus
+                        value={newLeaderName}
+                        onChange={(e) => setNewLeaderName(e.target.value)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === "Enter") addNewLeader(l.line, l.hasSession);
+                          if (e.key === "Escape") { setAddingLeaderFor(null); setNewLeaderName(""); }
+                        }}
+                        placeholder="Leader name"
+                        className="h-8 min-w-0 flex-1 text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 px-2.5 text-xs"
+                        disabled={savingLeaderFor === l.line || !newLeaderName.trim()}
+                        onClick={() => addNewLeader(l.line, l.hasSession)}
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => { setAddingLeaderFor(null); setNewLeaderName(""); }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </StatusRail>
             );
           })}

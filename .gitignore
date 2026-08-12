@@ -32,3 +32,9 @@ dist-ssr
 anmaisys-e4b60397/
 *.save
 .claude/settings.json
+
+# brainstorming mockups — working sketches, not part of the app
+.superpowers/
+
+# Playwright run artefacts (screenshots, traces)
+e2e/.results/
