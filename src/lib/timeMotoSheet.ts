@@ -201,9 +201,17 @@ export function parseTimeMotoWorkbook(wb: XLSX.WorkBook, fallbackYear: number): 
   return out;
 }
 
+export interface UnsettledName {
+  name: string;
+  /** `ambiguous`: more than one person answers to it. `unknown`: nobody does. */
+  reason: "ambiguous" | "unknown";
+  /** Who it could be, for the picker. Empty when nobody on the payroll answers to it. */
+  candidates: { id: string; full_name: string }[];
+}
+
 export interface NameMatch {
   matched: { name: string; employeeId: string }[];
-  unmatched: string[];
+  unmatched: UnsettledName[];
 }
 
 /**
@@ -214,29 +222,48 @@ export interface NameMatch {
  * anything else is handed back rather than guessed. "Marcio Carvalho 1" is a real
  * example — a duplicate account with a suffix, which no amount of cleverness should
  * silently attach to Marcio Carvalho.
+ *
+ * What it hands back matters as much as what it matches. A TimeMoto export for one
+ * person has a Firstname column and no Lastname — the report knows who it is for
+ * because somebody picked them on screen, and prints "Daniel". Two Daniels on the
+ * payroll and this refuses, correctly; the fix is not to guess but to say WHICH two,
+ * so the office can settle it and the hours can land. `assigned` is that answer,
+ * keyed by the name as the sheet spells it, and it is honoured over the automatic
+ * read — one person with two accounts is a thing the office knows and this does not.
  */
-export function matchNames(names: string[], roster: { id: string; full_name: string }[]): NameMatch {
+export function matchNames(
+  names: string[],
+  roster: { id: string; full_name: string }[],
+  assigned: Record<string, string> = {},
+): NameMatch {
   const clean = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const byFull = new Map<string, string[]>();
-  const byFirst = new Map<string, string[]>();
+  const onRoster = new Map(roster.map((e) => [e.id, e]));
+  const byFull = new Map<string, { id: string; full_name: string }[]>();
+  const byFirst = new Map<string, { id: string; full_name: string }[]>();
   for (const e of roster) {
     const full = clean(e.full_name);
     const first = full.split(" ")[0];
     if (!byFull.has(full)) byFull.set(full, []);
-    byFull.get(full)!.push(e.id);
+    byFull.get(full)!.push(e);
     if (!byFirst.has(first)) byFirst.set(first, []);
-    byFirst.get(first)!.push(e.id);
+    byFirst.get(first)!.push(e);
   }
   const matched: { name: string; employeeId: string }[] = [];
-  const unmatched: string[] = [];
+  const unmatched: UnsettledName[] = [];
   for (const n of names) {
+    // A choice made for somebody who has since left the payroll is dropped rather
+    // than honoured: it would post hours to a record this screen cannot even show.
+    const chosen = assigned[n];
+    if (chosen && onRoster.has(chosen)) { matched.push({ name: n, employeeId: chosen }); continue; }
+
     const c = clean(n);
     const full = byFull.get(c);
-    if (full?.length === 1) { matched.push({ name: n, employeeId: full[0] }); continue; }
-    if (full && full.length > 1) { unmatched.push(n); continue; }
+    if (full?.length === 1) { matched.push({ name: n, employeeId: full[0].id }); continue; }
+    if (full && full.length > 1) { unmatched.push({ name: n, reason: "ambiguous", candidates: full }); continue; }
     const first = byFirst.get(c);
-    if (first?.length === 1) { matched.push({ name: n, employeeId: first[0] }); continue; }
-    unmatched.push(n);
+    if (first?.length === 1) { matched.push({ name: n, employeeId: first[0].id }); continue; }
+    if (first && first.length > 1) { unmatched.push({ name: n, reason: "ambiguous", candidates: first }); continue; }
+    unmatched.push({ name: n, reason: "unknown", candidates: [] });
   }
   return { matched, unmatched };
 }
