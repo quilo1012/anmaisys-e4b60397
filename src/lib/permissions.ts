@@ -275,6 +275,24 @@ export function defaultCan(role: Role, action: Action): boolean {
 /** Returns true if the given role can perform the action. Null role → false. */
 export function can(role: Role | null | undefined, action: Action): boolean {
   if (!role) return false;
+
+  // O admin passa sempre, e a regra vive aqui.
+  //
+  // O `ProtectedRoute` escreve-a no seu próprio comentário desde que existe — "admin
+  // always passes (no self-lockout)" — mas cumpria-a só para si. A matriz de
+  // permissões guarda em QUEM está a editar (`if (!isAdmin) return`) e não em QUAL o
+  // papel editado, e desenha célula para todos os papéis, admin incluído. Um admin que
+  // desligasse o seu próprio `reports.analytics` ficava com a rota aberta e sem a
+  // entrada de menu que lá chega: o ecrã continuava a ser dele e não havia nada em que
+  // clicar. A promessa cumpria-se numa camada e quebrava-se na de cima, que é o pior
+  // dos dois mundos — a entrada desaparece e nada explica porquê.
+  //
+  // Os overrides continuam a valer para todos os outros papéis, nos dois sentidos. E a
+  // visibilidade por dispositivo fica de fora de propósito: esconder um ecrã no tablet
+  // é uma decisão sobre um ecrã pequeno, não um cadeado, e o desktop continua a mostrar
+  // tudo o que o papel alcança.
+  if (role === "admin") return true;
+
   const key = `${role}:${action}`;
   if (key in OVERRIDES) return OVERRIDES[key];
   return MATRIX[action]?.includes(role) ?? false;

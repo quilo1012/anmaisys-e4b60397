@@ -1,5 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { can, canAny, canAll, canPrintReport, type Role, type Action } from "./permissions";
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  can, canAny, canAll, canPrintReport, canForDevice, setPermissionOverrides,
+  type Role, type Action,
+} from "./permissions";
 
 const ROLES: Role[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
@@ -153,5 +156,57 @@ describe("canPrintReport", () => {
   it("refuses when there is no role at all", () => {
     expect(canPrintReport(null)).toBe(false);
     expect(canPrintReport(undefined)).toBe(false);
+  });
+});
+
+/**
+ * The lock the admin could close on themselves.
+ *
+ * `ProtectedRoute` writes the rule down in its own comment — "admin always passes (no
+ * self-lockout)" — and implements it, so a route never turns an admin away. `can()`
+ * did not implement it, and `can()` is what the navigation reads.
+ *
+ * The Permissions Matrix guards on WHO is editing (`if (!isAdmin) return`) and not on
+ * WHICH role is being edited, and it draws a cell for every role in `ALL_ROLES`. So an
+ * admin can click their own `reports.analytics` off, save it into
+ * `role_permission_overrides`, and the sidebar — which filters on
+ * `canForDevice(role, item.action, device)` — drops Reports out of their menu. The
+ * screen stays reachable by typing the URL, because the route still waves the admin
+ * through. The promise held in one layer and broke in the one above it, which is the
+ * worst of both: the entry disappears and nothing explains why.
+ *
+ * So the rule moves down to `can()`, where the rest of the app reads it. Overrides go
+ * on working for every other role, in both directions — taking away and granting — and
+ * per-device visibility is untouched: hiding Reports on the tablet is a decision about
+ * a small screen, not a lock, and desktop still shows everything the role can reach.
+ */
+describe("no self-lockout", () => {
+  afterEach(() => setPermissionOverrides({}));
+
+  it("keeps the admin's access when an override tries to take it away", () => {
+    setPermissionOverrides({ "admin:reports.analytics": false });
+    expect(can("admin", "reports.analytics")).toBe(true);
+  });
+
+  it("keeps it in the navigation too, which is where the entry went missing", () => {
+    setPermissionOverrides({ "admin:reports.analytics": false });
+    expect(canForDevice("admin", "reports.analytics", "desktop")).toBe(true);
+  });
+
+  it("holds for every action, not just the one that was reported", () => {
+    setPermissionOverrides({ "admin:wo.view": false, "admin:quality.view": false });
+    expect(can("admin", "wo.view")).toBe(true);
+    expect(can("admin", "quality.view")).toBe(true);
+  });
+
+  it("still lets an override take an action away from any other role", () => {
+    setPermissionOverrides({ "supervisor:reports.analytics": false });
+    expect(can("supervisor", "reports.analytics")).toBe(false);
+  });
+
+  it("still lets an override grant an action a role does not have by default", () => {
+    expect(can("operator", "reports.analytics")).toBe(false);
+    setPermissionOverrides({ "operator:reports.analytics": true });
+    expect(can("operator", "reports.analytics")).toBe(true);
   });
 });
