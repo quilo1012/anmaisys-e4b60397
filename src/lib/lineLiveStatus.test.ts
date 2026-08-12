@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyLive, formatStopDuration, stopClock, STALE_AFTER_SECONDS, type LiveReading } from "./lineLiveStatus";
+import { classifyLive, formatStopDuration, stopClock, STALE_AFTER_SECONDS, ITOUCH_STATUS_MEANING, type LiveReading } from "./lineLiveStatus";
 
 const now = new Date("2026-08-08T17:00:00.000Z");
 const secondsAgo = (s: number) => new Date(now.getTime() - s * 1000);
@@ -119,21 +119,57 @@ describe("a line with no stop code is not thereby running", () => {
     }
   });
 
-  it("does not paint a line green on a status the poller itself reads as stopped", () => {
+  it("does not paint a line green on a status nobody has read", () => {
     // HEALTHY_STATUS = {1, 2} em `intouch-poll`, e `wallboard-lines` recusa-se a
     // acender RUN fora desse conjunto. Este ecrã era o único que acendia.
     for (const status of [4, 6, 7]) {
-      const r = classifyLive(reading({ status }), now);
-      expect(r.state).toBe("STOPPED_NO_CODE");
+      expect(classifyLive(reading({ status }), now).state).not.toBe("RUNNING");
     }
   });
 
-  it("says the stop has no code rather than inventing a reason for it", () => {
+  it("does not call it a stop either, on a status nobody has read", () => {
+    // 12/08 às 21:38 UTC, os dois ecrãs lado a lado: Filler Line 1 em
+    // `last_status` 4 e Filler Line 2 em 6, ambas sem código, e o quadro do
+    // iTouching a dizer "Running" nas duas — 12,1 e 21,8 enchimentos por minuto,
+    // que nenhuma máquina parada faz. As paradas com código (3 e 4, Breaks)
+    // liam-se bem, porque o código decide antes do estado.
+    //
+    // Nenhuma linha desta fábrica reporta 1 ou 2. A única aparição registada do
+    // estado 1 numa linha real — Filler Line 4, 12/08 às 10:45 UTC — trazia um
+    // Deep Clean activo, ou seja, uma linha PARADA. O conjunto {1, 2} não é
+    // apenas incompleto: pode estar ao contrário.
+    //
+    // Por isso este ecrã deixa de responder à pergunta. Um estado fora do mapa
+    // não é produção nem paragem; é um número que ninguém traduziu, e dizê-lo é
+    // a única leitura que não inventa nada.
+    for (const status of [4, 6, 7]) {
+      expect(classifyLive(reading({ status }), now).state).not.toBe("STOPPED_NO_CODE");
+    }
+  });
+
+  it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
     const r = classifyLive(reading({ status: 4 }), now);
-    // iTouching's own legend: RUNNING / STOPPED-NO CODE / UNPLANNED STOP /
-    // PLANNED STOP. The fourth state was the one this board did not have.
-    expect(r.label).toBe("STOPPED · NO CODE");
+    expect(r.state).toBe("UNKNOWN_STATUS");
+    expect(r.label).toBe("STATUS 4 · UNKNOWN");
+    expect(r.rawStatus).toBe(4);
     expect(r.stoppedForSeconds).toBeNull();
+  });
+
+  it("still names a stop with no code, for a status known to mean one", () => {
+    // O ramo continua aqui, e vazio de propósito: no dia em que o fornecedor
+    // disser o que 4 e 6 são, a correcção é uma linha nesta tabela e este teste
+    // já a cobre. Nenhum valor é adivinhado até lá.
+    ITOUCH_STATUS_MEANING.set(99, "STOPPED_NO_CODE");
+    try {
+      const r = classifyLive(reading({ status: 99 }), now);
+      expect(r.state).toBe("STOPPED_NO_CODE");
+      // iTouching's own legend: RUNNING / STOPPED-NO CODE / UNPLANNED STOP /
+      // PLANNED STOP. The fourth state was the one this board did not have.
+      expect(r.label).toBe("STOPPED · NO CODE");
+      expect(r.stoppedForSeconds).toBeNull();
+    } finally {
+      ITOUCH_STATUS_MEANING.delete(99);
+    }
   });
 
   it("does not claim a state for a reading that carries no status at all", () => {

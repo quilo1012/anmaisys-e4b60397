@@ -12,18 +12,38 @@
  * while one is active on the panel, and today's `production_downtimes` show codes
  * opening and closing on the same line minute by minute, with blank between them.
  *
- * So the status decides whether a line with no code is running, and 1 and 2 are
- * the only values that mean it is — `intouch-poll`'s HEALTHY_STATUS and
- * `wallboard-lines`, which has always refused "a green light nobody earned". This
- * board was the one screen that gave it away for free: on 12/08 at 09:57 UTC six
- * of seven lines sat at status 4 or 6 with no code and all seven read RUNNING.
+ * So the status decides whether a line with no code is running — and this board
+ * cannot read the status. That is the finding, and it cost two wrong answers in
+ * one day to reach.
+ *
+ * FIRST WRONG ANSWER: absence of a code read as RUNNING. On 12/08 at 09:57 UTC
+ * six of seven lines sat at status 4 or 6 with no code and all seven read green.
  * Line 5 had made nothing, had no order, and had spent the morning in Brushing
  * and Cleaning, Line Preparation and Alarm.
  *
- * WHAT THIS STILL DOES NOT KNOW: what 4 and 6 mean apart from each other. Both
- * are outside the healthy set, so both read as a stop nobody coded — which is
- * iTouching's own fourth state, not an invention — and the raw number is carried
- * through untouched for whoever settles the question with the vendor.
+ * SECOND WRONG ANSWER: everything outside {1, 2} read as a stop nobody coded.
+ * {1, 2} came from `intouch-poll`'s HEALTHY_STATUS and `wallboard-lines`', and no
+ * evidence from this installation was ever offered for it. On 12/08 at 21:38 UTC
+ * the two screens sat side by side: Filler Line 1 at status 4 and Filler Line 2
+ * at status 6, both with no code, both reading "Running" on the iTouching board
+ * at 12,1 and 21,8 fills per minute. Four cards claimed a stop on four lines that
+ * were filling bottles. Meanwhile no line in this factory has ever reported 1 or
+ * 2, and the one recorded sighting of status 1 on a real line — Filler Line 4,
+ * 12/08 at 10:45 UTC — carried an active Deep Clean, which is a line STOPPED. The
+ * set is not merely incomplete; it may be inverted.
+ *
+ * WHAT THIS BOARD DOES NOW. It answers the question it can answer and declines
+ * the one it cannot. A stop code is a stop and names itself. A status this file
+ * has been TOLD the meaning of decides between running and stopped. Anything else
+ * is printed as the number it is — "STATUS 4 · UNKNOWN" — in the same grey as NO
+ * SIGNAL, because an untranslated reading is not a state, and a supervisor
+ * reading it can quote the number straight back to the vendor.
+ *
+ * HOW THIS GETS FIXED PROPERLY. `intouch_machine_map.live_job_state` carries
+ * iTouching's own word for what the machine is doing, from `getscheduledjobs`.
+ * Once the poll that fills it is deployed, a day of pairs settles what 4, 5, 6
+ * and 7 are, and the fix is one line per value in the table below — with the
+ * evidence written beside it this time.
  */
 
 export type LiveState =
@@ -32,16 +52,32 @@ export type LiveState =
   | "STOPPED_NO_CODE"
   | "PLANNED_STOP"
   | "UNPLANNED_STOP"
+  /** iTouching sent a number this board has no translation for. */
+  | "UNKNOWN_STATUS"
   | "NO_SIGNAL"
   | "NOT_MAPPED";
 
 /**
- * The statuses that mean the machine is making something. Same set as
- * `intouch-poll`'s HEALTHY_STATUS and `wallboard-lines`' — kept identical on
- * purpose: three screens disagreeing about what "running" is, is how a line came
- * to read green and stopped at the same time.
+ * What each iTouching status is KNOWN to mean, and nothing else.
+ *
+ * A table rather than a set of "healthy" values, because the two answers are not
+ * one answer and its negation: not-running and stopped are different claims, and
+ * the gap between them is where four running lines were painted as stopped.
+ *
+ * 1 and 2 are here because `intouch-poll` and `wallboard-lines` have always said
+ * so and nothing has been observed to contradict it — no machine here reports
+ * either. They are the inherited claim, not a verified one, and the moment
+ * `live_job_state` can settle it they should be re-checked with everything else.
+ *
+ * 4, 5, 6 and 7 are the values this installation actually sends. They are
+ * deliberately ABSENT: on the evidence above, 4 and 6 look like running and 7
+ * like a coded stop, but one minute of one evening is not a mapping, and a guess
+ * written here would read exactly like a fact to the next person.
  */
-export const ITOUCH_HEALTHY_STATUS = new Set<number>([1, 2]);
+export const ITOUCH_STATUS_MEANING = new Map<number, "RUNNING" | "STOPPED_NO_CODE">([
+  [1, "RUNNING"],
+  [2, "RUNNING"],
+]);
 
 /** A reading older than this is not a state, it is a memory. */
 export const STALE_AFTER_SECONDS = 90;
@@ -146,19 +182,35 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
     return { state: "NO_SIGNAL", label: "NO SIGNAL", ageSeconds, rawStatus: null, uncatalogued: false, stoppedForSeconds: null };
   }
 
-  if (ITOUCH_HEALTHY_STATUS.has(reading.status)) {
+  const meaning = ITOUCH_STATUS_MEANING.get(reading.status);
+
+  if (meaning === "RUNNING") {
     // RUNNING is iTouching's own word, from the legend the floor already reads:
     // RUNNING / STOPPED-NO CODE / UNPLANNED STOP / PLANNED STOP. The board must
     // not invent a vocabulary beside it.
     return { state: "RUNNING", label: "RUNNING", ageSeconds, rawStatus: reading.status, uncatalogued: false, stoppedForSeconds: null };
   }
 
-  // Standing still, and iTouching has published no reason for it. The fourth state
-  // in that legend, and the one this board did not have — so it called it RUNNING.
-  // Nothing to time: with no code there is no `stop_since_at` to time it from.
+  if (meaning === "STOPPED_NO_CODE") {
+    // Standing still, and iTouching has published no reason for it. The fourth
+    // state in that legend. Nothing to time: with no code there is no
+    // `stop_since_at` to time it from.
+    return {
+      state: "STOPPED_NO_CODE",
+      label: "STOPPED · NO CODE",
+      ageSeconds,
+      rawStatus: reading.status,
+      uncatalogued: false,
+      stoppedForSeconds: null,
+    };
+  }
+
+  // A number with no translation. Both answers this board could give here would be
+  // assertions about a machine it cannot read, and one of them has already been
+  // wrong on this exact value — so it gives neither, and shows the number instead.
   return {
-    state: "STOPPED_NO_CODE",
-    label: "STOPPED · NO CODE",
+    state: "UNKNOWN_STATUS",
+    label: `STATUS ${reading.status} · UNKNOWN`,
     ageSeconds,
     rawStatus: reading.status,
     uncatalogued: false,
@@ -181,6 +233,9 @@ export const LIVE_TONE: Record<LiveState, string> = {
   // people to ignore red.
   PLANNED_STOP: "bg-muted text-muted-foreground border-border",
   UNPLANNED_STOP: "bg-destructive/10 text-destructive-strong border-destructive/30",
+  // The same grey as NO SIGNAL, and for the same reason: both say "this board
+  // cannot tell you", and neither may borrow a colour that means something.
+  UNKNOWN_STATUS: "bg-muted text-muted-foreground border-border",
   NO_SIGNAL: "bg-muted text-muted-foreground border-border",
   NOT_MAPPED: "bg-muted text-muted-foreground border-border",
 };
