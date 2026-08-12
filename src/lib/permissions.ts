@@ -340,6 +340,25 @@ export function canUseDirectMessages(role: Role | null | undefined): boolean {
 }
 
 /**
+ * Printing or exporting a report — Analytics, Reports, and anything else that puts a
+ * period on paper.
+ *
+ * It exists because the Analytics page had the rule written out by hand:
+ * `role !== "admin" && (role !== "manager" && role !== "maintenance_manager")`. That is
+ * a fourth authorization model living beside the matrix, and it disagreed with it in
+ * both directions — a supervisor holds `reports.export` and was refused, a
+ * maintenance_manager holds neither `reports.export` nor `reports.analytics` and was
+ * waved through by a branch he could never reach.
+ *
+ * Named rather than inlined, like canUseLineChat above: a screen asks "may this person
+ * print?", not "is this person one of these four strings", and only the second of those
+ * questions can drift away from the matrix without anybody noticing.
+ */
+export function canPrintReport(role: Role | null | undefined): boolean {
+  return can(role, "reports.export");
+}
+
+/**
  * Presentation registry — shared between Permissions Matrix and any UI
  * that needs to describe actions to end-users. Single source of truth.
  */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { can, canAny, canAll, type Role, type Action } from "./permissions";
+import { can, canAny, canAll, canPrintReport, type Role, type Action } from "./permissions";
 
 const ROLES: Role[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
 
@@ -115,5 +115,43 @@ describe("permissions.canAll", () => {
   });
   it("returns true for empty action list (vacuously true)", () => {
     expect(canAll("operator", [])).toBe(true);
+  });
+});
+
+/**
+ * The print gate on the Analytics report.
+ *
+ * It read `role !== "admin" && (role !== "manager" && role !== "maintenance_manager")`
+ * — a fourth authorization model written by hand beside the matrix, and it disagreed
+ * with it in both directions: a supervisor who holds `reports.export` was refused with
+ * "You don't have permission", and a maintenance_manager who holds neither
+ * `reports.export` nor `reports.analytics` was waved through by a branch he can never
+ * reach, because the page will not open for him.
+ */
+describe("canPrintReport", () => {
+  it("lets through exactly the roles the matrix grants reports.export to", () => {
+    for (const role of ["admin", "manager", "supervisor", "planner"] as const) {
+      expect(canPrintReport(role)).toBe(true);
+    }
+  });
+
+  it("refuses the supervisor's old refusal — he holds the permission", () => {
+    expect(canPrintReport("supervisor")).toBe(true);
+  });
+
+  it("no longer waves through maintenance_manager, who cannot even open the page", () => {
+    expect(canPrintReport("maintenance_manager")).toBe(false);
+    expect(can("maintenance_manager", "reports.analytics")).toBe(false);
+  });
+
+  it("refuses a role that can read the report but was never granted the export", () => {
+    // production_office_admin opens Analytics and does not export it.
+    expect(can("production_office_admin", "reports.analytics")).toBe(true);
+    expect(canPrintReport("production_office_admin")).toBe(false);
+  });
+
+  it("refuses when there is no role at all", () => {
+    expect(canPrintReport(null)).toBe(false);
+    expect(canPrintReport(undefined)).toBe(false);
   });
 });
