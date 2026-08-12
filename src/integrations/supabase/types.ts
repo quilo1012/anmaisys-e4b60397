@@ -1470,6 +1470,12 @@ export type Database = {
           last_seen_at: string | null
           last_status: number | null
           line_id: string | null
+          live_job_checked_at: string | null
+          live_job_code: string | null
+          live_job_name: string | null
+          live_job_qty: number | null
+          live_job_seen_at: string | null
+          live_job_state: string | null
           machine_name: string | null
           prod_dt_code: string | null
           prod_dt_started_at: string | null
@@ -1486,6 +1492,12 @@ export type Database = {
           last_seen_at?: string | null
           last_status?: number | null
           line_id?: string | null
+          live_job_checked_at?: string | null
+          live_job_code?: string | null
+          live_job_name?: string | null
+          live_job_qty?: number | null
+          live_job_seen_at?: string | null
+          live_job_state?: string | null
           machine_name?: string | null
           prod_dt_code?: string | null
           prod_dt_started_at?: string | null
@@ -1502,6 +1514,12 @@ export type Database = {
           last_seen_at?: string | null
           last_status?: number | null
           line_id?: string | null
+          live_job_checked_at?: string | null
+          live_job_code?: string | null
+          live_job_name?: string | null
+          live_job_qty?: number | null
+          live_job_seen_at?: string | null
+          live_job_state?: string | null
           machine_name?: string | null
           prod_dt_code?: string | null
           prod_dt_started_at?: string | null
@@ -6330,6 +6348,11 @@ export type Database = {
       }
       v_line_live_status: {
         Row: {
+          job_code: string | null
+          job_name: string | null
+          job_qty: number | null
+          job_seen_at: string | null
+          job_state: string | null
           line: string | null
           machine: string | null
           planned: boolean | null
