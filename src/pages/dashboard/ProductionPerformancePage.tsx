@@ -25,7 +25,8 @@ import { shiftClockPct, lineReading, BEHIND_TOLERANCE_PTS, BAND_STATUS, LINE_STA
 import { AndonBar } from "@/components/ui/AndonBar";
 import { cn } from "@/lib/utils";
 import { ANDON_FIELD } from "@/lib/rail";
-import { buildSkuCatalogue, pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/lib/lineSku";
+import { pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/lib/lineSku";
+import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -297,25 +298,11 @@ export default function ProductionPerformancePage() {
     },
   });
 
-  const { data: skus = [] } = useQuery({
-    queryKey: ["sku_products_min"],
-    queryFn: async () => {
-      // Paginate past the ~1000-row PostgREST cap so SKUs beyond 1000 resolve.
-      const pageSize = 1000;
-      const rows: { id: string; code: string; name: string; target_per_hour: number | null }[] = [];
-      for (let offset = 0; ; offset += pageSize) {
-        const { data, error } = await supabase.from("sku_products").select("id, code, name, target_per_hour").order("code").range(offset, offset + pageSize - 1);
-        if (error) throw error;
-        const page = (data ?? []) as { id: string; code: string; name: string; target_per_hour: number | null }[];
-        rows.push(...page);
-        if (page.length < pageSize) break;
-      }
-      return rows;
-    },
-  });
   // By id AND by code: half the rows on the board identify their product only by
   // the code as text, with `sku_id` never resolved by the import. See `lineSku.ts`.
-  const catalogue = useMemo(() => buildSkuCatalogue(skus), [skus]);
+  // A consulta paginada que aqui estava mudou-se para `useSkuCatalogue`, porque o
+  // ecrã de parede faz a mesma pergunta sobre as mesmas linhas e não a tinha.
+  const { catalogue } = useSkuCatalogue();
 
   type RagRow = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
 

@@ -14,6 +14,8 @@ import {
   LINE_STATUS,
   LINE_MESSAGES,
 } from "@/lib/linePerformance";
+import { identifyItemSku, pickLineSku, type LineSkuItem } from "@/lib/lineSku";
+import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { ArrowLeft, Maximize2, Pencil, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,13 +35,22 @@ type RagEntry = {
 
 type ProductionItem = {
   id: string;
+  sku_id: string | null;
+  sku_code_text: string | null;
   planned_qty: number | null;
   actual_qty: number | null;
   started_at: string | null;
   finished_at: string | null;
   updated_at: string | null;
-  sku: { code: string | null; name: string | null; target_per_hour: number | null } | null;
 };
+
+const toSkuItem = (it: ProductionItem): LineSkuItem => ({
+  sku_id: it.sku_id,
+  sku_code_text: it.sku_code_text,
+  actual: Number(it.actual_qty ?? 0),
+  started_at: it.started_at,
+  finished_at: it.finished_at,
+});
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "00:00:00";
@@ -55,6 +66,7 @@ export default function LineDisplayScreen() {
   const navigate = useNavigate();
 
   const qc = useQueryClient();
+  const { catalogue } = useSkuCatalogue();
   const [now, setNow] = useState(new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -165,7 +177,11 @@ export default function LineDisplayScreen() {
       if (!ids.length) return { hasSession: false, hasLeader: false, items: [] as ProductionItem[] };
       const { data, error } = await supabase
         .from("production_items")
-        .select("id, planned_qty, actual_qty, started_at, finished_at, updated_at, sku:sku_products(code, name, target_per_hour)")
+        // `sku_id` e `sku_code_text` os dois: um item identifica o produto por
+        // qualquer uma das colunas e nenhuma é de fiar sozinha. Este ecrã lia só
+        // o join por `sku_id` e escrevia um travessão nos outros — 11 dos 185
+        // itens da última semana. A regra vive em `lineSku.ts`.
+        .select("id, sku_id, sku_code_text, planned_qty, actual_qty, started_at, finished_at, updated_at")
         .in("session_id", ids);
       if (error) throw error;
       return {
@@ -232,6 +248,9 @@ export default function LineDisplayScreen() {
     () => lastEntryAgeMinutes((items ?? []).map((it) => it.updated_at), now),
     [items, now],
   );
+
+  /** As duas colunas que identificam o produto, na forma que `lineSku.ts` lê. */
+  const skuItems = useMemo<LineSkuItem[]>(() => (items ?? []).map(toSkuItem), [items]);
 
   const scored = reading.kind === "SCORED" ? reading : null;
   // Feito a dividir pelo alvo do turno — os dois mosaicos ACTUAL e TARGET que
@@ -304,13 +323,22 @@ export default function LineDisplayScreen() {
 
 
       {(() => {
-        const sorted = [...(items ?? [])].sort(
-          (a, b) => Number(b.actual_qty ?? 0) - Number(a.actual_qty ?? 0)
-        );
-        const current = sorted[0] ?? (items ?? [])[0];
+        /* Era `sort((a,b) => b.actual_qty - a.actual_qty)[0]`: a maior corrida do
+           turno, que é outra pergunta e quase sempre outro produto. `pickLineSku`
+           responde à certa — o item a correr, ou o que começou por último quando
+           está tudo fechado — e é a mesma função que veste o cartão do board.
+
+           As quantidades somam TODAS as linhas do mesmo produto. Line 6, 12/08
+           tinha duas linhas para o mesmo SKU, uma ligada por `sku_id` e a outra
+           só com o código em texto; mostrar uma delas dizia metade do que a linha
+           fez. */
+        const current = pickLineSku(skuItems, catalogue);
         if (!current) return null;
-        const p = Number(current.planned_qty ?? 0);
-        const a = Number(current.actual_qty ?? 0);
+        const mine = (items ?? []).filter(
+          (it) => identifyItemSku(toSkuItem(it), catalogue)?.code === current.code,
+        );
+        const p = mine.reduce((s, it) => s + Number(it.planned_qty ?? 0), 0);
+        const a = mine.reduce((s, it) => s + Number(it.actual_qty ?? 0), 0);
         const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
         const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
         return (
@@ -330,8 +358,8 @@ export default function LineDisplayScreen() {
                 {a.toLocaleString()} / {p.toLocaleString()}
               </div>
             </div>
-            <div className="text-5xl font-black mb-1">{current.sku?.code ?? "—"}</div>
-            <div className="text-2xl text-wall-ink mb-4">{current.sku?.name ?? ""}</div>
+            <div className="text-5xl font-black mb-1">{current.code}</div>
+            <div className="text-2xl text-wall-ink mb-4">{current.name}</div>
             <div className="h-4 bg-wall-panel/60 rounded-full overflow-hidden">
               <div className={`h-full ${c} transition-all duration-700`} style={{ width: `${pc}%` }} />
             </div>
@@ -393,7 +421,10 @@ export default function LineDisplayScreen() {
                 <li key={it.id} className="bg-wall-line rounded-xl p-4">
                   <div className="flex justify-between items-center text-lg mb-2 gap-3">
                     <span className="font-semibold flex-1 min-w-0 truncate">
-                      {it.sku?.code ?? "—"} <span className="text-wall-ink-muted font-normal">{it.sku?.name ?? ""}</span>
+                      {identifyItemSku(toSkuItem(it), catalogue)?.code ?? "—"}{" "}
+                      <span className="text-wall-ink-muted font-normal">
+                        {identifyItemSku(toSkuItem(it), catalogue)?.name ?? ""}
+                      </span>
                     </span>
                     {editingId === it.id ? (
                       <div className="flex items-center gap-2">
