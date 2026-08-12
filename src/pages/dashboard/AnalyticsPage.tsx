@@ -31,12 +31,15 @@ import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QUALITY_STATUSES, severityPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
-import { computeLeaderScore, displayScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { canPrintReport } from "@/lib/permissions";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { EmptyState } from "@/components/EmptyState";
 import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
+import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
@@ -119,8 +122,13 @@ export default function AnalyticsPage() {
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
   const [shift, setShift] = useOpsShift();
-  const startDate = drRange.from ?? startOfDay(subDays(new Date(), 30));
-  const endDate = drRange.to ?? endOfDay(new Date());
+  // "All time" is an open range — getPresetRange("all") returns {} on purpose. This
+  // line used to read `drRange.from ?? subDays(new Date(), 30)`, so the chip said
+  // "All time" and every figure below it was the last thirty days, with nothing on
+  // screen to say so. The period is now whatever was asked for, and the report header
+  // prints "All time" rather than the sentinel the queries actually use.
+  const period = useMemo(() => resolveReportRange(drRange), [drRange]);
+  const { startDate, endDate } = period;
 
   // Range pushed server-side: without it the hook caps at the 200 newest orders
   // and every widget below silently reported on a truncated set.
@@ -138,15 +146,18 @@ export default function AnalyticsPage() {
   // Quality actions in the selected date range → Quality Analytics section.
   const { data: qaRows = [] } = useQuery({
     queryKey: ["analytics-quality", startDate.toISOString(), endDate.toISOString()],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    // Paged. PostgREST caps a select at 1000 rows and reports nothing — the request
+    // succeeds and the rest of the period is simply absent, which on this page reads
+    // as "quality got quieter" rather than "the page stopped counting".
+    queryFn: () => fetchAllRows<{ recorded_at: string; status: string | null; severity: string | null; line: string | null; department: string | null }>({
+      range: (a, b) => supabase
         .from("quality_actions")
         .select("recorded_at, status, severity, line, department")
         .gte("recorded_at", startDate.toISOString())
-        .lte("recorded_at", endDate.toISOString());
-      if (error) throw error;
-      return (data ?? []) as Array<{ recorded_at: string; status: string | null; severity: string | null; line: string | null; department: string | null }>;
-    },
+        .lte("recorded_at", endDate.toISOString())
+        .order("recorded_at", { ascending: true }).order("id", { ascending: true })
+        .range(a, b),
+    }),
   });
 
   const qa = useMemo(() => {
@@ -185,23 +196,27 @@ export default function AnalyticsPage() {
   // Production leader performance in range → Leader Performance section.
   const { data: leaderRows = [] } = useQuery({
     queryKey: ["analytics-leader-perf", startDate.toISOString(), endDate.toISOString(), shift],
-    queryFn: async () => {
+    // Paged: ~120 sessions a month, so a long period clears the thousand-row cap and
+    // every leader's output would quietly stop at whatever the first page held.
+    queryFn: () => {
       const from = format(startDate, "yyyy-MM-dd");
       const to = format(endDate, "yyyy-MM-dd");
-      // production_sessions carries a real shift column, so this filters server-side
-      // rather than inferring the shift from a timestamp.
-      let q = supabase
-        .from("production_sessions")
-        .select("session_date, shift, line, leader_name, production_items(actual_qty)")
-        .gte("session_date", from)
-        .lte("session_date", to);
-      if (shift !== "ALL") q = q.eq("shift", shift);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as Array<{
+      return fetchAllRows<{
         session_date: string; shift: string | null; line: string | null; leader_name: string | null;
         production_items: { actual_qty: number | null }[];
-      }>;
+      }>({
+        range: (a, b) => {
+          // production_sessions carries a real shift column, so this filters server-side
+          // rather than inferring the shift from a timestamp.
+          let q = supabase
+            .from("production_sessions")
+            .select("session_date, shift, line, leader_name, production_items(actual_qty)")
+            .gte("session_date", from)
+            .lte("session_date", to);
+          if (shift !== "ALL") q = q.eq("shift", shift);
+          return q.order("session_date", { ascending: true }).order("id", { ascending: true }).range(a, b);
+        },
+      });
     },
   });
 
@@ -211,20 +226,26 @@ export default function AnalyticsPage() {
   // to carry a target_qty.
   const { data: ragTargetRows = [] } = useQuery({
     queryKey: ["analytics-leader-rag-targets", startDate.toISOString(), endDate.toISOString(), shift],
-    queryFn: async () => {
+    // Paged, and for the sharper reason: the targets outnumber the sessions (~160 a
+    // month against ~120). A truncated target set does not lose a row, it divides a
+    // full period's output by a partial period's plan and prints the result as
+    // efficiency — every leader reading well above what they ran.
+    queryFn: () => {
       const from = format(startDate, "yyyy-MM-dd");
       const to = format(endDate, "yyyy-MM-dd");
-      // Targets must be filtered the same way as the sessions, or efficiency would
-      // divide one shift's output by both shifts' target.
-      let q = (supabase as any)
-        .from("rag_weekly_entries")
-        .select("entry_date, shift, line, plan_qty")
-        .gte("entry_date", from)
-        .lte("entry_date", to);
-      if (shift !== "ALL") q = q.eq("shift", shift);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as Array<{ entry_date: string; shift: string | null; line: string | null; plan_qty: number | null }>;
+      return fetchAllRows<{ entry_date: string; shift: string | null; line: string | null; plan_qty: number | null }>({
+        range: (a, b) => {
+          // Targets must be filtered the same way as the sessions, or efficiency would
+          // divide one shift's output by both shifts' target.
+          let q = (supabase as any)
+            .from("rag_weekly_entries")
+            .select("entry_date, shift, line, plan_qty")
+            .gte("entry_date", from)
+            .lte("entry_date", to);
+          if (shift !== "ALL") q = q.eq("shift", shift);
+          return q.order("entry_date", { ascending: true }).order("id", { ascending: true }).range(a, b);
+        },
+      });
     },
   });
 
@@ -233,14 +254,16 @@ export default function AnalyticsPage() {
   // todo/in_progress from two months ago is exactly the one you must not hide.
   const { data: openActionRows = [] } = useQuery({
     queryKey: ["analytics-leader-open-actions"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    // Paged, and this one is unbounded by date by design, so it is the query with the
+    // least reason to trust a single page.
+    queryFn: () => fetchAllRows<{ leader_name: string | null; status: string | null; severity: string | null }>({
+      range: (a, b) => supabase
         .from("quality_actions")
         .select("leader_name, status, severity")
-        .in("status", ["todo", "in_progress"]);
-      if (error) throw error;
-      return (data ?? []) as Array<{ leader_name: string | null; status: string | null; severity: string | null }>;
-    },
+        .in("status", ["todo", "in_progress"])
+        .order("id", { ascending: true })
+        .range(a, b),
+    }),
   });
 
   // Quality actions raised inside the page's period, per leader — the input to the
@@ -249,19 +272,21 @@ export default function AnalyticsPage() {
   // today rather than about the period.
   const { data: periodActionRows = [] } = useQuery({
     queryKey: ["analytics-leader-period-actions", startDate.toISOString(), endDate.toISOString()],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    // Paged: this feeds the Quality and Documentation halves of every leader's score,
+    // and a score computed off a partial set is a score that cannot be argued with.
+    queryFn: () => fetchAllRows<{
+      leader_name: string | null; severity: string | null;
+      labels: string[] | null; validation_status: string | null;
+      description: string | null; shift: string | null;
+    }>({
+      range: (a, b) => supabase
         .from("quality_actions")
         .select("leader_name, severity, labels, validation_status, recorded_at, description, shift")
         .gte("recorded_at", startDate.toISOString())
-        .lte("recorded_at", endDate.toISOString());
-      if (error) throw error;
-      return (data ?? []) as Array<{
-        leader_name: string | null; severity: string | null;
-        labels: string[] | null; validation_status: string | null;
-        description: string | null; shift: string | null;
-      }>;
-    },
+        .lte("recorded_at", endDate.toISOString())
+        .order("recorded_at", { ascending: true }).order("id", { ascending: true })
+        .range(a, b),
+    }),
   });
 
   const leaderPerf = useMemo(() => {
@@ -393,6 +418,13 @@ export default function AnalyticsPage() {
       return x === y ? a.leader.localeCompare(b.leader) : sign * (x < y ? -1 : 1);
     });
   }, [leaderPerf.rows, leaderSort]);
+
+  /**
+   * Rank by score, computed once and independent of the table's current sort — the
+   * medal belongs to the leader, not to whichever row floated to the top of whichever
+   * column the reader last clicked.
+   */
+  const leaderRank = useMemo(() => rankLeadersByScore(leaderPerf.rows), [leaderPerf.rows]);
 
   const leaderTopByEff = useMemo(
     () =>
@@ -710,7 +742,7 @@ export default function AnalyticsPage() {
             printed day-shift report was indistinguishable from a night one. */}
         <ReportPrintHeader
           title="Analytics Report"
-          periodLabel={`${format(startDate, "dd/MM/yyyy HH:mm")} — ${format(endDate, "dd/MM/yyyy HH:mm")}`}
+          periodLabel={reportPeriodLabel(period)}
           shift={shift === "ALL" ? "All shifts" : shift === "DAY" ? "Day (06–18)" : "Night (18–06)"}
         />
         <div className="hidden print:grid grid-cols-2 gap-4 text-sm mb-4">
@@ -734,8 +766,13 @@ export default function AnalyticsPage() {
           icon={<BarChart3 className="h-5 w-5" />}
           actions={
           <div className="flex gap-2">
+            {/* Offered only to whoever may actually use it — a button that exists to
+                refuse you is worse than no button. The click still checks, because
+                can() reads the live permission overrides and an admin may revoke the
+                action while this page is open. */}
+            {canPrintReport(role) && (
             <Button variant="outline" size="sm" onClick={async () => {
-              if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
+              if (!canPrintReport(role)) {
                 toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                 return;
               }
@@ -748,6 +785,7 @@ export default function AnalyticsPage() {
             }}>
               <Printer className="h-4 w-4 mr-1" /> Print
             </Button>
+            )}
           </div>
           }
         />
@@ -837,7 +875,9 @@ export default function AnalyticsPage() {
                   <table className="w-full text-sm min-w-[720px]">
                     <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
                       <tr>
-                        <th className="p-2 text-left">#</th>
+                        {/* "Rank", not "#": it is a position by score, not the row's
+                            place in whatever column is currently sorted. */}
+                        <th className="p-2 text-left" title="Position by score — does not change when you sort another column">Rank</th>
                         <LeaderTh sortKey="leader" align="left" sort={leaderSort} onSort={toggleLeaderSort}>Leader</LeaderTh>
                         <LeaderTh sortKey="score" sort={leaderSort} onSort={toggleLeaderSort}>Score</LeaderTh>
                         <LeaderTh sortKey="eff" sort={leaderSort} onSort={toggleLeaderSort}>Efficiency</LeaderTh>
@@ -851,9 +891,22 @@ export default function AnalyticsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {leaderRowsSorted.map((r, i) => (
+                      {leaderRowsSorted.map((r) => {
+                        const rank = leaderRank.get(r.leader) ?? null;
+                        const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+                        return (
                         <tr key={r.leader} className="border-t">
-                          <td className="p-2">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</td>
+                          <td className="p-2 tabular-nums">
+                            {rank === null ? (
+                              <span className="text-muted-foreground" title="Nothing measurable in this period — unranked, not last">—</span>
+                            ) : medal ? (
+                              // The emoji is the whole cell, so it needs a name a screen
+                              // reader can say. "🥇" on its own is announced as nothing.
+                              <span role="img" aria-label={`Rank ${rank} by score`} title={`Rank ${rank} by score`}>{medal}</span>
+                            ) : (
+                              rank
+                            )}
+                          </td>
                           <td className="p-2 font-medium">{r.leader}</td>
                           <td className="p-2 text-right">
                             {r.score === null ? (
@@ -904,7 +957,8 @@ export default function AnalyticsPage() {
                           <td className="p-2 text-right tabular-nums font-semibold">{r.actual.toLocaleString("en-US")}</td>
                           <td className="p-2 text-right tabular-nums text-muted-foreground">{r.target.toLocaleString("en-US")}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1278,7 +1332,7 @@ export default function AnalyticsPage() {
 
         {/* Printed footer — same identity line every report carries. */}
         <div className="print-doc-footer hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
-          <span>Analytics Report · {format(startDate, "dd/MM/yyyy")} — {format(endDate, "dd/MM/yyyy")}</span>
+          <span>Analytics Report · {reportPeriodLabel(period, "dd/MM/yyyy")}</span>
           <span>Applied Nutrition · Confidential · printed {format(new Date(), "dd/MM/yyyy HH:mm")}</span>
         </div>
       </div>
