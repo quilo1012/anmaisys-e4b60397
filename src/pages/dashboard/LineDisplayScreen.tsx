@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, SHIFT_LABEL } from "@/lib/shifts";
 import {
   computePace,
+  lineScore,
   balanceLabel,
   lastEntryAgeMinutes,
   PACE_MESSAGES,
@@ -231,7 +232,20 @@ export default function LineDisplayScreen() {
     [items, now],
   );
 
-  const pct = pace.kind === "PACE" ? pace.pct : 0;
+  // A mesma leitura que veste o cartão do board, pela mesma função: se um dia
+  // forem duas contas, é este ecrã que perde a autoridade, porque é o que se lê
+  // de longe e ninguém confere. Nulo quando há um plano e nada escrito — 0% aí
+  // não é uma medição, é a ausência de uma.
+  const score = lineScore(pace, target, actual);
+  // O que a barra imprime: feito a dividir pelo alvo do turno — os dois
+  // mosaicos ACTUAL e TARGET que estão um palmo acima. Estava aqui o ritmo,
+  // "60%" contra o que era devido a esta hora, e era a única percentagem do
+  // ecrã cujo denominador não está escrito em lado nenhum na parede.
+  const measure = score
+    ? `${score.attainedPct.toFixed(1)}%`
+    : pace.kind !== "PACE"
+      ? PACE_MESSAGES[pace.kind]
+      : "—";
   const status =
     pace.kind === "PACE"
       ? { label: VERDICT_LABEL[pace.verdict], color: VERDICT_COLOR[pace.verdict] }
@@ -335,20 +349,20 @@ export default function LineDisplayScreen() {
 
       <div className="bg-wall-panel rounded-2xl p-6">
         <div className="flex justify-between mb-3 text-xl">
-          <span className="text-wall-ink-muted">Pace — against the target for the time worked so far</span>
-          <span className="font-bold">
-            {pace.kind === "PACE" ? `${pct.toFixed(1)}%` : PACE_MESSAGES[pace.kind]}
-          </span>
+          <span className="text-wall-ink-muted">Made — against the shift target</span>
+          <span className="font-bold">{measure}</span>
         </div>
         <div className="h-12 bg-wall-line rounded-full overflow-hidden">
-          {/* Width is still progress against the shift plan — that is what the
-              countdown is for. Only the colour follows the pace. */}
+          {/* Largura e percentagem dizem agora a mesma coisa — feito sobre o alvo
+              do turno. Só a COR é que continua a vir do ritmo: às cinco horas de
+              doze, uma linha que está a aguentar não pode ser pintada de vermelho
+              pelas sete horas que ainda ninguém trabalhou. */}
           <div className={`h-full ${barColor} transition-all duration-700`} style={{ width: `${planPct}%` }} />
         </div>
         {/* The screen states its own imprecision rather than leaving it to be
             found out. Both notes are removable the day their cause is fixed. */}
         <div className="mt-3 text-sm text-wall-ink-muted space-y-1">
-          <p>Planned stops (deep clean, breaks, no planned shift) are not yet deducted — the pace reads slightly low.</p>
+          <p>Planned stops (deep clean, breaks, no planned shift) are not yet deducted — the colour reads slightly harsh.</p>
           <p>
             Figures are operator entries, not a live machine count
             {entryAge != null ? ` · last entry ${entryAge} min ago` : " · nothing entered yet"}.
