@@ -4,8 +4,11 @@ import { classifyLive, formatStopDuration, stopClock, STALE_AFTER_SECONDS, type 
 const now = new Date("2026-08-08T17:00:00.000Z");
 const secondsAgo = (s: number) => new Date(now.getTime() - s * 1000);
 
+// Status 1 by default: a machine iTouching reports as healthy. It used to be 4,
+// which is one of the values this installation returns for a machine that is NOT
+// running — so every test that meant "a running line" was written on a stopped one.
 const reading = (over: Partial<LiveReading> = {}): LiveReading => ({
-  status: 4,
+  status: 1,
   reason: null,
   planned: null,
   seenAt: secondsAgo(20),
@@ -92,14 +95,55 @@ describe("classifyLive — nothing to read", () => {
     expect(classifyLive(undefined, now).state).toBe("NOT_MAPPED");
   });
 
-  it("carries the raw status through without interpreting it", () => {
-    // 4, 6 and 7 are the values this installation actually returns, and their
-    // meaning is an open question with the vendor. Nothing here depends on them.
+  it("carries the raw status through untouched, whatever it decides", () => {
+    // The number goes into the tooltip verbatim, because its meaning is still an
+    // open question with the vendor and the next person to ask needs to see it.
+    for (const status of [1, 2, 4, 6, 7]) {
+      expect(classifyLive(reading({ status }), now).rawStatus).toBe(status);
+    }
+  });
+});
+
+describe("a line with no stop code is not thereby running", () => {
+  // 12/08 às 09:57 UTC: seis das sete linhas estavam em `last_status` 4 ou 6, sem
+  // código de paragem, e as sete leram RUNNING em verde. A Line 5 tinha feito 0
+  // unidades, não tinha ordem nenhuma, e a manhã dela em iTouching é Brushing and
+  // Cleaning → Line Preparation → Alarm: estava a ser limpa e preparada.
+  //
+  // Ausência de código não é prova de produção. É iTouching a não ter um código
+  // activo NAQUELE minuto — os `production_downtimes` de hoje mostram códigos a
+  // aparecer e a fechar de minuto a minuto na mesma linha. Quem decide é o estado.
+  it("only calls it running on a status iTouching reports as healthy", () => {
+    for (const status of [1, 2]) {
+      expect(classifyLive(reading({ status }), now).state).toBe("RUNNING");
+    }
+  });
+
+  it("does not paint a line green on a status the poller itself reads as stopped", () => {
+    // HEALTHY_STATUS = {1, 2} em `intouch-poll`, e `wallboard-lines` recusa-se a
+    // acender RUN fora desse conjunto. Este ecrã era o único que acendia.
     for (const status of [4, 6, 7]) {
       const r = classifyLive(reading({ status }), now);
-      expect(r.rawStatus).toBe(status);
-      expect(r.state).toBe("RUNNING");
+      expect(r.state).toBe("STOPPED_NO_CODE");
     }
+  });
+
+  it("says the stop has no code rather than inventing a reason for it", () => {
+    const r = classifyLive(reading({ status: 4 }), now);
+    // iTouching's own legend: RUNNING / STOPPED-NO CODE / UNPLANNED STOP /
+    // PLANNED STOP. The fourth state was the one this board did not have.
+    expect(r.label).toBe("STOPPED · NO CODE");
+    expect(r.stoppedForSeconds).toBeNull();
+  });
+
+  it("does not claim a state for a reading that carries no status at all", () => {
+    expect(classifyLive(reading({ status: null }), now).state).toBe("NO_SIGNAL");
+  });
+
+  it("still lets a coded stop name itself, whatever the status number is", () => {
+    const r = classifyLive(reading({ status: 4, reason: "Deep Clean", planned: true }), now);
+    expect(r.state).toBe("PLANNED_STOP");
+    expect(r.label).toBe("Deep Clean");
   });
 });
 

@@ -6,24 +6,42 @@
  * of a breakdown this morning and be running perfectly at this minute, and the
  * supervisor needs both readings side by side.
  *
- * WHAT THIS DOES NOT KNOW. `intouch_machine_map.last_status` holds 4, 6 and 7 in
- * this installation — never the 1 and 2 that `intouch-poll`'s HEALTHY_STATUS
- * expects — and nobody has confirmed what the numbers mean. So the state is
- * decided by the presence of a STOP CODE, which is unambiguous, and the raw
- * number is carried through untouched for whoever settles that question.
+ * WHAT DECIDES A GREEN PILL. Two things, and it used to be one. A stop code names
+ * the stop exactly, and where the code is present the reason is verbatim. But the
+ * ABSENCE of a code is not production: iTouching publishes a DowntimeCode only
+ * while one is active on the panel, and today's `production_downtimes` show codes
+ * opening and closing on the same line minute by minute, with blank between them.
  *
- * One consequence worth knowing before reading a green pill: a machine on Breaks
- * has been observed reporting as running with no stop code (measured on Filler
- * Line 2 and 4, see migration 20260731230000). Where the code IS present — which
- * is the case for every machine mapped today — the reason is exact.
+ * So the status decides whether a line with no code is running, and 1 and 2 are
+ * the only values that mean it is — `intouch-poll`'s HEALTHY_STATUS and
+ * `wallboard-lines`, which has always refused "a green light nobody earned". This
+ * board was the one screen that gave it away for free: on 12/08 at 09:57 UTC six
+ * of seven lines sat at status 4 or 6 with no code and all seven read RUNNING.
+ * Line 5 had made nothing, had no order, and had spent the morning in Brushing
+ * and Cleaning, Line Preparation and Alarm.
+ *
+ * WHAT THIS STILL DOES NOT KNOW: what 4 and 6 mean apart from each other. Both
+ * are outside the healthy set, so both read as a stop nobody coded — which is
+ * iTouching's own fourth state, not an invention — and the raw number is carried
+ * through untouched for whoever settles the question with the vendor.
  */
 
 export type LiveState =
   | "RUNNING"
+  /** Standing still with no reason published. iTouching's "STOPPED-NO CODE". */
+  | "STOPPED_NO_CODE"
   | "PLANNED_STOP"
   | "UNPLANNED_STOP"
   | "NO_SIGNAL"
   | "NOT_MAPPED";
+
+/**
+ * The statuses that mean the machine is making something. Same set as
+ * `intouch-poll`'s HEALTHY_STATUS and `wallboard-lines`' — kept identical on
+ * purpose: three screens disagreeing about what "running" is, is how a line came
+ * to read green and stopped at the same time.
+ */
+export const ITOUCH_HEALTHY_STATUS = new Set<number>([1, 2]);
 
 /** A reading older than this is not a state, it is a memory. */
 export const STALE_AFTER_SECONDS = 90;
@@ -119,11 +137,33 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
     };
   }
 
-  // No stop code. Not proof of production — see the Breaks note above — but it is
-  // exactly what iTouching is saying, and RUNNING is iTouching's own word for it:
-  // its screen legend reads RUNNING / STOPPED-NO CODE / UNPLANNED STOP / PLANNED
-  // STOP. The board must not invent a vocabulary the floor does not already read.
-  return { state: "RUNNING", label: "RUNNING", ageSeconds, rawStatus: reading.status, uncatalogued: false, stoppedForSeconds: null };
+  // No stop code, so the status is the only witness left.
+  //
+  // A reading with no status at all is not a state either way: nothing has been
+  // said about this machine, which is what NO SIGNAL means, and it is honest about
+  // that instead of picking one of the two answers it does not have.
+  if (reading.status == null) {
+    return { state: "NO_SIGNAL", label: "NO SIGNAL", ageSeconds, rawStatus: null, uncatalogued: false, stoppedForSeconds: null };
+  }
+
+  if (ITOUCH_HEALTHY_STATUS.has(reading.status)) {
+    // RUNNING is iTouching's own word, from the legend the floor already reads:
+    // RUNNING / STOPPED-NO CODE / UNPLANNED STOP / PLANNED STOP. The board must
+    // not invent a vocabulary beside it.
+    return { state: "RUNNING", label: "RUNNING", ageSeconds, rawStatus: reading.status, uncatalogued: false, stoppedForSeconds: null };
+  }
+
+  // Standing still, and iTouching has published no reason for it. The fourth state
+  // in that legend, and the one this board did not have — so it called it RUNNING.
+  // Nothing to time: with no code there is no `stop_since_at` to time it from.
+  return {
+    state: "STOPPED_NO_CODE",
+    label: "STOPPED · NO CODE",
+    ageSeconds,
+    rawStatus: reading.status,
+    uncatalogued: false,
+    stoppedForSeconds: null,
+  };
 }
 
 /**
@@ -132,6 +172,10 @@ export function classifyLive(reading: LiveReading | null | undefined, now: Date)
  */
 export const LIVE_TONE: Record<LiveState, string> = {
   RUNNING: "bg-success/10 text-success-strong border-success/30",
+  // Neither green nor a fault. A line standing still with nobody saying why is
+  // something to go and ask about, which is what the warning tone is for — and it
+  // must not borrow the red that a named breakdown owns.
+  STOPPED_NO_CODE: "bg-warning/10 text-warning-strong border-warning/30",
   // Planned stops are deliberately quiet. The line is down on purpose, and
   // painting a deep clean the same red as a breakdown is how a board teaches
   // people to ignore red.

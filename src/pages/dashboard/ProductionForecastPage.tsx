@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator, Zap, Clock } from "lucide-react";
+import { buildSkuCatalogue, identifyItemSku } from "@/lib/lineSku";
 
 const SHIFT_MIN = 660; // available production minutes per shift
 
@@ -117,15 +118,28 @@ export default function ProductionForecastPage() {
       const ids = Array.from(sessionMap.keys());
 
       const perLine = new Map<string, { actual: number; target: number; runs: number }>();
+      // A catalogue of one: the only question here is whether a row means THIS
+      // SKU, so a text code that matches anything else stays out.
+      const catalogue = buildSkuCatalogue([sku]);
       if (ids.length) {
+        // `.eq("sku_id", sku.id)` alone left this SKU's own history short: a run
+        // entered by hand on the line carries the code in `sku_code_text` with no
+        // link, so the units it made were never part of the speed this forecast is
+        // built on. The filter widens to "linked to this SKU, or unlinked at all"
+        // — no code interpolated into a PostgREST expression — and the match by
+        // code is settled here, by the same rule every other screen uses.
         const { data: items } = await supabase
           .from("production_items")
-          .select("session_id, sku_id, target_qty, planned_qty, actual_qty")
-          .eq("sku_id", sku.id)
+          .select("session_id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty")
+          .or(`sku_id.eq.${sku.id},sku_id.is.null`)
           .in("session_id", ids);
         for (const it of items ?? []) {
           const s = sessionMap.get(it.session_id);
           if (!s) continue;
+          if (identifyItemSku(
+            { sku_id: it.sku_id, sku_code_text: it.sku_code_text, actual: 0, started_at: null, finished_at: null },
+            catalogue,
+          )?.row?.id !== sku.id) continue;
           const target = Number(it.target_qty ?? it.planned_qty ?? 0);
           const actual = Number(it.actual_qty ?? 0);
           if (target <= 0 && actual <= 0) continue;

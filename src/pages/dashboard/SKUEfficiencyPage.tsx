@@ -10,9 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trophy, AlertTriangle, Download, Search, Gauge } from "lucide-react";
+import { useSkuProducts } from "@/hooks/useProductionPlanner";
+import { buildSkuCatalogue, identifyItemSku } from "@/lib/lineSku";
 
 type Row = {
-  sku_id: string;
+  /** The grouping key from `identifyItemSku` — a catalogue id or the typed text. */
+  sku_key: string;
   sku_code: string;
   sku_name: string;
   category: string | null;
@@ -21,6 +24,8 @@ type Row = {
   target: number;
   actual: number;
   runs: number;
+  /** Not in `sku_products`: the code is what somebody typed, unreconciled. */
+  uncatalogued: boolean;
 };
 
 const RANGE_DAYS = [7, 30, 60, 90] as const;
@@ -37,8 +42,15 @@ export default function SKUEfficiencyPage() {
   const [sortBy, setSortBy] = useState<"eff_asc" | "eff_desc" | "gap_desc" | "runs_desc">("eff_asc");
   const [search, setSearch] = useState("");
 
+  // Every SKU, active or not: a product deactivated last month still ran last
+  // month, and this table is history.
+  const { data: skus = [] } = useSkuProducts(false);
+  const catalogue = useMemo(() => buildSkuCatalogue(skus), [skus]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["sku-efficiency", days],
+    // The catalogue is part of the answer, so a ranking cannot be served from a
+    // cache built before the SKUs arrived.
+    queryKey: ["sku-efficiency", days, skus.length],
     queryFn: async () => {
       const since = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
       const { data: sessions, error: sErr } = await supabase
@@ -52,7 +64,7 @@ export default function SKUEfficiencyPage() {
 
       const { data: items, error: iErr } = await supabase
         .from("production_items")
-        .select("session_id, sku_id, target_qty, planned_qty, actual_qty, sku_products(code,name,category,target_per_hour)")
+        .select("session_id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty")
         .in("session_id", ids);
       if (iErr) throw iErr;
 
@@ -60,9 +72,17 @@ export default function SKUEfficiencyPage() {
       for (const it of items ?? []) {
         const s = sessionMap.get(it.session_id);
         if (!s) continue;
-        const sku = (it as any).sku_products;
-        if (!sku) continue;
-        const key = `${it.sku_id}|${s.line}`;
+        // The product came from the embedded `sku_products` join, so anything the
+        // import left unlinked was dropped by `if (!sku) continue` — 22 rows and
+        // 29.325 units in the last 90 days, gone from the ranking without a word.
+        // Now it resolves by code too, and what still does not resolve is a row
+        // of its own under the code somebody typed.
+        const id = identifyItemSku(
+          { sku_id: it.sku_id, sku_code_text: it.sku_code_text, actual: 0, started_at: null, finished_at: null },
+          catalogue,
+        );
+        if (!id) continue; // no product named in either column: nothing to rank
+        const key = `${id.key}|${s.line}`;
         const target = Number(it.target_qty ?? it.planned_qty ?? 0);
         const actual = Number(it.actual_qty ?? 0);
         const prev = agg.get(key);
@@ -72,15 +92,16 @@ export default function SKUEfficiencyPage() {
           prev.runs += 1;
         } else {
           agg.set(key, {
-            sku_id: it.sku_id,
-            sku_code: sku.code,
-            sku_name: sku.name,
-            category: sku.category,
-            upm_standard: Number(sku.target_per_hour ?? 0),
+            sku_key: id.key,
+            sku_code: id.code,
+            sku_name: id.name,
+            category: id.row?.category ?? null,
+            upm_standard: Number(id.row?.target_per_hour ?? 0),
             line: s.line,
             target,
             actual,
             runs: 1,
+            uncatalogued: id.uncatalogued,
           });
         }
       }
@@ -142,6 +163,9 @@ export default function SKUEfficiencyPage() {
       { header: "Efficiency %", key: "eff", width: 14 },
       { header: "Runs", key: "runs", width: 8 },
       { header: "UPM Standard", key: "upm_standard", width: 14 },
+      // Travels into the workbook too. A spreadsheet that drops the caveat is the
+      // version that gets forwarded.
+      { header: "In SKU Products", key: "reconciled", width: 16 },
     ];
     ws.getRow(1).font = { bold: true };
     filtered.forEach((r) =>
@@ -156,6 +180,7 @@ export default function SKUEfficiencyPage() {
         eff: Number(r.eff.toFixed(1)),
         runs: r.runs,
         upm_standard: r.upm_standard,
+        reconciled: r.uncatalogued ? "NO — typed by hand" : "yes",
       }),
     );
     ws.getColumn("eff").numFmt = '0.0"%"';
@@ -219,7 +244,7 @@ export default function SKUEfficiencyPage() {
             <CardContent className="space-y-2">
               {worst.length === 0 && <p className="text-sm text-muted-foreground">No SKUs below target.</p>}
               {worst.map((r) => (
-                <div key={`${r.sku_id}-${r.line}`} className="flex items-center justify-between gap-2 border-b last:border-b-0 pb-2 last:pb-0">
+                <div key={`${r.sku_key}-${r.line}`} className="flex items-center justify-between gap-2 border-b last:border-b-0 pb-2 last:pb-0">
                   <div className="min-w-0">
                     <div className="font-medium truncate">{r.sku_code} — {r.sku_name}</div>
                     <div className="text-xs text-muted-foreground">{r.line} • {r.runs} run{r.runs > 1 ? "s" : ""}</div>
@@ -238,7 +263,7 @@ export default function SKUEfficiencyPage() {
             <CardContent className="space-y-2">
               {best.length === 0 && <p className="text-sm text-muted-foreground">No SKUs hitting 100%+ yet.</p>}
               {best.map((r) => (
-                <div key={`${r.sku_id}-${r.line}`} className="flex items-center justify-between gap-2 border-b last:border-b-0 pb-2 last:pb-0">
+                <div key={`${r.sku_key}-${r.line}`} className="flex items-center justify-between gap-2 border-b last:border-b-0 pb-2 last:pb-0">
                   <div className="min-w-0">
                     <div className="font-medium truncate">{r.sku_code} — {r.sku_name}</div>
                     <div className="text-xs text-muted-foreground">{r.line} • {r.runs} run{r.runs > 1 ? "s" : ""}</div>
@@ -285,8 +310,17 @@ export default function SKUEfficiencyPage() {
                 </TableHeader>
                 <TableBody>
                   {filtered.map((r) => (
-                    <TableRow key={`${r.sku_id}-${r.line}`}>
-                      <TableCell className="font-mono text-xs">{r.sku_code}</TableCell>
+                    <TableRow key={`${r.sku_key}-${r.line}`}>
+                      <TableCell className="font-mono text-xs">
+                        {/* Ranked, and marked. A code that is not in SKU Products
+                            has no standard behind its UPM column and nothing links
+                            it to the same product's other runs — the row is real,
+                            and how much it can be trusted has to travel with it. */}
+                        <span className={r.uncatalogued ? "italic text-warning-strong" : undefined}
+                          title={r.uncatalogued ? "Not in SKU Products — typed by hand on the line. Reconcile the SKU in Production Control." : undefined}>
+                          {r.sku_code}{r.uncatalogued ? " *" : ""}
+                        </span>
+                      </TableCell>
                       <TableCell className="max-w-[280px] truncate">{r.sku_name}</TableCell>
                       <TableCell>{r.line}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.target.toLocaleString()}</TableCell>

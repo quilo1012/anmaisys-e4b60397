@@ -1,0 +1,151 @@
+import { describe, it, expect } from "vitest";
+import { buildSkuCatalogue, identifyItemSku, pickLineSku, type LineSkuItem } from "./lineSku";
+
+// The catalogue as the board reads it: what `sku_products` holds.
+const catalogue = buildSkuCatalogue([
+  { id: "sku-abeeng", code: "ABEENG", name: "A.B.E 375G ENERGY     [HS CODE:2106909285]", target_per_hour: 720 },
+  { id: "sku-bfwp", code: "BFWP900WCP", name: "BODYFUEL WHEY PROTEIN 900G WHITE CHOCOLATE PISTACHIO     [HS CODE:2106108070]", target_per_hour: 600 },
+  { id: "sku-morcw", code: "MORCW2CNC", name: "CRITICAL WHEY 2KG COOKIES N CREAM - MOROCCO [HS CODE:1806907090]", target_per_hour: 0 },
+]);
+
+const item = (over: Partial<LineSkuItem> = {}): LineSkuItem => ({
+  sku_id: null,
+  sku_code_text: null,
+  actual: 0,
+  started_at: null,
+  finished_at: null,
+  ...over,
+});
+
+describe("pickLineSku — what the line is making", () => {
+  it("names the product from the linked SKU", () => {
+    const sku = pickLineSku([item({ sku_id: "sku-bfwp", actual: 573 })], catalogue);
+    expect(sku?.code).toBe("BFWP900WCP");
+    expect(sku?.ratePerHour).toBe(600);
+  });
+
+  // Line 2, 12/08: 1.832 feitas, `sku_id` NULL, `sku_code_text` = 'ABEENG'. O
+  // cartão não dizia o que a linha estava a fazer E dizia "SKU has no standard
+  // rate" sobre um produto que tem 720/h na tabela. Duas leituras erradas, uma
+  // causa: só se olhava para `sku_id`.
+  it("names the product from the code the import left as text", () => {
+    const sku = pickLineSku([item({ sku_code_text: "ABEENG", actual: 1832 })], catalogue);
+    expect(sku?.code).toBe("ABEENG");
+    expect(sku?.name).toContain("A.B.E 375G ENERGY");
+    expect(sku?.ratePerHour).toBe(720);
+  });
+
+  it("matches the text code however it was typed", () => {
+    expect(pickLineSku([item({ sku_code_text: "  abeeng " })], catalogue)?.code).toBe("ABEENG");
+  });
+
+  // Tablet Line, 12/08: `sku_code_text` = 'Vitamin  d3 and k2', que não é código
+  // nenhum. O que o operador escreveu é a única identificação que existe, e uma
+  // ranhura vazia diz menos do que ela.
+  it("shows what was typed even when the catalogue has never heard of it", () => {
+    const sku = pickLineSku([item({ sku_code_text: "Vitamin  d3 and k2", actual: 3441 })], catalogue);
+    expect(sku?.code).toBe("Vitamin d3 and k2");
+    expect(sku?.ratePerHour).toBeNull();
+    expect(sku?.uncatalogued).toBe(true);
+  });
+
+  it("has nothing to say about a line with no product recorded at all", () => {
+    expect(pickLineSku([item({ actual: 100 })], catalogue)).toBeNull();
+    expect(pickLineSku([], catalogue)).toBeNull();
+  });
+
+  it("prefers the item that is running over the biggest one", () => {
+    const sku = pickLineSku([
+      item({ sku_id: "sku-bfwp", actual: 5000, finished_at: "2026-08-12T06:40:00Z", started_at: "2026-08-12T05:20:00Z" }),
+      item({ sku_code_text: "ABEENG", actual: 10, started_at: "2026-08-12T09:00:00Z" }),
+    ], catalogue);
+    expect(sku?.code).toBe("ABEENG");
+  });
+
+  it("falls back to the item the shift was spent on when every item is closed", () => {
+    const sku = pickLineSku([
+      item({ sku_id: "sku-bfwp", actual: 214, finished_at: "2026-08-12T09:30:00Z" }),
+      item({ sku_id: "sku-morcw", actual: 539, finished_at: "2026-08-12T09:30:00Z" }),
+    ], catalogue);
+    expect(sku?.code).toBe("MORCW2CNC");
+  });
+
+  // Line 6, 12/08: duas linhas de produção para o MESMO produto, uma ligada por
+  // `sku_id` e a outra só com o código em texto. "+1" ao lado do código diria que
+  // a linha correu dois produtos, e correu um.
+  it("counts products, not rows", () => {
+    const sku = pickLineSku([
+      item({ sku_id: "sku-morcw", actual: 214 }),
+      item({ sku_code_text: "MORCW2CNC", actual: 539 }),
+    ], catalogue);
+    expect(sku?.code).toBe("MORCW2CNC");
+    expect(sku?.others).toBe(0);
+  });
+
+  it("counts the other products the line ran in the period", () => {
+    const sku = pickLineSku([
+      item({ sku_id: "sku-morcw", actual: 539 }),
+      item({ sku_code_text: "ABEENG", actual: 10 }),
+      item({ sku_id: "sku-bfwp", actual: 5 }),
+    ], catalogue);
+    expect(sku?.others).toBe(2);
+  });
+});
+
+describe("identifyItemSku — one product, one row, on every screen", () => {
+  // O SKU Efficiency agrupava por `sku_id` e fazia `if (!sku) continue`: as linhas
+  // com o produto só em texto desapareciam da tabela em silêncio — 22 linhas e
+  // 29.325 unidades em 90 dias. Uma tabela que deixa de fora aquilo que não soube
+  // ler não diz que não soube; parece completa.
+  it("gives a linked row and a text row for the same product the same key", () => {
+    const a = identifyItemSku(item({ sku_id: "sku-morcw", actual: 214 }), catalogue);
+    const b = identifyItemSku(item({ sku_code_text: "morcw2cnc", actual: 539 }), catalogue);
+    expect(a?.key).toBe(b?.key);
+    expect(b?.code).toBe("MORCW2CNC");
+    expect(b?.uncatalogued).toBe(false);
+  });
+
+  it("keeps an unmatched code as its own row instead of dropping it", () => {
+    const id = identifyItemSku(item({ sku_code_text: "Criticql whey vanilla 825" }), catalogue);
+    expect(id).not.toBeNull();
+    expect(id?.code).toBe("Criticql whey vanilla 825");
+    expect(id?.uncatalogued).toBe(true);
+    expect(id?.row).toBeNull();
+  });
+
+  // Duas grafias do mesmo engano — "Critical whey vanilla 825" e "Criticql whey
+  // vanilla 825", em dias seguidos na Line 6 — são dois produtos até alguém as
+  // reconciliar. Adivinhar qual é qual seria inventar produção.
+  it("does not guess that two different typings are the same product", () => {
+    const a = identifyItemSku(item({ sku_code_text: "Critical whey vanilla 825" }), catalogue);
+    const b = identifyItemSku(item({ sku_code_text: "Criticql whey vanilla 825" }), catalogue);
+    expect(a?.key).not.toBe(b?.key);
+  });
+
+  it("has nothing to identify when both columns are empty", () => {
+    expect(identifyItemSku(item({ actual: 9836 }), catalogue)).toBeNull();
+    expect(identifyItemSku(item({ sku_code_text: "   " }), catalogue)).toBeNull();
+  });
+
+  it("carries the catalogue row through for whoever needs the rest of it", () => {
+    const id = identifyItemSku(item({ sku_code_text: "ABEENG" }), catalogue);
+    expect(id?.row?.id).toBe("sku-abeeng");
+    expect(id?.row?.target_per_hour).toBe(720);
+  });
+});
+
+describe("the rate a line is paced against", () => {
+  it("is found through the text code too, so the line still gets a pace", () => {
+    const sku = pickLineSku([item({ sku_code_text: "ABEENG", actual: 1832 })], catalogue);
+    expect(sku?.ratePerHour).toBe(720);
+  });
+
+  // MORCW2CNC tem target_per_hour = 0 — 208 SKUs activos têm. Zero não é uma
+  // cadência e não pode passar por uma; é a ausência de um padrão, e o cartão
+  // tem de continuar a dizer "sem padrão" com o nome do produto ao lado.
+  it("treats a zero standard as no standard", () => {
+    const sku = pickLineSku([item({ sku_id: "sku-morcw", actual: 214 })], catalogue);
+    expect(sku?.code).toBe("MORCW2CNC");
+    expect(sku?.ratePerHour).toBeNull();
+  });
+});
