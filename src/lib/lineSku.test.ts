@@ -92,6 +92,77 @@ describe("pickLineSku — what the line is making", () => {
   });
 });
 
+describe("the job iTouching says is running, when nothing was logged", () => {
+  // Line 2, 12/08 11:04Z: zero production_items — a linha estava em Line
+  // Preparation, a ser montada. O 1.832/ABEENG que lá esteve era a produção da
+  // Line 3 no lote errado e foi apagado. Nada na base sabia o produto, e o
+  // iTouching sabia: é ele que tem o job Running por máquina.
+  const now = new Date("2026-08-12T11:04:06Z");
+  const live = (over: Partial<{ code: string | null; name: string | null; seenAt: Date | null; state: "running" | "next" }> = {}) => ({
+    job: { code: "ABEENG", name: "A.B.E 375G ENERGY", seenAt: new Date("2026-08-12T11:00:00Z"), state: "running" as const, ...over },
+    now,
+  });
+
+  it("names the live job and says where it came from", () => {
+    const sku = pickLineSku([], catalogue, live());
+    expect(sku?.code).toBe("ABEENG");
+    expect(sku?.source).toBe("itouch");
+    expect(sku?.liveState).toBe("running");
+  });
+
+  // Uma linha em Line Preparation não está a fazer o produto para que está a ser
+  // montada. O cartão nomeia-o e diz que é o próximo — não o carimba de "a
+  // correr", que é a única coisa que não pode dizer.
+  it("carries through that the job has not started", () => {
+    const sku = pickLineSku([], catalogue, live({ state: "next" }));
+    expect(sku?.liveState).toBe("next");
+    expect(sku?.source).toBe("itouch");
+  });
+
+  it("says nothing about a live state for something logged on the line", () => {
+    expect(pickLineSku([item({ sku_id: "sku-bfwp", actual: 10 })], catalogue, live())?.liveState).toBeNull();
+  });
+
+  it("takes the name and the standard from the catalogue, not from iTouching's text", () => {
+    // O nome do catálogo é o que o resto do sistema usa; e a cadência existe,
+    // mesmo que ninguém tenha registado uma ordem contra ela.
+    const sku = pickLineSku([], catalogue, live({ name: "abe energy 375" }));
+    expect(sku?.name).toContain("A.B.E 375G ENERGY");
+    expect(sku?.ratePerHour).toBe(720);
+  });
+
+  it("shows a live code the catalogue does not hold, marked", () => {
+    const sku = pickLineSku([], catalogue, live({ code: "NOVOSKU9", name: null }));
+    expect(sku?.code).toBe("NOVOSKU9");
+    expect(sku?.uncatalogued).toBe(true);
+    expect(sku?.source).toBe("itouch");
+  });
+
+  // Um registo nosso tem quantidade contra que medir; o job do iTouching não.
+  // Onde os dois existem, quem manda é o que foi registado na linha.
+  it("never overrides what was logged on the line", () => {
+    const sku = pickLineSku([item({ sku_id: "sku-bfwp", actual: 1623 })], catalogue, live());
+    expect(sku?.code).toBe("BFWP900WCP");
+    expect(sku?.source).toBe("logged");
+  });
+
+  it("refuses a job nobody has confirmed for half an hour", () => {
+    // O poll pergunta a cada cinco minutos e limpa o campo quando não há job.
+    // Um valor que sobreviveu a isso é o poll parado, não uma linha a correr.
+    expect(pickLineSku([], catalogue, live({ seenAt: new Date("2026-08-12T10:30:00Z") }))).toBeNull();
+    expect(pickLineSku([], catalogue, live({ seenAt: null }))).toBeNull();
+  });
+
+  it("has nothing to say when iTouching has no running job either", () => {
+    expect(pickLineSku([], catalogue, live({ code: null }))).toBeNull();
+    expect(pickLineSku([], catalogue)).toBeNull();
+  });
+
+  it("counts no other products off a live job — it is one job, not a period", () => {
+    expect(pickLineSku([], catalogue, live())?.others).toBe(0);
+  });
+});
+
 describe("identifyItemSku — one product, one row, on every screen", () => {
   // O SKU Efficiency agrupava por `sku_id` e fazia `if (!sku) continue`: as linhas
   // com o produto só em texto desapareciam da tabela em silêncio — 22 linhas e

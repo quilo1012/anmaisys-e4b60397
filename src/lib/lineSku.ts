@@ -38,6 +38,40 @@ export interface LineSkuItem {
   finished_at: string | null;
 }
 
+/**
+ * The job iTouching says is RUNNING on the machine, as the poll last saw it.
+ *
+ * Not an order in this system: there is no quantity behind it and nothing was
+ * logged against it. It answers "what is on the line" for a line that has not
+ * been written down yet — Line 2 on 12/08 sat in Line Preparation with no
+ * production_items at all, and the board could not name what it was being set up
+ * for while the iTouching screen beside it could.
+ */
+export interface LiveJob {
+  /** PartCode from iTouching's work order, cleaned. Null when no job is running. */
+  code: string | null;
+  /** iTouching's own description. Only used when the catalogue has no match. */
+  name: string | null;
+  /** When the poll last saw this job. */
+  seenAt: Date | null;
+  /**
+   * Whether iTouching has this job RUNNING, or has it as the next one in the
+   * queue. A line in Line Preparation has no running job by definition, and the
+   * product it is being set up for is still the answer to "what is on this line"
+   * — as long as the card does not claim it is being made.
+   */
+  state: "running" | "next";
+}
+
+/**
+ * A live job older than this is not a state, it is a leftover.
+ *
+ * The poll asks every five minutes and CLEARS the field when no job is running,
+ * so a value that survived far longer means the poll stopped — and a stopped
+ * poll must not keep a product on the card as if somebody had confirmed it.
+ */
+export const LIVE_JOB_STALE_AFTER_SECONDS = 30 * 60;
+
 export interface LineSku {
   /** The catalogue code, or verbatim what the operator typed when there is none. */
   code: string;
@@ -53,6 +87,19 @@ export interface LineSku {
   uncatalogued: boolean;
   /** How many OTHER products the line ran in the period. Products, not rows. */
   others: number;
+  /**
+   * Where the product came from. "logged" is a production row on this line, with
+   * a quantity behind it; "itouch" is the live job, which names the product and
+   * measures nothing. The card keeps them apart because they are not equally good
+   * evidence, and only one of them can be scored.
+   */
+  source: "logged" | "itouch";
+  /**
+   * For a product that came from iTouching, whether it is running there or is
+   * next up. Null for anything logged on the line, which is measured and needs
+   * no such qualifier.
+   */
+  liveState: "running" | "next" | null;
 }
 
 export interface SkuCatalogue {
@@ -130,12 +177,21 @@ export function identifyItemSku(item: LineSkuItem, catalogue: SkuCatalogue): Ite
  * finished. Where nobody recorded the times, the item with the most made stands
  * in. That is the same question answered with worse evidence, and it is the
  * common case on this board: on 12/08 every line's last item was already closed.
+ *
+ * With NOTHING logged, iTouching's running job answers instead — see `LiveJob`.
+ * It never outranks a production row: a row has a quantity behind it and can be
+ * scored, and the live job cannot, so where both exist the row is the better
+ * evidence and the only one the pace may be computed from.
  */
-export function pickLineSku(items: LineSkuItem[], catalogue: SkuCatalogue): LineSku | null {
+export function pickLineSku(
+  items: LineSkuItem[],
+  catalogue: SkuCatalogue,
+  live?: { job: LiveJob | null | undefined; now: Date },
+): LineSku | null {
   const identified = items
     .map((i) => ({ item: i, id: identifyItemSku(i, catalogue) }))
     .filter((x): x is { item: LineSkuItem; id: ItemSkuIdentity } => x.id !== null);
-  if (!identified.length) return null;
+  if (!identified.length) return liveJobSku(live, catalogue);
 
   const chosen = identified.find((x) => x.item.started_at && !x.item.finished_at)
     ?? identified.find((x) => !x.item.finished_at)
@@ -151,5 +207,42 @@ export function pickLineSku(items: LineSkuItem[], catalogue: SkuCatalogue): Line
     ratePerHour: rate && rate > 0 ? rate : null,
     uncatalogued: chosen.id.uncatalogued,
     others,
+    source: "logged",
+    liveState: null,
+  };
+}
+
+/**
+ * The live job as a product, or nothing.
+ *
+ * Resolved against the catalogue on purpose: iTouching sends a PartCode and its
+ * own description, and the name the rest of this system uses is the catalogue's.
+ * The standard comes with it — a line being set up for a product that has 720/h
+ * has a standard, whether or not anybody has written the order down yet.
+ *
+ * `others` is 0 and stays 0: this is one job at one moment, not a period with a
+ * count of products in it.
+ */
+function liveJobSku(live: { job: LiveJob | null | undefined; now: Date } | undefined, catalogue: SkuCatalogue): LineSku | null {
+  const job = live?.job;
+  if (!live || !job) return null;
+  const code = norm(job.code);
+  if (!code) return null;
+
+  // Unconfirmed for half an hour is a stopped poll, not a running line.
+  if (!job.seenAt) return null;
+  const ageSeconds = Math.floor((live.now.getTime() - job.seenAt.getTime()) / 1000);
+  if (ageSeconds > LIVE_JOB_STALE_AFTER_SECONDS) return null;
+
+  const row = catalogue.byCode.get(key(code));
+  const rate = row?.target_per_hour == null ? null : Number(row.target_per_hour);
+  return {
+    code: row?.code ?? code,
+    name: row ? (productLabel(row.name) || row.code) : (norm(job.name) || code),
+    ratePerHour: rate && rate > 0 ? rate : null,
+    uncatalogued: !row,
+    others: 0,
+    source: "itouch",
+    liveState: job.state,
   };
 }

@@ -25,7 +25,7 @@ import { computePace, lineScore, scoreBand, PACE_MESSAGES, PACE_STATUS, PACE_NEE
 import { AndonBar } from "@/components/ui/AndonBar";
 import { cn } from "@/lib/utils";
 import { ANDON_FIELD } from "@/lib/rail";
-import { buildSkuCatalogue, pickLineSku, resolveItemSku, type LineSkuItem } from "@/lib/lineSku";
+import { buildSkuCatalogue, pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/lib/lineSku";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { CircularProgress } from "@/components/ui/circular-progress";
@@ -235,9 +235,9 @@ export default function ProductionPerformancePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the view is newer than the generated types
       const { data, error } = await (supabase as any)
         .from("v_line_live_status")
-        .select("line, machine, status, reason, planned, seen_at, stop_since");
+        .select("line, machine, status, reason, planned, seen_at, stop_since, job_code, job_name, job_state, job_seen_at");
       if (error) throw error;
-      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null; stop_since: string | null }[];
+      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null; stop_since: string | null; job_code: string | null; job_name: string | null; job_state: string | null; job_seen_at: string | null }[];
     },
   });
 
@@ -260,6 +260,28 @@ export default function ProductionPerformancePage() {
         planned: r.planned,
         seenAt: r.seen_at ? new Date(r.seen_at) : null,
         stopSince: r.stop_since ? new Date(r.stop_since) : null,
+      });
+    }
+    return m;
+  }, [liveRows]);
+
+  /**
+   * O que o iTouching tem em cada máquina, para as linhas que ninguém escreveu.
+   *
+   * Separado da leitura de estado acima porque responde a outra pergunta e vale
+   * outra coisa: nomeia o produto e não mede nada. O poll grava-o por máquina —
+   * ver `liveJob.ts` — e o cartão recusa-o quando envelhece.
+   */
+  const liveJobByLine = useMemo(() => {
+    const norm = (s: string | null | undefined) => String(s ?? "").trim().toLowerCase();
+    const m = new Map<string, LiveJob>();
+    for (const r of liveRows) {
+      if (!r.job_code) continue;
+      m.set(norm(r.line), {
+        code: r.job_code,
+        name: r.job_name,
+        seenAt: r.job_seen_at ? new Date(r.job_seen_at) : null,
+        state: r.job_state === "running" ? "running" : "next",
       });
     }
     return m;
@@ -539,12 +561,24 @@ export default function ProductionPerformancePage() {
       arr.push(s);
       bySession.set(s.line, arr);
     }
-    for (const [line, ss] of bySession) {
-      const sku = pickLineSku(ss.flatMap((s) => s.items), catalogue);
+    // Every line the board can draw, not only the ones with a session: a line
+    // whose order nobody has written down is exactly the case iTouching answers,
+    // and keying off the sessions alone would skip it. `now` is read once so the
+    // whole board ages the jobs against the same instant.
+    const now = new Date();
+    const lineNames = new Set<string>([...bySession.keys(), ...byLine.map((l) => l.line), ...lines.map((l) => l.name)]);
+    for (const line of lineNames) {
+      const items = (bySession.get(line) ?? []).flatMap((s) => s.items);
+      const job = liveJobByLine.get(line.trim().toLowerCase());
+      // Only while looking at the shift that is running. iTouching's job is a
+      // statement about this minute, and beside a finished shift's figures it
+      // would be two different days on one card — the same rule the live pill
+      // and the pace notch already follow.
+      const sku = pickLineSku(items, catalogue, isCurrentShiftView ? { job, now } : undefined);
       if (sku) out.set(line, sku);
     }
     return out;
-  }, [sessions, catalogue]);
+  }, [sessions, catalogue, byLine, lines, liveJobByLine, isCurrentShiftView]);
 
   const buildReport = (output: "save" | "dataurl" | "bloburl") => {
     const scored = sortedByLine.filter((l) => l.target > 0);
@@ -1084,6 +1118,24 @@ export default function ProductionPerformancePage() {
                             {sku.others > 0 && (
                               <span className="shrink-0 text-2xs text-muted-foreground/70" title={`${sku.others} other SKU${sku.others === 1 ? "" : "s"} ran on this line in the period`}>
                                 +{sku.others}
+                              </span>
+                            )}
+                            {/* Onde o produto foi sabido, quando não foi aqui.
+                                Um produto que veio do iTouching nomeia a linha e não
+                                mede nada: não há quantidade registada contra ele e o
+                                ritmo continua a dizer "No order". Sem esta marca, o
+                                cartão dava as duas coisas pelo mesmo facto — e uma
+                                delas ninguém escreveu. "Next" separa a linha que está
+                                a FAZER o produto da que está a ser montada para ele,
+                                que é o caso da Line 2 em Line Preparation. */}
+                            {sku.source === "itouch" && (
+                              <span
+                                className="shrink-0 font-display text-2xs uppercase tracking-[0.1em] text-muted-foreground/70"
+                                title={sku.liveState === "next"
+                                  ? "iTouching has this job next in the queue on this machine — the line is not making it yet, and no order for it is logged here"
+                                  : "iTouching reports this job as running on this machine. Nothing is logged against it here, so there is no quantity to measure"}
+                              >
+                                · iTouching{sku.liveState === "next" ? ", next" : ""}
                               </span>
                             )}
                           </>

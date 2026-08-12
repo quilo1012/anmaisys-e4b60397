@@ -4,6 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { readStop, HEALTHY_STATUS } from "./stopReading.ts";
+import { pickRunningJob } from "./liveJob.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -358,7 +359,7 @@ Deno.serve(async (req) => {
     // 1. Active machines mapped to our system
     const { data: mapped, error: mErr } = await admin
       .from("intouch_machine_map")
-      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, stop_since_at, prod_dt_started_at, prod_dt_code")
+      .select("intouch_machine_id, intouch_machine_name, machine_name, line_id, last_status, last_downtime_code, last_seen_at, stop_since_at, prod_dt_started_at, prod_dt_code, live_job_checked_at")
       .eq("active", true);
     if (mErr) throw mErr;
     if (!mapped?.length) {
@@ -1009,6 +1010,75 @@ Deno.serve(async (req) => {
        results.errors.push(`machine ${s.MachineID}: ${msg}`);
        continue;
      }
+    }
+
+    // ── What each machine is MAKING ────────────────────────────────────────────
+    //
+    // Runs after the status loop and can never disturb it: a failure here is
+    // recorded and the poll still returns whatever the statuses said.
+    //
+    // WHY THIS IS HERE AT ALL. On 12/08 at 11:04 UTC Line 2 sat in "Line
+    // Preparation" with zero `production_items` — the 1.832 on its card had been
+    // Line 3's production logged on the wrong line and were deleted — so the board
+    // could not name the product the line was being set up for, while the
+    // iTouching screen beside it could. Nothing in this database held that answer:
+    // `production_orders` has been empty since it was created, this table had no
+    // product column, and `rag_weekly_entries` carries a plan quantity with no SKU.
+    //
+    // THE EGRESS, WHICH IS THE REASON IT LOOKS LIKE THIS. `getscheduledjobs` takes
+    // one machine per call, and iTouching enforces a daily egress cap that this
+    // function already backs off from — ten calls a minute on top of the status
+    // batch would be 14.400 a day. So each machine is refreshed at most every five
+    // minutes and at most four are asked per run: ~1 extra call a minute, and the
+    // ten machines all come round inside three minutes. The board refuses a job it
+    // has not seen for half an hour, so a stalled refresh empties the slot rather
+    // than leaving a product on a card nobody confirmed.
+    const JOB_REFRESH_MS = 5 * 60 * 1000;
+    const JOB_MAX_PER_RUN = 4;
+    const jobCheckedAt = (m: { live_job_checked_at?: string | null }) =>
+      m.live_job_checked_at ? new Date(m.live_job_checked_at).getTime() : 0;
+    const jobsDue = mapped
+      .filter((m) => Date.now() - jobCheckedAt(m) >= JOB_REFRESH_MS)
+      // Longest unchecked first, so one machine can never starve the others.
+      .sort((a, b) => jobCheckedAt(a) - jobCheckedAt(b))
+      .slice(0, JOB_MAX_PER_RUN);
+
+    for (const m of jobsDue) {
+      const askedAt = new Date().toISOString();
+      try {
+        const raw = await it(`/api/appapi/getscheduledjobs?MachineID=${encodeURIComponent(m.intouch_machine_id)}`);
+        const job = pickRunningJob(raw);
+        // Written in one statement, including the nulls: a machine with no job
+        // must have its slot CLEARED, or yesterday's product outlives the job.
+        await admin.from("intouch_machine_map").update({
+          live_job_code: job?.code ?? null,
+          live_job_name: job?.name ?? null,
+          live_job_qty: job?.qty ?? null,
+          live_job_state: job?.state ?? null,
+          live_job_seen_at: job ? askedAt : null,
+          live_job_checked_at: askedAt,
+        }).eq("intouch_machine_id", m.intouch_machine_id);
+        results.skipped.push(job
+          ? `${m.intouch_machine_name} job: ${job.state} ${job.code}`
+          : `${m.intouch_machine_name} job: none scheduled`);
+      } catch (e) {
+        // The quota is the one failure worth abandoning the whole sweep for —
+        // asking the remaining machines would only deepen the hole.
+        if (e instanceof ItouchQuotaError) {
+          results.skipped.push(`job lookup stopped: iTouching quota exhausted`);
+          break;
+        }
+        // Anything else: stamp the attempt so it does not retry every minute, and
+        // leave the last known job alone — the board ages it out on its own.
+        await admin.from("intouch_machine_map")
+          .update({ live_job_checked_at: askedAt })
+          .eq("intouch_machine_id", m.intouch_machine_id);
+        // `skipped`, not `errors`: a job lookup that failed is not a poll that
+        // failed, and marking the run red would train whoever reads these to
+        // ignore red. It is still written down, because a lookup that has been
+        // failing for a week must not look like a line with nothing scheduled.
+        results.skipped.push(`${m.intouch_machine_name} job lookup: ${(e as Error).message.slice(0, 120)}`);
+      }
     }
 
     // Record successful poll outcome
