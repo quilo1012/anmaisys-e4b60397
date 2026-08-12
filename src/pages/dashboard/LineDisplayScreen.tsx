@@ -315,14 +315,23 @@ export default function LineDisplayScreen() {
         const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
         return (
           <div className="bg-gradient-to-r from-primary via-primary to-purple-900 border-2 border-primary/40 rounded-2xl p-6 shadow-xl">
+            {/* Branco, e não `text-primary`: o fundo deste painel É `--primary`, nas suas
+                duas primeiras paragens, e o texto lia-se sobre a sua própria cor — 1:1,
+                invisível, em ambos os temas. Só o código do SKU escapava, por não trazer
+                classe de cor nenhuma e herdar o `text-wall-ink` da página.
+                `wall-ink` e não `wall-ink-muted`: sobre este fundo o cinzento dá 1,4:1,
+                que é trocar um texto invisível por outro. */}
             <div className="flex items-center justify-between mb-4">
-              <div className="text-primary text-sm tracking-widest font-bold">CURRENT JOB</div>
-              <div className="text-primary text-2xl font-figure font-bold">
+              {/* `text-xl` e não `text-sm`: a 3,1:1 no tema escuro isto só cumpre o AA
+                  como texto grande, e 14 px num ecrã lido a três metros era pequeno de
+                  qualquer forma. */}
+              <div className="text-wall-ink text-xl tracking-widest font-bold">CURRENT JOB</div>
+              <div className="text-wall-ink text-2xl font-figure font-bold">
                 {a.toLocaleString()} / {p.toLocaleString()}
               </div>
             </div>
             <div className="text-5xl font-black mb-1">{current.sku?.code ?? "—"}</div>
-            <div className="text-2xl text-primary mb-4">{current.sku?.name ?? ""}</div>
+            <div className="text-2xl text-wall-ink mb-4">{current.sku?.name ?? ""}</div>
             <div className="h-4 bg-wall-panel/60 rounded-full overflow-hidden">
               <div className={`h-full ${c} transition-all duration-700`} style={{ width: `${pc}%` }} />
             </div>
