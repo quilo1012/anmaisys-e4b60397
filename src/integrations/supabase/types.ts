@@ -492,6 +492,7 @@ export type Database = {
       daily_allocations: {
         Row: {
           area_id: string | null
+          arrived_late_at: string | null
           created_at: string | null
           employee_id: string
           half_day: boolean | null
@@ -506,6 +507,7 @@ export type Database = {
         }
         Insert: {
           area_id?: string | null
+          arrived_late_at?: string | null
           created_at?: string | null
           employee_id: string
           half_day?: boolean | null
@@ -520,6 +522,7 @@ export type Database = {
         }
         Update: {
           area_id?: string | null
+          arrived_late_at?: string | null
           created_at?: string | null
           employee_id?: string
           half_day?: boolean | null
@@ -6557,6 +6560,10 @@ export type Database = {
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
       is_operator_chat_admin_now: { Args: { uid: string }; Returns: boolean }
       is_session_locked: { Args: { _session_id: string }; Returns: boolean }
+      leader_self_scorecard: {
+        Args: { _from: string; _pin: string; _shift?: string; _to: string }
+        Returns: Json
+      }
       list_active_profile_names: {
         Args: never
         Returns: {
@@ -6654,6 +6661,15 @@ export type Database = {
           _details?: Json
           _entity_id?: string
           _entity_type: string
+        }
+        Returns: undefined
+      }
+      log_wo_action: {
+        Args: {
+          p_action: string
+          p_engineer_id: string
+          p_engineer_name: string
+          p_work_order_id: string
         }
         Returns: undefined
       }
