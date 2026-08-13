@@ -184,6 +184,21 @@ export const BAND_BG: Record<ScoreBand, string> = {
 };
 
 /**
+ * A mesma banda quando o que se pinta é o número e não o fundo atrás dele.
+ *
+ * Os tons `-strong` existem para texto: os `bg-` acima são fundos, e escrever
+ * `text-success` num número dá-lhe um verde que não passa contraste sobre o
+ * cartão. Vive aqui pela mesma razão que os outros dois — o Control Center
+ * tinha o seu próprio par de limiares e a sua própria escolha de tom, e era
+ * assim que a mesma linha aparecia com cores diferentes em dois ecrãs.
+ */
+export const BAND_TEXT: Record<ScoreBand, string> = {
+  GO: "text-success-strong",
+  HOLD: "text-warning-strong",
+  STOP: "text-destructive-strong",
+};
+
+/**
  * Cada estado nomeia-se. "No reading" era o painel a descrever a dificuldade
  * dele, e lia-se igual numa linha à espera de ordem e numa linha sem ninguém
  * registado — duas pessoas diferentes, dois trabalhos diferentes, uma palavra.

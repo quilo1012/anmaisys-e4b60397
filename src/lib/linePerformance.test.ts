@@ -5,6 +5,10 @@ import {
   lineReading,
   lastEntryAgeMinutes,
   BEHIND_TOLERANCE_PTS,
+  BAND_STATUS,
+  BAND_BG,
+  BAND_TEXT,
+  type ScoreBand,
 } from "./linePerformance";
 
 /**
@@ -200,5 +204,42 @@ describe("lastEntryAgeMinutes", () => {
   // possa dizer a alguém no chão de fábrica.
   it("uma entrada no futuro lê-se como agora, e não como um número negativo", () => {
     expect(lastEntryAgeMinutes(["2026-08-13T12:05:00Z"], now)).toBe(0);
+  });
+});
+
+/**
+ * As três tabelas de banda têm de falar das mesmas bandas.
+ *
+ * O achado que trouxe o `BAND_TEXT` a existir foi este: o Control Center pintava
+ * a percentagem com um par de limiares só dele (95/80) e uma escolha de tom só
+ * dele, e era assim que a mesma linha aparecia verde num ecrã e âmbar noutro. As
+ * bandas passaram a sair todas do `clockBand` — mas isso só fecha a porta se cada
+ * banda tiver as três formas de ser mostrada. Uma banda nova que nasça só com
+ * fundo aparece sem cor nenhuma no ecrã que usa texto, e sem erro nenhum.
+ */
+describe("as bandas têm nome, fundo e cor de texto", () => {
+  const bandas: ScoreBand[] = ["GO", "HOLD", "STOP"];
+
+  it("as três tabelas cobrem exactamente as mesmas bandas", () => {
+    expect(Object.keys(BAND_STATUS).sort()).toEqual([...bandas].sort());
+    expect(Object.keys(BAND_BG).sort()).toEqual([...bandas].sort());
+    expect(Object.keys(BAND_TEXT).sort()).toEqual([...bandas].sort());
+  });
+
+  it("nenhuma entrada fica vazia", () => {
+    for (const b of bandas) {
+      expect(BAND_STATUS[b]).toBeTruthy();
+      expect(BAND_BG[b]).toBeTruthy();
+      expect(BAND_TEXT[b]).toBeTruthy();
+    }
+  });
+
+  // Fundo e texto não são intermutáveis: `text-success` num número sobre um
+  // cartão claro não passa contraste, e é para isso que existem os `-strong`.
+  it("o tom de texto é o `-strong`, e o de fundo não", () => {
+    expect(BAND_TEXT.GO).toContain("-strong");
+    expect(BAND_TEXT.HOLD).toContain("-strong");
+    expect(BAND_TEXT.STOP).toContain("-strong");
+    expect(BAND_BG.GO.startsWith("bg-")).toBe(true);
   });
 });

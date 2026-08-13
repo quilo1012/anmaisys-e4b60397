@@ -15,7 +15,8 @@ import {
   Monitor, Loader2, Maximize, Minimize, Trophy, Clock, AlertTriangle, Heart,
   GripVertical, List, PowerOff, Wrench, Activity, Radio, Circle, User, Gauge,
 } from "lucide-react";
-import { getCurrentFactoryShift, getCurrentShiftStart } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd } from "@/lib/shifts";
+import { shiftClockPct, clockBand, BAND_TEXT } from "@/lib/linePerformance";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { differenceInMinutes, format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -183,6 +184,24 @@ export default function ControlCenterPage() {
     },
     staleTime: 5 * 60_000,
   });
+
+  /**
+   * O relógio do turno, a andar.
+   *
+   * Um ecrã de parede fica ligado o turno inteiro e ninguém lhe carrega em nada,
+   * por isso um `elapsedPct` calculado uma vez ao montar ficava preso na hora a
+   * que a página abriu — e a cor com ele. Ao minuto chega: num turno de doze
+   * horas cada minuto vale 0,14 pontos.
+   */
+  const [clockNow, setClockNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setClockNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const elapsedPct = useMemo(
+    () => shiftClockPct(getCurrentShiftStart(clockNow), getCurrentShiftEnd(clockNow), clockNow),
+    [clockNow],
+  );
 
   // Per-line snapshot for the current factory shift: leader, attainment %, open quality actions.
   const factoryShift = getCurrentFactoryShift();
@@ -586,6 +605,12 @@ export default function ControlCenterPage() {
                           const ls = lineStats?.get(zone.trim().toLowerCase());
                           if (!ls || (!ls.leader && ls.plan === 0 && ls.actions === 0)) return null;
                           const attain = ls.plan > 0 ? Math.round((ls.actual / ls.plan) * 100) : null;
+                          /* A cor sai do relógio, e não de `attain >= 95 / 80`. Contra
+                             o plano do turno INTEIRO, uma linha a horas lia 41% às 11h
+                             e ficava vermelha na parede — o mesmo erro que o board
+                             corrigiu em ee062e29 e que aqui sobreviveu, com um par de
+                             limiares só desta página por cima. */
+                          const band = attain === null ? null : clockBand(attain, elapsedPct);
                           return (
                             <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5", tvMode ? "text-2xs" : "text-xs")}>
                               {ls.leader && (
@@ -593,9 +618,16 @@ export default function ControlCenterPage() {
                                   <User className="h-3 w-3" /> {ls.leader}
                                 </span>
                               )}
-                              {attain !== null && (
-                                <span className={cn("inline-flex items-center gap-1 font-semibold", attain >= 95 ? "text-success-strong" : attain >= 80 ? "text-warning-strong" : "text-destructive-strong")} title="Attainment (actual vs plan)">
+                              {attain !== null && band !== null && (
+                                <span
+                                  className={cn("inline-flex items-center gap-1 font-semibold", BAND_TEXT[band])}
+                                  title={`${attain}% do plano do turno, com ${Math.round(elapsedPct)}% do turno decorrido`}
+                                >
                                   <Gauge className="h-3 w-3" /> {attain}%
+                                  {/* A outra parcela da cor, escrita ao lado dela. Sozinho,
+                                      "41%" a meio da manhã não diz se é atraso ou se é a
+                                      hora que é. */}
+                                  <span className="font-normal text-muted-foreground">/ {Math.round(elapsedPct)}% elapsed</span>
                                 </span>
                               )}
                               {ls.actions > 0 && (
