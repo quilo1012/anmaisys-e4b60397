@@ -73,3 +73,33 @@ describe("resolveCorrection", () => {
     expect(r.durationMinutes).toBeNull();
   });
 });
+
+/**
+ * The two readings of the same stoppage.
+ *
+ * `WorkOrderDetail`'s Production Impact card subtracts the stamps; the view
+ * `v_wo_downtime_total`, which feeds the boards, sums `duration_minutes`. A
+ * correction that moved one without the other would give one stoppage two numbers
+ * on two screens, so this is the invariant the whole design turns on.
+ */
+describe("the stamps and the minutes agree after a correction", () => {
+  const cases = [
+    { minutes: 40 as number | null, resumedAt: null as string | null },
+    { minutes: null, resumedAt: "2026-08-10T07:32:00Z" },
+    { minutes: 12, resumedAt: "2026-08-10T11:34:00Z" },
+  ];
+
+  for (const c of cases) {
+    it(`holds for ${JSON.stringify(c)}`, () => {
+      const r = ok(resolveCorrection({ stoppedAt: START, ...c, reason: "fix", now: NOW }));
+      const fromStamps = Math.round((r.resumedAt!.getTime() - r.stoppedAt.getTime()) / 60_000);
+      expect(fromStamps).toBe(r.durationMinutes);
+    });
+  }
+
+  it("a correction shorter than an overlapping team-activity exclusion floors at zero, never negative", () => {
+    const r = ok(resolveCorrection({ stoppedAt: START, minutes: 5, reason: "fix", now: NOW }));
+    const excludedMin = 20; // team activity longer than the corrected stoppage
+    expect(Math.max(0, r.durationMinutes! - excludedMin)).toBe(0);
+  });
+});
