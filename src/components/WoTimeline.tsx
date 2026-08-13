@@ -9,10 +9,9 @@ import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
 import { useDowntimeCorrections } from "@/hooks/useDowntimeCorrections";
 import {
-  activityLabel, exclusionOverlapMs, mergeIntervals, toExclusionIntervals,
+  activityLabel, exclusionOverlapMs, lineDowntimeSecFromStops, toExclusionIntervals,
 } from "@/lib/downtimeExclusions";
-import { unionMs } from "@/lib/downtimeReconcile";
-import type { Interval } from "@/lib/downtimeReconcile";
+
 
 interface Props {
   workOrderId: string;
