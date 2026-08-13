@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { differenceInMinutes, format } from "date-fns";
 import { Filter, PowerOff, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -229,9 +229,8 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                       differenceInMinutes(new Date(e.resumed_at!), new Date(e.stopped_at));
                   const corr = lastCorrection[e.id];
                   return (
-                    <>
+                    <Fragment key={e.id}>
                     <TableRow
-                      key={e.id}
                       className={isOpen ? "bg-destructive/10 hover:bg-destructive/15" : ""}
                     >
                       <TableCell className="font-figure text-xs">{filtered.length - idx}</TableCell>
@@ -280,7 +279,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                         </TableCell>
                       </TableRow>
                     )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>

@@ -2,11 +2,12 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWoMetrics } from "@/hooks/useWoMetrics";
 import { formatDuration } from "@/lib/formatDuration";
-import { Clock, XCircle, Users, HelpCircle, Coffee, PowerOff } from "lucide-react";
+import { Clock, XCircle, Users, HelpCircle, Coffee, PowerOff, Pencil } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
+import { useDowntimeCorrections } from "@/hooks/useDowntimeCorrections";
 import {
   activityLabel, exclusionOverlapMs, mergeIntervals, toExclusionIntervals,
 } from "@/lib/downtimeExclusions";
@@ -38,6 +39,7 @@ export function WoTimeline({ workOrderId }: Props) {
   const { data: m, isLoading } = useWoMetrics(workOrderId);
   const { data: exclusions = [] } = useWoExclusions(workOrderId);
   const { data: stoppages = [] } = useDowntimeEvents(workOrderId);
+  const { data: corrections = [] } = useDowntimeCorrections(workOrderId);
 
   // All operational events from work_order_logs (no whitelist filter)
   const { data: logEvents = [] } = useQuery({
@@ -259,6 +261,26 @@ export function WoTimeline({ workOrderId }: Props) {
               </div>
             </li>
           ))}
+          {/* Corrections to a recorded stoppage: what it said, what it says now, and
+              who changed it. Printed with the rest, so a fresh copy of the order
+              carries the correction the signed copy could not. */}
+          {[...corrections]
+            .sort((a, b) => new Date(a.corrected_at).getTime() - new Date(b.corrected_at).getTime())
+            .map((c) => (
+              <li key={c.id} className="ml-4">
+                <span className="absolute -left-1.5 flex h-3 w-3 items-center justify-center rounded-full bg-warning" />
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <Pencil className="h-3.5 w-3.5 text-warning-strong" />
+                    Stoppage corrected by {c.corrected_by_name} — {c.prev_duration_minutes ?? "—"}min → {c.new_duration_minutes ?? "—"}min
+                  </p>
+                  <span className="text-xs font-figure text-muted-foreground">
+                    {format(new Date(c.corrected_at), "dd/MM HH:mm:ss")}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">reason: "{c.reason}"</p>
+              </li>
+            ))}
         </ol>
 
         <div className="mt-6 grid grid-cols-2 gap-3 pt-4 border-t">
