@@ -45,9 +45,21 @@ export const useCriticalAlert = () => useContext(CriticalAlertContext);
 
 const AUDIO_FLAG_KEY = "alertAudioEnabled";
 const AUDIO_VOLUME_KEY = "alertAudioVolume";
-// Siren rings continuously until the engineer acknowledges. We used to auto-stop
+// The alert repeats until the engineer acknowledges. We used to auto-stop
 // after 30s which made the alert sound "intermittent" — removed.
 const VIBRATE_PATTERN = [500, 200, 500, 200, 500, 200, 500];
+
+// ─── Chime ────────────────────────────────────────────────────────────────────
+// A two-tone doorbell, not a siren. The old alert layered a looping siren mp3
+// over an 800Hz square beep every 400ms; people on the floor learned to hate it
+// and muted the tab, which is the one outcome an alert cannot afford. Same
+// insistence — it keeps ringing until somebody answers — said pleasantly.
+const CHIME_TONES: Array<{ freq: number; at: number; dur: number }> = [
+  { freq: 880, at: 0, dur: 0.55 },    // ding
+  { freq: 660, at: 0.42, dur: 0.75 }, // dong
+];
+const CHIME_INTERVAL_MS = 3000;
+const CHIME_PEAK = 0.28;
 
 // ─── Favicon badge ────────────────────────────────────────────────────────────
 let originalFaviconHref: string | null = null;
@@ -104,7 +116,44 @@ function setFaviconBadge(count: number) {
   }
 }
 
-// ─── Audio engine (HTMLAudio + WebAudio oscillator fallback) ─────────────────
+/**
+ * The same chime rendered offline to a 3s WAV data URL (one repeat interval),
+ * for the media-element path. Built once, lazily — cheap, but not at import.
+ */
+let chimeWavCache: string | null = null;
+function chimeWavUrl(): string {
+  if (chimeWavCache) return chimeWavCache;
+  const rate = 22050;
+  const frames = Math.round(rate * (CHIME_INTERVAL_MS / 1000));
+  const bytes = new Uint8Array(44 + frames * 2);
+  const view = new DataView(bytes.buffer);
+  const ascii = (off: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i));
+  };
+  ascii(0, "RIFF"); view.setUint32(4, 36 + frames * 2, true); ascii(8, "WAVEfmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  ascii(36, "data"); view.setUint32(40, frames * 2, true);
+  for (let i = 0; i < frames; i++) {
+    const t = i / rate;
+    let sample = 0;
+    for (const { freq, at, dur } of CHIME_TONES) {
+      const dt = t - at;
+      if (dt < 0 || dt > dur) continue;
+      // Attack then exponential decay, matching the WebAudio envelope.
+      const env = Math.min(1, dt / 0.03) * Math.pow(0.0001, dt / dur);
+      sample += Math.sin(2 * Math.PI * freq * dt) * env * CHIME_PEAK;
+    }
+    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * 32767, true);
+  }
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  chimeWavCache = `data:audio/wav;base64,${btoa(bin)}`;
+  return chimeWavCache;
+}
+
+// ─── Audio engine (WebAudio chime, media-element fallback) ───────────────────
 class AlertAudioEngine {
   private ctx: AudioContext | null = null;
   private htmlAudio: HTMLAudioElement | null = null;
@@ -112,7 +161,7 @@ class AlertAudioEngine {
   private vibTimer: number | null = null;
   private watchdog: number | null = null;
   private playing = false;
-  /** Current siren volume (0..1). Applied to both HTMLAudio and oscillator gain. */
+  /** Current alert volume (0..1). Applied to both HTMLAudio and the chime gain. */
   volume = 1;
   /** Called when the browser blocks audio playback so the UI can flip the icon. */
   onBlocked: (() => void) | null = null;
@@ -136,7 +185,10 @@ class AlertAudioEngine {
         this.htmlAudio.loop = true;
         this.htmlAudio.volume = this.volume;
         this.htmlAudio.preload = "auto";
-        this.htmlAudio.src = "/alert.mp3";
+        // Fallback for browsers that will play a media element but not WebAudio.
+        // Same chime, rendered once to a WAV of exactly one repeat interval, so
+        // looping it reproduces the 3s cadence. The siren asset is never used.
+        this.htmlAudio.src = chimeWavUrl();
         // Safety net: if loop fails for any reason, restart while still playing.
         this.htmlAudio.addEventListener("ended", () => {
           if (this.playing && this.htmlAudio) {
@@ -158,29 +210,37 @@ class AlertAudioEngine {
     } catch { /* ignore */ }
   }
 
-  private startOscillator() {
-    if (!this.ctx) return;
+  /** One "ding-dong": soft sine tones with a gentle attack and a long decay. */
+  private playChime() {
     const ctx = this.ctx;
-    const beep = () => {
-      if (!this.playing) return;
+    if (!ctx || ctx.state !== "running") return;
+    const now = ctx.currentTime;
+    for (const { freq, at, dur } of CHIME_TONES) {
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        const peak = 0.3 * this.volume;
-        osc.type = "square";
-        osc.frequency.value = 800;
-        gain.gain.value = peak;
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const t0 = now + at;
+        const peak = CHIME_PEAK * this.volume;
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(peak, t0 + 0.03);          // soft attack
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);    // bell-like decay
         osc.connect(gain).connect(ctx.destination);
-        const now = ctx.currentTime;
-        gain.gain.setValueAtTime(0, now);
-        gain.gain.linearRampToValueAtTime(peak, now + 0.01);
-        gain.gain.linearRampToValueAtTime(0, now + 0.2);
-        osc.start(now);
-        osc.stop(now + 0.2);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.05);
       } catch { /* ignore */ }
+    }
+  }
+
+  private startChimeLoop() {
+    const tick = () => {
+      if (!this.playing) return;
+      if (this.ctx?.state === "suspended") void this.ctx.resume();
+      this.playChime();
     };
-    beep();
-    this.oscTimer = window.setInterval(beep, 400);
+    tick();
+    this.oscTimer = window.setInterval(tick, CHIME_INTERVAL_MS);
   }
 
   private playPromise: Promise<void> | null = null;
@@ -189,8 +249,13 @@ class AlertAudioEngine {
     if (this.playing) return;
     this.playing = true;
     let htmlOk = false;
-    // HTMLAudio (loops alert.mp3 if asset available)
-    if (this.htmlAudio) {
+    // WebAudio is the real voice. Resume first, so the media-element fallback
+    // below only runs when WebAudio genuinely cannot speak — the two must never
+    // ring together, which is exactly what made the old alert unbearable.
+    if (this.ctx?.state === "suspended") void this.ctx.resume();
+    const useWebAudio = this.ctx?.state === "running";
+    if (useWebAudio) this.startChimeLoop();
+    if (!useWebAudio && this.htmlAudio) {
       try {
         this.htmlAudio.currentTime = 0;
         this.htmlAudio.volume = this.volume;
@@ -208,9 +273,19 @@ class AlertAudioEngine {
         }
       } catch { /* ignore */ }
     }
-    // WebAudio oscillator fallback in parallel (guarantees sound even without asset)
-    if (this.ctx?.state === "suspended") void this.ctx.resume();
-    this.startOscillator();
+    // The context may only reach "running" a tick after resume() — pick the
+    // chime up then and silence the media-element fallback so nothing doubles.
+    if (!useWebAudio) {
+      this.oscTimer = window.setInterval(() => {
+        if (!this.playing) return;
+        if (this.ctx?.state === "suspended") void this.ctx.resume();
+        if (this.ctx?.state === "running") {
+          if (this.oscTimer) { clearInterval(this.oscTimer); this.oscTimer = null; }
+          try { this.htmlAudio?.pause(); } catch { /* ignore */ }
+          this.startChimeLoop();
+        }
+      }, 500);
+    }
     // If after 1s neither audio context nor html audio is actually producing
     // output (ctx suspended + html blocked), surface as blocked.
     this.watchdog = window.setTimeout(() => {
@@ -227,7 +302,7 @@ class AlertAudioEngine {
         try { navigator.vibrate(VIBRATE_PATTERN); } catch { /* ignore */ }
       }, 3000);
     }
-    // No auto-stop — siren rings until acknowledge()/decline().
+    // No auto-stop — the chime repeats until acknowledge()/decline().
   }
 
   stop() {
