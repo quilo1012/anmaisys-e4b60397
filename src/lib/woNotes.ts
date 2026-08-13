@@ -50,3 +50,14 @@ export function splitWoNotes(notes: string | null | undefined): SplitNotes {
   }
   return { human: human.join("\n").trim(), machine: machine.join("\n").trim() };
 }
+
+/**
+ * A value that is only punctuation or whitespace is not content.
+ * One order's whole "observations" field is a single comma; printing it as a
+ * paragraph tells a reader nothing and looks like a rendering fault.
+ */
+export function hasMeaningfulText(value: string | null | undefined): boolean {
+  const text = (value ?? "").trim();
+  if (!text) return false;
+  return /[\p{L}\p{N}]/u.test(text);
+}

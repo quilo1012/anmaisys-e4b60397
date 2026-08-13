@@ -24,11 +24,13 @@ import { RecordMissedDowntime } from "@/components/RecordMissedDowntime";
 import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { activityLabel, exclusionOverlapMs, lineDowntimeSecFromStops, mergeIntervals, toExclusionIntervals } from "@/lib/downtimeExclusions";
-import { splitWoNotes } from "@/lib/woNotes";
+import { splitWoNotes, hasMeaningfulText } from "@/lib/woNotes";
 import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WoTimeline } from "@/components/WoTimeline";
+import { StoppageRibbon } from "@/components/StoppageRibbon";
+import { useDowntimeCorrections } from "@/hooks/useDowntimeCorrections";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -122,6 +124,7 @@ export default function WorkOrderDetail() {
   const { data: downtimeEvents = [] } = useDowntimeEvents(id);
   const { data: woExclusions = [] } = useWoExclusions(id);
   const { data: woMetrics } = useWoMetrics(id);
+  const { data: woCorrections = [] } = useDowntimeCorrections(id);
 
   const { data: woLogs } = useQuery({
     queryKey: ["work_order_logs", id],
@@ -352,6 +355,19 @@ export default function WorkOrderDetail() {
           </div>
         </div>
 
+        {/* Order bar — the reference, where it is, and its state, kept in view.
+            Scrolling past the header used to leave the page anonymous. */}
+        <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden md:-mx-6 md:px-6">
+          <span className="font-figure text-sm font-semibold tabular-nums">{woLabel}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+            {(wo as any).wo_type === "warehouse_service"
+              ? `Warehouse · ${(wo as any).warehouse_location || "—"}`
+              : ([((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—")}
+          </span>
+          <Badge variant="outline" className={`shrink-0 ${cfg.className}`}>{cfg.label}</Badge>
+          <Badge variant="outline" className={`shrink-0 ${pri.className}`}>{pri.label}</Badge>
+        </div>
+
         {/* Screen-only title with badges.
             A ordem estava ao contrário. O topo a 24 px era o nome de quem abriu a
             ordem, e a referência — o que identifica esta página, o que se diz em voz
@@ -390,10 +406,6 @@ export default function WorkOrderDetail() {
                 </Badge>
               )}
             </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <Badge variant="outline" className={`text-sm px-3 py-1 ${pri.className}`}>{pri.label}</Badge>
-            <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
           </div>
         </div>
 
@@ -443,41 +455,42 @@ export default function WorkOrderDetail() {
         {/* Operator: report a recurring failure on a finished/closed WO */}
         <OperatorRecurrenceCard wo={wo as any} />
 
-        {/* Problem Description */}
+        {/* Problem — what was reported, and why the line stopped. */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none">
-          <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Problem Description</CardTitle></CardHeader>
-          <CardContent className="print:pb-2">
+          <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Problem</CardTitle></CardHeader>
+          <CardContent className="print:pb-2 space-y-2">
             <p className="print:text-[9pt]">{wo.description}</p>
-            {/* Only what a person wrote. iTouching's own bookkeeping — machine name,
-                detection time, stop-code GUIDs — is already on the screen in its own
-                fields, and printed here it buried the engineer's actual note. */}
-            {splitWoNotes(wo.notes).human && (
-              <div className="mt-2 pt-2 border-t print:mt-1 print:pt-1">
-                <p className="text-sm font-medium print:text-[8pt] print:font-bold">Observations:</p>
-                <p className="whitespace-pre-line print:text-[9pt]">{splitWoNotes(wo.notes).human}</p>
-              </div>
-            )}
+            {(() => {
+              const reason = downtimeEvents.find((e) => hasMeaningfulText(e.stopped_reason))?.stopped_reason;
+              if (!reason) return null;
+              return (
+                <p className="text-sm text-muted-foreground print:text-[8pt]">
+                  Line stopped — {reason}
+                </p>
+              );
+            })()}
           </CardContent>
         </Card>
 
-        {/* Screen-only notes card */}
+        {/* Resolution — the engineer's own note, said once, here only. */}
         {(() => {
           const { human, machine } = splitWoNotes(wo.notes);
-          if (!human && !machine) return null;
+          const written = hasMeaningfulText(human);
           return (
-            <Card className="print:hidden">
-              <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {human ? (
-                  <p className="whitespace-pre-line">{human}</p>
+            <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+              <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Resolution</CardTitle></CardHeader>
+              <CardContent className="space-y-2 print:pb-2">
+                {written ? (
+                  <p className="whitespace-pre-line print:text-[9pt]">{human}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nothing written by hand on this order.</p>
+                  /* A lone comma is not an observation. */
+                  <p className="text-sm text-muted-foreground print:text-[8pt]">No observations recorded</p>
                 )}
                 {machine && (
                   /* Kept, not deleted: it is the automatic trail of how the order came
                      to exist. Folded away because every fact in it is already shown
                      somewhere a person can read. */
-                  <details className="text-xs text-muted-foreground">
+                  <details className="text-xs text-muted-foreground print:hidden">
                     <summary className="cursor-pointer select-none">Automatic log from iTouching</summary>
                     <p className="mt-1 whitespace-pre-line">{machine}</p>
                   </details>
@@ -487,18 +500,29 @@ export default function WorkOrderDetail() {
           );
         })()}
 
-        {/* Asset strip — same 5-field layout as the print header (screen only). */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 print:hidden">
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Priority</p><p className="font-medium">{pri.label}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{cfg.label}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Line</p><p className="font-medium">{(wo as any).line_at_time || "—"}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Machine</p><p className="font-medium">{wo.machine || "—"}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Requester</p><p className="font-medium">{wo.requester_name || "—"}</p></CardContent></Card>
+        {/* Metadata strip — the print header's own shape, said once (screen only). */}
+        <div className="flex flex-wrap rounded-lg border border-border bg-card print:hidden">
+          {[
+            { label: "Priority", value: pri.label },
+            { label: "Status", value: cfg.label },
+            { label: "Line", value: (wo as any).line_at_time || "—" },
+            { label: "Machine", value: wo.machine || "—" },
+            { label: "Requester", value: wo.requester_name || "—" },
+            { label: "Engineer", value: wo.engineer_name || wo.engineer?.name || "—" },
+          ].map((f) => (
+            <div
+              key={f.label}
+              className="min-w-[9rem] flex-1 border-b border-r border-border px-4 py-3 last:border-r-0 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r md:[&:nth-child(3n)]:border-r-0 lg:[&:nth-child(3n)]:border-r"
+            >
+              <p className="text-2xs uppercase tracking-wide text-muted-foreground">{f.label}</p>
+              <p className="mt-0.5 text-sm font-medium" title={f.value}>{f.value}</p>
+            </div>
+          ))}
         </div>
 
-
         {/* Personnel — "Signed By" removed (operator signature is in footer) */}
-        <div className="grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
+        {/* Screen shows these once, in the metadata strip above. Print keeps the boxes. */}
+        <div className="hidden print:grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Requested By</p><p className="font-medium print:text-[9pt]">{wo.requester_name}</p></CardContent></Card>
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Engineer</p><p className="font-medium print:text-[9pt]">{wo.engineer_name || wo.engineer?.name || ""}</p></CardContent></Card>
           {wo.closer?.name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Closed By</p><p className="font-medium print:text-[9pt]">{wo.closer.name}</p></CardContent></Card>}
@@ -509,17 +533,35 @@ export default function WorkOrderDetail() {
           <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Attendance Times</CardTitle></CardHeader>
           <CardContent className="print:pt-0">
             <div className="grid grid-cols-3 gap-4 print:gap-0">
-              <div className="text-center print:border print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Response</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">opened → accepted</p><p className="text-3xl font-bold print:text-base">{formatDuration(responseMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execution</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">start → finish</p><p className="text-3xl font-bold print:text-base">{formatDuration(executionMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">{cycle.label}</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p>
+              <div className="text-center print:border print:border-black print:py-2">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Response</p>
+                <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{formatDuration(responseMin)}</p>
+                <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">
+                  opened {format(new Date(wo.created_at), "HH:mm")}
+                  {acceptedAt ? ` → accepted ${format(new Date(acceptedAt), "HH:mm")}` : " → not accepted yet"}
+                </p>
+              </div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execution</p>
+                <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{formatDuration(executionMin)}</p>
+                <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">
+                  {wo.started_at ? `start ${format(new Date(wo.started_at), "HH:mm")}` : "not started"}
+                  {(wo.finished_at || wo.completed_at) ? ` → finish ${format(new Date(wo.finished_at || wo.completed_at!), "HH:mm")}` : " → open"}
+                </p>
+              </div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p>
+                <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{formatDuration(totalMin)}</p>
+                <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">{cycle.label}</p>
                 {/* The wait for a signature, said as its own thing. Fifteen days is a
                     real problem and not a maintenance one; inside the repair figure it
                     was arithmetic nobody could reconcile. */}
                 {cycle.signOffWaitMinutes != null && (
-                  <p className="mt-1 text-[9pt] text-warning-strong print:text-[6pt]">
+                  <p className="mt-1 text-2xs text-warning-strong print:text-[6pt]">
                     + {formatDuration(cycle.signOffWaitMinutes)} waiting for sign-off
                   </p>
-                )}</div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -572,21 +614,56 @@ export default function WorkOrderDetail() {
             : Math.max(0, operatorDowntimeSec - excludedMin * 60);
 
           const lineOperating = !((wo as any).line_stopped && !(wo as any).line_resumed_at);
+          const spanLabel = mergedSpans.length
+            ? `${format(new Date(mergedSpans[0][0]), "HH:mm")} → ${format(new Date(mergedSpans[mergedSpans.length - 1][1]), "HH:mm")}`
+            : null;
+          const exclusionLabels = (woExclusions || [])
+            .filter((x: any) => x.started_at)
+            .map((x: any) => ({
+              start: new Date(x.started_at).getTime(),
+              end: x.ended_at ? new Date(x.ended_at).getTime() : Date.now(),
+              label: activityLabel(x.activity),
+            }))
+            .filter((x) => x.end > x.start);
+          const correctionMarks = (woCorrections || [])
+            .map((c) => new Date(c.new_stopped_at).getTime())
+            .filter((t) => Number.isFinite(t));
           return (
             <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
               <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Production Impact</CardTitle></CardHeader>
               <CardContent className="print:pt-0">
                 <div className="grid grid-cols-3 gap-4 print:gap-0">
                   <div className="text-center print:border print:border-black print:py-2">
-                    <p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Line Status</p>
-                    <p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">at closure</p>
-                    <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-success-strong" : "text-destructive-strong"}`}>
+                    <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Line Status</p>
+                    <p className={`mt-1 text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-success-strong" : "text-destructive-strong"}`}>
                       {lineOperating ? <><CheckCircle className="h-5 w-5 print:hidden" /> Running</> : <><AlertOctagon className="h-5 w-5 print:hidden" /> Stopped</>}
                     </p>
+                    <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">at closure</p>
                   </div>
-                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Stoppages</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">recorded</p><p className="text-3xl font-bold print:text-base">{stopCount}</p></div>
-                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Downtime</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">stoppage time</p><p className="text-3xl font-bold print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p>{excludedMin > 0 && (<p className="text-[9pt] text-muted-foreground mt-1 print:text-[6pt]">{excludedMin} min excluded — team activity</p>)}</div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                    <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Stoppages</p>
+                    <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{stopCount}</p>
+                    <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">recorded</p>
+                  </div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                    <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Downtime</p>
+                    <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p>
+                    <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">{spanLabel ?? "stoppage time"}</p>
+                    {excludedMin > 0 && (<p className="text-2xs text-muted-foreground print:text-[6pt]">{excludedMin} min excluded — team activity</p>)}
+                  </div>
                 </div>
+
+                {/* The order's clock, to scale — same merged spans as the figure above. */}
+                {mergedSpans.length > 0 && (
+                  <div className="mt-5 border-t pt-4 print:hidden">
+                    <StoppageRibbon
+                      spans={mergedSpans}
+                      exclusions={exclusionIvs}
+                      corrections={correctionMarks}
+                      exclusionLabels={exclusionLabels}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
