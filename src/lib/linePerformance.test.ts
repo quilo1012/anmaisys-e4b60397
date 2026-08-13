@@ -3,6 +3,7 @@ import {
   shiftClockPct,
   clockBand,
   lineReading,
+  lastEntryAgeMinutes,
   BEHIND_TOLERANCE_PTS,
 } from "./linePerformance";
 
@@ -156,5 +157,48 @@ describe("lineReading — os estados que não são uma percentagem", () => {
     // uma linha sem taxa nenhuma registada pontua como qualquer outra.
     const r = lineReading({ ...base, actual: 1500 });
     expect(r.kind).toBe("SCORED");
+  });
+});
+
+/**
+ * A idade da última entrada, que agora veste dois ecrãs.
+ *
+ * Estava sem teste nenhum enquanto só a parede a usava. Passou também para o
+ * tablet da linha, e a forma como lá quase falhou é a que vale a pena fixar: o
+ * `updated_at` vinha na consulta e morria num `map` que o não copiava, por isso
+ * a função recebia uma lista de `undefined` e devolvia null — e o rodapé dizia
+ * "nothing entered yet" numa linha a produzir, sem erro nenhum em lado nenhum.
+ */
+describe("lastEntryAgeMinutes", () => {
+  const now = new Date("2026-08-13T12:00:00Z");
+
+  it("conta a partir da entrada mais recente, e não da primeira da lista", () => {
+    const age = lastEntryAgeMinutes(
+      ["2026-08-13T09:00:00Z", "2026-08-13T11:30:00Z", "2026-08-13T10:00:00Z"],
+      now,
+    );
+    expect(age).toBe(30);
+  });
+
+  it("sem uma única data devolve null, que é o que distingue vazio de agora mesmo", () => {
+    expect(lastEntryAgeMinutes([], now)).toBeNull();
+    expect(lastEntryAgeMinutes([null, undefined], now)).toBeNull();
+    // O caso do tablet: o campo existia mas ninguém o copiou até aqui.
+    expect(lastEntryAgeMinutes([undefined, undefined, undefined], now)).toBeNull();
+  });
+
+  it("ignora as ausências sem deixar de contar as que existem", () => {
+    expect(lastEntryAgeMinutes([null, "2026-08-13T11:45:00Z", undefined], now)).toBe(15);
+  });
+
+  it("uma data que não é data não conta como entrada", () => {
+    expect(lastEntryAgeMinutes(["nem uma data"], now)).toBeNull();
+    expect(lastEntryAgeMinutes(["nem uma data", "2026-08-13T11:00:00Z"], now)).toBe(60);
+  });
+
+  // Relógios de tablet andam à frente. "Há -3 minutos" não é uma coisa que se
+  // possa dizer a alguém no chão de fábrica.
+  it("uma entrada no futuro lê-se como agora, e não como um número negativo", () => {
+    expect(lastEntryAgeMinutes(["2026-08-13T12:05:00Z"], now)).toBe(0);
   });
 });

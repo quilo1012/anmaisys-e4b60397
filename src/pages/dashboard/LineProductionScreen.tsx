@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { getShiftWindows } from "@/hooks/useShiftDowntime";
-import { shiftClockPct, lineReading, BAND_BG, BAND_STATUS } from "@/lib/linePerformance";
+import { shiftClockPct, lineReading, lastEntryAgeMinutes, BAND_BG, BAND_STATUS } from "@/lib/linePerformance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -121,6 +121,8 @@ interface ItemRow {
   actual_qty: number;
   intouch_qty: number | null;
   display_order: number;
+  /** `production_items.updated_at` — a idade da última entrada sai daqui. */
+  updated_at: string | null;
 }
 
 
@@ -293,7 +295,7 @@ export default function LineProductionScreen() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, sku_id, sku_code_text, target_qty, actual_qty, intouch_qty, display_order, created_at, sku:sku_products(code, name)")
+        .select("id, sku_id, sku_code_text, target_qty, actual_qty, intouch_qty, display_order, created_at, updated_at, sku:sku_products(code, name)")
         .eq("session_id", sessionQ.data!.id)
         .order("display_order", { ascending: true })
         .order("created_at", { ascending: true });
@@ -317,6 +319,10 @@ export default function LineProductionScreen() {
           actual_qty: actualNum > 0 ? actualNum : intouchNum,
           intouch_qty: r.intouch_qty == null ? null : Number(r.intouch_qty),
           display_order: Number(r.display_order ?? 0),
+          // Levado até ao fim de propósito: é daqui que sai a idade da última
+          // entrada. Sem isto o campo vinha na consulta e morria neste `map`, e
+          // o rodapé dizia "nothing entered yet" numa linha a produzir.
+          updated_at: r.updated_at ?? null,
         } as ItemRow;
       });
     },
@@ -401,6 +407,24 @@ export default function LineProductionScreen() {
   const reading = useMemo(
     () => lineReading({ target: totals.target, actual: totals.actual, elapsedPct }),
     [totals.target, totals.actual, elapsedPct],
+  );
+
+  /**
+   * Há quanto tempo alguém escreveu isto.
+   *
+   * O ecrã de parede diz-lo desde que foi corrigido; este, que é onde os números
+   * são ESCRITOS, imprimia a percentagem sozinha. A diferença entre "a linha fez
+   * isto" e "alguém disse isto há três horas" não estava em lado nenhum, e quem
+   * pega no tablet a meio do turno não tem como a adivinhar.
+   *
+   * A ressalva é a mesma da parede: `updated_at` é mexido por qualquer escrita na
+   * linha, não só pela do operador. Hoje é dele — a sincronização do iTouching que
+   * também lhe tocaria está desligada por decisão de um admin — mas se voltar a
+   * ser ligada este número passa a envelhecer mais devagar do que a entrada real.
+   */
+  const entryAge = useMemo(
+    () => lastEntryAgeMinutes(items.map((it) => it.updated_at), now),
+    [items, now],
   );
 
   const intouchLive = Number((sessionQ.data as any)?.intouch_good_total ?? 0);
@@ -948,6 +972,16 @@ export default function LineProductionScreen() {
                     {reading.band !== "GO" && ` · ${(elapsedPct - reading.attainedPct).toFixed(0)} pts behind the clock`}
                   </span>
                 )}
+              </div>
+              {/* O que estes números SÃO. A parede diz-lo desde que foi corrigida
+                  e este ecrã não dizia nada — e é aqui que eles são escritos, por
+                  isso é aqui que a diferença entre "a linha fez isto" e "alguém
+                  disse isto há três horas" se resolve indo perguntar. */}
+              <div className="text-sm text-muted-foreground">
+                Operator entries, not a live machine count
+                {entryAge == null
+                  ? " · nothing entered yet"
+                  : ` · last entry ${entryAge} min ago`}
               </div>
               {sessionQ.data.leader_name && (
                 <div className="text-sm text-muted-foreground">
