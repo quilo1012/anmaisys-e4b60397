@@ -120,18 +120,20 @@ describe("a line with no stop code is not thereby running", () => {
   });
 
   it("does not paint a line green on a status nobody has read", () => {
-    // O 4 saiu desta lista em 13/08, e saiu por prova, não por pressão: quatro
-    // linhas em 4 e verdes no ecrã do fornecedor à mesma hora (ver o teste do 4,
-    // mais abaixo). Fica o que continua por ler.
+    // O 4 e o 6 saíram desta lista em 13/08, por prova: quatro linhas em 4 e
+    // verdes no ecrã do fornecedor à mesma hora, e depois as Linhas 1 e 5 a
+    // alternar 4↔6 sem código e também verdes (ver os testes do 4 e do 6, mais
+    // abaixo). Fica o que continua por ler.
     //
     // Nota sobre o que este teste protege. Ausência de código NUNCA foi
     // autorização para pintar verde — foi essa a leitura errada de 12/08, quando
     // sete linhas ficaram verdes e a Line 5 estava a ser limpa. Continua a ser o
     // estado a decidir, e um estado por traduzir não decide nada.
-    for (const status of [6, 7]) {
+    for (const status of [5, 7]) {
       expect(classifyLive(reading({ status }), now).state).not.toBe("RUNNING");
     }
   });
+
 
   it("does not call it a stop either, on a status nobody has read", () => {
     // 12/08 às 21:38 UTC, os dois ecrãs lado a lado: Filler Line 1 em
