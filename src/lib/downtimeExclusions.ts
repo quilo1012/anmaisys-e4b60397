@@ -201,3 +201,37 @@ export function splitRangeByExclusions(
     end: isOpen && i === pieces.length - 1 && p[1] >= e ? null : new Date(p[1]).toISOString(),
   }));
 }
+
+/**
+ * The single definition of "line downtime" for a work order.
+ *
+ * Overlapping stoppages are the same minutes, not more of them: a stop recorded
+ * after the fact on top of a stop already on the record must be merged, never
+ * summed. Intervals whose end is not after their start (corrupt rows with
+ * resumed_at before stopped_at) are dropped rather than allowed to cancel out a
+ * real stop. Team-activity exclusions come off the merged spans once.
+ *
+ * Returns seconds, or `fallbackSec` when there is no usable interval.
+ */
+export function lineDowntimeSecFromStops(
+  stops: Array<{ stopped_at: string; resumed_at: string | null }>,
+  exclusions: RawExclusion[] | null | undefined,
+  fallbackSec: number | null,
+  nowMs: number = Date.now(),
+): number | null {
+  const ivs: Interval[] = [];
+  for (const s of stops ?? []) {
+    if (!s?.stopped_at) continue;
+    const start = new Date(s.stopped_at).getTime();
+    const end = s.resumed_at ? new Date(s.resumed_at).getTime() : nowMs;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    ivs.push([start, end]);
+  }
+  if (ivs.length === 0) return fallbackSec;
+
+  const merged = mergeIntervals(ivs);
+  const exclIvs = toExclusionIntervals(exclusions, nowMs);
+  let total = 0;
+  for (const [s, e] of merged) total += e - s - exclusionOverlapMs(s, e, exclIvs);
+  return Math.max(0, Math.round(total / 1000));
+}
