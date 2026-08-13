@@ -207,6 +207,17 @@ describe("a line with no stop code is not thereby running", () => {
     expect(r.stoppedForSeconds).toBeNull();
   });
 
+  it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
+    // O ramo cinzento continua a ter de ser exercido por alguma coisa. O 5 é o que
+    // resta por ver: nunca foi observado numa linha real desta instalação, e
+    // escrever um palpite aqui dar-lhe-ia a mesma aparência que o 4, o 6 e o 8,
+    // que trazem pares observados nos dois ecrãs.
+    const r = classifyLive(reading({ status: 5 }), now);
+    expect(r.state).toBe("UNKNOWN_STATUS");
+    expect(r.label).toBe("STATUS 5 · UNKNOWN");
+    expect(r.rawStatus).toBe(5);
+    expect(r.stoppedForSeconds).toBeNull();
+  });
 
   it("still names a stop with no code, for a status known to mean one", () => {
     // O ramo continua aqui, e vazio de propósito: no dia em que o fornecedor
