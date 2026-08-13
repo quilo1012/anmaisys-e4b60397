@@ -34,6 +34,9 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
+import { DowntimeCorrectionsSection } from "@/components/DowntimeCorrectionsSection";
+
 import { useToast } from "@/hooks/use-toast";
 import {
   format, differenceInMinutes, startOfDay,
@@ -1388,7 +1391,17 @@ export default function DowntimePage() {
                 lineFilter={filterLine}
                 shiftFilter={filterShift}
               />
+              {/* Who changed a downtime number, and why. Shown to the roles that are
+                  allowed to change one — RLS decides what they can actually read. */}
+              {can("downtime.adjust") && (
+                <DowntimeCorrectionsSection
+                  from={new Date(fromMs)}
+                  to={new Date(toMs)}
+                  lineFilter={filterLine}
+                />
+              )}
             </TabsContent>
+
           </Tabs>
 
           {/* Create Dialog */}
