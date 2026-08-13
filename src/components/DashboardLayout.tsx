@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Award, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +53,13 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 
 export interface NavItem {
   title: string;
+  /**
+   * What the row is called on the phone's bottom bar, where the sidebar's width is
+   * not available: each label is capped at 68px and truncated, which holds about
+   * eleven characters. Without it an operator saw "My Produc…" beside "My Scorec…",
+   * two ellipses differing in one letter. Omit it when the title already fits.
+   */
+  shortTitle?: string;
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   roles: AppRole[];
@@ -62,8 +69,15 @@ export interface NavItem {
 
 export const navItems: NavItem[] = [
   // Overview
-  { title: "Operator Panel", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
-  { title: "My Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview", action: "production.target.view" },
+  { title: "Operator Panel", shortTitle: "Panel", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
+  { title: "My Production", shortTitle: "Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview", action: "production.target.view" },
+  // For the line leader standing at the tablet, not for the line account it is signed
+  // in as. It carries no `action` on purpose: leaders have no account in this system,
+  // so there is no role the permission matrix could answer for, and an action here
+  // would hide the row from the only people it is for. The route is open for the same
+  // reason; the PIN is the gate, and the database checks it. Third in the list rather
+  // than last because the bottom bar on a phone renders only the first three.
+  { title: "My Scorecard", shortTitle: "Scorecard", url: "/dashboard/leader/scorecard", icon: Award, roles: ["operator"], group: "Overview" },
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer", "co_engineer"], group: "Overview", action: "dashboard.engineer" },
   // "My Tasks" and "History" used to sit here as separate entries. Both opened the
   // same page as Dashboard and only scrolled to a section of it, so the menu offered
@@ -71,13 +85,13 @@ export const navItems: NavItem[] = [
   // do nothing, because the page was already open.
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Overview", action: "dashboard.manager" },
   { title: "Dashboard", url: "/dashboard/warehouse", icon: LayoutDashboard, roles: ["warehouse"], group: "Overview" },
-  { title: "Control Center", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager", "supervisor", "production_office_admin"], group: "Overview", action: "controlcenter.view" },
+  { title: "Control Center", shortTitle: "Control", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager", "supervisor", "production_office_admin"], group: "Overview", action: "controlcenter.view" },
 
 
   // Maintenance
-  { title: "Maintenance Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "wo.view" },
-  { title: "Service Requests", url: "/dashboard/warehouse", icon: ClipboardList, roles: ["warehouse"], group: "Maintenance", action: "wo.view" },
-  { title: "Downtime & Reliability", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
+  { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "wo.view" },
+  { title: "Service Requests", shortTitle: "Requests", url: "/dashboard/warehouse", icon: ClipboardList, roles: ["warehouse"], group: "Maintenance", action: "wo.view" },
+  { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
   { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "pm.view" },
 
   // Assets
@@ -375,6 +389,7 @@ const roleBadgeClass: Record<string, string> = {
 const routeTitles: Record<string, string> = {
   "/dashboard/operator": "Operator Panel",
   "/dashboard/operator/my-production": "My Production",
+  "/dashboard/leader/scorecard": "My Scorecard",
   "/dashboard/engineer": "Dashboard",
   "/dashboard/manager": "Dashboard",
   "/dashboard/work-orders": "Maintenance Orders",
