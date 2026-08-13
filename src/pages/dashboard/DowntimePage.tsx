@@ -436,7 +436,15 @@ export default function DowntimePage() {
     splitRangeByExclusions(r.started_at, r.ended_at, exclusionsFor(exclusionMap, r.work_order_id));
 
   const netRecordsOf = (r: any): any[] =>
-    netStopsOf(r).map((piece, i) => ({ ...r, id: `${r.id}#${i}`, started_at: piece.start, ended_at: piece.end }));
+    netStopsOf(r).map((piece, i) => ({
+      ...r,
+      id: `${r.id}#${i}`,
+      // A piece knows which stoppage it came from, so the matrix can count
+      // stoppages rather than the fragments a break leaves behind.
+      source_row_id: r.id,
+      started_at: piece.start,
+      ended_at: piece.end,
+    }));
 
   // The heatmap uses the SAME source as the Overview KPIs (work-order stops
   // included, "No Planned Shift" periods excluded) so their totals reconcile.
