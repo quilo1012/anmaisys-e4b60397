@@ -39,7 +39,7 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
       {/* Straight to the role's dashboard — /dashboard/home only redirects there now. */}
       <Tab active={pathname === home} icon={Home} label="Home" onClick={() => navigate(home)} />
       {tabs.map((t) => (
-        <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={t.title} onClick={() => navigate(t.url)} />
+        <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={t.shortTitle ?? t.title} onClick={() => navigate(t.url)} />
       ))}
       <Tab active={false} icon={Menu} label="Menu" onClick={() => setOpenMobile(true)} />
     </nav>

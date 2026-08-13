@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { navItems } from "@/components/DashboardLayout";
 import { SYSTEM_TOOLS } from "@/pages/dashboard/SystemHubPage";
-import { can, type Role } from "@/lib/permissions";
+import { can, ALL_ROLES, type Role } from "@/lib/permissions";
 
 /**
  * The sidebar's shape, asserted rather than assumed.
@@ -98,6 +98,57 @@ describe("sidebar", () => {
     const rendered = ["Overview", "Maintenance", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
     for (const item of navItems) {
       expect(rendered, `"${item.title}" is in group "${item.group}", which is never rendered`).toContain(item.group);
+    }
+  });
+
+  it("offers the line leader their own scorecard from the operator sidebar", () => {
+    // The leader standing at the tablet is not the account it is signed in as. Their
+    // only way to their own card used to be a button halfway down the operator panel,
+    // in the header of the maintenance-orders card — reachable only by scrolling past
+    // the form, on the one screen whose whole job is the form.
+    const item = navItems.find((i) => i.url === "/dashboard/leader/scorecard");
+    expect(item, "the leader scorecard is not in the sidebar at all").toBeTruthy();
+    expect(item!.roles).toEqual(["operator"]);
+  });
+
+  it("leaves the leader scorecard ungated by the permission matrix", () => {
+    // Every other operator row names an action and is filtered on can(). This one
+    // cannot: line leaders have no account here — leader_pins is a name and a PIN
+    // hash — and the tablet is signed in as its line rather than as a person, so
+    // there is no role the matrix could answer for. The route is deliberately open
+    // for the same reason (App.tsx), and the gate is the PIN, checked in the
+    // database by leader_self_scorecard. An action added here would hide the link
+    // from the only people it is for.
+    const item = navItems.find((i) => i.url === "/dashboard/leader/scorecard");
+    expect(item!.action).toBeUndefined();
+  });
+
+  it("keeps the leader scorecard within the operator's first three rows", () => {
+    // On a phone the sidebar is a drawer and the bottom bar is the menu — and the bar
+    // renders filteredItems.slice(0, 3). A fourth row here is not a smaller link, it
+    // is one behind a hamburger. The leader has a phone or a tablet in their hand.
+    const operatorItems = navItems.filter((i) => i.roles.includes("operator"));
+    const titles = operatorItems.slice(0, 3).map((i) => i.title);
+    expect(titles, "My Scorecard dropped out of the mobile tab bar").toContain("My Scorecard");
+  });
+
+  it("gives every bottom-bar row a label that fits without truncating", () => {
+    // The tab bar caps each label at max-w-[68px] with `truncate`, which at text-2xs
+    // holds about eleven characters — measured in Chromium at 390px, not guessed. Over
+    // that, the row renders as "My Produc…" and "My Scorec…", two ellipses that differ
+    // in one letter. So the bar takes `shortTitle` where the sidebar takes `title`:
+    // the sidebar has the width for "My Scorecard" and the bar does not, and the fix
+    // for that is a shorter word, not a smaller font.
+    const BUDGET = 11;
+    for (const role of ALL_ROLES) {
+      const bar = navItems.filter((i) => (i.roles as string[]).includes(role)).slice(0, 3);
+      for (const item of bar) {
+        const label = item.shortTitle ?? item.title;
+        expect(
+          label.length,
+          `a ${role} sees "${label}" truncated in the bottom bar — give it a shortTitle`,
+        ).toBeLessThanOrEqual(BUDGET);
+      }
     }
   });
 });
