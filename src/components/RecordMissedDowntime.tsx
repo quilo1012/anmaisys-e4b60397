@@ -135,8 +135,11 @@ export function RecordMissedDowntime({
         <Clock className="mr-1.5 h-4 w-4" /> Record missed downtime
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
+        <DialogContent
+          className="sm:max-w-md"
+          onKeyDown={(e) => { if (busy && e.key === "Enter") e.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle>Record downtime that was not logged</DialogTitle>
             <DialogDescription>
