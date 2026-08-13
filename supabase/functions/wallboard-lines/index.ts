@@ -48,14 +48,22 @@ const cors = {
 // OMEGA 3 at 16,4 fills a minute against a 14,3 standard, back at 4 minutes
 // later on the same job. The number moves with the pace; both are production.
 //
+// 6 is the same machine again, settled on 13/08 between 08:30 and 08:35 UTC:
+// `intouch_status_log` has Filler Lines 1 and 5 alternating minute by minute
+// between 4 and 6 with no stop code (Line 5: 08:30 → 6, 08:31 → 4, 08:33 → 6,
+// 08:34 → 4) while the supervisor read both green and "Running" on the vendor's
+// board. In the day so far it appeared 11 times and never once carried a code —
+// the signature of 4 and 8, not of a stop, which here always arrives as 7 WITH a
+// code. Until it was added, a line filling bottles showed SEM SINAL on the floor.
+//
 // 1 and 2 stay because they were always here and nothing has contradicted them —
-// no machine in this installation has ever reported either. 5, 6 and 7 are
+// no machine in this installation has ever reported either. 5 and 7 are
 // deliberately out: 7 has never been seen without a code (the branch above
-// answers it first), and 6 has two sightings that point opposite ways. An
-// untranslated number keeps returning null, which is this board saying it cannot
-// tell — not a green light nobody earned. Same table, same evidence, as
+// answers it first), and 5 has never been seen at all. An untranslated number
+// keeps returning null, which is this board saying it cannot tell — not a green
+// light nobody earned. Same table, same evidence, as
 // `src/lib/lineLiveStatus.ts`; the two must be changed together.
-const HEALTHY_STATUS = new Set<number>([1, 2, 4, 8]);
+const HEALTHY_STATUS = new Set<number>([1, 2, 4, 6, 8]);
 
 // SETUP and IDLE do not exist in the iTouching contract. The only way to reach
 // them is by naming the stop codes that mean each one, and that is an admin's
