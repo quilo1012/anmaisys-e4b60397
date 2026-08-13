@@ -104,7 +104,6 @@ export function RecordMissedDowntime({
         // Said in the record itself: this stop was reconstructed, not timed. A report
         // that cannot tell the two apart will average them together.
         resumed_note: `Recorded after the fact by ${name} — the stop was not logged while it was happening.`,
-        duration_minutes: minutes,
       });
       if (error) throw error;
       toast.success(`${minutes} minutes of downtime recorded against WO-${woNumber}`);
