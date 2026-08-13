@@ -355,6 +355,19 @@ export default function WorkOrderDetail() {
           </div>
         </div>
 
+        {/* Order bar — the reference, where it is, and its state, kept in view.
+            Scrolling past the header used to leave the page anonymous. */}
+        <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden md:-mx-6 md:px-6">
+          <span className="font-figure text-sm font-semibold tabular-nums">{woLabel}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+            {(wo as any).wo_type === "warehouse_service"
+              ? `Warehouse · ${(wo as any).warehouse_location || "—"}`
+              : ([((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—")}
+          </span>
+          <Badge variant="outline" className={`shrink-0 ${cfg.className}`}>{cfg.label}</Badge>
+          <Badge variant="outline" className={`shrink-0 ${pri.className}`}>{pri.label}</Badge>
+        </div>
+
         {/* Screen-only title with badges.
             A ordem estava ao contrário. O topo a 24 px era o nome de quem abriu a
             ordem, e a referência — o que identifica esta página, o que se diz em voz
@@ -393,10 +406,6 @@ export default function WorkOrderDetail() {
                 </Badge>
               )}
             </div>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <Badge variant="outline" className={`text-sm px-3 py-1 ${pri.className}`}>{pri.label}</Badge>
-            <Badge variant="outline" className={`text-sm px-3 py-1 ${cfg.className}`}>{cfg.label}</Badge>
           </div>
         </div>
 
@@ -446,41 +455,42 @@ export default function WorkOrderDetail() {
         {/* Operator: report a recurring failure on a finished/closed WO */}
         <OperatorRecurrenceCard wo={wo as any} />
 
-        {/* Problem Description */}
+        {/* Problem — what was reported, and why the line stopped. */}
         <Card className="print:border print:border-black print:shadow-none print:rounded-none">
-          <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Problem Description</CardTitle></CardHeader>
-          <CardContent className="print:pb-2">
+          <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Problem</CardTitle></CardHeader>
+          <CardContent className="print:pb-2 space-y-2">
             <p className="print:text-[9pt]">{wo.description}</p>
-            {/* Only what a person wrote. iTouching's own bookkeeping — machine name,
-                detection time, stop-code GUIDs — is already on the screen in its own
-                fields, and printed here it buried the engineer's actual note. */}
-            {splitWoNotes(wo.notes).human && (
-              <div className="mt-2 pt-2 border-t print:mt-1 print:pt-1">
-                <p className="text-sm font-medium print:text-[8pt] print:font-bold">Observations:</p>
-                <p className="whitespace-pre-line print:text-[9pt]">{splitWoNotes(wo.notes).human}</p>
-              </div>
-            )}
+            {(() => {
+              const reason = downtimeEvents.find((e) => hasMeaningfulText(e.stopped_reason))?.stopped_reason;
+              if (!reason) return null;
+              return (
+                <p className="text-sm text-muted-foreground print:text-[8pt]">
+                  Line stopped — {reason}
+                </p>
+              );
+            })()}
           </CardContent>
         </Card>
 
-        {/* Screen-only notes card */}
+        {/* Resolution — the engineer's own note, said once, here only. */}
         {(() => {
           const { human, machine } = splitWoNotes(wo.notes);
-          if (!human && !machine) return null;
+          const written = hasMeaningfulText(human);
           return (
-            <Card className="print:hidden">
-              <CardHeader><CardTitle className="text-base">Observations</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {human ? (
-                  <p className="whitespace-pre-line">{human}</p>
+            <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+              <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Resolution</CardTitle></CardHeader>
+              <CardContent className="space-y-2 print:pb-2">
+                {written ? (
+                  <p className="whitespace-pre-line print:text-[9pt]">{human}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Nothing written by hand on this order.</p>
+                  /* A lone comma is not an observation. */
+                  <p className="text-sm text-muted-foreground print:text-[8pt]">No observations recorded</p>
                 )}
                 {machine && (
                   /* Kept, not deleted: it is the automatic trail of how the order came
                      to exist. Folded away because every fact in it is already shown
                      somewhere a person can read. */
-                  <details className="text-xs text-muted-foreground">
+                  <details className="text-xs text-muted-foreground print:hidden">
                     <summary className="cursor-pointer select-none">Automatic log from iTouching</summary>
                     <p className="mt-1 whitespace-pre-line">{machine}</p>
                   </details>
