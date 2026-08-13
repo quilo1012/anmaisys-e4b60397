@@ -64,6 +64,7 @@ export type Action =
   | "headcount.manage"
   | "attendance.manage"
   | "downtime.adjust"
+  | "downtime.correct"
   | "reports.export"
 
   // Preventive Maintenance
@@ -186,6 +187,10 @@ const MATRIX: Record<Action, Role[]> = {
   "headcount.manage": ["admin"],
   "attendance.manage": ["admin", "manager", "supervisor", "planner"],
   "downtime.adjust": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
+  // Rewriting a stoppage number that is already on the record is deliberately
+  // narrower than `downtime.adjust`: it changes how a line and an engineer are
+  // measured, so only the admin and the maintenance manager may do it.
+  "downtime.correct": ["admin", "maintenance_manager"],
   "reports.export": ["admin", "manager", "supervisor", "planner"],
 
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
@@ -382,7 +387,7 @@ export function canPrintReport(role: Role | null | undefined): boolean {
  */
 export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] = [
   { key: "wo", label: "Maintenance Orders", actions: ["wo.view", "wo.create", "wo.update", "wo.close", "wo.delete", "wo.force", "wo.print"] },
-  { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage"] },
+  { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage", "downtime.adjust", "downtime.correct"] },
   { key: "machines", label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
   { key: "stock", label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
   { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
@@ -420,6 +425,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "downtime.view": "See downtime events and history.",
   "downtime.manage": "Create, edit and close downtime events.",
   "downtime.adjust": "Adjust downtime records (exclusions, corrections).",
+  "downtime.correct": "Correct a recorded stoppage's start, end or duration (logged with the corrector's name).",
   "headcount.view": "See the daily Production Headcount board (Day / Night).",
   "headcount.manage": "Allocate people to areas and record absence, holidays and overtime.",
   "attendance.manage": "Record attendance for the shift.",
