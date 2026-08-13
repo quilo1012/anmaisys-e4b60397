@@ -116,7 +116,44 @@ function setFaviconBadge(count: number) {
   }
 }
 
-// ─── Audio engine (HTMLAudio + WebAudio oscillator fallback) ─────────────────
+/**
+ * The same chime rendered offline to a 3s WAV data URL (one repeat interval),
+ * for the media-element path. Built once, lazily — cheap, but not at import.
+ */
+let chimeWavCache: string | null = null;
+function chimeWavUrl(): string {
+  if (chimeWavCache) return chimeWavCache;
+  const rate = 22050;
+  const frames = Math.round(rate * (CHIME_INTERVAL_MS / 1000));
+  const bytes = new Uint8Array(44 + frames * 2);
+  const view = new DataView(bytes.buffer);
+  const ascii = (off: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(off + i, str.charCodeAt(i));
+  };
+  ascii(0, "RIFF"); view.setUint32(4, 36 + frames * 2, true); ascii(8, "WAVEfmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  ascii(36, "data"); view.setUint32(40, frames * 2, true);
+  for (let i = 0; i < frames; i++) {
+    const t = i / rate;
+    let sample = 0;
+    for (const { freq, at, dur } of CHIME_TONES) {
+      const dt = t - at;
+      if (dt < 0 || dt > dur) continue;
+      // Attack then exponential decay, matching the WebAudio envelope.
+      const env = Math.min(1, dt / 0.03) * Math.pow(0.0001, dt / dur);
+      sample += Math.sin(2 * Math.PI * freq * dt) * env * CHIME_PEAK;
+    }
+    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, sample)) * 32767, true);
+  }
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  chimeWavCache = `data:audio/wav;base64,${btoa(bin)}`;
+  return chimeWavCache;
+}
+
+// ─── Audio engine (WebAudio chime, media-element fallback) ───────────────────
 class AlertAudioEngine {
   private ctx: AudioContext | null = null;
   private htmlAudio: HTMLAudioElement | null = null;
@@ -124,7 +161,7 @@ class AlertAudioEngine {
   private vibTimer: number | null = null;
   private watchdog: number | null = null;
   private playing = false;
-  /** Current siren volume (0..1). Applied to both HTMLAudio and oscillator gain. */
+  /** Current alert volume (0..1). Applied to both HTMLAudio and the chime gain. */
   volume = 1;
   /** Called when the browser blocks audio playback so the UI can flip the icon. */
   onBlocked: (() => void) | null = null;
@@ -265,7 +302,7 @@ class AlertAudioEngine {
         try { navigator.vibrate(VIBRATE_PATTERN); } catch { /* ignore */ }
       }, 3000);
     }
-    // No auto-stop — siren rings until acknowledge()/decline().
+    // No auto-stop — the chime repeats until acknowledge()/decline().
   }
 
   stop() {
