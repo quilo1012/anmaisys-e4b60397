@@ -285,6 +285,8 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
 
 export default function DowntimePage() {
   const { user } = useAuth();
+  const { can } = useRole();
+
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data: records, isLoading } = useDowntime();
