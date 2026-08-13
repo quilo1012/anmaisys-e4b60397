@@ -150,10 +150,11 @@ describe("a line with no stop code is not thereby running", () => {
     // Por isso este ecrã deixa de responder à pergunta. Um estado fora do mapa
     // não é produção nem paragem; é um número que ninguém traduziu, e dizê-lo é
     // a única leitura que não inventa nada.
-    for (const status of [6, 7]) {
+    for (const status of [5, 7]) {
       expect(classifyLive(reading({ status }), now).state).not.toBe("STOPPED_NO_CODE");
     }
   });
+
 
   it("reads status 4 as running — the number this factory sends while it is filling", () => {
     // O par que faltava, observado ao minuto em 13/08 às 07:33 UTC: Filler Line
