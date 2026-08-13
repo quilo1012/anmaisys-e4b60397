@@ -6928,6 +6928,7 @@ export type Database = {
         Returns: boolean
       }
       verify_target_pin: { Args: { _pin: string }; Returns: boolean }
+      wo_downtime_seconds: { Args: { _wo: string }; Returns: number }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
       work_order_access_hint: { Args: { _wo_id: string }; Returns: Json }
     }

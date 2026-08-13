@@ -9,10 +9,9 @@ import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
 import { useDowntimeCorrections } from "@/hooks/useDowntimeCorrections";
 import {
-  activityLabel, exclusionOverlapMs, mergeIntervals, toExclusionIntervals,
+  activityLabel, exclusionOverlapMs, lineDowntimeSecFromStops, toExclusionIntervals,
 } from "@/lib/downtimeExclusions";
-import { unionMs } from "@/lib/downtimeReconcile";
-import type { Interval } from "@/lib/downtimeReconcile";
+
 
 interface Props {
   workOrderId: string;
@@ -144,19 +143,8 @@ export function WoTimeline({ workOrderId }: Props) {
    *
    * The old figure is kept as the fallback for orders that have no event at all.
    */
-  const stopIntervals: Interval[] = [];
-  for (const d of stoppages) {
-    const s = new Date(d.stopped_at).getTime();
-    const e = d.resumed_at ? new Date(d.resumed_at).getTime() : Date.now();
-    if (Number.isFinite(s) && Number.isFinite(e) && e > s) stopIntervals.push([s, e]);
-  }
-  const excluded = mergeIntervals(stopIntervals).reduce(
-    (ms, [s, e]) => ms + exclusionOverlapMs(s, e, toExclusionIntervals(exclusions)),
-    0,
-  );
-  const lineDowntimeSec = stopIntervals.length
-    ? Math.max(0, Math.round((unionMs(stopIntervals) - excluded) / 1000))
-    : m.line_downtime_sec;
+  const lineDowntimeSec = lineDowntimeSecFromStops(stoppages, exclusions, m.line_downtime_sec);
+
   const openStop = stoppages.some((d) => !d.resumed_at);
 
   // Placed by time against the spine, so an event lands after the last milestone that

@@ -23,7 +23,7 @@ import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { RecordMissedDowntime } from "@/components/RecordMissedDowntime";
 import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
-import { activityLabel, subtractExclusionMinutes, toExclusionIntervals } from "@/lib/downtimeExclusions";
+import { activityLabel, exclusionOverlapMs, lineDowntimeSecFromStops, mergeIntervals, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { splitWoNotes } from "@/lib/woNotes";
 import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
@@ -535,41 +535,42 @@ export default function WorkOrderDetail() {
             ? Math.max(0, differenceInSeconds(new Date(operatorStopEnd || new Date()), new Date(operatorStopStart)))
             : 0;
 
-          // Engineer-recorded downtime events (additional stoppages logged during the WO)
-          // Prefer real timestamps over stored duration_minutes (which is rounded and
-          // reports 0 for sub-minute stops).
-          const engineerDowntimeSec = downtimeEvents.reduce((acc, e) => {
-            if (e.resumed_at) return acc + differenceInSeconds(new Date(e.resumed_at), new Date(e.stopped_at));
-            if (e.duration_minutes != null) return acc + e.duration_minutes * 60;
-            return acc + differenceInSeconds(new Date(), new Date(e.stopped_at));
-          }, 0);
-
           // The operator's stop and the first event are the same stoppage.
           //
           // `wo_auto_insert_downtime_event` writes an event FROM `line_stopped_at`, so
-          // adding the two counted one stoppage twice: WO-804 stopped Line 4 once at
-          // 16:48 and this card read "2 stoppages · 0h 23m" at 17:00, while the stop
-          // history directly underneath it read "1 stop · 0h 11m". Eleven minutes,
-          // counted twice, on the same screen.
+          // adding the two counted one stoppage twice. The events are the record, and
+          // overlapping events are the same minutes: they are merged, never summed —
+          // WO-824 has a 48-minute stop recorded on top of a 287-minute one and read
+          // 4h 43m here against 4h 16m in the timeline above it.
           //
-          // The events are the record — every other view is built on them, and this is
-          // the same rule `v_wo_metrics.line_downtime_sec` follows. The order's own
-          // timestamps are the fallback for orders old enough to have no event at all.
+          // The order's own timestamps stay the fallback for orders with no event.
           const useEvents = downtimeEvents.length > 0;
           const stopCount = useEvents ? downtimeEvents.length : (hasOperatorStop ? 1 : 0);
           // Team-activity exclusions (break / filling blender / brushing & cleaning)
-          // are subtracted from the order's downtime; the raw records stay intact.
+          // are subtracted from the merged spans; the raw records stay intact.
           const exclusionIvs = toExclusionIntervals(woExclusions);
-          let excludedMin = 0;
-          if (useEvents) {
-            downtimeEvents.forEach((e) => {
-              excludedMin += subtractExclusionMinutes(e.stopped_at, e.resumed_at, exclusionIvs);
-            });
-          } else if (hasOperatorStop) {
-            excludedMin += subtractExclusionMinutes(operatorStopStart, operatorStopEnd, exclusionIvs);
-          }
-          const grossDowntimeSec = useEvents ? engineerDowntimeSec : operatorDowntimeSec;
-          const totalDowntimeSec = Math.max(0, grossDowntimeSec - excludedMin * 60);
+          const mergedSpans = useEvents
+            ? mergeIntervals(
+                downtimeEvents
+                  .map((e) => [
+                    new Date(e.stopped_at).getTime(),
+                    e.resumed_at ? new Date(e.resumed_at).getTime() : Date.now(),
+                  ] as [number, number])
+                  .filter(([s, e]) => Number.isFinite(s) && Number.isFinite(e) && e > s),
+              )
+            : hasOperatorStop
+              ? mergeIntervals([[
+                  new Date(operatorStopStart).getTime(),
+                  new Date(operatorStopEnd || new Date()).getTime(),
+                ]])
+              : [];
+          const excludedMin = Math.round(
+            mergedSpans.reduce((ms, [s, e]) => ms + exclusionOverlapMs(s, e, exclusionIvs), 0) / 60000,
+          );
+          const totalDowntimeSec = useEvents
+            ? (lineDowntimeSecFromStops(downtimeEvents, woExclusions, operatorDowntimeSec) ?? 0)
+            : Math.max(0, operatorDowntimeSec - excludedMin * 60);
+
           const lineOperating = !((wo as any).line_stopped && !(wo as any).line_resumed_at);
           return (
             <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
