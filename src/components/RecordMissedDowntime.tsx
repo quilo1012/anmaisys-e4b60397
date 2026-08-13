@@ -85,6 +85,9 @@ export function RecordMissedDowntime({
   if (!can("downtime.adjust")) return null;
 
   const save = async () => {
+    // A second click, or Enter while the first insert is still in the air, is how
+    // WO-824 ended up with two byte-identical stoppages on the record.
+    if (busy) return;
     if (minutes == null || minutes <= 0) {
       toast.error("The line has to come back after it stopped");
       return;
@@ -104,7 +107,6 @@ export function RecordMissedDowntime({
         // Said in the record itself: this stop was reconstructed, not timed. A report
         // that cannot tell the two apart will average them together.
         resumed_note: `Recorded after the fact by ${name} — the stop was not logged while it was happening.`,
-        duration_minutes: minutes,
       });
       if (error) throw error;
       toast.success(`${minutes} minutes of downtime recorded against WO-${woNumber}`);
@@ -115,7 +117,13 @@ export function RecordMissedDowntime({
       setOpen(false);
       onRecorded?.();
     } catch (e) {
-      toast.error((e as Error).message);
+      // The unique index downtime_events_no_duplicate_span refusing the second copy.
+      const code = (e as { code?: string })?.code;
+      toast.error(
+        code === "23505"
+          ? "That stoppage is already recorded on this order."
+          : (e as Error).message,
+      );
     } finally {
       setBusy(false);
     }
@@ -127,8 +135,11 @@ export function RecordMissedDowntime({
         <Clock className="mr-1.5 h-4 w-4" /> Record missed downtime
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={open} onOpenChange={(o) => { if (!busy) setOpen(o); }}>
+        <DialogContent
+          className="sm:max-w-md"
+          onKeyDown={(e) => { if (busy && e.key === "Enter") e.preventDefault(); }}
+        >
           <DialogHeader>
             <DialogTitle>Record downtime that was not logged</DialogTitle>
             <DialogDescription>

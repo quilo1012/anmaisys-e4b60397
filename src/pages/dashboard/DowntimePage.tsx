@@ -35,6 +35,9 @@ import { useMachines, useLines } from "@/hooks/useMachines";
 import { useRecentMachineEvents } from "@/hooks/useMachineEvents";
 import { type RiskLevel } from "@/hooks/usePredictiveAlerts";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
+import { DowntimeCorrectionsSection } from "@/components/DowntimeCorrectionsSection";
+
 import { useToast } from "@/hooks/use-toast";
 import {
   format, differenceInMinutes, startOfDay,
@@ -283,6 +286,8 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
 
 export default function DowntimePage() {
   const { user } = useAuth();
+  const { can } = useRole();
+
   const navigate = useNavigate();
   const { toast } = useToast();
   // Declarado antes das consultas porque é ele que agora decide o que se vai
@@ -444,7 +449,15 @@ export default function DowntimePage() {
     splitRangeByExclusions(r.started_at, r.ended_at, exclusionsFor(exclusionMap, r.work_order_id));
 
   const netRecordsOf = (r: any): any[] =>
-    netStopsOf(r).map((piece, i) => ({ ...r, id: `${r.id}#${i}`, started_at: piece.start, ended_at: piece.end }));
+    netStopsOf(r).map((piece, i) => ({
+      ...r,
+      id: `${r.id}#${i}`,
+      // A piece knows which stoppage it came from, so the matrix can count
+      // stoppages rather than the fragments a break leaves behind.
+      source_row_id: r.id,
+      started_at: piece.start,
+      ended_at: piece.end,
+    }));
 
   // The heatmap uses the SAME source as the Overview KPIs (work-order stops
   // included, "No Planned Shift" periods excluded) so their totals reconcile.
@@ -1395,7 +1408,17 @@ export default function DowntimePage() {
                 lineFilter={filterLine}
                 shiftFilter={filterShift}
               />
+              {/* Who changed a downtime number, and why. Shown to the roles that are
+                  allowed to change one — RLS decides what they can actually read. */}
+              {can("downtime.adjust") && (
+                <DowntimeCorrectionsSection
+                  from={new Date(fromMs)}
+                  to={new Date(toMs)}
+                  lineFilter={filterLine}
+                />
+              )}
             </TabsContent>
+
           </Tabs>
 
           {/* Create Dialog */}

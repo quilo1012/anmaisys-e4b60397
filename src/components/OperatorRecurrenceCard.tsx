@@ -135,13 +135,14 @@ export function OperatorRecurrenceCard({ wo }: Props) {
                 ) : null}
               </p>
             </div>
+            {/* An advisory, not an alarm: ordinary width, outline, destructive
+                text — the loudest thing on this page should be the order. */}
             <Button
-              size="lg"
-              variant="destructive"
-              className="w-full h-12 text-base font-bold"
+              variant="outline"
+              className="h-10 border-destructive/40 text-destructive-strong hover:bg-destructive/10 hover:text-destructive-strong"
               onClick={() => setOpen(true)}
             >
-              <RotateCw className="h-5 w-5 mr-2" /> REPORT RECURRING FAILURE
+              <RotateCw className="h-4 w-4 mr-2" /> Report recurring failure
             </Button>
           </div>
         </div>

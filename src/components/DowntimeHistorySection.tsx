@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { differenceInMinutes, format } from "date-fns";
 import { Filter, PowerOff, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDowntimeEvents } from "@/hooks/useDowntimeEvents";
+import { useDowntimeCorrections } from "@/hooks/useDowntimeCorrections";
+import { CorrectDowntimeDialog } from "@/components/CorrectDowntimeDialog";
+import { useRole } from "@/hooks/useRole";
 import { formatMinutes } from "@/lib/formatDuration";
 
 interface Props {
@@ -36,6 +39,21 @@ const ALL_USERS = "__all__";
  */
 export function DowntimeHistorySection({ workOrderId }: Props) {
   const { data: events, isLoading } = useDowntimeEvents(workOrderId);
+  const { data: corrections = [] } = useDowntimeCorrections(workOrderId);
+  const { can } = useRole();
+  const canCorrect = can("downtime.correct");
+
+  /** The latest correction per stoppage — what the row shows underneath itself. */
+  const lastCorrection = useMemo(() => {
+    const map: Record<string, (typeof corrections)[number]> = {};
+    for (const c of corrections) {
+      const prev = map[c.downtime_event_id];
+      if (!prev || new Date(c.corrected_at) > new Date(prev.corrected_at)) {
+        map[c.downtime_event_id] = c;
+      }
+    }
+    return map;
+  }, [corrections]);
 
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
@@ -198,6 +216,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                   <TableHead className="whitespace-nowrap">Note</TableHead>
                   <TableHead className="text-right whitespace-nowrap">Duration</TableHead>
                   <TableHead className="whitespace-nowrap">Type</TableHead>
+                  {canCorrect && <TableHead className="w-10" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -207,9 +226,10 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                     ? differenceInMinutes(new Date(), new Date(e.stopped_at))
                     : e.duration_minutes ??
                       differenceInMinutes(new Date(e.resumed_at!), new Date(e.stopped_at));
+                  const corr = lastCorrection[e.id];
                   return (
+                    <Fragment key={e.id}>
                     <TableRow
-                      key={e.id}
                       className={isOpen ? "bg-destructive/10 hover:bg-destructive/15" : ""}
                     >
                       <TableCell className="font-figure text-xs">{filtered.length - idx}</TableCell>
@@ -242,7 +262,23 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
                           <Badge variant="outline" className="text-2xs">First</Badge>
                         )}
                       </TableCell>
+                      {canCorrect && (
+                        <TableCell className="text-right">
+                          <CorrectDowntimeDialog event={e} workOrderId={workOrderId} />
+                        </TableCell>
+                      )}
                     </TableRow>
+                    {corr && (
+                      <TableRow key={`${e.id}-corr`} className="hover:bg-transparent">
+                        <TableCell />
+                        <TableCell colSpan={canCorrect ? 9 : 8} className="pt-0 text-2xs text-muted-foreground">
+                          {corr.prev_duration_minutes ?? "—"} min → {corr.new_duration_minutes ?? "—"} min ·
+                          {" "}corrected by {corr.corrected_by_name}
+                          {corr.reason ? ` — ${corr.reason}` : ""}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
                   );
                 })}
               </TableBody>

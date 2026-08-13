@@ -850,6 +850,76 @@ export type Database = {
           },
         ]
       }
+      downtime_corrections: {
+        Row: {
+          corrected_at: string
+          corrected_by: string | null
+          corrected_by_name: string
+          downtime_event_id: string
+          id: string
+          new_duration_minutes: number | null
+          new_resumed_at: string | null
+          new_stopped_at: string
+          prev_duration_minutes: number | null
+          prev_resumed_at: string | null
+          prev_stopped_at: string
+          reason: string
+          work_order_id: string
+        }
+        Insert: {
+          corrected_at?: string
+          corrected_by?: string | null
+          corrected_by_name: string
+          downtime_event_id: string
+          id?: string
+          new_duration_minutes?: number | null
+          new_resumed_at?: string | null
+          new_stopped_at: string
+          prev_duration_minutes?: number | null
+          prev_resumed_at?: string | null
+          prev_stopped_at: string
+          reason: string
+          work_order_id: string
+        }
+        Update: {
+          corrected_at?: string
+          corrected_by?: string | null
+          corrected_by_name?: string
+          downtime_event_id?: string
+          id?: string
+          new_duration_minutes?: number | null
+          new_resumed_at?: string | null
+          new_stopped_at?: string
+          prev_duration_minutes?: number | null
+          prev_resumed_at?: string | null
+          prev_stopped_at?: string
+          reason?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "downtime_corrections_downtime_event_id_fkey"
+            columns: ["downtime_event_id"]
+            isOneToOne: false
+            referencedRelation: "downtime_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_corrections_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_corrections_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       downtime_events: {
         Row: {
           created_at: string
@@ -1470,6 +1540,12 @@ export type Database = {
           last_seen_at: string | null
           last_status: number | null
           line_id: string | null
+          live_job_checked_at: string | null
+          live_job_code: string | null
+          live_job_name: string | null
+          live_job_qty: number | null
+          live_job_seen_at: string | null
+          live_job_state: string | null
           machine_name: string | null
           prod_dt_code: string | null
           prod_dt_started_at: string | null
@@ -1486,6 +1562,12 @@ export type Database = {
           last_seen_at?: string | null
           last_status?: number | null
           line_id?: string | null
+          live_job_checked_at?: string | null
+          live_job_code?: string | null
+          live_job_name?: string | null
+          live_job_qty?: number | null
+          live_job_seen_at?: string | null
+          live_job_state?: string | null
           machine_name?: string | null
           prod_dt_code?: string | null
           prod_dt_started_at?: string | null
@@ -1502,6 +1584,12 @@ export type Database = {
           last_seen_at?: string | null
           last_status?: number | null
           line_id?: string | null
+          live_job_checked_at?: string | null
+          live_job_code?: string | null
+          live_job_name?: string | null
+          live_job_qty?: number | null
+          live_job_seen_at?: string | null
+          live_job_state?: string | null
           machine_name?: string | null
           prod_dt_code?: string | null
           prod_dt_started_at?: string | null
@@ -1533,6 +1621,39 @@ export type Database = {
           blocked_until?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      intouch_status_log: {
+        Row: {
+          changed_at: string
+          id: number
+          line: string | null
+          machine: string
+          reading_at: string | null
+          status: number | null
+          stop_code: string | null
+          stop_label: string | null
+        }
+        Insert: {
+          changed_at?: string
+          id?: number
+          line?: string | null
+          machine: string
+          reading_at?: string | null
+          status?: number | null
+          stop_code?: string | null
+          stop_label?: string | null
+        }
+        Update: {
+          changed_at?: string
+          id?: number
+          line?: string | null
+          machine?: string
+          reading_at?: string | null
+          status?: number | null
+          stop_code?: string | null
+          stop_label?: string | null
         }
         Relationships: []
       }
@@ -6330,6 +6451,11 @@ export type Database = {
       }
       v_line_live_status: {
         Row: {
+          job_code: string | null
+          job_name: string | null
+          job_qty: number | null
+          job_seen_at: string | null
+          job_state: string | null
           line: string | null
           machine: string | null
           planned: boolean | null
@@ -6492,6 +6618,16 @@ export type Database = {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json
       }
+      correct_downtime_event: {
+        Args: {
+          _event_id: string
+          _minutes: number
+          _reason: string
+          _resumed_at: string
+          _stopped_at: string
+        }
+        Returns: Json
+      }
       create_leader:
         | { Args: { _name: string; _pin: string }; Returns: string }
         | {
@@ -6536,6 +6672,14 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      has_action: {
+        Args: {
+          _action: string
+          _baseline: Database["public"]["Enums"]["app_role"][]
+          _uid: string
+        }
+        Returns: boolean
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
@@ -6560,6 +6704,10 @@ export type Database = {
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
       is_operator_chat_admin_now: { Args: { uid: string }; Returns: boolean }
       is_session_locked: { Args: { _session_id: string }; Returns: boolean }
+      leader_self_scorecard: {
+        Args: { _from: string; _pin: string; _shift?: string; _to: string }
+        Returns: Json
+      }
       list_active_profile_names: {
         Args: never
         Returns: {
@@ -6657,6 +6805,16 @@ export type Database = {
           _details?: Json
           _entity_id?: string
           _entity_type: string
+        }
+        Returns: undefined
+      }
+      log_intouch_status: { Args: never; Returns: number }
+      log_wo_action: {
+        Args: {
+          p_action: string
+          p_engineer_id: string
+          p_engineer_name: string
+          p_work_order_id: string
         }
         Returns: undefined
       }
@@ -6770,6 +6928,7 @@ export type Database = {
         Returns: boolean
       }
       verify_target_pin: { Args: { _pin: string }; Returns: boolean }
+      wo_downtime_seconds: { Args: { _wo: string }; Returns: number }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
       work_order_access_hint: { Args: { _wo_id: string }; Returns: Json }
     }

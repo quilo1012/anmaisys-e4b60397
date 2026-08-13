@@ -58,6 +58,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "headcount.manage": ["admin"],
   "attendance.manage": ["admin", "manager", "supervisor", "planner"],
   "downtime.adjust": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
+  "downtime.correct": ["admin", "maintenance_manager"],
   "reports.export": ["admin", "manager", "supervisor", "planner"],
   "chat.dm": ["admin", "manager", "supervisor", "operator"],
   "notifications.view": ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
