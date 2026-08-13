@@ -1554,6 +1554,39 @@ export type Database = {
         }
         Relationships: []
       }
+      intouch_status_log: {
+        Row: {
+          changed_at: string
+          id: number
+          line: string | null
+          machine: string
+          reading_at: string | null
+          status: number | null
+          stop_code: string | null
+          stop_label: string | null
+        }
+        Insert: {
+          changed_at?: string
+          id?: number
+          line?: string | null
+          machine: string
+          reading_at?: string | null
+          status?: number | null
+          stop_code?: string | null
+          stop_label?: string | null
+        }
+        Update: {
+          changed_at?: string
+          id?: number
+          line?: string | null
+          machine?: string
+          reading_at?: string | null
+          status?: number | null
+          stop_code?: string | null
+          stop_label?: string | null
+        }
+        Relationships: []
+      }
       intouch_stop_code_catalog: {
         Row: {
           active: boolean
@@ -6687,6 +6720,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_intouch_status: { Args: never; Returns: number }
       log_wo_action: {
         Args: {
           p_action: string
