@@ -39,11 +39,17 @@
  * SIGNAL, because an untranslated reading is not a state, and a supervisor
  * reading it can quote the number straight back to the vendor.
  *
- * HOW THIS GETS FIXED PROPERLY. `intouch_machine_map.live_job_state` carries
- * iTouching's own word for what the machine is doing, from `getscheduledjobs`.
- * Once the poll that fills it is deployed, a day of pairs settles what 4, 5, 6
- * and 7 are, and the fix is one line per value in the table below — with the
- * evidence written beside it this time.
+ * HOW THE REMAINING NUMBERS GET SETTLED, AND HOW 4 WAS. Not from the database:
+ * `getmachineStatuses` returns `{MachineID, Status, DowntimeCode}` and nothing
+ * else, no endpoint in this integration returns a state in words, and
+ * `live_job_state` — proposed here as the answer — turned out to read "next" on
+ * every machine at once, running and stopped alike. It is the SCHEDULE's word for
+ * the job, not the machine's word for itself, and it settles nothing.
+ *
+ * What settled 4 was a pair read off both screens at the same minute: the column
+ * on one side, the vendor's own green on the other. That is the method, it costs
+ * ten seconds on the floor, and each value gets one line in the table below with
+ * its pair written beside it.
  */
 
 export type LiveState =
@@ -69,14 +75,33 @@ export type LiveState =
  * either. They are the inherited claim, not a verified one, and the moment
  * `live_job_state` can settle it they should be re-checked with everything else.
  *
- * 4, 5, 6 and 7 are the values this installation actually sends. They are
- * deliberately ABSENT: on the evidence above, 4 and 6 look like running and 7
- * like a coded stop, but one minute of one evening is not a mapping, and a guess
- * written here would read exactly like a fact to the next person.
+ * 4 IS RUNNING, and it is the only one of this installation's four values that
+ * has been settled. Two independent readings of the vendor's own screen, taken
+ * beside the column at the same minute:
+ *
+ *   13/08 07:33 UTC — Filler Lines 2, 3 and 6 and the Tablet Line at status 4
+ *   with `last_downtime_code` empty; the supervisor read all four GREEN,
+ *   "Running", on the iTouching board at that minute.
+ *
+ *   12/08 21:38 UTC — Filler Line 1 at status 4, no code, "Running" at 12,1
+ *   fills per minute.
+ *
+ * And the other side of it, from the same snapshot: 7 has never once appeared
+ * WITHOUT a code. At 07:33 the five machines that were down — Lines 1, 4, 5, the
+ * GEL Line and Capsules MC 2 — were all at 7 with a reason active, and Line 5
+ * moved 6 → 7 in the minute somebody selected "Brushing and Cleaning". So 7 is
+ * the stop, and the code branch above answers it before the status is ever read.
+ *
+ * 5, 6 and 7 stay ABSENT, and 6 is the one that matters: it has been seen twice
+ * and the two point opposite ways — Filler Line 2 reading "Running" on 12/08,
+ * Filler Line 5 acquiring a stop code two minutes later on 13/08. Writing either
+ * one here would give a guess the same appearance as the line above it, which
+ * now carries evidence. It stays "STATUS 6 · UNKNOWN" until a pair is observed.
  */
 export const ITOUCH_STATUS_MEANING = new Map<number, "RUNNING" | "STOPPED_NO_CODE">([
   [1, "RUNNING"],
   [2, "RUNNING"],
+  [4, "RUNNING"],
 ]);
 
 /** A reading older than this is not a state, it is a memory. */

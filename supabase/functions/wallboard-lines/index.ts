@@ -34,11 +34,24 @@ const cors = {
   "Cache-Control": "no-store",
 };
 
-// iTouching status codes. intouch-poll treats 1 and 2 as healthy and everything
-// else as stopped; nobody has confirmed what distinguishes 1 from 2, so this
-// function does not pretend to know either — it reports RUN/STOP and hands the
-// raw number over for whoever settles that question.
-const HEALTHY_STATUS = new Set<number>([1, 2]);
+// iTouching status codes, and 4 is the one this factory actually sends while it
+// is filling bottles. It was missing here, so every line running normally — no
+// stop code, status 4 — fell through to `state = null` and the TV showed SEM
+// SINAL on a line making product. Six of seven tiles read that way on 13/08.
+//
+// The pair that settled it, both screens at the same minute: 13/08 07:33 UTC,
+// Filler Lines 2, 3 and 6 and the Tablet Line at status 4 with no code, all four
+// GREEN and "Running" on the iTouching board. Second reading, 12/08 21:38 UTC:
+// Filler Line 1 at 4, no code, running at 12,1 fills a minute.
+//
+// 1 and 2 stay because they were always here and nothing has contradicted them —
+// no machine in this installation has ever reported either. 5, 6 and 7 are
+// deliberately out: 7 has never been seen without a code (the branch above
+// answers it first), and 6 has two sightings that point opposite ways. An
+// untranslated number keeps returning null, which is this board saying it cannot
+// tell — not a green light nobody earned. Same table, same evidence, as
+// `src/lib/lineLiveStatus.ts`; the two must be changed together.
+const HEALTHY_STATUS = new Set<number>([1, 2, 4]);
 
 // SETUP and IDLE do not exist in the iTouching contract. The only way to reach
 // them is by naming the stop codes that mean each one, and that is an admin's
