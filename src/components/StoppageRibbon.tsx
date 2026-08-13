@@ -1,5 +1,6 @@
 import { format } from "date-fns";
-import { mergeIntervals, type Interval } from "@/lib/downtimeExclusions";
+import { mergeIntervals } from "@/lib/downtimeExclusions";
+import type { Interval } from "@/lib/downtimeReconcile";
 import { formatMinutes } from "@/lib/formatDuration";
 
 interface Props {
