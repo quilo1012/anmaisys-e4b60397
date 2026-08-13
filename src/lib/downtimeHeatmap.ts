@@ -26,7 +26,12 @@ export interface HeatmapRecord {
   resumed_by?: string | null;
   resumed_by_name?: string | null;
   notes?: string | null;
+  /** Identity of this row. A stop split by an exclusion arrives as several rows. */
+  id?: string | null;
+  /** The stoppage a split piece came from — what a "count" means in this table. */
+  source_row_id?: string | null;
 }
+
 
 export function shiftOf(hour: number): Shift {
   return hour >= 6 && hour < 18 ? "Day" : "Night";
@@ -99,12 +104,17 @@ export function computeHeatmap(
   shiftFilter: "all" | Shift,
 ): HeatmapResult {
   const perLineIntervals = new Map<string, Map<string, Buckets>>();
-  const perLineCounts = new Map<string, Map<string, number>>();
+  /** Distinct stoppages per line per cell — pieces of one stop share an id. */
+  const perLineCounts = new Map<string, Map<string, Set<string>>>();
+  const perLineAllIds = new Map<string, Set<string>>();
+  const perKeyIds = new Map<string, Set<string>>();
   const lineAllIntervals = new Map<string, Buckets>();
   const allKeyIntervals = new Map<string, Buckets>();
   const globalIntervals: Buckets = { all: [], system: [] };
 
+  let idx = -1;
   for (const r of records ?? []) {
+    idx += 1;
     if (!r.started_at) continue;
     const line = r.line || "—";
     if (lineFilter !== "all" && line !== lineFilter) continue;
@@ -116,13 +126,16 @@ export function computeHeatmap(
     const clampedEnd = Math.min(end, toMs);
     if (clampedEnd <= clampedStart) continue;
 
+    // A stop a break cut in half arrives here as two rows. It is still one stoppage.
+    const stoppageId = String(r.source_row_id ?? r.id ?? `#${idx}`);
+
     // A clock closed this one, not a person — its minutes are evidence the line
     // was down, but not a measurement of how long.
     const unresumed = isSystemClosed(r);
 
     const li = perLineIntervals.get(line) ?? new Map<string, Buckets>();
     perLineIntervals.set(line, li);
-    const lc = perLineCounts.get(line) ?? new Map<string, number>();
+    const lc = perLineCounts.get(line) ?? new Map<string, Set<string>>();
     perLineCounts.set(line, lc);
     const lineBucket = bucket(lineAllIntervals, line);
 
@@ -151,7 +164,15 @@ export function computeHeatmap(
     const startShift = shiftOf(sp.hour);
     if (shiftFilter === "all" || startShift === shiftFilter) {
       const startKey = `${(sJsWd + 6) % 7}-${startShift}`;
-      lc.set(startKey, (lc.get(startKey) ?? 0) + 1);
+      const cellIds = lc.get(startKey) ?? new Set<string>();
+      lc.set(startKey, cellIds);
+      cellIds.add(stoppageId);
+      const lineIds = perLineAllIds.get(line) ?? new Set<string>();
+      perLineAllIds.set(line, lineIds);
+      lineIds.add(stoppageId);
+      const keyIds = perKeyIds.get(startKey) ?? new Set<string>();
+      perKeyIds.set(startKey, keyIds);
+      keyIds.add(stoppageId);
     }
   }
 
@@ -165,13 +186,13 @@ export function computeHeatmap(
     const counts = perLineCounts.get(line);
     buckets.forEach((b, key) => {
       const minutes = unionMinutes(b.all);
-      const count = counts?.get(key) ?? 0;
+      const count = counts?.get(key)?.size ?? 0;
       cells.set(key, { minutes, count, systemMinutes: unionMinutes(b.system) });
       if (minutes > grandMax) grandMax = minutes;
     });
     matrix.set(line, cells);
     const lineBucket = lineAllIntervals.get(line) ?? { all: [], system: [] };
-    const totalCount = Array.from(counts?.values() ?? []).reduce((a, b) => a + b, 0);
+    const totalCount = perLineAllIds.get(line)?.size ?? 0;
     lineTotals.set(line, {
       minutes: unionMinutes(lineBucket.all),
       count: totalCount,
@@ -180,8 +201,13 @@ export function computeHeatmap(
   });
 
   allKeyIntervals.forEach((b, key) =>
-    dayShiftTotals.set(key, { minutes: unionMinutes(b.all), count: 0, systemMinutes: unionMinutes(b.system) }),
+    dayShiftTotals.set(key, {
+      minutes: unionMinutes(b.all),
+      count: perKeyIds.get(key)?.size ?? 0,
+      systemMinutes: unionMinutes(b.system),
+    }),
   );
+
   const grandTotalMinutes = unionMinutes(globalIntervals.all);
   const grandSystemMinutes = unionMinutes(globalIntervals.system);
 

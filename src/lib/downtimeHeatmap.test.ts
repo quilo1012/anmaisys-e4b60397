@@ -145,3 +145,61 @@ describe("computeHeatmap", () => {
     expect(hm.insights[0].text).toContain("Consider scheduling PM on Sunday night");
   });
 });
+
+describe("computeHeatmap counts stoppages, not pieces", () => {
+  // WO-824 on Line 2, Monday 10/08: the 06:47:12 → 11:34:30 stop is cut in two
+  // by the 07:14–07:45 break. Two rows arrive; one stoppage happened.
+  const MON_FROM = Date.parse("2026-08-09T23:00:00.000Z");
+  const MON_TO = Date.parse("2026-08-16T23:00:00.000Z");
+
+  it("counts a stop split by a break once", () => {
+    const hm = computeHeatmap(
+      [
+        rec({ line: "Line 2", id: "e1#0", source_row_id: "e1", started_at: "2026-08-10T05:47:12Z", ended_at: "2026-08-10T06:14:00Z" }),
+        rec({ line: "Line 2", id: "e1#1", source_row_id: "e1", started_at: "2026-08-10T06:45:00Z", ended_at: "2026-08-10T10:34:30Z" }),
+      ],
+      MON_FROM,
+      MON_TO,
+      "all",
+      "Day",
+    );
+    const cell = hm.matrix.get("Line 2")!.get("0-Day")!;
+    expect(cell.count).toBe(1);
+    expect(cell.minutes).toBe(256);
+    expect(hm.lineTotals.get("Line 2")?.count).toBe(1);
+    expect(hm.dayShiftTotals.get("0-Day")?.count).toBe(1);
+  });
+
+  it("counts two genuinely separate stops twice", () => {
+    const hm = computeHeatmap(
+      [
+        rec({ line: "Line 2", id: "a#0", source_row_id: "a", started_at: "2026-08-10T05:47:00Z", ended_at: "2026-08-10T06:14:00Z" }),
+        rec({ line: "Line 2", id: "b#0", source_row_id: "b", started_at: "2026-08-10T08:00:00Z", ended_at: "2026-08-10T08:30:00Z" }),
+      ],
+      MON_FROM,
+      MON_TO,
+      "all",
+      "Day",
+    );
+    const cell = hm.matrix.get("Line 2")!.get("0-Day")!;
+    expect(cell.count).toBe(2);
+    expect(cell.minutes).toBe(27 + 30);
+    expect(hm.lineTotals.get("Line 2")?.count).toBe(2);
+  });
+
+  it("still unions overlapping pieces of different stoppages", () => {
+    const hm = computeHeatmap(
+      [
+        rec({ line: "Line 2", id: "a#0", source_row_id: "a", started_at: "2026-08-10T05:47:00Z", ended_at: "2026-08-10T06:35:00Z" }),
+        rec({ line: "Line 2", id: "b#0", source_row_id: "b", started_at: "2026-08-10T05:47:12Z", ended_at: "2026-08-10T10:34:30Z" }),
+      ],
+      MON_FROM,
+      MON_TO,
+      "all",
+      "Day",
+    );
+    const cell = hm.matrix.get("Line 2")!.get("0-Day")!;
+    expect(cell.count).toBe(2);
+    expect(cell.minutes).toBe(288);
+  });
+});
