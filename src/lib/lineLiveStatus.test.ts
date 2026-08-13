@@ -120,9 +120,15 @@ describe("a line with no stop code is not thereby running", () => {
   });
 
   it("does not paint a line green on a status nobody has read", () => {
-    // HEALTHY_STATUS = {1, 2} em `intouch-poll`, e `wallboard-lines` recusa-se a
-    // acender RUN fora desse conjunto. Este ecrã era o único que acendia.
-    for (const status of [4, 6, 7]) {
+    // O 4 saiu desta lista em 13/08, e saiu por prova, não por pressão: quatro
+    // linhas em 4 e verdes no ecrã do fornecedor à mesma hora (ver o teste do 4,
+    // mais abaixo). Fica o que continua por ler.
+    //
+    // Nota sobre o que este teste protege. Ausência de código NUNCA foi
+    // autorização para pintar verde — foi essa a leitura errada de 12/08, quando
+    // sete linhas ficaram verdes e a Line 5 estava a ser limpa. Continua a ser o
+    // estado a decidir, e um estado por traduzir não decide nada.
+    for (const status of [6, 7]) {
       expect(classifyLive(reading({ status }), now).state).not.toBe("RUNNING");
     }
   });
@@ -142,16 +148,42 @@ describe("a line with no stop code is not thereby running", () => {
     // Por isso este ecrã deixa de responder à pergunta. Um estado fora do mapa
     // não é produção nem paragem; é um número que ninguém traduziu, e dizê-lo é
     // a única leitura que não inventa nada.
-    for (const status of [4, 6, 7]) {
+    for (const status of [6, 7]) {
       expect(classifyLive(reading({ status }), now).state).not.toBe("STOPPED_NO_CODE");
     }
   });
 
-  it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
+  it("reads status 4 as running — the number this factory sends while it is filling", () => {
+    // O par que faltava, observado ao minuto em 13/08 às 07:33 UTC: Filler Line
+    // 2, 3 e 6 e a Tablet Line em `last_status` 4 com `last_downtime_code` vazio,
+    // e o supervisor a confirmar as quatro VERDES, "Running", no ecrã do
+    // iTouching à mesma hora. Não é uma inferência a partir do número: é a
+    // legenda do fornecedor lida em paralelo com a coluna.
+    //
+    // Segunda observação independente, 12/08 às 21:38 UTC: Filler Line 1 em 4,
+    // sem código, "Running" a 12,1 enchimentos por minuto.
+    //
+    // E o contra-teste, do mesmo dia: 7 nunca apareceu sem código. Às 07:33 as
+    // cinco máquinas paradas — Linhas 1, 4, 5, GEL e Capsules MC 2 — estavam
+    // todas em 7 com uma razão activa, e a Line 5 passou de 6 para 7 no minuto
+    // em que alguém escolheu "Brushing and Cleaning". O 4 é o outro lado disso.
     const r = classifyLive(reading({ status: 4 }), now);
-    expect(r.state).toBe("UNKNOWN_STATUS");
-    expect(r.label).toBe("STATUS 4 · UNKNOWN");
+    expect(r.state).toBe("RUNNING");
+    expect(r.label).toBe("RUNNING");
     expect(r.rawStatus).toBe(4);
+    expect(r.stoppedForSeconds).toBeNull();
+  });
+
+  it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
+    // O 6 continua por traduzir, e é o único que resta. Foi visto duas vezes e as
+    // duas apontam para lados opostos: em 12/08 a Filler Line 2 estava em 6 e
+    // lia "Running"; em 13/08 a Filler Line 5 estava em 6 e dois minutos depois
+    // tinha "Brushing and Cleaning", ou seja, tinha parado. Escrever um dos dois
+    // aqui seria dar a um palpite a mesma aparência que o 4 acabou de ganhar.
+    const r = classifyLive(reading({ status: 6 }), now);
+    expect(r.state).toBe("UNKNOWN_STATUS");
+    expect(r.label).toBe("STATUS 6 · UNKNOWN");
+    expect(r.rawStatus).toBe(6);
     expect(r.stoppedForSeconds).toBeNull();
   });
 

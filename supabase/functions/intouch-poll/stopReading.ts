@@ -73,5 +73,23 @@ export function readStop({ status: _status, rawCode, requiresWo }: StopReadingIn
   return { code: rawCode ?? null, isDown: active, requiresWo };
 }
 
-/** The statuses that mean the machine is making something, when nothing else says otherwise. */
+/**
+ * The statuses that mean the machine is making something, when nothing else says
+ * otherwise.
+ *
+ * DELIBERATELY NOT {1, 2, 4}, and the difference is worth reading before anyone
+ * "fixes" it. Status 4 was confirmed as running on 13/08 — see the evidence in
+ * `src/lib/lineLiveStatus.ts` — and the two screens that DISPLAY a state were
+ * corrected to match. This set does not display anything: its one use is
+ * `cameFromHealthy`, the guard that decides whether an arriving stop code opens a
+ * WORK ORDER and calls an engineer out.
+ *
+ * Because no machine here ever reports 1 or 2, that guard is false today and
+ * orders open only on a changed maintenance code. Adding 4 would make it fire on
+ * every real running → stopped transition, on every line, every time. That may
+ * well be right — it is what the guard was written for — but it is a decision
+ * about how many callouts the engineers get, not a display fix, and it must be
+ * made deliberately and with `auto_wo_enabled` in view. It is not being smuggled
+ * in behind a colour change.
+ */
 export const HEALTHY_STATUS = new Set<number>([1, 2]);
