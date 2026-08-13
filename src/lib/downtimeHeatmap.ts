@@ -26,7 +26,12 @@ export interface HeatmapRecord {
   resumed_by?: string | null;
   resumed_by_name?: string | null;
   notes?: string | null;
+  /** Identity of this row. A stop split by an exclusion arrives as several rows. */
+  id?: string | null;
+  /** The stoppage a split piece came from — what a "count" means in this table. */
+  source_row_id?: string | null;
 }
+
 
 export function shiftOf(hour: number): Shift {
   return hour >= 6 && hour < 18 ? "Day" : "Night";
