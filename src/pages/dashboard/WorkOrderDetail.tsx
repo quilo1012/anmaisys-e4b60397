@@ -24,11 +24,13 @@ import { RecordMissedDowntime } from "@/components/RecordMissedDowntime";
 import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
 import { activityLabel, exclusionOverlapMs, lineDowntimeSecFromStops, mergeIntervals, toExclusionIntervals } from "@/lib/downtimeExclusions";
-import { splitWoNotes } from "@/lib/woNotes";
+import { splitWoNotes, hasMeaningfulText } from "@/lib/woNotes";
 import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WoTimeline } from "@/components/WoTimeline";
+import { StoppageRibbon } from "@/components/StoppageRibbon";
+import { useDowntimeCorrections } from "@/hooks/useDowntimeCorrections";
 
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -122,6 +124,7 @@ export default function WorkOrderDetail() {
   const { data: downtimeEvents = [] } = useDowntimeEvents(id);
   const { data: woExclusions = [] } = useWoExclusions(id);
   const { data: woMetrics } = useWoMetrics(id);
+  const { data: woCorrections = [] } = useDowntimeCorrections(id);
 
   const { data: woLogs } = useQuery({
     queryKey: ["work_order_logs", id],
@@ -487,18 +490,29 @@ export default function WorkOrderDetail() {
           );
         })()}
 
-        {/* Asset strip — same 5-field layout as the print header (screen only). */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 print:hidden">
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Priority</p><p className="font-medium">{pri.label}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p><p className="font-medium">{cfg.label}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Line</p><p className="font-medium">{(wo as any).line_at_time || "—"}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Machine</p><p className="font-medium">{wo.machine || "—"}</p></CardContent></Card>
-          <Card><CardContent className="pt-4 pb-3"><p className="text-xs text-muted-foreground uppercase tracking-wide">Requester</p><p className="font-medium">{wo.requester_name || "—"}</p></CardContent></Card>
+        {/* Metadata strip — the print header's own shape, said once (screen only). */}
+        <div className="flex flex-wrap rounded-lg border border-border bg-card print:hidden">
+          {[
+            { label: "Priority", value: pri.label },
+            { label: "Status", value: cfg.label },
+            { label: "Line", value: (wo as any).line_at_time || "—" },
+            { label: "Machine", value: wo.machine || "—" },
+            { label: "Requester", value: wo.requester_name || "—" },
+            { label: "Engineer", value: wo.engineer_name || wo.engineer?.name || "—" },
+          ].map((f) => (
+            <div
+              key={f.label}
+              className="min-w-[9rem] flex-1 border-b border-r border-border px-4 py-3 last:border-r-0 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r md:[&:nth-child(3n)]:border-r-0 lg:[&:nth-child(3n)]:border-r"
+            >
+              <p className="text-2xs uppercase tracking-wide text-muted-foreground">{f.label}</p>
+              <p className="mt-0.5 text-sm font-medium" title={f.value}>{f.value}</p>
+            </div>
+          ))}
         </div>
 
-
         {/* Personnel — "Signed By" removed (operator signature is in footer) */}
-        <div className="grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
+        {/* Screen shows these once, in the metadata strip above. Print keeps the boxes. */}
+        <div className="hidden print:grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Requested By</p><p className="font-medium print:text-[9pt]">{wo.requester_name}</p></CardContent></Card>
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Engineer</p><p className="font-medium print:text-[9pt]">{wo.engineer_name || wo.engineer?.name || ""}</p></CardContent></Card>
           {wo.closer?.name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Closed By</p><p className="font-medium print:text-[9pt]">{wo.closer.name}</p></CardContent></Card>}
@@ -509,17 +523,35 @@ export default function WorkOrderDetail() {
           <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Attendance Times</CardTitle></CardHeader>
           <CardContent className="print:pt-0">
             <div className="grid grid-cols-3 gap-4 print:gap-0">
-              <div className="text-center print:border print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Response</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">opened → accepted</p><p className="text-3xl font-bold print:text-base">{formatDuration(responseMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execution</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">start → finish</p><p className="text-3xl font-bold print:text-base">{formatDuration(executionMin)}</p></div>
-              <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">{cycle.label}</p><p className="text-3xl font-bold print:text-base">{formatDuration(totalMin)}</p>
+              <div className="text-center print:border print:border-black print:py-2">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Response</p>
+                <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{formatDuration(responseMin)}</p>
+                <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">
+                  opened {format(new Date(wo.created_at), "HH:mm")}
+                  {acceptedAt ? ` → accepted ${format(new Date(acceptedAt), "HH:mm")}` : " → not accepted yet"}
+                </p>
+              </div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Execution</p>
+                <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{formatDuration(executionMin)}</p>
+                <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">
+                  {wo.started_at ? `start ${format(new Date(wo.started_at), "HH:mm")}` : "not started"}
+                  {(wo.finished_at || wo.completed_at) ? ` → finish ${format(new Date(wo.finished_at || wo.completed_at!), "HH:mm")}` : " → open"}
+                </p>
+              </div>
+              <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Time</p>
+                <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{formatDuration(totalMin)}</p>
+                <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">{cycle.label}</p>
                 {/* The wait for a signature, said as its own thing. Fifteen days is a
                     real problem and not a maintenance one; inside the repair figure it
                     was arithmetic nobody could reconcile. */}
                 {cycle.signOffWaitMinutes != null && (
-                  <p className="mt-1 text-[9pt] text-warning-strong print:text-[6pt]">
+                  <p className="mt-1 text-2xs text-warning-strong print:text-[6pt]">
                     + {formatDuration(cycle.signOffWaitMinutes)} waiting for sign-off
                   </p>
-                )}</div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -572,21 +604,56 @@ export default function WorkOrderDetail() {
             : Math.max(0, operatorDowntimeSec - excludedMin * 60);
 
           const lineOperating = !((wo as any).line_stopped && !(wo as any).line_resumed_at);
+          const spanLabel = mergedSpans.length
+            ? `${format(new Date(mergedSpans[0][0]), "HH:mm")} → ${format(new Date(mergedSpans[mergedSpans.length - 1][1]), "HH:mm")}`
+            : null;
+          const exclusionLabels = (woExclusions || [])
+            .filter((x: any) => x.started_at)
+            .map((x: any) => ({
+              start: new Date(x.started_at).getTime(),
+              end: x.ended_at ? new Date(x.ended_at).getTime() : Date.now(),
+              label: activityLabel(x.activity),
+            }))
+            .filter((x) => x.end > x.start);
+          const correctionMarks = (woCorrections || [])
+            .map((c) => new Date(c.new_stopped_at).getTime())
+            .filter((t) => Number.isFinite(t));
           return (
             <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
               <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Production Impact</CardTitle></CardHeader>
               <CardContent className="print:pt-0">
                 <div className="grid grid-cols-3 gap-4 print:gap-0">
                   <div className="text-center print:border print:border-black print:py-2">
-                    <p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Line Status</p>
-                    <p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">at closure</p>
-                    <p className={`text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-success-strong" : "text-destructive-strong"}`}>
+                    <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Line Status</p>
+                    <p className={`mt-1 text-2xl font-bold flex items-center justify-center gap-1 print:text-base ${lineOperating ? "text-success-strong" : "text-destructive-strong"}`}>
                       {lineOperating ? <><CheckCircle className="h-5 w-5 print:hidden" /> Running</> : <><AlertOctagon className="h-5 w-5 print:hidden" /> Stopped</>}
                     </p>
+                    <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">at closure</p>
                   </div>
-                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Stoppages</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">recorded</p><p className="text-3xl font-bold print:text-base">{stopCount}</p></div>
-                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2"><p className="text-[10pt] uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Downtime</p><p className="text-[9pt] text-muted-foreground mb-2 print:text-[6pt] print:mb-1">stoppage time</p><p className="text-3xl font-bold print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p>{excludedMin > 0 && (<p className="text-[9pt] text-muted-foreground mt-1 print:text-[6pt]">{excludedMin} min excluded — team activity</p>)}</div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                    <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Stoppages</p>
+                    <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{stopCount}</p>
+                    <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">recorded</p>
+                  </div>
+                  <div className="text-center print:border print:border-l-0 print:border-black print:py-2">
+                    <p className="text-2xs uppercase tracking-wide text-muted-foreground print:text-[7pt] print:font-bold print:text-black">Total Downtime</p>
+                    <p className="mt-1 font-figure text-3xl font-semibold tabular-nums print:text-base">{stopCount === 0 ? "—" : formatShortDuration(totalDowntimeSec)}</p>
+                    <p className="mt-1 text-2xs text-muted-foreground print:text-[6pt]">{spanLabel ?? "stoppage time"}</p>
+                    {excludedMin > 0 && (<p className="text-2xs text-muted-foreground print:text-[6pt]">{excludedMin} min excluded — team activity</p>)}
+                  </div>
                 </div>
+
+                {/* The order's clock, to scale — same merged spans as the figure above. */}
+                {mergedSpans.length > 0 && (
+                  <div className="mt-5 border-t pt-4 print:hidden">
+                    <StoppageRibbon
+                      spans={mergedSpans}
+                      exclusions={exclusionIvs}
+                      corrections={correctionMarks}
+                      exclusionLabels={exclusionLabels}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
