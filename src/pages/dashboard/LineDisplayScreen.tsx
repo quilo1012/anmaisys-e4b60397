@@ -341,12 +341,19 @@ export default function LineDisplayScreen() {
         const a = mine.reduce((s, it) => s + Number(it.actual_qty ?? 0), 0);
         const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
         const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
+        /* Azul fixo, e não `--primary`. Este era o último sítio da parede onde uma
+           cor virava com o tema, num ecrã cujo `index.css` diz por escrito que não
+           pode: a preferência guardada no portátil de um supervisor mudava o painel
+           pendurado sobre a linha. Com `--primary` o branco por cima dava 6,4:1 no
+           tema claro e 3,1:1 no escuro; com o azul-900 dá 10,4:1 nos dois, e o
+           gradiente para roxo — que já era uma cor fixa — deixa de estar meio preso
+           ao tema e meio não. */
         return (
-          <div className="bg-gradient-to-r from-primary via-primary to-purple-900 border-2 border-primary/40 rounded-2xl p-6 shadow-xl">
-            {/* Branco, e não `text-primary`: o fundo deste painel É `--primary`, nas suas
-                duas primeiras paragens, e o texto lia-se sobre a sua própria cor — 1:1,
-                invisível, em ambos os temas. Só o código do SKU escapava, por não trazer
-                classe de cor nenhuma e herdar o `text-wall-ink` da página.
+          <div className="bg-gradient-to-r from-blue-900 via-blue-900 to-purple-900 border-2 border-blue-900/40 rounded-2xl p-6 shadow-xl">
+            {/* Branco, e não `text-primary`: o fundo deste painel era `--primary`, nas
+                suas duas primeiras paragens, e o texto lia-se sobre a sua própria cor —
+                1:1, invisível, em ambos os temas. Só o código do SKU escapava, por não
+                trazer classe de cor nenhuma e herdar o `text-wall-ink` da página.
                 `wall-ink` e não `wall-ink-muted`: sobre este fundo o cinzento dá 1,4:1,
                 que é trocar um texto invisível por outro. */}
             <div className="flex items-center justify-between mb-4">
@@ -369,10 +376,21 @@ export default function LineDisplayScreen() {
 
       <div className="grid grid-cols-4 gap-6">
 
-        <WallTile label="TARGET" value={target.toLocaleString()} accent="text-primary" />
-        <WallTile label="ACTUAL" value={actual.toLocaleString()} accent="text-success-strong" />
-        <WallTile label="REMAINING" value={balanceLabel(target, actual)} accent="text-warning-strong" />
-        <WallTile label="SHIFT ENDS IN" value={countdown} accent="text-purple-400" mono />
+        {/* Sem cor por mosaico, e a razão não é o contraste — é o que a cor diz.
+            ACTUAL estava verde e REMAINING âmbar SEMPRE, corresse a linha bem ou
+            mal: quatro rótulos fixos a gastar o vocabulário de andon que a chapa
+            de estado e as barras desta mesma página usam a sério. Uma parede que
+            está meia verde e meia âmbar a toda a hora é uma parede onde o verde
+            deixa de querer dizer alguma coisa.
+
+            Resolve de caminho um problema de leitura: `--primary` e os `-strong`
+            viram com o tema, e no tema claro são cores ESCURAS — o TARGET dava
+            2,6:1 e o ACTUAL 2,99:1 sobre o painel, abaixo do mínimo de 3:1 para
+            texto grande. O `wall-ink` é fixo nos dois temas e dá 16,5:1. */}
+        <WallTile label="TARGET" value={target.toLocaleString()} />
+        <WallTile label="ACTUAL" value={actual.toLocaleString()} />
+        <WallTile label="REMAINING" value={balanceLabel(target, actual)} />
+        <WallTile label="SHIFT ENDS IN" value={countdown} mono />
       </div>
 
       <div className="bg-wall-panel rounded-2xl p-6">
@@ -510,11 +528,11 @@ export default function LineDisplayScreen() {
  * from across the floor at 6xl on black, and it shared the name `Kpi` with two other
  * unrelated components.
  */
-function WallTile({ label, value, accent, mono }: { label: string; value: string; accent: string; mono?: boolean }) {
+function WallTile({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="bg-wall-panel rounded-2xl p-6 text-center">
       <div className="text-wall-ink-muted text-sm tracking-widest mb-2">{label}</div>
-      <div className={`${accent} ${mono ? "font-figure" : ""} text-6xl font-black`}>{value}</div>
+      <div className={`text-wall-ink ${mono ? "font-figure" : ""} text-6xl font-black`}>{value}</div>
     </div>
   );
 }
