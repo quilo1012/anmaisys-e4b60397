@@ -87,3 +87,44 @@ export function useCorrectDowntime() {
     },
   });
 }
+
+export interface DowntimeCorrectionRow extends DowntimeCorrection {
+  /** Current start of the stoppage on record (downtime_events), if it still exists. */
+  stopped_at: string | null;
+  wo_number: string | null;
+  machine: string | null;
+  line_at_time: string | null;
+  line_name: string | null;
+}
+
+/**
+ * Every correction whose STOPPAGE started inside [from, to] — filed under the day
+ * the line stopped, not the day someone typed the correction. Range filtering and
+ * the line filter live in `src/lib/downtimeCorrectionsRange.ts`; this hook only
+ * fetches a generous window and hands the rows over.
+ */
+export function useDowntimeCorrectionsInRange(from: Date, to: Date) {
+  const fromIso = from.toISOString();
+  const toIso = to.toISOString();
+  return useQuery({
+    queryKey: ["downtime_corrections_range", fromIso, toIso],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("downtime_corrections")
+        .select(
+          "*, work_order:work_orders!downtime_corrections_work_order_id_fkey(wo_number, machine, line_at_time, line:lines!work_orders_line_id_fkey(name)), event:downtime_events!downtime_corrections_downtime_event_id_fkey(stopped_at)",
+        )
+        .order("corrected_at", { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        ...r,
+        stopped_at: r.event?.stopped_at ?? r.new_stopped_at ?? null,
+        wo_number: r.work_order?.wo_number ?? null,
+        machine: r.work_order?.machine ?? null,
+        line_at_time: r.work_order?.line_at_time ?? null,
+        line_name: r.work_order?.line?.name ?? null,
+      })) as DowntimeCorrectionRow[];
+    },
+  });
+}
