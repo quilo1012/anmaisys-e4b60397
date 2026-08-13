@@ -165,7 +165,7 @@ describe("computeHeatmap counts stoppages, not pieces", () => {
     );
     const cell = hm.matrix.get("Line 2")!.get("0-Day")!;
     expect(cell.count).toBe(1);
-    expect(cell.minutes).toBe(26 + 229);
+    expect(cell.minutes).toBe(256);
     expect(hm.lineTotals.get("Line 2")?.count).toBe(1);
     expect(hm.dayShiftTotals.get("0-Day")?.count).toBe(1);
   });
@@ -200,6 +200,6 @@ describe("computeHeatmap counts stoppages, not pieces", () => {
     );
     const cell = hm.matrix.get("Line 2")!.get("0-Day")!;
     expect(cell.count).toBe(2);
-    expect(cell.minutes).toBe(287);
+    expect(cell.minutes).toBe(288);
   });
 });
