@@ -24,7 +24,8 @@ import { computeHeatmap, DAYS, SHIFTS, shiftOf, londonAllParts, type Shift } fro
 import { isMostlyUnresumed } from "@/lib/downtimeAttribution";
 import * as XLSX from "xlsx";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
-import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
+import { DateRangeFilter, type DateRangePreset } from "@/components/DateRangeFilter";
+import { resolveReportRange } from "@/lib/reportRange";
 import { ShiftFilter as ShiftPills } from "@/components/ShiftFilter";
 import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { MissingDowntimeAlert } from "@/components/MissingDowntimeAlert";
@@ -284,7 +285,16 @@ export default function DowntimePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { data: records, isLoading } = useDowntime();
+  // Declarado antes das consultas porque é ele que agora decide o que se vai
+  // buscar. Estava mais abaixo, quando o `useDowntime` tinha um tecto próprio de
+  // noventa dias e ninguém lhe podia pedir mais.
+  const [startDate, setStartDate] = useState<Date>(startOfDay(new Date()));
+  const [endDate, setEndDate] = useState<Date>(new Date());
+
+  // O início pedido vai ao hook, para que "All time" no filtro não esbarre num
+  // tecto fixo escondido lá dentro. `startDate` nunca é mais recente do que o
+  // que o utilizador escolheu, por isso isto só alarga.
+  const { data: records, isLoading } = useDowntime(startDate);
   const { data: exclusionMap } = useAllWoExclusions();
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
 
@@ -306,8 +316,6 @@ export default function DowntimePage() {
   // local type predates the shared control and stays as the page's internal spelling.
   const [opsShift, setOpsShift] = useOpsShift();
   const filterShift: ShiftFilter = opsShift === "ALL" ? "all" : opsShift === "DAY" ? "Day" : "Night";
-  const [startDate, setStartDate] = useState<Date>(startOfDay(new Date()));
-  const [endDate, setEndDate] = useState<Date>(new Date());
 
   // Ranged, and never less than the 90 days the risk rule needs.
   //
@@ -952,7 +960,14 @@ export default function DowntimePage() {
                   storageKey={OPS_RANGE_KEY}
                   onChange={(range, preset) => {
                     setDatePreset(preset);
-                    const r = preset === "all" ? getPresetRange("30d") : range;
+                    // "All time" era traduzido aqui para trinta dias: o chip dizia
+                    // uma coisa e os números eram outra, e o rótulo impresso no PDF
+                    // levava a mentira para o papel. `resolveReportRange` põe a
+                    // sentinela de 2000 no início aberto — ver `reportRange.ts`.
+                    const resolved = resolveReportRange(range);
+                    const r = preset === "all"
+                      ? { from: resolved.startDate, to: resolved.endDate }
+                      : range;
                     // Keep the exact instants. This used to widen them to whole days
                     // with startOfDay/endOfDay, which quietly destroyed any preset
                     // with an intra-day boundary: "Current shift" (today 06:00 → now)

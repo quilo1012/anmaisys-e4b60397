@@ -20,7 +20,8 @@ import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Camera, Clock, X
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
-import { format, subDays } from "date-fns";
+import { format } from "date-fns";
+import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
@@ -153,9 +154,28 @@ export function QualityActionsView() {
     setOpen(true);
   };
 
-  const from = useMemo(() => format(drRange.from ?? subDays(new Date(), 30), "yyyy-MM-dd"), [drRange]);
-  const to = useMemo(() => format(drRange.to ?? new Date(), "yyyy-MM-dd"), [drRange]);
-  const periodLabel = useMemo(() => `Period: ${format(drRange.from ?? subDays(new Date(), 30), "dd/MM/yyyy")} — ${format(drRange.to ?? new Date(), "dd/MM/yyyy")}`, [drRange]);
+  /**
+   * "All time" quer dizer desde sempre, e não o último mês.
+   *
+   * `getPresetRange("all")` devolve `{}` de propósito — intervalo aberto, filtro
+   * nenhum. Quem escrevia `drRange.from ?? subDays(new Date(), 30)` reintroduzia
+   * aqui os trinta dias que a preset tinha acabado de recusar: o chip dizia "All
+   * time" e os números por baixo eram o último mês. O `periodLabel` levava a
+   * mesma data para o cabeçalho impresso, por isso a folha saía assinada com um
+   * período que não era o dos números — que num sistema com ambição BRCGS é um
+   * problema de auditoria e não de interface.
+   *
+   * Hoje as `quality_actions` mais antigas são de 25/07 e cabem todas nos trinta
+   * dias, por isso isto ainda não mente. Passa a mentir quando as primeiras
+   * envelhecerem, que é dentro de dias.
+   *
+   * `resolveReportRange` é a mesma função que a Analytics e a PM Intelligence já
+   * usam, com a sentinela de 2000 no fundo — ver `reportRange.ts`.
+   */
+  const period = useMemo(() => resolveReportRange(drRange), [drRange]);
+  const from = useMemo(() => format(period.startDate, "yyyy-MM-dd"), [period]);
+  const to = useMemo(() => format(period.endDate, "yyyy-MM-dd"), [period]);
+  const periodLabel = useMemo(() => `Period: ${reportPeriodLabel(period, "dd/MM/yyyy")}`, [period]);
 
   const { data: types = [] } = useQuery({
     queryKey: ["quality_action_types"],
@@ -835,7 +855,7 @@ function IssueCard({ a, canManage, onOpen, onMove }: {
       draggable={canManage}
       onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; }}
       onClick={() => onOpen(a.id)}
-      className={cn("rounded-md border border-l-4 bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", sev?.accent ?? "border-l-transparent")}>
+      className={cn("rounded-md border bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", sev?.accent ?? "border-l-[3px] border-l-transparent")}>
       <div className="flex items-center justify-between gap-2">
         <span className="font-figure text-xs font-semibold text-foreground">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
         {sev && (

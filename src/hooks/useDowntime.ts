@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { startOfDay, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface DowntimeRecord {
@@ -23,12 +24,34 @@ export interface DowntimeRecord {
   resumed_by_name?: string | null;
 }
 
-export function useDowntime() {
+/** Onde o histórico é cortado quando o chamador não pede um início. */
+const DEFAULT_LOOKBACK_DAYS = 90;
+
+/**
+ * @param since Início pedido pelo chamador. Omitido, mantém os 90 dias de sempre.
+ *
+ * O tecto era fixo e invisível, e isso tornava impossível dizer a verdade na
+ * página: escolher "All time" no filtro dava um chip a dizer "desde sempre" com
+ * noventa dias por baixo, e não havia forma de o corrigir sem tocar aqui. Quem
+ * não passa nada continua exactamente como estava.
+ *
+ * O tecto foi escrito porque "a tabela cresce indefinidamente". Cresceu para 326
+ * `downtime_events` e 402 ordens em toda a história, das quais 10 e 77 caem fora
+ * dos noventa dias — ou seja, o corte poupa muito pouco e escondia bastante.
+ */
+export function useDowntime(since?: Date) {
+  // O início por defeito é truncado ao dia, e isso NÃO é cosmético: ele entra na
+  // chave da consulta, e `new Date(Date.now() - 90d)` dá um instante diferente a
+  // cada render. Os dois ecrãs que chamam isto sem argumento — Analytics e o
+  // painel do gestor — passariam a ver a chave mudar a cada milissegundo, o que
+  // para o react-query é uma consulta nova de cada vez: refetch sem fim.
+  const sinceIso = (since ?? startOfDay(subDays(new Date(), DEFAULT_LOOKBACK_DAYS))).toISOString();
   return useQuery({
-    queryKey: ["downtime"],
+    // O início entra na chave: sem isso, a primeira página a montar decidia o
+    // intervalo de todas as outras através da cache.
+    queryKey: ["downtime", sinceIso],
     queryFn: async () => {
-      // Cap history at last 90 days — table grows indefinitely otherwise.
-      const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+      const since = sinceIso;
       const [
         { data: manualData, error: manualError },
         { data: eventData, error: eventError },
