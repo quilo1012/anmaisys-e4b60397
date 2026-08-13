@@ -850,6 +850,76 @@ export type Database = {
           },
         ]
       }
+      downtime_corrections: {
+        Row: {
+          corrected_at: string
+          corrected_by: string | null
+          corrected_by_name: string
+          downtime_event_id: string
+          id: string
+          new_duration_minutes: number | null
+          new_resumed_at: string | null
+          new_stopped_at: string
+          prev_duration_minutes: number | null
+          prev_resumed_at: string | null
+          prev_stopped_at: string
+          reason: string
+          work_order_id: string
+        }
+        Insert: {
+          corrected_at?: string
+          corrected_by?: string | null
+          corrected_by_name: string
+          downtime_event_id: string
+          id?: string
+          new_duration_minutes?: number | null
+          new_resumed_at?: string | null
+          new_stopped_at: string
+          prev_duration_minutes?: number | null
+          prev_resumed_at?: string | null
+          prev_stopped_at: string
+          reason: string
+          work_order_id: string
+        }
+        Update: {
+          corrected_at?: string
+          corrected_by?: string | null
+          corrected_by_name?: string
+          downtime_event_id?: string
+          id?: string
+          new_duration_minutes?: number | null
+          new_resumed_at?: string | null
+          new_stopped_at?: string
+          prev_duration_minutes?: number | null
+          prev_resumed_at?: string | null
+          prev_stopped_at?: string
+          reason?: string
+          work_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "downtime_corrections_downtime_event_id_fkey"
+            columns: ["downtime_event_id"]
+            isOneToOne: false
+            referencedRelation: "downtime_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_corrections_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "v_wo_metrics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "downtime_corrections_work_order_id_fkey"
+            columns: ["work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       downtime_events: {
         Row: {
           created_at: string
@@ -6546,6 +6616,16 @@ export type Database = {
       close_stale_production_downtimes: { Args: never; Returns: number }
       compute_smart_target: {
         Args: { _entry_date: string; _line: string; _shift: string }
+        Returns: Json
+      }
+      correct_downtime_event: {
+        Args: {
+          _event_id: string
+          _minutes: number
+          _reason: string
+          _resumed_at: string
+          _stopped_at: string
+        }
         Returns: Json
       }
       create_leader:
