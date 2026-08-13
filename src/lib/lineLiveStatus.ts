@@ -92,16 +92,40 @@ export type LiveState =
  * moved 6 → 7 in the minute somebody selected "Brushing and Cleaning". So 7 is
  * the stop, and the code branch above answers it before the status is ever read.
  *
- * 5, 6 and 7 stay ABSENT, and 6 is the one that matters: it has been seen twice
- * and the two point opposite ways — Filler Line 2 reading "Running" on 12/08,
- * Filler Line 5 acquiring a stop code two minutes later on 13/08. Writing either
- * one here would give a guess the same appearance as the line above it, which
- * now carries evidence. It stays "STATUS 6 · UNKNOWN" until a pair is observed.
+ * 8 IS RUNNING, on the same kind of pair, 13/08: the Tablet Line on OMEGA 3 -
+ * 100 SOFT GELS, green and "Running" on the vendor's screen at 16,4 fills per
+ * minute against a 14,3 standard, while this card read STATUS 8 · UNKNOWN. The
+ * same line, on the same job, was back at 4 minutes later.
+ *
+ * Which is the more useful finding: 4 and 8 are not two states, they are one
+ * machine running, and the number moves with the PACE — 8 while it was beating
+ * standard, 4 while it was not. This board does not need that distinction; it
+ * needs both to be green, and the pace has its own rail on the card.
+ *
+ * 5 and 6 stay ABSENT, and 6 is the one that matters: it has been seen twice and
+ * the two point opposite ways — Filler Line 2 reading "Running" on 12/08, Filler
+ * Line 5 acquiring a stop code two minutes later on 13/08. Writing either one
+ * here would give a guess the same appearance as the lines above it, which now
+ * carry evidence. It stays "STATUS 6 · UNKNOWN" until a pair is observed.
+ *
+ * AND THE THING THIS TABLE CANNOT DO, WHICH SOMEBODY SHOULD FIX ABOVE IT. Every
+ * value arrives the same way: a number nobody has seen shows up grey, and stays
+ * grey until a human standing between the two screens reports it. 8 had never
+ * appeared in three days of looking. The honest generalisation is NOT "no code
+ * means running" — that was the first wrong answer, and it is still wrong: on
+ * 12/08 at 09:57 Filler Line 5 sat with no code for the fifteen minutes between
+ * `Line Preparation` ending at 09:50 and `Brushing and Cleaning` starting at
+ * 10:05, which `production_downtimes` confirms to the minute. What ends this
+ * properly is a second witness — the vendor's own live count, so a rising
+ * counter says running whatever the number is — or a log of (status, code) taken
+ * every minute, which settles the whole legend in a day of ordinary production.
+ * Until one of those exists, each value costs one report from the floor.
  */
 export const ITOUCH_STATUS_MEANING = new Map<number, "RUNNING" | "STOPPED_NO_CODE">([
   [1, "RUNNING"],
   [2, "RUNNING"],
   [4, "RUNNING"],
+  [8, "RUNNING"],
 ]);
 
 /** A reading older than this is not a state, it is a memory. */

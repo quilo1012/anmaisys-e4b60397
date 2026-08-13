@@ -174,6 +174,22 @@ describe("a line with no stop code is not thereby running", () => {
     expect(r.stoppedForSeconds).toBeNull();
   });
 
+  it("reads status 8 as running too — the band the vendor shows above standard", () => {
+    // 13/08, os dois ecrãs fotografados um a seguir ao outro na mesma linha e no
+    // mesmo trabalho: a Tablet Line em OMEGA 3 - 100 SOFT GELS, VERDE e "Running"
+    // no iTouching a 16,4 enchimentos por minuto contra 14,3 de standard, e o
+    // cartão a dizer STATUS 8 · UNKNOWN. Minutos depois a mesma linha, no mesmo
+    // trabalho, estava outra vez em 4.
+    //
+    // Ou seja: 8 não é um estado que a 4 não tenha, é a mesma linha a correr —
+    // e a diferença entre os dois números anda com o ritmo, não com o
+    // arrancar e parar. O que este ecrã precisa de saber é só que ambos são
+    // produção.
+    const r = classifyLive(reading({ status: 8 }), now);
+    expect(r.state).toBe("RUNNING");
+    expect(r.label).toBe("RUNNING");
+  });
+
   it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
     // O 6 continua por traduzir, e é o único que resta. Foi visto duas vezes e as
     // duas apontam para lados opostos: em 12/08 a Filler Line 2 estava em 6 e

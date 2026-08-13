@@ -44,6 +44,10 @@ const cors = {
 // GREEN and "Running" on the iTouching board. Second reading, 12/08 21:38 UTC:
 // Filler Line 1 at 4, no code, running at 12,1 fills a minute.
 //
+// 8 is the same machine running faster: the Tablet Line, green and "Running" on
+// OMEGA 3 at 16,4 fills a minute against a 14,3 standard, back at 4 minutes
+// later on the same job. The number moves with the pace; both are production.
+//
 // 1 and 2 stay because they were always here and nothing has contradicted them —
 // no machine in this installation has ever reported either. 5, 6 and 7 are
 // deliberately out: 7 has never been seen without a code (the branch above
@@ -51,7 +55,7 @@ const cors = {
 // untranslated number keeps returning null, which is this board saying it cannot
 // tell — not a green light nobody earned. Same table, same evidence, as
 // `src/lib/lineLiveStatus.ts`; the two must be changed together.
-const HEALTHY_STATUS = new Set<number>([1, 2, 4]);
+const HEALTHY_STATUS = new Set<number>([1, 2, 4, 8]);
 
 // SETUP and IDLE do not exist in the iTouching contract. The only way to reach
 // them is by naming the stop codes that mean each one, and that is an admin's
