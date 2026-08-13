@@ -193,18 +193,20 @@ describe("a line with no stop code is not thereby running", () => {
     expect(r.label).toBe("RUNNING");
   });
 
-  it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
-    // O 6 continua por traduzir, e é o único que resta. Foi visto duas vezes e as
-    // duas apontam para lados opostos: em 12/08 a Filler Line 2 estava em 6 e
-    // lia "Running"; em 13/08 a Filler Line 5 estava em 6 e dois minutos depois
-    // tinha "Brushing and Cleaning", ou seja, tinha parado. Escrever um dos dois
-    // aqui seria dar a um palpite a mesma aparência que o 4 acabou de ganhar.
+  it("reads status 6 as running — the same running machine as 4, with the number moving with pace", () => {
+    // 13/08 entre 08:30 e 08:35 UTC: Filler Line 1 e Filler Line 5 alternam de
+    // minuto a minuto entre status 4 e status 6, sempre sem código de paragem.
+    // Nesses mesmos minutos o supervisor confirmou ambas as linhas VERDES e
+    // "Running" no ecrã do iTouching. No dia inteiro o 6 apareceu 11 vezes e
+    // nunca com código — a mesma assinatura do 4 e do 8. As paragens nesta fábrica
+    // chegam sempre como 7 com código, por isso 6 é produção.
     const r = classifyLive(reading({ status: 6 }), now);
-    expect(r.state).toBe("UNKNOWN_STATUS");
-    expect(r.label).toBe("STATUS 6 · UNKNOWN");
+    expect(r.state).toBe("RUNNING");
+    expect(r.label).toBe("RUNNING");
     expect(r.rawStatus).toBe(6);
     expect(r.stoppedForSeconds).toBeNull();
   });
+
 
   it("still names a stop with no code, for a status known to mean one", () => {
     // O ramo continua aqui, e vazio de propósito: no dia em que o fornecedor
