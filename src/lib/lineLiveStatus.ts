@@ -102,11 +102,19 @@ export type LiveState =
  * standard, 4 while it was not. This board does not need that distinction; it
  * needs both to be green, and the pace has its own rail on the card.
  *
- * 5 and 6 stay ABSENT, and 6 is the one that matters: it has been seen twice and
- * the two point opposite ways — Filler Line 2 reading "Running" on 12/08, Filler
- * Line 5 acquiring a stop code two minutes later on 13/08. Writing either one
- * here would give a guess the same appearance as the lines above it, which now
- * carry evidence. It stays "STATUS 6 · UNKNOWN" until a pair is observed.
+ * 6 IS RUNNING, settled on 13/08 between 08:30 and 08:35 UTC. The intouch_status_log
+ * for Filler Line 1 and Filler Line 5 shows them alternating minute-by-minute
+ * between status 4 and status 6 with no stop code (Line 5: 08:30 → 6, 08:31 → 4,
+ * 08:33 → 6, 08:34 → 4; Line 1 the same pattern). At those minutes the supervisor
+ * confirmed both lines GREEN and "Running" on the iTouching board. In the full day
+ * so far status 6 has appeared 11 times and never once carried a stop code — the
+ * same signature as 4 and 8. Stops in this installation always arrive as status 7
+ * with a code, so 6 joins 4 and 8 as one running machine whose number moves with
+ * pace/cycle state.
+ *
+ * 5 stays ABSENT: it has not yet been observed on a real line in this installation,
+ * so it remains "STATUS 5 · UNKNOWN" until it gets its own paired observation.
+
  *
  * AND THE THING THIS TABLE CANNOT DO, WHICH SOMEBODY SHOULD FIX ABOVE IT. Every
  * value arrives the same way: a number nobody has seen shows up grey, and stays
@@ -125,8 +133,10 @@ export const ITOUCH_STATUS_MEANING = new Map<number, "RUNNING" | "STOPPED_NO_COD
   [1, "RUNNING"],
   [2, "RUNNING"],
   [4, "RUNNING"],
+  [6, "RUNNING"],
   [8, "RUNNING"],
 ]);
+
 
 /** A reading older than this is not a state, it is a memory. */
 export const STALE_AFTER_SECONDS = 90;
