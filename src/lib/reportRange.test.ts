@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { subDays, startOfDay } from "date-fns";
-import { resolveReportRange, reportPeriodLabel, OPEN_RANGE_START } from "@/lib/reportRange";
+import { subDays, startOfDay, endOfDay } from "date-fns";
+import { resolveReportRange, reportPeriodLabel, reportSpanPhrase, OPEN_RANGE_START } from "@/lib/reportRange";
+import { getPresetRange } from "@/components/DateRangeFilter";
 
 const NOW = new Date("2026-08-11T14:30:00.000Z");
 
@@ -73,5 +74,44 @@ describe("reportPeriodLabel", () => {
     expect(label).toContain("01/07/2026");
     expect(label).toContain("31/07/2026");
     expect(label).not.toContain("All time");
+  });
+});
+
+describe("reportSpanPhrase", () => {
+  /**
+   * A regressão: o chip dizia "Last 90 days · 15/05/26 – 12/08/26" e a frase por
+   * baixo dizia "the 89 days to 12/08/2026". O preset vai de `startOfDay(hoje−89)`
+   * até agora, logo às 11h decorreram 89,46 dias e um `Math.round` cortava para 89.
+   */
+  it("says the same number of days as the preset that chose the window", () => {
+    const r = resolveReportRange(getPresetRange("90d"));
+    expect(reportSpanPhrase(r)).toMatch(/^the 90 days to /);
+  });
+
+  it("agrees with the thirty-day preset too", () => {
+    expect(reportSpanPhrase(resolveReportRange(getPresetRange("30d")))).toMatch(/^the 30 days to /);
+    expect(reportSpanPhrase(resolveReportRange(getPresetRange("7d")))).toMatch(/^the 7 days to /);
+  });
+
+  it("counts a single day as one day, not none", () => {
+    expect(reportSpanPhrase(resolveReportRange(getPresetRange("today")))).toMatch(/^the 1 day to /);
+  });
+
+  it("names an open range rather than counting from the sentinel", () => {
+    // Senão eram 9700 dias, contados a partir de uma data que ninguém escolheu.
+    expect(reportSpanPhrase(resolveReportRange({}, NOW))).toBe("the whole record");
+  });
+
+  /**
+   * Um intervalo escolhido no calendário chega como meia-noite e fim-de-dia LOCAIS —
+   * é o que o `DateRangeFilter` constrói com `startOfDay`/`endOfDay`. A frase é
+   * formatada na mesma hora local, por isso as duas pontas têm de falar a mesma.
+   */
+  it("ends on the date the period ends on", () => {
+    const r = resolveReportRange(
+      { from: startOfDay(new Date(2026, 6, 1)), to: endOfDay(new Date(2026, 6, 31)) },
+      NOW,
+    );
+    expect(reportSpanPhrase(r)).toBe("the 31 days to 31/07/2026");
   });
 });

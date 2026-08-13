@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { differenceInMinutes, format } from "date-fns";
 import { Filter, PowerOff, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/DateField";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -114,25 +114,24 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
         {/* Filters — hidden on print */}
         <div className="print:hidden grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 rounded-md bg-muted/40 border">
           <div className="space-y-1">
-            <Label htmlFor="dt-from" className="text-xs flex items-center gap-1">
+            <Label className="text-xs flex items-center gap-1">
               <Filter className="h-3 w-3" /> From
             </Label>
-            <Input
-              id="dt-from"
-              type="date"
+            <DateField
+              aria-label="From"
               value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="h-9"
+              onChange={setFrom}
+              className="h-9 w-full"
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="dt-to" className="text-xs">To</Label>
-            <Input
-              id="dt-to"
-              type="date"
+            <Label className="text-xs">To</Label>
+            <DateField
+              aria-label="To"
               value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="h-9"
+              min={from}
+              onChange={setTo}
+              className="h-9 w-full"
             />
           </div>
           <div className="space-y-1 sm:col-span-1">

@@ -3,385 +3,609 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { useMachines, useLines } from "@/hooks/useMachines";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
-import { usePmSchedules, useUpdatePmSchedule } from "@/hooks/usePreventiveMaintenance";
+import { usePmSchedules, useUpdatePmSchedule, useCreatePmSchedule } from "@/hooks/usePreventiveMaintenance";
+import { useRole } from "@/hooks/useRole";
 import { toast } from "sonner";
-import { Brain, CheckCircle2, AlertTriangle, ArrowDown, ArrowUp, ArrowLeft, Printer } from "lucide-react";
+import {
+  Brain, CheckCircle2, ArrowLeftRight, CalendarPlus, Activity,
+  Printer, Loader2, ChevronDown, ChevronRight, Wrench,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { PreventiveOpportunities } from "@/components/PreventiveOpportunities";
+import {
+  DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset,
+} from "@/components/DateRangeFilter";
+import { resolveReportRange, reportPeriodLabel, reportSpanPhrase } from "@/lib/reportRange";
+import {
+  buildAssetIndex, buildPmAssetRows, PM_FLOOR_DAYS, MTBF_FRACTION,
+  type PmAssetRow, type Verdict,
+} from "@/lib/pmIntelligence";
+import { cn } from "@/lib/utils";
 
-type RecKind = "reduce" | "no_pm" | "ok" | "increase";
+/**
+ * Cada veredicto dito uma vez, no sítio onde manda: no cabeçalho do seu bloco.
+ *
+ * A versão anterior repetia um badge de estado em cada uma das 23 linhas, e a coluna
+ * inteira dizia a mesma coisa porque não havia plano nenhum na base. Um rótulo
+ * repetido 23 vezes não informa — separa. As linhas passam a estar agrupadas pelo que
+ * há a fazer com elas, e a frase que explica o grupo é dita uma vez, por cima dele.
+ */
+const DECKS: {
+  verdict: Verdict;
+  title: string;
+  blurb: string;
+  tone: "danger" | "warning" | "info" | "ok" | "muted";
+}[] = [
+  {
+    verdict: "chronic",
+    title: "Fails faster than any PM cycle",
+    blurb:
+      `These break down more often than once every ${Math.round(PM_FLOOR_DAYS / MTBF_FRACTION)} days. ` +
+      "No service interval catches that — the recurring problem is what needs solving, so they are " +
+      "listed in Preventive work opportunities above rather than given an interval here.",
+    tone: "danger",
+  },
+  {
+    verdict: "plan",
+    title: "Ready for a plan",
+    blurb: "The failure rate supports a service interval and no schedule exists yet.",
+    tone: "warning",
+  },
+  {
+    verdict: "adjust",
+    title: "Interval has drifted",
+    blurb: "A schedule exists, and the evidence since it was set says a different number.",
+    tone: "info",
+  },
+  {
+    verdict: "calibrated",
+    title: "Calibrated",
+    blurb: "The schedule already matches what the failures say. Nothing to do.",
+    tone: "ok",
+  },
+  {
+    verdict: "aggregate",
+    title: "Recorded against a line",
+    blurb:
+      "These orders name a production line, which is several serviceable machines. The interval " +
+      "between them is the sum of all of them, so it says nothing about when any one should be serviced.",
+    tone: "muted",
+  },
+  {
+    verdict: "sparse",
+    title: "Too few failures to measure",
+    blurb: "One failure in the period. There is no time between failures to read.",
+    tone: "muted",
+  },
+];
 
-interface MachineStats {
-  machine: string;
-  failures: number;
-  mtbfDays: number | null; // average days between failures
-  mttrHours: number | null; // average hours to repair
-  currentInterval: number | null; // PM interval_days
-  scheduleId: string | null;
-  recommended: number | null; // recommended interval_days
-  rec: RecKind;
-  topIssues: { description: string; count: number }[];
-  /** The row is a production line, not a machine — see the note in `stats`. */
-  isLine: boolean;
-}
-
-function classifyRecommendation(
-  mtbfDays: number | null,
-  failures: number,
-  currentInterval: number | null,
-): { rec: RecKind; recommended: number | null } {
-  if (failures < 2 || mtbfDays === null) {
-    if (currentInterval === null) return { rec: "no_pm", recommended: null };
-    return { rec: "ok", recommended: currentInterval };
-  }
-  // Recommended PM = ~70% of MTBF, clamped to 7..180 days
-  const recommended = Math.max(7, Math.min(180, Math.round(mtbfDays * 0.7)));
-  if (currentInterval === null) return { rec: "no_pm", recommended };
-  // Reduce: PM happens long AFTER average failure (current > 1.3 * MTBF)
-  if (currentInterval > mtbfDays * 1.3) return { rec: "reduce", recommended };
-  // Increase: PM way more frequent than needed (current < 0.4 * MTBF)
-  if (currentInterval < mtbfDays * 0.4) return { rec: "increase", recommended };
-  return { rec: "ok", recommended: currentInterval };
-}
-
-const recMeta: Record<RecKind, { label: string; cls: string; icon: any }> = {
-  reduce: { label: "Reduce interval", cls: "bg-destructive/15 text-destructive-strong border-destructive/30 dark:text-destructive-strong", icon: ArrowDown },
-  no_pm: { label: "No PM scheduled", cls: "bg-warning/15 text-warning-strong border-warning/30 dark:text-warning-strong", icon: AlertTriangle },
-  ok: { label: "OK — calibrated", cls: "bg-primary/15 text-primary border-primary/30 dark:text-primary", icon: CheckCircle2 },
-  increase: { label: "Can extend", cls: "bg-success/15 text-success-strong border-success/30 dark:text-success-strong", icon: ArrowUp },
+const TONE_TEXT: Record<string, string> = {
+  danger: "text-destructive-strong",
+  warning: "text-warning-strong",
+  info: "text-primary",
+  ok: "text-success-strong",
+  muted: "text-muted-foreground",
 };
+
+/** As quatro que pedem uma decisão. As outras duas explicam-se, não se contam. */
+const ACTIONABLE: Verdict[] = ["chronic", "plan", "adjust", "calibrated"];
 
 export default function PMIntelligencePage() {
   const navigate = useNavigate();
-  // Ranged, not the default query.
-  //
-  // useWorkOrders() with no range returns the 200 most recent orders — right for a
-  // worklist, wrong for this page. There are 317 orders in the last 90 days, so the
-  // page was computing MTBF, MTTR and every interval recommendation from 200 of them
-  // and silently dropping 117 — the OLDEST ones, which is precisely what a mean time
-  // BETWEEN failures is measured from. The header said "Last 90 days" and meant about
-  // seven weeks.
-  const range = useMemo(() => {
-    const to = new Date();
-    return { from: new Date(to.getTime() - 90 * 24 * 3600 * 1000), to };
-  }, []);
-  const { data: wos, isLoading: woLoading } = useWorkOrders(range);
-  const { data: schedules, isLoading: pmLoading } = usePmSchedules();
-
-  // Most orders record the LINE in the machine field — "Line 4", "Line 6A" — so this
-  // page was grouping lines and calling them machines. A line fails every 0.7 days
-  // because it is twelve machines; 70% of that is negative, the clamp lifts it to the
-  // 7-day floor, and every row printed the same recommendation. Knowing which keys are
-  // lines is what lets the table stop pretending.
-  const { data: lineNames } = useQuery({
-    queryKey: ["pm_line_names"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("lines").select("name");
-      if (error) throw error;
-      return new Set((data ?? []).map((l: { name: string }) => l.name.trim().toLowerCase()));
-    },
-  });
-  const updatePm = useUpdatePmSchedule();
-  const [applyingId, setApplyingId] = useState<string | null>(null);
-
-  const stats = useMemo<MachineStats[]>(() => {
-    if (!wos) return [];
-    const since = range.from.getTime();
-    const byMachine = new Map<string, typeof wos>();
-    for (const w of wos) {
-      if (!w.machine) continue;
-      // Planned work is not a failure. Counting it would drag a machine's MTBF down
-      // for being looked after, and recommend a shorter interval because the last
-      // recommendation was followed.
-      if ((w.wo_type as string) === "preventive") continue;
-      if (new Date(w.created_at).getTime() < since) continue;
-      const arr = byMachine.get(w.machine) ?? [];
-      arr.push(w);
-      byMachine.set(w.machine, arr);
-    }
-    const pmByMachine = new Map<string, { id: string; interval: number }>();
-    for (const s of schedules ?? []) {
-      if (!s.machine) continue;
-      const cur = pmByMachine.get(s.machine);
-      // Keep the active schedule with shortest interval as "current"
-      if (!cur || (s.active && s.interval_days < cur.interval)) {
-        pmByMachine.set(s.machine, { id: s.id, interval: s.interval_days });
-      }
-    }
-
-    const out: MachineStats[] = [];
-    byMachine.forEach((rows, machine) => {
-      const sorted = [...rows].sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-      );
-      const failures = sorted.length;
-      let mtbfDays: number | null = null;
-      if (failures >= 2) {
-        const first = new Date(sorted[0].created_at).getTime();
-        const last = new Date(sorted[failures - 1].created_at).getTime();
-        const spanDays = (last - first) / 86_400_000;
-        mtbfDays = spanDays / (failures - 1);
-      }
-      const repairs = sorted
-        .filter((w) => w.started_at && w.finished_at)
-        .map(
-          (w) =>
-            (new Date(w.finished_at!).getTime() - new Date(w.started_at!).getTime()) / 3_600_000,
-        )
-        .filter((h) => h > 0 && h < 72);
-      const mttrHours = repairs.length
-        ? repairs.reduce((a, b) => a + b, 0) / repairs.length
-        : null;
-
-      const issuesMap = new Map<string, number>();
-      for (const w of sorted) {
-        const key = (w.description || "—").trim().slice(0, 80);
-        issuesMap.set(key, (issuesMap.get(key) ?? 0) + 1);
-      }
-      const topIssues = Array.from(issuesMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
-        .map(([description, count]) => ({ description, count }));
-
-      const pm = pmByMachine.get(machine);
-      const currentInterval = pm?.interval ?? null;
-      const { rec, recommended } = classifyRecommendation(mtbfDays, failures, currentInterval);
-
-      out.push({
-        machine,
-        isLine: !!lineNames?.has(machine.trim().toLowerCase()),
-        failures,
-        mtbfDays,
-        mttrHours,
-        currentInterval,
-        scheduleId: pm?.id ?? null,
-        recommended,
-        rec,
-        topIssues,
-      });
-    });
-
-    return out.sort((a, b) => {
-      const order: Record<RecKind, number> = { reduce: 0, no_pm: 1, ok: 2, increase: 3 };
-      if (order[a.rec] !== order[b.rec]) return order[a.rec] - order[b.rec];
-      return b.failures - a.failures;
-    });
-  }, [wos, schedules, range, lineNames]);
+  const { can } = useRole();
+  /**
+   * Aplicar e criar planos é `pm.manage`, ver é `pm.view`.
+   *
+   * A rota admite supervisor, planner e engineer, que têm `pm.view` e não têm
+   * `pm.manage` — e a página oferecia-lhes na mesma o botão que escreve em
+   * `pm_schedules`. O RLS recusaria, mas depois do clique e sem dizer porquê.
+   */
+  const canManage = can("pm.manage");
 
   /**
-   * What the numbers are made of, said out loud.
+   * O período, escolhido, e não noventa dias escritos à mão.
    *
-   * Roughly half the orders in this window carry no machine, and this page groups by
-   * machine — so they are skipped. That is fine; pretending it did not happen is not.
-   * An interval recommendation drawn from a third of the evidence should say so.
+   * Era `useMemo(() => ..., [])` com 90 dias fixos, o cabeçalho de impressão dizia
+   * "Last 90 days" sem uma única data, e não havia forma de perguntar outra coisa. O
+   * período é agora o mesmo controlo que o resto dos relatórios usa, guardado entre
+   * visitas, e tudo o que está por baixo — KPIs, tabela, cartão de oportunidades e o
+   * papel — lê-o do mesmo sítio.
    */
-  const coverage = useMemo(() => {
-    const rows = wos ?? [];
-    const inRange = rows.filter((w) => new Date(w.created_at).getTime() >= range.from.getTime());
-    const named = inRange.filter((w) => !!w.machine);
-    const timed = named.filter((w) => w.started_at && w.finished_at);
-    return { total: inRange.length, named: named.length, timed: timed.length };
-  }, [wos, range]);
+  const [preset, setPreset] = useState<DateRangePreset>("90d");
+  const [range, setRange] = useState<DateRange>(() => getPresetRange("90d"));
+  const period = useMemo(() => resolveReportRange(range), [range]);
+  const { startDate, endDate } = period;
 
-  const isLoading = woLoading || pmLoading;
+  const { data: wos, isLoading: woLoading } = useWorkOrders({ from: startDate, to: endDate });
+  const { data: schedules, isLoading: pmLoading } = usePmSchedules();
+  const { data: lines, isLoading: linesLoading } = useLines();
+  const { data: machines, isLoading: machinesLoading } = useMachines();
 
-  const handleApply = async (s: MachineStats) => {
-    if (!s.scheduleId || !s.recommended) return;
-    setApplyingId(s.scheduleId);
+  const updatePm = useUpdatePmSchedule();
+  const createPm = useCreatePmSchedule();
+  const [busyAsset, setBusyAsset] = useState<string | null>(null);
+  const [planFor, setPlanFor] = useState<PmAssetRow | null>(null);
+  const [filter, setFilter] = useState<Verdict | "all">("all");
+  const [openDecks, setOpenDecks] = useState<Partial<Record<Verdict, boolean>>>({ sparse: false });
+
+  /**
+   * O registo de activos tem de estar carregado antes de a tabela dizer o que é uma
+   * linha. Sem isto, as linhas apareciam um instante como máquinas — com botão de
+   * aplicar e tudo — e só depois se corrigiam sozinhas.
+   */
+  const isLoading = woLoading || pmLoading || linesLoading || machinesLoading;
+
+  const assetIndex = useMemo(() => buildAssetIndex(lines, machines), [lines, machines]);
+
+  const { rows, coverage, windowDays } = useMemo(
+    () => buildPmAssetRows(wos, schedules, { from: startDate, to: endDate, assetIndex }),
+    [wos, schedules, startDate, endDate, assetIndex],
+  );
+
+  const counts = useMemo(() => {
+    const c = {} as Record<Verdict, number>;
+    for (const d of DECKS) c[d.verdict] = 0;
+    for (const r of rows) c[r.verdict] += 1;
+    return c;
+  }, [rows]);
+
+  const visible = filter === "all" ? rows : rows.filter((r) => r.verdict === filter);
+  // Do mesmo sítio que o chip do período, senão o ecrã diz dois números para a mesma
+  // janela: "Last 90 days" em cima e "the 89 days to…" quatro linhas abaixo.
+  const periodPhrase = reportSpanPhrase(period);
+
+  const applyInterval = async (row: PmAssetRow, days: number) => {
+    if (!row.scheduleId) return;
+    setBusyAsset(row.asset);
     try {
-      await updatePm.mutateAsync({ id: s.scheduleId, interval_days: s.recommended });
-      toast.success(`PM interval for ${s.machine} updated to ${s.recommended} days`);
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to update PM");
+      await updatePm.mutateAsync({ id: row.scheduleId, interval_days: days });
+      toast.success(`${row.asset} is now serviced every ${days} days`);
+    } catch (e) {
+      toast.error((e as Error).message || "Could not update the schedule");
     } finally {
-      setApplyingId(null);
+      setBusyAsset(null);
     }
   };
-
-  const counts = useMemo(() => ({
-    reduce: stats.filter((s) => s.rec === "reduce").length,
-    no_pm: stats.filter((s) => s.rec === "no_pm").length,
-    ok: stats.filter((s) => s.rec === "ok").length,
-    increase: stats.filter((s) => s.rec === "increase").length,
-  }), [stats]);
 
   return (
     <DashboardLayout>
       <div id="pm-intelligence-print" className="space-y-6 print-content">
         <ReportPrintHeader
           title="PM Intelligence"
-          periodLabel="Last 90 days"
-          filtersLabel="Recommended PM interval ≈ 70% of measured MTBF"
+          periodLabel={reportPeriodLabel(period)}
+          filtersLabel={`Service interval = ${Math.round(MTBF_FRACTION * 100)}% of measured MTBF · floor ${PM_FLOOR_DAYS} days`}
         />
 
         <PageHeader
           className="print:hidden"
           title="PM Intelligence"
-          description="Compares real MTBF and MTTR per machine against the current PM interval and recommends an adjustment."
+          description="Reads the failure record per asset and says what the service interval should be — or why no interval will help."
           icon={<Brain className="h-5 w-5" />}
           actions={
-            <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
-              const el = document.getElementById("pm-intelligence-print");
-              try {
-                // Landscape: nine columns and a machine name per row do not fit A4 portrait,
-                // and on paper a table cannot scroll — it just loses the right-hand columns.
-                if (el) await printElementAsDocument(el, "PM Intelligence", { landscape: true });
-              } catch (err: any) {
-                toast.error(err?.message ?? "Could not open the print dialog.");
-              }
-            }}>
-              <Printer className="h-4 w-4" /> Print
-            </Button>
+            <>
+              <DateRangeFilter
+                value={range}
+                preset={preset}
+                storageKey="pm-intelligence"
+                onChange={(r, p) => { setRange(r); setPreset(p); }}
+              />
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate("/dashboard/preventive")}>
+                <Wrench className="h-4 w-4" /> Schedules
+              </Button>
+              <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
+                const el = document.getElementById("pm-intelligence-print");
+                try {
+                  // Landscape: uma tabela em papel não faz scroll, perde as colunas da direita.
+                  if (el) await printElementAsDocument(el, "PM Intelligence", { landscape: true });
+                } catch (err) {
+                  toast.error((err as Error)?.message ?? "Could not open the print dialog.");
+                }
+              }}>
+                <Printer className="h-4 w-4" /> Print
+              </Button>
+            </>
           }
         />
 
-        {/* What the table concludes, before the table itself — the reason to open this
-            screen is "does anything need changing", and that was only answerable by
-            reading 30 rows. Each tile is also the count for its badge below. */}
-        {!isLoading && stats.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:grid-cols-4 print:gap-2">
-            <KpiCard label="Service too late" value={counts.reduce} sublabel="PM falls after the average failure" toneValue accent="danger" />
-            <KpiCard label="No PM scheduled" value={counts.no_pm} sublabel="Failing with nothing planned" toneValue accent="warning" />
-            <KpiCard label="Calibrated" value={counts.ok} sublabel="Interval matches the evidence" toneValue accent="info" />
-            <KpiCard label="Can extend" value={counts.increase} sublabel="Serviced more often than needed" toneValue accent="ok" />
-          </div>
-        )}
+        {/* As quatro decisões possíveis, antes das linhas que as sustentam. Cada
+            mosaico filtra a tabela pelo seu próprio grupo — o mesmo gesto que os
+            KPIs do ecrã de Preventive Maintenance, para os dois se lerem igual. */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 print:grid-cols-4 print:gap-2">
+          <KpiCard
+            icon={<Activity className="h-5 w-5" />}
+            /* O mosaico e o bloco que ele filtra dizem a mesma coisa pelas mesmas
+               palavras. Diziam "Fails too often for PM" e "Fails faster than any PM
+               cycle", e quem clica num não tem como saber que chegou ao outro. */
+            label="Fails faster than PM"
+            value={counts.chronic ?? 0}
+            sublabel="Needs the cause fixed, not a shorter interval"
+            toneValue accent="danger" loading={isLoading}
+            onClick={() => setFilter((f) => (f === "chronic" ? "all" : "chronic"))}
+            active={filter === "chronic"}
+          />
+          <KpiCard
+            icon={<CalendarPlus className="h-5 w-5" />}
+            label="Ready for a plan"
+            value={counts.plan ?? 0}
+            sublabel="Interval measurable, no schedule yet"
+            toneValue accent="warning" loading={isLoading}
+            onClick={() => setFilter((f) => (f === "plan" ? "all" : "plan"))}
+            active={filter === "plan"}
+          />
+          <KpiCard
+            icon={<ArrowLeftRight className="h-5 w-5" />}
+            label="Interval has drifted"
+            value={counts.adjust ?? 0}
+            sublabel="Schedule and evidence disagree"
+            toneValue accent="info" loading={isLoading}
+            onClick={() => setFilter((f) => (f === "adjust" ? "all" : "adjust"))}
+            active={filter === "adjust"}
+          />
+          <KpiCard
+            icon={<CheckCircle2 className="h-5 w-5" />}
+            label="Calibrated"
+            value={counts.calibrated ?? 0}
+            sublabel="Schedule matches the failures"
+            toneValue accent="ok" loading={isLoading}
+            onClick={() => setFilter((f) => (f === "calibrated" ? "all" : "calibrated"))}
+            active={filter === "calibrated"}
+          />
+        </div>
 
-        {!isLoading && coverage.total > 0 && (
-          <p className="text-2xs text-muted-foreground">
-            Read from {coverage.named} of {coverage.total} orders in the last 90 days — the rest name no
-            machine, and this page groups by machine. Repair times come from the {coverage.timed} that
-            carry both a start and a finish. Rows marked <b>line</b> were recorded against a production
-            line rather than a machine, so no service interval is derived from them.
+        {/* De que é que estes números são feitos. Uma recomendação tirada de um terço
+            da evidência deve dizê-lo, e o que ficou de fora não é o mesmo que o que
+            foi excluído de propósito. */}
+        {!isLoading && (
+          <p className="text-2xs leading-relaxed text-muted-foreground">
+            Read from <b className="font-figure">{coverage.named}</b> of{" "}
+            <b className="font-figure">{coverage.considered}</b> maintenance orders in {periodPhrase}.
+            {coverage.unnamed > 0 && (
+              <> <span className="font-figure">{coverage.unnamed}</span> name no asset and cannot be grouped.</>
+            )}
+            {coverage.excluded > 0 && (
+              <> <span className="font-figure">{coverage.excluded}</span> preventive or warehouse orders are
+                excluded — they are not breakdowns.</>
+            )}{" "}
+            Repair times come from the <span className="font-figure">{coverage.timed}</span> that carry both a
+            start and a finish. MTBF is failures over the period, and the interval is{" "}
+            {Math.round(MTBF_FRACTION * 100)}% of it.
           </p>
         )}
 
-        {isLoading ? <Skeleton className="h-40" /> : <PreventiveOpportunities workOrders={wos} />}
+        {isLoading ? (
+          <Skeleton className="h-40" />
+        ) : (
+          <PreventiveOpportunities
+            workOrders={wos}
+            windowDays={windowDays}
+            periodLabel={periodPhrase}
+          />
+        )}
 
         {isLoading ? (
           <Skeleton className="h-96" />
+        ) : rows.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              No maintenance orders name an asset in this period.
+            </CardContent>
+          </Card>
         ) : (
           <Card>
-            <CardHeader>
-              <CardTitle>Recommendations</CardTitle>
-              <CardDescription>
-                Recommended PM interval ≈ 70% of measured MTBF. Click Apply to update the schedule.
-              </CardDescription>
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-base">Service intervals</CardTitle>
+                  <CardDescription>
+                    One asset per row, grouped by what the failure record says to do about it.
+                  </CardDescription>
+                </div>
+                {filter !== "all" && (
+                  <Button variant="ghost" size="sm" className="print:hidden" onClick={() => setFilter("all")}>
+                    Show all {rows.length} assets
+                  </Button>
+                )}
+              </div>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[900px]">
+            <CardContent className="overflow-x-auto pt-0">
+              <table className="w-full min-w-[860px] text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-muted-foreground border-b">
-                    <th className="p-2">Machine</th>
-                    <th className="p-2 text-right">Failures (90d)</th>
-                    <th className="p-2 text-right">MTBF</th>
-                    <th className="p-2 text-right">MTTR</th>
-                    <th className="p-2 text-right">Current PM</th>
-                    <th className="p-2 text-right">Recommended</th>
-                    <th className="p-2">Status</th>
-                    <th className="p-2">Top issues</th>
-                    <th className="p-2 text-right print:hidden">Action</th>
+                  <tr className="border-b text-left text-2xs uppercase tracking-wide text-muted-foreground">
+                    <th className="p-2 font-medium">Asset</th>
+                    <th className="p-2 text-right font-medium">Failures</th>
+                    <th className="p-2 text-right font-medium">MTBF</th>
+                    <th className="p-2 text-right font-medium">MTTR</th>
+                    <th className="p-2 text-right font-medium">Current</th>
+                    <th className="p-2 text-right font-medium">Recommended</th>
+                    <th className="p-2 font-medium">What keeps happening</th>
+                    <th className="p-2 text-right font-medium print:hidden">Action</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {stats.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                        No maintenance orders in the last 90 days.
-                      </td>
-                    </tr>
-                  )}
-                  {stats.map((s) => {
-                    const meta = recMeta[s.rec];
-                    const Icon = meta.icon;
-                    const canApply = !s.isLine && !!s.scheduleId && !!s.recommended && s.recommended !== s.currentInterval;
-                    return (
-                      <tr key={s.machine} className="border-b last:border-0 align-top">
-                        <td className="p-2 font-medium">
-                          {s.machine}
-                          {s.isLine && (
-                            <Badge variant="outline" className="ml-1.5 text-[9px] leading-4 text-muted-foreground">
-                              line
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="p-2 text-right tabular-nums">{s.failures}</td>
-                        <td className="p-2 text-right tabular-nums">
-                          {s.mtbfDays !== null ? `${s.mtbfDays.toFixed(1)}d` : "—"}
-                        </td>
-                        <td className="p-2 text-right tabular-nums">
-                          {s.mttrHours !== null ? `${s.mttrHours.toFixed(1)}h` : "—"}
-                        </td>
-                        <td className="p-2 text-right tabular-nums">
-                          {s.currentInterval !== null ? `${s.currentInterval}d` : <span className="text-muted-foreground">none</span>}
-                        </td>
-                        {/* A line is not a machine. Its orders are the sum of a dozen
-                            machines, so the interval between them says nothing about
-                            when any one of them should be serviced — and the clamp
-                            turned every one of those rows into the same "7d". */}
-                        <td className="p-2 text-right tabular-nums font-semibold">
-                          {s.isLine
-                            ? <span className="font-normal text-muted-foreground" title="Recorded against a line, not a machine">n/a</span>
-                            : s.recommended !== null ? `${s.recommended}d` : "—"}
-                        </td>
-                        <td className="p-2">
-                          <Badge variant="outline" className={`gap-1 ${meta.cls}`}>
-                            <Icon className="h-3 w-3" />
-                            {meta.label}
-                          </Badge>
-                        </td>
-                        <td className="p-2 text-xs text-muted-foreground">
-                          {s.topIssues.length === 0 ? (
-                            "—"
-                          ) : (
-                            <ul className="space-y-0.5">
-                              {s.topIssues.map((i, idx) => (
-                                <li key={idx} className="truncate max-w-[260px]">
-                                  <span className="font-semibold tabular-nums mr-1">{i.count}×</span>
-                                  {i.description}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </td>
-                        <td className="p-2 text-right print:hidden">
-                          {canApply ? (
-                            <Button
-                              size="sm"
-                              variant={s.rec === "reduce" ? "destructive" : "default"}
-                              disabled={applyingId === s.scheduleId}
-                              onClick={() => handleApply(s)}
-                            >
-                              {applyingId === s.scheduleId ? "Applying…" : `Apply ${s.recommended}d`}
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              {s.scheduleId ? "—" : "create PM first"}
+                {DECKS.map((deck) => {
+                  const deckRows = visible.filter((r) => r.verdict === deck.verdict);
+                  if (deckRows.length === 0) return null;
+                  // Onze linhas de "uma falha" enterram as sete que precisam de resposta,
+                  // por isso esse bloco abre fechado. Fechado no ecrã, não no papel: um
+                  // relatório impresso que esconde linhas é um relatório que mente sobre
+                  // o seu próprio total, e o rodapé conta-as todas.
+                  const open = openDecks[deck.verdict] !== false;
+                  return (
+                    <tbody key={deck.verdict} className="break-inside-avoid">
+                      <tr>
+                        <td colSpan={8} className="px-2 pb-1.5 pt-5">
+                          <button
+                            type="button"
+                            aria-expanded={open}
+                            className="flex w-full items-start gap-2 text-left print:cursor-auto"
+                            onClick={() => setOpenDecks((o) => ({ ...o, [deck.verdict]: !open }))}
+                          >
+                            {open
+                              ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground print:hidden" />
+                              : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground print:hidden" />}
+                            <span className="min-w-0">
+                              <span className={cn("text-sm font-semibold", TONE_TEXT[deck.tone])}>
+                                {deck.title}
+                              </span>
+                              <span className="ml-2 font-figure text-2xs text-muted-foreground">
+                                {deckRows.length}
+                              </span>
+                              <span className="mt-0.5 block max-w-[70ch] text-2xs font-normal leading-relaxed text-muted-foreground">
+                                {deck.blurb}
+                              </span>
                             </span>
-                          )}
+                          </button>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
+                      {deckRows.map((r) => (
+                        <AssetRow
+                          key={r.asset}
+                          row={r}
+                          hiddenOnScreen={!open}
+                          canManage={canManage}
+                          busy={busyAsset === r.asset}
+                          onApply={(days) => applyInterval(r, days)}
+                          onPlan={() => setPlanFor(r)}
+                        />
+                      ))}
+                    </tbody>
+                  );
+                })}
               </table>
             </CardContent>
           </Card>
         )}
 
-        <div className="print-doc-footer hidden print:flex items-center justify-between mt-4 pt-2 border-t border-black text-[8pt]">
-          <span>{stats.length} machine{stats.length === 1 ? "" : "s"} with maintenance orders in the last 90 days</span>
+        <div className="print-doc-footer mt-4 hidden items-center justify-between border-t border-black pt-2 text-[8pt] print:flex">
+          <span>
+            {rows.length} asset{rows.length === 1 ? "" : "s"} · {ACTIONABLE.reduce((n, v) => n + (counts[v] ?? 0), 0)} needing a decision · {reportPeriodLabel(period, "dd/MM/yyyy")}
+          </span>
           <span>Applied Nutrition · Confidential</span>
         </div>
+
+        {planFor && (
+          <CreatePlanDialog
+            row={planFor}
+            pending={createPm.isPending}
+            onClose={() => setPlanFor(null)}
+            onCreate={async (payload) => {
+              try {
+                await createPm.mutateAsync(payload);
+                toast.success(`${payload.machine} is now scheduled every ${payload.interval_days} days`);
+                setPlanFor(null);
+              } catch (e) {
+                toast.error((e as Error).message || "Could not create the schedule");
+              }
+            }}
+          />
+        )}
       </div>
     </DashboardLayout>
+  );
+}
+
+/** O número recomendado, ou a razão de não haver número. Nunca um piso disfarçado. */
+function RecommendedCell({ row }: { row: PmAssetRow }) {
+  if (row.verdict === "aggregate") {
+    return <span className="text-2xs text-muted-foreground">not per line</span>;
+  }
+  switch (row.recommendation.kind) {
+    case "interval":
+      return <span className="font-figure font-semibold">{row.recommendation.days}d</span>;
+    case "capped":
+      return (
+        <span
+          className="font-figure font-semibold"
+          title={`${row.recommendation.uncapped} days measured — capped at the ${row.recommendation.days}-day ceiling`}
+        >
+          {row.recommendation.days}d<span className="ml-0.5 font-sans text-2xs font-normal text-muted-foreground">max</span>
+        </span>
+      );
+    case "chronic":
+      return (
+        <span className="text-2xs text-destructive-strong" title={`${MTBF_FRACTION * 100}% of MTBF is ${row.recommendation.wouldBe} days — below the ${PM_FLOOR_DAYS}-day floor`}>
+          none holds
+        </span>
+      );
+    default:
+      return <span className="text-muted-foreground">—</span>;
+  }
+}
+
+function AssetRow({
+  row, canManage, busy, hiddenOnScreen, onApply, onPlan,
+}: {
+  row: PmAssetRow;
+  canManage: boolean;
+  busy: boolean;
+  /** Fechado no ecrã, presente no papel. */
+  hiddenOnScreen?: boolean;
+  onApply: (days: number) => void;
+  onPlan: () => void;
+}) {
+  const days = row.recommendation.kind === "interval" || row.recommendation.kind === "capped"
+    ? row.recommendation.days
+    : null;
+
+  return (
+    <tr className={cn("border-b align-top last:border-0", hiddenOnScreen && "hidden print:table-row")}>
+      <td className="p-2 font-medium">
+        <span className="flex flex-wrap items-center gap-1.5">
+          {row.asset}
+          {/* Um nome que não está nem em `machines` nem em `lines`. A ordem foi escrita
+              à mão, e nada disto se liga ao registo de activos — quem lê deve saber. */}
+          {row.kind === "unknown" && (
+            <Badge variant="outline" className="text-[9px] font-normal leading-4 text-muted-foreground" title="Not in the machine or line register">
+              unregistered
+            </Badge>
+          )}
+        </span>
+      </td>
+      <td className="p-2 text-right font-figure">{row.failures}</td>
+      <td className="p-2 text-right font-figure">
+        {row.mtbfDays !== null ? `${row.mtbfDays.toFixed(1)}d` : <span className="text-muted-foreground">—</span>}
+      </td>
+      <td className="p-2 text-right font-figure">
+        {row.mttrHours !== null
+          ? <span title={`Average of ${row.repairSample} timed repair${row.repairSample === 1 ? "" : "s"}`}>{row.mttrHours.toFixed(1)}h</span>
+          : <span className="text-muted-foreground">—</span>}
+      </td>
+      <td className="p-2 text-right font-figure">
+        {row.currentInterval !== null
+          ? `${row.currentInterval}d`
+          : <span className="font-sans text-2xs text-muted-foreground">no plan</span>}
+      </td>
+      <td className="p-2 text-right"><RecommendedCell row={row} /></td>
+      <td className="p-2 text-xs text-muted-foreground">
+        {row.topIssues.length === 0 ? "—" : (
+          <ul className="space-y-0.5">
+            {row.topIssues.map((i, idx) => (
+              <li key={idx} className="max-w-[280px] truncate">
+                <span className="mr-1 font-figure font-semibold">{i.count}×</span>
+                {i.description}
+              </li>
+            ))}
+          </ul>
+        )}
+      </td>
+      <td className="p-2 text-right print:hidden">
+        {!canManage ? (
+          <span className="text-2xs text-muted-foreground">view only</span>
+        ) : row.verdict === "adjust" && days !== null ? (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => onApply(days)}>
+            {busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Set to {days}d
+          </Button>
+        ) : row.verdict === "plan" && days !== null ? (
+          /* Era o texto morto "create PM first", nas 23 linhas, porque não há um único
+             plano na base. Agora cria-o, com o intervalo que esta página mediu. */
+          <Button size="sm" disabled={busy} onClick={onPlan} className="gap-1">
+            <CalendarPlus className="h-3.5 w-3.5" /> Create plan
+          </Button>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function CreatePlanDialog({
+  row, pending, onClose, onCreate,
+}: {
+  row: PmAssetRow;
+  pending: boolean;
+  onClose: () => void;
+  onCreate: (payload: { machine: string; title: string; description: string; interval_days: number; priority: string; active: boolean; next_due_at: string }) => void;
+}) {
+  const suggested = row.recommendation.kind === "interval" || row.recommendation.kind === "capped"
+    ? row.recommendation.days
+    : PM_FLOOR_DAYS;
+  const [title, setTitle] = useState(`Preventive service — ${row.asset}`);
+  const [intervalDays, setIntervalDays] = useState(suggested);
+  const [description, setDescription] = useState(
+    row.topIssues.length
+      ? `Recurring in the period:\n${row.topIssues.map((i) => `· ${i.count}× ${i.description}`).join("\n")}`
+      : "",
+  );
+
+  const valid = title.trim().length > 0 && Number.isFinite(intervalDays) && intervalDays >= 1;
+  const firstDue = new Date(Date.now() + Math.max(intervalDays || 1, 1) * 86_400_000);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CalendarPlus className="h-5 w-5" /> Schedule {row.asset}
+          </DialogTitle>
+          <DialogDescription>
+            {row.failures} failures in the period give an MTBF of {row.mtbfDays?.toFixed(1)} days.
+            Servicing at {Math.round(MTBF_FRACTION * 100)}% of that puts the work before the average
+            failure rather than after it.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-xs">Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Every (days)</Label>
+              <Input
+                type="number" min={1}
+                className="font-figure"
+                value={Number.isFinite(intervalDays) ? intervalDays : ""}
+                onChange={(e) => setIntervalDays(parseInt(e.target.value || "0", 10))}
+              />
+              {intervalDays !== suggested && (
+                <p className="mt-1 text-2xs text-muted-foreground">Measured: {suggested}d</p>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs">First due</Label>
+              <Input disabled className="font-figure" value={format(firstDue, "dd/MM/yyyy")} />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">What the record shows</Label>
+            <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button
+            size="sm"
+            disabled={pending || !valid}
+            onClick={() =>
+              onCreate({
+                machine: row.asset,
+                title: title.trim(),
+                description,
+                interval_days: intervalDays,
+                priority: row.failures >= 10 ? "high" : "medium",
+                active: true,
+                next_due_at: firstDue.toISOString(),
+              })
+            }
+          >
+            {pending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Create schedule
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -4,6 +4,7 @@ import {
   clockBand,
   lineReading,
   lastEntryAgeMinutes,
+  itemClockPct,
   BEHIND_TOLERANCE_PTS,
   BAND_STATUS,
   BAND_BG,
@@ -241,5 +242,59 @@ describe("as bandas têm nome, fundo e cor de texto", () => {
     expect(BAND_TEXT.HOLD).toContain("-strong");
     expect(BAND_TEXT.STOP).toContain("-strong");
     expect(BAND_BG.GO.startsWith("bg-")).toBe(true);
+  });
+});
+
+/**
+ * O relógio de UM SKU, que não é o relógio do turno.
+ *
+ * Medido antes de escrito. Nos 60 dias até 13/08, das 75 linhas de SKU com
+ * plano e com `started_at`, 36 arrancam na primeira hora do turno — para essas
+ * os dois relógios dizem o mesmo — mas 35 arrancam depois das três horas e 25
+ * depois das seis, com uma média de 3h17 depois da abertura. Pintar um SKU que
+ * entrou à sétima hora contra um turno que já vai em 58% é dá-lo por atrasado
+ * antes de ele ter tido tempo: é o mesmo erro de comparar contra um período
+ * que ainda não decorreu, só que uma camada mais abaixo.
+ *
+ * O prazo é o fim do turno, porque é isso que a folha de plano promete: esta
+ * quantidade, feita até ao fim. Logo o relógio do SKU é a fatia do SEU tempo —
+ * de quando arrancou até ao fim do turno — que já passou.
+ */
+describe("itemClockPct — o relógio de um SKU, contado do seu próprio arranque", () => {
+  it("é 0 no instante em que o SKU arranca, mesmo com meio turno já passado", () => {
+    expect(itemClockPct(at(6), null, DAY_END, at(6))).toBe(0);
+  });
+
+  it("é 50 a meio do tempo que resta ao SKU, não a meio do turno", () => {
+    // Arranca às 6h de turno, tem 6h até ao fim; às 9h passou metade DELE.
+    expect(itemClockPct(at(6), null, DAY_END, at(9))).toBe(50);
+  });
+
+  it("é 100 quando o SKU está terminado — período fechado, plano todo devido", () => {
+    expect(itemClockPct(at(2), at(5), DAY_END, at(7))).toBe(100);
+  });
+
+  it("é null sem arranque conhecido, para o chamador decidir e não adivinhar", () => {
+    expect(itemClockPct(null, null, DAY_END, at(6))).toBeNull();
+  });
+
+  it("fecha nas duas pontas, para o ecrã que fica ligado a noite inteira", () => {
+    expect(itemClockPct(at(6), null, DAY_END, at(20))).toBe(100);
+    expect(itemClockPct(at(6), null, DAY_END, at(1))).toBe(0);
+  });
+
+  it("um SKU que arranca depois do fim do turno não divide por zero", () => {
+    expect(itemClockPct(at(13), null, DAY_END, at(14))).toBe(100);
+  });
+
+  it("dá âmbar onde o relógio do turno dava vermelho, no caso medido na base", () => {
+    // O caso real: SKU entra à 7ª hora de doze, e às 9h leva 40% do seu plano.
+    const started = at(7);
+    const now = at(9);
+    const attained = 40;
+    // Relógio do turno: 75% decorrido → 35 pontos atrás → STOP.
+    expect(clockBand(attained, shiftClockPct(DAY_START, DAY_END, now))).toBe("STOP");
+    // Relógio do SKU: 40% do SEU tempo decorrido → em dia → GO.
+    expect(clockBand(attained, itemClockPct(started, null, DAY_END, now)!)).toBe("GO");
   });
 });

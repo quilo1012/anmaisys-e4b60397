@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ControlPlate, ControlRow } from "@/components/ui/ControlPlate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,11 +17,11 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, AlertOctagon, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload, FileBarChart } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload, FileBarChart } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth, isSameMonth } from "date-fns";
+import { format, startOfWeek, addDays, addWeeks, getISOWeek, startOfMonth, endOfMonth } from "date-fns";
 import { Link } from "react-router-dom";
 import { ManageLinesDialog } from "@/components/ManageLinesDialog";
 import { EmptyState } from "@/components/EmptyState";
@@ -159,6 +160,24 @@ export function categoryBucket(cat?: string | null): string {
 
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/**
+ * A semana escrita como se diz: "10 – 16 Aug 2026".
+ *
+ * Escrevia-se "10 Aug – 16 Aug 2026", com o mês repetido dentro do mesmo mês e o ano
+ * a aparecer só no fim, o que faz o lado esquerdo parecer uma data incompleta. Quando
+ * a semana atravessa o mês — ou o ano, no Natal — cada extremo leva o que precisa.
+ */
+function weekRangeLabel(weekStart: Date): string {
+  const end = addDays(weekStart, 6);
+  if (weekStart.getFullYear() !== end.getFullYear()) {
+    return `${format(weekStart, "dd MMM yyyy")} – ${format(end, "dd MMM yyyy")}`;
+  }
+  if (weekStart.getMonth() !== end.getMonth()) {
+    return `${format(weekStart, "dd MMM")} – ${format(end, "dd MMM yyyy")}`;
+  }
+  return `${format(weekStart, "dd")} – ${format(end, "dd MMM yyyy")}`;
+}
 
 function ragColor(actual: number, plan: number): string {
   if (!plan) return "";
@@ -480,23 +499,13 @@ export default function RAGWeeklyPage() {
     return { autoDtMap: out, autoDtBucketMap: buckets, autoDtBreakdown: breakdown };
   }, [lineStops, lines, weekDates]);
 
-  // Inconsistency detector: a single WO contributing minutes to multiple (date|line|shift) cells
-  // is legitimate when a stop overlaps the 06:00/18:00 boundary, but is flagged so reviewers
-  // can confirm there's no double-allocation bug.
-  const inconsistencies = useMemo(() => {
-    const byRef = new Map<string, { ref: string; line: string; cells: { key: string; minutes: number }[]; total: number }>();
-    for (const [key, items] of autoDtBreakdown.entries()) {
-      for (const it of items) {
-        if (!it.ref || it.source !== "WO") continue;
-        const id = `${it.ref}`;
-        const cur = byRef.get(id) ?? { ref: id, line: it.line ?? "", cells: [], total: 0 };
-        cur.cells.push({ key, minutes: it.minutes });
-        cur.total += it.minutes;
-        byRef.set(id, cur);
-      }
-    }
-    return Array.from(byRef.values()).filter((r) => r.cells.length > 1);
-  }, [autoDtBreakdown]);
+  /* O detector de inconsistências saiu daqui.
+     Uma ordem de manutenção que atravessa as 06:00 ou as 18:00 conta minutos em dois
+     turnos, e isso é o comportamento certo — o aviso dizia-o em todas as semanas em que
+     houvesse uma paragem à hora da rendição, que são quase todas. Um aviso que está
+     sempre ligado deixa de ser lido, e este abria a página com um bloco âmbar por cima
+     do relatório. Os minutos por ordem continuam no export e no detalhe da paragem,
+     que é onde se confere um número que se desconfia. */
 
 
   const upsertMutation = useMutation({
@@ -721,84 +730,26 @@ export default function RAGWeeklyPage() {
           ao lado das restantes. `space-y-6` é o degrau entre secções da escada. */}
       <div className="space-y-6">
         {/* O ecrã abria directamente no navegador de semanas, que é um controlo e não
-            um título: dizia em que semana se está, nunca em que ecrã. */}
+            um título: dizia em que semana se está, nunca em que ecrã. Numa só linha,
+            porque o que se vem cá ver é a grelha: o cabeçalho alto mais os dois andares
+            da placa comiam metade de um portátil antes do primeiro número. */}
         <PageHeader
+          dense
           module="Production"
           title="Weekly RAG"
-          description="Red, amber and green by line for the week, with the issues behind each rating."
+          description="Red, amber and green by line, with the issues behind each rating."
           icon={<FileBarChart className="h-5 w-5" />}
-        />
+          actions={
+            <>
+                {/* As acções do ecrã — gerir linhas, saltar para uma linha, entrar e sair
+                    ficheiros — vivem no cabeçalho, não na placa. A placa é a semana: as
+                    setas, o mês, as chapas. Misturadas, faziam a fila cair para uma
+                    segunda linha num portátil de 1440 e punham "Import / export" ao lado
+                    de "Sync from system" a disputar o mesmo olhar.
 
-        <Card className="border-l-4 border-l-primary border-primary/20 shadow-md bg-gradient-to-br from-background to-muted/30">
-          <CardHeader className="flex flex-col gap-3 p-3 md:p-6">
-            <div className="flex flex-row items-center justify-between gap-2 flex-wrap">
-              <CardTitle className="flex items-center gap-2 text-sm md:text-base">
-                <Button size="icon" variant="outline" onClick={() => setWeekStart(addWeeks(weekStart, -1))}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="px-1 md:px-2">Wk {weekNumber} · {format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}</span>
-                <Button size="icon" variant="outline" onClick={() => setWeekStart(addWeeks(weekStart, 1))}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </CardTitle>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs w-full sm:w-auto">
-                <SyncStatusIndicator
-                  isSyncing={
-                    ragFetching > 0 ||
-                    upsertMutation.isPending ||
-                    importTemplateMutation.isPending ||
-                    syncMutation.isPending
-                  }
-                  error={
-                    upsertMutation.error ||
-                    importTemplateMutation.error ||
-                    syncMutation.error
-                  }
-                />
-
-                <Button size="sm" variant="outline" className="h-8" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>This week</Button>
-                <Button size="sm" variant="default" className="h-8" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-                  {syncMutation.isPending ? "Syncing..." : "Sync from system"}
-                </Button>
-                {canEditRagEntries && (
-                  <div className="flex h-8 items-center gap-1 rounded-md border px-1.5">
-                    <span className="pl-1 text-xs font-medium text-muted-foreground">Target</span>
-                    <Select value={bumpDate} onValueChange={setBumpDate}>
-                      <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
-                      <SelectContent>
-                        {weekDates.map((d) => {
-                          const ds = format(d, "yyyy-MM-dd");
-                          return <SelectItem key={ds} value={ds}>{format(d, "EEE dd/MM")}</SelectItem>;
-                        })}
-                      </SelectContent>
-                    </Select>
-                    <Select value={bumpShift} onValueChange={(v) => setBumpShift(v as Shift)}>
-                      <SelectTrigger className="h-7 w-[78px] text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DAY">Day</SelectItem>
-                        <SelectItem value="NIGHT">Night</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline" size="sm" className="h-7 px-2 text-xs font-semibold"
-                      disabled={bumpMutation.isPending}
-                      onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: -1 })}
-                      title="Decrease targets for this date & shift by 1%"
-                    >−1%</Button>
-                    <Button
-                      variant="default" size="sm" className="h-7 px-2 text-xs font-semibold"
-                      disabled={bumpMutation.isPending}
-                      onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: 1 })}
-                      title="Increase targets for this date & shift by 1%"
-                    >+1%</Button>
-                  </div>
-                )}
-                {/* The template and the import moved into the file menu below. They
-                    are two steps of one job — download it, fill it, send it back —
-                    and as separate primary buttons they competed with Sync for the
-                    eye while pushing the row onto a second line. The input stays
-                    mounted here because the menu item drives it. */}
+                    O template e o import estão dentro do menu porque são dois passos de
+                    um só trabalho: descarregar, preencher, devolver. O input fica montado
+                    aqui porque é o item do menu que lhe dá o clique. */}
                 {isAdmin && (
                   <input
                     ref={importInputRef}
@@ -814,7 +765,7 @@ export default function RAGWeeklyPage() {
                 )}
                 {isAdmin && (
                   <Button size="sm" variant="outline" className="h-8" onClick={() => setManageLinesOpen(true)}>
-                    <Settings2 className="h-3.5 w-3.5 mr-1" />Manage Lines
+                    <Settings2 className="h-3.5 w-3.5 mr-1" />Manage lines
                   </Button>
                 )}
                 <Select
@@ -830,13 +781,13 @@ export default function RAGWeeklyPage() {
                     {lines.map((l) => (
                       <SelectItem key={l} value={l}>{displayLineLabel(l)}</SelectItem>
                     ))}
-                    <SelectItem value="__all__">All Lines</SelectItem>
+                    <SelectItem value="__all__">All lines</SelectItem>
                   </SelectContent>
                 </Select>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button size="sm" variant="outline" className="h-8">
-                      <Download className="h-3.5 w-3.5 mr-1" />Import / Export
+                      <Download className="h-3.5 w-3.5 mr-1" />Import / export
                       <ChevronDown className="h-3.5 w-3.5 ml-1" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -933,85 +884,164 @@ export default function RAGWeeklyPage() {
 
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap border-t pt-3">
-              <Button size="icon" variant="ghost" onClick={() => setWeekStart(startOfWeek(addDays(monthAnchor, -1), { weekStartsOn: 1 }))}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-medium min-w-[110px] text-center">{format(monthAnchor, "MMMM yyyy")}</span>
-              <Button size="icon" variant="ghost" onClick={() => setWeekStart(startOfWeek(addDays(endOfMonth(monthAnchor), 1), { weekStartsOn: 1 }))}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="ml-1">
-                    <CalendarIcon className="h-4 w-4 mr-1" />
-                    {format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={weekStart}
-                    onSelect={(d) => d && setWeekStart(startOfWeek(d, { weekStartsOn: 1 }))}
-                    weekStartsOn={1}
-                    showWeekNumber
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-              <div className="flex flex-wrap gap-1 ml-2">
-                {monthWeeks.map((w) => {
-                  const active = format(w, "yyyy-MM-dd") === weekStartStr;
-                  const inMonth = isSameMonth(w, monthAnchor) || isSameMonth(addDays(w, 6), monthAnchor);
-                  return (
-                    <Button
-                      key={w.toISOString()}
-                      size="sm"
-                      variant={active ? "default" : "outline"}
-                      className={!inMonth ? "opacity-50" : ""}
-                      onClick={() => setWeekStart(w)}
+            </>
+          }
+        />
+
+        {/* A mesma placa de comando da Performance.
+            Isto era um cartão com gradiente, sombra e um bordo azul de 4 px à esquerda
+            — e é uma barra de ferramentas. O bordo esquerdo colorido é o mecanismo do
+            `StatusRail`, que existe para dizer o ESTADO de uma coisa; gasto aqui, num
+            controlo que não tem estado nenhum, deixa de significar o que significa nos
+            cartões de linha. A placa fica nua, e a cor volta a ser dos números. */}
+        <ControlPlate className="gap-y-0 p-0">
+          <ControlRow className="items-center justify-between gap-x-3 gap-y-2 px-3 py-2">
+              {/* As setas e a semana são um só instrumento: numa régua fechada, com os
+                  filetes entre elas, e não três controlos soltos com espaço à volta. */}
+              <div className="flex h-8 items-center overflow-hidden rounded-md border">
+                <button
+                  type="button"
+                  aria-label="Previous week"
+                  onClick={() => setWeekStart(addWeeks(weekStart, -1))}
+                  className="flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                {/* O período é um controlo só.
+                    Havia dois andares para escolher uma semana: setas e a data em cima;
+                    o mês, um calendário e seis chapas de semana em baixo — quatro
+                    maneiras de dizer a mesma coisa, e a barra ocupava mais ecrã do que a
+                    primeira linha do relatório. A semana escrita é o botão: abre-se e lá
+                    dentro está o mês inteiro, o calendário e as semanas dele.
+
+                    A face de algarismos porque é uma medida do calendário e muda a cada
+                    clique nas setas — com a face de texto os dígitos dançavam de largura
+                    e o rótulo saltava debaixo do rato. */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      title="Choose a week"
+                      className="flex h-8 items-center gap-1.5 whitespace-nowrap border-x px-3 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     >
-                      W{getISOWeek(w)} · {format(w, "dd/MM")}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-        {inconsistencies.length > 0 && (
-          <Card className="border-warning/50 bg-warning/5">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-warning-strong text-base">
-                <AlertOctagon className="h-4 w-4" />
-                Downtime consistency check — {inconsistencies.length} WO(s) span multiple shifts
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs space-y-1">
-              <p className="text-muted-foreground">
-                The following Maintenance Orders contribute minutes to more than one (date · line · shift) cell.
-                Splitting across the 06:00/18:00 boundary is expected; review to confirm no double-counting.
-              </p>
-              <div className="max-h-40 overflow-auto mt-2 space-y-1">
-                {inconsistencies.slice(0, 25).map((r) => (
-                  <div key={r.ref} className="flex flex-wrap gap-2 items-center border-l-2 border-warning/60 pl-2 py-0.5">
-                    <span className="font-figure font-semibold">WO #{r.ref}</span>
-                    <span className="text-muted-foreground">{r.line}</span>
-                    <span className="text-muted-foreground">· total {r.total} min across {r.cells.length} shifts:</span>
-                    {r.cells.map((c) => (
-                      <span key={c.key} className="px-1.5 py-0.5 rounded bg-warning/15">
-                        {c.key.split("|")[0]} {c.key.split("|")[2]} ({c.minutes}m)
+                      <span className="font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                        Wk {weekNumber}
                       </span>
-                    ))}
-                  </div>
-                ))}
+                      <span className="font-figure text-sm font-bold leading-none text-foreground">
+                        {weekRangeLabel(weekStart)}
+                      </span>
+                      <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={weekStart}
+                      onSelect={(d) => d && setWeekStart(startOfWeek(d, { weekStartsOn: 1 }))}
+                      weekStartsOn={1}
+                      showWeekNumber
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                    {/* As semanas do mês, que antes eram uma régua na barra. Aqui não
+                        disputam espaço com nada e continuam a um clique. */}
+                    <div className="border-t p-2">
+                      <div className="mb-1.5 px-1 font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                        Weeks in {format(monthAnchor, "MMMM yyyy")}
+                      </div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {monthWeeks.map((w) => {
+                          const active = format(w, "yyyy-MM-dd") === weekStartStr;
+                          return (
+                            <button
+                              key={w.toISOString()}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() => setWeekStart(w)}
+                              className={cn(
+                                "rounded px-2 py-1 font-figure text-2xs font-bold whitespace-nowrap transition-colors",
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                                active
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                              )}
+                            >
+                              W{getISOWeek(w)} · {format(w, "dd/MM")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <button
+                  type="button"
+                  aria-label="Next week"
+                  onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+                  className="flex h-8 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <SyncStatusIndicator
+                  isSyncing={
+                    ragFetching > 0 ||
+                    upsertMutation.isPending ||
+                    importTemplateMutation.isPending ||
+                    syncMutation.isPending
+                  }
+                  error={
+                    upsertMutation.error ||
+                    importTemplateMutation.error ||
+                    syncMutation.error
+                  }
+                />
+
+                <Button size="sm" variant="outline" className="h-8" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>This week</Button>
+                <Button size="sm" variant="default" className="h-8" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+                  {syncMutation.isPending ? "Syncing..." : "Sync from system"}
+                </Button>
+                {canEditRagEntries && (
+                  <div className="flex h-8 items-center gap-1 rounded-md border bg-muted/30 px-1.5">
+                    {/* `break-normal`: o `overflow-wrap: anywhere` global parte palavras a
+                        meio quando a caixa aperta, e num telemóvel esta chapa lia-se
+                        "TARGE / T". Um rótulo de seis letras nunca se parte. */}
+                    <span className="whitespace-nowrap break-normal pl-1 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">Target</span>
+                    <Select value={bumpDate} onValueChange={setBumpDate}>
+                      <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
+                      <SelectContent>
+                        {weekDates.map((d) => {
+                          const ds = format(d, "yyyy-MM-dd");
+                          return <SelectItem key={ds} value={ds}>{format(d, "EEE dd/MM")}</SelectItem>;
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <Select value={bumpShift} onValueChange={(v) => setBumpShift(v as Shift)}>
+                      <SelectTrigger className="h-7 w-[78px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DAY">Day</SelectItem>
+                        <SelectItem value="NIGHT">Night</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline" size="sm" className="h-7 px-2 font-figure text-xs font-bold"
+                      disabled={bumpMutation.isPending}
+                      onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: -1 })}
+                      title="Decrease targets for this date & shift by 1%"
+                    >−1%</Button>
+                    <Button
+                      variant="outline" size="sm" className="h-7 px-2 font-figure text-xs font-bold"
+                      disabled={bumpMutation.isPending}
+                      onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: 1 })}
+                      title="Increase targets for this date & shift by 1%"
+                    >+1%</Button>
+                  </div>
+                )}
+              </div>
+          </ControlRow>
+        </ControlPlate>
 
 
         <DayNightTotalSummary
@@ -1678,26 +1708,72 @@ function DayNightTotalSummary({
     ];
 
     const isCollapsed = !!collapsed[label];
+
+    /* O veredicto da linha, ao lado do nome da linha.
+       O ecrã chama-se RAG e cada bloco abria com o nome e mais nada: a cor estava nas
+       células, uma a uma, e a semana inteira só se lia somando de olho vinte e uma
+       colunas — ou rolando até à ponta direita, onde mora o total. Aqui está a única
+       pergunta que se faz a uma linha ao fim da semana: cumpriu o plano? Verde a
+       cumprir, âmbar a menos de dez por cento de distância, vermelho abaixo disso —
+       os mesmos degraus das células, para que a cor queira dizer sempre o mesmo. */
+    const weekAll = weekTotal("TOTAL");
+    const attainment = weekAll.plan > 0 ? Math.round((weekAll.actual / weekAll.plan) * 100) : null;
+    const attainmentTone =
+      attainment === null
+        ? ""
+        : attainment >= 100
+          ? "border-success/40 bg-success/15 text-success-strong"
+          : attainment >= 90
+            ? "border-warning/40 bg-warning/15 text-warning-strong"
+            : "border-destructive/40 bg-destructive/10 text-destructive";
+
+    // Quantos dos sete dias já têm nota escrita nesta linha — o que a chapa do bloco
+    // recolhido diz, para que fechá-lo não esconda que há lá alguma coisa.
+    const commentedDays = weekDates.reduce(
+      (n, d) => n + ((commentMap.get(`${label}|${format(d, "yyyy-MM-dd")}`) ?? "").trim() ? 1 : 0),
+      0,
+    );
     return (
       <div key={label} className="mb-6">
-        <div className="flex items-center justify-between mb-1 gap-2">
+        {/* `flex-wrap` e o nome sem quebra: num telemóvel, o veredicto ao lado do título
+            espremia "Filler Line 1" em duas linhas partidas a meio. Falta espaço, desce
+            o veredicto — não se parte o nome da linha. */}
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => toggleCollapsed(label)}
-            className="flex items-center gap-2 font-semibold text-sm uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-2 font-display text-sm font-bold uppercase tracking-[0.13em] text-muted-foreground transition-colors hover:text-foreground"
             aria-expanded={!isCollapsed}
             aria-label={isCollapsed ? `Expand ${label}` : `Collapse ${label}`}
           >
             {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span>{label === "All Lines" ? label : displayLineLabel(label)}</span>
+            <span className="whitespace-nowrap">{label === "All Lines" ? label : displayLineLabel(label)}</span>
             {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </button>
-          {!isCollapsed && (
-            <div className="flex gap-1 md:hidden">
-              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(-220)} aria-label="Scroll left">
+          {attainment !== null && (
+            <span
+              className={cn(
+                "flex items-baseline gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5",
+                attainmentTone,
+              )}
+              title={`${weekAll.actual.toLocaleString()} made against a plan of ${weekAll.plan.toLocaleString()} for the week`}
+            >
+              <span className="font-figure text-sm font-bold leading-none">{attainment}%</span>
+              <span className="font-display text-2xs font-bold uppercase tracking-[0.1em] opacity-80">of plan</span>
+            </span>
+          )}
+          <span className="flex-1" />
+          {/* As setas eram só para o telemóvel, e a tabela corta-se num portátil e num
+              tablet exactamente da mesma maneira: sábado e domingo ficam do lado de lá
+              da margem, e uma coluna cortada a meio de um algarismo não se lê como uma
+              coluna que continua. Aparecem quando há para onde rolar, e cada uma apaga-se
+              quando chega ao seu fim. */}
+          {!isCollapsed && (showLeft || showRight) && (
+            <div className="flex gap-1">
+              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(-220)} disabled={!showLeft} aria-label="Scroll left">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(220)} aria-label="Scroll right">
+              <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => scroll(220)} disabled={!showRight} aria-label="Scroll right">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -1722,8 +1798,13 @@ function DayNightTotalSummary({
             {/* 11px and tighter padding: twenty-one columns at 12px pushed two days off
                   the right of a laptop, and the numbers here are read in a column,
                   not in a sentence — the scale that suits prose is not the one that
-                  suits a dense grid. */}
-            <table className="text-2xs border-collapse min-w-[880px] w-full tabular-nums">
+                  suits a dense grid.
+
+                  E na face de algarismos, que é a mesma dos cartões de linha e da
+                  tabela de indicadores. Vinte e uma colunas só se comparam de relance
+                  se os dígitos tiverem todos a mesma largura — era o que faltava aqui,
+                  onde havia `tabular-nums` aparafusado a uma face de texto. */}
+            <table className="w-full min-w-[880px] border-collapse font-figure text-2xs">
               <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
                 <tr className="border-b bg-background">
                   <th className="text-left p-1.5 sticky left-0 bg-background z-30 min-w-[100px]" />
@@ -1731,26 +1812,47 @@ function DayNightTotalSummary({
                     const ds = format(d, "yyyy-MM-dd");
                     const excluded = isDateExcluded(label, ds);
                     return (
-                      <th key={i} colSpan={3} className={`text-center p-1.5 border-l whitespace-nowrap ${todayCol(ds)} ${excluded ? "bg-muted/60 text-muted-foreground" : futureCol(ds) ? "bg-background text-muted-foreground" : "bg-background"}`}>
-                        <div className="flex items-center justify-center gap-1">
-                          <span>{DAY_LABELS[i]}</span>
-                          <button
-                            type="button"
-                            onClick={() => toggleDate(label, ds)}
-                            title={excluded ? "Include in week total" : "Exclude from week total"}
-                            className={`text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none ${excluded ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success-strong border-success/40"}`}
-                          >
-                            {excluded ? "OFF" : "ON"}
-                          </button>
-                        </div>
-                        <div className="text-muted-foreground font-normal">{format(d, "dd-MMM-yy")}</div>
+                      /* O dia inteiro é o interruptor.
+                         Havia uma chapa por dia e uma por turno — vinte e uma por bloco
+                         de linha, cento e vinte e seis na semana — e vinte delas diziam
+                         "ON", que é o estado normal. Um cabeçalho onde tudo está
+                         assinalado não assinala nada: era mais tinta do que a grelha que
+                         se vem ler. Fica o nome do dia e a data; clica-se no dia para o
+                         tirar do total, e só então aparece a marca. */
+                      <th key={i} colSpan={3} className={`border-l p-0 text-center align-middle ${todayCol(ds)} ${excluded ? "bg-muted/60" : futureCol(ds) ? "bg-background" : "bg-background"}`}>
+                        <button
+                          type="button"
+                          onClick={() => toggleDate(label, ds)}
+                          aria-pressed={!excluded}
+                          title={excluded ? `Include ${format(d, "EEEE dd MMM")} in the week total` : `Exclude ${format(d, "EEEE dd MMM")} from the week total`}
+                          className={cn(
+                            "group/day w-full whitespace-nowrap px-1.5 py-1.5 transition-colors",
+                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                            excluded ? "text-muted-foreground" : "hover:bg-muted/60",
+                          )}
+                        >
+                          <span className="flex items-center justify-center gap-1.5">
+                            <span className={cn("font-display font-bold uppercase tracking-[0.1em]", excluded && "line-through decoration-warning/70")}>
+                              {DAY_LABELS[i]}
+                            </span>
+                            {excluded && (
+                              <span className="rounded border border-warning/50 bg-warning/15 px-1 py-px text-[9px] font-bold leading-none text-warning-strong">
+                                OFF
+                              </span>
+                            )}
+                          </span>
+                          <span className="mt-0.5 block font-normal text-muted-foreground">{format(d, "dd MMM")}</span>
+                        </button>
                       </th>
                     );
                   })}
 
-                  <th colSpan={3} className="text-center p-1.5 border-l whitespace-nowrap bg-primary/10 font-semibold">
-                    <div>Week Total</div>
-                    <div className="text-muted-foreground font-normal">All Days</div>
+                  {/* A régua do total fecha com um filete grosso, não com um banho azul.
+                      O azul é a marca de HOJE nesta grelha — uma coluna com ele ao
+                      fundo dizia "hoje" a sete dias de distância. */}
+                  <th colSpan={3} className="whitespace-nowrap border-l-2 border-l-foreground/25 bg-muted/50 p-1.5 text-center font-bold">
+                    <div className="font-display uppercase tracking-[0.1em]">Week total</div>
+                    <div className="font-normal text-muted-foreground">All days</div>
                   </th>
                 </tr>
                 <tr className="border-b bg-muted/40">
@@ -1759,31 +1861,44 @@ function DayNightTotalSummary({
                     const ds = format(d, "yyyy-MM-dd");
                     const dayOff = isShiftExcluded(label, ds, "DAY");
                     const nightOff = isShiftExcluded(label, ds, "NIGHT");
-                    const Btn = ({ off, onClick }: { off: boolean; onClick: () => void }) => (
+                    // O rótulo do turno é o interruptor, pela mesma razão que o dia:
+                    // "Day on" e "Night on" repetidos catorze vezes por bloco só dizem
+                    // que não há nada a assinalar. Riscado é que se lê à primeira.
+                    const Btn = ({ off, onClick, children, shift }: { off: boolean; onClick: () => void; children: string; shift: string }) => (
                       <button
                         type="button"
                         onClick={onClick}
-                        title={off ? "Include shift" : "Exclude shift"}
-                        className={`ml-1 text-[8px] px-1 py-0 rounded border font-bold leading-none align-middle ${off ? "bg-muted text-muted-foreground border-border" : "bg-success/15 text-success-strong border-success/40"}`}
+                        aria-pressed={!off}
+                        title={off ? `Include the ${shift} shift` : `Exclude the ${shift} shift`}
+                        className={cn(
+                          "w-full px-1 py-0.5 text-right font-display font-bold uppercase tracking-[0.08em] transition-colors",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                          off ? "text-muted-foreground/60 line-through decoration-warning/70" : "hover:text-foreground",
+                        )}
                       >
-                        {off ? "off" : "on"}
+                        {children}
                       </button>
                     );
                     return (
                       <Fragment key={i}>
-                        <th className={`text-right p-1 border-l font-medium min-w-[60px] ${dayOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-warning-strong"}`}>
-                          Day<Btn off={dayOff} onClick={() => toggleShift(label, ds, "DAY")} />
+                        {/* As chapas dos turnos deixam de ser âmbar e azul. Repetidas
+                            oito vezes, eram dezasseis manchas de cor de sinalética a
+                            dizer "Day" e "Night" — e o âmbar, três linhas abaixo, é o
+                            que marca uma variância perdida. A coluna distingue-se pela
+                            posição e pelo filete, que é o que uma grelha usa. */}
+                        <th className={`min-w-[60px] border-l p-0 text-muted-foreground ${dayOff ? "bg-muted/60" : "bg-muted/40"}`}>
+                          <Btn off={dayOff} shift="day" onClick={() => toggleShift(label, ds, "DAY")}>Day</Btn>
                         </th>
-                        <th className={`text-right p-1 font-medium min-w-[60px] ${nightOff ? "bg-muted/60 text-muted-foreground" : "bg-muted/40 text-primary"}`}>
-                          Night<Btn off={nightOff} onClick={() => toggleShift(label, ds, "NIGHT")} />
+                        <th className={`min-w-[60px] p-0 text-muted-foreground ${nightOff ? "bg-muted/60" : "bg-muted/40"}`}>
+                          <Btn off={nightOff} shift="night" onClick={() => toggleShift(label, ds, "NIGHT")}>Night</Btn>
                         </th>
-                        <th className="text-right p-1 font-semibold bg-muted/60 min-w-[60px]">Total</th>
+                        <th className="min-w-[60px] bg-muted/60 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground">Total</th>
                       </Fragment>
                     );
                   })}
-                  <th className="text-right p-1 border-l text-warning-strong font-medium bg-primary/10 min-w-[64px]">Day</th>
-                  <th className="text-right p-1 text-primary font-medium bg-primary/10 min-w-[64px]">Night</th>
-                  <th className="text-right p-1 font-bold bg-primary/15 min-w-[64px]">Total</th>
+                  <th className="min-w-[64px] border-l-2 border-l-foreground/25 bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground">Day</th>
+                  <th className="min-w-[64px] bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground">Night</th>
+                  <th className="min-w-[64px] bg-muted/70 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground">Total</th>
                 </tr>
 
               </thead>
@@ -1870,7 +1985,7 @@ function DayNightTotalSummary({
                     isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                   return (
                     <tr key={row.key} className="border-b hover:bg-muted/20">
-                      <td className="px-1.5 py-1 font-medium sticky left-0 bg-background z-10 whitespace-nowrap uppercase text-[10px] tracking-wide text-muted-foreground">{row.label}</td>
+                      <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-1.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{row.label}</td>
                       {weekDates.map((d, i) => {
                         const ds = format(d, "yyyy-MM-dd");
                         const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
@@ -1887,9 +2002,9 @@ function DayNightTotalSummary({
                       })}
 
 
-                      <td className={`${cls} border-l bg-primary/5`}>{row.render(wtDay)}</td>
-                      <td className={`${cls} bg-primary/5`}>{row.render(wtNight)}</td>
-                      <td className={`${cls} bg-primary/15 font-bold`}>{row.render(wtTot)}</td>
+                      <td className={`${cls} border-l-2 border-l-foreground/25 bg-muted/30`}>{row.render(wtDay)}</td>
+                      <td className={`${cls} bg-muted/30`}>{row.render(wtNight)}</td>
+                      <td className={`${cls} bg-muted/50 font-bold`}>{row.render(wtTot)}</td>
                     </tr>
                   );
                 })}
@@ -1900,14 +2015,14 @@ function DayNightTotalSummary({
           {/* Horizontal-scroll hint: desktop-only gradient overlays that fade out when the edge is reached. */}
           <div
             className={cn(
-              "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent transition-opacity duration-300 hidden md:block",
+              "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-card to-transparent transition-opacity duration-300",
               showLeft ? "opacity-100" : "opacity-0"
             )}
             aria-hidden="true"
           />
           <div
             className={cn(
-              "pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent transition-opacity duration-300 hidden md:block",
+              "pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-card to-transparent transition-opacity duration-300",
               showRight ? "opacity-100" : "opacity-0"
             )}
             aria-hidden="true"
@@ -1915,9 +2030,22 @@ function DayNightTotalSummary({
         </div>
         )}
         {!isCollapsed && label !== "All Lines" && (
-          <div className="mt-2 border rounded-md bg-muted/10 p-3">
-            <div className="text-2xs uppercase tracking-wider text-muted-foreground font-semibold mb-2">Daily Comments</div>
-            <div className="grid gap-2 md:grid-cols-7">
+          /* Recolhido, e a dizer quanto lá está dentro.
+             Sete caixas de texto vazias por linha, seis linhas: metade do ecrã era
+             espaço para escrever, por baixo dos números que ninguém tinha ainda lido.
+             Quem escreve abre a sua linha; quem lê vê o resumo — quantos dias já têm
+             nota, de sete — e passa à frente. */
+          <details className="group mt-2 rounded-md border bg-muted/10 px-3 py-2">
+            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+              <span className="font-display text-2xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                Daily comments
+              </span>
+              <span className="font-figure text-2xs text-muted-foreground">
+                {commentedDays} of {weekDates.length} days written
+              </span>
+              <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="mt-2 grid gap-2 md:grid-cols-7">
               {weekDates.map((d) => {
                 const ds = format(d, "yyyy-MM-dd");
                 return (
@@ -1933,7 +2061,7 @@ function DayNightTotalSummary({
                 );
               })}
             </div>
-          </div>
+          </details>
         )}
       </div>
     );
@@ -1943,11 +2071,15 @@ function DayNightTotalSummary({
 
 
   return (
-    <Card className="border-l-4 border-l-warning shadow-md">
-      <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2">
-        <CardTitle className="text-base uppercase tracking-wider text-muted-foreground">Day / Night / Total Summary</CardTitle>
+    /* Sem barra âmbar. Um bordo esquerdo colorido diz "atenção a isto" — é o mecanismo
+       do `StatusRail` — e esta grelha não é um aviso, é o corpo do relatório. Gasto
+       aqui, o âmbar deixava de significar seja o que for nos sítios onde é mesmo um
+       problema, três centímetros acima. */
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="font-display text-sm font-bold uppercase tracking-[0.13em] text-muted-foreground">Day / Night / Total summary</CardTitle>
         <Button size="sm" variant="outline" onClick={() => setAll(!allCollapsed)}>
-          {allCollapsed ? <><Eye className="h-4 w-4 mr-1" />Expand All</> : <><EyeOff className="h-4 w-4 mr-1" />Collapse All</>}
+          {allCollapsed ? <><Eye className="h-4 w-4 mr-1" />Expand all</> : <><EyeOff className="h-4 w-4 mr-1" />Collapse all</>}
         </Button>
       </CardHeader>
       <CardContent>
@@ -1998,6 +2130,47 @@ function LineCommentBox({
     if (!focusedRef.current) setValue(initialValue ?? "");
   }, [initialValue, line, entryDate]);
 
+  /**
+   * A caixa cresce com o que lá está escrito, até sete linhas.
+   *
+   * Com duas linhas fixas, uma nota de três — "Changeover ran long after the label
+   * roll split" — aparecia cortada a meio da última palavra, sem barra de rolagem
+   * visível: quem lê a semana não sabia que faltava texto. Depois das sete linhas
+   * volta a rolar por dentro, para que uma nota longa não empurre a linha seguinte
+   * para fora do ecrã. O `resize-y` continua a mandar se o utilizador puxar a pega.
+   *
+   * O `ResizeObserver` é por causa do bloco recolhido: dentro de um `<details>`
+   * fechado a caixa não tem altura nenhuma, medi-la ali daria zero, e a medição certa
+   * só é possível no instante em que o bloco abre.
+   */
+  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const fittedRef = useRef(-1);
+  const fit = () => {
+    const el = boxRef.current;
+    if (!el || el.offsetParent === null) return; // escondido: medir agora daria zero
+    const before = el.style.height;
+    el.style.height = "auto";
+    const target = Math.min(el.scrollHeight, 140);
+    if (target <= 0) {
+      el.style.height = before;
+      return;
+    }
+    fittedRef.current = target;
+    el.style.height = `${target}px`;
+  };
+  useEffect(fit, [value]);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      // Sem esta guarda, ajustar a altura acordava o observador que a ajustou.
+      if (boxRef.current && Math.round(boxRef.current.clientHeight) === fittedRef.current) return;
+      fit();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const commit = async () => {
     focusedRef.current = false;
     const next = value.trim();
@@ -2042,6 +2215,7 @@ function LineCommentBox({
         }}
       />
       <Textarea
+        ref={boxRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onFocus={() => { focusedRef.current = true; }}
@@ -2068,6 +2242,11 @@ function SummaryInlineInput({
 }) {
   const [v, setV] = useState<string>(value ? String(value) : "");
   const focusedRef = useRef(false);
+  // Em repouso mostra-se o número agrupado, como o resto da coluna: a linha do Plano
+  // dizia "1119" ao lado de um Total que dizia "2.088", e dois milhares escritos de
+  // duas maneiras na mesma coluna leem-se como duas grandezas. A digitar volta a ser
+  // dígitos limpos — ninguém quer escrever por cima de pontos.
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
     if (!focusedRef.current) setV(value ? String(value) : "");
   }, [value]);
@@ -2081,11 +2260,11 @@ function SummaryInlineInput({
     <input
       type="text"
       inputMode="numeric"
-      value={v}
+      value={focused ? v : value ? value.toLocaleString() : ""}
       placeholder="—"
-      onFocus={() => { focusedRef.current = true; }}
+      onFocus={() => { focusedRef.current = true; setFocused(true); }}
       onChange={(e) => setV(e.target.value)}
-      onBlur={commit}
+      onBlur={() => { setFocused(false); commit(); }}
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         if (e.key === "Escape") { focusedRef.current = false; setV(value ? String(value) : ""); }

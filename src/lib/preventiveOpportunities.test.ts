@@ -49,3 +49,34 @@ describe("buildOpportunities", () => {
     expect(buildOpportunities(rows, NOW)).toEqual([]);
   });
 });
+
+describe("buildOpportunities — what counts as a failure", () => {
+  /**
+   * A regressão: o cartão dizia "Line 4 · 74 orders" enquanto a linha de cobertura
+   * por cima dele dizia ter lido 109 de 111, com 2 excluídas. Só `preventive` era
+   * excluída aqui; um pedido de armazém traz nome de activo no mesmo campo e entrava
+   * na conta como avaria.
+   */
+  it("leaves warehouse service requests out, as the table above it already does", () => {
+    const rows = [
+      wo(), wo({ created_at: daysAgo(2) }),
+      wo({ wo_type: "warehouse_service" }), wo({ wo_type: "warehouse_service", created_at: daysAgo(4) }),
+    ];
+    const [line] = buildOpportunities(rows, NOW);
+    expect(line.failures30d).toBe(2);
+    expect(line.issues[0].count).toBe(2);
+  });
+
+  it("reads the window it is given rather than a fixed thirty days", () => {
+    const rows = [wo({ created_at: daysAgo(3) }), wo({ created_at: daysAgo(20) })];
+    expect(buildOpportunities(rows, NOW, 30)[0].issues[0].count).toBe(2);
+    // A sete dias, a de há vinte fica de fora e sobra uma — que não é padrão nenhum.
+    expect(buildOpportunities(rows, NOW, 7)).toEqual([]);
+  });
+
+  it("does not call a seven-day window 'this week' as well", () => {
+    // Senão "2× this week" aparecia sobre um período de sete dias, onde não distingue nada.
+    const rows = [wo({ created_at: daysAgo(1) }), wo({ created_at: daysAgo(2) })];
+    expect(buildOpportunities(rows, NOW, 7)[0]?.issues[0].count7d ?? 0).toBe(0);
+  });
+});

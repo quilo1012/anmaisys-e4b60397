@@ -9,6 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { railEdge } from "@/components/ui/StatusRail";
 
 type NotifType = "new_wo" | "assigned" | "status_change" | "overdue" | "low_stock" | "system_error";
 type Priority = "critical" | "high" | "medium" | "low";
@@ -86,10 +87,10 @@ const typeIcon: Record<NotifType, React.ComponentType<{ className?: string }>> =
 };
 
 const priorityStyles: Record<Priority, { ring: string; dot: string; label: string; badge: string }> = {
-  critical: { ring: "border-l-destructive", dot: "bg-destructive", label: "CRITICAL", badge: "bg-destructive text-destructive-foreground" },
-  high:     { ring: "border-l-warning", dot: "bg-warning", label: "HIGH", badge: "bg-warning text-warning-foreground" },
-  medium:   { ring: "border-l-warning", dot: "bg-warning", label: "MEDIUM", badge: "bg-warning text-warning-foreground" },
-  low:      { ring: "border-l-muted", dot: "bg-muted-foreground", label: "LOW", badge: "bg-muted text-muted-foreground" },
+  critical: { ring: railEdge("stop"), dot: "bg-destructive", label: "CRITICAL", badge: "bg-destructive text-destructive-foreground" },
+  high:     { ring: railEdge("hold"), dot: "bg-warning", label: "HIGH", badge: "bg-warning text-warning-foreground" },
+  medium:   { ring: railEdge("hold"), dot: "bg-warning", label: "MEDIUM", badge: "bg-warning text-warning-foreground" },
+  low:      { ring: railEdge("idle"), dot: "bg-muted-foreground", label: "LOW", badge: "bg-muted text-muted-foreground" },
 };
 
 export function NotificationPanel() {
@@ -289,7 +290,7 @@ export function NotificationPanel() {
                     key={n.id}
                     onClick={() => handleClick(n)}
                     className={cn(
-                      "w-full text-left px-4 py-3 text-sm border-l-4 transition hover:bg-accent/50",
+                      "w-full text-left px-4 py-3 text-sm transition hover:bg-accent/50",
                       styles.ring,
                       n.read && "opacity-60"
                     )}

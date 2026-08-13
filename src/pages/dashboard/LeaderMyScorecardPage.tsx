@@ -145,7 +145,11 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
 
   return (
     <div
-      className="mx-auto w-full max-w-3xl space-y-4"
+      // 3xl left roughly a third of a 1440px screen empty down each side while the
+      // figures inside were sharing four columns of nothing. The card is a document,
+      // so it stays measured rather than full-bleed — but it gets the width its own
+      // rows need.
+      className="mx-auto w-full max-w-5xl space-y-4"
       onPointerDown={() => setLastActivity(Date.now())}
     >
       {/* Header. Wraps rather than scrolls: on a phone the three buttons drop under
@@ -207,21 +211,38 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
       {/* Period. Two buttons, not a date picker: on a tablet at the end of a shift the
           question is "how did tonight go" or "how is the month going", and anything
           finer belongs on the manager's screen. */}
-      <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Period">
+      {/* One strip with two segments, rather than two full-width buttons of which one
+          was a solid blue slab. A period switch is a switch: it should read as one
+          control with a position, not as two calls to action competing with the score
+          below it. The 44px target stays — this is a gloved thumb on a tablet. */}
+      <div
+        className="inline-flex w-full rounded-lg border bg-muted/50 p-1"
+        role="tablist"
+        aria-label="Period"
+      >
         {([
           ["shift", `This shift · ${SHIFT_LABEL[shiftCode]}`],
           ["month", `This month · ${format(new Date(`${periods.month.from}T00:00:00`), "MMMM")}`],
         ] as const).map(([key, label]) => (
-          <Button
+          <button
             key={key}
+            type="button"
             role="tab"
             aria-selected={tab === key}
-            variant={tab === key ? "default" : "outline"}
-            className="h-auto min-h-11 whitespace-normal py-2 text-xs sm:text-sm"
+            className={cn(
+              // h-auto + whitespace-normal, not a fixed height: at 390px "This shift ·
+              // Day Shift (06:00–18:00)" needs a second line, and min-h-11 keeps the
+              // target at 44px however few lines it ends up using.
+              "h-auto min-h-11 flex-1 whitespace-normal rounded-md px-3 py-2 text-xs font-medium transition-colors sm:text-sm",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              tab === key
+                ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground",
+            )}
             onClick={() => { setTab(key); setLastActivity(Date.now()); }}
           >
             {label}
-          </Button>
+          </button>
         ))}
       </div>
 

@@ -41,6 +41,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, 
 
 
 import { woStatusConfig as statusConfig, priorityChipClass } from "@/lib/woStatusConfig";
+import { railEdge } from "@/lib/rail";
 
 
 export default function OperatorDashboard() {
@@ -676,7 +677,12 @@ function OperatorDashboardContent() {
             {/* AI Insights + Auto Priority */}
             {aiInsights && (
               <div className="md:col-span-2">
-                <Card className={cn("border-l-4", autoPriority.priority === "high" ? "border-l-destructive bg-destructive/5" : autoPriority.priority === "medium" ? "border-l-warning bg-warning/5" : "border-l-success bg-success/5")}>
+                <Card className={cn(
+                  /* A prioridade diz-se na barra, uma vez. O banho de fundo dizia-a
+                     outra vez, e um cartão inteiro tingido compete com o texto que
+                     está lá dentro para ser lido. */
+                  railEdge(autoPriority.priority === "high" ? "stop" : autoPriority.priority === "medium" ? "hold" : "go"),
+                )}>
                   <CardContent className="p-3 space-y-1">
                     <div className="flex items-center gap-2 text-sm">
                       <Zap className="h-4 w-4" />
@@ -727,10 +733,16 @@ function OperatorDashboardContent() {
                 </Badge>
               )}
             </CardTitle>
-            <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/operator/my-production")}>
-              <Factory className="h-4 w-4 mr-2" />
-              My Production
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => navigate("/dashboard/operator/my-production")}>
+                <Factory className="h-4 w-4 mr-2" />
+                My Production
+              </Button>
+              {/* My Scorecard used to sit here, beside My Production. It moved to the
+                  sidebar, where the leader can reach it without scrolling past the form
+                  this page exists for. Two doors into one room is what folding My Tasks
+                  and History into Dashboard was meant to end. */}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

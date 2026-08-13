@@ -267,3 +267,43 @@ for (const vp of VIEWPORTS) {
     });
   });
 }
+
+/**
+ * The card as it comes out of the printer.
+ *
+ * The score sits on the brand's navy panel, and a navy block is a solid rectangle of
+ * ink on paper with the numbers lost inside it — so the panel goes back to black on
+ * white for print. That much is a class; what a class cannot tell you is that
+ * index.css prints with `.print-content [class*="flex"] { display: flex !important }`,
+ * and that substring catches `flex-1` as well as `flex`. The column holding the bars
+ * carried `flex-1`, became a flex ROW on paper, and laid its caption out beside the
+ * bars, across the Documentation label. Only a print rendering shows that.
+ */
+test.describe("on paper", () => {
+  test.use({ viewport: { width: 1024, height: 1400 } });
+
+  test("prints the score panel as ink on white, with nothing overlapping", async ({ page }) => {
+    await stubSupabase(page);
+    await page.goto("/dashboard/leader/scorecard");
+    await expect(page.getByRole("button", { name: /open my scorecard/i })).toBeVisible({ timeout: 30_000 });
+    await page.locator("input").first().fill("4821");
+    await expect(page.getByRole("heading", { name: LEADER })).toBeVisible({ timeout: 15_000 });
+
+    await page.emulateMedia({ media: "print" });
+    await page.screenshot({ path: "e2e/.results/print-card.png", fullPage: true });
+
+    const bar = page.getByRole("img", { name: /how this score was built/i });
+    const panel = bar.locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]");
+    expect(
+      await panel.evaluate((el) => getComputedStyle(el).backgroundColor),
+      "the score panel would print as a solid block of ink",
+    ).toBe("rgb(255, 255, 255)");
+
+    // The caption belongs under the bars. If the column is laid out as a row again it
+    // lands beside them, level with the labels, and covers one.
+    const caption = page.getByText(/each block is as wide as it counts for/i);
+    const barBox = await bar.boundingBox();
+    const capBox = await caption.boundingBox();
+    expect(capBox!.y, "the caption is level with the bars, not below them").toBeGreaterThan(barBox!.y + barBox!.height - 2);
+  });
+});

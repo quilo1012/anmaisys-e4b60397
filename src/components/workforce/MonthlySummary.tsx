@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/DateField";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, CalendarRange } from "lucide-react";
@@ -132,11 +132,11 @@ export function MonthlySummary({ employees }: Props) {
                   </SelectContent>
                 </Select>
               )}
-              <Input type="date" value={from} aria-label="From"
-                onChange={(e) => e.target.value && setFrom(e.target.value)} className="h-9 w-[9.5rem]" />
+              <DateField value={from} aria-label="From"
+                onChange={(v) => v && setFrom(v)} className="h-9 w-[8.5rem]" />
               <span className="text-xs text-muted-foreground">to</span>
-              <Input type="date" value={to} aria-label="To"
-                onChange={(e) => e.target.value && setTo(e.target.value)} className="h-9 w-[9.5rem]" />
+              <DateField value={to} aria-label="To" min={from}
+                onChange={(v) => v && setTo(v)} className="h-9 w-[8.5rem]" />
               <Button variant="outline" size="sm" onClick={exportAttendance} disabled={!attendanceRows.length}>
                 <Download className="mr-1 h-4 w-4" /> CSV
               </Button>

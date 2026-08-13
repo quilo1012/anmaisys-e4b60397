@@ -36,3 +36,22 @@ describe("getPresetRange('all')", () => {
     expect(getPresetRange("all")).toEqual({});
   });
 });
+
+describe("getPresetRange('90d')", () => {
+  /**
+   * O período por omissão do PM Intelligence. Tem de cobrir noventa dias inteiros —
+   * o MTBF é falhas a dividir pela janela, por isso uma janela curta a mais levanta
+   * todas as recomendações ao mesmo tempo.
+   */
+  it("covers ninety whole days, counting today", () => {
+    const { from, to } = getPresetRange("90d");
+    const days = (to!.getTime() - from!.getTime()) / 86_400_000;
+    expect(days).toBeGreaterThan(89);
+    expect(days).toBeLessThanOrEqual(90);
+  });
+
+  it("starts further back than the thirty-day preset", () => {
+    expect(getPresetRange("90d").from!.getTime())
+      .toBeLessThan(getPresetRange("30d").from!.getTime());
+  });
+});

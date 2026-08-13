@@ -52,3 +52,22 @@ export function reportPeriodLabel(r: ResolvedRange, pattern = "dd/MM/yyyy HH:mm"
   const end = format(r.endDate, pattern);
   return r.openStart ? `All time — up to ${end}` : `${format(r.startDate, pattern)} — ${end}`;
 }
+
+/**
+ * O período dito no meio de uma frase — "os 90 dias até 12/08/2026".
+ *
+ * Arredonda para cima, e não para o mais próximo, porque um período tem de dizer o
+ * mesmo número que o controlo que o escolheu. `getPresetRange("90d")` vai de
+ * `startOfDay(hoje−89)` até agora: às 11h da manhã são 89,46 dias decorridos, e um
+ * `Math.round` escrevia "os 89 dias" por baixo de um chip que diz "Last 90 days".
+ * Dois números para a mesma janela no mesmo ecrã, e o leitor não tem como saber qual
+ * deles é o que os cálculos usaram.
+ *
+ * O valor fraccionário continua a ser o que divide as falhas — o denominador honesto
+ * é o tempo mesmo decorrido. O que arredonda é a frase, que é um nome e não uma conta.
+ */
+export function reportSpanPhrase(r: ResolvedRange, pattern = "dd/MM/yyyy"): string {
+  if (r.openStart) return "the whole record";
+  const days = Math.max(1, Math.ceil((r.endDate.getTime() - r.startDate.getTime()) / 86_400_000));
+  return `the ${days} day${days === 1 ? "" : "s"} to ${format(r.endDate, pattern)}`;
+}

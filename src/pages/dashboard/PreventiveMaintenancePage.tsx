@@ -36,14 +36,18 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "@/components/reports/KpiCard";
 
+/* A barra vem do mecanismo, não de uma cor escolhida aqui: um plano em atraso tem de
+   ter exactamente o mesmo vermelho, e a mesma largura, que uma linha parada no painel
+   de produção. `inactive` era `border-l-muted` — quase invisível sobre o cartão. */
 const statusStyle: Record<PmStatus, { label: string; chip: string; ring: string }> = {
-  overdue: { label: "Overdue", chip: "bg-destructive/15 text-destructive-strong border-destructive/40", ring: "border-l-destructive" },
-  due_soon: { label: "Due Soon", chip: "bg-warning/15 text-warning-strong border-warning/40", ring: "border-l-warning" },
-  ok: { label: "Scheduled", chip: "bg-success/15 text-success-strong border-success/40", ring: "border-l-success" },
-  inactive: { label: "Inactive", chip: "bg-muted text-muted-foreground border-border", ring: "border-l-muted" },
+  overdue: { label: "Overdue", chip: "bg-destructive/15 text-destructive-strong border-destructive/40", ring: railEdge("stop") },
+  due_soon: { label: "Due Soon", chip: "bg-warning/15 text-warning-strong border-warning/40", ring: railEdge("hold") },
+  ok: { label: "Scheduled", chip: "bg-success/15 text-success-strong border-success/40", ring: railEdge("go") },
+  inactive: { label: "Inactive", chip: "bg-muted text-muted-foreground border-border", ring: railEdge("idle") },
 };
 
 import { useConfirm } from "@/hooks/useConfirm";
+import { railEdge } from "@/lib/rail";
 
 export default function PreventiveMaintenancePage() {
   const { role } = useAuth();
@@ -307,7 +311,7 @@ function ScheduleCard({
 }) {
   const sty = statusStyle[status];
   return (
-    <Card className={cn("border-l-4", sty.ring)}>
+    <Card className={cn(sty.ring)}>
       <Collapsible open={expanded} onOpenChange={onToggle}>
         <div className="flex items-center justify-between p-4 gap-3 flex-wrap">
           <CollapsibleTrigger asChild>
@@ -322,7 +326,7 @@ function ScheduleCard({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Every {schedule.interval_days}d ·{" "}
                   {schedule.next_due_at
-                    ? <>Next: <span className="font-mono">{format(new Date(schedule.next_due_at), "dd/MM/yyyy")}</span> ({formatDistanceToNow(new Date(schedule.next_due_at), { addSuffix: true })})</>
+                    ? <>Next: <span className="font-figure">{format(new Date(schedule.next_due_at), "dd/MM/yyyy")}</span> ({formatDistanceToNow(new Date(schedule.next_due_at), { addSuffix: true })})</>
                     : "Not scheduled yet"}
                   {schedule.last_done_at && <> · Last: {format(new Date(schedule.last_done_at), "dd/MM/yyyy")}</>}
                 </p>
@@ -417,7 +421,7 @@ function ExecutionsList({ scheduleId }: { scheduleId: string }) {
         <div key={e.id} className="p-3 rounded border bg-muted/30 text-sm">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="font-medium">{e.done_by_name || "—"}</span>
-            <span className="text-xs text-muted-foreground font-mono">{format(new Date(e.done_at), "dd/MM/yyyy HH:mm")}</span>
+            <span className="text-xs text-muted-foreground font-figure">{format(new Date(e.done_at), "dd/MM/yyyy HH:mm")}</span>
           </div>
           {e.notes && <p className="text-xs text-muted-foreground mt-1">{e.notes}</p>}
           {Array.isArray(e.checklist_state) && e.checklist_state.length > 0 && (

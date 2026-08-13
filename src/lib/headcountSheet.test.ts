@@ -15,7 +15,7 @@ const emp = (id: string, full_name: string): HeadcountEmployee => ({
 });
 const alloc = (employee_id: string, area_id: string | null, status = "assigned"): Allocation => ({
   id: `a-${employee_id}`, on_date: "2026-08-04", shift: "Day", employee_id, area_id,
-  status, half_day: false, left_early_at: null, note: null, is_leader: false,
+  status, half_day: false, left_early_at: null, arrived_late_at: null, note: null, is_leader: false,
 });
 
 const AREAS = [area("l1", "Line 1"), area("l5", "Line 5"), area("hy", "Hygiene", "support")];

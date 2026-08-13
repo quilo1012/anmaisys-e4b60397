@@ -16,6 +16,7 @@ export type DateRangePreset =
   | "shift"
   | "7d"
   | "30d"
+  | "90d"
   | "month"
   | "all"
   | "custom";
@@ -28,6 +29,10 @@ const PRESET_LABELS: Record<Exclude<DateRangePreset, "custom">, string> = {
   // choosing it wants the week behind them, not any seven days.
   "7d": "Last 7 days",
   "30d": "Last 30 days",
+  // Um trimestre, porque há perguntas que trinta dias não respondem: um MTBF medido
+  // sobre um mês, numa fábrica onde metade dos activos falha menos de uma vez por
+  // mês, é medido sobre uma falha.
+  "90d": "Last 90 days",
   month: "This month",
   all: "All time",
 };
@@ -66,6 +71,8 @@ export function getPresetRange(preset: DateRangePreset): DateRange {
       return { from: startOfDay(subDays(now, 6)), to: now };
     case "30d":
       return { from: startOfDay(subDays(now, 29)), to: now };
+    case "90d":
+      return { from: startOfDay(subDays(now, 89)), to: now };
     case "month":
       return { from: startOfMonth(now), to: endOfMonth(now) };
     case "all":
@@ -135,7 +142,7 @@ export function DateRangeFilter({ value, preset, onChange, className, storageKey
         ? format(value.from, "dd MMM yyyy")
         : `${value.from ? format(value.from, "dd/MM/yy") : "…"} – ${value.to ? format(value.to, "dd/MM/yy") : "…"}`;
 
-  const quick: DateRangePreset[] = ["today", "yesterday", "shift", "7d", "30d", "month", "all"];
+  const quick: DateRangePreset[] = ["today", "yesterday", "shift", "7d", "30d", "90d", "month", "all"];
   const presetLabel = preset === "custom"
     ? "Custom"
     : PRESET_LABELS[preset as Exclude<DateRangePreset, "custom">];

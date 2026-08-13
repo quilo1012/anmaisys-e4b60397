@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusRail, type RailState } from "@/components/ui/StatusRail";
 import { ControlPlate, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
 import { ConsoleCell } from "@/components/ui/ConsoleStrip";
@@ -14,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/DateField";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,7 +30,6 @@ import { pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/l
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { EmptyState } from "@/components/EmptyState";
 import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { CircularProgress } from "@/components/ui/circular-progress";
 import { toast } from "sonner";
 
 type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
@@ -465,6 +464,14 @@ export default function ProductionPerformancePage() {
     return out;
   }, [isCurrentShiftView, sessions]);
 
+  /** O período que está mesmo em cima da mesa, por extenso. */
+  const rangeLabel = useMemo(
+    () => range.from === range.to
+      ? format(parseISO(range.from), "dd MMM yyyy")
+      : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`,
+    [range.from, range.to],
+  );
+
   /**
    * O veredicto da fábrica, numa medida só — o que a barra de andon acende.
    *
@@ -511,13 +518,19 @@ export default function ProductionPerformancePage() {
       // escrita por extenso. O ritmo esteve aqui, com outro denominador, e era a
       // única percentagem do ecrã que não batia com nenhum dos números vizinhos.
       value: `${Math.round(reading.attainedPct)}%`,
+      /* O período resolvido lê-se AQUI, e não num canto da placa de comando.
+         Com o período em semana ou em mês as duas caixas de data não dizem onde a
+         semana começa nem onde acaba, e essa pergunta tinha resposta num readout que
+         empurrava o botão de imprimir para uma segunda fila vazia. A linha que diz
+         contra o quê é que 65% foi medido é o sítio onde a resposta faz falta: um
+         período nomeado é metade da pergunta a que a percentagem responde. */
       basis: isCurrentShiftView
         ? `${lines} · ${Math.round(elapsedPct)}% of the shift has passed`
-        : `${lines} · against the period plan`,
+        : `${lines} · ${rangeLabel} · against the period plan`,
       detail: `${totalActual.toLocaleString("en-US")} / ${totalTarget.toLocaleString("en-US")}`,
       pct: reading.attainedPct,
     };
-  }, [byLine, elapsedPct, isCurrentShiftView]);
+  }, [byLine, elapsedPct, isCurrentShiftView, rangeLabel]);
 
 
   /**
@@ -619,13 +632,54 @@ export default function ProductionPerformancePage() {
           o que se lê a três metros é a barra, e o que se lê a trinta centímetros são os
           números, que continuam sobre o mesmo fundo de sempre. */}
       <div className={cn("-m-3 space-y-6 p-3 transition-colors duration-500 sm:-m-4 sm:p-4 md:-m-6 md:p-6", ANDON_FIELD[factory.state])}>
-        <AndonBar
-          state={factory.state}
-          verdict={factory.verdict}
-          value={factory.value}
-          basis={factory.basis}
-          detail={factory.detail}
-        />
+        {/* O mastro: a lâmpada e a régua, num instrumento só.
+            Eram três bandas empilhadas — a barra de andon, o título do ecrã e um cartão
+            "Overall performance" — e as três diziam a mesma coisa por ordem: 65%,
+            depois Production Performance, depois 65% outra vez ao lado de 31.280/48.000,
+            que a barra já tinha impresso. Meio ecrã de cabeçalho antes do primeiro
+            cartão de linha, num ecrã que existe para os cartões de linha.
+            O nome do ecrã já está na navegação e na barra de topo; o número já está na
+            lâmpada; a conta que faltava — quanto do plano, contra quanto do relógio —
+            é agora a escala dentro dela. */}
+        <div className="overflow-hidden rounded-lg border bg-card">
+          <AndonBar
+            state={factory.state}
+            verdict={factory.verdict}
+            value={factory.value}
+            basis={factory.basis}
+            detail={factory.detail}
+            scale={factory.value ? { attainedPct: factory.pct, elapsedPct: isCurrentShiftView ? elapsedPct : null } : undefined}
+            className="rounded-none"
+          />
+          {/* A régua, encostada à lâmpada e não a flutuar num cartão a 24 px dela:
+              são as quatro medidas DESTA leitura, e um instrumento não tem as suas
+              medidas noutro móvel. */}
+          {(() => {
+            const scored = byLine.filter((l) => l.target > 0);
+            const totalTarget = scored.reduce((a, l) => a + l.target, 0);
+            const totalActual = scored.reduce((a, l) => a + l.actual, 0);
+            const excludedCount = byLine.length - scored.length;
+            const variance = totalActual - totalTarget;
+            return (
+              <div className="grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
+                <ConsoleCell
+                  label="Variance"
+                  value={`${variance >= 0 ? "+" : ""}${variance.toLocaleString("en-US")}`}
+                  hint="units against plan"
+                  tone={variance > 0 ? "text-success-strong" : "text-foreground"}
+                />
+                <ConsoleCell label="Lines scored" value={String(scored.length)} hint={`of ${byLine.length} with activity`} />
+                <ConsoleCell label="Sessions" value={String(sessions.length)} hint="logged in the period" />
+                <ConsoleCell
+                  label="No RAG target"
+                  value={String(excludedCount)}
+                  hint={excludedCount > 0 ? "excluded from the score" : "every line has a plan"}
+                  tone={excludedCount > 0 ? "text-warning-strong" : "text-muted-foreground"}
+                />
+              </div>
+            );
+          })()}
+        </div>
         {/* Landing screen for supervisors and the production office — same opening. */}
 
         <SectionErrorBoundary title="Leader scorecard">
@@ -639,19 +693,12 @@ export default function ProductionPerformancePage() {
         </SectionErrorBoundary>
 
         <div className="space-y-3">
-          <PageHeader
-            module="Production"
-            title="Production Performance"
-            description="Output against target by line, leader and shift."
-            icon={<BarChart3 className="h-5 w-5" />}
-            actions={<Button variant="outline" size="sm" onClick={printReport}><Printer className="h-4 w-4 mr-1" />Print report</Button>}
-          />
           {/* A placa de comando.
               Seis controlos soltos por cima de um painel são um formulário; o que eles
               na verdade são é a afinação do instrumento que está por baixo. Juntos numa
               placa, com uma chapa em cada um e um filete a separar as datas dos filtros,
               lêem-se como o que são — e o painel volta a começar no primeiro número. */}
-          <ControlPlate>
+          <ControlPlate className="gap-x-3">
             <ControlField label="Date range" className="w-full lg:w-auto">
             <div className="flex items-center gap-1.5">
               <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
@@ -666,15 +713,26 @@ export default function ProductionPerformancePage() {
                 const step = period === "week" ? subDays(d, 7) : period === "month" ? addMonths(d, -1) : period === "quarter" ? addQuarters(d, -1) : period === "year" ? addYears(d, -1) : subDays(d, 1);
                 setDate(format(step, "yyyy-MM-dd"));
               }}><ChevronLeft className="h-4 w-4" /></Button>
-              <Input type="date" value={date} onChange={(e) => {
-                setDate(e.target.value);
-                if (period !== "custom") { setPeriod("custom"); if (endDate < e.target.value) setEndDate(e.target.value); }
-              }} className="min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none" />
+              <DateField
+                aria-label="From"
+                value={date}
+                onChange={(v) => {
+                  setDate(v);
+                  if (period !== "custom") { setPeriod("custom"); if (endDate < v) setEndDate(v); }
+                }}
+                className="min-w-0 flex-1 sm:w-[7.75rem] sm:flex-none"
+              />
               <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">to</span>
-              <Input type="date" value={endDate} min={date} onChange={(e) => {
-                setEndDate(e.target.value);
-                if (period !== "custom") setPeriod("custom");
-              }} className="min-w-0 flex-1 sm:w-[9.5rem] sm:flex-none" />
+              <DateField
+                aria-label="To"
+                value={endDate}
+                min={date}
+                onChange={(v) => {
+                  setEndDate(v);
+                  if (period !== "custom") setPeriod("custom");
+                }}
+                className="min-w-0 flex-1 sm:w-[7.75rem] sm:flex-none"
+              />
               <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
@@ -718,7 +776,7 @@ export default function ProductionPerformancePage() {
             </ControlField>
             <ControlField label="Line" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={lineFilter} onValueChange={setLineFilter}>
-                <SelectTrigger className="w-full sm:w-40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All lines</SelectItem>
                   {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
@@ -727,7 +785,7 @@ export default function ProductionPerformancePage() {
             </ControlField>
             <ControlField label="Leader" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={leaderFilter} onValueChange={setLeaderFilter}>
-                <SelectTrigger className="w-full sm:w-44"><SelectValue placeholder="All leaders" /></SelectTrigger>
+                <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="All leaders" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All leaders</SelectItem>
                   {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
@@ -743,103 +801,23 @@ export default function ProductionPerformancePage() {
               </Button>
             )}
 
-            {/* O que está de facto a ser mostrado, resolvido. Com o período em semana
-                ou em mês, as duas caixas de data não dizem onde a semana começa nem
-                onde acaba, e é essa a pergunta a que este canto responde. */}
-            <div className="ml-auto self-end pb-2.5 text-right">
-              <div className="font-figure text-xs font-bold leading-none text-foreground">
-                {range.from === range.to ? format(parseISO(range.from), "dd MMM yyyy") : `${format(parseISO(range.from), "dd MMM")} → ${format(parseISO(range.to), "dd MMM yyyy")}`}
-              </div>
+            {/* O que está de facto a ser mostrado, resolvido, e o que se faz com ele.
+                Com o período em semana ou em mês, as duas caixas de data não dizem
+                onde a semana começa nem onde acaba, e é essa a pergunta a que este
+                canto responde. O botão de imprimir vive ao lado dele e não num
+                cabeçalho à parte: imprime-se ESTE período, e o comando pertence à
+                placa onde o período foi afinado. */}
+            <div className="flex items-end gap-3 self-end sm:ml-auto">
+              {/* "Print", e não "Print report": o botão vive dentro da placa que afina
+                  o período, e o que ele imprime é o que a placa está a mostrar. A
+                  palavra a mais custava a fila inteira num portátil de 1440. */}
+              <Button variant="outline" className="gap-1.5" onClick={printReport}>
+                <Printer className="h-4 w-4" /> Print
+              </Button>
             </div>
           </ControlPlate>
         </div>
 
-
-        {/* Overall OEE Panel — excludes lines with no RAG Weekly target for the period (#9) */}
-        {(() => {
-          const scored = byLine.filter((l) => l.target > 0);
-          const totalTarget = scored.reduce((a, l) => a + l.target, 0);
-          const totalActual = scored.reduce((a, l) => a + l.actual, 0);
-          const excludedCount = byLine.length - scored.length;
-          const variance = totalActual - totalTarget;
-          /* A chave diz o critério que está mesmo a ser aplicado, e agora diz-o contra
-             um número que está no ecrã.
-             Esteve aqui "≥95% on pace" por cima de cartões que imprimiam 9%: os limiares
-             eram do ritmo, o ritmo tinha deixado de ser impresso, e ninguém no chão podia
-             fechar a conta entre a legenda e o que via. O critério é a distância ao
-             relógio do turno — que está escrito na barra de andon, aqui em cima. */
-          const behind = `${BEHIND_TOLERANCE_PTS} pts`;
-          const key: [string, string, string][] = isCurrentShiftView
-            ? [["bg-success", "≥", "keeping up with the clock"], ["bg-warning", `−${behind}`, "behind the clock"], ["bg-destructive", `>${behind}`, "behind the clock"]]
-            : [["bg-success", "≥100%", "on target"], ["bg-warning", "85–99%", "behind"], ["bg-destructive", "<85%", "critical"]];
-          return (
-            <Card>
-              <CardContent className="p-0">
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-5 p-5">
-                  {/* O mesmo número da barra de andon, e nunca um segundo.
-                      Duas percentagens da mesma fábrica no mesmo ecrã, a dois palmos
-                      uma da outra, era o defeito antigo — e resolveu-se pelos dois
-                      lados a dizerem a mesma coisa: quanto do plano do período já está
-                      feito. É a conta que os números em peças aqui ao lado mostram
-                      escrita por extenso, e o ritmo, que tem outro denominador, vive
-                      agora na linha de baixo da barra e nos cartões. */}
-                  <CircularProgress value={factory.pct} size={104} strokeWidth={9} sublabel="Attained" />
-                  <div className="min-w-[13rem] flex-1">
-                    <div className="font-display text-2xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
-                      Overall performance
-                    </div>
-                    {/* Feito e planeado na mesma linha, e o planeado em surdina: são o
-                        mesmo facto lido em duas metades, e só uma delas é a notícia. */}
-                    <div className="mt-1.5 font-figure text-[2rem] font-bold leading-none text-foreground">
-                      {totalActual.toLocaleString("en-US")}
-                      <span className="text-muted-foreground"> / {totalTarget.toLocaleString("en-US")}</span>
-                    </div>
-                    <div className="mt-1.5 text-xs text-muted-foreground">
-                      Units made, against the {isCurrentShiftView ? "full shift plan" : "period plan"}
-                    </div>
-                  </div>
-                  {/* A chave, à voz mais baixa do painel, e com o nome de quem ela
-                      explica: são as cores das BARRAS dos cartões, não do anel ao lado.
-                      Três chips cheios punham as três cores de sinalética no ecrã com
-                      mais força do que qualquer linha que as estivesse a merecer. */}
-                  <div className="flex flex-col gap-2">
-                    <span className="font-display text-2xs font-bold uppercase leading-none tracking-[0.12em] text-muted-foreground">
-                      Line status
-                    </span>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                      {key.map(([swatch, band, meaning]) => (
-                        <span key={band} className="flex items-center gap-1.5 whitespace-nowrap text-2xs text-muted-foreground">
-                          <span className={`h-2 w-2 shrink-0 rounded-full ${swatch}`} aria-hidden />
-                          <span className="font-figure font-bold text-foreground">{band}</span>
-                          {meaning}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                {/* A régua. O que estava numa frase corrida em cinzento — quatro factos
-                    separados por pontos — passa a quatro medidas com a sua chapa, que é
-                    como se lê um número que se vai comparar com o de ontem. */}
-                <div className="grid grid-cols-2 divide-x divide-y border-t sm:grid-cols-4 sm:divide-y-0">
-                  <ConsoleCell
-                    label="Variance"
-                    value={`${variance >= 0 ? "+" : ""}${variance.toLocaleString("en-US")}`}
-                    hint="units against plan"
-                    tone={variance > 0 ? "text-success-strong" : "text-foreground"}
-                  />
-                  <ConsoleCell label="Lines scored" value={String(scored.length)} hint={`of ${byLine.length} with activity`} />
-                  <ConsoleCell label="Sessions" value={String(sessions.length)} hint="logged in the period" />
-                  <ConsoleCell
-                    label="No RAG target"
-                    value={String(excludedCount)}
-                    hint={excludedCount > 0 ? "excluded from the score" : "every line has a plan"}
-                    tone={excludedCount > 0 ? "text-warning-strong" : "text-muted-foreground"}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })()}
 
         {/* Line status cards. No longer behind a per-shift password: the page is
             already reachable only by roles that hold production.performance.view,
@@ -885,9 +863,54 @@ export default function ProductionPerformancePage() {
           );
         })()}
 
+        {/* O filete que abre o painel.
+            A chave das cores estava dentro do cartão de cima, a explicar as barras de
+            cartões que ainda não tinham aparecido no ecrã. Aqui explica-os no sítio
+            onde eles começam, e de passagem dá ao painel o que ele nunca teve: um
+            cabeçalho que diz quantas linhas estão nele. */}
+        {(() => {
+          /* A chave diz o critério que está mesmo a ser aplicado, e diz-o contra um
+             número que está no ecrã.
+             Esteve aqui "≥95% on pace" por cima de cartões que imprimiam 9%: os limiares
+             eram do ritmo, o ritmo tinha deixado de ser impresso, e ninguém no chão podia
+             fechar a conta entre a legenda e o que via. O critério é a distância ao
+             relógio do turno — que é a marca na escala do mastro, aqui em cima. */
+          const behind = `${BEHIND_TOLERANCE_PTS} pts`;
+          const key: [string, string, string][] = isCurrentShiftView
+            ? [["bg-success", "≥", "keeping up with the clock"], ["bg-warning", `−${behind}`, "behind the clock"], ["bg-destructive", `>${behind}`, "behind the clock"]]
+            : [["bg-success", "≥100%", "on target"], ["bg-warning", "85–99%", "behind"], ["bg-destructive", "<85%", "critical"]];
+          return (
+            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b pb-2.5">
+              <span className="font-display text-2xs font-bold uppercase leading-none tracking-[0.13em] text-foreground">
+                Lines
+              </span>
+              <span className="font-figure text-2xs font-bold leading-none text-muted-foreground">
+                {sortedByLine.length}
+              </span>
+              {/* À voz mais baixa do painel e encostada à direita: é uma chave, e uma
+                  chave lê-se uma vez. Três chips cheios punham as três cores de
+                  sinalética no ecrã com mais força do que qualquer linha que as
+                  estivesse a merecer. */}
+              <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                {key.map(([swatch, band, meaning]) => (
+                  <span key={band} className="flex items-center gap-1.5 whitespace-nowrap text-2xs text-muted-foreground">
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${swatch}`} aria-hidden />
+                    <span className="font-figure font-bold text-foreground">{band}</span>
+                    {meaning}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* `items-stretch` com o `fill` do cartão: numa fila, todos os cartões têm a
-            altura do mais alto, e a medida de cada um encosta ao mesmo fundo. */}
-        <div className="grid items-stretch gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            altura do mais alto, e a medida de cada um encosta ao mesmo fundo.
+            Três colunas onde antes eram quatro: com as nove linhas da fábrica, quatro
+            colunas deixavam a última sozinha ao lado de três colunas de fundo vazio —
+            e um painel de instrumentos com um buraco desse tamanho lê-se como um ecrã
+            que não acabou de carregar. Nove em três filas de três fecham o painel. */}
+        <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {sortedByLine.map((l) => {
 
             // Industrial Andon panel — high-contrast dark, readable from across
@@ -1188,9 +1211,13 @@ export default function ProductionPerformancePage() {
                             />
                           )}
                         </div>
-                        <div className="mt-2 flex items-baseline justify-between font-figure text-2xs text-muted-foreground">
-                          <span>{gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs target</span>
-                          <span className="text-muted-foreground/70">{l.target.toLocaleString("en-US")}</span>
+                        {/* O alvo estava escrito três vezes no mesmo cartão: "9.600
+                            target" por baixo do feito, o 9.600 no fim desta linha, e a
+                            própria barra, que é o alvo desenhado. Fica onde nomeia o
+                            número que está ao lado dele, e aqui fica só a distância —
+                            que é o que esta linha existe para dizer. */}
+                        <div className="mt-2 font-figure text-2xs text-muted-foreground">
+                          {gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs target
                         </div>
                       </div>
 

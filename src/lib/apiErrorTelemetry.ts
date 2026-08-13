@@ -1,4 +1,5 @@
 import { logSystemError } from "@/lib/telemetry";
+import { isUserCorrectable } from "@/lib/userCorrectable";
 
 // Automatic backend-failure capture. supabase-js issues every PostgREST / RPC /
 // edge-function call through the global fetch, so wrapping fetch once lets Root
@@ -19,8 +20,11 @@ import { logSystemError } from "@/lib/telemetry";
  * Filing them as system errors fills Root Diagnostics with the rules being enforced,
  * and a diagnostics page that cries wolf is a diagnostics page nobody reads.
  *
- * Constraint violations (23514, 23503, …) are NOT in here. Those mean a screen sent
- * the database something it should never have sent, which is a fault.
+ * Constraint violations (23505, 23514, 23503, …) are NOT in here, and are not decided
+ * by their code at all. Most mean a screen sent the database something it should never
+ * have sent, which is a fault; a few are somebody typing a code that already exists,
+ * which is not. Which is which is declared per constraint in `userCorrectable`, never
+ * inferred — on 08/08 the same 23505 was both before lunch.
  */
 const IGNORED_CODES = new Set(["PGRST116", "P0001"]);
 
@@ -72,7 +76,18 @@ export function installApiErrorTelemetry(): void {
       const message =
         body?.message || `${method} ${resource} → ${res.status} ${res.statusText}`.trim();
 
-      logSystemError(isRls ? "RLS_ERROR" : "API_ERROR", message, {
+      // A refusal the person who hit it can fix by typing something else, on a screen
+      // that already says so, is recorded but not filed as a fault — see
+      // `userCorrectable`, which is also where the reason it is not one is written
+      // down. Everything unlisted stays a fault, which is the direction that catches
+      // things. A denial is never somebody's typing, so RLS is decided first.
+      const type = isRls
+        ? "RLS_ERROR"
+        : isUserCorrectable(message)
+          ? "USER_ERROR"
+          : "API_ERROR";
+
+      logSystemError(type, message, {
         metadata: {
           status: res.status,
           method,

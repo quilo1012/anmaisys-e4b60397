@@ -38,3 +38,9 @@ anmaisys-e4b60397/
 
 # Playwright run artefacts (screenshots, traces)
 e2e/.results/
+
+# Playwright HTML/trace output
+test-results/
+
+# local agent worktrees
+.claude/worktrees/

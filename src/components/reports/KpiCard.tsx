@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KpiInfoTooltip } from "@/components/KpiInfoTooltip";
+import { railEdge, type RailState } from "@/components/ui/StatusRail";
 
 /**
  * The one KPI card.
@@ -29,19 +30,30 @@ export type KpiAccent =
   | "danger"
   | "info";
 
-const ACCENT_CLASS: Record<KpiAccent, string> = {
-  blue: "border-l-primary",
-  indigo: "border-l-primary",
-  amber: "border-l-warning",
-  green: "border-l-success",
-  red: "border-l-destructive",
-  purple: "border-l-purple-500",
-  cyan: "border-l-primary",
-  muted: "border-l-muted-foreground/40",
-  ok: "border-l-success",
-  warning: "border-l-warning",
-  danger: "border-l-destructive",
-  info: "border-l-primary",
+/**
+ * O acento de cada KPI, dito em estados e não em cores.
+ *
+ * Era um mapa de doze cores escritas à mão, e a repetição fazia o que a repetição
+ * sempre faz: quatro nomes — blue, indigo, cyan, info — para o mesmo azul, e um
+ * `border-l-purple-500` que não é cor nenhuma deste sistema. Agora desce tudo do
+ * `railEdge`, que é a mesma barra dos cartões de linha, à mesma largura.
+ *
+ * Os nomes de cor ficam por compatibilidade — há chamadores a pensar em "amber" —
+ * mas passam pelo estado que essa cor sempre quis dizer.
+ */
+const ACCENT_STATE: Record<KpiAccent, RailState> = {
+  blue: "idle",
+  indigo: "idle",
+  amber: "hold",
+  green: "go",
+  red: "stop",
+  purple: "idle",
+  cyan: "idle",
+  muted: "idle",
+  ok: "go",
+  warning: "hold",
+  danger: "stop",
+  info: "idle",
 };
 
 /** Colour applied to the number itself, and only when it is non-zero. */
@@ -107,8 +119,7 @@ export function KpiCard({
           : undefined
       }
       className={cn(
-        "border-l-4",
-        ACCENT_CLASS[accent],
+        railEdge(ACCENT_STATE[accent]),
         highlight && "border-destructive",
         clickable && "cursor-pointer transition-colors hover:bg-muted/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         clickable && active && "bg-muted/60 ring-2 ring-primary/40",

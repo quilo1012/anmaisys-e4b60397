@@ -491,6 +491,7 @@ export type Database = {
       }
       daily_allocations: {
         Row: {
+          arrived_late_at: string | null
           area_id: string | null
           created_at: string | null
           employee_id: string
@@ -505,6 +506,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          arrived_late_at?: string | null
           area_id?: string | null
           created_at?: string | null
           employee_id: string
@@ -519,6 +521,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          arrived_late_at?: string | null
           area_id?: string | null
           created_at?: string | null
           employee_id?: string

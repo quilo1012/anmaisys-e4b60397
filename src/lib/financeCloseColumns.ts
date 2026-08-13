@@ -11,7 +11,7 @@
  * labelled as days of absence, on the document somebody is paid from — and the last
  * two columns had no band at all.
  *
- * `earlyLeaveHours` gets a band of its own rather than being folded in with the clocked
+ * `partDayHours` gets a band of its own rather than being folded in with the clocked
  * hours. It is hours, so it does not belong over "Days away"; it comes from the BOARD
  * and not the clocks, so putting it under "Hours · from the clocks" would say the
  * factory has a clocked record of it, which is the whole reason it is reported
@@ -82,7 +82,7 @@ export const CLOSE_COLUMNS: CloseColumn[] = [
   { key: "holiday", header: "Holiday", band: "daysAway", align: "right", value: (r) => r.holiday, mm: 13, wch: 9, dashWhenZero: true },
   { key: "unpaid", header: "Unpaid", band: "daysAway", align: "right", value: (r) => r.unpaid, mm: 12, wch: 9, dashWhenZero: true },
 
-  { key: "earlyLeaveHours", header: "Left early (h)", band: "boardHours", align: "right", value: (r) => r.earlyLeaveHours, mm: 14, wch: 12, dashWhenZero: true },
+  { key: "partDayHours", header: "Part day (h)", band: "boardHours", align: "right", value: (r) => r.partDayHours, mm: 14, wch: 12, dashWhenZero: true },
 ];
 
 export interface CloseBandSpan {

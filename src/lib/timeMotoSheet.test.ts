@@ -171,6 +171,25 @@ describe("the real TimeMoto column names", () => {
   });
 });
 
+describe("the export of a single person", () => {
+  // The real file, exported on 12/08/2026 for one employee: no Lastname column at
+  // all. TimeMoto knows who the report is for because you picked them on screen, so
+  // it prints the given name and nothing else. Everything downstream therefore has
+  // one word to identify a person by, which is the whole reason for the picker.
+  const ONE = ["Firstname", "Date", "StartTime", "EndTime", "Breaks", "Duration", "WorkSchedule", "Balance", "OvertimeAdjustment", "AbsenceName", "Remarks"];
+
+  it("reads a file whose only name column is Firstname", () => {
+    const p = parseTimeMotoWorkbook(book([
+      ONE,
+      ["Daniel", "13/07/26", "5:45", "18:15", "", "12:30", "12:00", "0:30", "0:00", "", ""],
+      ["Total", "", "", "", "", "12:30", "12:00", "0:30", "0:00", "", ""],
+    ]), 2026);
+    expect(p.rows).toHaveLength(1);
+    expect(p.names).toEqual(["Daniel"]);
+    expect(p.rows[0]).toMatchObject({ name: "Daniel", date: "2026-07-13", workedMinutes: 750, scheduledMinutes: 720 });
+  });
+});
+
 describe("matchNames", () => {
   const ROSTER = [
     { id: "e1", full_name: "Marcio Carvalho" },
@@ -188,14 +207,47 @@ describe("matchNames", () => {
     // Carvalho would post somebody else's hours to his record.
     const r = matchNames(["Marcio Carvalho 1"], ROSTER);
     expect(r.matched).toEqual([]);
-    expect(r.unmatched).toEqual(["Marcio Carvalho 1"]);
+    expect(r.unmatched).toEqual([{ name: "Marcio Carvalho 1", reason: "unknown", candidates: [] }]);
   });
 
-  it("refuses a first name two people share", () => {
-    expect(matchNames(["Maria"], ROSTER).unmatched).toEqual(["Maria"]);
+  it("refuses a first name two people share, and says who they are", () => {
+    // The failure the screen used to report as "nobody on the payroll answers to
+    // Daniel" when two people did. Handing back the candidates is what lets the
+    // office say which one instead of being told to go away.
+    const r = matchNames(["Maria"], ROSTER);
+    expect(r.matched).toEqual([]);
+    expect(r.unmatched[0]).toMatchObject({ name: "Maria", reason: "ambiguous" });
+    expect(r.unmatched[0].candidates.map((c) => c.id)).toEqual(["e3", "e4"]);
   });
 
   it("takes a first name only one person answers to", () => {
     expect(matchNames(["Marcio"], ROSTER).matched[0].employeeId).toBe("e1");
+  });
+
+  it("settles an ambiguous name from a chosen assignment", () => {
+    const r = matchNames(["Maria"], ROSTER, { Maria: "e4" });
+    expect(r.matched).toEqual([{ name: "Maria", employeeId: "e4" }]);
+    expect(r.unmatched).toEqual([]);
+  });
+
+  it("settles a name nobody answers to from a chosen assignment", () => {
+    const r = matchNames(["Dan"], ROSTER, { Dan: "e2" });
+    expect(r.matched).toEqual([{ name: "Dan", employeeId: "e2" }]);
+  });
+
+  it("ignores an assignment pointing at somebody off the roster", () => {
+    // A remembered choice outlives the person who left. Honouring it would post
+    // hours to an employee this import cannot even show, so it is dropped and the
+    // name goes back to being asked about.
+    const r = matchNames(["Maria"], ROSTER, { Maria: "gone" });
+    expect(r.matched).toEqual([]);
+    expect(r.unmatched[0].reason).toBe("ambiguous");
+  });
+
+  it("prefers the chosen assignment over a name the sheet could have matched itself", () => {
+    // Two accounts, one person: the office says which, and that beats the automatic
+    // read rather than fighting it.
+    const r = matchNames(["Ana Silva"], ROSTER, { "Ana Silva": "e3" });
+    expect(r.matched).toEqual([{ name: "Ana Silva", employeeId: "e3" }]);
   });
 });

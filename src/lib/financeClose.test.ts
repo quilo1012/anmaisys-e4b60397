@@ -9,7 +9,7 @@ import {
 const PERIOD = { from: "2026-07-13", to: "2026-08-09" };
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
-  employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Day", earlyLeaveHours: 0,
+  employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Day", partDayHours: 0,
   patternName: null, patternDays: null, shiftsWorked: 0, shiftsHoliday: 0, plannedDates: null,
   openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0, absences: {}, daysPresent: 0, ...over,
 });
@@ -287,7 +287,7 @@ describe("the board's answer, carried in the same row", () => {
     // Somebody who works every shift and goes home at two is LEVEL on shifts and SHORT
     // on hours. The two answer different questions and the row must say both.
     const [r] = buildClose([person({
-      ...monThu, shiftsWorked: 16, clockedBalanceMin: -9 * 60, earlyLeaveHours: 9,
+      ...monThu, shiftsWorked: 16, clockedBalanceMin: -9 * 60, partDayHours: 9,
     })], PERIOD.from, PERIOD.to);
     expect(r.shiftBalance).toBe(0);
     expect(r.closingHours).toBe(-9);

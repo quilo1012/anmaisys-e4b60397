@@ -31,7 +31,15 @@ export interface WorkOrder {
   paused_at: string | null;
   total_paused_minutes: number;
   recurrence_of_wo_id?: string | null;
-  wo_type?: "production" | "warehouse_service";
+  /**
+   * `preventive` faltava aqui, e o `useCreateWorkOrder` escreve-o desde sempre.
+   *
+   * Quem quisesse excluir trabalho planeado de um cálculo de avarias tinha de passar
+   * por `(w.wo_type as string) === "preventive"` — um cast que compila tanto para a
+   * comparação certa como para uma que nunca é verdade. O PM Intelligence tinha lá o
+   * cast; o tipo é que não tinha o valor.
+   */
+  wo_type?: "production" | "warehouse_service" | "preventive";
   warehouse_location?: string | null;
   locked_engineer_id?: string | null;
   operator?: { name: string };
@@ -39,7 +47,7 @@ export interface WorkOrder {
   closer?: { name: string };
 }
 
-// Helper to insert a work_order_log entry. Idempotent: silently ignores duplicates.
+// Helper to record a work_order_log entry. Idempotent: the same action twice writes one row.
 // engineer_id MUST be a valid id from the standalone engineers table (FK constraint).
 // PIN verification (verify_pin_by_code) returns the engineer.id used here.
 async function logWOAction(workOrderId: string, engineerId: string, engineerName: string, action: string) {
@@ -52,43 +60,48 @@ async function logWOAction(workOrderId: string, engineerId: string, engineerName
     console.warn("logWOAction skipped: missing engineerId");
     return;
   }
-  // Ignore the duplicate WITHOUT naming a conflict target.
+  // Write through the function, because no table write here can be idempotent.
   //
   // A second press — a double tap, or a retry after a slow reply — is the same fact
-  // arriving twice, not an error. Swallowing the 23505 afterwards was not enough: the
-  // request still failed on the wire and the global fetch interceptor logs every
-  // failed Supabase call, so a handled non-event filled the telemetry.
+  // arriving twice, not an error. Swallowing the 23505 afterwards was never enough: the
+  // request still failed on the wire, and the global fetch interceptor logs every
+  // failed Supabase call, so a handled non-event kept filling the telemetry.
   //
-  // Asking for `onConflict: "work_order_id,engineer_id,action"` was the fix and it was
-  // wrong. `idx_work_order_logs_unique_action` is a PARTIAL index — it only covers
-  // accept, start, finish and machine_back_to_work — and Postgres cannot infer a
-  // partial index from a conflict target with no matching predicate. So every call
-  // raised 42P10, which is not 23505, so it was not swallowed either. The engineer's
-  // action log wrote nothing at all between 06/08 and 07/08.
+  // Two table writes were tried against `idx_work_order_logs_unique_action`, which is a
+  // PARTIAL index — accept, start, finish, machine_back_to_work, started, finished — and
+  // both failed, for different reasons:
   //
-  // With no target, PostgREST emits ON CONFLICT DO NOTHING, which is satisfied by any
-  // constraint including the partial one. The index still stops an engineer accepting
-  // twice; `received` on a reopened order still writes, which it should — twenty-six
-  // of the existing duplicates are exactly that, and a full unique index would have
-  // called them errors.
-  const { error } = await supabase.from("work_order_logs" as any).upsert(
-    {
-      work_order_id: workOrderId,
-      engineer_id: engineerId,
-      engineer_name: engineerName,
-      action,
-    } as any,
-    { ignoreDuplicates: true },
-  );
-  // 23505 = unique violation → swallow (action already logged for this engineer)
+  //   * `onConflict: "work_order_id,engineer_id,action"` → 42P10. Postgres cannot infer
+  //     a partial index from a conflict target carrying no matching predicate. Live
+  //     03/08–07/08, during which the action log wrote nothing at all.
+  //   * no target at all → 23505. The belief was that PostgREST would then emit a bare
+  //     `ON CONFLICT DO NOTHING`. It does not: it defaults the target to the primary key
+  //     and emits `ON CONFLICT("id") DO NOTHING`, which can never fire, because `id` is
+  //     generated fresh per request. pg_stat_statements has the statement, 34 calls of
+  //     it, and an engineer hit the duplicate again on 10/08.
+  //
+  // PostgREST cannot send a predicate, so no target it can build will name that index.
+  // `log_wo_action` says `ON CONFLICT DO NOTHING` with no target — satisfied by any
+  // constraint, partial included, and settled inside the statement, so two taps racing
+  // each other also cost nothing. It is SECURITY INVOKER: the same RLS policy decides.
+  //
+  // The index still stops an engineer starting the same order twice; `received` on a
+  // reopened order still writes, which it should — twenty-six of the rows on file are
+  // exactly that, and a full unique index would have called them errors.
+  const { error } = await supabase.rpc("log_wo_action" as any, {
+    p_work_order_id: workOrderId,
+    p_engineer_id: engineerId,
+    p_engineer_name: engineerName,
+    p_action: action,
+  } as any);
   // 23503 = foreign key violation → the work order was deleted while this
   // engineer still had it on screen. There is nothing left to attach a log to,
   // and the engineer's action already failed for the same reason, so reporting
   // this as a second failure only adds noise.
   const code = (error as { code?: string } | null)?.code;
-  // 42P10 = the conflict target matched no constraint. It should be impossible now
-  // that no target is sent, and it is named here because it went unnoticed for two
-  // days behind a guard that only knew about 23505.
+  // 23505 stays in the guard as a backstop, not as the plan. Nothing should raise it
+  // now that the duplicate is resolved inside the statement; if it appears again, the
+  // write has drifted back onto the table and this comment is the thing to re-read.
   if (error && code !== "23505" && code !== "23503") {
     console.error("logWOAction failed:", code, error);
   } else if (code === "23503") {

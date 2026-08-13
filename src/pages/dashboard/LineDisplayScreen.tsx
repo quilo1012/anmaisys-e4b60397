@@ -6,6 +6,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, SHIFT_LABEL } from "@/lib/shifts";
 import {
   shiftClockPct,
+  itemClockPct,
+  clockBand,
   lineReading,
   balanceLabel,
   lastEntryAgeMinutes,
@@ -51,6 +53,23 @@ const toSkuItem = (it: ProductionItem): LineSkuItem => ({
   started_at: it.started_at,
   finished_at: it.finished_at,
 });
+
+/**
+ * O arranque mais antigo de um conjunto de linhas do mesmo SKU, ou null.
+ *
+ * A chapa CURRENT JOB soma TODAS as linhas do mesmo produto — a Line 6, a 12/08,
+ * tinha duas para o mesmo SKU, uma ligada por `sku_id` e outra só com o código em
+ * texto. Somadas as quantidades, o relógio tem de ser o do conjunto, e o conjunto
+ * começou quando a primeira começou: contar do arranque mais tardio daria por
+ * novo um trabalho que já vai a meio.
+ */
+function earliestStart(rows: ProductionItem[]): string | null {
+  const times = rows
+    .map((r) => r.started_at)
+    .filter((v): v is string => !!v && !Number.isNaN(Date.parse(v)));
+  if (times.length === 0) return null;
+  return times.reduce((a, b) => (Date.parse(a) <= Date.parse(b) ? a : b));
+}
 
 function formatCountdown(ms: number) {
   if (ms <= 0) return "00:00:00";
@@ -339,8 +358,28 @@ export default function LineDisplayScreen() {
         );
         const p = mine.reduce((s, it) => s + Number(it.planned_qty ?? 0), 0);
         const a = mine.reduce((s, it) => s + Number(it.actual_qty ?? 0), 0);
-        const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
-        const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
+        /* NÃO cortado aos 100 para efeito de cor, ao contrário do que aqui esteve.
+           `Math.min(100, …)` fazia uma linha a 144% do plano pintar-se igual a uma
+           a 100%: das 90 barras com plano dos últimos 60 dias, 23 passam dos 100%,
+           e todas elas se liam como "exactamente em cima". O corte fica só na
+           LARGURA da barra, que é onde ele pertence — uma barra não pode passar da
+           calha, mas um número pode passar do plano e é para se ver. */
+        const pc = p > 0 ? (a / p) * 100 : 0;
+        const barPc = Math.min(100, pc);
+        const startedAt = earliestStart(mine);
+        const finishedAt = mine.length && mine.every((it) => it.finished_at) ? mine[0].finished_at : null;
+        /* A cor sai do relógio, e não de `pc >= 95 / 75`. O limiar fixo comparava
+           o acumulado com o plano do TURNO INTEIRO: às 09:00 de um turno que fecha
+           às 18:00, uma linha exactamente no ritmo lia-se a 25% e a barra ficava
+           vermelha. Sobre 60 dias, 53 das 90 barras com plano davam vermelho, com
+           uma média de 66% — uma parede quase toda vermelha é uma parede que a
+           fábrica deixa de olhar, que é exactamente o que a chapa grande por cima
+           desta já tinha deixado de fazer. Aqui o relógio é o do SKU e não o do
+           turno, porque um SKU entra quando a linha lhe chega: a média de arranque
+           medida é 3h17 depois da abertura. Sem `started_at` (15 das 90) cai-se no
+           relógio do turno, que é a leitura conservadora e a que já vestia a chapa. */
+        const elapsedForItem = itemClockPct(startedAt, finishedAt, end, now) ?? elapsedPct;
+        const c = BAND_BG[clockBand(pc, elapsedForItem)];
         /* Azul fixo, e não `--primary`. Este era o último sítio da parede onde uma
            cor virava com o tema, num ecrã cujo `index.css` diz por escrito que não
            pode: a preferência guardada no portátil de um supervisor mudava o painel
@@ -363,13 +402,26 @@ export default function LineDisplayScreen() {
               <div className="text-wall-ink text-xl tracking-widest font-bold">CURRENT JOB</div>
               <div className="text-wall-ink text-2xl font-figure font-bold">
                 {a.toLocaleString()} / {p.toLocaleString()}
+                {p > 0 && <span className="ml-3">{Math.round(pc)}%</span>}
               </div>
             </div>
             <div className="text-5xl font-black mb-1">{current.code}</div>
             <div className="text-2xl text-wall-ink mb-4">{current.name}</div>
             <div className="h-4 bg-wall-panel/60 rounded-full overflow-hidden">
-              <div className={`h-full ${c} transition-all duration-700`} style={{ width: `${pc}%` }} />
+              <div className={`h-full ${c} transition-all duration-700`} style={{ width: `${barPc}%` }} />
             </div>
+            {/* A banda por palavras, debaixo da barra que a pinta. A cor sozinha não
+                diz o veredicto a quem não a distingue, e são cerca de 8% dos homens
+                num turno de 48 pessoas; e mesmo a quem a distingue, "Behind" numa
+                parede lida a três metros chega antes do âmbar. As duas parcelas que
+                produzem a cor ficam ao lado dela, que é a regra que o resto deste
+                ecrã já segue no rodapé do turno. */}
+            {p > 0 && (
+              <div className="mt-2 flex items-center justify-between text-lg text-wall-ink">
+                <span className="font-bold tracking-wide">{BAND_STATUS[clockBand(pc, elapsedForItem)]}</span>
+                <span className="font-figure">{Math.round(elapsedForItem)}% of its time gone</span>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -433,8 +485,15 @@ export default function LineDisplayScreen() {
             {items.map((it) => {
               const p = Number(it.planned_qty ?? 0);
               const a = Number(it.actual_qty ?? 0);
-              const pc = p > 0 ? Math.min(100, (a / p) * 100) : 0;
-              const c = pc >= 95 ? "bg-success" : pc >= 75 ? "bg-warning" : "bg-destructive";
+              // Mesma regra da chapa acima, e pela mesma razão: o corte aos 100
+              // só na largura, a cor pelo relógio do próprio SKU. Ver o comentário
+              // longo na chapa CURRENT JOB — as duas leituras têm de ser a mesma
+              // ou este ecrã volta a discordar de si próprio a 40 cm de distância.
+              const pc = p > 0 ? (a / p) * 100 : 0;
+              const barPc = Math.min(100, pc);
+              const elapsedForItem = itemClockPct(it.started_at, it.finished_at, end, now) ?? elapsedPct;
+              const band = clockBand(pc, elapsedForItem);
+              const c = BAND_BG[band];
               return (
                 <li key={it.id} className="bg-wall-line rounded-xl p-4">
                   <div className="flex justify-between items-center text-lg mb-2 gap-3">
@@ -509,9 +568,25 @@ export default function LineDisplayScreen() {
                       </div>
                     )}
                   </div>
-                  <div className="h-3 bg-wall-line rounded-full overflow-hidden">
-                    <div className={`h-full ${c}`} style={{ width: `${pc}%` }} />
+                  <div className="h-4 bg-wall-line rounded-full overflow-hidden">
+                    <div className={`h-full ${c}`} style={{ width: `${barPc}%` }} />
                   </div>
+                  {/* Os números que a barra tentava dizer, ditos. Fora do modo de
+                      edição esta lista não mostrava `a` nem `p` em lado nenhum: um
+                      traço de 3 px onde verde, âmbar e vermelho eram a ÚNICA
+                      diferença, sem percentagem, sem texto e sem rótulo. Quem não
+                      distingue vermelho de verde não lia aqui nada — e num ecrã de
+                      parede o número lê-se primeiro e a cor confirma-o, que é a
+                      ordem certa. A barra subiu de `h-3` para `h-4` para acompanhar
+                      a da chapa de cima. */}
+                  {p > 0 && (
+                    <div className="mt-1.5 flex items-center justify-between text-base text-wall-ink">
+                      <span className="font-bold tracking-wide">{BAND_STATUS[band]}</span>
+                      <span className="font-figure">
+                        {a.toLocaleString()} / {p.toLocaleString()} · {Math.round(pc)}%
+                      </span>
+                    </div>
+                  )}
                 </li>
 
               );

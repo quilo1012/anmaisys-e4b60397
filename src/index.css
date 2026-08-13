@@ -4,10 +4,17 @@
 
 @layer base {
   :root {
-    /* "paper" — o chão da página. Frio, para viver ao lado do inox, não creme. Mais
-       fundo que os 98% anteriores: a 98% um cartão branco não se destacava do fundo e
-       toda a interface pedia sombras para se ler. Aqui a hairline chega. */
-    --background: 213 27% 94%;
+    /* "paper" — o chão da página. Azul, e não um cinzento com laivo de azul: a casa é
+       branca e azul, e o chão de todos os ecrãs é a maior superfície que ela tem para o
+       dizer. O que aqui estava — 213° a 27% — lia-se como cinzento frio ao lado dos
+       cartões brancos, e a marca só aparecia nos botões e na barra lateral.
+       O hue é o do azul da marca (207°), não um azul qualquer, e a saturação sobe o
+       suficiente para se ver que É azul sem que o branco do cartão por cima ganhe uma
+       tonalidade que não tem.
+       A LUMINOSIDADE não se mexe. Os 94% são uma decisão à parte e continua de pé: mais
+       fundo que os 98% anteriores, porque a 98% um cartão branco não se destacava do
+       fundo e toda a interface pedia sombras para se ler. Aqui a hairline chega. */
+    --background: 207 50% 94%;
     /* "ink" — preto com laivo azul-verde, não preto puro. */
     --foreground: 215 40% 9%;
 
@@ -23,13 +30,13 @@
     --primary: 207 88% 35%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 213 22% 90%;
+    --secondary: 207 28% 90%;
     --secondary-foreground: 215 40% 9%;
 
-    --muted: 213 24% 93%;
+    --muted: 207 30% 93%;
     --muted-foreground: 214 14% 42%;
 
-    --accent: 213 24% 93%;
+    --accent: 207 30% 93%;
     --accent-foreground: 215 40% 9%;
 
     /* "stop" — vermelho de sinalética, não o red-500 de doçaria. Passa nas duas
@@ -38,8 +45,8 @@
     --destructive: 3 73% 41%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 20% 85%;
-    --input: 214 20% 85%;
+    --border: 207 24% 85%;
+    --input: 207 24% 85%;
     --ring: 207 88% 35%;
 
     /* 10px no cartão (lg), 8px no controlo (md), 6px no chip (sm). Substitui os oito
@@ -208,6 +215,16 @@ select:-webkit-autofill {
   size: A4 portrait;
 }
 
+/* Paper turned sideways, for a page that is a row of columns rather than a column of
+   rows. The Production Headcount board draws up to twenty area columns at a 200px
+   minimum; onto A4 portrait that is three across and seven rows deep, so a sheet meant
+   to be read at a glance on a wall came out as pages of fragments. Named rather than
+   global because every other report here is a table, and a table wants portrait. */
+@page landscape-sheet {
+  margin: 0;
+  size: A4 landscape;
+}
+
 @media print {
   body {
     padding: 10mm !important;
@@ -240,8 +257,22 @@ select:-webkit-autofill {
     overflow: visible !important;
   }
 
-  /* Hide all non-document UI */
-  nav, aside, header, footer,
+  /* A screen that asked for landscape gets it. `.print-landscape` goes on the page's
+     own content wrapper, so nothing else on the site changes paper. */
+  .print-landscape {
+    page: landscape-sheet;
+  }
+
+  /* Hide all non-document UI.
+     `.print-keep` is the way out, and it is not decoration: `header` in this list was
+     hiding `ModuleHeader`, which is the band carrying the screen's title and the date
+     it is showing. A printed headcount sheet with no date on it is a sheet nobody can
+     file, and the component had `print:bg-white print:text-black` on it all along —
+     written by somebody who believed it printed. */
+  nav:not(.print-keep),
+  aside:not(.print-keep),
+  header:not(.print-keep),
+  footer:not(.print-keep),
   .print\:hidden,
   .no-print,
   [data-radix-popper-content-wrapper],
@@ -495,6 +526,44 @@ select:-webkit-autofill {
   tr,
   img {
     break-inside: avoid !important;
+  }
+
+  /* ── The headcount board on paper ─────────────────────────────────────────
+     The board is the one screen here that is a wall of narrow columns rather than
+     a table, and every rule above is written for a table. Three things it needs:
+
+     - Columns sized for paper, not for a gloved thumb. The screen track is a 200px
+       minimum because a card has to be tappable; paper has no thumbs, and at 200px
+       a landscape sheet holds four of the eight lines. `!important` because the
+       screen value is an inline style.
+     - Rows that stop reserving tap height. 44px per name over eighty names is two
+       pages of white space.
+     - A column that does not get cut in half by a page break. A line whose last two
+       names are overleaf is a line somebody miscounts. */
+  .headcount-columns {
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .headcount-columns > * {
+    break-inside: avoid !important;
+  }
+
+  .headcount-chip {
+    min-height: 0 !important;
+    padding: 1px 3px !important;
+    gap: 4px !important;
+    font-size: 8pt !important;
+    line-height: 1.25 !important;
+  }
+
+  /* The initials square, and only that. On screen it is what makes a name findable at
+     arm's length across a tinted card; on paper it is two letters of the word printed
+     an inch to its right. LEAD keeps its square — which column has a leader is the
+     first thing anybody checks a printed sheet for — and so do the crew, half-day and
+     early-finish tags, which are the day's record rather than decoration. */
+  .headcount-chip-initials {
+    display: none !important;
   }
 }
 

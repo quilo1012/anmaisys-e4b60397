@@ -5,6 +5,7 @@ import { shiftRank } from "@/lib/operationalShift";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConsoleStrip, ConsoleCell } from "@/components/ui/ConsoleStrip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -852,23 +853,35 @@ export default function ShiftHistoryPage() {
           )}
         </div>
 
-        {/* KPI summary for the selected period */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: "Produced", value: Math.round(summary.actual).toLocaleString(), sub: undefined as string | undefined, accent: "text-primary" },
-            { label: "Target", value: Math.round(summary.target).toLocaleString(), sub: undefined, accent: "text-foreground" },
-            { label: "Attainment", value: summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—", sub: undefined, accent: summary.pct >= 100 ? "text-success-strong" : summary.pct >= 90 ? "text-warning-strong" : "text-destructive-strong" },
-            { label: viewMode === "monthly" ? "Days produced" : "Days", value: `${summary.days}`, sub: `${summary.lineCount} line${summary.lineCount === 1 ? "" : "s"}`, accent: "text-foreground" },
-          ].map((k) => (
-            <Card key={k.label} className="border-l-4 border-l-primary/60 shadow-sm">
-              <CardContent className="p-3">
-                <div className="text-2xs uppercase tracking-wide text-muted-foreground">{k.label}</div>
-                <div className={cn("text-2xl font-bold tabular-nums", k.accent)}>{k.value}</div>
-                {k.sub && <div className="text-2xs text-muted-foreground">{k.sub}</div>}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* As quatro medidas do período, na mesma régua da Performance.
+            Eram quatro cartões, cada um com uma barra azul à esquerda. Uma barra que
+            está sempre acesa não distingue nada — e é o mecanismo com que o painel de
+            linhas diz, um clique atrás, qual é a linha que está a perder o turno.
+            Numa régua com filetes, os quatro números comparam-se; em quatro molduras,
+            cada um pedia a sua atenção. Só a atingimento leva cor: é a única das
+            quatro que pode estar boa ou má. */}
+        <ConsoleStrip>
+          <ConsoleCell label="Produced" value={Math.round(summary.actual).toLocaleString()} />
+          <ConsoleCell label="Target" value={Math.round(summary.target).toLocaleString()} />
+          <ConsoleCell
+            label="Attainment"
+            value={summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}
+            tone={
+              summary.target === 0
+                ? "text-muted-foreground"
+                : summary.pct >= 100
+                ? "text-success-strong"
+                : summary.pct >= 90
+                ? "text-warning-strong"
+                : "text-destructive-strong"
+            }
+          />
+          <ConsoleCell
+            label={viewMode === "monthly" ? "Days produced" : "Days"}
+            value={`${summary.days}`}
+            hint={`${summary.lineCount} line${summary.lineCount === 1 ? "" : "s"}`}
+          />
+        </ConsoleStrip>
 
 
         <Card>
@@ -1341,25 +1354,28 @@ export default function ShiftHistoryPage() {
           <DialogContent>
             <DialogHeader><DialogTitle>Add production</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-2">
-                <div><Label className="text-xs">Date</Label><Input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></div>
-                <div><Label className="text-xs">Line</Label>
+              {/* The date input carries an intrinsic minimum width, so equal thirds
+                  spill out of the dialog. Date takes half the row and every cell is
+                  allowed to shrink (min-w-0), which keeps the grid inside the box. */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="col-span-2 min-w-0"><Label className="text-xs">Date</Label><Input type="date" className="w-full min-w-0" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></div>
+                <div className="min-w-0"><Label className="text-xs">Line</Label>
                   <Select value={addLine} onValueChange={setAddLine}>
                     <SelectTrigger><SelectValue placeholder="Line" /></SelectTrigger>
                     <SelectContent>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{lineLabel(l.name)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div><Label className="text-xs">Shift</Label>
+                <div className="min-w-0"><Label className="text-xs">Shift</Label>
                   <Select value={addShift} onValueChange={(v) => setAddShift(v as "DAY" | "NIGHT")}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
                   </Select>
                 </div>
               </div>
-              <div><Label className="text-xs">SKU</Label>
+              <div className="min-w-0"><Label className="text-xs">SKU</Label>
                 <SkuCombobox skus={skus} value={addSkuId} onChange={setAddSkuId} />
               </div>
-              <div><Label className="text-xs">Produced (actual)</Label><Input type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="0" autoFocus /></div>
+              <div className="min-w-0"><Label className="text-xs">Produced (actual)</Label><Input type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="0" autoFocus /></div>
               <p className="text-2xs text-muted-foreground">Adds this SKU to the shift. If it's already there, the produced quantity is added on top. The target comes from the RAG Weekly plan.</p>
             </div>
             <DialogFooter>

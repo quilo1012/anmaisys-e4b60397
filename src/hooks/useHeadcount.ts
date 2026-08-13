@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from "@/lib/copyBoard";
+import { dropReceipt, readReceipt, saveReceipt, type CopyReceipt } from "@/lib/copyUndo";
 import { keepsLeadership } from "@/lib/leaderMark";
 import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
@@ -44,6 +45,8 @@ export type Allocation = {
   half_day: boolean | null;
   /** They came in and went home early, at this time. Null means they worked the shift out. */
   left_early_at: string | null;
+  /** They came in after the shift started, at this time. Null means they were in on time. */
+  arrived_late_at: string | null;
   note: string | null;
   /** Leads this area on this day. A line can lead differently tomorrow. */
   is_leader: boolean | null;
@@ -263,7 +266,7 @@ export function useAllocations(onDate: string, shift: string) {
     queryFn: async (): Promise<Allocation[]> => {
       const { data, error } = await supabase
         .from("daily_allocations")
-        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,note,is_leader")
+        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,note,is_leader")
         .eq("on_date", onDate)
         .eq("shift", shift);
       if (error) throw error;
@@ -472,6 +475,27 @@ export function useCopyableDays(onDate: string, shift: string) {
   });
 }
 
+/** "Fri 08 Aug" — midday, so a timezone west of UTC cannot shift it to the day before. */
+function dayLabel(iso: string) {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+}
+
+/**
+ * How many ids go into one `.in(...)`.
+ *
+ * PostgREST takes the list in the URL, and a full board is close to two hundred
+ * people — six kilobytes of UUIDs in a query string, which is the sort of request a
+ * proxy in front of the database rejects with a 414 nobody can read. Undoing in
+ * batches is slower by milliseconds and cannot hit that wall.
+ */
+const DELETE_BATCH = 80;
+
+function batched<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 export function useAllocationMutations(onDate: string, shift: string) {
   const qc = useQueryClient();
   const rotaCover = useRotaCover();
@@ -484,6 +508,8 @@ export function useAllocationMutations(onDate: string, shift: string) {
       halfDay?: boolean;
       /** "HH:MM" if they went home early, null if they worked the shift out. */
       leftEarlyAt?: string | null;
+      /** "HH:MM" if they came in after the shift started, null if they were on time. */
+      arrivedLateAt?: string | null;
       /**
        * True when the status is the thing being chosen, not a side effect of moving
        * somebody. Set by the day dialog's controls; left off by every drag and picker,
@@ -553,6 +579,14 @@ export function useAllocationMutations(onDate: string, shift: string) {
             left_early_at:
               status === "assigned" || status === "overtime"
                 ? input.leftEarlyAt ?? null
+                : null,
+            // The other end of the same day, and the same rule: a late start is only a
+            // late start if there was a shift to be late for. The board could say "went
+            // home early" and had no way at all to say "came in at nine", so three hours
+            // of a line running short lived nowhere.
+            arrived_late_at:
+              status === "assigned" || status === "overtime"
+                ? input.arrivedLateAt ?? null
                 : null,
             // Moving somebody out of a column ends their leadership of it. The rule is
             // in `keepsLeadership`, with the index it exists to satisfy and the evening
@@ -686,7 +720,11 @@ export function useAllocationMutations(onDate: string, shift: string) {
             .filter((r) => !isOffRota(rotaCover(r.employee_id, onDate, shift)))
             .map((r) => ({ employee_id: r.employee_id, area_id: r.area_id, status: "assigned" }))
         : ((srcRows.data ?? []) as BoardPlacement[]);
-      const label = source ?? `the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix`;
+      // "Fri 08 Aug", not "2026-08-08". The label is read back in a toast and on the
+      // undo strip, where an ISO date is a string somebody has to decode.
+      const label = source === null
+        ? `the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix`
+        : dayLabel(source);
 
       const here = (hereRows.data ?? []) as Array<{ employee_id: string }>;
       const onBoard = new Set(here.map((r) => r.employee_id));
@@ -698,7 +736,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
         throw new Error(
           source === null
             ? `Nobody in the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix is due in on this day`
-            : `Nobody worked the ${shift} board on ${source}`,
+            : `Nobody worked the ${shift} board on ${dayLabel(source)}`,
         );
       }
       const candidates = [...new Set(
@@ -726,7 +764,12 @@ export function useAllocationMutations(onDate: string, shift: string) {
         : [{ data: [], error: null }, { data: [], error: null }];
       if (awayRows.error) throw awayRows.error;
       if (activeRows.error) throw activeRows.error;
-      const away = ((awayRows.data ?? []) as Array<{ employee_id: string; status: string }>)
+      const attendanceHere = (awayRows.data ?? []) as Array<{ employee_id: string; status: string }>;
+      // Everybody payroll already had a word about today, whatever the word was. The
+      // undo below reads this: a row that was there before the copy ran is not the
+      // copy's to delete, even where the copy wrote over it with the same answer.
+      const hadAttendance = new Set(attendanceHere.map((r) => r.employee_id));
+      const away = attendanceHere
         .filter((r) => r.status !== "present")
         .map((r) => r.employee_id);
       const active = new Set(((activeRows.data ?? []) as Array<{ id: string }>).map((r) => r.id));
@@ -740,7 +783,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
         cover: (id) => rotaCover(id, onDate, shift),
       });
       if (payload.length === 0) {
-        return { source: label, written: 0, kept: here.length, away: away.length, gone: gone.length };
+        return { source: label, written: 0, kept: here.length, away: away.length, gone: gone.length, receipt: null };
       }
 
       // Ignoring duplicates rather than overwriting them, so nothing already on the
@@ -769,10 +812,22 @@ export function useAllocationMutations(onDate: string, shift: string) {
         if (attErr) toast.warning(`Copied onto the board, but the attendance records did not save: ${attErr.message}`);
       }
 
-      return { source: label, written: inserted.length, kept: here.length, away: away.length, gone: gone.length };
+      // The receipt: exactly the rows this press created, and nothing it found. It is
+      // what lets Undo be an undo rather than a board wipe — the people already here,
+      // and anybody placed by hand after this, are not in it and are never touched.
+      const receipt: CopyReceipt = {
+        allocations: inserted.map((p) => p.employee_id),
+        attendance: inserted.map((p) => p.employee_id).filter((id) => !hadAttendance.has(id)),
+        sources: [label],
+        at: new Date().toISOString(),
+      };
+
+      return { source: label, written: inserted.length, kept: here.length, away: away.length, gone: gone.length, receipt };
     },
     onSuccess: (r) => {
       invalidate();
+      // Written before the toast, so the Undo the toast offers has something to act on.
+      if (r.receipt) saveReceipt(window.localStorage, onDate, shift, r.receipt);
       // The screens that read the other half of what this wrote. A copy that fills a
       // board also fills sixty attendance rows, and Leave and the finance close would
       // otherwise go on showing the day as empty until something else refetched them.
@@ -799,6 +854,75 @@ export function useAllocationMutations(onDate: string, shift: string) {
       );
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not copy the last day", { id: "headcount-copy" }),
+  });
+
+  /**
+   * Takes back a copy that went onto the wrong day.
+   *
+   * The reason this is safe is the receipt, not a rule about which rows look copied.
+   * A board after a copy holds three kinds of people — the ones already on it, the ones
+   * the copy brought, and the ones placed by hand since — and only the middle group is
+   * the mistake. The receipt names them one by one, so the delete cannot reach the
+   * other two. That is also why this is not a "clear the board" button: clearing takes
+   * back the morning's work along with the wrong press.
+   *
+   * Payroll is undone with it, and only where the copy created the row. Somebody who
+   * already had an attendance record for the day keeps it — deleting that would take a
+   * record the copy never made.
+   *
+   * Anybody who has since been dragged off the board simply matches nothing here, which
+   * is why the count in the toast is what came back from the database rather than the
+   * length of the receipt.
+   */
+  const undoCopy = useMutation({
+    mutationFn: async (receipt: CopyReceipt) => {
+      let removed = 0;
+      for (const ids of batched(receipt.allocations, DELETE_BATCH)) {
+        const { data, error } = await supabase
+          .from("daily_allocations")
+          .delete()
+          .eq("on_date", onDate)
+          .eq("shift", shift)
+          .in("employee_id", ids)
+          .select("employee_id");
+        if (error) throw error;
+        removed += (data ?? []).length;
+      }
+
+      // A warning rather than a throw: the board is already right, and failing the
+      // whole undo over payroll would leave the receipt in place and invite a second
+      // press that deletes nothing and says so.
+      for (const ids of batched(receipt.attendance, DELETE_BATCH)) {
+        const { error } = await supabase
+          .from("employee_attendance")
+          .delete()
+          .eq("on_date", onDate)
+          .in("employee_id", ids);
+        if (error) {
+          toast.warning(`Taken off the board, but the attendance records are still there: ${error.message}`);
+          break;
+        }
+      }
+
+      return { removed, of: receipt.allocations.length, sources: receipt.sources };
+    },
+    onSuccess: (r) => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["employee_attendance"] });
+      qc.invalidateQueries({ queryKey: ["employee_attendance_range"] });
+      qc.invalidateQueries({ queryKey: ["headcount-copyable-days"] });
+      // Undone is undone: leaving the receipt would offer the same button again on a
+      // board it can no longer change.
+      dropReceipt(window.localStorage, onDate, shift);
+      const from = r.sources.length ? ` from ${r.sources.join(" and ")}` : "";
+      toast.success(
+        r.removed === r.of
+          ? `Copy undone — ${r.removed} people taken back off this board${from}. Nobody else was touched.`
+          : `Copy undone — ${r.removed} of the ${r.of} copied${from} were still on the board and have been taken off.`,
+        { id: "headcount-copy" },
+      );
+    },
+    onError: (e: Error) => toast.error(e.message ?? "Could not undo the copy", { id: "headcount-copy" }),
   });
 
   /**
@@ -830,7 +954,25 @@ export function useAllocationMutations(onDate: string, shift: string) {
     onError: (e: Error) => toast.error(e.message ?? "Could not set the leader"),
   });
 
-  return { place, remove, copyLastLikeDay, setLeader };
+  /** What can still be taken back off this board, read fresh from the browser. */
+  const readUndo = useCallback(
+    () => readReceipt(window.localStorage, onDate, shift),
+    [onDate, shift],
+  );
+
+  /**
+   * Accepting the copy.
+   *
+   * The receipt goes, not just the strip. Somebody who has decided the copy was right
+   * should not be asked again by the next page load, and a receipt with no way to reach
+   * it is only there to grow stale and be undone by mistake a week later.
+   */
+  const keepCopy = useCallback(
+    () => dropReceipt(window.localStorage, onDate, shift),
+    [onDate, shift],
+  );
+
+  return { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader };
 }
 
 /**

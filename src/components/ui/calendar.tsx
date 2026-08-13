@@ -7,10 +7,25 @@ import { buttonVariants } from "@/components/ui/button";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
-function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
+/**
+ * `weekStartsOn = 1` por omissão, e não porque fique melhor.
+ *
+ * Todo o cálculo de semana deste sistema é `startOfWeek(d, { weekStartsOn: 1 })` — o
+ * período "Week" da Performance, a RAG Weekly, a Reliability. O `react-day-picker` abre
+ * ao domingo, e como o `Calendar` não dizia nada, cabia a cada ecrã lembrar-se: a RAG
+ * Weekly lembrou-se e passa a propriedade à mão, o `DateRangeFilter` não. Ficavam dois
+ * calendários com a mesma cara a recortar semanas diferentes, e quem escolhe uma semana
+ * num deles escolhe um período que o relatório vai cortar de outra maneira.
+ *
+ * O default vive aqui porque é aqui que ele deixa de poder ser esquecido. Um ecrã que
+ * precise de outro dia continua a poder pedi-lo — a propriedade passa à frente deste
+ * valor.
+ */
+function Calendar({ className, classNames, showOutsideDays = true, weekStartsOn = 1, ...props }: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      weekStartsOn={weekStartsOn}
       className={cn("p-3", className)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",

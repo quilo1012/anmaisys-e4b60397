@@ -435,13 +435,19 @@ export default function WorkOrdersPage() {
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   };
 
-  const KanbanCard = ({ wo, borderColor }: { wo: WorkOrder; borderColor: string }) => {
+  /* Sem barra à esquerda.
+     Todos os cartões de uma coluna tinham a mesma, e a coluna já tem o seu título e a
+     sua cor por cima — a barra dizia "In Progress" pela segunda vez, a dois centímetros
+     da primeira, em cinco cartões ao mesmo tempo. Uma marca que nunca varia dentro do
+     sítio onde é lida não distingue nada, e gasta o vocabulário com que a barra diz,
+     noutros ecrãs, qual é a ordem em atraso. */
+  const KanbanCard = ({ wo }: { wo: WorkOrder }) => {
     const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
     return (
       <Card
         draggable
         onDragStart={(e) => { e.dataTransfer.setData("text/plain", wo.id); e.dataTransfer.effectAllowed = "move"; }}
-        className={`cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow border-l-4 ${borderColor}`}
+        className="cursor-grab transition-shadow hover:shadow-md active:cursor-grabbing"
         onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
         <CardContent className="p-3 space-y-1">
           <div className="flex justify-between items-center">
@@ -467,7 +473,7 @@ export default function WorkOrdersPage() {
     );
   };
 
-  const KanbanColumn = ({ title, items, color, borderColor, stage, note }: { title: string; items: WorkOrder[]; color: string; borderColor: string; stage: WOStage; note?: string }) => (
+  const KanbanColumn = ({ title, items, color, stage, note }: { title: string; items: WorkOrder[]; color: string; stage: WOStage; note?: string }) => (
     <div
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverStage(stage); }}
       onDragLeave={() => setDragOverStage((c) => (c === stage ? null : c))}
@@ -490,7 +496,7 @@ export default function WorkOrdersPage() {
         <div className="flex items-center gap-2"><div className={`w-3 h-3 rounded-full ${color}`} /><h3 className="font-semibold text-sm">{title} ({items.length})</h3></div>
         {note && <p className="mt-0.5 pl-5 text-2xs text-muted-foreground">{note}</p>}
       </div>
-      {items.map((wo) => <KanbanCard key={wo.id} wo={wo} borderColor={borderColor} />)}
+      {items.map((wo) => <KanbanCard key={wo.id} wo={wo} />)}
       {!items.length && <p className="text-muted-foreground text-xs text-center py-4">Drop an order here</p>}
     </div>
   );
@@ -778,11 +784,11 @@ export default function WorkOrdersPage() {
               </div>
             ) : viewMode === "board" ? (
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4 no-print">
-                <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-primary" borderColor="border-l-primary" stage="open" />
-                <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-primary" borderColor="border-l-primary" stage="received" />
-                <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-warning" borderColor="border-l-warning" stage="in_progress" />
-                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-success" borderColor="border-l-success" stage="finished" note="Waiting for the maintenance manager to sign off" />
-                <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-success" borderColor="border-l-success" stage="closed" />
+                <KanbanColumn title="Open" items={kanbanColumns.open} color="bg-primary" stage="open" />
+                <KanbanColumn title="Received/Arrived" items={kanbanColumns.received} color="bg-primary" stage="received" />
+                <KanbanColumn title="In Progress" items={kanbanColumns.inProgress} color="bg-warning" stage="in_progress" />
+                <KanbanColumn title="Finished" items={kanbanColumns.finished} color="bg-success" stage="finished" note="Waiting for the maintenance manager to sign off" />
+                <KanbanColumn title="Done" items={kanbanColumns.done} color="bg-success" stage="closed" />
               </div>
             ) : (
               <div className="print-content">

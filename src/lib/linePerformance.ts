@@ -84,6 +84,60 @@ export function shiftClockPct(shiftStart: Date, shiftEnd: Date, now: Date): numb
 }
 
 /**
+ * O relógio de UM SKU, contado do arranque dele e não da abertura do turno.
+ *
+ * `shiftClockPct` responde pela linha inteira, que abre quando o turno abre. Um
+ * SKU não: entra quando a linha lhe chega. Medido antes de escrito — nos 60 dias
+ * até 13/08, das 75 linhas de `production_items` com plano e com `started_at`,
+ * 36 arrancam na primeira hora (onde os dois relógios coincidem), mas 35
+ * arrancam depois das três horas e 25 depois das seis, com uma média de 3h17
+ * depois da abertura. Comparar o segundo grupo com o relógio do turno é dá-lo
+ * por atrasado antes de ter tido tempo — o mesmo erro de comparar contra um
+ * período que ainda não decorreu, uma camada abaixo daquele que já foi
+ * corrigido no cartão da linha.
+ *
+ * O PRAZO É O FIM DO TURNO, e é uma escolha, não uma dedução. Nada nesta base
+ * diz a que horas um SKU devia estar pronto: `production_items` tem
+ * `started_at` e `finished_at`, ambos registos do que aconteceu, e nenhuma
+ * coluna de previsto. O que a folha de plano promete é a quantidade feita até
+ * ao fim do turno, por isso é contra o fim do turno que se conta. Se um dia
+ * houver hora prevista por ordem, é aqui que entra e o resto não muda.
+ *
+ * Null — e não um número — quando não há arranque conhecido. Das 90 barras com
+ * plano, 15 não têm `started_at`, e inventar-lhes um relógio seria a mesma
+ * troca de "não sei" por um facto que este ficheiro passa o tempo a recusar.
+ * Quem chama decide o que fazer com a ausência.
+ */
+export function itemClockPct(
+  startedAt: Date | string | null | undefined,
+  finishedAt: Date | string | null | undefined,
+  shiftEnd: Date,
+  now: Date,
+): number | null {
+  const started = toDate(startedAt);
+  if (!started) return null;
+
+  // Terminado é um período fechado, e um período fechado devia o plano todo —
+  // a mesma leitura que `clockBand` já faz para a semana e para o mês.
+  if (toDate(finishedAt)) return 100;
+
+  const total = shiftEnd.getTime() - started.getTime();
+  // Um SKU aberto no último minuto do turno, ou depois dele, não tem janela
+  // para dividir. Tudo era devido: é a leitura que não inventa folga nenhuma,
+  // igual à de `shiftClockPct` para um turno sem duração.
+  if (total <= 0) return 100;
+
+  const elapsed = now.getTime() - started.getTime();
+  return Math.min(100, Math.max(0, (elapsed / total) * 100));
+}
+
+function toDate(v: Date | string | null | undefined): Date | null {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
  * Verde, âmbar ou vermelho, num sítio só.
  *
  * Extraído para que o painel inteiro, um cartão e o ecrã de parede não possam

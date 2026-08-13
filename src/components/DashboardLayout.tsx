@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Award, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Award, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays, TrendingUp } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -99,18 +99,34 @@ export const navItems: NavItem[] = [
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "problems.view" },
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"], group: "Maintenance", action: "stock.view" },
 
-  // Production
-  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.manage" },
+  // Production. The order is the group's argument, and the sidebar renders these in
+  // array order, so it is written here rather than left to whoever appends next:
+  // the reviews first (RAG Weekly, Performance — how the week and the lines went),
+  // then what the lines run (SKU Products), then the shift's own record (Production
+  // Control), then the exception it raised (Quality), and last the people behind it
+  // (Headcount, the only admin-only row here). Reading down goes from the week to
+  // the shift to what went wrong, which is the order the questions are asked in.
+  // It was previously Production Control, RAG Weekly, Performance, SKU Products,
+  // Quality — with Headcount declared sixty lines below among the admin screens, so
+  // it landed last with nothing near it to say why.
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Production", action: "rag.view" },
-  { title: "Performance", url: "/dashboard/production-performance", icon: Gauge, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.performance.view" },
-
+  // Performance carried Gauge as well, so two adjacent rows opened with the same
+  // icon and the icon column stopped telling the two apart. RAG Weekly keeps the
+  // dial — it IS a red/amber/green reading; Performance is a trend against target.
+  { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.performance.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "sku.manage" },
-  // Headcount & Overtime is OFF the menu while the module is unfinished: seventeen
-  // people have no shift pattern and fourteen no department, so the board would be
-  // read as the rota when it is still an import. The route, the screen, the hooks and
-  // the data all remain — /dashboard/workforce still opens for an admin who types it —
-  // so putting it back is this one line.
+  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.manage" },
   { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"], group: "Production", action: "quality.view" },
+  // Headcount is the way in to all four workforce screens. Leave, Attendance and
+  // Finance Close are reached from the tab bar on the board rather than from here:
+  // they are one job seen from four angles, and four menu rows said they were four
+  // jobs.
+  //
+  // The older Workforce board stays OFF the menu: seventeen people have no shift
+  // pattern and fourteen no department, so it would be read as the rota when it is
+  // still an import. The route, the screen, the hooks and the data all remain —
+  // /dashboard/workforce still opens for an admin who types it.
+  { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
 
   // Analytics and Messages sit in Overview rather than each holding a group of its
   // own. The argument that dissolved Assets applies harder to a group of one: a
@@ -127,12 +143,7 @@ export const navItems: NavItem[] = [
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
-  // Headcount is the way in to all four workforce screens. Leave, Attendance and
-  // Finance Close are reached from the tab bar on the board rather than from here:
-  // they are one job seen from four angles, and four menu rows said they were four
-  // jobs.
-  { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
-
+  //
   // Setup, integrations and the audit trail, behind one door.
   //
   // These eight were eight sidebar rows — a third of the menu — for screens somebody

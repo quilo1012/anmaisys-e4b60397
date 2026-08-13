@@ -3,8 +3,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search } from "lucide-react";
+import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "@/components/BackButton";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { cn } from "@/lib/utils";
@@ -164,10 +167,14 @@ function SectionLabel({
       type="button"
       onClick={onToggle}
       disabled={!onToggle}
-      className="mb-2 mt-5 flex w-full items-center gap-2 text-left text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0"
+      // `print-keep` is load-bearing, not styling. The global print sheet hides every
+      // button that does not carry it, and these headings are buttons because they
+      // fold — so a printed board came out as an unbroken wall of columns with
+      // Production, Sectors, Support and Away & overtime all missing from it.
+      className="print-keep mb-2 mt-5 flex w-full items-center gap-2 text-left text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0"
     >
       {onToggle && (
-        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
+        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform print:hidden", open && "rotate-90")} />
       )}
       <span className={accent}>{children}</span>
       {count !== undefined && (
@@ -217,6 +224,7 @@ function Chip({
   overtime,
   half,
   leftEarlyAt,
+  arrivedLateAt,
   crew,
   draggable,
   onOpen,
@@ -236,6 +244,8 @@ function Chip({
   half?: boolean;
   /** Came in and went home early, at this time. A day worked, not a day off. */
   leftEarlyAt?: string | null;
+  /** Came in after the shift started, at this time. Also a day worked, not a day off. */
+  arrivedLateAt?: string | null;
   /** Which crew they belong to — FRI–MON, WH, NIGHT. Null for the plain day shift,
       which is most of the board and needs no label to say so. */
   crew?: string | null;
@@ -256,7 +266,9 @@ function Chip({
       className={cn(
         // 44px tall and a 26px square: this board is used on a tablet, on the floor,
         // by somebody wearing gloves. A 30px row is a row you miss.
-        "inline-flex min-h-[44px] w-full max-w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-medium",
+        // `headcount-chip` is what the print sheet takes that height back through —
+        // paper has no thumbs, and 44px × eighty names is two pages of white space.
+        "headcount-chip inline-flex min-h-[44px] w-full max-w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-medium",
         leader ? "border-primary/40 bg-primary/10 font-semibold"
           : overtime ? "border-primary/40 bg-primary/10"
           : tones[tone],
@@ -274,7 +286,11 @@ function Chip({
           way, and it is the thing being looked for when a column is scanned. */}
       <span className={cn(
         "grid h-[26px] shrink-0 place-items-center rounded-md text-[11px] font-bold leading-none",
-        leader ? "w-11 bg-primary text-primary-foreground tracking-wide" : "w-[26px] bg-background/70 text-muted-foreground",
+        // Only the initials go on paper's cutting-room floor: they are two letters of
+        // the name printed an inch to their right. The crew, the half day and the early
+        // finish stay — those are the day's record, and a printed sheet is what somebody
+        // checks the day against.
+        leader ? "w-11 bg-primary text-primary-foreground tracking-wide" : "headcount-chip-initials w-[26px] bg-background/70 text-muted-foreground",
       )}>
         {leader ? "LEAD" : initials(name)}
       </span>
@@ -298,6 +314,17 @@ function Chip({
           className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-[10px] font-bold leading-tight text-muted-foreground"
         >
           ½
+        </span>
+      )}
+      {/* Came in late. Same arrow, pointing the other way: the column counts them as in
+          all day, and the line was a body short until nine. Before the early-finish mark
+          because that is the order the day happened in. */}
+      {arrivedLateAt && (
+        <span
+          title={`Arrived late — came in at ${arrivedLateAt.slice(0, 5)}`}
+          className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-[10px] font-bold leading-tight text-warning-strong"
+        >
+          {arrivedLateAt.slice(0, 5)}→
         </span>
       )}
       {/* Went home early. On the chip because the column counts them as in — which
@@ -467,11 +494,24 @@ function ShiftBoard({
   // A little distance first, so a tap on the heading is not read as a drag.
   const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
-  const { place, remove, copyLastLikeDay, setLeader } = useAllocationMutations(onDate, shift);
+  const { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader } = useAllocationMutations(onDate, shift);
   const { data: copyableDays = [], isLoading: copyableLoading } = useCopyableDays(onDate, shift);
   const matrix = useHeadcountMatrix(shift, onDate);
   const saveMatrix = useSaveMatrix(onDate, shift);
   const [matrixOpen, setMatrixOpen] = useState(false);
+
+  /**
+   * The copy that can still be taken back off this board.
+   *
+   * Held here rather than read on every render because it lives in `localStorage`,
+   * which does not tell React when it changes. It is re-read whenever the board being
+   * looked at changes, so paging to another day never offers to undo this one's copy.
+   */
+  const [undoable, setUndoable] = useState(() => readUndo());
+  useEffect(() => { setUndoable(readUndo()); }, [readUndo]);
+  /** Every copy goes through here, so every copy leaves the strip behind it. */
+  const runCopy = (from: Parameters<typeof copyLastLikeDay.mutate>[0]) =>
+    copyLastLikeDay.mutate(from, { onSuccess: () => setUndoable(readUndo()) });
 
   const byEmployee = useMemo(() => {
     const m = new Map<string, (typeof allocations)[number]>();
@@ -586,7 +626,7 @@ function ShiftBoard({
           real work — in Split the two boards are otherwise identical grids side by
           side — so it stays, as a rule down the edge and a tinted icon rather than
           the loudest thing on the screen. */}
-      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl border border-l-4 bg-card px-4 py-2.5", look.rule)}>
+      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-2.5 border-l-[3px]", look.rule)}>
         <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", look.chip)}>
           <ShiftIcon className="h-4 w-4" />
         </div>
@@ -632,7 +672,7 @@ function ShiftBoard({
                 variant="outline"
                 className="h-8 rounded-r-none border-r-0"
                 title={`Fills this board from the last ${shift.toLowerCase()} day anybody worked. Nobody already on this day is changed.`}
-                onClick={() => copyLastLikeDay.mutate({ kind: "last" })}
+                onClick={() => runCopy({ kind: "last" })}
                 disabled={copyLastLikeDay.isPending}
               >
                 <CopyPlus className="mr-2 h-4 w-4" />
@@ -662,7 +702,7 @@ function ShiftBoard({
                   {matrix.matrices.map((m) => (
                     <DropdownMenuItem
                       key={m.kind}
-                      onSelect={() => copyLastLikeDay.mutate({ kind: "matrix", matrix: m.kind })}
+                      onSelect={() => runCopy({ kind: "matrix", matrix: m.kind })}
                       disabled={m.due.length === 0}
                       className="flex items-center justify-between gap-3"
                     >
@@ -700,7 +740,7 @@ function ShiftBoard({
                   {copyableDays.map((d, i) => (
                     <DropdownMenuItem
                       key={d.on_date}
-                      onSelect={() => copyLastLikeDay.mutate({ kind: "day", on_date: d.on_date })}
+                      onSelect={() => runCopy({ kind: "day", on_date: d.on_date })}
                       className="flex items-center justify-between gap-3"
                     >
                       <span className="truncate">
@@ -784,6 +824,73 @@ function ShiftBoard({
         </div>
       </div>
 
+      {/* The way back from the one press on this screen that writes seventy rows.
+          Copying the wrong day was a twenty-minute mistake: the only way to reverse it
+          was to open seventy cards and take each person off by hand, on a tablet.
+
+          It says what it will remove *and what it will not*, because that is the whole
+          question somebody asks before pressing it. An undo that might also take back
+          the morning's work is an undo nobody dares use — so this one is not "clear the
+          board": the copy wrote down exactly which rows it created, and only those go.
+
+          It outlives the toast and the page load on purpose. "I copied the wrong day"
+          is noticed a minute later, by which time a four-second toast is long gone. */}
+      {canManage && undoable && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/5 px-4 py-2.5 print:hidden">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-warning/15 text-warning-strong">
+            <Undo2 className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold leading-tight">
+              Copied {undoable.allocations.length} {undoable.allocations.length === 1 ? "person" : "people"}
+              {" from "}{undoable.sources.join(" and ")}
+            </div>
+            <div className="text-2xs text-muted-foreground">
+              Wrong day? Undo takes back only those {undoable.allocations.length} — everybody else on this board stays.
+            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8"
+              onClick={() => { keepCopy(); setUndoable(null); }}
+              title="Keep the copy and stop asking"
+            >
+              Keep it
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 border-warning/50" disabled={undoCopy.isPending}>
+                  <Undo2 className="mr-2 h-4 w-4" />
+                  Undo the copy
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Take {undoable.allocations.length} {undoable.allocations.length === 1 ? "person" : "people"} back off {formatWeekday(onDate)}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Only the ones copied from {undoable.sources.join(" and ")} onto the {shift.toLowerCase()} board. Anybody who
+                    was already here, and anybody placed by hand since, is left exactly as they are. The attendance records this
+                    copy created go with them; ones that were already there do not.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => undoCopy.mutate(undoable, { onSuccess: () => setUndoable(readUndo()) })}
+                  >
+                    Undo the copy
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
         <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
@@ -824,7 +931,7 @@ function ShiftBoard({
         <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
         {/* Packs as many line columns across as the screen allows. Capping this at
             three put Line 4 onto a second row on a monitor with room for six. */}
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
+        <div className="headcount-columns grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
@@ -834,7 +941,11 @@ function ShiftBoard({
               disabled={!canManage}
               onDrop={() => handleDrop({ areaId: area.id, status: "assigned" })(readDrag() ?? "")}
             >
-              <Card className={cn("h-full overflow-hidden border-l-4", area.kind === "production" ? "border-l-primary" : "border-l-muted-foreground")}>
+              {/* A barra saiu: o cabeçalho logo por baixo já é tingido pelo mesmo
+                  `area.kind`, e dizê-lo duas vezes a um centímetro de distância não
+                  acrescenta nada. Produção contra apoio é uma categoria, não um estado
+                  — e a barra à esquerda, neste sistema, é onde se diz o estado. */}
+              <Card className="h-full overflow-hidden">
                 <CardHeader
                   className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "bg-primary/5" : "bg-muted", canManage && "cursor-pointer hover:brightness-95")}
                   onClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
@@ -862,6 +973,7 @@ function ShiftBoard({
                         dimmed={isDimmed(p.full_name)}
                         overtime={isOt}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
+                        arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                         crew={crewBadge(p.shift_group)}
                         onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
@@ -986,6 +1098,7 @@ function ShiftBoard({
         if (!person) return null;
         // Postgres hands back `14:00:00`; the time input wants `14:00`.
         const leftEarly = alloc?.left_early_at ? alloc.left_early_at.slice(0, 5) : null;
+        const arrivedLate = alloc?.arrived_late_at ? alloc.arrived_late_at.slice(0, 5) : null;
         return (
           <PersonDayDialog
             open
@@ -1006,6 +1119,7 @@ function ShiftBoard({
               status: (alloc?.status as AllocStatus | undefined) ?? "unpaid",
               halfDay: v,
               leftEarlyAt: leftEarly,
+              arrivedLateAt: arrivedLate,
               explicit: true,
             })}
             leftEarlyAt={leftEarly}
@@ -1015,6 +1129,17 @@ function ShiftBoard({
               status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
               halfDay: alloc?.half_day === true,
               leftEarlyAt: v,
+              arrivedLateAt: arrivedLate,
+              explicit: true,
+            })}
+            arrivedLateAt={arrivedLate}
+            onSetArrivedLateAt={(v) => place.mutate({
+              employeeId: editing,
+              areaId: alloc?.area_id ?? null,
+              status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
+              halfDay: alloc?.half_day === true,
+              leftEarlyAt: leftEarly,
+              arrivedLateAt: v,
               explicit: true,
             })}
             onSetStatus={(st) => place.mutate({
@@ -1027,6 +1152,7 @@ function ShiftBoard({
               // out would silently clear an early finish somebody had recorded. The
               // mutation itself drops it when the status stops being a day worked.
               leftEarlyAt: leftEarly,
+              arrivedLateAt: arrivedLate,
               // These five buttons are the one place a person says how the day counts,
               // so what they say stands — over the rota's guess and over a mark already
               // on the row. Pressing In on somebody wrongly marked overtime used to
@@ -1039,6 +1165,7 @@ function ShiftBoard({
               status: alloc?.status === "overtime" ? "overtime" : "assigned",
               halfDay: alloc?.half_day === true,
               leftEarlyAt: leftEarly,
+              arrivedLateAt: arrivedLate,
             })}
             onSetShift={(sg) => changeShift.mutate({ employeeId: editing, shiftGroup: sg })}
             patterns={patterns}
@@ -1092,6 +1219,7 @@ function ShiftBoard({
                         tone={block.status === "overtime" ? "overtime" : "away"}
                         half={byEmployee.get(p.id)?.half_day === true}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
+                        arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                         crew={crewBadge(p.shift_group)}
                         draggable={canManage}
                         onDragStart={(e) => {
@@ -1138,20 +1266,39 @@ export default function ProductionHeadcountPage() {
     setDate(toISO(d));
   };
 
+  /** The calendar, and whether the board is showing the day that is running. */
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const onToday = date === opened.operationalDate;
+
   return (
-    // The whole workforce section behind one PIN. These four screens name every
-    // employee beside their hours, their sickness and what they are owed, and the
-    // board is now the way in to the other three.
+    // The shell, which this screen was the only one in the section without.
     //
-    // One key, not four: they are tabs of one screen, and asking again on every tab
-    // is the friction that makes somebody prop the door open — a PIN typed four times
-    // an hour stops being a lock and becomes a habit.
+    // Employee, Annual Leave, Attendance and Finance Close all render inside
+    // `DashboardLayout`; the board did not, and had never done so in its history. So
+    // the one screen somebody opens first — the way in to the other four — was the one
+    // with no sidebar, no breadcrumb, no shift clock, no stopped-line alarm and no dark
+    // mode toggle. Reaching Quality from it meant the browser's Back button, which a
+    // kiosk tablet does not have. Everything the board draws is unchanged; it is simply
+    // in the building now.
+    <DashboardLayout>
+    {/* The whole workforce section behind one PIN. These four screens name every
+        employee beside their hours, their sickness and what they are owed, and the
+        board is now the way in to the other three.
+
+        One key, not four: they are tabs of one screen, and asking again on every tab
+        is the friction that makes somebody prop the door open — a PIN typed four times
+        an hour stops being a lock and becomes a habit. */}
     <AdminPinGate
       storageKey="workforce"
       title="Production Headcount"
       description="The board and the workforce screens behind it. Enter the admin PIN to open."
     >
-    <div className="space-y-4">
+    {/* `print-content` is what the global print sheet hangs its rules off — without it
+        a name clamped to a 200px column printed as "FELIPE DE …" and stayed clamped,
+        because paper has no window to widen. `print-landscape` turns the paper: the
+        board is a row of up to twenty columns, and portrait made a sheet meant to be
+        read on a wall come out as pages of fragments. */}
+    <div className="space-y-4 print-content print-landscape">
       {/* Above the banner rather than inside it: the banner is navy, and a ghost
           button on it reads as disabled. Same component and same position as every
           other screen, so leaving the board is where the hand already expects it —
@@ -1162,17 +1309,70 @@ export default function ProductionHeadcountPage() {
       <ModuleHeader
         title="Production Headcount"
         description="Daily allocation of people to production and support areas"
+        // The band is a `<header>`, and the print sheet hides every one of those. It
+        // carries the title and the date, which is everything that makes a printed
+        // board a document rather than a grid of names.
+        className="print-keep"
       >
         <>
+            {/* The arrows step, and the date itself opens a calendar. Stepping is right
+                for the days either side of the one you are on — which is most of the
+                use — and hopeless for the rest: a board wanted three weeks out was
+                twenty-one presses, so people gave up and read the spreadsheet instead.
+                The date looked like a label because it was one; it is now the control
+                its position always promised. */}
             <div className="flex items-center gap-1 rounded-lg bg-white/10 p-1 print:bg-transparent">
               <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20 print:hidden" onClick={() => shiftDate(-1)} aria-label="Previous day">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="min-w-[9.5rem] text-center text-sm font-semibold tabular-nums">{formatLong(date)}</span>
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    // `print-keep` because this is where the printed sheet says which
+                    // day it is. Everything else in this band is a control and prints
+                    // hidden; the date is the record.
+                    className="print-keep min-w-[9.5rem] rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 print:px-0 print:text-black print:hover:bg-transparent"
+                    aria-label={`Showing ${formatLong(date)} — pick another day`}
+                  >
+                    {formatLong(date)}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="center">
+                  <Calendar
+                    mode="single"
+                    defaultMonth={new Date(`${date}T12:00:00`)}
+                    selected={new Date(`${date}T12:00:00`)}
+                    onSelect={(d) => {
+                      if (!d) return;
+                      setDate(toISO(d));
+                      setDatePickerOpen(false);
+                    }}
+                    initialFocus
+                    className="pointer-events-auto p-3"
+                  />
+                </PopoverContent>
+              </Popover>
               <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20 print:hidden" onClick={() => shiftDate(1)} aria-label="Next day">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
+            {/* Only once the board has been paged away from the day that is running.
+                A "Today" that is always there is a button that is usually a no-op. */}
+            {!onToday && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-white hover:bg-white/20 print:hidden"
+                // Asked again on the press rather than reused from mount: this screen
+                // is left open on a wall tablet for days, and `opened` is the shift that
+                // was running when it was loaded. A "Today" that returns to Tuesday is
+                // worse than no button.
+                onClick={() => setDate(currentShift().operationalDate)}
+              >
+                Today
+              </Button>
+            )}
             <Badge variant="outline" className="border-white/40 text-white print:text-black">{dayTypeLabel(date)}</Badge>
             {/* A board showing yesterday is right at 03:00 and baffling unsaid. Drops
                 away the moment the reader moves off it, so it never becomes furniture. */}
@@ -1247,5 +1447,6 @@ export default function ProductionHeadcountPage() {
       />
     </div>
     </AdminPinGate>
+    </DashboardLayout>
   );
 }

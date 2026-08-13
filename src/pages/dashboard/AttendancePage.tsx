@@ -11,11 +11,12 @@ import { Figure, FigureRow } from "@/components/ui/Figure";
 import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/DateField";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, Upload, Loader2, AlertTriangle, CalendarClock, Printer } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
@@ -36,6 +37,31 @@ function hm(mins: number | null | undefined): string {
   const a = Math.abs(mins);
   const s = a < 60 ? `${a}m` : `${Math.floor(a / 60)}h ${String(a % 60).padStart(2, "0")}m`;
   return neg ? `−${s}` : s;
+}
+
+/**
+ * Where the name→employee choices live between imports.
+ *
+ * The browser, not the database: it is a reading aid for whoever runs the import, not
+ * a fact about the payroll, and it is re-shown for approval every time.
+ */
+const ASSIGNED_KEY = "timemoto-name-assignments";
+
+function readAssigned(): Record<string, string> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ASSIGNED_KEY) ?? "null");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(([, v]) => typeof v === "string"),
+    ) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function writeAssigned(v: Record<string, string>) {
+  // A private window that refuses storage must not sink an import that otherwise worked.
+  try { localStorage.setItem(ASSIGNED_KEY, JSON.stringify(v)); } catch { /* not worth a toast */ }
 }
 
 /**
@@ -81,7 +107,16 @@ export default function AttendancePage() {
     },
   });
 
-  const [preview, setPreview] = useState<(TimeMotoParse & { matched: { name: string; employeeId: string }[]; unmatched: string[] }) | null>(null);
+  const [preview, setPreview] = useState<TimeMotoParse | null>(null);
+  /**
+   * Which employee a name in the sheet means, when the sheet cannot say.
+   *
+   * Keyed by the name as TimeMoto spells it. Seeded from the last import so the
+   * weekly file does not ask the same question every Monday, and always shown in the
+   * preview before anything is written — a remembered choice that decides silently is
+   * worse than the question.
+   */
+  const [assigned, setAssigned] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +140,12 @@ export default function AttendancePage() {
       return (data ?? []) as { employee_id: string; on_date: string; worked_minutes: number | null; balance_minutes: number | null; absence_name: string | null }[];
     },
   });
+
+  /** The picker's fallback list, in the order a person would look for a name. */
+  const rosterByName = useMemo(
+    () => [...roster].sort((a, b) => a.full_name.localeCompare(b.full_name)),
+    [roster],
+  );
 
   const nameById = useMemo(() => new Map(roster.map((e) => [e.id, e.full_name])), [roster]);
   // Already fetched and never read. A sheet of a hundred and seventy-six names is
@@ -149,13 +190,40 @@ export default function AttendancePage() {
     absenceDays: byPerson.reduce((a, p) => a + p.unplannedDays, 0),
   }), [byPerson]);
 
+  /**
+   * Who each name in the sheet is, recomputed as the choices are made.
+   *
+   * Derived rather than stored, so picking a person in the dialog moves the name out
+   * of the unsettled list and into the count in the same breath.
+   */
+  const match = useMemo(
+    () => (preview ? matchNames(preview.names, roster, assigned) : { matched: [], unmatched: [] }),
+    [preview, roster, assigned],
+  );
+
+  /**
+   * The names this import had to be told about — the ones it cannot settle, and the
+   * ones a person settled for it.
+   *
+   * A remembered choice that quietly resolves a name is the same silent guess this
+   * whole screen refuses to make, so it stays on show, with the person it points at
+   * and the picker still live to change it.
+   */
+  const toSettle = useMemo(() => {
+    if (!preview) return [];
+    const unsettled = new Map(match.unmatched.map((u) => [u.name, u]));
+    return preview.names
+      .filter((n) => unsettled.has(n) || assigned[n])
+      .map((n) => unsettled.get(n) ?? { name: n, reason: "chosen" as const, candidates: [] });
+  }, [preview, match.unmatched, assigned]);
+
   const readFile = async (file: File) => {
     setBusy(true);
     try {
       const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
       const parsed = parseTimeMotoWorkbook(wb, today.getFullYear());
-      const { matched, unmatched } = matchNames(parsed.names, roster);
-      setPreview({ ...parsed, matched, unmatched });
+      setAssigned(readAssigned());
+      setPreview(parsed);
     } catch (e) {
       toast.error(`Could not read the file: ${(e as Error).message}`);
     } finally {
@@ -167,7 +235,7 @@ export default function AttendancePage() {
     if (!preview) return;
     setBusy(true);
     try {
-      const idOf = new Map(preview.matched.map((m) => [m.name, m.employeeId]));
+      const idOf = new Map(match.matched.map((m) => [m.name, m.employeeId]));
       const rows = preview.rows
         .filter((r) => idOf.has(r.name))
         .map((r) => ({
@@ -186,11 +254,14 @@ export default function AttendancePage() {
           remarks: r.remarks,
           source: "timemoto",
         }));
-      if (rows.length === 0) { toast.error("Nothing to import — no name in the file matched anybody"); return; }
+      if (rows.length === 0) { toast.error("Nothing to import — no name in the file is settled on somebody"); return; }
       const { error } = await (supabase as any)
         .from("attendance_days")
         .upsert(rows, { onConflict: "on_date,employee_id" });
       if (error) throw error;
+      // Remembered only once the import went through, so a choice made for a file that
+      // then failed to write does not come back pre-approved next week.
+      writeAssigned(assigned);
       toast.success(`Imported ${rows.length} day${rows.length === 1 ? "" : "s"}`);
       if (preview.from) setFrom(preview.from);
       if (preview.to) setTo(preview.to);
@@ -266,8 +337,8 @@ export default function AttendancePage() {
         {/* The dates chosen here are printed in the band, so the pickers themselves are
             two empty boxes on paper. */}
         <div className="flex flex-wrap items-end gap-2 no-print">
-          <div><Label className="text-xs">From</Label><Input type="date" value={from} onChange={(e) => { setPeriodTouched(true); setFrom(e.target.value); }} className="mt-1 h-8 w-40" /></div>
-          <div><Label className="text-xs">To</Label><Input type="date" value={to} onChange={(e) => { setPeriodTouched(true); setTo(e.target.value); }} className="mt-1 h-8 w-40" /></div>
+          <div><Label className="text-xs">From</Label><DateField aria-label="From" value={from} onChange={(v) => { setPeriodTouched(true); setFrom(v); }} className="mt-1 h-8 w-40" /></div>
+          <div><Label className="text-xs">To</Label><DateField aria-label="To" value={to} min={from} onChange={(v) => { setPeriodTouched(true); setTo(v); }} className="mt-1 h-8 w-40" /></div>
         </div>
 
         {/* Hours worked leads: this screen exists to say what the clocks recorded, and
@@ -396,7 +467,7 @@ export default function AttendancePage() {
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">{preview.rows.length} rows</Badge>
-                  <Badge variant="outline">{preview.matched.length} of {preview.names.length} people matched</Badge>
+                  <Badge variant="outline">{match.matched.length} of {preview.names.length} people matched</Badge>
                   {preview.from && <Badge variant="outline">{preview.from} → {preview.to}</Badge>}
                 </div>
 
@@ -412,17 +483,67 @@ export default function AttendancePage() {
                   )}
                 </div>
 
-                {(preview.unmatched.length > 0 || preview.skipped.length > 0) && (
+                {/* An export for one person carries a Firstname and no surname, so
+                    "Daniel" is all the sheet knows and two Daniels are on the payroll.
+                    Refusing was right; refusing and calling it a name nobody answers to
+                    sent the office away from an import that only needed one answer. */}
+                {toSettle.length > 0 && (
+                  <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border p-2.5 text-2xs">
+                    <div className="font-semibold">Who does the sheet mean?</div>
+                    {toSettle.map((u) => (
+                      <div key={u.name} className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-semibold">{u.name}</div>
+                          <div className="text-muted-foreground">
+                            {u.reason === "chosen"
+                              ? "Chosen by hand, remembered from the last import"
+                              : u.reason === "ambiguous"
+                                ? `${u.candidates.length} people answer to this`
+                                : "Nobody on the payroll answers to this"}
+                          </div>
+                        </div>
+                        <Select
+                          value={assigned[u.name] ?? "__none"}
+                          onValueChange={(v) =>
+                            setAssigned((prev) => {
+                              const next = { ...prev };
+                              if (v === "__none") delete next[u.name];
+                              else next[u.name] = v;
+                              return next;
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-48 text-xs"><SelectValue placeholder="Leave out…" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none">— leave this name out —</SelectItem>
+                            {/* The people who actually answer to the name first: on a
+                                payroll of a hundred and seventy-six, a flat list is a
+                                scroll, and the two candidates are the whole question. */}
+                            {u.candidates.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                            ))}
+                            {rosterByName
+                              .filter((e) => !u.candidates.some((c) => c.id === e.id))
+                              .map((e) => (
+                                <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                    <div className="text-muted-foreground">
+                      A name left out imports nothing. What you choose is remembered for the next
+                      import — read it before importing, because another person's sheet can spell
+                      their name exactly the same way.
+                    </div>
+                  </div>
+                )}
+
+                {preview.skipped.length > 0 && (
                   <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
                     <div className="flex items-center gap-1.5 font-semibold text-warning-strong">
                       <AlertTriangle className="h-3.5 w-3.5" /> Not imported
                     </div>
-                    {preview.unmatched.length > 0 && (
-                      <div>
-                        <div className="font-semibold">Names nobody on the payroll answers to</div>
-                        <div className="text-muted-foreground">{preview.unmatched.join(", ")}</div>
-                      </div>
-                    )}
                     {preview.skipped.length > 0 && (
                       <div>
                         <div className="font-semibold">{preview.skipped.length} row(s) skipped</div>
@@ -436,7 +557,7 @@ export default function AttendancePage() {
 
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1" onClick={() => setPreview(null)}>Cancel</Button>
-                  <Button className="flex-1" onClick={commit} disabled={busy || !canManage || preview.matched.length === 0}>
+                  <Button className="flex-1" onClick={commit} disabled={busy || !canManage || match.matched.length === 0}>
                     {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Import
                   </Button>

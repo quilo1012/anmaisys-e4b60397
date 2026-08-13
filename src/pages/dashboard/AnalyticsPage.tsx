@@ -53,18 +53,20 @@ const LEADER_TEXT_KEYS: LeaderSortKey[] = ["leader", "shifts"];
 
 /** Sortable header cell for the Leader Performance table. */
 function LeaderTh({
-  sortKey, sort, onSort, align = "right", children,
+  sortKey, sort, onSort, align = "right", title, children,
 }: {
   sortKey: LeaderSortKey;
   sort: { key: LeaderSortKey; dir: "asc" | "desc" };
   onSort: (key: LeaderSortKey) => void;
   align?: "left" | "right";
+  /** What the column counts, for the columns whose name does not say it in full. */
+  title?: string;
   children: React.ReactNode;
 }) {
   const activeSort = sort.key === sortKey;
   const Icon = !activeSort ? ChevronsUpDown : sort.dir === "desc" ? ArrowDown : ArrowUp;
   return (
-    <th className={`p-0 ${align === "left" ? "text-left" : "text-right"}`}>
+    <th title={title} className={`p-0 ${align === "left" ? "text-left" : "text-right"}`}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
@@ -249,39 +251,34 @@ export default function AnalyticsPage() {
     },
   });
 
-  // Open quality actions per leader. Deliberately NOT scoped to the page date
-  // range: "open" is a statement about today, and an action still sitting in
-  // todo/in_progress from two months ago is exactly the one you must not hide.
-  const { data: openActionRows = [] } = useQuery({
-    queryKey: ["analytics-leader-open-actions"],
-    // Paged, and this one is unbounded by date by design, so it is the query with the
-    // least reason to trust a single page.
-    queryFn: () => fetchAllRows<{ leader_name: string | null; status: string | null; severity: string | null }>({
-      range: (a, b) => supabase
-        .from("quality_actions")
-        .select("leader_name, status, severity")
-        .in("status", ["todo", "in_progress"])
-        .order("id", { ascending: true })
-        .range(a, b),
-    }),
-  });
-
-  // Quality actions raised inside the page's period, per leader — the input to the
-  // Quality and Documentation halves of the leader score. Separate from the open-actions
-  // query above, which is deliberately unbounded because "open" is a statement about
-  // today rather than about the period.
+  /**
+   * Quality actions raised inside the page's period, per leader.
+   *
+   * One query feeds all three action figures of the card — the score's Quality and
+   * Documentation halves, the doc-error breakdown, and the Open Actions column — so
+   * they cannot disagree with each other or with the period the header prints.
+   *
+   * The open count used to come from a second query with no date bounds at all, on
+   * the argument that "open" is a statement about today rather than about the period.
+   * On a single production day it put 2 actions and 3 points against Ailton that had
+   * been raised on 27 and 29 July, beside a Sessions column reading 1 — while his own
+   * scorecard, which has always bounded actions by the period, showed none. The
+   * backlog older than the period is a real question, and the Quality board is where
+   * it is answered; a leader's card for a day cannot answer it without saying that the
+   * numbers on it come from different months.
+   */
   const { data: periodActionRows = [] } = useQuery({
     queryKey: ["analytics-leader-period-actions", startDate.toISOString(), endDate.toISOString()],
     // Paged: this feeds the Quality and Documentation halves of every leader's score,
     // and a score computed off a partial set is a score that cannot be argued with.
     queryFn: () => fetchAllRows<{
-      leader_name: string | null; severity: string | null;
+      leader_name: string | null; severity: string | null; status: string | null;
       labels: string[] | null; validation_status: string | null;
       description: string | null; shift: string | null;
     }>({
       range: (a, b) => supabase
         .from("quality_actions")
-        .select("leader_name, severity, labels, validation_status, recorded_at, description, shift")
+        .select("leader_name, severity, status, labels, validation_status, recorded_at, description, shift")
         .gte("recorded_at", startDate.toISOString())
         .lte("recorded_at", endDate.toISOString())
         .order("recorded_at", { ascending: true }).order("id", { ascending: true })
@@ -315,9 +312,11 @@ export default function AnalyticsPage() {
       }
       map.set(leader, cur);
     }
-    // Open quality actions per leader, matched on the same trimmed name.
+    // Open quality actions per leader, matched on the same trimmed name — counted off
+    // the period's rows, so an action raised outside it is outside every column here.
     const openMap = new Map<string, { open: number; points: number; critical: number }>();
-    for (const a of openActionRows) {
+    for (const a of periodActionRows) {
+      if (a.status !== "todo" && a.status !== "in_progress") continue;
       const leader = (a.leader_name || "").trim();
       if (!leader) continue;
       const cur = openMap.get(leader) ?? { open: 0, points: 0, critical: 0 };
@@ -362,7 +361,7 @@ export default function AnalyticsPage() {
       totalOpenActions: rows.reduce((s, r) => s + r.openActions, 0),
       totalOpenPoints: rows.reduce((s, r) => s + r.openPoints, 0),
     };
-  }, [leaderRows, ragTargetRows, openActionRows, periodActionRows, weights]);
+  }, [leaderRows, ragTargetRows, periodActionRows, weights]);
 
   /**
    * Where the documentation errors are coming from: the five commonest descriptions
@@ -851,7 +850,7 @@ export default function AnalyticsPage() {
               <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-success-strong" : leaderPerf.avgEff >= 80 ? "text-warning-strong" : "text-destructive-strong"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
-                  <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-warning-strong" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
+                  <div className="rounded-lg border p-3" title="Actions raised in this period and still to do or in progress"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-warning-strong" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
                 </div>
@@ -882,7 +881,7 @@ export default function AnalyticsPage() {
                         <LeaderTh sortKey="score" sort={leaderSort} onSort={toggleLeaderSort}>Score</LeaderTh>
                         <LeaderTh sortKey="eff" sort={leaderSort} onSort={toggleLeaderSort}>Efficiency</LeaderTh>
                         <LeaderTh sortKey="docErrors" sort={leaderSort} onSort={toggleLeaderSort}>Doc errors</LeaderTh>
-                        <LeaderTh sortKey="openActions" sort={leaderSort} onSort={toggleLeaderSort}>Open Actions</LeaderTh>
+                        <LeaderTh sortKey="openActions" sort={leaderSort} onSort={toggleLeaderSort} title="Raised in this period and still to do or in progress — the Quality board holds the older backlog">Open Actions</LeaderTh>
                         <LeaderTh sortKey="sessions" sort={leaderSort} onSort={toggleLeaderSort}>Sessions</LeaderTh>
                         <LeaderTh sortKey="lines" sort={leaderSort} onSort={toggleLeaderSort}>Lines</LeaderTh>
                         <LeaderTh sortKey="shifts" align="left" sort={leaderSort} onSort={toggleLeaderSort}>Shifts</LeaderTh>
@@ -944,7 +943,11 @@ export default function AnalyticsPage() {
                             {r.openActions === 0 ? (
                               <span className="text-muted-foreground">0</span>
                             ) : (
-                              <Link to="/dashboard/quality" className="font-semibold text-warning-strong hover:underline dark:text-warning-strong">
+                              <Link
+                                to="/dashboard/quality"
+                                className="font-semibold text-warning-strong hover:underline dark:text-warning-strong"
+                                title={`${r.openActions} action${r.openActions === 1 ? "" : "s"} raised in this period and still open`}
+                              >
                                 {r.openActions}
                                 <span className="ml-1 text-2xs font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{r.openPoints}p</span>
                                 {r.openCritical > 0 && <span className="ml-1 text-2xs font-bold text-destructive-strong" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}

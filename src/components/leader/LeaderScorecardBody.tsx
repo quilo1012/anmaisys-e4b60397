@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Factory, FileWarning } from "lucide-react";
+import { AlertTriangle, Factory, FileWarning } from "lucide-react";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -36,12 +36,62 @@ export function shiftLabelOf(period: ScorecardPeriod): string {
   return period.shift === "all" ? "All shifts" : period.shift === "DAY" ? "Day (06–18)" : "Night (18–06)";
 }
 
+/**
+ * Quantities, in one locale.
+ *
+ * `toLocaleString()` with no argument follows the device, and these tablets are set to
+ * Portuguese: 40648 printed as "40.648", directly beside "48.512 planned", on a card
+ * whose every other figure is a percentage or a count of days. The dot reads as a
+ * decimal point and the output of a shift reads as forty. The rest of the app already
+ * pins its locale; this card was the one that did not.
+ */
+const fmt = (n: number) => n.toLocaleString("en-GB");
+
+/** A section heading and the hairline that closes it — the card's only structural rule. */
+function SectionHead({ id, icon: Icon, children, aside }: {
+  id: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex items-baseline gap-2 border-b pb-1.5">
+      <Icon className="h-4 w-4 shrink-0 self-center text-muted-foreground" />
+      <h3 id={id} className="font-display text-xs font-bold uppercase tracking-[0.14em]">
+        {children}
+      </h3>
+      {aside && <span className="text-2xs text-muted-foreground">{aside}</span>}
+    </div>
+  );
+}
+
 export function LeaderScorecardBody({ leaderName, period, result }: {
   leaderName: string | null;
   period: ScorecardPeriod;
   result: ScorecardResult;
 }) {
   const { quality: q, docs, production: p, score, actions, woRequests, woStopped } = result;
+
+  /**
+   * The three parts of the score, and what each is worth.
+   *
+   * A component with no data is dropped rather than drawn empty: computeScorecard
+   * leaves it out and shares its weight between the others, so a segment sitting at
+   * zero would claim a failure where there was only nothing to measure.
+   */
+  const parts = ([
+    ["Production", score.production, score.applied.production_pct],
+    ["Quality", score.quality, score.applied.quality_pct],
+    ["Documentation", score.documentation, score.applied.documentation_pct],
+  ] as const).filter(([, c, w]) => c.value !== null && w > 0);
+
+  const dropped = ([
+    ["Production", score.production], ["Quality", score.quality], ["Documentation", score.documentation],
+  ] as const).filter(([, c]) => c.value === null).map(([label]) => label);
+
+  const barLabel = `How this score was built. ${parts
+    .map(([label, c, w]) => `${label} ${displayScore(c.value)}% of 100, counting ${w}%`)
+    .join(". ")}.`;
 
   // Who signed each verdict — "Attributable", the first letter of ALCOA+.
   const { data: profileNames = [] } = useProfileNames();
@@ -58,80 +108,141 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
         shift={shiftLabelOf(period)}
       />
 
-      {/* Final score — the one number, with the three it is made of and how each was
-          worked out. Printed rather than hidden behind a tooltip: the leader this is
-          about has to be able to check it. */}
-      <Card>
-        <CardContent className="p-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="font-display text-2xs font-bold uppercase leading-none tracking-[0.12em] text-muted-foreground">Final score</p>
-              <p className="mt-2 font-figure text-4xl font-bold leading-none tracking-[-0.02em]">
-                {score.final === null ? "—" : `${displayScore(score.final)}%`}
-              </p>
-            </div>
-            {/* Full width on a phone, beside the score from `sm` up.
-                Sharing the row at 390px left each box about 70px, and index.css
-                sets `overflow-wrap: anywhere` on every div and span inside main —
-                a guard against long URLs blowing out a card. A word that does not
-                fit is therefore broken wherever it happens to run out, and these
-                three read "PRODUC TION", "QUALIT Y", "DOCUM ENTATIO N". The rule
-                is right; the box was too narrow to spare it. */}
-            <div className="grid w-full grid-cols-3 gap-2 text-center sm:w-auto sm:min-w-0 sm:flex-1">
-              {([
-                ["Production", score.production, score.applied.production_pct],
-                ["Quality", score.quality, score.applied.quality_pct],
-                ["Documentation", score.documentation, score.applied.documentation_pct],
-              ] as const).map(([label, c, w]) => (
-                // The padding, the letter-spacing and a pixel of type are given up on
-                // a phone — never the word. Measured at 390px: "DOCUMENTATION" set as
-                // it is above needs 99px and the box offers 94, so it broke as
-                // "DOCUM ENTATIO N". These three together leave about 8px spare,
-                // which is margin rather than a shave, and the components stay side
-                // by side — the whole point of a block you are meant to compare.
-                <div key={label} className="rounded-md border p-1 sm:p-2">
-                  <p className="font-display text-[10px] font-bold uppercase tracking-normal text-muted-foreground sm:text-2xs sm:tracking-[0.1em]">{label}</p>
-                  <p className="mt-1 font-figure text-lg font-bold leading-none">{c.value === null ? "—" : `${displayScore(c.value)}%`}</p>
-                  <p className="mt-1 font-figure text-2xs text-muted-foreground">weight {w}%</p>
+      {/* The score, and the arithmetic behind it, as one object.
+
+          This was a number beside three equal bordered boxes, one of which carried the
+          words "weight 40%". Equal boxes claim the parts are equal; they are 40/30/30.
+          Here each part is given the WIDTH it actually counts for and filled to what it
+          scored, so 83/100/100 → 93 can be read off the shape before a digit is. The
+          leader this card is about has to be able to check it, which is why none of it
+          hides behind a tooltip.
+
+          Navy on the brand's --section, the same panel ModuleHeader uses, so the one
+          number the screen exists for is the one thing that is not a white card. It
+          goes back to ink on paper for print — the page is meant to be handed over. */}
+      <div className="rounded-xl bg-[hsl(var(--section))] p-4 text-white shadow-sm sm:p-5 print:rounded-none print:border print:bg-white print:p-0 print:text-black print:shadow-none">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-7">
+          <div className="shrink-0">
+            <p className="font-display text-2xs font-bold uppercase leading-none tracking-[0.18em] text-white/60 print:text-black/50">
+              Final score
+            </p>
+            <p className="mt-2 font-figure text-6xl font-semibold leading-none tracking-[-0.03em] sm:text-7xl">
+              {score.final === null ? "—" : displayScore(score.final)}
+              {score.final !== null && <span className="align-top text-2xl font-medium text-white/50 sm:text-3xl print:text-black/40">%</span>}
+            </p>
+          </div>
+
+          {/* Width = what it counts for. Fill = what it scored.
+
+              `grow basis-0` rather than `flex-1`, which is the same thing in the
+              browser and not on paper: index.css prints with
+              `.print-content [class*="flex"] { display: flex !important }`, and that
+              substring catches `flex-1` too. This column became a flex ROW on the
+              printed page, and the caption below the bars was laid out beside them,
+              on top of the Documentation label. */}
+          <div className="min-w-0 grow basis-0">
+            <div role="img" aria-label={barLabel} className="flex items-end gap-1.5">
+              {parts.map(([label, c, w]) => (
+                <div key={label} role="presentation" style={{ flexGrow: w }} className="min-w-0 basis-0">
+                  {/* "Documentation" needs 99px and the narrow segment offers about 94
+                      at 390px, so it clipped to "DOCUMENTATI…". The word is shortened
+                      rather than the type, and only where the room runs out. */}
+                  <span className="block truncate font-display text-[10px] font-bold uppercase tracking-[0.08em] text-white/60 print:text-black/50">
+                    <span className="sm:hidden">{label === "Documentation" ? "Docs" : label}</span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </span>
+                  <div className="mt-1.5 h-3 overflow-hidden rounded-sm bg-white/15 print:border print:border-black/30 print:bg-white">
+                    <div
+                      className="h-full rounded-sm bg-white/90 print:bg-black/75"
+                      style={{ width: `${Math.max(0, Math.min(100, c.value ?? 0))}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 font-figure text-base font-semibold leading-none sm:text-lg">
+                    {displayScore(c.value)}%
+                  </p>
+                  {/* "of 40%" beside "85%" read as 85% OF 40%, which is 34 — the one
+                      arithmetic this panel exists to make unambiguous. */}
+                  <p className="mt-1 truncate font-figure text-2xs text-white/50 print:text-black/50">
+                    counts {w}%
+                  </p>
                 </div>
               ))}
             </div>
+            <p className="mt-3 text-2xs text-white/50 print:text-black/50">
+              Each block is as wide as it counts for, and as full as it scored.
+            </p>
           </div>
-          <ul className="mt-2 space-y-0.5 text-2xs text-muted-foreground">
-            <li><b>Production:</b> {score.production.basis}</li>
-            <li><b>Quality:</b> {score.quality.basis}</li>
-            <li><b>Documentation:</b> {score.documentation.basis}</li>
-          </ul>
-          {docs.pending.length > 0 && (
-            <p className="mt-1 text-2xs text-warning-strong">
-              {docs.pending.length} paperwork action{docs.pending.length === 1 ? "" : "s"} awaiting a verdict from
-              Quality — already counted in the quality score, but the −5% documentation penalty only applies once
-              validated.
-            </p>
-          )}
-          {(score.production.value === null || score.quality.value === null || score.documentation.value === null) && (
-            <p className="mt-1 text-2xs text-warning-strong">
-              A component with no data is left out and its weight shared between the others, rather than counted as zero.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Quality */}
-      <div>
-        <div className="mb-1.5 flex items-center gap-1 text-sm font-semibold"><Clock className="h-4 w-4" /> Quality</div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Figure label="Total actions" value={String(q.total)} />
-          <Figure label="Open" value={String(q.open)} tone={q.open > 0 ? "owed" : "neutral"} />
-          <Figure label="% closed" value={`${q.pctClosed}%`} tone="earned" hint={`${q.completed} completed`} />
-          <Figure label="Avg resolution" value={q.avgResolution == null ? "—" : `${q.avgResolution.toFixed(1)}d`} hint="created → complete" />
-        </div>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {QUALITY_SEVERITIES.slice().reverse().map((s) => (
-            <Badge key={s.value} variant="outline" className={cn("text-2xs", severityMeta(s.value)?.badge)}>{s.label}: {q.sev[s.value] ?? 0}</Badge>
-          ))}
-        </div>
+        {/* How each number was arrived at. On the panel rather than under it: the basis
+            is the part a leader argues with, and it belongs beside the claim. */}
+        <ul className="mt-4 grid gap-1 border-t border-white/15 pt-3 text-2xs text-white/70 sm:grid-cols-3 print:border-black/20 print:text-black/70">
+          <li><b className="font-semibold text-white/90 print:text-black">Production</b> · {score.production.basis}</li>
+          <li><b className="font-semibold text-white/90 print:text-black">Quality</b> · {score.quality.basis}</li>
+          <li><b className="font-semibold text-white/90 print:text-black">Documentation</b> · {score.documentation.basis}</li>
+        </ul>
+        {docs.pending.length > 0 && (
+          <p className="mt-2 text-2xs text-amber-200 print:text-black">
+            {docs.pending.length} paperwork action{docs.pending.length === 1 ? "" : "s"} awaiting a verdict from
+            Quality — already counted in the quality score, but the −5% documentation penalty only applies once
+            validated.
+          </p>
+        )}
+        {dropped.length > 0 && (
+          <p className="mt-2 text-2xs text-amber-200 print:text-black">
+            {dropped.join(" and ")} {dropped.length === 1 ? "is" : "are"} not counted in this period — there was
+            nothing to measure {dropped.length === 1 ? "it" : "them"} on, so the weight is shared between the rest
+            rather than scored as zero.
+          </p>
+        )}
       </div>
+
+      {/* Quality. The icon was a clock — the section is not about time. */}
+      <section aria-labelledby="sc-quality">
+        <SectionHead id="sc-quality" icon={AlertTriangle}>Quality</SectionHead>
+
+        {q.total === 0 ? (
+          /* A period with no action used to print Total actions 0, Open 0, % closed 0%,
+             Avg resolution —, and four severity badges reading 0: nine pieces of
+             furniture for one fact, and the fact was the good news. Say it once. */
+          <p className="text-sm text-muted-foreground">
+            No quality action was raised against this leader in this period.
+            {docs.pending.length > 0 && ` ${docs.pending.length} raised elsewhere is still under review.`}
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <Figure label="Total actions" value={fmt(q.total)} />
+              <Figure label="Open" value={fmt(q.open)} tone={q.open > 0 ? "owed" : "neutral"} />
+              {/* Earned only at a hundred. It carried the earned tone unconditionally,
+                  so a leader who had closed none of four was shown a green 0% standing
+                  on the rule that means "earned" on every other screen here. */}
+              <Figure
+                label="% closed"
+                value={`${q.pctClosed}%`}
+                tone={q.pctClosed === 100 ? "earned" : "neutral"}
+                hint={`${fmt(q.completed)} of ${fmt(q.total)} completed`}
+              />
+              <Figure
+                label="Avg resolution"
+                value={q.avgResolution == null ? "—" : `${q.avgResolution.toFixed(1)}d`}
+                hint="created → complete"
+              />
+            </div>
+            {/* Only the severities actually present. A row of four zeros is four
+                claims that nothing happened, said in the colours of alarm. */}
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {QUALITY_SEVERITIES.slice().reverse()
+                .filter((s) => (q.sev[s.value] ?? 0) > 0)
+                .map((s) => (
+                  <Badge key={s.value} variant="outline" className={cn("text-2xs", severityMeta(s.value)?.badge)}>
+                    {s.label}: {q.sev[s.value]}
+                  </Badge>
+                ))}
+            </div>
+          </>
+        )}
+      </section>
 
       {/* Every action in the period, whatever its state. A closed action is still part
           of the leader's history — filing it away must not remove it from the record
@@ -199,10 +310,10 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
       {/* Documentation errors — the demerit block. Answers, on its own, the question an
           audit asks: why did this leader lose points, who decided, when, and where is
           the evidence. */}
-      <div>
-        <div className="mb-1.5 flex items-center gap-1 text-sm font-semibold">
-          <FileWarning className="h-4 w-4" /> Documentation errors ({DOCUMENTATION_LABEL})
-        </div>
+      <section aria-labelledby="sc-docs">
+        <SectionHead id="sc-docs" icon={FileWarning} aside={DOCUMENTATION_LABEL}>
+          Documentation errors
+        </SectionHead>
 
         {docs.penalised.length === 0 ? (
           <div className="rounded-lg border border-success/40 bg-success/5 p-3">
@@ -262,13 +373,17 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
             )}
           </div>
         )}
-      </div>
+      </section>
 
       {/* Production */}
-      <div>
-        <div className="mb-1.5 flex items-center gap-1 text-sm font-semibold">
-          <Factory className="h-4 w-4" /> Production <span className="text-xs font-normal text-muted-foreground">({p.sessions} sessions)</span>
-        </div>
+      <section aria-labelledby="sc-production">
+        <SectionHead
+          id="sc-production"
+          icon={Factory}
+          aside={`${fmt(p.sessions)} session${p.sessions === 1 ? "" : "s"}`}
+        >
+          Production
+        </SectionHead>
         {p.sessions === 0 ? (
           <p className="text-xs text-muted-foreground">
             No production sessions for this leader in the period.
@@ -280,9 +395,9 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
               <Figure
                 label="Attainment"
                 value={p.attainment == null ? "n/a" : `${p.attainment}%`}
-                hint={p.attainment == null ? "no RAG plan for these sessions" : `${p.actualQty.toLocaleString()} of ${p.targetQty.toLocaleString()} planned`}
+                hint={p.attainment == null ? "no RAG plan for these sessions" : `${fmt(p.actualQty)} of ${fmt(p.targetQty)} planned`}
               />
-              <Figure label="Output" value={p.output.toLocaleString()} hint="logged on My Production" />
+              <Figure label="Output" value={fmt(p.output)} hint="logged on My Production" />
               <Figure
                 label="Maintenance called"
                 value={String(woRequests.length)}
@@ -321,7 +436,7 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
             )}
           </>
         )}
-      </div>
+      </section>
     </div>
   );
 }

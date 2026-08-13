@@ -33,6 +33,7 @@ vi.mock("@/components/DashboardLayout", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { getCurrentFactoryShift } from "@/lib/shifts";
 import LeaderMyScorecardPage from "@/pages/dashboard/LeaderMyScorecardPage";
 
 const EMPTY_PAYLOAD = {
@@ -180,8 +181,11 @@ describe("LeaderMyScorecardPage", () => {
       await typePin("4821");
       await screen.findByRole("heading", { name: "Kleyve" });
 
-      const page = document.querySelector(".max-w-3xl") as HTMLElement;
-      expect(page).toBeTruthy();
+      // Asserted as "there is a cap", not as which cap: the exact value is a design
+      // decision that moved once already (3xl → 5xl, when the figure rows turned out
+      // to be sharing four columns of nothing on a desktop) and will move again.
+      const page = document.querySelector(".mx-auto.w-full[class*='max-w-']") as HTMLElement;
+      expect(page, "the card has no width cap at all").toBeTruthy();
       expect(page.className).toMatch(/\bw-full\b/);
       expect(page.className).toMatch(/\bmx-auto\b/);
       // A width in pixels anywhere on the page is a width that will be wrong on one
@@ -215,7 +219,26 @@ describe("LeaderMyScorecardPage", () => {
     });
 
     it("stacks the figures two-up on a phone and four-up above it", async () => {
-      rpc.mockResolvedValue({ data: EMPTY_PAYLOAD, error: null });
+      // Needs a period that actually holds something. An empty one now says so in a
+      // sentence instead of printing Total actions 0, Open 0, % closed 0% and a dash —
+      // so there is no figure row to measure, which is the point of that change.
+      rpc.mockResolvedValue({
+        data: {
+          ...EMPTY_PAYLOAD,
+          // Dated now, and tagged with the shift now falls in: the default tab is
+          // "this shift", derived from the real clock, and an action outside it is
+          // filtered out before it ever reaches the card.
+          actions: [{
+            id: "a1", status: "todo", severity: "high", recorded_at: new Date().toISOString(),
+            labels: [], department: "Quality", line: "Line 3", action_no: "QA-1",
+            description: "Batch code mismatch",
+            shift: getCurrentFactoryShift().shiftCode === "day" ? "DAY" : "NIGHT",
+            validation_status: "open",
+            validated_at: null, validated_by: null, attachments: null, closed_at: null,
+          }],
+        },
+        error: null,
+      });
       renderPage();
       await typePin("4821");
       await screen.findByText(/total actions/i);

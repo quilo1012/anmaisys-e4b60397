@@ -92,6 +92,45 @@ describe("sidebar", () => {
     }
   });
 
+  it("keeps Production in reading order, week to shift to exception", () => {
+    // The sidebar renders items in array order, so the order IS the file order —
+    // an item appended to the end of navItems lands at the bottom of its group.
+    // Headcount spent a release declared among the admin screens for exactly that
+    // reason, and read as an afterthought under Production.
+    const order = navItems.filter((i) => i.group === "Production").map((i) => i.title);
+    expect(order).toEqual([
+      "RAG Weekly",
+      "Performance",
+      "SKU Products",
+      "Production Control",
+      "Quality",
+      "Headcount",
+    ]);
+  });
+
+  it("gives no two adjacent rows the same icon", () => {
+    // Two Gauges in a row under Production meant the icon column stopped
+    // distinguishing anything — the eye had to fall back to reading every label.
+    //
+    // Asserted per role, on the rows that role actually sees together: the three
+    // Dashboard entries share LayoutDashboard by design and are never rendered
+    // side by side, because their role sets are disjoint.
+    for (const role of ALL_ROLES) {
+      const groups = new Map<string, typeof navItems>();
+      for (const i of navItems.filter((i) => (i.roles as string[]).includes(role))) {
+        groups.set(i.group, [...(groups.get(i.group) ?? []), i]);
+      }
+      for (const [group, items] of groups) {
+        for (let n = 1; n < items.length; n++) {
+          expect(
+            items[n].icon,
+            `a ${role} sees "${items[n - 1].title}" and "${items[n].title}" sharing an icon in ${group}`,
+          ).not.toBe(items[n - 1].icon);
+        }
+      }
+    }
+  });
+
   it("puts every item in a group the sidebar actually renders", () => {
     // Assets was folded into Maintenance — an item left behind in a group the sidebar
     // no longer renders would simply vanish from the menu.

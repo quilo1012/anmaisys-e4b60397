@@ -28,7 +28,7 @@ import {
   closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT,
   type ClosePersonInput,
 } from "@/lib/financeClose";
-import { earlyLeave } from "@/lib/earlyLeave";
+import { partDay } from "@/lib/partDay";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { Figure, FigureRow } from "@/components/ui/Figure";
 
@@ -118,9 +118,9 @@ export default function FinanceClosePage() {
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
         }).then((data: any[]) => ({ data, error: null })),
-        // Days somebody came in for and went home part-way through. Nothing has ever
-        // counted these: the board stored the time and every screen still recorded a
-        // full day.
+        // Days somebody came in for and was only there for part of — in late, home
+        // early, or both. Nothing has ever counted these: the board stored the time and
+        // every screen still recorded a full day.
         // The whole board for the period, not just the early leavers. It answers the
         // other question — how many shifts were they due and how many did they come to
         // — which used to be a second table underneath this one, over the same people
@@ -128,7 +128,7 @@ export default function FinanceClosePage() {
         // a thousand without a word.
         fetchAllRows<any>({
           range: (a, b) => db.from("daily_allocations")
-            .select("employee_id, on_date, status, shift, left_early_at")
+            .select("employee_id, on_date, status, shift, left_early_at, arrived_late_at")
             .gte("on_date", from).lte("on_date", to)
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
@@ -174,7 +174,7 @@ export default function FinanceClosePage() {
           shift: crew,
           openingBalanceMin: null, clockedBalanceMin: null,
           payrollOtHours: null, absences: {}, daysPresent: 0,
-          earlyLeaveHours: 0,
+          partDayHours: 0,
           patternName: e.shift_patterns?.name ?? null,
           patternDays: e.shift_patterns?.days ?? null,
           shiftsWorked: 0, shiftsHoliday: 0,
@@ -183,26 +183,29 @@ export default function FinanceClosePage() {
       }
 
       // The rota is what says how long the shift was, so a person with none on file
-      // contributes nothing to the early-leave figure rather than a guessed shortfall.
+      // contributes nothing to the part-day figure rather than a guessed shortfall.
       const rotaById = new Map(((rotas.data ?? []) as any[]).map((p) => [p.id, p]));
       const patternOf = new Map(
         ((emp.data ?? []) as any[]).map((e) => [e.id, rotaById.get(e.shift_pattern_id)]),
       );
 
       // One pass over the board for both answers it holds: shifts turned up for, and
-      // hours of a shift somebody came in for and did not stay for.
+      // hours of a shift somebody came in for and was not there for.
       for (const a of (board.data ?? []) as any[]) {
         const p = byId.get(a.employee_id); if (!p) continue;
         if (a.status === "assigned" || a.status === "overtime") p.shiftsWorked += 1;
         else if (a.status === "holiday") p.shiftsHoliday += 1;
 
-        if (!a.left_early_at) continue;
+        if (!a.left_early_at && !a.arrived_late_at) continue;
         const rota = patternOf.get(a.employee_id);
         if (!rota) continue;
-        const cut = earlyLeave(a.left_early_at, {
+        // The two ends of the day read together, not summed. A person in at nine and
+        // home at two was there for one window, and two separate shortfalls added up
+        // would take the break off both halves of a break they had once.
+        const cut = partDay({ arrivedLateAt: a.arrived_late_at, leftEarlyAt: a.left_early_at }, {
           startsAt: rota.starts_at, endsAt: rota.ends_at, breakMinutes: rota.break_minutes,
         });
-        if (cut) p.earlyLeaveHours = round2(p.earlyLeaveHours + cut.missedHours);
+        if (cut) p.partDayHours = round2(p.partDayHours + cut.missedHours);
       }
 
       for (const o of (opening.data ?? []) as any[]) {
@@ -242,7 +245,7 @@ export default function FinanceClosePage() {
           (p) => p.clockedBalanceMin != null || p.payrollOtHours != null
             || p.openingBalanceMin != null
             || p.daysPresent > 0 || Object.keys(p.absences).length > 0
-            || p.earlyLeaveHours > 0
+            || p.partDayHours > 0
             || p.shiftsWorked > 0 || p.shiftsHoliday > 0
             || !!p.patternDays?.length,
         ),
@@ -508,10 +511,10 @@ export default function FinanceClosePage() {
             tone={totals.owedHours > 0 ? "owed" : "neutral"}
           />
           <Figure
-            label="Left early"
-            value={totals.earlyLeaveHours.toFixed(2)}
+            label="Part day"
+            value={totals.partDayHours.toFixed(2)}
             unit="h"
-            tone={totals.earlyLeaveHours > 0 ? "owed" : "neutral"}
+            tone={totals.partDayHours > 0 ? "owed" : "neutral"}
           />
           <Figure label="Payroll OT" value={totals.payrollOtHours.toFixed(2)} unit="h" />
           <Figure
@@ -688,8 +691,8 @@ export default function FinanceClosePage() {
                             Elias Soares had a whole day away when he worked two hours
                             of it. */}
                         <TableCell className={`border-l text-right font-figure tabular-nums ${
-                          r.earlyLeaveHours > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
-                          {r.earlyLeaveHours ? r.earlyLeaveHours.toFixed(2) : "—"}
+                          r.partDayHours > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
+                          {r.partDayHours ? r.partDayHours.toFixed(2) : "—"}
                         </TableCell>
                       </TableRow>
                     ))}

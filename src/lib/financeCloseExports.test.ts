@@ -12,7 +12,7 @@ const PERIOD = { from: "2026-08-10", to: "2026-09-06" };
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
   employeeId: "e1", name: "Ana Silva", department: "Production", shift: "Weekend",
-  earlyLeaveHours: 0, patternName: "Fri–Mon", patternDays: [5, 6, 7, 1],
+  partDayHours: 0, patternName: "Fri–Mon", patternDays: [5, 6, 7, 1],
   shiftsWorked: 14, shiftsHoliday: 0, plannedDates: null,
   openingBalanceMin: 0, clockedBalanceMin: 0, payrollOtHours: 0,
   absences: {}, daysPresent: 10, ...over,

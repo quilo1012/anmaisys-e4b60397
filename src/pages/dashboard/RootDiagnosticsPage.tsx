@@ -29,6 +29,10 @@ const TYPE_COLOR: Record<string, string> = {
   RLS_ERROR: "bg-warning/15 text-warning-strong border-warning/30",
   API_ERROR: "bg-warning/15 text-warning-strong border-warning/30",
   REALTIME: "bg-primary/15 text-primary border-primary/30",
+  // Deliberately not a warning colour. These are refusals the person who hit them
+  // could fix by typing something else, on a screen that told them how — worth having
+  // in the list, and worth not looking like the ones that need somebody.
+  USER_ERROR: "bg-muted text-muted-foreground border-border",
 };
 
 export default function RootDiagnosticsPage() {

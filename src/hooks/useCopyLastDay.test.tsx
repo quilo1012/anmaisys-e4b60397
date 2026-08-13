@@ -121,6 +121,9 @@ async function copy(chosen?: string) {
 beforeEach(() => {
   recorded = [];
   answer = fourPeople();
+  // The undo receipt lives in the browser, so one test's copy is the next one's
+  // leftover unless it is cleared here.
+  window.localStorage.clear();
 });
 
 describe("copyLastLikeDay, choosing the day", () => {
@@ -193,6 +196,133 @@ describe("copyLastLikeDay, choosing who comes across", () => {
   });
 });
 
+/**
+ * Taking the copy back off again.
+ *
+ * The press that fills a board writes seventy rows, and the only way back was seventy
+ * cards opened by hand on a tablet — so a Sunday copied onto a Monday cost twenty
+ * minutes to reverse, and mostly was not reversed. What makes the undo safe is that the
+ * copy writes down which rows it created: a board after a copy holds the people who
+ * were already on it, the people the copy brought, and the people placed by hand since,
+ * and only the middle group is the mistake.
+ */
+describe("undoing a copy", () => {
+  const receipt = () => {
+    const { result } = renderHook(() => useAllocationMutations(ON_DATE, "Night"), { wrapper: wrapper() });
+    return result.current.readUndo();
+  };
+
+  it("has nothing to offer before anything is copied", () => {
+    expect(receipt()).toBeNull();
+  });
+
+  it("names exactly the rows the copy created", async () => {
+    await copy();
+    // Ana is the only one written. Bruno was already here, Carla is booked off and
+    // Diogo has left — none of them is the copy's to take back.
+    expect(receipt()?.allocations).toEqual(["ana"]);
+  });
+
+  it("claims a payroll row only where the copy created one", async () => {
+    await copy();
+    // Carla already had an attendance row, so payroll is not the copy's to undo for
+    // her. Ana had none, and hers came from this press.
+    expect(receipt()?.attendance).toEqual(["ana"]);
+  });
+
+  it("names the day it came from the way somebody reads it", async () => {
+    await copy();
+    expect(receipt()?.sources).toEqual([expect.stringContaining("07 Aug")]);
+  });
+
+  it("leaves nothing to undo when the copy wrote nothing", async () => {
+    const full = fourPeople();
+    answer = (r) =>
+      r.table === "daily_allocations" && r.select === "employee_id"
+        ? [{ employee_id: "ana" }, { employee_id: "bruno" }, { employee_id: "carla" }, { employee_id: "diogo" }]
+        : full(r);
+    await copy();
+    // "Everybody is already accounted for" leaves the board as it found it. Offering
+    // Undo after that press would offer to delete the people who were already there.
+    expect(receipt()).toBeNull();
+  });
+
+  it("carries both presses when a board is copied onto twice", async () => {
+    await copy();
+    const second = fourPeople();
+    answer = (r) => {
+      if (r.table === "daily_allocations" && r.op === "upsert") {
+        return [{ employee_id: "elena", status: "assigned" }];
+      }
+      return second(r);
+    };
+    await copy();
+    // An Undo that only reached the second press would strand the first with nothing
+    // pointing at it — and pressing Copy again is exactly what somebody does when the
+    // first press looked wrong.
+    expect(receipt()?.allocations).toEqual(["ana", "elena"]);
+  });
+
+  it("deletes only the copied people, on this day and this board", async () => {
+    await copy();
+    const r = receipt()!;
+    recorded = [];
+    const { result } = renderHook(() => useAllocationMutations(ON_DATE, "Night"), { wrapper: wrapper() });
+    result.current.undoCopy.mutate(r);
+    await waitFor(() => expect(result.current.undoCopy.isSuccess).toBe(true));
+
+    const del = recorded.find((x) => x.table === "daily_allocations" && x.op === "delete");
+    expect(del?.filters).toEqual({
+      on_date: ON_DATE,
+      shift: "Night",
+      "in:employee_id": ["ana"],
+    });
+    // No blunt "everything on this day" delete anywhere. That is the difference
+    // between an undo and a board wipe, and it is what makes the button pressable.
+    expect(recorded.filter((x) => x.op === "delete" && !x.filters["in:employee_id"])).toEqual([]);
+  });
+
+  it("takes back the payroll rows it created and no others", async () => {
+    await copy();
+    const r = receipt()!;
+    recorded = [];
+    const { result } = renderHook(() => useAllocationMutations(ON_DATE, "Night"), { wrapper: wrapper() });
+    result.current.undoCopy.mutate(r);
+    await waitFor(() => expect(result.current.undoCopy.isSuccess).toBe(true));
+
+    const del = recorded.find((x) => x.table === "employee_attendance" && x.op === "delete");
+    expect(del?.filters).toEqual({ on_date: ON_DATE, "in:employee_id": ["ana"] });
+    // Carla's holiday was on the day before the copy ran. Deleting it here would take
+    // a record the copy never made.
+    expect((del?.filters["in:employee_id"] as string[]).includes("carla")).toBe(false);
+  });
+
+  it("stops offering itself once it has been done", async () => {
+    await copy();
+    const r = receipt()!;
+    const { result } = renderHook(() => useAllocationMutations(ON_DATE, "Night"), { wrapper: wrapper() });
+    result.current.undoCopy.mutate(r);
+    await waitFor(() => expect(result.current.undoCopy.isSuccess).toBe(true));
+    // A receipt left behind is a button offered on a board it can no longer change.
+    expect(receipt()).toBeNull();
+  });
+
+  it("is put away when the copy is accepted instead", async () => {
+    await copy();
+    const { result } = renderHook(() => useAllocationMutations(ON_DATE, "Night"), { wrapper: wrapper() });
+    result.current.keepCopy();
+    expect(receipt()).toBeNull();
+  });
+
+  it("does not offer one board's copy on another day or another shift", async () => {
+    await copy();
+    const other = renderHook(() => useAllocationMutations("2026-08-09", "Night"), { wrapper: wrapper() });
+    const day = renderHook(() => useAllocationMutations(ON_DATE, "Day"), { wrapper: wrapper() });
+    expect(other.result.current.readUndo()).toBeNull();
+    expect(day.result.current.readUndo()).toBeNull();
+  });
+});
+
 describe("copyLastLikeDay, from a day the user names", () => {
   it("takes the day it was given and does not go looking", async () => {
     await copy("2026-08-04");
@@ -217,8 +347,12 @@ describe("copyLastLikeDay, from a day the user names", () => {
     result.current.copyLastLikeDay.mutate({ kind: "day", on_date: "2026-07-31" });
     await waitFor(() => expect(result.current.copyLastLikeDay.isError).toBe(true));
     // "Nobody was copied" and "nobody was there" are different answers, and only one
-    // of them means try another day.
-    expect(result.current.copyLastLikeDay.error?.message).toContain("2026-07-31");
+    // of them means try another day — so the message has to name the day that was
+    // asked for. It names it the way the menu offered it, "Fri 31 Jul", rather than as
+    // an ISO date: this string is read in a toast by somebody deciding which day to
+    // try next, and 2026-07-31 is a string they have to decode first.
+    expect(result.current.copyLastLikeDay.error?.message).toMatch(/31 Jul/);
+    expect(result.current.copyLastLikeDay.error?.message).not.toContain("2026-07-31");
     expect(boardWrite()).toBeUndefined();
   });
 });

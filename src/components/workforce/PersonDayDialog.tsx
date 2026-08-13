@@ -9,10 +9,23 @@ import { UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AllocStatus, HeadcountArea } from "@/hooks/useHeadcount";
 import { describeSchedule, type ShiftPattern } from "@/hooks/useWorkforce";
-import { earlyLeave } from "@/lib/earlyLeave";
+import { partDay } from "@/lib/partDay";
 
 /** The shifts a board can be, which is what `daily_allocations.shift` accepts. */
 const BOARD_SHIFTS = ["Day", "Night", "Weekend"] as const;
+
+/**
+ * An hour into the shift, which is the time to offer somebody ticking "arrived late".
+ *
+ * A hard-coded default cannot serve both boards: 09:00 is a sensible late start on a
+ * 06:00 day and a nonsense one on a night that begins at six in the evening. The rota
+ * knows, so it answers. 09:00 only when there is no rota to ask.
+ */
+function anHourIn(startsAt: string | null | undefined): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec((startsAt ?? "").trim());
+  if (!m) return "09:00";
+  return `${String((Number(m[1]) + 1) % 24).padStart(2, "0")}:${m[2]}`;
+}
 
 const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[] = [
   { value: "assigned", label: "In", hint: "Working their normal day", cls: "border-success/40 bg-success/10 text-success-strong" },
@@ -33,6 +46,7 @@ const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[]
 export function PersonDayDialog({
   open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
   leftEarlyAt, onSetLeftEarlyAt,
+  arrivedLateAt, onSetArrivedLateAt,
   patterns, patternId,
   onSetStatus, onSetArea, onSetShift, onSetPattern, onSetLeader, onRemove,
 }: {
@@ -52,6 +66,9 @@ export function PersonDayDialog({
   /** `"HH:MM"` if they came in and went home early, null if they worked the shift out. */
   leftEarlyAt: string | null;
   onSetLeftEarlyAt: (v: string | null) => void;
+  /** `"HH:MM"` if they came in after the shift started, null if they were in on time. */
+  arrivedLateAt: string | null;
+  onSetArrivedLateAt: (v: string | null) => void;
   onSetArea: (areaId: string) => void;
   onSetShift: (shiftGroup: string) => void;
   onSetPattern: (patternId: string | null) => void;
@@ -66,13 +83,23 @@ export function PersonDayDialog({
   // Null when the person has no rota: without one there is no shift length to measure
   // the shortfall against, and "0h unpaid" would be worse than saying nothing.
   const rota = patternId ? patterns.find((p) => p.id === patternId) : null;
+  // One reading for both ends of the day. Two calls added together would deduct the
+  // break twice from somebody who came in late and went home early.
   const cut = rota
-    ? earlyLeave(leftEarlyAt, {
-        startsAt: (rota as any).starts_at,
-        endsAt: (rota as any).ends_at,
-        breakMinutes: (rota as any).break_minutes,
+    ? partDay({ arrivedLateAt, leftEarlyAt }, {
+        startsAt: rota.starts_at,
+        endsAt: rota.ends_at,
+        breakMinutes: rota.break_minutes,
       })
     : null;
+  // Shown under whichever box was ticked last, so the figure sits beside the time that
+  // changed it. Under both would print the same two numbers twice.
+  const cost = cut && (
+    <span className="text-2xs text-muted-foreground">
+      {cut.workedHours}h worked ·{" "}
+      <b className="text-warning-strong">{cut.missedHours}h unpaid</b>
+    </span>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -145,50 +172,101 @@ export function PersonDayDialog({
                 fact, with the time, because "he went early" and "he wasn't in" are
                 the two things a supervisor must never have to guess between. */}
             {(status === "assigned" || status === "overtime") && (
-              <div className="mt-2 rounded-lg border p-2.5">
-                <label className={cn(
-                  "flex items-center gap-2.5 text-xs",
-                  canManage ? "cursor-pointer" : "opacity-60",
-                )}>
-                  <Checkbox
-                    checked={leftEarlyAt !== null}
-                    disabled={!canManage}
-                    // A default of 14:00 so the common case is one click; the time
-                    // stays editable and is what actually gets recorded.
-                    onCheckedChange={(v) => onSetLeftEarlyAt(v === true ? "14:00" : null)}
-                  />
-                  <span>
-                    <span className="font-semibold">Left early</span>
-                    <span className="block text-2xs text-muted-foreground">
-                      Came in and went home before the end of the shift.
-                    </span>
-                  </span>
-                </label>
-
-                {leftEarlyAt !== null && (
-                  <div className="mt-2 flex items-center gap-2 pl-7">
-                    <Label htmlFor="left-early-at" className="text-2xs text-muted-foreground">
-                      Went home at
-                    </Label>
-                    <Input
-                      id="left-early-at"
-                      type="time"
-                      value={leftEarlyAt}
+              <div className="mt-2 space-y-2 rounded-lg border p-2.5">
+                {/* Came in late, which is the same fact as leaving early read from the
+                    other end and the one the board had no word for at all. Somebody due
+                    at six who walked in at nine was stored exactly like somebody who was
+                    there at six, and the three hours the line ran a body short existed
+                    nowhere. First in the box because it happens first in the day. */}
+                <div>
+                  <label className={cn(
+                    "flex items-center gap-2.5 text-xs",
+                    canManage ? "cursor-pointer" : "opacity-60",
+                  )}>
+                    <Checkbox
+                      checked={arrivedLateAt !== null}
                       disabled={!canManage}
-                      onChange={(e) => onSetLeftEarlyAt(e.target.value || null)}
-                      className="h-8 w-28"
+                      // An hour into their own shift, so the common case is one click.
+                      // The time stays editable and is what actually gets recorded.
+                      onCheckedChange={(v) =>
+                        onSetArrivedLateAt(v === true ? anHourIn(rota?.starts_at) : null)}
                     />
-                    {/* What the time costs, said where it is typed. The board stored
-                        this for months and no screen ever turned it into hours, so
-                        somebody who went home two hours into an eleven-hour shift
-                        counted as a full day everywhere. */}
-                    {cut && (
-                      <span className="text-2xs text-muted-foreground">
-                        {cut.workedHours}h worked ·{" "}
-                        <b className="text-warning-strong">{cut.missedHours}h unpaid</b>
+                    <span>
+                      <span className="font-semibold">Arrived late</span>
+                      <span className="block text-2xs text-muted-foreground">
+                        Came in after the shift had started.
                       </span>
-                    )}
-                  </div>
+                    </span>
+                  </label>
+
+                  {arrivedLateAt !== null && (
+                    <div className="mt-2 flex items-center gap-2 pl-7">
+                      <Label htmlFor="arrived-late-at" className="text-2xs text-muted-foreground">
+                        Came in at
+                      </Label>
+                      <Input
+                        id="arrived-late-at"
+                        type="time"
+                        value={arrivedLateAt}
+                        disabled={!canManage}
+                        onChange={(e) => onSetArrivedLateAt(e.target.value || null)}
+                        className="h-8 w-28"
+                      />
+                      {leftEarlyAt === null && cost}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t pt-2">
+                  <label className={cn(
+                    "flex items-center gap-2.5 text-xs",
+                    canManage ? "cursor-pointer" : "opacity-60",
+                  )}>
+                    <Checkbox
+                      checked={leftEarlyAt !== null}
+                      disabled={!canManage}
+                      // A default of 14:00 so the common case is one click; the time
+                      // stays editable and is what actually gets recorded.
+                      onCheckedChange={(v) => onSetLeftEarlyAt(v === true ? "14:00" : null)}
+                    />
+                    <span>
+                      <span className="font-semibold">Left early</span>
+                      <span className="block text-2xs text-muted-foreground">
+                        Went home before the end of the shift.
+                      </span>
+                    </span>
+                  </label>
+
+                  {leftEarlyAt !== null && (
+                    <div className="mt-2 flex items-center gap-2 pl-7">
+                      <Label htmlFor="left-early-at" className="text-2xs text-muted-foreground">
+                        Went home at
+                      </Label>
+                      <Input
+                        id="left-early-at"
+                        type="time"
+                        value={leftEarlyAt}
+                        disabled={!canManage}
+                        onChange={(e) => onSetLeftEarlyAt(e.target.value || null)}
+                        className="h-8 w-28"
+                      />
+                      {/* What the times cost, said where they are typed. The board stored
+                          the early finish for months and no screen ever turned it into
+                          hours, so somebody who went home two hours into an eleven-hour
+                          shift counted as a full day everywhere. */}
+                      {cost}
+                    </div>
+                  )}
+                </div>
+
+                {/* Said once, under both, because it is the pair that surprises people:
+                    neither of these takes the person off the line. They were there for
+                    the part between the two times, and the column still counts them. */}
+                {(arrivedLateAt !== null || leftEarlyAt !== null) && !rota && (
+                  <p className="text-2xs text-muted-foreground">
+                    No rota on file, so the hours cannot be worked out — the times are
+                    recorded, but nothing can say what they cost.
+                  </p>
                 )}
               </div>
             )}

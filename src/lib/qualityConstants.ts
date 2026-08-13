@@ -1,3 +1,5 @@
+import { railEdge } from "@/lib/rail";
+
 // Shared option lists for the Quality Actions module (SafetyCulture-style).
 
 export const QUALITY_LABELS = [
@@ -45,10 +47,12 @@ export interface QualitySeverity {
 }
 
 export const QUALITY_SEVERITIES: QualitySeverity[] = [
-  { value: "low", label: "Low", badge: "bg-muted text-muted-foreground border-border", accent: "border-l-muted-foreground", points: 1 },
-  { value: "medium", label: "Medium", badge: "bg-warning/15 text-warning-strong border-warning/40", accent: "border-l-warning", points: 2 },
-  { value: "high", label: "High", badge: "bg-warning/15 text-warning-strong border-warning/40", accent: "border-l-warning", points: 3 },
-  { value: "critical", label: "Critical", badge: "bg-destructive/15 text-destructive-strong border-destructive/40", accent: "border-l-destructive", points: 4 },
+  // O acento é a barra de estado do sistema, à largura do sistema. Escrito à mão aqui,
+  // uma acção crítica tinha um vermelho de 4 px e uma linha parada um de 3 px.
+  { value: "low", label: "Low", badge: "bg-muted text-muted-foreground border-border", accent: railEdge("idle"), points: 1 },
+  { value: "medium", label: "Medium", badge: "bg-warning/15 text-warning-strong border-warning/40", accent: railEdge("hold"), points: 2 },
+  { value: "high", label: "High", badge: "bg-warning/15 text-warning-strong border-warning/40", accent: railEdge("hold"), points: 3 },
+  { value: "critical", label: "Critical", badge: "bg-destructive/15 text-destructive-strong border-destructive/40", accent: railEdge("stop"), points: 4 },
 ];
 
 export function severityMeta(value: string | null | undefined): QualitySeverity | null {
