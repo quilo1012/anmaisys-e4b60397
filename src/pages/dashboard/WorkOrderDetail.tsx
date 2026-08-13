@@ -23,7 +23,7 @@ import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { RecordMissedDowntime } from "@/components/RecordMissedDowntime";
 import { TeamActivityExclusions } from "@/components/TeamActivityExclusions";
 import { useWoExclusions } from "@/hooks/useWoExclusions";
-import { activityLabel, subtractExclusionMinutes, toExclusionIntervals } from "@/lib/downtimeExclusions";
+import { activityLabel, exclusionOverlapMs, lineDowntimeSecFromStops, mergeIntervals, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { splitWoNotes } from "@/lib/woNotes";
 import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
