@@ -133,8 +133,10 @@ export const ITOUCH_STATUS_MEANING = new Map<number, "RUNNING" | "STOPPED_NO_COD
   [1, "RUNNING"],
   [2, "RUNNING"],
   [4, "RUNNING"],
+  [6, "RUNNING"],
   [8, "RUNNING"],
 ]);
+
 
 /** A reading older than this is not a state, it is a memory. */
 export const STALE_AFTER_SECONDS = 90;
