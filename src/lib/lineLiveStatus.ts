@@ -102,11 +102,20 @@ export type LiveState =
  * standard, 4 while it was not. This board does not need that distinction; it
  * needs both to be green, and the pace has its own rail on the card.
  *
- * 5 and 6 stay ABSENT, and 6 is the one that matters: it has been seen twice and
- * the two point opposite ways — Filler Line 2 reading "Running" on 12/08, Filler
- * Line 5 acquiring a stop code two minutes later on 13/08. Writing either one
- * here would give a guess the same appearance as the lines above it, which now
- * carry evidence. It stays "STATUS 6 · UNKNOWN" until a pair is observed.
+ * 6 IS RUNNING, settled on 13/08 between 08:30 and 08:35 UTC, and this entry is
+ * the one that must not be lost in a merge: it was settled on `main` while this
+ * branch was open, and a branch carrying the older four-value table would put the
+ * grey "STATUS 6 · UNKNOWN" pill back on running lines. The evidence:
+ * `intouch_status_log` shows Filler Lines 1 and 5 alternating minute by minute
+ * between 4 and 6 with no stop code (Line 5: 08:30 → 6, 08:31 → 4, 08:33 → 6,
+ * 08:34 → 4), with the supervisor reading both GREEN and "Running" on the vendor's
+ * board at those minutes. In the day so far 6 appeared 11 times and never once
+ * carried a code — the same signature as 4 and 8. Stops here always arrive as
+ * status 7 WITH a code, so 6 joins 4 and 8 as one running machine whose number
+ * moves with pace.
+ *
+ * 5 stays ABSENT: never yet observed on a real line in this installation, so it
+ * remains "STATUS 5 · UNKNOWN" until it gets its own paired observation.
  *
  * AND THE THING THIS TABLE CANNOT DO, WHICH SOMEBODY SHOULD FIX ABOVE IT. Every
  * value arrives the same way: a number nobody has seen shows up grey, and stays
@@ -125,6 +134,7 @@ export const ITOUCH_STATUS_MEANING = new Map<number, "RUNNING" | "STOPPED_NO_COD
   [1, "RUNNING"],
   [2, "RUNNING"],
   [4, "RUNNING"],
+  [6, "RUNNING"],
   [8, "RUNNING"],
 ]);
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
+import { useLineLiveStatus } from "@/hooks/useLineLiveStatus";
+import { buildLineStatusRows } from "@/lib/lineStatusPanel";
+import type { LiveReading } from "@/lib/lineLiveStatus";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { usePmSchedules, pmStatus } from "@/hooks/usePreventiveMaintenance";
 import { useRole } from "@/hooks/useRole";
@@ -50,6 +53,8 @@ export function ControlCentreHome() {
   const { data: workOrders, isLoading: loadingWOs } = useWorkOrders();
   const { alerts, machineRisks } = usePredictiveAlerts();
   const { data: pmSchedules } = usePmSchedules();
+  // The same rows, through the same query key, that the production board reads.
+  const { data: liveRows = [] } = useLineLiveStatus();
 
   const { data: lines } = useQuery({
     queryKey: ["lines_min"],
@@ -90,19 +95,36 @@ export function ControlCentreHome() {
     };
   }, [workOrders]);
 
+  // The panel's second hand. The live read arrives every 20s, and a stop counter
+  // that jumped twenty seconds at a time would read as broken.
+  const [second, setSecond] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSecond((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   const lineState = useMemo(() => {
-    // A line is down when an order says it is stopped and nobody has resumed it —
-    // the same rule the downtime calculation uses, not a second opinion.
+    // A line's state is iTouching's to report — see `lineStatusPanel.ts` for the
+    // ten green lines this panel used to print over six stopped machines.
+    const liveByLine = new Map<string, LiveReading>();
+    for (const r of liveRows) {
+      liveByLine.set(String(r.line ?? "").trim().toLowerCase(), {
+        status: r.status,
+        reason: r.reason,
+        planned: r.planned,
+        seenAt: r.seen_at ? new Date(r.seen_at) : null,
+        stopSince: r.stop_since ? new Date(r.stop_since) : null,
+      });
+    }
+    // And an open order saying the line is stopped stays its own separate fact.
     const stoppedByLine = new Map<string, number>();
     for (const w of wo.stoppedNow) {
       const name = (w.line_at_time || "").trim();
       if (name) stoppedByLine.set(name, (stoppedByLine.get(name) ?? 0) + 1);
     }
-    return (lines ?? []).map((l) => ({
-      ...l,
-      stopped: stoppedByLine.get(l.name) ?? 0,
-    }));
-  }, [lines, wo.stoppedNow]);
+    return buildLineStatusRows(lines ?? [], liveByLine, stoppedByLine, new Date());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `second` is the ticker that re-runs the clock
+  }, [lines, liveRows, wo.stoppedNow, second]);
 
   const quality = useMemo(() => {
     const rows = qualityActions ?? [];
@@ -124,7 +146,11 @@ export function ControlCentreHome() {
   /** Everything that wants a person, worst first. */
   const criticalAlerts = useMemo(() => {
     const out: Array<{ key: string; label: string; detail: string; tone: "danger" | "warning"; to: string }> = [];
-    const stoppedLines = lineState.filter((l) => l.stopped > 0);
+    // This one stays the WORK ORDER's claim, not iTouching's, because that is what
+    // it links to and what wants a person: an engineer was called out and nobody
+    // has resumed the line. A planned clean is a stopped machine and is nobody's
+    // emergency; it belongs on the panel below, not in this list.
+    const stoppedLines = lineState.filter((l) => l.woStopped > 0);
     if (stoppedLines.length && showWorkOrders) {
       out.push({
         key: "down", tone: "danger", label: `${stoppedLines.length} line${stoppedLines.length === 1 ? "" : "s"} down`,
@@ -151,7 +177,13 @@ export function ControlCentreHome() {
 
   if (loadingWOs) return <Skeleton className="h-64" />;
 
-  const linesDown = lineState.filter((l) => l.stopped > 0).length;
+  // Counted off iTouching, so the tile and the panel below it cannot say different
+  // numbers. A line this board cannot read is in neither count — it is not running
+  // and it is not stopped, it is unreadable, and the panel says which.
+  const linesRunning = lineState.filter((l) => l.live.state === "RUNNING").length;
+  const linesDown = lineState.filter((l) =>
+    l.live.state === "PLANNED_STOP" || l.live.state === "UNPLANNED_STOP" || l.live.state === "STOPPED_NO_CODE",
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -162,7 +194,7 @@ export function ControlCentreHome() {
           icon={<Factory className="h-4 w-4" />}
           onClick={() => navigate("/dashboard/downtime")}
           rows={[
-            { label: "Running", value: (lines?.length ?? 0) - linesDown, tone: "ok" },
+            { label: "Running", value: linesRunning, tone: "ok" },
             { label: "Down", value: linesDown, tone: linesDown ? "danger" : "muted" },
             { label: "Lines on file", value: lines?.length ?? 0 },
           ]}
@@ -247,7 +279,7 @@ export function ControlCentreHome() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Line status</CardTitle>
-            <CardDescription>A line is down while an order says it stopped and nobody has resumed it.</CardDescription>
+            <CardDescription>Straight from iTouching, in its own words. Worst first.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-1.5 sm:grid-cols-2">
             {(lineState ?? []).map((l) => (
@@ -256,12 +288,30 @@ export function ControlCentreHome() {
                 type="button"
                 onClick={() => navigate(`/dashboard/downtime?line=${encodeURIComponent(l.name)}`)}
                 className="flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition-colors hover:bg-accent/50"
+                title={[
+                  l.live.ageSeconds == null
+                    ? "iTouching has never reported this machine"
+                    : `iTouching, read ${l.live.ageSeconds}s ago${l.live.rawStatus != null ? ` · status ${l.live.rawStatus}` : ""}`,
+                  l.woStopped ? `${l.woStopped} open work order says this line is stopped` : null,
+                ].filter(Boolean).join(" · ")}
               >
-                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", l.stopped ? "bg-destructive" : "bg-success")} />
+                {/* iTouching's own hue, at full strength in the dot and nowhere else:
+                    twelve colours picked for a white industrial panel cannot all be
+                    read against a dark theme. Grey where this board cannot say. */}
+                <span
+                  className={cn("h-2.5 w-2.5 shrink-0 rounded-full", l.hue ? "" : "bg-muted-foreground")}
+                  style={l.hue ? { backgroundColor: l.hue } : undefined}
+                />
                 <span className="min-w-0 flex-1 truncate">{l.name}</span>
+                {/* Verbatim, and NOT uppercased — "No Planned Shift", "Line
+                    Preparation", "Deep Clean" are the words on the iTouching screen,
+                    and the person reading both must not have to translate. */}
                 <Badge variant="outline" className="shrink-0 text-2xs">
-                  {l.stopped ? `Down · ${l.stopped}` : "Running"}
+                  {l.live.label}{l.stopFor ? ` · ${l.stopFor}` : ""}
                 </Badge>
+                {/* An engineer was called out and nobody resumed the line: its own
+                    fact, and it earns its own mark rather than overwriting the state. */}
+                {l.woStopped > 0 && <Wrench className="h-3 w-3 shrink-0 text-destructive-strong" />}
               </button>
             ))}
           </CardContent>

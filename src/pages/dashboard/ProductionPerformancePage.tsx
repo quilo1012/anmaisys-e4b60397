@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
+import { useLineLiveStatus } from "@/hooks/useLineLiveStatus";
 import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
 import { shiftClockPct, lineReading, BEHIND_TOLERANCE_PTS, BAND_STATUS, LINE_STATUS, LINE_MESSAGES, LINE_NEEDS_ACTION, type ScoreBand } from "@/lib/linePerformance";
 import { AndonBar } from "@/components/ui/AndonBar";
@@ -229,19 +230,9 @@ export default function ProductionPerformancePage() {
    * shift being reported on; this is about the minute you are standing in, and a
    * line can be behind for the shift and running perfectly right now.
    */
-  const { data: liveRows = [] } = useQuery({
-    queryKey: ["line-live-status"],
-    refetchInterval: 20_000,
-    refetchIntervalInBackground: false,
-    queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the view is newer than the generated types
-      const { data, error } = await (supabase as any)
-        .from("v_line_live_status")
-        .select("line, machine, status, reason, planned, seen_at, stop_since, job_code, job_name, job_state, job_seen_at");
-      if (error) throw error;
-      return (data ?? []) as { line: string; machine: string | null; status: number | null; reason: string | null; planned: boolean | null; seen_at: string | null; stop_since: string | null; job_code: string | null; job_name: string | null; job_state: string | null; job_seen_at: string | null }[];
-    },
-  });
+  // In `useLineLiveStatus`, so the Control Centre's panel reads the same rows off
+  // the same query key and the two screens cannot name different states.
+  const { data: liveRows = [] } = useLineLiveStatus();
 
   // The board's own second hand. The live read arrives every 20s; a stop counter
   // that jumped twenty seconds at a time would read as broken, and this is the one

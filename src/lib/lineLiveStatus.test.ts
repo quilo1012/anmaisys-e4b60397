@@ -128,7 +128,9 @@ describe("a line with no stop code is not thereby running", () => {
     // autorização para pintar verde — foi essa a leitura errada de 12/08, quando
     // sete linhas ficaram verdes e a Line 5 estava a ser limpa. Continua a ser o
     // estado a decidir, e um estado por traduzir não decide nada.
-    for (const status of [6, 7]) {
+    // 5 e 7: o 6 saiu desta lista em 13/08, quando foi lido em paralelo com o ecrã
+    // do fornecedor e ficou traduzido — ver o teste do 6, mais abaixo.
+    for (const status of [5, 7]) {
       expect(classifyLive(reading({ status }), now).state).not.toBe("RUNNING");
     }
   });
@@ -148,7 +150,7 @@ describe("a line with no stop code is not thereby running", () => {
     // Por isso este ecrã deixa de responder à pergunta. Um estado fora do mapa
     // não é produção nem paragem; é um número que ninguém traduziu, e dizê-lo é
     // a única leitura que não inventa nada.
-    for (const status of [6, 7]) {
+    for (const status of [5, 7]) {
       expect(classifyLive(reading({ status }), now).state).not.toBe("STOPPED_NO_CODE");
     }
   });
@@ -190,16 +192,30 @@ describe("a line with no stop code is not thereby running", () => {
     expect(r.label).toBe("RUNNING");
   });
 
-  it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
-    // O 6 continua por traduzir, e é o único que resta. Foi visto duas vezes e as
-    // duas apontam para lados opostos: em 12/08 a Filler Line 2 estava em 6 e
-    // lia "Running"; em 13/08 a Filler Line 5 estava em 6 e dois minutos depois
-    // tinha "Brushing and Cleaning", ou seja, tinha parado. Escrever um dos dois
-    // aqui seria dar a um palpite a mesma aparência que o 4 acabou de ganhar.
+  it("reads status 6 as running — o último dos quatro números desta instalação", () => {
+    // Traduzido em 13/08 entre as 08:30 e as 08:35 UTC. O `intouch_status_log` tem
+    // a Filler Line 1 e a Filler Line 5 a alternar ao minuto entre 4 e 6 sem código
+    // nenhum (Line 5: 08:30 → 6, 08:31 → 4, 08:33 → 6, 08:34 → 4), e o supervisor a
+    // confirmar as duas VERDES e "Running" no ecrã do fornecedor nesses minutos. No
+    // dia inteiro o 6 apareceu 11 vezes e nunca trouxe código — a mesma assinatura
+    // do 4 e do 8. As paragens aqui chegam sempre como 7 COM código.
+    //
+    // Este teste é a rede: o 6 foi resolvido em `main` com este ramo aberto, e uma
+    // tabela de quatro valores voltada a entrar por merge repõe a pastilha cinzenta
+    // por cima de linhas que estão a encher.
     const r = classifyLive(reading({ status: 6 }), now);
+    expect(r.state).toBe("RUNNING");
+    expect(r.label).toBe("RUNNING");
+  });
+
+  it("shows the raw status in the pill, so the floor can quote it to the vendor", () => {
+    // O 5 é o que resta por ver: nunca foi observado numa linha real desta
+    // instalação, e escrever um palpite aqui dar-lhe-ia a mesma aparência que o 4,
+    // o 6 e o 8, que trazem pares observados.
+    const r = classifyLive(reading({ status: 5 }), now);
     expect(r.state).toBe("UNKNOWN_STATUS");
-    expect(r.label).toBe("STATUS 6 · UNKNOWN");
-    expect(r.rawStatus).toBe(6);
+    expect(r.label).toBe("STATUS 5 · UNKNOWN");
+    expect(r.rawStatus).toBe(5);
     expect(r.stoppedForSeconds).toBeNull();
   });
 
