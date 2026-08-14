@@ -303,6 +303,36 @@ export function balanceLabel(plannedQty: number | null | undefined, produced: nu
 }
 
 /**
+ * A distância ao plano em pontos percentuais — `10%`, não `110%`.
+ *
+ * É a conta da linha VARIANCE % do RAG Weekly, escrita como lá se escreve: sem
+ * `+` à frente de um ganho, com `-` à frente de uma perda. O mesmo facto —
+ * 3.546 feitos contra 3.233 planeados — lia-se `110%` no cartão da Performance e
+ * `10%` na célula do RAG, e quem tivesse os dois ecrãs abertos tinha de saber de
+ * cor qual das duas gramáticas estava a ler.
+ *
+ * As bordas contam tanto como a fórmula, e são as do RAG:
+ *
+ * - sem plano e sem produção: `—`. Não há nada para medir.
+ * - sem plano mas com produção: `N/A`. Fez-se sem estar planeado; dividir por
+ *   zero daria infinito e cortá-lo a 100% afirmava um plano que não existe.
+ * - com plano e sem produção: `-100%`, que é a própria fórmula, escrita à parte
+ *   só para deixar dito que é um zero medido e não uma divisão falhada.
+ *
+ * NÃO é a conta da cor. A cor continua a sair de `clockBand`, da distância entre
+ * o feito e o relógio do turno — a meio de um turno de doze horas, -50% contra o
+ * plano do dia inteiro é exactamente onde uma linha saudável deve estar.
+ */
+export function planVarianceLabel(actual: number, target: number): string {
+  const plan = Number(target) || 0;
+  const made = Number(actual) || 0;
+  if (plan <= 0 && made <= 0) return "—";
+  if (plan <= 0) return "N/A";
+  if (made <= 0) return "-100%";
+  return `${Math.round(((made - plan) / plan) * 100)}%`;
+}
+
+/**
  * Minutos desde a última entrada do operador, ou nulo quando não há nenhuma.
  * Mostra-se ao lado do número porque é a diferença entre "a linha fez isto" e
  * "alguém nos disse isto há duas horas".

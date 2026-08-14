@@ -22,7 +22,7 @@ import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shift
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { useLineLiveStatus } from "@/hooks/useLineLiveStatus";
 import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
-import { shiftClockPct, lineReading, BEHIND_TOLERANCE_PTS, BAND_STATUS, LINE_STATUS, LINE_MESSAGES, LINE_NEEDS_ACTION, type ScoreBand } from "@/lib/linePerformance";
+import { shiftClockPct, lineReading, planVarianceLabel, BEHIND_TOLERANCE_PTS, BAND_STATUS, LINE_STATUS, LINE_MESSAGES, LINE_NEEDS_ACTION, type ScoreBand } from "@/lib/linePerformance";
 import { AndonBar } from "@/components/ui/AndonBar";
 import { cn } from "@/lib/utils";
 import { ANDON_FIELD } from "@/lib/rail";
@@ -878,7 +878,11 @@ export default function ProductionPerformancePage() {
           const behind = `${BEHIND_TOLERANCE_PTS} pts`;
           const key: [string, string, string][] = isCurrentShiftView
             ? [["bg-success", "≥", "keeping up with the clock"], ["bg-warning", `−${behind}`, "behind the clock"], ["bg-destructive", `>${behind}`, "behind the clock"]]
-            : [["bg-success", "≥100%", "on target"], ["bg-warning", "85–99%", "behind"], ["bg-destructive", "<85%", "critical"]];
+            /* Em distância ao plano, porque é isso que os cartões imprimem desde que
+               deixaram de dizer 110% e passaram a dizer 10%. Os degraus são os mesmos
+               — cumprir o plano, quinze pontos abaixo, mais do que isso —, contados a
+               partir do zero em vez de a partir dos cem. */
+            : [["bg-success", "≥0%", "on target"], ["bg-warning", `−1 a −${BEHIND_TOLERANCE_PTS}%`, "behind"], ["bg-destructive", `<−${BEHIND_TOLERANCE_PTS}%`, "critical"]];
           return (
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b pb-2.5">
               <span className="font-display text-2xs font-bold uppercase leading-none tracking-[0.13em] text-foreground">
@@ -1165,7 +1169,7 @@ export default function ProductionPerformancePage() {
                         </div>
                         <div className="text-right">
                           <div className="font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                            Of target
+                            Vs target
                           </div>
                           {/* The one figure that carries colour. The rail says WHICH
                               state from across the room; this says HOW MUCH where the
@@ -1173,16 +1177,24 @@ export default function ProductionPerformancePage() {
                               foreground or muted — four colour carriers on one card is
                               how a board teaches people to stop looking at it.
 
-                              O número é a fatia do alvo do turno — 299 de 3.233 — e é
-                              o mesmo facto que a barra logo abaixo enche e que o 3.233
-                              ao lado dela nomeia. Três sítios, uma conta.
+                              O número é a DISTÂNCIA ao plano — 10%, não 110% —, que é a
+                              mesma coisa que o "+313 vs target" no rodapé diz em peças
+                              e a mesma função que a linha VARIANCE % do RAG Weekly
+                              imprime para esta linha e este turno. Era aqui que os dois
+                              ecrãs se contradiziam sem discordar: 3.546 contra 3.233
+                              lia-se `110%` neste cartão e `10%` na célula do RAG, e
+                              quem tivesse os dois abertos tinha de saber de cor qual
+                              das gramáticas estava a ler. A conta e as suas bordas
+                              (—, N/A, -100%) vivem em `planVarianceLabel`, que as duas
+                              páginas chamam.
 
-                              A COR sai da distância entre este número e o do relógio,
-                              logo por baixo. É por isso que o relógio está escrito: a
-                              cinco horas de doze, 9% do alvo não é um veredicto por si
-                              — 9% contra 42% do turno é. */}
+                              A COR não é esta conta. Sai da distância entre o feito e o
+                              relógio, logo por baixo — é por isso que o relógio está
+                              escrito: a cinco horas de doze, -91% contra o plano do dia
+                              inteiro não é um veredicto por si; -91% contra 42% do
+                              turno passado é. */}
                           <div className={`mt-1 font-figure text-[2rem] font-bold leading-none tracking-[-0.02em] ${effColor}`}>
-                            {Math.round(score ? score.attainedPct : l.eff)}%
+                            {planVarianceLabel(l.actual, l.target)}
                           </div>
                           {/* O outro metade da conta da cor, em surdina. A ranhura fica
                               mesmo num período fechado, onde não há relógio a correr,

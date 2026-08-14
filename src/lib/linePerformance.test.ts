@@ -4,6 +4,7 @@ import {
   clockBand,
   lineReading,
   lastEntryAgeMinutes,
+  planVarianceLabel,
   itemClockPct,
   BEHIND_TOLERANCE_PTS,
   BAND_STATUS,
@@ -174,6 +175,34 @@ describe("lineReading — os estados que não são uma percentagem", () => {
  * a função recebia uma lista de `undefined` e devolvia null — e o rodapé dizia
  * "nothing entered yet" numa linha a produzir, sem erro nenhum em lado nenhum.
  */
+describe("planVarianceLabel — a mesma gramática do RAG Weekly", () => {
+  it("escreve a distância ao plano, não a fatia dele", () => {
+    // O caso que motivou a troca: o cartão da Line 1 dizia 110% e a mesma
+    // célula do RAG Weekly dizia 10%.
+    expect(planVarianceLabel(3546, 3233)).toBe("10%");
+  });
+
+  it("escreve-se como no RAG Weekly: sem `+`, com `-`", () => {
+    // A tabela do RAG imprime `19%` e `-13%`. Um `+10%` de um lado e um `10%`
+    // do outro é a mesma contradição, mais pequena.
+    expect(planVarianceLabel(6216, 5237)).toBe("19%");
+    expect(planVarianceLabel(4429, 5102)).toBe("-13%");
+    expect(planVarianceLabel(3233, 3233)).toBe("0%");
+  });
+
+  it("não mede o que não tem plano nem produção", () => {
+    expect(planVarianceLabel(0, 0)).toBe("—");
+  });
+
+  it("diz N/A quando se fez sem plano — dividir por zero não é 0%", () => {
+    expect(planVarianceLabel(1200, 0)).toBe("N/A");
+  });
+
+  it("um plano sem nada feito é -100%, não '—'", () => {
+    expect(planVarianceLabel(0, 3233)).toBe("-100%");
+  });
+});
+
 describe("lastEntryAgeMinutes", () => {
   const now = new Date("2026-08-13T12:00:00Z");
 
