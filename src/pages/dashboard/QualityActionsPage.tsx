@@ -194,6 +194,11 @@ export function QualityActionsView() {
       return (data ?? []).filter((x) => x.name && x.name.trim()) as { name: string }[];
     },
   });
+  // "Office" isn't a production line, but quality actions get raised there too.
+  const lineOptions = useMemo(
+    () => (lines.some((l) => l.name.toLowerCase() === "office") ? lines : [...lines, { name: "Office" }]),
+    [lines],
+  );
   const { data: leaders = [] } = useQuery({
     queryKey: ["line_leaders_active"],
     queryFn: async () => {
@@ -512,11 +517,6 @@ export function QualityActionsView() {
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>{editingId ? "Edit quality action" : "Log quality action"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Action #</Label>
-                      <Input placeholder="e.g. AC-6114" value={form.action_no} onChange={(e) => setForm({ ...form, action_no: e.target.value })} />
-                    </div>
-                  </div>
                   <div><Label>Severity</Label>
                     <Select value={form.severity || "__none__"} onValueChange={(v) => setForm({ ...form, severity: v === "__none__" ? "" : v })}>
                       <SelectTrigger><SelectValue placeholder="Pick severity" /></SelectTrigger>
@@ -530,7 +530,7 @@ export function QualityActionsView() {
                     <div className="min-w-0"><Label>Line</Label>
                       <Select value={form.line} onValueChange={(v) => setForm({ ...form, line: v })}>
                         <SelectTrigger><SelectValue placeholder="Pick line" /></SelectTrigger>
-                        <SelectContent>{lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+                        <SelectContent>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="min-w-0"><Label>Date</Label>
@@ -650,7 +650,7 @@ export function QualityActionsView() {
           </Select>
           <Select value={filterLine} onValueChange={setFilterLine}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+            <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={filterDept} onValueChange={setFilterDept}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
