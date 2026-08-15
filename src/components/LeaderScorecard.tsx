@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -152,10 +153,15 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
   });
 
   const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
+  const { excluded, ready: attributionReady } = useLeaderAttribution();
   const result = useMemo(
-    () => computeScorecard({ ...EMPTY_RAW, actions, completes, sessions, ragRows, items, woRequests }, period, weights),
+    () => computeScorecard(
+      { ...EMPTY_RAW, actions, completes, sessions, ragRows, items, woRequests },
+      period,
+      { weights, excludedLabels: excluded },
+    ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- period is rebuilt each render from these three
-    [actions, completes, sessions, ragRows, items, woRequests, from, to, shift, weights],
+    [actions, completes, sessions, ragRows, items, woRequests, from, to, shift, weights, excluded],
   );
 
   const { data: profileNames = [] } = useProfileNames();
@@ -201,7 +207,13 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
         </DialogHeader>
 
         <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-          <LeaderScorecardBody leaderName={leaderName} period={period} result={result} />
+          {/* Every figure below is weighted, and the quality score is a subtraction.
+              Drawing it before attribution lands would show the leader a worse score
+              than they have, then correct it — on the one screen where being wrong
+              about somebody costs the most. */}
+          {attributionReady
+            ? <LeaderScorecardBody leaderName={leaderName} period={period} result={result} />
+            : <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>}
         </div>
       </DialogContent>
     </Dialog>

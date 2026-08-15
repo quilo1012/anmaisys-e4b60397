@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, ChevronDown } from "lucide-react";
 import { leaderTracking, type LeaderTrackingRow, type TrackedAction } from "@/lib/leaderTracking";
-import { useLabelAttribution, excludedLabelSet } from "@/hooks/useLabelAttribution";
+import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { PointsPending } from "@/components/quality/PointsPending";
 import { cn } from "@/lib/utils";
 
 export interface QualityTrackingByLeaderProps {
@@ -138,8 +139,10 @@ function LeaderRow({
  * sign: the table records what was raised, and leaves what it costs to the scorecard.
  */
 export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }: QualityTrackingByLeaderProps) {
-  const { data: attribution } = useLabelAttribution();
-  const excluded = useMemo(() => excludedLabelSet(attribution), [attribution]);
+  // Nothing is drawn until attribution is in: an empty exclusion set is a valid
+  // answer meaning "everything counts", so rendering early shows every leader an
+  // inflated total and then corrects it in front of them.
+  const { excluded, ready, failed } = useLeaderAttribution();
   const rows = useMemo(() => leaderTracking(actions, excluded), [actions, excluded]);
   const [showAll, setShowAll] = useState(false);
 
@@ -166,7 +169,16 @@ export function QualityTrackingByLeader({ actions, periodLabel, onSelectLeader }
         </span>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col pt-0">
-        {rows.length === 0 ? (
+        {/* The whole table waits, not just the Points cells: the rows are SORTED by
+            points and the fold hides everyone on zero, so drawing it early would put
+            the wrong leaders at the top and hide the right ones. */}
+        {!ready ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            {failed
+              ? "Points are unavailable: the label attribution table could not be read."
+              : "Working out which actions count…"}
+          </p>
+        ) : rows.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No quality actions in this period.
           </p>

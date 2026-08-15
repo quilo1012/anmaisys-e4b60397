@@ -1,4 +1,4 @@
-import { severityPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
+import { actionPoints, standsAgainstLeader, isValidatedPaperwork } from "@/lib/qualityConstants";
 
 /**
  * Quality actions rolled up per leader.
@@ -45,32 +45,6 @@ export interface LeaderTrackingRow {
   clean: boolean;
 }
 
-/**
- * An excluded label decides the matter.
- *
- * AC-6183 read "CCP · Maintenance — metal found on magnet check" and charged three
- * points to the shift leader. Metal on a magnet is the machine or the raw material;
- * the magnet check catching it is the system working. Under the first rule the action
- * still counted, because CCP was attributable and one attributable label was enough.
- *
- * So a label Quality has marked as not-the-leader's now wins over the others. Quality
- * curates that list, and "Maintenance" on an action means somebody classified the
- * cause as maintenance — that classification should not be overridden by whatever else
- * was ticked alongside it.
- *
- * The trade-off, stated plainly: adding Maintenance to a genuine paperwork error would
- * take the penalty off. That is visible in the action's own history, and it is a
- * smaller risk than charging leaders for machine faults, which teaches them to stop
- * raising actions at all.
- */
-function attributable(a: TrackedAction, excluded: Set<string>): boolean {
-  const labels = (a.labels ?? []).map((l) => l.trim().toLowerCase()).filter(Boolean);
-  // No labels still counts: otherwise leaving them blank quietly removes a deviation
-  // from somebody's score, which is a gap people find by accident and then use.
-  if (labels.length === 0) return true;
-  return !labels.some((l) => excluded.has(l));
-}
-
 export function leaderTracking(
   actions: TrackedAction[],
   /** Labels that are not the leader's to answer for — see useLabelAttribution. */
@@ -86,22 +60,19 @@ export function leaderTracking(
 
   const rows: LeaderTrackingRow[] = [];
   for (const [leader, list] of byLeader) {
-    // Rejected means Quality looked and said it was not a deviation. It stays in the
-    // count of what was raised, but it costs the leader nothing — same rule as the
-    // scorecard, deliberately.
+    // What stands against the leader: not rejected by Quality, and carrying at least
+    // one label that is theirs to answer for. Both halves of that test live in
+    // `standsAgainstLeader`, so this table cannot drift from the scorecard again.
     //
-    // Attribution is the second filter: a machine failure or a GMP finding is raised
-    // on the line, not against the person running it. Those stay visible in the total
-    // and carry no points.
-    const standing = list
-      .filter((a) => a.validation_status !== "rejected")
-      .filter((a) => attributable(a, excludedLabels));
+    // Everything else stays visible in `total` and carries no points — a machine
+    // failure raised on the leader's shift belongs on the record, not on the bill.
+    const standing = list.filter((a) => standsAgainstLeader(a, excludedLabels));
     const paperwork = list.filter(isValidatedPaperwork).length;
     const paperworkPending = list.filter(
       (a) => (a.labels ?? []).includes("Paperwork") && a.validation_status !== "validated" && a.validation_status !== "rejected",
     ).length;
     const shifts = Array.from(new Set(list.map((a) => (a.shift || "").toUpperCase()).filter(Boolean))).sort();
-    const points = standing.reduce((sum, a) => sum + severityPoints(a.severity), 0);
+    const points = standing.reduce((sum, a) => sum + actionPoints(a, excludedLabels), 0);
     // Open means Quality has not filed it. The To do / In progress / Complete board
     // is gone from this module; the lifecycle that carries a signature is the one
     // that counts — raised, then validated or rejected, then closed by a manager.
@@ -115,7 +86,7 @@ export function leaderTracking(
       paperworkPending,
       highCritical: list.filter((a) => a.severity === "high" || a.severity === "critical").length,
       points,
-      openPoints: stillOpen.reduce((sum, a) => sum + severityPoints(a.severity), 0),
+      openPoints: stillOpen.reduce((sum, a) => sum + actionPoints(a, excludedLabels), 0),
       clean: standing.length === 0,
     });
   }

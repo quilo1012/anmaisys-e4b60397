@@ -14,7 +14,8 @@ import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { usePmSchedules, pmStatus } from "@/hooks/usePreventiveMaintenance";
 import { useRole } from "@/hooks/useRole";
 import { buildOpportunities } from "@/components/PreventiveOpportunities";
-import { severityPoints } from "@/lib/qualityConstants";
+import { sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
+import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { AlertTriangle, Factory, ShieldCheck, ClipboardList, ArrowRight, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -126,18 +127,22 @@ export function ControlCentreHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `second` is the ticker that re-runs the clock
   }, [lines, liveRows, wo.stoppedNow, second]);
 
+  const { excluded, ready: attributionReady } = useLeaderAttribution();
+
   const quality = useMemo(() => {
     const rows = qualityActions ?? [];
-    const standing = rows.filter((a) => a.validation_status !== "rejected");
+    // Standing = not rejected, and the leader's to answer for. Same test as the
+    // quality board and the scorecard — this tile used to charge maintenance faults.
+    const standing = rows.filter((a) => standsAgainstLeader(a, excluded));
     const open = standing.filter((a) => a.status !== "complete");
     return {
       open: open.length,
-      points: standing.reduce((s, a) => s + severityPoints(a.severity), 0),
+      points: sumActionPoints(standing, excluded),
       severe: open.filter((a) => a.severity === "high" || a.severity === "critical").length,
       awaitingVerdict: standing.filter((a) => !["validated", "rejected"].includes(a.validation_status ?? "open")).length,
       paperwork: standing.filter((a) => (a.labels ?? []).includes("Paperwork") && a.validation_status === "validated").length,
     };
-  }, [qualityActions]);
+  }, [qualityActions, excluded]);
 
   const opportunities = useMemo(() => buildOpportunities((workOrders ?? []) as any[]), [workOrders]);
   const pmOverdue = useMemo(() => (pmSchedules ?? []).filter((s) => pmStatus(s) === "overdue").length, [pmSchedules]);
@@ -222,7 +227,11 @@ export function ControlCentreHome() {
             { label: "High / Critical", value: quality.severe, tone: quality.severe ? "danger" : "muted" },
             { label: "Waiting on Quality", value: quality.awaitingVerdict, tone: "muted" },
           ]}
-          footer={`${quality.points} severity points in 30 days · ${quality.paperwork} validated paperwork`}
+          footer={
+            attributionReady
+              ? `${quality.points} severity points in 30 days · ${quality.paperwork} validated paperwork`
+              : `Weighing 30 days… · ${quality.paperwork} validated paperwork`
+          }
         />
         )}
         {showPm && (

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -38,17 +39,25 @@ export function excludedLabelSet(rows: LabelAttribution[] | undefined): Set<stri
 }
 
 /**
- * An action is the leader's only if at least one of its labels is attributable.
+ * The attribution set, plus whether it is safe to draw points with it yet.
  *
- * An action with NO labels still counts: the alternative is that leaving the labels
- * blank quietly removes a deviation from somebody's score, which is the kind of gap
- * people find by accident and then use.
+ * The trap this exists to close: `excludedLabelSet(undefined)` is an empty set, and an
+ * empty set is a perfectly valid answer meaning "nothing is excluded". So a screen
+ * that renders while the query is in flight shows every leader their UNFILTERED total,
+ * then snaps to the real one a moment later. It reads as a bug, and it undermines
+ * exactly the confidence this module is trying to rebuild.
+ *
+ * `ready` is success, not settled: if the table cannot be read we would rather show a
+ * dash than a number we know is too high.
  */
-export function countsAgainstLeader(
-  action: { labels?: string[] | null },
-  excluded: Set<string>,
-): boolean {
-  const labels = (action.labels ?? []).map((l) => l.trim().toLowerCase()).filter(Boolean);
-  if (labels.length === 0) return true;
-  return labels.some((l) => !excluded.has(l));
+export function useLeaderAttribution() {
+  const query = useLabelAttribution();
+  const excluded = useMemo(() => excludedLabelSet(query.data), [query.data]);
+  return {
+    excluded,
+    /** Points may be drawn. */
+    ready: query.isSuccess,
+    /** Attribution could not be read — show a dash and say why, do not show a total. */
+    failed: query.isError,
+  };
 }
