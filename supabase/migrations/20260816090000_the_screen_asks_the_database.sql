@@ -76,9 +76,12 @@ $$;
 --
 -- rag_weekly_entries nao tem line_id: a linha e associada por nome (public.lines.name),
 -- com a mesma comparacao tolerante a maiusculas/espacos que rag_actual_from_floor ja usa
--- em producao, porque pelo menos uma linha (a "gel line") ainda tem grafias divergentes
--- entre tabelas. downtime_min ja vive em rag_weekly_entries por registo — nao existe
--- (nem e preciso) juntar a tabela public.downtime, que e outra coisa.
+-- em producao (migracao 20260730100000). As grafias conhecidas ja foram unificadas
+-- (20260801080000 e 20260801100000), mas nada impede outra grafia nova de aparecer entre
+-- as duas tabelas amanha; a comparacao tolerante custa nada e evita que essa proxima
+-- divergencia volte a partir esta soma silenciosamente. downtime_min ja vive em
+-- rag_weekly_entries por registo — nao existe (nem e preciso) juntar a tabela
+-- public.downtime, que e outra coisa.
 CREATE OR REPLACE FUNCTION public.scorecard_derived_volume(_line_id uuid, _week_ending date)
 RETURNS TABLE (
   planned_volume integer, actual_volume integer,

@@ -42,16 +42,18 @@ INSERT INTO public.lines (id, name, active) VALUES
   ('11111111-1111-1111-1111-111111111101', 'LINHA_TESTE_1', true),
   ('11111111-1111-1111-1111-111111111102', 'LINHA_TESTE_2', true);
 
+-- shift must be one of 'DAY','NIGHT','BOTH' (CHECK on public.line_leaders); 'Teste'
+-- is not a value that constraint accepts.
 INSERT INTO public.line_leaders (id, name, shift, active) VALUES
-  ('22222222-2222-2222-2222-2222222222a1', 'LIDER_A', 'Teste', true),  -- volume
-  ('22222222-2222-2222-2222-2222222222a2', 'LIDER_B', 'Teste', true),  -- volume/downtime
-  ('22222222-2222-2222-2222-2222222222a3', 'LIDER_C', 'Teste', true),  -- Fail
-  ('22222222-2222-2222-2222-2222222222a4', 'LIDER_D', 'Teste', true),  -- Not Done
-  ('22222222-2222-2222-2222-2222222222a5', 'LIDER_E', 'Teste', true),  -- near-miss zero
-  ('22222222-2222-2222-2222-2222222222a6', 'LIDER_F', 'Teste', true),  -- LTI
-  ('22222222-2222-2222-2222-2222222222a7', 'LIDER_G', 'Teste', true),  -- sem semanas
-  ('22222222-2222-2222-2222-2222222222a8', 'LIDER_H', 'Teste', true),  -- sem dados de H&S
-  ('22222222-2222-2222-2222-2222222222a9', 'LIDER_I', 'Teste', true);  -- troca de linha
+  ('22222222-2222-2222-2222-2222222222a1', 'LIDER_A', 'DAY', true),  -- volume
+  ('22222222-2222-2222-2222-2222222222a2', 'LIDER_B', 'DAY', true),  -- volume/downtime
+  ('22222222-2222-2222-2222-2222222222a3', 'LIDER_C', 'DAY', true),  -- Fail
+  ('22222222-2222-2222-2222-2222222222a4', 'LIDER_D', 'DAY', true),  -- Not Done
+  ('22222222-2222-2222-2222-2222222222a5', 'LIDER_E', 'DAY', true),  -- near-miss zero
+  ('22222222-2222-2222-2222-2222222222a6', 'LIDER_F', 'DAY', true),  -- LTI
+  ('22222222-2222-2222-2222-2222222222a7', 'LIDER_G', 'DAY', true),  -- sem semanas
+  ('22222222-2222-2222-2222-2222222222a8', 'LIDER_H', 'DAY', true),  -- sem dados de H&S
+  ('22222222-2222-2222-2222-2222222222a9', 'LIDER_I', 'DAY', true);  -- troca de linha
 
 INSERT INTO public.leader_line_assignment (leader_id, line_id, valid_from, valid_to) VALUES
   ('22222222-2222-2222-2222-2222222222a1', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
