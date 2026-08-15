@@ -10,13 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
 import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qualityReport";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil } from "lucide-react";
+import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil, ShieldCheck, MoreHorizontal, SlidersHorizontal, Scale, AlertTriangle, Repeat } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
@@ -257,6 +258,20 @@ export function QualityActionsView() {
     };
   }, [filtered, actions]);
 
+  // Filters, counted so the bar can offer a way out of them. The date range is not
+  // counted: there is always one, and a "clear" that silently widened the period
+  // would change every figure on the screen without being asked to.
+  const activeFilters = [filterSeverity, filterValidation, filterLine, filterDept, filterLeader, filterShift]
+    .filter((v) => v !== "__all__").length;
+  const clearFilters = () => {
+    setFilterSeverity("__all__"); setFilterValidation("__all__"); setFilterLine("__all__");
+    setFilterDept("__all__"); setFilterLeader("__all__"); setFilterShift("__all__");
+  };
+
+  // Computed here, not inside the card, because whether there is a pattern to show
+  // decides whether the row below is one column or two.
+  const recurring = useMemo(() => recurringIssues(filtered), [filtered]);
+
   const toggleLabel = (l: string) =>
     setForm((f) => ({ ...f, labels: f.labels.includes(l) ? f.labels.filter((x) => x !== l) : [...f.labels, l] }));
 
@@ -488,32 +503,63 @@ export function QualityActionsView() {
   };
 
   return (
-    <div className="space-y-6">
-        <div className="flex items-center justify-end flex-wrap gap-3">
-          <div className="flex flex-wrap gap-2">
-            <div className="inline-flex rounded-md border p-0.5">
-              <button type="button" onClick={() => setView("list")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                <List className="h-4 w-4" /> List
-              </button>
-              <button type="button" onClick={() => setView("analytics")} className={cn("inline-flex items-center gap-1 rounded px-3 py-1 text-sm font-medium transition-colors", view === "analytics" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                <BarChart3 className="h-4 w-4" /> Analytics
-              </button>
-            </div>
-            {canManage && <Button variant="outline" onClick={() => setListsOpen(true)}><Tags className="h-4 w-4 mr-1" />Lists</Button>}
-            {canManage && <Button variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4 mr-1" />Import</Button>}
-            <Button variant="outline" onClick={printDaily}><Printer className="h-4 w-4 mr-1" />Daily report</Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline"><Download className="h-4 w-4 mr-1" />Export</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={printPDF}>Print report (PDF)</DropdownMenuItem>
-                <DropdownMenuItem onClick={fullExcel}>Excel report (.xlsx)</DropdownMenuItem>
-                <DropdownMenuItem onClick={exportCSV}>Raw data (.csv)</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+    <div className="space-y-5">
+        {/* Title and toolbar on one line. Six outline buttons in a row all shouted at
+            the same volume; what a supervisor does on this screen is log an action,
+            so that one is the only filled button and everything else files under the
+            two menus beside it. */}
+        <PageHeader
+          className="mb-0"
+          module="Production"
+          title="Quality"
+          description="Log quality actions, track them to completion, and score them by severity."
+          icon={<ShieldCheck className="h-5 w-5" />}
+          actions={
+            <>
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <button type="button" onClick={() => setView("list")} className={cn("inline-flex items-center gap-1.5 rounded-[5px] px-3 py-1.5 text-xs font-semibold transition-colors", view === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  <List className="h-3.5 w-3.5" /> List
+                </button>
+                <button type="button" onClick={() => setView("analytics")} className={cn("inline-flex items-center gap-1.5 rounded-[5px] px-3 py-1.5 text-xs font-semibold transition-colors", view === "analytics" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+                  <BarChart3 className="h-3.5 w-3.5" /> Analytics
+                </button>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1.5" />Reports</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={printDaily}>
+                    <Printer className="h-4 w-4 mr-2" />Print today's actions
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Selected period
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={printPDF}>Print report (PDF)</DropdownMenuItem>
+                  <DropdownMenuItem onClick={fullExcel}>Excel report (.xlsx)</DropdownMenuItem>
+                  <DropdownMenuItem onClick={exportCSV}>Raw data (.csv)</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="px-2" aria-label="More quality settings">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                      <Upload className="h-4 w-4 mr-2" />Import actions
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setListsOpen(true)}>
+                      <Tags className="h-4 w-4 mr-2" />Lists &amp; scoring
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(makeEmptyForm()); } }}>
-              <DialogTrigger asChild><Button onClick={() => { setEditingId(null); setForm(makeEmptyForm()); }}><Plus className="h-4 w-4 mr-1" />Log action</Button></DialogTrigger>
+              <DialogTrigger asChild><Button size="sm" onClick={() => { setEditingId(null); setForm(makeEmptyForm()); }}><Plus className="h-4 w-4 mr-1.5" />Log action</Button></DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>{editingId ? "Edit quality action" : "Log quality action"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
@@ -590,7 +636,55 @@ export function QualityActionsView() {
                 <DialogFooter><Button onClick={() => create.mutate()} disabled={create.isPending}>Save</Button></DialogFooter>
               </DialogContent>
             </Dialog>
-          </div>
+            </>
+          }
+        />
+
+        {/* Filters, above the figures they govern.
+            They used to sit under the leader table, which put every number on this
+            screen — the KPIs, the tracking, the recurring issues — above the control
+            that decides what is counted. Read top to bottom it now says: this period
+            and this line, then here is what it came to. */}
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2">
+          <span className="flex shrink-0 items-center gap-1.5 pl-1 pr-0.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filters
+          </span>
+          <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey={OPS_RANGE_KEY} />
+          <Select value={filterSeverity} onValueChange={setFilterSeverity}>
+            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filterValidation} onValueChange={setFilterValidation}>
+            <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All validations</SelectItem>
+              <SelectItem value="__pending__">Waiting on Quality</SelectItem>
+              {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterLine} onValueChange={setFilterLine}>
+            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filterDept} onValueChange={setFilterDept}>
+            <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__all__">All departments</SelectItem>{DEPTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filterLeader} onValueChange={setFilterLeader}>
+            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filterShift} onValueChange={setFilterShift}>
+            <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="__all__">All Shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
+          </Select>
+          {activeFilters > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto h-9 text-xs text-muted-foreground hover:text-foreground">
+              <X className="mr-1 h-3.5 w-3.5" />
+              Clear {activeFilters} filter{activeFilters === 1 ? "" : "s"}
+            </Button>
+          )}
         </div>
 
         {/* KPIs. The To do / In progress / Complete counters are gone: they are the
@@ -606,7 +700,7 @@ export function QualityActionsView() {
           />
           <KpiCard
             label="Waiting on Quality"
-            icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            icon={<Clock className="h-3.5 w-3.5" />}
             value={kpis.awaitingVerdict} accent="warning" toneValue
             sublabel="No verdict yet — no score moves"
             active={filterValidation === "__pending__"}
@@ -614,13 +708,13 @@ export function QualityActionsView() {
           />
           <KpiCard
             label="Open points"
-            icon={<ClipboardCheck className="h-3.5 w-3.5" />}
+            icon={<Scale className="h-3.5 w-3.5" />}
             value={kpis.openPoints} accent="purple"
             sublabel="Weight still outstanding"
           />
           <KpiCard
             label="High / Critical open"
-            icon={<span className="h-2 w-2 rounded-full bg-destructive" />}
+            icon={<AlertTriangle className="h-3.5 w-3.5" />}
             value={kpis.openSevere} accent="danger"
             toneValue
             sublabel={kpis.ungraded ? `${kpis.ungraded} action${kpis.ungraded === 1 ? "" : "s"} with no severity` : "Every action graded"}
@@ -629,41 +723,14 @@ export function QualityActionsView() {
           />
         </div>
 
-        <QualityTrackingByLeader actions={filtered} periodLabel={periodLabel} />
-
-        <TopRecurringIssues actions={filtered} />
-
-        {/* Filters, in a toolbar card like the Maintenance Orders screen. */}
-        <div className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-3">
-          <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey={OPS_RANGE_KEY} />
-          <Select value={filterSeverity} onValueChange={setFilterSeverity}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterValidation} onValueChange={setFilterValidation}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All validations</SelectItem>
-              <SelectItem value="__pending__">Waiting on Quality</SelectItem>
-              {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterLine} onValueChange={setFilterLine}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterDept} onValueChange={setFilterDept}>
-            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All departments</SelectItem>{DEPTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterLeader} onValueChange={setFilterLeader}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterShift} onValueChange={setFilterShift}>
-            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
-          </Select>
+        {/* The two readings of the same period, side by side on a wide screen: who
+            carries the weight, and what keeps coming back. Stacked, the tracking table
+            ran a metre wide for six figures and pushed the pattern below the fold. */}
+        <div className={cn("grid items-start gap-4", recurring.length > 0 && "xl:grid-cols-3")}>
+          <div className={cn(recurring.length > 0 && "xl:col-span-2")}>
+            <QualityTrackingByLeader actions={filtered} periodLabel={periodLabel} />
+          </div>
+          {recurring.length > 0 && <TopRecurringIssues rows={recurring} />}
         </div>
 
         {view === "analytics" ? (
@@ -1367,44 +1434,58 @@ function QualityListsManager() {
  * Severity points, not just a count: ten Low actions and one Critical are not the
  * same problem, and the count alone said they were.
  */
-function TopRecurringIssues({ actions }: { actions: QualityAction[] }) {
-  const rows = useMemo(() => {
-    const m = new Map<string, { text: string; count: number; points: number; lines: Set<string> }>();
-    for (const a of actions) {
-      const text = (a.description ?? "").trim();
-      if (!text) continue;
-      const key = text.toLowerCase().slice(0, 80);
-      const e = m.get(key) ?? { text, count: 0, points: 0, lines: new Set<string>() };
-      e.count += 1;
-      e.points += severityPoints(a.severity);
-      if (a.line) e.lines.add(a.line);
-      m.set(key, e);
-    }
-    return Array.from(m.values())
-      .filter((r) => r.count >= 2)
-      .sort((a, b) => b.count - a.count || b.points - a.points)
-      .slice(0, 5);
-  }, [actions]);
+interface RecurringIssue { text: string; count: number; points: number; lines: Set<string> }
 
+/** The same complaint raised more than once in the period, heaviest first. */
+function recurringIssues(actions: QualityAction[]): RecurringIssue[] {
+  const m = new Map<string, RecurringIssue>();
+  for (const a of actions) {
+    const text = (a.description ?? "").trim();
+    if (!text) continue;
+    const key = text.toLowerCase().slice(0, 80);
+    const e = m.get(key) ?? { text, count: 0, points: 0, lines: new Set<string>() };
+    e.count += 1;
+    e.points += severityPoints(a.severity);
+    if (a.line) e.lines.add(a.line);
+    m.set(key, e);
+  }
+  return Array.from(m.values())
+    .filter((r) => r.count >= 2)
+    .sort((a, b) => b.count - a.count || b.points - a.points)
+    .slice(0, 5);
+}
+
+function TopRecurringIssues({ rows }: { rows: RecurringIssue[] }) {
   if (rows.length === 0) return null;
 
   return (
     <Card className="break-inside-avoid">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold uppercase tracking-wide">Top recurring issues</CardTitle>
-        <CardDescription>Raised more than once in this period. One occurrence is an incident, not a pattern.</CardDescription>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide">
+          <Repeat className="h-4 w-4 text-muted-foreground" />
+          Top recurring issues
+        </CardTitle>
+        <CardDescription className="text-2xs leading-snug">
+          Raised more than once in this period. One occurrence is an incident, not a pattern.
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-1.5">
+      {/* A list with hairlines, not five bordered boxes: the boxes drew five frames
+          around text that was already a list, and none of them meant anything. */}
+      <CardContent className="divide-y divide-border/60 pt-0">
         {rows.map((r) => (
-          <div key={r.text} className="flex items-center gap-3 rounded border p-2 text-xs">
+          <div key={r.text} className="flex items-start gap-3 py-2.5 text-xs first:pt-0">
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{r.text}</span>
+              {/* Two lines, not one: an issue clipped at "did not match the p…" is
+                  a row you have to click to read, and this card exists to be scanned. */}
+              <span className="block line-clamp-2 font-medium leading-snug text-foreground">{r.text}</span>
               <span className="block truncate text-2xs text-muted-foreground">
                 {r.lines.size ? Array.from(r.lines).join(", ") : "No line recorded"}
               </span>
             </span>
-            <span className="shrink-0 font-figure font-bold">{r.count}×</span>
-            <span className="shrink-0 font-figure text-2xs text-muted-foreground">{r.points} pts</span>
+            <span className="shrink-0 whitespace-nowrap text-right">
+              <span className="block font-figure text-sm font-bold tabular-nums text-foreground">{r.count}×</span>
+              <span className="block font-figure text-2xs text-muted-foreground">{r.points} pts</span>
+            </span>
           </div>
         ))}
       </CardContent>
