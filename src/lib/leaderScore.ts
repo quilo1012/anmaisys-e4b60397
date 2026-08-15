@@ -1,4 +1,4 @@
-import { documentationScore, severityPoints } from "@/lib/qualityConstants";
+import { documentationScore, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
 
 /**
  * The leader's final score: production, quality and documentation, weighted.
@@ -30,6 +30,15 @@ export interface LeaderScoreInput {
   avgOEE: number | null;
   /** Quality actions in the period, already filtered to this leader. */
   actions: Array<{ severity: string | null; labels?: string[] | null; validation_status?: string | null }>;
+  /**
+   * Labels that are not the leader's to answer for, from `useLabelAttribution`.
+   *
+   * Required, and deliberately not defaulted to an empty set: an empty set means
+   * "nothing is excluded", which is a real answer and not the same as "the attribution
+   * table has not loaded". A default here would let a caller silently score a leader
+   * on maintenance faults by forgetting an argument.
+   */
+  excludedLabels: Set<string>;
 }
 
 export interface LeaderScoreComponent {
@@ -89,8 +98,10 @@ function productionScore(input: LeaderScoreInput): LeaderScoreComponent {
  * whether or not the paperwork has caught up with it, and a leader with an action
  * open reading 100% is the kind of number nobody believes twice.
  *
- * Only a rejected action is void: Quality looked and said it was not a real
- * deviation, so it should not follow the leader around.
+ * Two things are void: an action Quality rejected, and an action whose labels are not
+ * the leader's to answer for. Both tests live in `actionPoints`, which the leader
+ * table, the by-leader chart and the line indicators also call — so the same leader
+ * cannot read 7 here and 10 one screen over.
  *
  * This is deliberately NOT the documentation rule. The −5% paperwork demerit still
  * waits for a validated verdict, because that one is a formal penalty with a name
@@ -103,14 +114,16 @@ function qualityScore(input: LeaderScoreInput): LeaderScoreComponent {
   if (input.actions.length === 0) {
     return { value: 100, basis: "No quality actions raised in this period" };
   }
-  const standing = input.actions.filter((a) => a.validation_status !== "rejected");
-  const rejected = input.actions.length - standing.length;
-  const points = standing.reduce((sum, a) => sum + severityPoints(a.severity), 0);
+  const standing = input.actions.filter((a) => standsAgainstLeader(a, input.excludedLabels));
+  const rejected = input.actions.filter((a) => a.validation_status === "rejected").length;
+  const notTheirs = input.actions.length - standing.length - rejected;
+  const points = sumActionPoints(standing, input.excludedLabels);
   return {
     value: Math.max(0, 100 - points),
     basis:
       `100 less ${points} severity point${points === 1 ? "" : "s"} from ${standing.length} action${standing.length === 1 ? "" : "s"}` +
-      (rejected ? ` · ${rejected} rejected by Quality and not counted` : ""),
+      (rejected ? ` · ${rejected} rejected by Quality and not counted` : "") +
+      (notTheirs ? ` · ${notTheirs} not attributable to the leader` : ""),
   };
 }
 

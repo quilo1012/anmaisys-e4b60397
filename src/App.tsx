@@ -23,6 +23,7 @@ import { RefreshCw, WifiOff } from "lucide-react";
 import { roleDashMap } from "@/lib/permissions";
 import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
 import { useSeverityPointsSync } from "@/hooks/useSeverityPoints";
+import { useLabelPointsSync } from "@/hooks/useQualityOptions";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
@@ -32,6 +33,12 @@ function PermissionOverridesSync() {
 /** Loads the configured quality severity weights so scores match what Quality set. */
 function SeverityPointsSync() {
   useSeverityPointsSync();
+  return null;
+}
+
+/** The other half of the same answer: what each label charges, when it is priced. */
+function LabelPointsSync() {
+  useLabelPointsSync();
   return null;
 }
 
@@ -261,6 +268,7 @@ const App = () => (
             <AppUpdater />
             <PermissionOverridesSync />
             <SeverityPointsSync />
+            <LabelPointsSync />
             <TelemetryInit />
             <Suspense fallback={<PageLoader />}>
               <Routes>

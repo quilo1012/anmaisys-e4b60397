@@ -80,12 +80,23 @@ describe("what is the leader's to answer for", () => {
     expect(row.points).toBe(1);
   });
 
-  it("lets an excluded label decide, even alongside an attributable one", () => {
-    // AC-6183: "CCP · Maintenance — metal found on magnet check". Metal on a magnet is
-    // the machine or the material; the check catching it is the system working.
+  it("counts an action with one attributable label, even alongside an excluded one", () => {
+    // This assertion was the other way round until the points rule was centralised,
+    // and the case behind it was real: AC-6183, "CCP · Maintenance — metal found on
+    // magnet check". Metal on a magnet is the machine or the material, and the check
+    // catching it is the system working — so a veto rule read that action correctly.
+    //
+    // It was still reversed, deliberately. A veto means one label silently removes a
+    // penalty and nothing on the leader's total shows it happened; anyone who works
+    // out that adding "Maintenance" clears a genuine error has a lever nobody audits.
+    // Charging the occasional machine fault is a visible, arguable error on one
+    // action. A silent lever is neither, and it costs the whole number its meaning.
+    //
+    // The AC-6183 shape is not solved here, it is moved somewhere it can be seen:
+    // the fix is Quality taking the label that does not belong off the action.
     const [row] = leaderTracking([a({ severity: "high", labels: ["CCP", "Maintenance"] })], excluded);
     expect(row.total).toBe(1);
-    expect(row.points).toBe(0);
+    expect(row.points).toBe(3);
   });
 
   it("still counts an action whose labels are all attributable", () => {

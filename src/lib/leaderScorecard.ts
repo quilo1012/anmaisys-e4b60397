@@ -223,11 +223,26 @@ function summariseProduction(sessions: LSSession[], items: LSItem[], ragRows: LS
   };
 }
 
+export interface ScorecardContext {
+  /** Falls back to the defaults when Quality has not configured them. */
+  weights?: LeaderScoreWeights;
+  /**
+   * Labels that are not the leader's to answer for.
+   *
+   * Required, and an options object rather than a fourth positional argument so it
+   * cannot be defaulted away: an empty set means "everything counts", and this is the
+   * scorecard a leader opens about themselves — the last screen that should disagree
+   * with the board their manager is reading.
+   */
+  excludedLabels: Set<string>;
+}
+
 export function computeScorecard(
   raw: ScorecardRaw,
   period: ScorecardPeriod,
-  weights: LeaderScoreWeights = DEFAULT_WEIGHTS,
+  ctx: ScorecardContext,
 ): ScorecardResult {
+  const { weights = DEFAULT_WEIGHTS, excludedLabels } = ctx;
   const actions = actionsInPeriod(raw.actions ?? [], period);
   const woRequests = workOrdersInPeriod(raw.woRequests ?? [], period);
   const quality = summariseQuality(actions, raw.completes ?? []);
@@ -239,7 +254,7 @@ export function computeScorecard(
     woStopped: woRequests.filter((w) => w.line_stopped).length,
     quality, docs, production,
     score: computeLeaderScore(
-      { actual: production.actualQty, target: production.targetQty, avgOEE: production.avgOEE, actions },
+      { actual: production.actualQty, target: production.targetQty, avgOEE: production.avgOEE, actions, excludedLabels },
       weights,
     ),
   };

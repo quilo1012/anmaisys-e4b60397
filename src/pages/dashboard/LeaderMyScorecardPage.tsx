@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -130,9 +131,12 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
     },
   });
 
+  const { excluded, ready: attributionReady } = useLeaderAttribution();
   const result = useMemo(
-    () => (cardQuery.data?.status === "ok" ? computeScorecard(cardQuery.data.raw, period, weights) : null),
-    [cardQuery.data, period, weights],
+    () => (cardQuery.data?.status === "ok"
+      ? computeScorecard(cardQuery.data.raw, period, { weights, excludedLabels: excluded })
+      : null),
+    [cardQuery.data, period, weights, excluded],
   );
 
   const { data: profileNames = [] } = useProfileNames();
@@ -259,6 +263,10 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
             </div>
           </CardContent>
         </Card>
+      ) : !attributionReady ? (
+        /* The leader is reading their own score. Showing them a worse one and then
+           correcting it is the single worst place in the app to do that. */
+        <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>
       ) : result ? (
         <LeaderScorecardBody leaderName={leader.name} period={period} result={result} />
       ) : null}

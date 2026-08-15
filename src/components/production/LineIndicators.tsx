@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { severityPoints } from "@/lib/qualityConstants";
+import { linePointsBreakdown } from "@/lib/qualityBreakdown";
+import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { PointsPending } from "@/components/quality/PointsPending";
 import { shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +82,8 @@ export function LineIndicators({
     },
   });
 
+  const { excluded, ready, failed } = useLeaderAttribution();
+
   const rows = useMemo(() => {
     const byLine = new Map<string, {
       qualityPoints: number; openActions: number;
@@ -91,14 +95,12 @@ export function LineIndicators({
       return byLine.get(l)!;
     };
 
-    for (const a of quality) {
-      const l = (a.line ?? "").trim();
-      if (!l) continue;
-      // Rejected costs nothing, same rule as the leader's score.
-      if (a.validation_status === "rejected") continue;
-      const e = seed(l);
-      e.qualityPoints += severityPoints(a.severity);
-      if (!a.closed_at) e.openActions += 1;
+    // Same rule as the leader table, the chart and the scorecard — one function, so
+    // a line's points and its leader's points can never tell different stories.
+    for (const q of linePointsBreakdown(quality, excluded)) {
+      const e = seed(q.line);
+      e.qualityPoints = q.qualityPoints;
+      e.openActions = q.openActions;
     }
 
     for (const it of items) {
@@ -124,7 +126,7 @@ export function LineIndicators({
         staff: e && e.staff.length ? Math.round(e.staff.reduce((s, n) => s + n, 0) / e.staff.length) : null,
       };
     });
-  }, [lines, quality, items]);
+  }, [lines, quality, items, excluded]);
 
   const anyScrap = rows.some((r) => r.scrapPct !== null);
 
@@ -201,7 +203,9 @@ export function LineIndicators({
                       ? <span className="font-sans text-muted-foreground" title={`Recorded on ${r.scrapCoverage} items`}>not recorded</span>
                       : <span className={cn(r.scrapPct > 2 && "font-bold text-destructive-strong")}>{r.scrapPct.toFixed(1)}%</span>}
                   </td>
-                  <td className="px-2 py-2.5 text-right font-figure">{r.qualityPoints}</td>
+                  <td className="px-2 py-2.5 text-right font-figure">
+                    {ready ? r.qualityPoints : <PointsPending failed={failed} />}
+                  </td>
                   <td className={cn("px-2 py-2.5 text-right font-figure", r.openActions && "font-bold text-warning-strong")}>
                     {r.openActions}
                   </td>
@@ -228,7 +232,9 @@ export function LineIndicators({
                   {/* Sucata não fecha: sem ela registada em todos os artigos, uma soma
                       seria uma percentagem de uma produção que não foi toda medida. */}
                   <td className="px-2 py-2.5 text-right font-sans text-muted-foreground">—</td>
-                  <td className="px-2 py-2.5 text-right font-figure font-bold text-foreground">{totals.qualityPoints}</td>
+                  <td className="px-2 py-2.5 text-right font-figure font-bold text-foreground">
+                    {ready ? totals.qualityPoints : <PointsPending failed={failed} />}
+                  </td>
                   <td className={cn("px-2 py-2.5 text-right font-figure font-bold", totals.openActions ? "text-warning-strong" : "text-foreground")}>
                     {totals.openActions}
                   </td>

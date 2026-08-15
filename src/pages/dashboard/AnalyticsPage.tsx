@@ -30,7 +30,9 @@ import { SLA_TARGETS } from "@/lib/sla";
 import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
-import { QUALITY_STATUSES, severityPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
+import { QUALITY_STATUSES, actionPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
+import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { PointsPending } from "@/components/quality/PointsPending";
 import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 import { canPrintReport } from "@/lib/permissions";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
@@ -120,6 +122,7 @@ const EmptyChart = () => (
 export default function AnalyticsPage() {
   const { role } = useAuth();
   const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
+  const { excluded, ready: attributionReady } = useLeaderAttribution();
   const { toast } = useToast();
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
@@ -314,14 +317,22 @@ export default function AnalyticsPage() {
     }
     // Open quality actions per leader, matched on the same trimmed name — counted off
     // the period's rows, so an action raised outside it is outside every column here.
+    //
+    // Two separate questions, kept separate on purpose. The status filter below is
+    // THIS screen's, and answers "what is still on the board" — it is not part of what
+    // an action is worth, so it stays here in the open rather than moving into
+    // `actionPoints`. What an action is worth is `actionPoints`, and that is not this
+    // screen's to decide.
     const openMap = new Map<string, { open: number; points: number; critical: number }>();
     for (const a of periodActionRows) {
+      // The screen's own question: still on the working board.
       if (a.status !== "todo" && a.status !== "in_progress") continue;
       const leader = (a.leader_name || "").trim();
       if (!leader) continue;
       const cur = openMap.get(leader) ?? { open: 0, points: 0, critical: 0 };
       cur.open += 1;
-      cur.points += severityPoints(a.severity);
+      // The shared answer: rejected and not-theirs cost nothing, here as everywhere.
+      cur.points += actionPoints(a, excluded);
       if (a.severity === "high" || a.severity === "critical") cur.critical += 1;
       openMap.set(leader, cur);
     }
@@ -339,7 +350,7 @@ export default function AnalyticsPage() {
         const oa = openMap.get(a.leader);
         const acts = periodMap.get(a.leader) ?? [];
         const score = computeLeaderScore(
-          { actual: a.actual, target: a.target, avgOEE: null, actions: acts },
+          { actual: a.actual, target: a.target, avgOEE: null, actions: acts, excludedLabels: excluded },
           weights,
         );
         return {
@@ -361,7 +372,7 @@ export default function AnalyticsPage() {
       totalOpenActions: rows.reduce((s, r) => s + r.openActions, 0),
       totalOpenPoints: rows.reduce((s, r) => s + r.openPoints, 0),
     };
-  }, [leaderRows, ragTargetRows, periodActionRows, weights]);
+  }, [leaderRows, ragTargetRows, periodActionRows, weights, excluded]);
 
   /**
    * Where the documentation errors are coming from: the five commonest descriptions
@@ -850,7 +861,7 @@ export default function AnalyticsPage() {
               <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Avg Efficiency</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.avgEff >= 100 ? "text-success-strong" : leaderPerf.avgEff >= 80 ? "text-warning-strong" : "text-destructive-strong"}`}>{leaderPerf.avgEff.toFixed(1)}%</div></div>
-                  <div className="rounded-lg border p-3" title="Actions raised in this period and still to do or in progress"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-warning-strong" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts</span></div></div>
+                  <div className="rounded-lg border p-3" title="Actions raised in this period and still to do or in progress"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Open Actions</div><div className={`text-2xl font-bold tabular-nums ${leaderPerf.totalOpenActions > 0 ? "text-warning-strong" : ""}`}>{leaderPerf.totalOpenActions.toLocaleString("en-US")}<span className="ml-1.5 text-sm font-medium text-muted-foreground">{attributionReady ? `${leaderPerf.totalOpenPoints.toLocaleString("en-US")} pts` : "— pts"}</span></div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Output</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalActual.toLocaleString("en-US")}</div></div>
                   <div className="rounded-lg border p-3"><div className="text-2xs text-muted-foreground uppercase tracking-wider">Total Target</div><div className="text-2xl font-bold tabular-nums">{leaderPerf.totalTarget.toLocaleString("en-US")}</div></div>
                 </div>
@@ -908,7 +919,12 @@ export default function AnalyticsPage() {
                           </td>
                           <td className="p-2 font-medium">{r.leader}</td>
                           <td className="p-2 text-right">
-                            {r.score === null ? (
+                            {!attributionReady ? (
+                              /* The score subtracts quality points, so it moves when
+                                 attribution lands. A leader must not watch their own
+                                 percentage drop a second after the page paints. */
+                              <PointsPending />
+                            ) : r.score === null ? (
                               <span className="text-muted-foreground" title="Nothing measurable in this period">—</span>
                             ) : (
                               <span
@@ -949,7 +965,7 @@ export default function AnalyticsPage() {
                                 title={`${r.openActions} action${r.openActions === 1 ? "" : "s"} raised in this period and still open`}
                               >
                                 {r.openActions}
-                                <span className="ml-1 text-2xs font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{r.openPoints}p</span>
+                                <span className="ml-1 text-2xs font-normal text-muted-foreground" title="Open points (Low 1 · Medium 2 · High 3 · Critical 4)">{attributionReady ? `${r.openPoints}p` : "—"}</span>
                                 {r.openCritical > 0 && <span className="ml-1 text-2xs font-bold text-destructive-strong" title={`${r.openCritical} high/critical`}>⚠{r.openCritical}</span>}
                               </Link>
                             )}

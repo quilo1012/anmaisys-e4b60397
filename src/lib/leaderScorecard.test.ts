@@ -4,6 +4,9 @@ import {
   EMPTY_RAW, type LSAction, type LSWorkOrder, type ScorecardPeriod,
 } from "@/lib/leaderScorecard";
 
+/** These cases test the scorecard's arithmetic, not attribution — nothing is excluded. */
+const NOTHING_EXCLUDED = new Set<string>();
+
 const action = (over: Partial<LSAction> = {}): LSAction => ({
   id: "a1", status: "todo", severity: "low", recorded_at: "2026-08-05T10:00:00Z",
   labels: [], department: null, line: "Line 1", action_no: "QA-1", description: "x",
@@ -54,7 +57,7 @@ describe("workOrdersInPeriod", () => {
 
 describe("computeScorecard", () => {
   it("an empty card scores on quality and documentation, and not on production", () => {
-    const r = computeScorecard(EMPTY_RAW, period());
+    const r = computeScorecard(EMPTY_RAW, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.quality.total).toBe(0);
     expect(r.production.attainment).toBeNull();
     expect(r.score.production.value).toBeNull();
@@ -71,7 +74,7 @@ describe("computeScorecard", () => {
       ],
       ragRows: [{ entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 1000 }],
       items: [{ actual_qty: 800, target_qty: null }],
-    }, period());
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.production.targetQty).toBe(1000);
     expect(r.production.attainment).toBe(80);
   });
@@ -82,7 +85,7 @@ describe("computeScorecard", () => {
       sessions: [{ oee_pct: null, run_time_min: null, down_time_min: null, intouch_good_total: null, session_date: "2026-08-05", line: "line  1", shift: "day" }],
       ragRows: [{ entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 500 }],
       items: [{ actual_qty: 500, target_qty: null }],
-    }, period());
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.production.attainment).toBe(100);
   });
 
@@ -90,7 +93,7 @@ describe("computeScorecard", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,
       sessions: [{ oee_pct: null, run_time_min: null, down_time_min: null, intouch_good_total: null, session_date: "2026-08-05", line: "Line 1", shift: "DAY" }],
-    }, period());
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.production.downtimeH).toBeNull();
     expect(r.production.avgOEE).toBeNull();
   });
@@ -104,7 +107,7 @@ describe("computeScorecard", () => {
         action({ id: "3", labels: ["Paperwork"], validation_status: "rejected" }),
       ],
     };
-    const r = computeScorecard(raw, period());
+    const r = computeScorecard(raw, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.docs.penalised.map((a) => a.id)).toEqual(["1"]);
     expect(r.docs.pending.map((a) => a.id)).toEqual(["2"]);
     expect(r.docs.rejected.map((a) => a.id)).toEqual(["3"]);
@@ -120,7 +123,7 @@ describe("computeScorecard", () => {
         { action_id: "a1", changed_at: "2026-08-06T00:00:00Z" },
         { action_id: "a1", changed_at: "2026-08-07T00:00:00Z" },
       ],
-    }, period({ to: "2026-08-05" }));
+    }, period({ to: "2026-08-05" }), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.quality.avgResolution).toBe(2);
     expect(r.quality.pctClosed).toBe(100);
   });
@@ -129,7 +132,7 @@ describe("computeScorecard", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,
       actions: [action({ id: "a1", closed_at: "2026-08-06T00:00:00Z" })],
-    }, period());
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.actions).toHaveLength(1);
     expect(r.quality.filed).toBe(1);
   });
@@ -138,13 +141,13 @@ describe("computeScorecard", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,
       woRequests: [wo({ id: "1", line_stopped: true }), wo({ id: "2", line_stopped: false })],
-    }, period());
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.woRequests).toHaveLength(2);
     expect(r.woStopped).toBe(1);
   });
 
   it("survives a payload with missing arrays, as the RPC path may send", () => {
-    const r = computeScorecard({} as never, period());
+    const r = computeScorecard({} as never, period(), { excludedLabels: NOTHING_EXCLUDED });
     expect(r.quality.total).toBe(0);
     expect(r.woRequests).toEqual([]);
   });

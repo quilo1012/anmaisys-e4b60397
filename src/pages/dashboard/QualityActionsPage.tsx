@@ -26,7 +26,9 @@ import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, statusMeta, severityMeta, severityPoints, sumSeverityPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, statusMeta, severityMeta, actionPoints, sumActionPoints, severityPoints, labelPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
+import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
@@ -102,6 +104,11 @@ export function QualityActionsView() {
   const canValidate = can("quality.validate");
   const canClose = can("quality.close");
   const qc = useQueryClient();
+
+  // Points on this screen are charged, so they wait for the attribution table. An
+  // empty exclusion set means "everything counts", which is a real answer and not a
+  // loading state — see useLeaderAttribution.
+  const { excluded, ready: attributionReady } = useLeaderAttribution();
 
   const { data: qOpts } = useQualityOptions();
   const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
@@ -247,8 +254,11 @@ export function QualityActionsView() {
       total: filtered.length,
       // Weighted, not counted: ten Low actions and one Critical are not the same
       // problem, and the counts alone said they were.
-      openPoints: sumSeverityPoints(open),
-      totalPoints: sumSeverityPoints(filtered),
+      // Charged, not just weighed: rejected actions and actions that are not the
+      // leader's cost nothing here either, or this card and the leader table below
+      // it would print two different totals for the same period.
+      openPoints: sumActionPoints(open, excluded),
+      totalPoints: sumActionPoints(filtered, excluded),
       openSevere: open.filter((x) => x.severity === "high" || x.severity === "critical").length,
       ungraded: filtered.filter((x) => !x.severity).length,
       // Counted over `actions`, not `filtered`: the moment the filter is set to
@@ -256,7 +266,7 @@ export function QualityActionsView() {
       // total and stop being an answer to anything.
       awaitingVerdict: actions.filter((x) => !["validated", "rejected"].includes(x.validation_status ?? "open")).length,
     };
-  }, [filtered, actions]);
+  }, [filtered, actions, excluded]);
 
   // Filters, counted so the bar can offer a way out of them. The date range is not
   // counted: there is always one, and a "clear" that silently widened the period
@@ -446,7 +456,10 @@ export function QualityActionsView() {
     const header = ["Date", "Action #", "Status", "Severity", "Points", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
     const body = filtered.map((a) => [
       a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
-      String(severityPoints(a.severity)),
+      // What the action actually cost, not what its severity weighs. The export is
+      // read next to the board, and a spreadsheet charging 4 for an action the board
+      // shows as 0 is the same divergence again, just harder to spot.
+      String(actionPoints(a, excluded)),
       a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
       (a.labels ?? []).join("; "), a.description ?? "",
     ]);
@@ -622,10 +635,14 @@ export function QualityActionsView() {
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {LABELS.map((l) => {
                         const on = form.labels.includes(l);
+                        // Priced labels say so on the chip: whoever is logging the action
+                        // decides the score here, and should not find that out afterwards.
+                        const price = labelPoints(l);
                         return (
                           <button key={l} type="button" onClick={() => toggleLabel(l)}
                             className={cn("rounded-full border px-2.5 py-1 text-xs transition-colors", on ? "border-primary bg-primary text-primary-foreground" : "bg-muted/40 hover:bg-accent")}>
                             {l}
+                            {price > 0 && <span className={cn("ml-1 tabular-nums", on ? "opacity-80" : "text-muted-foreground")}>{price}p</span>}
                           </button>
                         );
                       })}
@@ -696,7 +713,7 @@ export function QualityActionsView() {
             label="Total actions"
             icon={<ClipboardCheck className="h-3.5 w-3.5" />}
             value={kpis.total} accent="blue"
-            sublabel={`${kpis.totalPoints} points in range`}
+            sublabel={attributionReady ? `${kpis.totalPoints} points in range` : "Working out which actions count…"}
           />
           <KpiCard
             label="Waiting on Quality"
@@ -710,6 +727,7 @@ export function QualityActionsView() {
             label="Open points"
             icon={<Scale className="h-3.5 w-3.5" />}
             value={kpis.openPoints} accent="purple"
+            loading={!attributionReady}
             sublabel="Weight still outstanding"
           />
           <KpiCard
@@ -849,7 +867,22 @@ export function QualityActionsView() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums font-semibold">{sev ? sev.points : <span className="font-normal text-muted-foreground">—</span>}</TableCell>
+                      {/* What this action actually costs, not what its severity is worth.
+                          The two differ once a label is priced, and the column that adds
+                          up to the totals above must be the one people read. */}
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        {(() => {
+                          const charged = actionPoints(a, excluded);
+                          const bySeverity = severityPoints(a.severity);
+                          if (!sev && !charged) return <span className="font-normal text-muted-foreground">—</span>;
+                          return (
+                            <span title={charged === bySeverity ? undefined : `Priced by its labels — ${sev?.label ?? "no severity"} alone would be ${bySeverity}`}>
+                              {charged}
+                              {charged !== bySeverity && <span className="ml-0.5 font-normal text-muted-foreground">*</span>}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell>{a.line ?? "—"}</TableCell>
                       <TableCell>{a.leader_name ?? "—"}</TableCell>
                       <TableCell>{a.department ?? "—"}</TableCell>
@@ -1329,27 +1362,90 @@ function SeverityPointsEditor() {
   );
 }
 
+/**
+ * The price on one label, saved when the box loses focus or on Enter.
+ *
+ * A draft rather than a live value: typing "12" over a "5" passes through "1", and
+ * saving that would re-score every action carrying the label for as long as it took
+ * to type the second digit. No Save button, because one number is not a form — the
+ * toast confirms it landed.
+ */
+function PointsBox({ value, label, onCommit }: { value: number; label: string; onCommit: (raw: string) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  return (
+    <Input
+      type="number" min={0} max={1000} inputMode="numeric"
+      className={cn("h-8 w-16 tabular-nums", !value && "text-muted-foreground")}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => onCommit(draft)}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+      aria-label={`Points charged by ${label}`}
+      title={value ? `An action labelled "${label}" costs ${value}` : "Unpriced — the action keeps its severity weight"}
+    />
+  );
+}
+
+/** Postgres for "no such column" — the points column may not be deployed yet. */
+const UNDEFINED_COLUMN = "42703";
+
+/** The same ceiling the database enforces, so the box cannot promise what it refuses. */
+const clampPoints = (raw: string) => Math.max(0, Math.min(1000, Math.round(Number(raw) || 0)));
+
 function QualityListsManager() {
   const qc = useQueryClient();
   const { data: options = [] } = useAllQualityOptions();
   const [kind, setKind] = useState<"label" | "department">("label");
   const [value, setValue] = useState("");
+  const [points, setPoints] = useState("");
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["quality_options_all"] });
     qc.invalidateQueries({ queryKey: ["quality_options"] });
   };
 
+  /**
+   * The points column arrives in a migration, and a migration in this repo is not
+   * proof that production has it. Saying so beats showing "column does not exist" to
+   * a quality manager who only wanted to price a label.
+   */
+  const reportSaveError = (error: { code?: string; message: string }) => {
+    if (error.code === UNDEFINED_COLUMN) {
+      toast.error("Label points are not enabled on this database yet — the migration has not run.");
+      return;
+    }
+    toast.error(error.message);
+  };
+
   const add = async () => {
     const v = value.trim();
     if (!v) return;
     const maxSort = options.filter((o) => o.kind === kind).reduce((m, o) => Math.max(m, o.sort), 0);
+    const p = kind === "label" ? clampPoints(points) : 0;
+    const row = { kind, value: v, sort: maxSort + 1, active: true, ...(p ? { points: p } : {}) };
     const { error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
       .from("quality_options" as any)
-      .insert({ kind, value: v, sort: maxSort + 1, active: true } as unknown as never);
-    if (error) { toast.error(error.message); return; }
-    setValue(""); refresh();
+      .insert(row as unknown as never);
+    if (error) { reportSaveError(error); return; }
+    setValue(""); setPoints(""); refresh();
+  };
+
+  /** Re-pricing a label re-scores every action carrying it, past ones included. */
+  const setLabelPrice = async (o: QualityOption, raw: string) => {
+    const n = clampPoints(raw);
+    if (n === o.points) return;
+    const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
+      .from("quality_options" as any)
+      .update({ points: n } as unknown as never)
+      .eq("id", o.id);
+    if (error) { reportSaveError(error); return; }
+    // The board, the log, the scorecard and Analytics all read a score off this.
+    qc.invalidateQueries({ queryKey: ["quality_actions"] });
+    qc.invalidateQueries({ queryKey: ["analytics-quality"] });
+    refresh();
+    toast.success(n ? `"${o.value}" now costs ${n} point${n === 1 ? "" : "s"}` : `"${o.value}" no longer prices an action`);
   };
   const toggle = async (o: QualityOption) => {
     const { error } = await supabase
@@ -1383,8 +1479,23 @@ function QualityListsManager() {
           <SelectContent><SelectItem value="label">Label</SelectItem><SelectItem value="department">Department</SelectItem></SelectContent>
         </Select>
         <Input placeholder="New value..." value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        {kind === "label" && (
+          <Input
+            type="number" min={0} max={1000} inputMode="numeric"
+            className="w-20 tabular-nums" placeholder="pts"
+            value={points} onChange={(e) => setPoints(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+            aria-label="Points this label charges"
+          />
+        )}
         <Button onClick={add}>Add</Button>
       </div>
+      {kind === "label" && (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          A label's points replace the severity weight: an action carrying priced labels is worth
+          their total, and one carrying none is worth its severity. Leave it at 0 to leave severity in charge.
+        </p>
+      )}
       {groups.map((g) => (
         <div key={g.kind}>
           <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">{g.title}</p>
@@ -1395,7 +1506,15 @@ function QualityListsManager() {
             {options.filter((o) => o.kind === g.kind).map((o) => (
               <div key={o.id} className="flex items-center justify-between px-3 py-1.5">
                 <span className={cn("text-sm", !o.active && "text-muted-foreground line-through")}>{o.value}</span>
-                <div className="flex gap-1">
+                <div className="flex items-center gap-1">
+                  {g.kind === "label" && (
+                    <PointsBox
+                      key={`${o.id}:${o.points}`}
+                      value={o.points}
+                      label={o.value}
+                      onCommit={(raw) => setLabelPrice(o, raw)}
+                    />
+                  )}
                   <Button size="sm" variant="outline" onClick={() => toggle(o)}>{o.active ? "Hide" : "Show"}</Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -1433,6 +1552,11 @@ function QualityListsManager() {
  *
  * Severity points, not just a count: ten Low actions and one Critical are not the
  * same problem, and the count alone said they were.
+ *
+ * Deliberately NOT `actionPoints`: this ranks problems, not people. Attribution
+ * answers "whose score is this", and filtering maintenance out here would hide the
+ * recurring machine faults that most need fixing. Rejected actions stay in for the
+ * same reason — Quality rejecting one instance does not make the pattern go away.
  */
 interface RecurringIssue { text: string; count: number; points: number; lines: Set<string> }
 
@@ -1445,7 +1569,7 @@ function recurringIssues(actions: QualityAction[]): RecurringIssue[] {
     const key = text.toLowerCase().slice(0, 80);
     const e = m.get(key) ?? { text, count: 0, points: 0, lines: new Set<string>() };
     e.count += 1;
-    e.points += severityPoints(a.severity);
+    e.points += issueWeight([a]);
     if (a.line) e.lines.add(a.line);
     m.set(key, e);
   }
@@ -1497,6 +1621,7 @@ function TopRecurringIssues({ rows }: { rows: RecurringIssue[] }) {
 // Analytics
 // ============================================================
 function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: string }) {
+  const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
   const byDay = useMemo(() => {
     const m = new Map<string, { key: string; label: string; todo: number; in_progress: number; complete: number }>();
     for (const a of actions) {
@@ -1523,22 +1648,10 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
   }, [actions]);
 
   const [leaderSearch, setLeaderSearch] = useState("");
-  const byLeader = useMemo(() => {
-    const m = new Map<string, { count: number; points: number; critical: number; high: number }>();
-    for (const a of actions) {
-      const l = a.leader_name?.trim() || "—";
-      const cur = m.get(l) ?? { count: 0, points: 0, critical: 0, high: 0 };
-      cur.count += 1;
-      cur.points += severityPoints(a.severity);
-      if (a.severity === "critical") cur.critical += 1;
-      else if (a.severity === "high") cur.high += 1;
-      m.set(l, cur);
-    }
-    // Ranked by points, not raw count: ten Lows must not outrank three Criticals.
-    return Array.from(m.entries())
-      .map(([label, v]) => ({ label, ...v }))
-      .sort((a, b) => b.points - a.points || b.count - a.count);
-  }, [actions]);
+  // The same roll-up the leader table uses, out in qualityBreakdown so a test can
+  // hold the two side by side. This bar chart used to charge every action, including
+  // the ones Quality had rejected.
+  const byLeader = useMemo(() => leaderPointsBreakdown(actions, excluded), [actions, excluded]);
   const filteredLeaders = useMemo(() => {
     const q = leaderSearch.trim().toLowerCase();
     const list = q ? byLeader.filter((l) => l.label.toLowerCase().includes(q)) : byLeader;
@@ -1578,7 +1691,15 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
           <Input value={leaderSearch} onChange={(e) => setLeaderSearch(e.target.value)} placeholder="Search leader…" className="h-8 w-48" />
         </CardHeader>
         <CardContent>
-          {filteredLeaders.length === 0 ? (
+          {/* Bars AND their order come from points, so this waits rather than drawing
+              a ranking it is about to rearrange in front of the reader. */}
+          {!attributionReady ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {attributionFailed
+                ? "Points are unavailable: the label attribution table could not be read."
+                : "Working out which actions count…"}
+            </p>
+          ) : filteredLeaders.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No leaders match “{leaderSearch}”.</p>
           ) : (
             <>
