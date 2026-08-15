@@ -1,13 +1,18 @@
--- Tests for the weekly Line Leader scorecard.
+-- Tests for the weekly Line Leader scorecard, v2 (two gates).
 --
--- Run this WHOLE file in one go, in the Supabase SQL Editor, after the migration
--- 20260814090000_the_week_is_red_when_the_check_is_missed.sql has been applied.
--- It opens a transaction, writes throwaway rows, asserts, and ROLLBACKs: nothing
--- survives it. The last statement prints 'ALL TESTS PASSED'; any failure raises and
--- aborts before that line, naming the case that failed.
+-- Run this WHOLE file in one go, in the Supabase SQL Editor, after
+-- 20260815140000_health_and_safety_is_the_second_gate.sql has been applied. It opens a
+-- transaction, writes throwaway rows, asserts, and ROLLBACKs: nothing survives it. The
+-- last statement prints 'ALL TESTS PASSED'; any failure raises and aborts before that
+-- line, naming the case that failed.
 --
 -- It must run as a role that bypasses RLS (the SQL Editor's postgres role does).
--- Leader names are placeholders: no real leader appears here.
+-- Leader and line names are placeholders: no real leader and no real line appears here.
+--
+-- The rollup cases assume the scorecard table is otherwise empty, because the period
+-- spine takes its calendar from min/max week_ending across the whole table. If real
+-- weeks already exist, the spine widens and the "no weeks recorded" case has more
+-- periods to be absent from — the assertions below still hold, they just cover less.
 
 BEGIN;
 
@@ -15,350 +20,387 @@ CREATE FUNCTION pg_temp.expect(_case text, _got text, _want text) RETURNS void
 LANGUAGE plpgsql AS $$
 BEGIN
   IF _got IS DISTINCT FROM _want THEN
-    RAISE EXCEPTION 'FAILED %  — expected [%], got [%]',
+    RAISE EXCEPTION 'FAILED %  — esperado [%], obtido [%]',
       _case, COALESCE(_want, '<NULL>'), COALESCE(_got, '<NULL>');
   END IF;
 END $$;
 
+CREATE FUNCTION pg_temp.expect_like(_case text, _got text, _pattern text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF _got IS NULL OR _got NOT LIKE _pattern THEN
+    RAISE EXCEPTION 'FAILED %  — esperado conter [%], obtido [%]',
+      _case, _pattern, COALESCE(_got, '<NULL>');
+  END IF;
+END $$;
+
 -- =====================================================================
--- Weekly rows, one leader per case so no case can disturb another.
+-- Fixtures. One leader per case, so no case can disturb another.
 -- =====================================================================
+
+INSERT INTO public.lines (id, name, active) VALUES
+  ('11111111-1111-1111-1111-111111111101', 'LINHA_TESTE_1', true),
+  ('11111111-1111-1111-1111-111111111102', 'LINHA_TESTE_2', true);
+
+INSERT INTO public.line_leaders (id, name, shift, active) VALUES
+  ('22222222-2222-2222-2222-2222222222a1', 'LIDER_A', 'Teste', true),  -- volume
+  ('22222222-2222-2222-2222-2222222222a2', 'LIDER_B', 'Teste', true),  -- volume/downtime
+  ('22222222-2222-2222-2222-2222222222a3', 'LIDER_C', 'Teste', true),  -- Fail
+  ('22222222-2222-2222-2222-2222222222a4', 'LIDER_D', 'Teste', true),  -- Not Done
+  ('22222222-2222-2222-2222-2222222222a5', 'LIDER_E', 'Teste', true),  -- near-miss zero
+  ('22222222-2222-2222-2222-2222222222a6', 'LIDER_F', 'Teste', true),  -- LTI
+  ('22222222-2222-2222-2222-2222222222a7', 'LIDER_G', 'Teste', true),  -- sem semanas
+  ('22222222-2222-2222-2222-2222222222a8', 'LIDER_H', 'Teste', true),  -- sem dados de H&S
+  ('22222222-2222-2222-2222-2222222222a9', 'LIDER_I', 'Teste', true);  -- troca de linha
+
+INSERT INTO public.leader_line_assignment (leader_id, line_id, valid_from, valid_to) VALUES
+  ('22222222-2222-2222-2222-2222222222a1', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  ('22222222-2222-2222-2222-2222222222a2', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  ('22222222-2222-2222-2222-2222222222a3', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  ('22222222-2222-2222-2222-2222222222a4', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  ('22222222-2222-2222-2222-2222222222a5', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  ('22222222-2222-2222-2222-2222222222a6', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  -- LIDER_G is assigned and never records a week: the whole point of guard 1.
+  ('22222222-2222-2222-2222-2222222222a7', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  ('22222222-2222-2222-2222-2222222222a8', '11111111-1111-1111-1111-111111111101', '2026-07-01', NULL),
+  -- LIDER_I moves line mid-quarter.
+  ('22222222-2222-2222-2222-2222222222a9', '11111111-1111-1111-1111-111111111101', '2026-07-01', '2026-07-31'),
+  ('22222222-2222-2222-2222-2222222222a9', '11111111-1111-1111-1111-111111111102', '2026-08-01', NULL);
+
+-- A clean H&S block, reused by the cases that are not about H&S: everything at or
+-- above the minimum so that hs_rag is Green and the case under test is the only thing
+-- that can move the overall band.
+-- (lti, reportable, first_aid, near, obs, toolbox, ppe, training, overdue)
+--  0, 0, 0, 1, 2, 1, 1.0, 1.0, 0
+
 INSERT INTO public.leader_weekly_scorecard
-  (line_leader, week_ending, planned_volume, actual_volume,
-   ccp_check_completed, starter_check_completed, volume_weight_check_completed,
-   leader_attendance_pct, team_attendance_pct, training_compliance_pct,
-   leader_lateness_incidents, team_lateness_incidents, hs_near_misses_reported)
+  (leader_id, line_id, week_ending, planned_volume, actual_volume,
+   unplanned_downtime_minutes, downtime_reason,
+   ccp_check_status, starter_check_status, volume_weight_check_status,
+   lost_time_injuries, reportable_accidents, first_aid_cases, near_misses_reported,
+   safety_observations_done, toolbox_talks_done, ppe_compliance_pct,
+   hs_training_compliance_pct, overdue_hs_actions,
+   root_cause, corrective_action, capa_owner, capa_due_date)
 VALUES
-  -- volume bands (cases 1-6)
-  ('LIDER_A', '2026-07-05', 1000, 1000, 'Y','Y','Y', 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_B', '2026-07-05', 1000, 1050, 'Y','Y','Y', 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_C', '2026-07-05', 1000,  999, 'Y','Y','Y', 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_D', '2026-07-05', 1000,  970, 'Y','Y','Y', 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_E', '2026-07-05', 1000,  969, 'Y','Y','Y', 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_F', '2026-07-05', NULL,  900, 'Y','Y','Y', 1.0, 1.0, 1.0, 0,0,0),
-  -- quality (cases 8-13)
-  ('LIDER_G', '2026-07-05', 1000, 1000, 'Y','N','Y', 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_H', '2026-07-05', 1000, 1000, 'N','N','N', 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_I', '2026-07-05', 1000, 1000, NULL,NULL,NULL, 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_J', '2026-07-05', 1000, 1000, 'Y',NULL,NULL, 1.0, 1.0, 1.0, 0,0,0),
-  ('LIDER_K', '2026-07-05', 1000, 1200, 'Y','N','Y', 1.0, 1.0, 1.0, 0,0,0),
-  -- attendance and training (cases 14-22)
-  ('LIDER_L', '2026-07-05', 1000, 1000, 'Y','Y','Y', 0.9990, 0.9960, 1.0, 0,0,0),
-  ('LIDER_M', '2026-07-05', 1000, 1000, 'Y','Y','Y', 0.9950, 0.9950, 1.0, 0,0,0),
-  ('LIDER_N', '2026-07-05', 1000, 1000, 'Y','Y','Y', 1.0000, 0.9940, 1.0, 0,0,0),
-  ('LIDER_O', '2026-07-05', 1000, 1000, 'Y','Y','Y', NULL,   NULL,   1.0, 0,0,0),
-  ('LIDER_P', '2026-07-05', 1000, 1000, 'Y','Y','Y', 0.9900, NULL,   1.0, 0,0,0),
-  ('LIDER_Q', '2026-07-05', 1000, 1000, 'Y','Y','Y', 1.0, 1.0, NULL,  0,0,0),
-  ('LIDER_R', '2026-07-05', 1000, 1000, 'Y','Y','Y', 1.0, 1.0, 0.0,   0,0,0),
-  ('LIDER_S', '2026-07-05', 1000,  950, 'Y','N','Y', NULL, NULL, NULL, 0,0,0);
+  -- 1. Superproducao: 108,2% do plano.
+  ('22222222-2222-2222-2222-2222222222a1', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 1082, NULL, NULL, 'Pass','Pass','Pass',
+   0,0,0,1,2,1,1.0,1.0,0, NULL,NULL,NULL,NULL),
+
+  -- 2. Downtime nao planeado: bruto 90%, ajustado 100%.
+  ('22222222-2222-2222-2222-2222222222a2', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 900, 240, 'Falta de Materia Prima', 'Pass','Pass','Pass',
+   0,0,0,1,2,1,1.0,1.0,0, NULL,NULL,NULL,NULL),
+
+  -- 3. Fail: mesmo Red, mas com CAPA obrigatoria. O volume esta em 100%.
+  ('22222222-2222-2222-2222-2222222222a3', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 1000, NULL, NULL, 'Fail','Pass','Pass',
+   0,0,0,1,2,1,1.0,1.0,0,
+   'Causa de teste', 'Accao de teste', 'DONO_TESTE', '2026-07-31'),
+
+  -- 4. Not Done: mesmo Red, sem CAPA obrigatoria.
+  ('22222222-2222-2222-2222-2222222222a4', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 1000, NULL, NULL, 'Pass','Pass','Not Done',
+   0,0,0,1,2,1,1.0,1.0,0, NULL,NULL,NULL,NULL),
+
+  -- 5. Zero near-miss reportado, tudo o resto em ordem.
+  ('22222222-2222-2222-2222-2222222222a5', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 1000, NULL, NULL, 'Pass','Pass','Pass',
+   0,0,0,0,2,1,1.0,1.0,0, NULL,NULL,NULL,NULL),
+
+  -- 6. Um acidente com afastamento, volume em 100% e qualidade Green.
+  ('22222222-2222-2222-2222-2222222222a6', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 1000, NULL, NULL, 'Pass','Pass','Pass',
+   1,0,0,1,2,1,1.0,1.0,0, NULL,NULL,NULL,NULL),
+
+  -- 7. Semana registada SEM nenhum campo de H&S. Os nove ficam NULL.
+  ('22222222-2222-2222-2222-2222222222a8', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 1000, NULL, NULL, 'Pass','Pass','Pass',
+   NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL),
+
+  -- 8. Troca de linha a meio do trimestre: uma semana de cada lado da mudanca.
+  ('22222222-2222-2222-2222-2222222222a9', '11111111-1111-1111-1111-111111111101',
+   '2026-07-05', 1000, 1000, NULL, NULL, 'Pass','Pass','Pass',
+   0,0,0,1,2,1,1.0,1.0,0, NULL,NULL,NULL,NULL),
+  ('22222222-2222-2222-2222-2222222222a9', '11111111-1111-1111-1111-111111111102',
+   '2026-08-09', 1000, 1000, NULL, NULL, 'Pass','Pass','Pass',
+   0,0,0,1,2,1,1.0,1.0,0, NULL,NULL,NULL,NULL);
 
 -- =====================================================================
--- 1-6  volume
+-- Weekly assertions
 -- =====================================================================
+
 DO $$
-DECLARE r record;
+DECLARE w record;
 BEGIN
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_A';
-  PERFORM pg_temp.expect('1 volume at plan / pct',  round(r.volume_pct,4)::text, '1.0000');
-  PERFORM pg_temp.expect('1 volume at plan / rag',  r.volume_rag, 'Green');
+  -- CASO 1 — superproducao e Amber, nao Green.
+  SELECT * INTO w FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a1';
+  PERFORM pg_temp.expect('1 superproducao volume_rag',  w.volume_rag,  'Amber');
+  PERFORM pg_temp.expect('1 superproducao overall_rag', w.overall_rag, 'Amber');
+  PERFORM pg_temp.expect_like('1 superproducao driver', w.rag_driver, '%108,2% (superproducao).%');
 
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_B';
-  PERFORM pg_temp.expect('2 volume above plan',     r.volume_rag, 'Green');
+  -- CASO 2 — o downtime nao mexe no bruto e levanta o ajustado.
+  SELECT * INTO w FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a2';
+  PERFORM pg_temp.expect('2 downtime volume_pct bruto',
+    round(w.volume_pct, 4)::text, '0.9000');
+  PERFORM pg_temp.expect('2 downtime volume_pct ajustado',
+    round(w.volume_pct_adjusted, 4)::text, '1.0000');
+  -- O RAG oficial le o BRUTO. Se lesse o ajustado, esta semana seria Green.
+  PERFORM pg_temp.expect('2 downtime volume_rag usa o bruto', w.volume_rag, 'Red');
 
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_C';
-  PERFORM pg_temp.expect('3 amber upper edge',      r.volume_rag, 'Amber');
+  -- CASO 3 — Fail.
+  SELECT * INTO w FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a3';
+  PERFORM pg_temp.expect('3 Fail quality_rag',       w.quality_rag,       'Red');
+  PERFORM pg_temp.expect('3 Fail quality_fail_type', w.quality_fail_type, 'Fail');
+  PERFORM pg_temp.expect('3 Fail capa_required',     w.capa_required::text, 'true');
+  PERFORM pg_temp.expect('3 Fail overall (gate)',    w.overall_rag,       'Red');
+  PERFORM pg_temp.expect_like('3 Fail driver', w.rag_driver, '%CCP reprovado; CAPA obrigatoria.%');
 
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_D';
-  PERFORM pg_temp.expect('4 amber lower edge (inclusive)', r.volume_rag, 'Amber');
+  -- CASO 4 — Not Done: mesmo RAG, outro tipo, sem CAPA.
+  SELECT * INTO w FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a4';
+  PERFORM pg_temp.expect('4 NotDone quality_rag',       w.quality_rag,       'Red');
+  PERFORM pg_temp.expect('4 NotDone quality_fail_type', w.quality_fail_type, 'Not Done');
+  PERFORM pg_temp.expect('4 NotDone capa_required',     w.capa_required::text, 'false');
+  PERFORM pg_temp.expect_like('4 NotDone driver', w.rag_driver, '%Vol&Peso nao realizado.%');
 
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_E';
-  PERFORM pg_temp.expect('5 red edge',              r.volume_rag, 'Red');
+  -- CASO 5 — zero near-miss reportado e Amber (sub-reporte), nunca um bom resultado.
+  SELECT * INTO w FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a5';
+  PERFORM pg_temp.expect('5 near-miss zero hs_rag',      w.hs_rag,      'Amber');
+  PERFORM pg_temp.expect('5 near-miss zero overall_rag', w.overall_rag, 'Amber');
+  PERFORM pg_temp.expect_like('5 near-miss zero driver', w.rag_driver, '%sub-reporte%');
 
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_F';
-  PERFORM pg_temp.expect('6 plan missing / pct',    r.volume_pct::text,  NULL);
-  PERFORM pg_temp.expect('6 plan missing / rag',    r.volume_rag,        NULL);
-  PERFORM pg_temp.expect('6 plan missing / overall',r.overall_rag,       NULL);
-END $$;
+  -- CASO 6 — LTI com volume em 100% e qualidade Green da Red na mesma.
+  SELECT * INTO w FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a6';
+  PERFORM pg_temp.expect('6 LTI volume_rag',  w.volume_rag,  'Green');
+  PERFORM pg_temp.expect('6 LTI quality_rag', w.quality_rag, 'Green');
+  PERFORM pg_temp.expect('6 LTI hs_rag',      w.hs_rag,      'Red');
+  PERFORM pg_temp.expect('6 LTI overall_rag', w.overall_rag, 'Red');
+  PERFORM pg_temp.expect_like('6 LTI driver', w.rag_driver, '%acidente(s) com afastamento%');
 
--- 7  plan = 0 is refused
-DO $$
-DECLARE raised boolean := false;
-BEGIN
-  BEGIN
-    INSERT INTO public.leader_weekly_scorecard (line_leader, week_ending, planned_volume)
-    VALUES ('LIDER_ZERO', '2026-07-05', 0);
-  EXCEPTION WHEN check_violation THEN raised := true;
-  END;
-  PERFORM pg_temp.expect('7 planned_volume = 0 rejected', raised::text, 'true');
-END $$;
-
--- =====================================================================
--- 8-13  quality, including the gate
--- =====================================================================
-DO $$
-DECLARE r record;
-BEGIN
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_A';
-  PERFORM pg_temp.expect('8 all checks Y',           r.quality_rag, 'Green');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_G';
-  PERFORM pg_temp.expect('9 one check N / rag',      r.quality_rag, 'Red');
-  PERFORM pg_temp.expect('9 one check N / driver',   r.rag_driver,  'Qualidade: Starter não concluído.');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_H';
-  PERFORM pg_temp.expect('10 three checks N / driver',
-    r.rag_driver, 'Qualidade: CCP, Starter, Vol&Peso não concluído.');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_I';
-  PERFORM pg_temp.expect('11 checks all blank / quality', r.quality_rag, NULL);
-  PERFORM pg_temp.expect('11 checks all blank / overall', r.overall_rag, NULL);
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_J';
-  PERFORM pg_temp.expect('12 checks partly filled is not Green', r.quality_rag, NULL);
-
-  -- The one that matters: volume 120% of plan, one check missed.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_K';
-  PERFORM pg_temp.expect('13 GATE / volume', r.volume_rag,  'Green');
-  PERFORM pg_temp.expect('13 GATE / overall', r.overall_rag, 'Red');
-END $$;
-
--- =====================================================================
--- 14-22  attendance, training, driver
--- =====================================================================
-DO $$
-DECLARE r record;
-BEGIN
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_L';
-  PERFORM pg_temp.expect('14 attendance ok',        r.attendance_status, 'Met');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_M';
-  PERFORM pg_temp.expect('15 attendance on the line', r.attendance_status, 'Met');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_N';
-  PERFORM pg_temp.expect('16 team below / status', r.attendance_status, 'Not Met');
-  PERFORM pg_temp.expect('16 team below / driver', r.rag_driver, 'Assiduidade abaixo de 99,5%.');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_O';
-  PERFORM pg_temp.expect('17 attendance blank / status',  r.attendance_status, NULL);
-  PERFORM pg_temp.expect('17 attendance blank / flag',    r.missing_attendance_data::text, 'true');
-  PERFORM pg_temp.expect('17 attendance blank / driver',  r.rag_driver, 'Dados de assiduidade ausentes.');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_P';
-  PERFORM pg_temp.expect('18 one side blank, other fails', r.attendance_status, 'Not Met');
-  PERFORM pg_temp.expect('18 one side blank is not missing data', r.missing_attendance_data::text, 'false');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_Q';
-  PERFORM pg_temp.expect('19 training blank / flag',   r.missing_training_data::text, 'true');
-  PERFORM pg_temp.expect('19 training blank / driver', r.rag_driver, 'Treinamento não informado.');
-
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_R';
-  PERFORM pg_temp.expect('20 training zero is not missing', r.missing_training_data::text, 'false');
-  PERFORM pg_temp.expect('20 training zero / no driver',    r.rag_driver, NULL);
-
-  -- 21 every clause at once, in the order the sheet writes them
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_S';
-  PERFORM pg_temp.expect('21 composite driver', r.rag_driver,
-    'Qualidade: Starter não concluído. Volume 95,0% do plano (>3% abaixo).'
-    || ' Dados de assiduidade ausentes. Treinamento não informado.');
-
-  -- 22 a clean week says nothing
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_A';
-  PERFORM pg_temp.expect('22 clean week / driver',  r.rag_driver,  NULL);
-  PERFORM pg_temp.expect('22 clean week / overall', r.overall_rag, 'Green');
+  -- CASO 7 — semana sem nenhum campo de H&S: hs_rag NULL, nunca Green e nunca Amber.
+  SELECT * INTO w FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a8';
+  PERFORM pg_temp.expect('7 sem H&S hs_rag e nulo', w.hs_rag, NULL);
+  -- E o overall cai para a regra de volume/qualidade, sem ser bloqueado.
+  PERFORM pg_temp.expect('7 sem H&S overall_rag',   w.overall_rag, 'Green');
+  PERFORM pg_temp.expect_like('7 sem H&S driver', w.rag_driver, '%Dados de H&S ausentes.%');
 END $$;
 
 -- =====================================================================
--- 23-28  rollups, including the group with no weeks at all
+-- Rollups — os dois guards
 -- =====================================================================
-INSERT INTO public.leader_weekly_scorecard
-  (line_leader, week_ending, planned_volume, actual_volume,
-   ccp_check_completed, starter_check_completed, volume_weight_check_completed,
-   team_lateness_incidents, hs_near_misses_reported)
-VALUES
-  -- 23/26  four weeks averaging 0.99 -> Amber, quality clean
-  ('LIDER_AVG', '2026-07-05', 1000, 1000, 'Y','Y','Y', 1, 0),
-  ('LIDER_AVG', '2026-07-12', 1000,  980, 'Y','Y','Y', 1, 0),
-  ('LIDER_AVG', '2026-07-19', 1000,  960, 'Y','Y','Y', 1, 1),
-  ('LIDER_AVG', '2026-07-26', 1000, 1020, 'Y','Y','Y', 1, 0),
-  -- 25  strong volume, one quality failure
-  ('LIDER_FAIL','2026-07-05', 1000, 1050, 'Y','Y','Y', 0, 0),
-  ('LIDER_FAIL','2026-07-12', 1000, 1050, 'Y','Y','Y', 0, 0),
-  ('LIDER_FAIL','2026-07-19', 1000, 1050, 'N','Y','Y', 0, 0),
-  ('LIDER_FAIL','2026-07-26', 1000, 1050, 'Y','Y','Y', 0, 0),
-  -- 27  three weeks with quality never recorded
-  ('LIDER_BLNK','2026-07-05', 1000, 1000, NULL,NULL,NULL, 0, 0),
-  ('LIDER_BLNK','2026-07-12', 1000, 1000, NULL,NULL,NULL, 0, 0),
-  ('LIDER_BLNK','2026-07-19', 1000, 1000, NULL,NULL,NULL, 0, 0),
-  -- 24  JUL only, while LIDER_AUG exists only in AUG
-  ('LIDER_JUL', '2026-07-05', 1000, 1000, 'Y','Y','Y', 0, 0),
-  ('LIDER_AUG', '2026-08-02', 1000, 1000, 'Y','Y','Y', 0, 0),
-  -- 28  the quarter has to hold all three months
-  ('LIDER_QTR', '2026-07-05', 1000, 1000, 'Y','Y','Y', 0, 0),
-  ('LIDER_QTR', '2026-08-02', 1000, 1000, 'Y','Y','Y', 0, 0),
-  ('LIDER_QTR', '2026-09-06', 1000, 1000, 'Y','Y','Y', 0, 0);
 
 DO $$
 DECLARE r record;
 BEGIN
-  SELECT * INTO r FROM public.v_leader_scorecard_monthly
-   WHERE line_leader='LIDER_AVG' AND month_start='2026-07-01';
-  PERFORM pg_temp.expect('23 monthly avg / weeks',  r.weeks_recorded::text, '4');
-  PERFORM pg_temp.expect('23 monthly avg / value',  round(r.avg_volume_pct,4)::text, '0.9900');
-  PERFORM pg_temp.expect('23 monthly avg / band',   r.volume_rag, 'Amber');
-  PERFORM pg_temp.expect('26 monthly clean quality', r.quality_rag, 'Green');
-  PERFORM pg_temp.expect('23 monthly overall',      r.overall_rag, 'Amber');
-  PERFORM pg_temp.expect('23 monthly sums',         r.total_team_lateness::text, '4');
-  PERFORM pg_temp.expect('23 monthly near misses',  r.total_near_misses::text, '1');
+  -- GUARD 1 — LIDER_G tem atribuicao e zero semanas: 'Sem dados', nunca Green.
+  SELECT * INTO r FROM public.v_scorecard_rollup_leader
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a7'
+     AND period_type = 'mensal' AND period_start = '2026-07-01';
+  IF r IS NULL THEN
+    RAISE EXCEPTION 'FAILED guard 1 — o grupo sem semanas nem sequer produziu linha';
+  END IF;
+  PERFORM pg_temp.expect('guard 1 weeks_recorded', r.weeks_recorded::text, '0');
+  PERFORM pg_temp.expect('guard 1 quality_rag',    r.quality_rag,  'Sem dados');
+  PERFORM pg_temp.expect('guard 1 hs_rag',         r.hs_rag,       'Sem dados');
+  PERFORM pg_temp.expect('guard 1 overall_rag',    r.overall_rag,  NULL);
+  -- Uma taxa sobre nada nao e uma taxa de zero.
+  PERFORM pg_temp.expect('guard 1 near_misses_per_week', r.near_misses_per_week::text, NULL);
 
-  SELECT * INTO r FROM public.v_leader_scorecard_monthly
-   WHERE line_leader='LIDER_FAIL' AND month_start='2026-07-01';
-  PERFORM pg_temp.expect('25 rollup gate / fails',   r.weeks_with_quality_fail::text, '1');
-  PERFORM pg_temp.expect('25 rollup gate / quality', r.quality_rag, 'Red');
-  PERFORM pg_temp.expect('25 rollup gate / volume',  r.volume_rag,  'Green');
-  PERFORM pg_temp.expect('25 rollup gate / overall', r.overall_rag, 'Red');
-
-  SELECT * INTO r FROM public.v_leader_scorecard_monthly
-   WHERE line_leader='LIDER_BLNK' AND month_start='2026-07-01';
-  PERFORM pg_temp.expect('27 quality never recorded / rag',     r.quality_rag, 'Sem dados');
-  PERFORM pg_temp.expect('27 quality never recorded / overall', r.overall_rag, NULL);
-
-  -- 24  THE ONE THIS DESIGN EXISTS FOR: a group with no weeks at all.
-  SELECT * INTO r FROM public.v_leader_scorecard_monthly
-   WHERE line_leader='LIDER_JUL' AND month_start='2026-08-01';
-  PERFORM pg_temp.expect('24 empty group / row exists', (r.line_leader IS NOT NULL)::text, 'true');
-  PERFORM pg_temp.expect('24 empty group / weeks',      r.weeks_recorded::text, '0');
-  PERFORM pg_temp.expect('24 empty group / fails',      r.weeks_with_quality_fail::text, '0');
-  PERFORM pg_temp.expect('24 empty group / NOT Green',  r.quality_rag, 'Sem dados');
-  PERFORM pg_temp.expect('24 empty group / overall',    r.overall_rag, NULL);
-
-  -- 28  quarter spans the three months
-  SELECT * INTO r FROM public.v_leader_scorecard_quarterly
-   WHERE line_leader='LIDER_QTR' AND quarter_start='2026-07-01';
-  PERFORM pg_temp.expect('28 quarter / label', r.quarter, 'Q3-2026');
-  PERFORM pg_temp.expect('28 quarter / weeks', r.weeks_recorded::text, '3');
-
-  -- 29  derived labels
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_JUL';
-  PERFORM pg_temp.expect('29 month label',   r.month,   'Jul-2026');
-  PERFORM pg_temp.expect('29 quarter label', r.quarter, 'Q3-2026');
+  -- GUARD 2 — LIDER_H tem uma semana registada mas nenhum dado de H&S nela.
+  -- Sem o guard, near_misses_per_week = 0 dispararia a regra de sub-reporte e isto
+  -- viria Amber, escondendo que ninguem preencheu.
+  SELECT * INTO r FROM public.v_scorecard_rollup_leader
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a8'
+     AND period_type = 'mensal' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('guard 2 weeks_recorded', r.weeks_recorded::text, '1');
+  PERFORM pg_temp.expect('guard 2 quality_rag',    r.quality_rag, 'Green');
+  PERFORM pg_temp.expect('guard 2 hs_rag',         r.hs_rag,      'Sem dados');
+  -- H&S 'Sem dados' nao bloqueia o overall: cai para volume/qualidade.
+  PERFORM pg_temp.expect('guard 2 overall_rag',    r.overall_rag, 'Green');
 END $$;
 
 -- =====================================================================
--- 30  summary. Its own month, 2027-03, so nothing else lands in the period.
+-- Troca de linha a meio do trimestre — agregacao em A, B e C
 -- =====================================================================
-INSERT INTO public.leader_weekly_scorecard
-  (line_leader, week_ending, planned_volume, actual_volume,
-   ccp_check_completed, starter_check_completed, volume_weight_check_completed,
-   leader_attendance_pct, team_attendance_pct, training_compliance_pct,
-   team_lateness_incidents, hs_near_misses_reported)
-VALUES
-  ('LIDER_T', '2027-03-07', 1000, 1000, 'Y','Y','Y', 1.0, 1.0, 1.0, 2, 1),
-  ('LIDER_U', '2027-03-07', 1000,  900, 'Y','N','Y', 1.0, 1.0, 1.0, 3, 0),
-  ('LIDER_V', '2027-03-07', 1000,  980, 'Y','Y','Y', NULL, NULL, NULL, NULL, NULL);
 
 DO $$
-DECLARE r record;
+DECLARE _weeks bigint; _rows bigint;
 BEGIN
-  SELECT * INTO r FROM public.leader_scorecard_summary('2027-03-01','2027-03-31');
-  PERFORM pg_temp.expect('summary / weeks',          r.weeks_recorded::text, '3');
-  PERFORM pg_temp.expect('summary / green',          r.weeks_green::text, '1');
-  PERFORM pg_temp.expect('summary / amber',          r.weeks_amber::text, '1');
-  PERFORM pg_temp.expect('summary / red',            r.weeks_red::text, '1');
-  PERFORM pg_temp.expect('summary / pct red',        round(r.pct_weeks_red,4)::text, '0.3333');
-  PERFORM pg_temp.expect('summary / avg vs plan',    round(r.avg_volume_vs_plan,4)::text, '0.9600');
-  PERFORM pg_temp.expect('summary / quality fails',  r.weeks_with_quality_fail::text, '1');
-  PERFORM pg_temp.expect('summary / below 97',       r.weeks_volume_below_97pct::text, '1');
-  PERFORM pg_temp.expect('summary / team lateness',  r.total_team_lateness::text, '5');
-  PERFORM pg_temp.expect('summary / near misses',    r.total_near_misses::text, '1');
-  PERFORM pg_temp.expect('summary / missing attend', r.rows_missing_attendance_data::text, '1');
-  PERFORM pg_temp.expect('summary / missing train',  r.rows_missing_training_data::text, '1');
+  -- A) por lider: as duas semanas contam uma vez so, no mesmo trimestre.
+  SELECT weeks_recorded INTO _weeks FROM public.v_scorecard_rollup_leader
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a9'
+     AND period_type = 'trimestral' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('troca A lider Q3 weeks', _weeks::text, '2');
 
-  -- 30  an empty period returns one row of zeros, and NULL where nothing divides
-  SELECT * INTO r FROM public.leader_scorecard_summary('2020-01-01','2020-12-31');
-  PERFORM pg_temp.expect('30 empty period / row',   (r.weeks_recorded IS NOT NULL)::text, 'true');
-  PERFORM pg_temp.expect('30 empty period / weeks',  r.weeks_recorded::text, '0');
-  PERFORM pg_temp.expect('30 empty period / pct',    r.pct_weeks_red::text, NULL);
+  -- B) por linha: uma semana em cada linha.
+  SELECT weeks_recorded INTO _weeks FROM public.v_scorecard_rollup_line
+   WHERE line_id = '11111111-1111-1111-1111-111111111101'
+     AND period_type = 'trimestral' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('troca B linha 1 Q3 weeks (7 semanas de outros lideres + 1)',
+    _weeks::text, '8');
+  SELECT weeks_recorded INTO _weeks FROM public.v_scorecard_rollup_line
+   WHERE line_id = '11111111-1111-1111-1111-111111111102'
+     AND period_type = 'trimestral' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('troca B linha 2 Q3 weeks', _weeks::text, '1');
+
+  -- C) por lider x linha: duas linhas, uma semana cada, no mesmo trimestre.
+  SELECT count(*) INTO _rows FROM public.v_scorecard_rollup_leader_line
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a9'
+     AND period_type = 'trimestral' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('troca C linhas no trimestre', _rows::text, '2');
+
+  SELECT weeks_recorded INTO _weeks FROM public.v_scorecard_rollup_leader_line
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a9'
+     AND line_id = '11111111-1111-1111-1111-111111111101'
+     AND period_type = 'trimestral' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('troca C linha antiga', _weeks::text, '1');
+
+  SELECT weeks_recorded INTO _weeks FROM public.v_scorecard_rollup_leader_line
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a9'
+     AND line_id = '11111111-1111-1111-1111-111111111102'
+     AND period_type = 'trimestral' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('troca C linha nova', _weeks::text, '1');
+
+  -- E o mes de agosto so tem a linha nova: a atribuicao antiga ja fechou.
+  SELECT count(*) INTO _rows FROM public.v_scorecard_rollup_leader_line
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a9'
+     AND period_type = 'mensal' AND period_start = '2026-08-01';
+  PERFORM pg_temp.expect('troca C agosto so tem a linha nova', _rows::text, '1');
 END $$;
 
 -- =====================================================================
--- per-leader view: worst_rag
+-- Ranking — amostra insuficiente nao entra
 -- =====================================================================
+
 DO $$
-DECLARE r record;
+DECLARE _rows bigint;
 BEGIN
-  SELECT * INTO r FROM public.v_leader_scorecard_by_leader WHERE leader='LIDER_FAIL';
-  PERFORM pg_temp.expect('by_leader / worst is Red',   r.worst_rag, 'Red');
-  SELECT * INTO r FROM public.v_leader_scorecard_by_leader WHERE leader='LIDER_AVG';
-  PERFORM pg_temp.expect('by_leader / worst is Amber', r.worst_rag, 'Amber');
-  PERFORM pg_temp.expect('by_leader / weeks',          r.weeks::text, '4');
-  SELECT * INTO r FROM public.v_leader_scorecard_by_leader WHERE leader='LIDER_BLNK';
-  PERFORM pg_temp.expect('by_leader / nothing decided', r.worst_rag, 'Sem dados');
+  -- Todos os lideres deste teste tem 1 ou 2 semanas, abaixo de THR_MinWeeks = 4.
+  SELECT count(*) INTO _rows FROM public.v_scorecard_ranking_leader
+   WHERE period_type = 'trimestral' AND period_start = '2026-07-01';
+  PERFORM pg_temp.expect('ranking exclui amostra insuficiente', _rows::text, '0');
 END $$;
 
 -- =====================================================================
--- 31  the same leader and week twice, spelled differently
+-- A CAPA obrigatoria e a trilha de auditoria
 -- =====================================================================
+
 DO $$
-DECLARE raised boolean := false;
+DECLARE _blocked boolean := false;
 BEGIN
+  -- Uma semana com Fail e sem CAPA nao pode ser aprovada.
   BEGIN
-    INSERT INTO public.leader_weekly_scorecard (line_leader, week_ending)
-    VALUES ('lider_a', '2026-07-05');
-  EXCEPTION WHEN unique_violation THEN raised := true;
+    UPDATE public.leader_weekly_scorecard
+       SET root_cause = NULL, corrective_action = NULL, capa_owner = NULL,
+           capa_due_date = NULL,
+           approved_by = '33333333-3333-3333-3333-333333333333',
+           approved_at = now()
+     WHERE leader_id = '22222222-2222-2222-2222-2222222222a3';
+  EXCEPTION WHEN check_violation THEN
+    _blocked := true;
   END;
-  PERFORM pg_temp.expect('31 duplicate leader/week, other casing, rejected', raised::text, 'true');
+  IF NOT _blocked THEN
+    RAISE EXCEPTION 'FAILED CAPA — semana com Fail foi aprovada sem CAPA';
+  END IF;
+END $$;
+
+DO $$
+DECLARE _blocked boolean := false;
+BEGIN
+  -- A mesma semana, COM a CAPA preenchida, aprova.
+  UPDATE public.leader_weekly_scorecard
+     SET approved_by = '33333333-3333-3333-3333-333333333333', approved_at = now()
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a3';
+
+  -- E uma semana de Not Done nao exige CAPA nenhuma para ser aprovada.
+  UPDATE public.leader_weekly_scorecard
+     SET approved_by = '33333333-3333-3333-3333-333333333333', approved_at = now()
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a4';
+
+  -- Mas uma aprovacao sem assinatura continua a ser recusada pelo CHECK do par.
+  BEGIN
+    UPDATE public.leader_weekly_scorecard
+       SET approved_by = NULL, approved_at = now()
+     WHERE leader_id = '22222222-2222-2222-2222-2222222222a5';
+  EXCEPTION WHEN check_violation THEN
+    _blocked := true;
+  END;
+  IF NOT _blocked THEN
+    RAISE EXCEPTION 'FAILED trilha — aprovacao sem approved_by foi aceite';
+  END IF;
 END $$;
 
 -- =====================================================================
--- 32-33  thresholds
+-- A atribuicao versionada nao aceita sobreposicao do mesmo par
 -- =====================================================================
-DO $$
-DECLARE r record; raised boolean := false;
-BEGIN
-  -- 32  LIDER_E was Red at 0.969; widening the amber band moves it, with no backfill
-  UPDATE public.leader_scorecard_thresholds SET volume_amber_min = 0.9500 WHERE id;
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_E';
-  PERFORM pg_temp.expect('32 threshold edit moves history', r.volume_rag, 'Amber');
-  UPDATE public.leader_scorecard_thresholds SET volume_amber_min = 0.9700 WHERE id;
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE line_leader='LIDER_E';
-  PERFORM pg_temp.expect('32 threshold restored', r.volume_rag, 'Red');
 
-  -- 33  amber above green would leave the band inverted
+DO $$
+DECLARE _blocked boolean := false;
+BEGIN
   BEGIN
-    UPDATE public.leader_scorecard_thresholds SET volume_amber_min = 1.1000 WHERE id;
-  EXCEPTION WHEN check_violation THEN raised := true;
+    INSERT INTO public.leader_line_assignment (leader_id, line_id, valid_from, valid_to)
+    VALUES ('22222222-2222-2222-2222-2222222222a1',
+            '11111111-1111-1111-1111-111111111101', '2026-09-01', NULL);
+  EXCEPTION WHEN exclusion_violation THEN
+    _blocked := true;
   END;
-  PERFORM pg_temp.expect('33 inverted band rejected', raised::text, 'true');
+  IF NOT _blocked THEN
+    RAISE EXCEPTION 'FAILED atribuicao — sobreposicao do mesmo lider+linha foi aceite';
+  END IF;
 END $$;
 
 -- =====================================================================
--- 34-35  domain constraints
+-- Resumo executivo — integridade dos dados
 -- =====================================================================
+
 DO $$
-DECLARE raised boolean := false;
+DECLARE s record;
 BEGIN
-  BEGIN
-    INSERT INTO public.leader_weekly_scorecard (line_leader, week_ending, team_attendance_pct)
-    VALUES ('LIDER_OOR', '2026-07-05', 1.2);
-  EXCEPTION WHEN check_violation OR numeric_value_out_of_range THEN raised := true;
-  END;
-  PERFORM pg_temp.expect('34 attendance above 1 rejected', raised::text, 'true');
+  SELECT * INTO s FROM public.leader_scorecard_summary('2026-07-01', '2026-09-30');
+  PERFORM pg_temp.expect('resumo weeks_recorded',  s.weeks_recorded::text, '9');
+  PERFORM pg_temp.expect('resumo weeks_with_fail', s.weeks_with_fail::text, '1');
+  PERFORM pg_temp.expect('resumo weeks_with_not_done', s.weeks_with_not_done::text, '1');
+  PERFORM pg_temp.expect('resumo total_lti',       s.total_lti::text, '1');
+  PERFORM pg_temp.expect('resumo rows_missing_hs_data', s.rows_missing_hs_data::text, '1');
+  PERFORM pg_temp.expect('resumo weeks_overproduction', s.weeks_overproduction::text, '1');
+  PERFORM pg_temp.expect('resumo weeks_with_fail_without_capa',
+    s.weeks_with_fail_without_capa::text, '0');
+  -- Um periodo vazio devolve uma linha a dizer zero, e a taxa vem NULL e nao 0%.
+  SELECT * INTO s FROM public.leader_scorecard_summary('2020-01-01', '2020-01-31');
+  PERFORM pg_temp.expect('resumo periodo vazio weeks', s.weeks_recorded::text, '0');
+  PERFORM pg_temp.expect('resumo periodo vazio pct_weeks_red', s.pct_weeks_red::text, NULL);
+END $$;
 
-  raised := false;
-  BEGIN
-    INSERT INTO public.leader_weekly_scorecard (line_leader, week_ending, ccp_check_completed)
-    VALUES ('LIDER_BADY', '2026-07-05', 'S');
-  EXCEPTION WHEN check_violation THEN raised := true;
-  END;
-  PERFORM pg_temp.expect('35 check value other than Y/N rejected', raised::text, 'true');
+-- =====================================================================
+-- O quadro da semana (Task 1)
+-- =====================================================================
 
-  raised := false;
-  BEGIN
-    INSERT INTO public.leader_weekly_scorecard (line_leader, week_ending)
-    VALUES ('   ', '2026-07-05');
-  EXCEPTION WHEN check_violation THEN raised := true;
-  END;
-  PERFORM pg_temp.expect('35b blank leader name rejected', raised::text, 'true');
+DO $$
+DECLARE r record; _rows bigint;
+BEGIN
+  -- Uma linha por lider x linha ESPERADA na semana, mesmo sem registo.
+  SELECT count(*) INTO _rows FROM public.scorecard_week_board('2026-07-05');
+  PERFORM pg_temp.expect('board linhas esperadas', _rows::text, '9');
+
+  -- LIDER_G tem atribuicao e nao preencheu: aparece, e aparece como vazio.
+  SELECT * INTO r FROM public.scorecard_week_board('2026-07-05')
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a7';
+  PERFORM pg_temp.expect('board por preencher state', r.state, 'por preencher');
+  PERFORM pg_temp.expect('board por preencher rag',   r.overall_rag, NULL);
+
+  -- LIDER_C submeteu e foi aprovada nos testes da CAPA.
+  SELECT * INTO r FROM public.scorecard_week_board('2026-07-05')
+   WHERE leader_id = '22222222-2222-2222-2222-2222222222a3';
+  PERFORM pg_temp.expect('board aprovada state',  r.state, 'aprovada');
+  PERFORM pg_temp.expect('board aprovada rag',    r.overall_rag, 'Red');
+  PERFORM pg_temp.expect('board aprovada capa',   r.capa_required::text, 'true');
 END $$;
 
 SELECT 'ALL TESTS PASSED' AS result;
