@@ -84,10 +84,16 @@ RETURNS TABLE (
   planned_volume integer, actual_volume integer,
   unplanned_downtime_minutes integer, source_label text
 ) LANGUAGE sql STABLE SET search_path TO 'public' AS $$
+  -- No NULLIF here. sum() already gives us the one true absence: no rows joined at
+  -- all, because a line with nothing recorded that week has nothing to sum. A real
+  -- recorded zero — a line that genuinely produced nothing, or genuinely lost no
+  -- unplanned minutes — is a FACT and must read as 0, not be folded back into
+  -- "unrecorded". Turning it into NULL would be this function inventing the very
+  -- blank-vs-zero confusion the rest of this module exists to refuse.
   SELECT
-    NULLIF(sum(e.plan_qty), 0)::integer,
-    NULLIF(sum(e.actual_qty), 0)::integer,
-    NULLIF(sum(e.downtime_min), 0)::integer,
+    sum(e.plan_qty)::integer,
+    sum(e.actual_qty)::integer,
+    sum(e.downtime_min)::integer,
     'RAG Weekly'
   FROM public.rag_weekly_entries e
   JOIN public.lines ln ON ln.id = _line_id
