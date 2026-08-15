@@ -303,6 +303,29 @@ export default function SKUProductsPage() {
     } finally { setImporting(false); }
   };
 
+  // The whole catalogue as it stands, in the same columns the importer reads —
+  // so an exported file can be edited and imported straight back. `all` is the
+  // paginated query above, i.e. every SKU, not just the page on screen.
+  const exportAll = async () => {
+    if (!all.length) { toast.error("Nothing to export yet"); return; }
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("SKUs");
+    ws.addRow(["SKU", "Description", "Category", "TargetPerHour", "Weight", "Active"]);
+    for (const p of all) {
+      ws.addRow([p.code, p.name, p.category ?? "", p.target_per_hour ?? 0, p.weight ?? "", p.active ? "Yes" : "No"]);
+    }
+    ws.getRow(1).font = { bold: true };
+    ws.columns = [{ width: 18 }, { width: 60 }, { width: 24 }, { width: 16 }, { width: 12 }, { width: 10 }];
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `sku_products_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast.success(`Exported ${all.length} SKUs`);
+  };
+
   const downloadTemplate = async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("SKUs");
@@ -333,6 +356,9 @@ export default function SKUProductsPage() {
           <div className="flex gap-2">
             <Button variant="outline" onClick={cleanupBatchSkus} disabled={cleaning}>
               <Eraser className="h-4 w-4 mr-1" />{cleaning ? "Cleaning..." : "Remove batch SKUs"}
+            </Button>
+            <Button variant="outline" onClick={exportAll} disabled={isLoading || !all.length} title="Download every SKU in the system as Excel">
+              <Download className="h-4 w-4 mr-1" />{isLoading ? "Loading..." : `Export all (${all.length})`}
             </Button>
             <Button variant="outline" onClick={downloadTemplate}>
               <Download className="h-4 w-4 mr-1" />Template XLSX
