@@ -1,4 +1,8 @@
-import { actionPoints, standsAgainstLeader, severityPoints } from "@/lib/qualityConstants";
+import { actionPoints, standsAgainstLeader, severityPoints, labelChargeFor } from "@/lib/qualityConstants";
+
+/** The labels' price on an action, with nothing excluded — see `issueWeight`. */
+const NOTHING_EXCLUDED = new Set<string>();
+const labelCharge = (action: { labels?: string[] | null }) => labelChargeFor(action, NOTHING_EXCLUDED);
 
 /**
  * The two roll-ups that used to live inside `useMemo` blocks — the by-leader chart on
@@ -91,12 +95,19 @@ export function linePointsBreakdown(
 /**
  * Points for a recurring problem, which is NOT a leader's charge.
  *
- * Kept on raw severity weight on purpose: "how heavy is this problem" is a different
- * question from "what does this leader owe", and filtering maintenance out of it would
- * hide the recurring machine faults that most need fixing.
+ * Priced the same way an action is — labels first, severity when no label prices it —
+ * so the recurring-issues table cannot say a foreign body is worth 4 while the log
+ * beside it says 5. Quality prices a label to say how bad that KIND of problem is,
+ * which is exactly the question this table asks.
+ *
+ * What it does NOT do is filter by attribution: no `excluded` here, on purpose.
+ * "Whose score" and "what keeps happening" are different questions, and dropping
+ * maintenance from this list would hide the recurring machine faults that most need
+ * fixing. So a maintenance fault costs its leader nothing and still shows up here at
+ * full weight, which is the behaviour both tables want.
  */
-export function issueWeight(actions: Array<{ severity: string | null }>): number {
-  return actions.reduce((sum, a) => sum + severityPoints(a.severity), 0);
+export function issueWeight(actions: BreakdownAction[]): number {
+  return actions.reduce((sum, a) => sum + (labelCharge(a) || severityPoints(a.severity)), 0);
 }
 
 /** Whether an action stands against the leader it names — re-exported for screens. */

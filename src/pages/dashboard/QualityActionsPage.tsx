@@ -1550,8 +1550,10 @@ function QualityListsManager() {
  * guessing that two sentences mean the same thing, and a board that silently merges
  * two problems is worse than one that lists them twice.
  *
- * Severity points, not just a count: ten Low actions and one Critical are not the
- * same problem, and the count alone said they were.
+ * Points, not just a count: ten Low actions and one Critical are not the same
+ * problem, and the count alone said they were. Priced by `issueWeight`, which reads
+ * the label's own price first and falls back to severity — so this table cannot say
+ * a foreign body is worth 4 while the log beside it says 5.
  *
  * Deliberately NOT `actionPoints`: this ranks problems, not people. Attribution
  * answers "whose score is this", and filtering maintenance out here would hide the

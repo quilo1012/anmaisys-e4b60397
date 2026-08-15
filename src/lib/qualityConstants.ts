@@ -192,7 +192,7 @@ export function labelPoints(label: string): number {
  * "Maintenance is not the leader's" would hold for the attribution rule and fail for
  * the score, and the exclusion would come back in through the points.
  */
-function labelChargeFor(action: { labels?: string[] | null }, excluded: Set<string>): number {
+export function labelChargeFor(action: { labels?: string[] | null }, excluded: Set<string>): number {
   return (action.labels ?? [])
     .map((l) => l.trim().toLowerCase())
     .filter((l) => l && !excluded.has(l))

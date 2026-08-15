@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { actionPoints, sumActionPoints, setLabelPoints } from "@/lib/qualityConstants";
+import { issueWeight } from "@/lib/qualityBreakdown";
 
 /**
  * What a label is worth.
@@ -67,6 +68,18 @@ describe("label points", () => {
     setLabelPoints({ "foreign body": 5, maintenance: 3 });
     expect(actionPoints({ ...critical(["Foreign Body"]), validation_status: "rejected" }, EXCLUDED)).toBe(0);
     expect(actionPoints(critical(["Maintenance"]), EXCLUDED)).toBe(0);
+  });
+
+  it("a recurring problem is priced the same way, but ignores attribution", () => {
+    setLabelPoints({ "foreign body": 5, maintenance: 3 });
+    // Same price as the log shows, so the two tables cannot disagree...
+    expect(issueWeight([critical(["Foreign Body"])])).toBe(5);
+    // ...but the maintenance fault that costs its leader nothing still weighs 3 here.
+    // Hiding it would bury exactly the recurring machine faults this table is for.
+    expect(actionPoints(critical(["Maintenance"]), EXCLUDED)).toBe(0);
+    expect(issueWeight([critical(["Maintenance"])])).toBe(3);
+    // Unpriced labels fall back to severity here too.
+    expect(issueWeight([critical(["Batch code"])])).toBe(4);
   });
 
   it("changing a price re-scores the history — points are never stored", () => {
