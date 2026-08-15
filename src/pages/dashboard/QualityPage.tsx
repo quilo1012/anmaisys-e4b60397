@@ -1,25 +1,18 @@
-import { ShieldCheck } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { QualityActionsView } from "./QualityActionsPage";
 
+/**
+ * Landing screen for the quality supervisor.
+ *
+ * The header lives inside the view, not here: the toolbar beside it — the view
+ * toggle, the reports menu, Log action — is driven by the view's own state, and
+ * split across two components it could only sit on a row of its own, right-aligned
+ * against a title it belongs to.
+ */
 export default function QualityPage() {
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Landing screen for the quality supervisor — same opening. */}
-
-        {/* The system's page header, like every other screen — the page had a bare
-            icon and title with no description. */}
-        <PageHeader
-          module="Production"
-          title="Quality"
-          description="Log quality actions, track them to completion, and score them by severity."
-          icon={<ShieldCheck className="h-5 w-5" />}
-        />
-
-        <QualityActionsView />
-      </div>
+      <QualityActionsView />
     </DashboardLayout>
   );
 }
