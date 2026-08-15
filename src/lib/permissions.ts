@@ -50,6 +50,9 @@ export type Action =
   | "rag.view"
   | "rag.manage"
   | "rag.comment"
+  // Leader Scorecard
+  | "scorecard.fill"
+  | "scorecard.approve"
   // Smart Target
   | "smarttarget.view"
   // Quality
@@ -154,6 +157,11 @@ const MATRIX: Record<Action, Role[]> = {
   // planner excluded: commenting wasn't part of the planner enablement (no RLS
   // insert path for planner either). supervisor is enabled to match RLS.
   "rag.comment": ["admin", "manager", "supervisor", "production_office_admin"],
+
+  "scorecard.fill": ["admin", "manager", "quality_supervisor", "production_office_admin"],
+  // Mais restrita do que preencher, de proposito: aprovar uma semana com Fail e o
+  // controlo que impede uma investigacao de ser dispensada por quem a devia fazer.
+  "scorecard.approve": ["admin", "manager", "quality_supervisor"],
 
   "smarttarget.view": ["admin", "production_office_admin"],
 
@@ -393,6 +401,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
+  { key: "scorecard", label: "Leader Scorecard", actions: ["scorecard.fill", "scorecard.approve"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
   { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage", "attendance.manage"] },
   { key: "headcount", label: "Production Headcount", actions: ["headcount.view", "headcount.manage"] },
@@ -448,6 +457,8 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "rag.view": "Open the RAG Weekly board.",
   "rag.manage": "Edit RAG entries and status.",
   "rag.comment": "Add comments on RAG weekly entries.",
+  "scorecard.fill": "Fill in and submit a leader's weekly scorecard.",
+  "scorecard.approve": "Approve a submitted week, including one carrying a CAPA.",
   "smarttarget.view": "Access the Smart Target analytics page.",
   "quality.view": "See quality actions and issues.",
   "quality.manage": "Create and edit quality actions.",

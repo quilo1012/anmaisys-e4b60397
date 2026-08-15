@@ -42,6 +42,8 @@ const EXPECTED: Record<Action, Role[]> = {
   "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
   "rag.comment": ["admin", "manager", "supervisor"],
+  "scorecard.fill": ["admin", "manager", "quality_supervisor", "production_office_admin"],
+  "scorecard.approve": ["admin", "manager", "quality_supervisor"],
   "smarttarget.view": ["admin", "production_office_admin"],
   "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
   "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],
@@ -209,5 +211,24 @@ describe("no self-lockout", () => {
     expect(can("operator", "reports.analytics")).toBe(false);
     setPermissionOverrides({ "operator:reports.analytics": true });
     expect(can("operator", "reports.analytics")).toBe(true);
+  });
+});
+
+describe("scorecard actions", () => {
+  it("lets the roles that run the weekly review fill a week", () => {
+    expect(can("manager", "scorecard.fill")).toBe(true);
+    expect(can("quality_supervisor", "scorecard.fill")).toBe(true);
+    expect(can("production_office_admin", "scorecard.fill")).toBe(true);
+  });
+
+  it("keeps approval narrower than filling", () => {
+    // Quem preenche nao aprova por inerencia: aprovar um Fail e um acto de gestao.
+    expect(can("production_office_admin", "scorecard.approve")).toBe(false);
+    expect(can("manager", "scorecard.approve")).toBe(true);
+  });
+
+  it("keeps operators out of both", () => {
+    expect(can("operator", "scorecard.fill")).toBe(false);
+    expect(can("operator", "scorecard.approve")).toBe(false);
   });
 });
