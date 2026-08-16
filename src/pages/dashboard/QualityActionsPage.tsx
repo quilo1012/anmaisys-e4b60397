@@ -17,6 +17,7 @@ import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qual
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil, ShieldCheck, MoreHorizontal, SlidersHorizontal, Scale, AlertTriangle, Repeat } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
@@ -38,6 +39,7 @@ import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDelete
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
+import { filterByDomain, type ActionDomainFilter } from "@/lib/actionDomain";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -48,6 +50,7 @@ interface QualityAction {
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
   closed_at: string | null; closed_by: string | null;
   sku: string | null; batch: string | null;
+  domain?: string | null; safety_kind?: string | null;
 }
 
 // Resolve a SKU code from a production_items row without relying on a PostgREST
@@ -125,6 +128,10 @@ export function QualityActionsView() {
   const [importOpen, setImportOpen] = useState(false);
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
+  // Quality is the default tab: everything logged before this column existed is
+  // quality (see filterByDomain), so opening the page must not appear to have lost
+  // any of it behind a different tab.
+  const [domainFilter, setDomainFilter] = useState<ActionDomainFilter>("quality");
   const [filterLine, setFilterLine] = useState("__all__");
   const [filterLeader, setFilterLeader] = useState("__all__");
   const [filterDept, setFilterDept] = useState("__all__");
@@ -241,7 +248,7 @@ export function QualityActionsView() {
   });
 
   const filtered = useMemo(() =>
-    actions.filter((a) =>
+    filterByDomain(actions, domainFilter).filter((a) =>
       (filterLine === "__all__" || a.line === filterLine) &&
       (filterLeader === "__all__" || a.leader_name === filterLeader) &&
       (filterDept === "__all__" || a.department === filterDept) &&
@@ -251,7 +258,7 @@ export function QualityActionsView() {
         (filterValidation === "__pending__"
           ? !["validated", "rejected"].includes(a.validation_status ?? "open")
           : (a.validation_status ?? "open") === filterValidation))),
-    [actions, filterLine, filterLeader, filterDept, filterSeverity, filterShift, filterValidation]
+    [actions, domainFilter, filterLine, filterLeader, filterDept, filterSeverity, filterShift, filterValidation]
   );
 
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
@@ -707,6 +714,17 @@ export function QualityActionsView() {
             </>
           }
         />
+
+        {/* Quality and Safety share one log and one table, but never one number — see
+            actionPoints(). The tab picks which domain everything below is about; All
+            is for the rare moment both need to be seen side by side. */}
+        <Tabs value={domainFilter} onValueChange={(v) => setDomainFilter(v as ActionDomainFilter)}>
+          <TabsList>
+            <TabsTrigger value="quality">Quality</TabsTrigger>
+            <TabsTrigger value="safety">Safety</TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Filters, above the figures they govern.
             They used to sit under the leader table, which put every number on this
