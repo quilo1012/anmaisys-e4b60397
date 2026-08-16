@@ -6,8 +6,12 @@
 -- and ROLLBACKs: nothing survives it. The last statement prints 'ALL TESTS PASSED';
 -- any failure raises and aborts before that line, naming the case that failed.
 --
--- Unlike leader_weekly_scorecard_test.sql, this file seeds every row it asserts on, so
--- it can be run against an empty database and against a full one.
+-- Like leader_weekly_scorecard_test.sql, this file seeds every row it asserts on AND
+-- filters every assertion by the throwaway leader below, so it can be run against an
+-- empty database and against a full one. Seeding alone is not enough and the earlier
+-- wording here claimed it was: selecting a week by week_ending alone picks an arbitrary
+-- row on a database that already holds that week, and an UPDATE filtered the same way
+-- writes over somebody else's record.
 --
 -- It must run as a role that bypasses RLS (the SQL Editor's postgres role does).
 -- Leader and line names are placeholders: no real leader and no real line appears here.
@@ -57,8 +61,8 @@ INSERT INTO public.leader_line_assignment (leader_id, line_id, valid_from)
 VALUES ('44444444-4444-4444-4444-444444444401',
         '33333333-3333-3333-3333-333333333301', DATE '2026-07-01');
 
--- Six weeks, one per case. All in July 2026, which is in the past relative to any
--- re-weighting done later in this file — that is what the versioning case turns on.
+-- One week per case. The July ones are in the past relative to any re-weighting done
+-- later in this file — that is what the versioning case turns on.
 INSERT INTO public.leader_weekly_scorecard (
   leader_id, line_id, week_ending,
   planned_volume, actual_volume,
@@ -105,7 +109,17 @@ VALUES
   -- W7 — semana sem NENHUM check preenchido. Score NULO, e nao zero.
   ('44444444-4444-4444-4444-444444444401', '33333333-3333-3333-3333-333333333301', DATE '2026-08-16',
    1000, 1000, NULL, NULL, NULL,
-   0, 0, 0, 1, 2, 1, 1.0000, 1.0000, 0, NULL, NULL, NULL, NULL);
+   0, 0, 0, 1, 2, 1, 1.0000, 1.0000, 0, NULL, NULL, NULL, NULL),
+
+  -- W8 — H&S em Red SEM acidente nenhum: formacao de H&S em 50%, abaixo de
+  -- THR_HSTrainRed. E a terceira condicao de Red de scorecard_hs_evaluate, e era a que
+  -- nenhum caso deste ficheiro cobria — foi por isso que a semana Red passou meses a
+  -- pontuar melhor do que a mesma semana em Amber. Fica em Setembro de proposito: os
+  -- rollups de Agosto mais abaixo contam semanas, e um caso novo dentro de Agosto
+  -- mudaria o numero que essas verificacoes descrevem.
+  ('44444444-4444-4444-4444-444444444401', '33333333-3333-3333-3333-333333333301', DATE '2026-09-06',
+   1000, 1000, 'Pass', 'Pass', 'Pass',
+   0, 0, 0, 1, 2, 1, 1.0000, 0.5000, 0, NULL, NULL, NULL, NULL);
 
 -- ==============================================================
 -- Layer 1 and layer 2, week by week
@@ -116,7 +130,8 @@ BEGIN
   -- CASO: volume 100%, todos Pass, sem dados de H&S -> score 100, SEM teto.
   -- H&S nulo nao e Amber e por isso nao baixa o teto: ausencia de dados nao pontua,
   -- em nenhuma direccao.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE week_ending = '2026-07-05';
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-05';
   PERFORM pg_temp.expect_num ('W1 prod_score',  r.prod_score,  100);
   PERFORM pg_temp.expect_num ('W1 qual_score',  r.qual_score,  100);
   PERFORM pg_temp.expect_num ('W1 doc_score',   r.doc_score,   100);
@@ -130,7 +145,8 @@ BEGIN
   -- CASO: zero near-miss reportado -> Amber, bruto 100, final 79.
   -- A regra invertida. Zero quase-acidentes nao e uma linha segura, e uma linha que
   -- nao reporta, e o score paga por isso mesmo com volume e qualidade perfeitos.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE week_ending = '2026-07-12';
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-12';
   PERFORM pg_temp.expect_num ('W2 score_bruto', r.score_bruto, 100);
   PERFORM pg_temp.expect_num ('W2 score_final', r.score_final, 79);
   PERFORM pg_temp.expect     ('W2 hs_rag',      r.hs_rag,      'Amber');
@@ -139,7 +155,8 @@ BEGIN
 
   -- CASO: um check "Fail" -> final <= 49 e RAG Red. E a Documentation NAO paga por
   -- ele: o check foi feito e registado, reprovou. Só o Quality paga.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE week_ending = '2026-07-19';
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-19';
   PERFORM pg_temp.expect_num ('W3 qual_score',  r.qual_score,  50);
   PERFORM pg_temp.expect_num ('W3 doc_score',   r.doc_score,   100);
   PERFORM pg_temp.expect_num ('W3 score_bruto', r.score_bruto, 82.5);
@@ -151,7 +168,8 @@ BEGIN
 
   -- CASO: um check "Not Done" -> MESMO RAG (Red), tipo de falha diferente, teto
   -- diferente (69) e CAPA nao obrigatoria. Aqui paga a Documentation, nao a Quality.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE week_ending = '2026-07-26';
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-26';
   PERFORM pg_temp.expect_num ('W4 qual_score',  r.qual_score,  100);
   PERFORM pg_temp.expect_num ('W4 doc_score',   r.doc_score,   66.67);
   PERFORM pg_temp.expect_num ('W4 score_bruto', r.score_bruto, 91.67);
@@ -162,14 +180,16 @@ BEGIN
 
   -- CASO: volume 108% -> ProdScore < 100 e RAG Amber. Superproducao nunca pontua a
   -- cheio, porque e stock que ninguem encomendou.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE week_ending = '2026-08-02';
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-08-02';
   PERFORM pg_temp.expect_num ('W5 prod_score',  r.prod_score, 70);
   PERFORM pg_temp.expect_true('W5 prod_score < 100', r.prod_score < 100);
   PERFORM pg_temp.expect     ('W5 volume_rag',  r.volume_rag, 'Amber');
 
   -- CASO: LTI = 1 com volume 100% e qualidade Green -> final 49 e RAG Red.
   -- O bruto e 100 e nao serve de nada: o gate e um teto, e um teto nao se compensa.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE week_ending = '2026-08-09';
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-08-09';
   PERFORM pg_temp.expect_num ('W6 score_bruto', r.score_bruto, 100);
   PERFORM pg_temp.expect_num ('W6 score_final', r.score_final, 49);
   PERFORM pg_temp.expect_true('W6 cap_reason nomeia o acidente', r.cap_reason LIKE '%afastamento%');
@@ -180,7 +200,8 @@ BEGIN
   -- CASO: semana sem checks preenchidos -> score NULO, nao zero, e sem teto.
   -- Um pilar sem dados tratado como zero fica invisivel dentro de uma soma ponderada:
   -- 0 e "nao informado" colapsam no mesmo numero.
-  SELECT * INTO r FROM public.v_leader_weekly_scorecard WHERE week_ending = '2026-08-16';
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-08-16';
   PERFORM pg_temp.expect_num('W7 qual_score',  r.qual_score,  NULL);
   PERFORM pg_temp.expect_num('W7 doc_score',   r.doc_score,   NULL);
   PERFORM pg_temp.expect_num('W7 score_bruto', r.score_bruto, NULL);
@@ -188,6 +209,26 @@ BEGIN
   PERFORM pg_temp.expect    ('W7 cap_reason',  r.cap_reason,  NULL);
   -- O ProdScore existe: o volume foi informado. E o score ponderado que nao existe.
   PERFORM pg_temp.expect_num('W7 prod_score',  r.prod_score,  100);
+
+  -- CASO: H&S em Red sem acidente nenhum — formacao abaixo do minimo. O teto tem de
+  -- ser o mesmo teto duro do acidente. A regressao que este caso fecha: enquanto so o
+  -- Fail, o LTI e o acidente reportavel entravam no primeiro ramo, esta semana caia no
+  -- ELSE e ficava com o bruto inteiro, ou seja Red pontuava 100 e Amber pontuava 79.
+  -- Um teto que uma condicao Red atravessa sem tocar nao e um teto.
+  SELECT * INTO r FROM public.v_leader_weekly_scorecard
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-09-06';
+  PERFORM pg_temp.expect     ('W8 hs_rag',      r.hs_rag,      'Red');
+  PERFORM pg_temp.expect     ('W8 lost_time_injuries', r.lost_time_injuries::text, '0');
+  PERFORM pg_temp.expect_num ('W8 score_bruto', r.score_bruto, 100);
+  PERFORM pg_temp.expect_num ('W8 score_final', r.score_final, 49);
+  PERFORM pg_temp.expect     ('W8 cap_applied', r.cap_applied::text, 'true');
+  PERFORM pg_temp.expect_true('W8 cap_reason nomeia o H&S', r.cap_reason LIKE '%Health & Safety%');
+  PERFORM pg_temp.expect     ('W8 overall_rag', r.overall_rag, 'Red');
+  -- E nunca melhor do que a mesma semana em Amber (W2): o pior grau nao pode pontuar
+  -- mais alto do que o melhor.
+  PERFORM pg_temp.expect_true('W8 Red nao pontua acima de W2 Amber', r.score_final <= (
+    SELECT score_final FROM public.v_leader_weekly_scorecard
+     WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-12'));
 END $$;
 
 -- ==============================================================
@@ -237,13 +278,13 @@ BEGIN
 
   -- Vigencia. Uma semana de Julho tem de sobreviver a uma mudanca de pesos feita hoje.
   SELECT score_final INTO _before FROM public.v_leader_weekly_scorecard
-   WHERE week_ending = '2026-07-26';
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-26';
 
   UPDATE public.leader_score_weights
      SET production_pct = 60, quality_pct = 20, documentation_pct = 20 WHERE id;
 
   SELECT score_final INTO _after FROM public.v_leader_weekly_scorecard
-   WHERE week_ending = '2026-07-26';
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-26';
 
   PERFORM pg_temp.expect_num('score historico inalterado por re-pesagem posterior',
                              _after, _before);
@@ -270,13 +311,13 @@ BEGIN
   -- A semana com Fail (W3) tem CAPA preenchida e pode ser aprovada.
   UPDATE public.leader_weekly_scorecard
      SET approved_by = '44444444-4444-4444-4444-444444444401', approved_at = now()
-   WHERE week_ending = '2026-07-19';
+   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-19';
 
   -- A mesma semana sem a investigacao escrita nao pode.
   BEGIN
     UPDATE public.leader_weekly_scorecard
        SET root_cause = NULL
-     WHERE week_ending = '2026-07-19';
+     WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-19';
   EXCEPTION WHEN check_violation THEN _ok := true;
   END;
   PERFORM pg_temp.expect_true('Fail aprovado nao pode ficar sem root_cause', _ok);

@@ -70,7 +70,12 @@ FROM (VALUES
   ('CAP_Gate',           49.00, 'Score', 'Teto quando um gate dispara: check "Fail", LTI ou acidente reportavel.'),
   ('CAP_NotDone',        69.00, 'Score', 'Teto quando ha check nao realizado.'),
   ('CAP_HSAmber',        79.00, 'Score', 'Teto quando H&S esta Amber.'),
-  ('THR_OverProdBand',    0.05, 'Score', 'Banda de penalidade de superproducao: acima do teto verde, perde 50 pontos por banda.'),
+  ('THR_OverProdBand',    0.05, 'Score', 'Largura da banda de superproducao, acima do teto verde. A penalidade por banda e THR_OverProdPenalty.'),
+  -- The sibling of THR_QualFailPenalty, and a parameter for the same reason: how many
+  -- points over-production costs is a management judgement, not arithmetic. Written as
+  -- a literal it would also have been a number recorded twice — once in the formula and
+  -- once in the note beside THR_OverProdBand — with nothing keeping the two equal.
+  ('THR_OverProdPenalty',50.00, 'Score', 'Pontos perdidos por cada banda de superproducao acima do teto verde.'),
   ('THR_VolZero',         0.80, 'Score', 'Volume abaixo do qual ProdScore chega a 0.'),
   ('THR_QualFailPenalty',50.00, 'Score', 'Pontos perdidos por cada check "Fail".'),
   -- The pending decision of item M, made explicit instead of buried. 0 = the score
@@ -88,10 +93,33 @@ WHERE NOT EXISTS (
 -- recorded with this migration is to adopt 40/35/25, so the editing surface is moved
 -- to match rather than the other way round. This is the one place the two scores are
 -- knowingly re-based: the Leader Performance figure moves from 40/30/30 to 40/35/25.
-UPDATE public.leader_score_weights
-   SET production_pct = 40, quality_pct = 35, documentation_pct = 25, updated_at = now()
- WHERE id = true
-   AND (production_pct, quality_pct, documentation_pct) IS DISTINCT FROM (40, 35, 25);
+--
+-- The numbers are READ from the W_* rows seeded above rather than written out again.
+-- Restating 40/35/25 here would be the same three numbers in two places inside one
+-- file, free to drift the first time somebody edits one list and not the other — which
+-- is precisely the drift this whole section exists to prevent between the two tables.
+--
+-- leader_score_weights holds integers, so a fractional weight cannot be represented
+-- there at all: rather than round it and quietly break that table's own sum-100 CHECK,
+-- the re-base simply does not happen and the editing surface keeps what it had.
+UPDATE public.leader_score_weights w
+   SET production_pct    = s.p,
+       quality_pct       = s.q,
+       documentation_pct = s.d,
+       updated_at        = now()
+  FROM (
+    SELECT max(value) FILTER (WHERE name = 'W_Production')    AS p,
+           max(value) FILTER (WHERE name = 'W_Quality')       AS q,
+           max(value) FILTER (WHERE name = 'W_Documentation') AS d
+      FROM public.leader_scorecard_threshold
+     WHERE name IN ('W_Production', 'W_Quality', 'W_Documentation')
+       AND valid_to IS NULL
+  ) s
+ WHERE w.id = true
+   AND s.p IS NOT NULL AND s.q IS NOT NULL AND s.d IS NOT NULL
+   AND s.p = round(s.p) AND s.q = round(s.q) AND s.d = round(s.d)
+   AND (w.production_pct, w.quality_pct, w.documentation_pct)
+       IS DISTINCT FROM (s.p, s.q, s.d);
 
 -- =====================================================================
 -- 3. The weights must total 100 — in the database, not in the form
@@ -105,17 +133,47 @@ UPDATE public.leader_score_weights
 -- It is checked at every date where the weights change, not just today, so a
 -- backdated correction cannot leave a period in the past scored on 95 points of
 -- weight while every other period is scored on 100.
+--
+-- "Every date where the weights change" is three sets of dates, not one, and the first
+-- version of this trigger only had the first of them:
+--   * every valid_from — where a version OPENS;
+--   * every valid_to + 1 — where a version CLOSES. Without this, closing the three open
+--     rows and opening no successors leaves the only probed date back at the start of
+--     validity, where the now-closed rows still cover and still sum to 100, while every
+--     week after the closing date resolves no weights at all and scores NULL;
+--   * current_date — so that a table with no W_* rows in it is caught. A DELETE of all
+--     three leaves the probe set empty, and a query that returns no rows answers "no
+--     violation found", which is the opposite of the truth.
+-- The last case is also raised on its own, because "the weights do not exist" is a
+-- different sentence to read at 3am than "the weights do not add up on a date".
 -- =====================================================================
 
 CREATE OR REPLACE FUNCTION public.scorecard_weights_total_100()
 RETURNS trigger LANGUAGE plpgsql SET search_path TO 'public' AS $$
 DECLARE _bad record;
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.leader_scorecard_threshold
+     WHERE name IN ('W_Production', 'W_Quality', 'W_Documentation')) THEN
+    RAISE EXCEPTION
+      'Os pesos Production, Quality e Documentation nao existem em leader_scorecard_threshold. Sem eles o score de todas as semanas fica nulo.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
   SELECT d.on_date, w.total INTO _bad
   FROM (
-    SELECT DISTINCT valid_from AS on_date
-      FROM public.leader_scorecard_threshold
-     WHERE name IN ('W_Production', 'W_Quality', 'W_Documentation')
+    SELECT DISTINCT u.on_date FROM (
+      SELECT valid_from AS on_date
+        FROM public.leader_scorecard_threshold
+       WHERE name IN ('W_Production', 'W_Quality', 'W_Documentation')
+      UNION ALL
+      SELECT valid_to + 1
+        FROM public.leader_scorecard_threshold
+       WHERE name IN ('W_Production', 'W_Quality', 'W_Documentation')
+         AND valid_to IS NOT NULL
+      UNION ALL
+      SELECT current_date
+    ) u
   ) d
   CROSS JOIN LATERAL (
     SELECT sum(t.value) AS total, count(*) AS n
@@ -223,14 +281,20 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Green weeks at 100% and 104% do not score identically when one of them is closer to
 -- the ceiling. Above the green ceiling the score falls away: over-production can never
 -- reach 100, because making more than the plan is inventory nobody ordered.
+--
+-- _over_penalty is the points lost per band of over-production, and it is an argument
+-- for the same reason _fail_penalty is: it is a management judgement about what
+-- over-production costs, and this module keeps no such number inside a formula. The
+-- other two 50s below are NOT thresholds — they are the midpoint of a 0-100 scale and
+-- the shape of a linear interpolation between two bands — and they stay written out.
 CREATE OR REPLACE FUNCTION public.scorecard_prod_score(
   _pct numeric, _amber_min numeric, _green_min numeric, _green_max numeric,
-  _over_band numeric, _vol_zero numeric)
+  _over_band numeric, _over_penalty numeric, _vol_zero numeric)
 RETURNS numeric LANGUAGE sql IMMUTABLE AS $$
   SELECT CASE
     WHEN _pct IS NULL THEN NULL                        -- no data is not a zero
     WHEN _pct > _green_max THEN
-      GREATEST(0, 100 - ((_pct - _green_max) / NULLIF(_over_band, 0)) * 50)
+      GREATEST(0, 100 - ((_pct - _green_max) / NULLIF(_over_band, 0)) * _over_penalty)
     WHEN _pct >= _green_min THEN 100
     WHEN _pct >= _amber_min THEN
       50 + 50 * (_pct - _amber_min) / NULLIF(_green_min - _amber_min, 0)
@@ -289,24 +353,78 @@ $$;
 -- genuinely earned nothing.
 -- =====================================================================
 
+-- 49.00 -> "49", 79.50 -> "79,5". The ceilings are read out of a numeric column, so
+-- they arrive carrying whatever scale they were stored with, and "Teto 49,00" reads
+-- like a price.
+--
+-- No to_char here. Its D pattern is the decimal separator of lc_numeric, which would
+-- render this label differently per session inside a function declared IMMUTABLE — the
+-- same trap 20260815140000 documents for to_char(..., 'Mon') and lc_time. numeric::text
+-- always writes a '.' whatever the locale, so the separator is chosen here, once, the
+-- way scorecard_pct_label chooses it.
+CREATE OR REPLACE FUNCTION public.scorecard_score_label(_n numeric)
+RETURNS text LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE WHEN _n IS NULL THEN NULL
+              ELSE replace(trim_scale(_n)::text, '.', ',') END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.scorecard_score_evaluate(
   _volume_pct numeric,
   _checks public.scorecard_check_status[],
   _lti integer, _reportable integer, _hs_rag text,
   _w_prod numeric, _w_qual numeric, _w_doc numeric,
   _amber_min numeric, _green_min numeric, _green_max numeric,
-  _over_band numeric, _vol_zero numeric, _fail_penalty numeric,
+  _over_band numeric, _over_penalty numeric, _vol_zero numeric, _fail_penalty numeric,
   _cap_gate numeric, _cap_not_done numeric, _cap_hs_amber numeric)
 RETURNS public.scorecard_score_eval LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
-  _prod  numeric := public.scorecard_prod_score(_volume_pct, _amber_min, _green_min, _green_max, _over_band, _vol_zero);
-  _qual  numeric := public.scorecard_qual_score(_checks, _fail_penalty);
-  _doc   numeric := public.scorecard_doc_score(_checks);
-  _fail_type text := public.scorecard_quality_fail_type(_checks);
+  _missing text[] := ARRAY[]::text[];
+  _prod  numeric;
+  _qual  numeric;
+  _doc   numeric;
+  _fail_type text;
   _bruto numeric;
   _final numeric;
   _why   text;
 BEGIN
+  -- The parameters are checked BEFORE anything is computed, and a missing one raises
+  -- instead of scoring.
+  --
+  -- LEAST ignores NULL arguments, so a ceiling that failed to resolve does not cap: a
+  -- week with a failed CCP would print its full weighted sum, with cap_reason NULL and
+  -- no badge beside it, and nothing on the screen would say the gate had gone missing.
+  -- Silently failing OPEN is the worst outcome this module has, worse than a screen
+  -- that errors, because a screen that errors gets fixed. The mirror case is as bad in
+  -- the other direction: a NULL weight makes _bruto NULL while LEAST(NULL, 49) still
+  -- returns 49, so the row would carry a final score beside no gross score at all.
+  -- Everywhere else this module cannot answer, it says so; here it says so too.
+  IF _w_prod       IS NULL THEN _missing := _missing || 'W_Production'; END IF;
+  IF _w_qual       IS NULL THEN _missing := _missing || 'W_Quality'; END IF;
+  IF _w_doc        IS NULL THEN _missing := _missing || 'W_Documentation'; END IF;
+  IF _cap_gate     IS NULL THEN _missing := _missing || 'CAP_Gate'; END IF;
+  IF _cap_not_done IS NULL THEN _missing := _missing || 'CAP_NotDone'; END IF;
+  IF _cap_hs_amber IS NULL THEN _missing := _missing || 'CAP_HSAmber'; END IF;
+  IF _amber_min    IS NULL THEN _missing := _missing || 'THR_VolAmberMin'; END IF;
+  IF _green_min    IS NULL THEN _missing := _missing || 'THR_VolGreenMin'; END IF;
+  IF _green_max    IS NULL THEN _missing := _missing || 'THR_VolGreenMax'; END IF;
+  IF _over_band    IS NULL THEN _missing := _missing || 'THR_OverProdBand'; END IF;
+  IF _over_penalty IS NULL THEN _missing := _missing || 'THR_OverProdPenalty'; END IF;
+  IF _vol_zero     IS NULL THEN _missing := _missing || 'THR_VolZero'; END IF;
+  IF _fail_penalty IS NULL THEN _missing := _missing || 'THR_QualFailPenalty'; END IF;
+
+  IF cardinality(_missing) > 0 THEN
+    RAISE EXCEPTION
+      'Parametro(s) do score sem versao vigente para esta semana: %. O score nao pode ser calculado sem eles, e um teto que nao resolve nao limita nada.',
+      array_to_string(_missing, ', ')
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  _prod := public.scorecard_prod_score(
+    _volume_pct, _amber_min, _green_min, _green_max, _over_band, _over_penalty, _vol_zero);
+  _qual := public.scorecard_qual_score(_checks, _fail_penalty);
+  _doc  := public.scorecard_doc_score(_checks);
+  _fail_type := public.scorecard_quality_fail_type(_checks);
+
   IF _prod IS NULL OR _qual IS NULL OR _doc IS NULL THEN
     -- Not zero, and not capped either: there is nothing here to put a ceiling on.
     RETURN ROW(_prod, _qual, _doc, NULL, NULL, NULL)::public.scorecard_score_eval;
@@ -314,18 +432,30 @@ BEGIN
 
   _bruto := (_prod * _w_prod + _qual * _w_qual + _doc * _w_doc) / 100;
 
-  IF _fail_type = 'Fail' OR coalesce(_lti, 0) > 0 OR coalesce(_reportable, 0) > 0 THEN
+  -- DEVIATION from the written specification, deliberate. The spec lists only a 'Fail'
+  -- check, an LTI and a reportable accident under the hardest ceiling. But
+  -- scorecard_hs_evaluate returns 'Red' on a third condition too — H&S training below
+  -- THR_HSTrainRed — and that condition reached none of the branches below: it fell
+  -- through to the uncapped ELSE. The arithmetic of that was the rule standing on its
+  -- head. A week with H&S Amber was capped at CAP_HSAmber, while the SAME week with
+  -- training bad enough to be Red kept its full weighted sum, so the worse safety band
+  -- scored higher and the board printed 100 beside a red H&S chip. Any H&S Red now
+  -- takes CAP_Gate: a gate that a Red condition walks through untouched is not a gate,
+  -- and that is the one sentence this whole module exists to keep true.
+  IF _fail_type = 'Fail' OR coalesce(_lti, 0) > 0 OR coalesce(_reportable, 0) > 0
+     OR _hs_rag = 'Red' THEN
     _final := LEAST(_bruto, _cap_gate);
-    _why := 'Teto ' || to_char(_cap_gate, 'FM999D99') || ': ' || concat_ws('; ',
+    _why := 'Teto ' || public.scorecard_score_label(_cap_gate) || ': ' || concat_ws('; ',
       CASE WHEN _fail_type = 'Fail'            THEN 'check reprovado (Fail)' END,
       CASE WHEN coalesce(_lti, 0) > 0          THEN 'acidente com afastamento' END,
-      CASE WHEN coalesce(_reportable, 0) > 0   THEN 'acidente reportavel' END) || '.';
+      CASE WHEN coalesce(_reportable, 0) > 0   THEN 'acidente reportavel' END,
+      CASE WHEN _hs_rag = 'Red'                THEN 'Health & Safety em Red' END) || '.';
   ELSIF _fail_type = 'Not Done' THEN
     _final := LEAST(_bruto, _cap_not_done);
-    _why := 'Teto ' || to_char(_cap_not_done, 'FM999D99') || ': check nao realizado.';
+    _why := 'Teto ' || public.scorecard_score_label(_cap_not_done) || ': check nao realizado.';
   ELSIF _hs_rag = 'Amber' THEN
     _final := LEAST(_bruto, _cap_hs_amber);
-    _why := 'Teto ' || to_char(_cap_hs_amber, 'FM999D99') || ': Health & Safety em Amber.';
+    _why := 'Teto ' || public.scorecard_score_label(_cap_hs_amber) || ': Health & Safety em Amber.';
   ELSE
     _final := _bruto;
     _why := NULL;
@@ -334,7 +464,12 @@ BEGIN
   RETURN ROW(_prod, _qual, _doc, _bruto, _final, _why)::public.scorecard_score_eval;
 END $$;
 
-COMMENT ON FUNCTION public.scorecard_score_evaluate IS
+-- Fully qualified by argument list on purpose: while this migration is being re-run on
+-- a database that already holds the previous signature, the bare name is ambiguous.
+COMMENT ON FUNCTION public.scorecard_score_evaluate(
+  numeric, public.scorecard_check_status[], integer, integer, text,
+  numeric, numeric, numeric, numeric, numeric, numeric,
+  numeric, numeric, numeric, numeric, numeric, numeric, numeric) IS
   'As duas camadas do score 0-100: a soma ponderada dos tres pilares, e depois os tetos. Os tetos NUNCA sao pesos: Health & Safety e o Fail de CCP limitam o resultado por cima e nao podem ser compensados por volume. Um score nulo nao e zero e nao leva teto.';
 
 -- =====================================================================
@@ -452,8 +587,14 @@ SELECT
   s.created_at, s.updated_at,
 
   -- Rule M. The score sits BESIDE the RAG and is not derived from it, nor it from the
-  -- score. Ranking and trend read score_final; the leader reads rag_driver to find out
+  -- score. It is here to rank and to trend, and the leader reads rag_driver to find out
   -- what to do. A single number cannot do both jobs: 82 does not name a missed check.
+  --
+  -- As shipped, nothing reads score_final yet except the rollups' avg_score_final: the
+  -- two ranking views still order by pct_weeks_red and the trend views still read the
+  -- RAG. Ranking on the score is the intended next step, not the current state, and it
+  -- is a decision of its own — ranking by score would rank on a number the ceilings
+  -- flatten, so several capped weeks would tie where the RAG still tells them apart.
   sc.prod_score,
   sc.qual_score,
   sc.doc_score,
@@ -492,6 +633,7 @@ CROSS JOIN LATERAL (
     max(th.value) FILTER (WHERE th.name = 'W_Quality')           AS w_qual,
     max(th.value) FILTER (WHERE th.name = 'W_Documentation')     AS w_doc,
     max(th.value) FILTER (WHERE th.name = 'THR_OverProdBand')    AS over_prod_band,
+    max(th.value) FILTER (WHERE th.name = 'THR_OverProdPenalty') AS over_prod_penalty,
     max(th.value) FILTER (WHERE th.name = 'THR_VolZero')         AS vol_zero,
     max(th.value) FILTER (WHERE th.name = 'THR_QualFailPenalty') AS qual_fail_penalty,
     max(th.value) FILTER (WHERE th.name = 'CAP_Gate')            AS cap_gate,
@@ -548,11 +690,24 @@ CROSS JOIN LATERAL public.scorecard_score_evaluate(
     c.checks, s.lost_time_injuries, s.reportable_accidents, (h.eval).rag,
     t.w_prod, t.w_qual, t.w_doc,
     t.vol_amber_min, t.vol_green_min, t.vol_green_max,
-    t.over_prod_band, t.vol_zero, t.qual_fail_penalty,
+    t.over_prod_band, t.over_prod_penalty, t.vol_zero, t.qual_fail_penalty,
     t.cap_gate, t.cap_not_done, t.cap_hs_amber) AS sc;
 
 COMMENT ON VIEW public.v_leader_weekly_scorecard IS
   'O scorecard semanal calculado, ao nivel lider x linha x semana. Definicao unica de volume_pct, volume_pct_adjusted, volume_rag, quality_rag, quality_fail_type, hs_rag, hs_driver, overall_rag e rag_driver: os rollups, o resumo, a tendencia e o ranking leem esta view e nao repetem nenhuma regra.';
+
+-- Adding an argument to a function does not replace it, it creates a second one beside
+-- it. On a database that ran an earlier version of THIS migration, the previous
+-- signatures would survive as callable dead code with the over-production penalty
+-- hard-coded inside them — two versions of one rule, and no way to tell from a call
+-- site which was reached. They are dropped only here, after the view above has been
+-- rebuilt onto the new signature and no longer depends on the old one.
+DROP FUNCTION IF EXISTS public.scorecard_score_evaluate(
+  numeric, public.scorecard_check_status[], integer, integer, text,
+  numeric, numeric, numeric, numeric, numeric, numeric,
+  numeric, numeric, numeric, numeric, numeric, numeric);
+DROP FUNCTION IF EXISTS public.scorecard_prod_score(
+  numeric, numeric, numeric, numeric, numeric, numeric);
 
 
 -- The weekly view, once per period it belongs to, so the three rollups group the same
