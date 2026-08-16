@@ -371,3 +371,39 @@ export function isValidatedPaperwork(a: {
 export function documentationScore(validatedPaperworkCount: number): number {
   return Math.max(0, 100 - validatedPaperworkCount * documentationPenaltyPct());
 }
+
+// ── Safety vocabulary ────────────────────────────────────────────────────────
+//
+// The kinds a safety occurrence can be. Kept apart from `QUALITY_SEVERITIES`: safety
+// is counted, never scored (see `actionPoints`), and what one occurrence IS matters
+// more than how severe it was.
+
+export interface SafetyKind {
+  value:
+    | "lost_time_injury" | "reportable_accident" | "first_aid" | "near_miss"
+    | "safety_observation" | "toolbox_talk" | "ppe_breach";
+  label: string;
+  /**
+   * What sort of fact this is, and the reason the three are never added together:
+   *   harm       — it already hurt somebody
+   *   signal     — it did not hurt anybody, and reporting it is the good outcome
+   *   prevention — activity done on purpose, counted against a weekly minimum
+   */
+  group: "harm" | "signal" | "prevention";
+  /** Tailwind classes for a badge. */
+  badge: string;
+}
+
+export const SAFETY_KINDS: SafetyKind[] = [
+  { value: "lost_time_injury",   label: "Lost-time injury",   group: "harm",       badge: "bg-destructive/15 text-destructive-strong border-destructive/40" },
+  { value: "reportable_accident", label: "Reportable accident", group: "harm",      badge: "bg-destructive/15 text-destructive-strong border-destructive/40" },
+  { value: "first_aid",          label: "First aid",          group: "harm",       badge: "bg-warning/15 text-warning-strong border-warning/40" },
+  { value: "near_miss",          label: "Near miss",          group: "signal",     badge: "bg-primary/15 text-primary border-primary/40" },
+  { value: "safety_observation", label: "Safety observation", group: "prevention", badge: "bg-muted text-muted-foreground border-border" },
+  { value: "toolbox_talk",       label: "Toolbox talk",       group: "prevention", badge: "bg-muted text-muted-foreground border-border" },
+  { value: "ppe_breach",         label: "PPE breach",         group: "signal",     badge: "bg-warning/15 text-warning-strong border-warning/40" },
+];
+
+export function safetyKindMeta(value: string | null | undefined): SafetyKind | null {
+  return SAFETY_KINDS.find((k) => k.value === value) ?? null;
+}
