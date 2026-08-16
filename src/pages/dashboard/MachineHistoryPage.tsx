@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { machineReliability } from "@/lib/machineReliability";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +19,9 @@ import { ArrowLeft, Loader2, Wrench, TrendingDown, Heart, MapPin, Clock } from "
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useMachineLocationLog } from "@/hooks/useMachines";
 import { useMemo } from "react";
-import { format, differenceInMinutes } from "date-fns";
+import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
-const DONE_STATUSES = ["completed", "closed", "finished"];
 
 export default function MachineHistoryPage() {
   const { name } = useParams<{ name: string }>();
@@ -47,19 +47,7 @@ export default function MachineHistoryPage() {
     [allWOs, machineName]
   );
 
-  const stats = useMemo(() => {
-    const done = machineWOs.filter((w) => DONE_STATUSES.includes(w.status));
-    let totalDowntime = 0;
-    done.forEach((wo) => {
-      if (wo.started_at && (wo.finished_at || wo.completed_at)) {
-        totalDowntime += differenceInMinutes(new Date(wo.finished_at || wo.completed_at!), new Date(wo.started_at));
-      }
-    });
-    const firstWO = machineWOs[machineWOs.length - 1];
-    const totalPeriodMinutes = firstWO ? differenceInMinutes(new Date(), new Date(firstWO.created_at)) : 1;
-    const reliability = Math.max(0, Math.round(100 - (totalDowntime / Math.max(totalPeriodMinutes, 1)) * 100));
-    return { total: machineWOs.length, completed: done.length, totalDowntime, reliability };
-  }, [machineWOs]);
+  const stats = useMemo(() => machineReliability(machineWOs, new Date()), [machineWOs]);
 
   const failureChart = useMemo(() => {
     const months: Record<string, number> = {};
