@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { skuStandardRate, formatStandardRate } from "@/lib/skuStandardRate";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -19,7 +20,12 @@ type Row = {
   sku_code: string;
   sku_name: string;
   category: string | null;
-  upm_standard: number;
+  /**
+   * null when no rate was ever recorded — which is 208 of the active SKUs, because
+   * `target_per_hour` defaults to 0 and the default was never filled in. Never 0:
+   * see src/lib/skuStandardRate.ts.
+   */
+  upm_standard: number | null;
   line: string;
   target: number;
   actual: number;
@@ -96,7 +102,8 @@ export default function SKUEfficiencyPage() {
             sku_code: id.code,
             sku_name: id.name,
             category: id.row?.category ?? null,
-            upm_standard: Number(id.row?.target_per_hour ?? 0),
+            // 0 is the column default, not a measured rate. See src/lib/skuStandardRate.ts.
+            upm_standard: skuStandardRate(id.row?.target_per_hour),
             line: s.line,
             target,
             actual,
@@ -330,7 +337,7 @@ export default function SKUEfficiencyPage() {
                       </TableCell>
                       <TableCell className="text-right">{badgeForEff(r.eff)}</TableCell>
                       <TableCell className="text-right tabular-nums">{r.runs}</TableCell>
-                      <TableCell className="text-right tabular-nums">{r.upm_standard}</TableCell>
+                      <TableCell className="text-right tabular-nums">{formatStandardRate(r.upm_standard)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
