@@ -21,8 +21,6 @@ const WEBHOOK_URL = `https://${PROJECT_REF}.functions.supabase.co/intouch-webhoo
 export default function IntouchSettingsPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<null | { ok: boolean; msg: string }>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<null | { ok: boolean; msg: string }>(null);
   const [probing, setProbing] = useState(false);
   const [probeResult, setProbeResult] = useState<any>(null);
 

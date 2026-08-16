@@ -180,15 +180,6 @@ function weekRangeLabel(weekStart: Date): string {
   return `${format(weekStart, "dd")} – ${format(end, "dd MMM yyyy")}`;
 }
 
-function ragColor(actual: number, plan: number): string {
-  if (!plan) return "";
-  // Strict: green only when meeting/exceeding the plan (delta >= 0).
-  if (actual >= plan) return "bg-success/20 text-success-strong font-medium";
-  const pct = (actual / plan) * 100;
-  if (pct >= 90) return "bg-warning/20 text-warning-strong font-medium";
-  return "bg-destructive/20 text-destructive-strong font-medium";
-}
-
 export default function RAGWeeklyPage() {
   const qc = useQueryClient();
   const { is: isRole, can } = useRole();
