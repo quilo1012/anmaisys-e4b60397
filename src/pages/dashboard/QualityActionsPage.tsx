@@ -26,7 +26,7 @@ import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, statusMeta, severityMeta, actionPoints, sumActionPoints, severityPoints, labelPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, statusMeta, severityMeta, actionPoints, sumActionPoints, severityPoints, severityForPoints, severityPointsMap, labelPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
@@ -137,6 +137,15 @@ export function QualityActionsView() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmptyForm());
+  /**
+   * What the Points box in the log dialog is showing.
+   *
+   * Kept beside the form rather than in it because points are NOT a stored column —
+   * severity is. The box is a way of choosing the severity, and it holds its own text
+   * so that a number no severity carries (5, say) stays on screen with a warning
+   * instead of vanishing the moment it fails to match.
+   */
+  const [pointsInput, setPointsInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Open the same form pre-filled to edit an existing action.
@@ -158,6 +167,9 @@ export function QualityActionsView() {
       labels: a.labels ?? [],
       description: a.description ?? "",
     });
+    // The box follows the severity being edited, so it never shows the last action's
+    // number beside this one's grade.
+    setPointsInput(a.severity ? String(severityPointsMap()[a.severity] ?? "") : "");
     setDetailId(null);
     setOpen(true);
   };
@@ -317,7 +329,7 @@ export function QualityActionsView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quality_actions"] });
       const wasEdit = !!editingId;
-      setOpen(false); setForm(makeEmptyForm()); setEditingId(null);
+      setOpen(false); setForm(makeEmptyForm()); setPointsInput(""); setEditingId(null);
       toast.success(wasEdit ? "Saved" : "Logged");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -571,20 +583,59 @@ export function QualityActionsView() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(makeEmptyForm()); } }}>
-              <DialogTrigger asChild><Button size="sm" onClick={() => { setEditingId(null); setForm(makeEmptyForm()); }}><Plus className="h-4 w-4 mr-1.5" />Log action</Button></DialogTrigger>
+            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(makeEmptyForm()); setPointsInput(""); } }}>
+              <DialogTrigger asChild><Button size="sm" onClick={() => { setEditingId(null); setForm(makeEmptyForm()); setPointsInput(""); }}><Plus className="h-4 w-4 mr-1.5" />Log action</Button></DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>{editingId ? "Edit quality action" : "Log quality action"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  <div><Label>Severity</Label>
-                    <Select value={form.severity || "__none__"} onValueChange={(v) => setForm({ ...form, severity: v === "__none__" ? "" : v })}>
-                      <SelectTrigger><SelectValue placeholder="Pick severity" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— None —</SelectItem>
-                        {QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {(() => {
+                    // The weights in force, read once per render from the same map the
+                    // badges read, so the picker and the score can never disagree.
+                    const weights = severityPointsMap();
+                    const typed = pointsInput.trim() === "" ? null : Number(pointsInput);
+                    const unmatched = typed !== null && Number.isFinite(typed) && severityForPoints(typed, weights) === null;
+                    const pickSeverity = (v: string) => {
+                      const severity = v === "__none__" ? "" : v;
+                      setForm({ ...form, severity });
+                      setPointsInput(severity ? String(weights[severity] ?? "") : "");
+                    };
+                    const typePoints = (raw: string) => {
+                      setPointsInput(raw);
+                      const n = raw.trim() === "" ? null : Number(raw);
+                      setForm({ ...form, severity: severityForPoints(n, weights) ?? "" });
+                    };
+                    return (
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_7rem]">
+                        <div className="min-w-0"><Label>Severity</Label>
+                          <Select value={form.severity || "__none__"} onValueChange={pickSeverity}>
+                            <SelectTrigger><SelectValue placeholder="Pick severity" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— None —</SelectItem>
+                              {QUALITY_SEVERITIES.map((s) => (
+                                <SelectItem key={s.value} value={s.value}>{s.label} · {weights[s.value] ?? s.points}p</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="min-w-0"><Label htmlFor="severity-points">Points</Label>
+                          <Input
+                            id="severity-points"
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            className="w-full min-w-0"
+                            value={pointsInput}
+                            onChange={(e) => typePoints(e.target.value)}
+                          />
+                        </div>
+                        {unmatched && (
+                          <p className="text-xs text-muted-foreground sm:col-span-2">
+                            No severity is worth {typed}p — this action scores 0 unless a label prices it.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="min-w-0"><Label>Line</Label>
                       <Select value={form.line} onValueChange={(v) => setForm({ ...form, line: v })}>

@@ -101,6 +101,34 @@ export function severityPoints(value: string | null | undefined): number {
   return severityMeta(value)?.points ?? 0;
 }
 
+/**
+ * The severity a number of points names, or null if no severity is worth it.
+ *
+ * The inverse of `severityPoints`, for the log form: whoever types the week's actions
+ * thinks in points, and having to translate 4 into "Critical" in their head is where
+ * the wrong grade gets picked. It reads the same weights `severityPoints` reads, so
+ * the two can never disagree about what a severity costs.
+ *
+ * Null is the honest answer for a number no severity carries — 5, say, which is
+ * reachable only by pricing a label. Points are NOT a stored column, so a number the
+ * scale cannot express has nowhere to live and must not be silently rounded to a
+ * neighbouring severity.
+ *
+ * Two severities may be configured to the same weight; this resolves upward. Guessing
+ * the milder one would log a 3-point action as High while the configuration says it
+ * could equally be Critical, and under-grading a quality deviation is the direction
+ * that hurts.
+ */
+export function severityForPoints(
+  points: number | null | undefined,
+  weights: Record<string, number> = severityPointsMap(),
+): string | null {
+  if (points === null || points === undefined || !Number.isFinite(points)) return null;
+  // QUALITY_SEVERITIES runs low → critical, so the last match is the most severe.
+  const match = [...QUALITY_SEVERITIES].reverse().find((s) => weights[s.value] === points);
+  return match?.value ?? null;
+}
+
 // `sumSeverityPoints` was removed here. It summed raw severity weight over a set of
 // actions, which is never what a leader is charged — it ignores rejection, attribution
 // and label pricing — and it was the function every screen reached for by name.
