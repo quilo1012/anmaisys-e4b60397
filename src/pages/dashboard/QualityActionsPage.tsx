@@ -39,7 +39,7 @@ import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDelete
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
-import { filterByDomain, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
+import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -267,6 +267,13 @@ export function QualityActionsView() {
   );
 
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
+
+  // Which of Points / Kind the Log table shows: Quality keeps just Points (unchanged),
+  // Safety shows Kind instead (a safety row is never worth a number of points), and All
+  // shows both side by side — see the Points cell below for why it reads "—" there.
+  const showPointsColumn = domainFilter !== "safety";
+  const showKindColumn = domainFilter !== "quality";
+  const logColSpan = 9 + (showPointsColumn ? 1 : 0) + (showKindColumn ? 1 : 0) + (canManage ? 1 : 0);
 
 
   const kpis = useMemo(() => {
@@ -958,15 +965,22 @@ export function QualityActionsView() {
                 <TableHeader><TableRow>
                   <TableHead>When</TableHead><TableHead>#</TableHead>
                   <TableHead>Validation</TableHead><TableHead>Severity</TableHead>
-                  <TableHead className="text-right">Points</TableHead>
+                  {/* A safety row is never worth a number of points — see actionPoints().
+                      The Safety tab shows Kind instead of a Points column that would only
+                      ever read 0; the All tab keeps both, with Points reading "—" on
+                      safety rows so a zero can never be mistaken for "worth nothing". */}
+                  {showPointsColumn && <TableHead className="text-right">Points</TableHead>}
+                  {showKindColumn && <TableHead>Kind</TableHead>}
                   <TableHead>Line</TableHead><TableHead>Leader</TableHead>
                   <TableHead>Dept</TableHead><TableHead>Labels</TableHead><TableHead>Notes</TableHead>
                   {canManage && <TableHead className="w-10 text-right">Delete</TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {filtered.length === 0 && <TableRow><TableCell colSpan={canManage ? 11 : 10} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
+                  {filtered.length === 0 && <TableRow><TableCell colSpan={logColSpan} className="text-center text-muted-foreground">No actions</TableCell></TableRow>}
                   {filtered.map((a) => {
                     const sev = severityMeta(a.severity);
+                    const isSafetyRow = domainOf(a) === "safety";
+                    const kind = safetyKindMeta(a.safety_kind);
                     return (
                     <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailId(a.id)}>
                       <TableCell className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</TableCell>
@@ -1008,20 +1022,37 @@ export function QualityActionsView() {
                       </TableCell>
                       {/* What this action actually costs, not what its severity is worth.
                           The two differ once a label is priced, and the column that adds
-                          up to the totals above must be the one people read. */}
-                      <TableCell className="text-right tabular-nums font-semibold">
-                        {(() => {
-                          const charged = actionPoints(a, excluded);
-                          const bySeverity = severityPoints(a.severity);
-                          if (!sev && !charged) return <span className="font-normal text-muted-foreground">—</span>;
-                          return (
-                            <span title={charged === bySeverity ? undefined : `Priced by its labels — ${sev?.label ?? "no severity"} alone would be ${bySeverity}`}>
-                              {charged}
-                              {charged !== bySeverity && <span className="ml-0.5 font-normal text-muted-foreground">*</span>}
-                            </span>
-                          );
-                        })()}
-                      </TableCell>
+                          up to the totals above must be the one people read.
+                          A safety row reads "—" here, never 0: 0 says "this was worth
+                          nothing", and safety is never worth anything either way — see
+                          actionPoints(). This picks which column draws the row, it does
+                          not re-decide what the row is worth. */}
+                      {showPointsColumn && (
+                        <TableCell className="text-right tabular-nums font-semibold">
+                          {isSafetyRow ? (
+                            <span className="font-normal text-muted-foreground">—</span>
+                          ) : (() => {
+                            const charged = actionPoints(a, excluded);
+                            const bySeverity = severityPoints(a.severity);
+                            if (!sev && !charged) return <span className="font-normal text-muted-foreground">—</span>;
+                            return (
+                              <span title={charged === bySeverity ? undefined : `Priced by its labels — ${sev?.label ?? "no severity"} alone would be ${bySeverity}`}>
+                                {charged}
+                                {charged !== bySeverity && <span className="ml-0.5 font-normal text-muted-foreground">*</span>}
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
+                      )}
+                      {showKindColumn && (
+                        <TableCell>
+                          {kind ? (
+                            <Badge variant="outline" className={cn("text-2xs", kind.badge)}>{kind.label}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell>{a.line ?? "—"}</TableCell>
                       <TableCell>{a.leader_name ?? "—"}</TableCell>
                       <TableCell>{a.department ?? "—"}</TableCell>
