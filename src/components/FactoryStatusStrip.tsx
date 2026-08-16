@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useNavigate } from "react-router-dom";
 import { PowerOff, ClipboardList, PenTool, CalendarClock } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
@@ -47,15 +48,16 @@ export function FactoryStatusStrip() {
   if (!show) return null;
 
   const awaiting = finishedWOs?.length ?? 0;
+  const resume = awaitingResumeSummary(stoppedLines ?? 0);
 
   return (
     <section aria-label="Live status" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <KpiCard
-        label="Lines stopped"
+        label={resume.label}
         value={stoppedLines ?? 0}
-        sublabel={stoppedLines ? "Production is down" : "All lines running"}
+        sublabel={resume.sublabel}
         icon={<PowerOff className="h-4 w-4" />}
-        accent={stoppedLines ? "danger" : "ok"}
+        accent={resume.accent}
         toneValue
         onClick={() => navigate("/dashboard/work-orders?status=open")}
       />

@@ -1,4 +1,5 @@
 import { ReactNode, useState, useEffect } from "react";
+import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
@@ -663,11 +664,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     size="sm"
                     onClick={() => navigate(stoppedTarget)}
                     className="bg-destructive hover:bg-destructive/90 text-destructive-foreground animate-pulse gap-1.5 h-9 px-2 sm:px-3"
-                    aria-label={`${stoppedLinesCount} production lines currently stopped`}
+                    aria-label={awaitingResumeSummary(stoppedLinesCount).ariaLabel}
                   >
                     <PowerOff className="h-4 w-4" />
                     <span className="font-bold">{stoppedLinesCount}</span>
-                    <span className="hidden sm:inline text-xs">line{stoppedLinesCount > 1 ? "s" : ""} stopped</span>
+                    <span className="hidden sm:inline text-xs">awaiting resume</span>
                   </Button>
                 )}
                 {(effectiveRole === "engineer" || effectiveRole === "admin") && <AudioStatusButton />}
