@@ -14,11 +14,19 @@ export interface LeaderScoreWeights {
   documentation_pct: number;
 }
 
-/** Used until the configured weights load, and if the table is unreachable. */
+/**
+ * Used until the configured weights load, and if the table is unreachable.
+ *
+ * These are the same three weights the weekly scorecard scores on: the configured row
+ * in `leader_score_weights` is versioned into `leader_scorecard_threshold` as
+ * W_Production / W_Quality / W_Documentation, and both scores read one decision about
+ * what this factory values. Keep this fallback equal to the seed there — a fallback
+ * that disagrees with the database is a score that changes when the network hiccups.
+ */
 export const DEFAULT_WEIGHTS: LeaderScoreWeights = {
   production_pct: 40,
-  quality_pct: 30,
-  documentation_pct: 30,
+  quality_pct: 35,
+  documentation_pct: 25,
 };
 
 export interface LeaderScoreInput {

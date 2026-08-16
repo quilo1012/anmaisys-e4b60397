@@ -74,13 +74,13 @@ describe("computeLeaderScore", () => {
 
   it("weights the three components", () => {
     // Severity null → 0 quality points, so quality stays 100 and only documentation
-    // moves: 100 production, 100 quality, 90 documentation at 40/30/30 → 97
+    // moves: 100 production, 100 quality, 90 documentation at 40/35/25 → 97.5
     const actions = [
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },
     ];
     const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED }, DEFAULT_WEIGHTS);
-    expect(Math.round(r.final!)).toBe(97);
+    expect(r.final!).toBeCloseTo(97.5, 5);
   });
 
   it("drops a component with no data and shares its weight, instead of scoring it zero", () => {
