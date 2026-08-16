@@ -34,17 +34,25 @@ ao Lovable deixou de ser feito, oito vezes seguidas.
 `20260815140000` faz `DROP TABLE IF EXISTS public.leader_scorecard_thresholds` (linha
 1472) — a tabela que `20260814090000` cria. Fora de ordem, perde-se a tabela e o backfill.
 
-Aplicar uma de cada vez, por esta ordem, confirmando que cada uma termina sem erro antes
-de começar a seguinte:
+**O artefacto executável é [`pending-migrations-apply.sql`](pending-migrations-apply.sql).**
+Este documento explica; aquele corre. Se os dois discordarem, aquele manda — e alguém
+esqueceu-se de actualizar este.
 
-1. `20260814090000_the_week_is_red_when_the_check_is_missed.sql`
-2. `20260815120000_a_label_can_carry_its_own_points.sql`
-3. `20260815140000_health_and_safety_is_the_second_gate.sql`
-4. `20260816090000_the_screen_asks_the_database.sql`
-5. `20260817090000_safety_shares_the_log_but_not_the_score.sql`
-6. `20260817093000_the_week_counts_its_own_safety.sql`
-7. `20260818090000_a_gate_is_a_ceiling_not_a_weight.sql`
-8. `20260819090000_the_score_crosses_the_board_rpc.sql`
+Sete blocos, por ordem cronológica, um de cada vez, confirmando que cada um termina sem
+erro antes do seguinte:
+
+1. `20260815120000_a_label_can_carry_its_own_points.sql`
+2. `20260815140000_health_and_safety_is_the_second_gate.sql`
+3. `20260816090000_the_screen_asks_the_database.sql`
+4. `20260817090000_safety_shares_the_log_but_not_the_score.sql`
+5. `20260817093000_the_week_counts_its_own_safety.sql`
+6. `20260818090000_a_gate_is_a_ceiling_not_a_weight.sql`
+7. `20260819090000_the_score_crosses_the_board_rpc.sql`
+
+**`20260814090000` fica de fora de propósito** — a v1 do scorecard. A migração de 15/08
+cria a tabela na forma da v1 se ela não existir, e como não existe, aplicar a v1 primeiro
+só acrescenta uma tabela para logo a seguir a largar. Uma versão anterior deste documento
+listava-a como passo 1: estava a divergir do ficheiro que se cola.
 
 ## Antes e depois
 

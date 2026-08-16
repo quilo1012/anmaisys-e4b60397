@@ -1,15 +1,26 @@
 -- As migracoes que estao no repo e NAO estao na base, por ordem cronologica.
 --
 -- Verificado em 16/08/2026 por duas medicoes independentes: curl a partir do .env e,
--- do lado do browser, a chave anon tirada do bundle de producao. Os doze objectos do
--- modulo respondem 404 PGRST205 (tabela ausente), 404 PGRST202 (funcao ausente) ou
--- 400 42703 (coluna ausente). O 42703 vem do Postgres depois de analisar a query, por
--- isso exclui a hipotese de ser cache velha do PostgREST.
+-- do lado do browser, a chave anon tirada do bundle de producao. Os objectos do modulo
+-- respondem 404 PGRST205 (tabela ausente), 404 PGRST202 (funcao ausente) ou 400 42703
+-- (coluna ausente). O 42703 vem do Postgres depois de analisar a query, por isso exclui
+-- a hipotese de ser cache velha do PostgREST.
+--
+-- DIMENSAO REAL, medida em 16/08 sondando as 125 tabelas e vistas que as 423 migracoes
+-- criam: faltam 17 tabelas/vistas, nao as "doze" que este cabecalho dizia antes. As nove
+-- vistas de rollup, tendencia, ranking e periodo (v_scorecard_rollup_*, v_scorecard_trend_*,
+-- v_scorecard_ranking_*, v_scorecard_period_spine, v_leader_scorecard_monthly/quarterly/
+-- by_leader) nunca tinham aparecido em contagem nenhuma. Com as 4 funcoes e as 3 colunas,
+-- o modulo por aplicar sao ~24 objectos. Fora do scorecard, das 125, nao falta nada.
 --
 -- ORDEM: e a cronologica e importa. A de 19/08 substitui a funcao scorecard_week_board
 -- criada pela de 16/08, e as de 18 e 19 dependem das tabelas criadas pela de 15/08.
 --
 -- NAO inclui 20260814090000 (v1 do scorecard): a v2 cria a tabela se ela nao existir.
+--
+-- INCLUI, desde 16/08, o bloco 20260817093000 (scorecard_safety_counts). Estava a faltar:
+-- quem colasse este ficheiro ficava com as colunas domain/safety_kind e sem a funcao que
+-- as conta, convencido de que tinha aplicado o modulo inteiro.
 --
 -- AVISO: as duas ultimas (18/08 e 19/08) foram escritas noutra sessao e NAO foram
 -- revistas por mim. Se preferir isolar o risco, cole um bloco de cada vez em vez do
@@ -1703,6 +1714,76 @@ COMMENT ON COLUMN public.quality_actions.domain IS
   'Quality or safety. Every row that existed before this column is quality, which is what the default says. Safety rows are counted, never scored: see actionPoints() in src/lib/qualityConstants.ts.';
 COMMENT ON COLUMN public.quality_actions.safety_kind IS
   'What kind of safety occurrence. first_aid and near_miss are DIFFERENT THINGS and must never be summed: the first is a consequence, the second is a leading signal, and a near miss reported is a good outcome.';
+
+-- ================================================================
+-- 20260817093000_the_week_counts_its_own_safety
+-- ================================================================
+-- The week counts its own safety.
+--
+-- Seven of the scorecard's nine H&S fields stop being typed and start being counted from
+-- the log. The two left out are percentages — PPE and training compliance — and a
+-- percentage needs a denominator the log does not have: counting breaches is not the
+-- same as knowing how many checks were made. That is also why the `ppe_breach` value of
+-- public.safety_kind is not counted here: it is a numerator without a denominator.
+--
+-- DESVIO à spec (docs/superpowers/plans/2026-08-16-safety-actions-in-the-quality-log.md,
+-- Task 7). A spec conta `overdue_hs_actions` como as acções por fechar cujo `due_date` já
+-- passou, e manda confirmar que essa coluna existe. Confirmado contra a base: NÃO existe.
+-- public.quality_actions tem closed_at, validated_at, recorded_at, updated_at — e nenhuma
+-- coluna de prazo, com este ou qualquer outro nome. O formulário da qualidade também não
+-- pede um. Sem prazo gravado não há atraso que se possa medir, e a spec é explícita sobre
+-- o que fazer nesse caso: devolver NULL, não um número inventado. Um zero aqui leria-se
+-- como "nada em atraso", que é a afirmação mais perigosa que esta função podia fazer.
+--
+-- Para fechar isto é preciso uma decisão de produto — que prazo tem uma acção de
+-- segurança, e quem o define — seguida de uma coluna e de um campo no formulário. Até lá
+-- a coluna do scorecard fica vazia, e vazia lê-se como "não registado".
+CREATE OR REPLACE FUNCTION public.scorecard_safety_counts(
+  _leader_id uuid, _line text, _week_ending date)
+RETURNS TABLE (
+  lost_time_injuries integer, reportable_accidents integer, first_aid_cases integer,
+  near_misses_reported integer, safety_observations_done integer,
+  toolbox_talks_done integer, overdue_hs_actions integer,
+  rows_missing_attribution integer
+) LANGUAGE sql STABLE SET search_path TO 'public' AS $$
+  WITH week AS (
+    SELECT a.*
+    FROM public.quality_actions a
+    WHERE a.domain = 'safety'
+      -- Rejected at validation means Quality looked and said it did not happen. The
+      -- same rule the quality side already applies.
+      AND a.validation_status IS DISTINCT FROM 'rejected'
+      AND a.recorded_at::date BETWEEN _week_ending - 6 AND _week_ending
+  ),
+  mine AS (
+    SELECT * FROM week WHERE leader_id = _leader_id AND line = _line
+  )
+  SELECT
+    count(*) FILTER (WHERE safety_kind = 'lost_time_injury')::integer,
+    count(*) FILTER (WHERE safety_kind = 'reportable_accident')::integer,
+    count(*) FILTER (WHERE safety_kind = 'first_aid')::integer,
+    -- Reported near misses. NEVER added to first_aid_cases: one is a consequence, the
+    -- other is the leading signal, and zero here means under-reporting rather than a
+    -- safe week — a reading that lives in the scorecard's H&S rule, not here.
+    count(*) FILTER (WHERE safety_kind = 'near_miss')::integer,
+    count(*) FILTER (WHERE safety_kind = 'safety_observation')::integer,
+    count(*) FILTER (WHERE safety_kind = 'toolbox_talk')::integer,
+    -- Sem coluna de prazo em quality_actions. Ver o desvio no cabeçalho.
+    NULL::integer,
+    -- Occurrences in this week that name no leader or no line. They cannot be counted
+    -- above, and a count that drops rows silently is the failure this module exists to
+    -- prevent — so they are reported rather than lost.
+    (SELECT count(*) FROM week w WHERE w.leader_id IS NULL OR w.line IS NULL)::integer
+  FROM mine;
+$$;
+
+COMMENT ON FUNCTION public.scorecard_safety_counts(uuid, text, date) IS
+  'Contagens semanais de H&S para o scorecard do líder. overdue_hs_actions devolve NULL: '
+  'quality_actions não tem coluna de prazo. Ver o cabeçalho da migração '
+  '20260817093000_the_week_counts_its_own_safety.sql.';
+
+REVOKE ALL ON FUNCTION public.scorecard_safety_counts(uuid, text, date) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.scorecard_safety_counts(uuid, text, date) TO authenticated;
 
 -- ================================================================
 -- 20260818090000_a_gate_is_a_ceiling_not_a_weight

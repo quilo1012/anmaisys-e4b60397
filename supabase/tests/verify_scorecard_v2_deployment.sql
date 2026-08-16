@@ -40,9 +40,11 @@ FROM (
     ('quality_actions.safety_kind',        'coluna',  EXISTS (SELECT 1 FROM information_schema.columns
                                                               WHERE table_schema='public' AND table_name='quality_actions'
                                                                 AND column_name='safety_kind'),                             '0817'),
-    -- Nunca foi escrita: só existe no plano
-    -- docs/superpowers/plans/2026-08-16-safety-actions-in-the-quality-log.md:466
-    ('scorecard_safety_counts',            'função',  to_regproc('public.scorecard_safety_counts') IS NOT NULL,             'SEM MIGRAÇÃO — só no plano'),
+    -- 20260817093000_the_week_counts_its_own_safety.sql
+    -- Escrita mais tarde do que as outras sete. NÃO está em docs/pending-migrations-apply.sql
+    -- — quem colar esse ficheiro fica com as colunas domain/safety_kind e sem a função que
+    -- as conta. Aplicar esta à parte, entre a de 0817 09:00 e a de 0818.
+    ('scorecard_safety_counts',            'função',  to_regproc('public.scorecard_safety_counts') IS NOT NULL,             '0817 09:30 — fora do pending-migrations-apply.sql'),
     -- Controlos: têm de dar PRESENTE. Se derem AUSENTE, o problema não é o scorecard.
     ('leader_score_weights',               'tabela',  to_regclass('public.leader_score_weights') IS NOT NULL,               'CONTROLO — 30/07, deve existir'),
     ('leader_self_scorecard',              'função',  to_regproc('public.leader_self_scorecard') IS NOT NULL,               'CONTROLO — 11/08, deve existir'),
