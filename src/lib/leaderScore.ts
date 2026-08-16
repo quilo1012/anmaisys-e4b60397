@@ -1,4 +1,4 @@
-import { documentationPenaltyPct, documentationScore, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
+import { documentationPenaltyPct, documentationScore, isValidatedPaperwork, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
 
 /**
  * The leader's final score: production, quality and documentation, weighted.
@@ -111,9 +111,19 @@ function productionScore(input: LeaderScoreInput): LeaderScoreComponent {
  * table, the by-leader chart and the line indicators also call — so the same leader
  * cannot read 7 here and 10 one screen over.
  *
- * This is deliberately NOT the documentation rule. The −5% paperwork demerit still
- * waits for a validated verdict, because that one is a formal penalty with a name
- * against it; this is a performance indicator that moves while the case is open.
+ * This is deliberately NOT the documentation rule. The paperwork demerit still waits
+ * for a validated verdict, because that one is a formal penalty with a name against
+ * it; this is a performance indicator that moves while the case is open.
+ *
+ * Which is exactly why a VALIDATED paperwork error is dropped here: at that moment the
+ * documentation block takes it over, and counting it in both components charged one
+ * error twice. It weighed heavier still once a label could carry a price, since the
+ * same number then moved quality and documentation together.
+ *
+ * Only the validated ones leave. An open paperwork action is charged nowhere else —
+ * the demerit has not claimed it yet — so it stays a quality event until somebody
+ * signs it off, and a leader cannot park an error out of their score by leaving it
+ * unjudged.
  *
  * Uses the severity weights Quality configures for the board, so one screen cannot
  * say a Critical is worth 4 while another says 1.
@@ -122,15 +132,21 @@ function qualityScore(input: LeaderScoreInput): LeaderScoreComponent {
   if (input.actions.length === 0) {
     return { value: 100, basis: "No quality actions raised in this period" };
   }
-  const standing = input.actions.filter((a) => standsAgainstLeader(a, input.excludedLabels));
+  const attributable = input.actions.filter((a) => standsAgainstLeader(a, input.excludedLabels));
+  const standing = attributable.filter((a) => !isValidatedPaperwork(a));
   const rejected = input.actions.filter((a) => a.validation_status === "rejected").length;
-  const notTheirs = input.actions.length - standing.length - rejected;
+  // Counted off `attributable`, not off every action: a paperwork error that is not
+  // this leader's was already out of the total, and subtracting it twice would push
+  // "not attributable" negative on the very line that explains the score.
+  const onTheDemerit = attributable.length - standing.length;
+  const notTheirs = input.actions.length - attributable.length - rejected;
   const points = sumActionPoints(standing, input.excludedLabels);
   return {
     value: Math.max(0, 100 - points),
     basis:
       `100 less ${points} severity point${points === 1 ? "" : "s"} from ${standing.length} action${standing.length === 1 ? "" : "s"}` +
       (rejected ? ` · ${rejected} rejected by Quality and not counted` : "") +
+      (onTheDemerit ? ` · ${onTheDemerit} charged to documentation instead` : "") +
       (notTheirs ? ` · ${notTheirs} not attributable to the leader` : ""),
   };
 }
@@ -142,9 +158,9 @@ export function computeLeaderScore(
   const production = productionScore(input);
   const quality = qualityScore(input);
 
-  const validatedPaperwork = input.actions.filter(
-    (a) => a.validation_status === "validated" && (a.labels ?? []).includes("Paperwork"),
-  ).length;
+  // The same test `qualityScore` uses to hand these over, so the error cannot be
+  // dropped by one component without the other picking it up.
+  const validatedPaperwork = input.actions.filter(isValidatedPaperwork).length;
   // The price comes from the Paperwork label in Lists & scoring, so the demerit and
   // the quality points cannot disagree about what one error is worth.
   const penaltyPct = documentationPenaltyPct();

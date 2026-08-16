@@ -72,6 +72,25 @@ describe("computeLeaderScore", () => {
     expect(computeLeaderScore(input).documentation.value).toBe(90);
   });
 
+  it("a validated paperwork error is charged once, by the documentation block that owns it", () => {
+    // It used to be charged twice: quality points AND the demerit. The two components
+    // then moved together on one error, and pricing the label moved both at once.
+    const validated = [{ severity: "critical", labels: ["Paperwork"], validation_status: "validated" }];
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: validated, excludedLabels: NOTHING_EXCLUDED });
+    expect(r.quality.value).toBe(100);
+    expect(r.documentation.value).toBe(95);
+    expect(r.quality.basis).toMatch(/documentation/i);
+  });
+
+  it("an unjudged paperwork action is still a quality event, because nothing else has charged it", () => {
+    // Only the validated ones move to the demerit. Letting an open one out of quality
+    // too would mean a raised action is charged nowhere until somebody signs it off.
+    const open = [{ severity: "critical", labels: ["Paperwork"], validation_status: "open" }];
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: open, excludedLabels: NOTHING_EXCLUDED });
+    expect(r.quality.value).toBe(96);
+    expect(r.documentation.value).toBe(100);
+  });
+
   it("weights the three components", () => {
     // Severity null → 0 quality points, so quality stays 100 and only documentation
     // moves: 100 production, 100 quality, 90 documentation at 40/35/25 → 97.5
