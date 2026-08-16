@@ -31,7 +31,7 @@ import {
   pmStatus, type PmSchedule, type PmStatus,
 } from "@/hooks/usePreventiveMaintenance";
 import { useMachines } from "@/hooks/useMachines";
-import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "@/components/reports/KpiCard";
@@ -50,11 +50,14 @@ import { useConfirm } from "@/hooks/useConfirm";
 import { railEdge } from "@/lib/rail";
 
 export default function PreventiveMaintenancePage() {
-  const { role } = useAuth();
+  const { can } = useRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { confirm, confirmDialog } = useConfirm();
-  const canManage = role === "admin" || (role === "manager" || role === "maintenance_manager");
+  // Not `role === ...`. The matrix also grants pm.manage to production_office_admin,
+  // and a hardcoded list cannot see the overrides an admin sets in the Permissions
+  // screen — this page was the only one in Maintenance still answering for itself.
+  const canManage = can("pm.manage");
 
   const { data: schedules, isLoading } = usePmSchedules();
   const { data: machines } = useMachines();
