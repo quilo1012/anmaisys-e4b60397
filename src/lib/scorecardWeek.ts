@@ -36,7 +36,16 @@ export function formatScore(score: number | null): string {
 export type ScoreCell = {
   /** What the Score column prints — a dash or a floored integer, never a rounded one. */
   text: string;
-  /** The full cap sentence, only when a ceiling actually applied to this row. */
+  /** Whether the "Capped" badge should show. The switch is `cap_applied`, not whether a reason happens to be populated. */
+  capped: boolean;
+  /**
+   * The sentence to put behind the badge, when there is one. Today's view derives
+   * `cap_applied` from `cap_reason IS NOT NULL`, so in practice they always agree — but
+   * this board reads them over the wire as two independent nullable columns, and must
+   * not depend on an invariant it cannot see. `cap_applied` alone decides `capped`, so a
+   * future row where the reason is missing still surfaces the badge, with `capReason`
+   * simply falling back to a generic sentence rather than silently hiding the ceiling.
+   */
   capReason: string | null;
 };
 
@@ -49,6 +58,7 @@ export function scoreCell(
 ): ScoreCell {
   return {
     text: formatScore(row.score_final),
+    capped: row.cap_applied === true,
     capReason: row.cap_applied ? row.cap_reason : null,
   };
 }

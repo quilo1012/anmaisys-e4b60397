@@ -39,7 +39,8 @@ export function ScorecardWeekBoard({ rows, isLoading, onOpen }: Props) {
         </TableHeader>
         <TableBody>
           {rows.map((r) => {
-            const { text, capReason } = scoreCell(r);
+            const { text, capped, capReason } = scoreCell(r);
+            const capTitle = capReason ?? "A ceiling was applied to this score.";
             return (
               <TableRow
                 key={`${r.leader_id}-${r.line_id}`}
@@ -54,9 +55,10 @@ export function ScorecardWeekBoard({ rows, isLoading, onOpen }: Props) {
                 <TableCell><RagChip value={r.overall_rag} /></TableCell>
                 <TableCell>
                   <span className="font-medium">{text}</span>
-                  {capReason && (
+                  {capped && (
                     <span
-                      title={capReason}
+                      title={capTitle}
+                      aria-label={capTitle}
                       className="ml-2 inline-block rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
                     >
                       Capped

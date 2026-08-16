@@ -67,16 +67,23 @@ describe("formatScore", () => {
 describe("scoreCell", () => {
   it("exposes the cap reason when a ceiling applied", () => {
     const capped = row({ score_final: 60, cap_applied: true, cap_reason: "Falha de segurança alimentar" });
-    expect(scoreCell(capped)).toEqual({ text: "60", capReason: "Falha de segurança alimentar" });
+    expect(scoreCell(capped)).toEqual({ text: "60", capped: true, capReason: "Falha de segurança alimentar" });
   });
 
-  it("hides the cap reason when no ceiling applied", () => {
+  it("hides the cap badge when no ceiling applied", () => {
     const uncapped = row({ score_final: 84.9, cap_applied: false, cap_reason: null });
-    expect(scoreCell(uncapped)).toEqual({ text: "84", capReason: null });
+    expect(scoreCell(uncapped)).toEqual({ text: "84", capped: false, capReason: null });
   });
 
-  it("shows a dash and no cap reason for a week with nothing filled in", () => {
-    expect(scoreCell(row({}))).toEqual({ text: "—", capReason: null });
+  it("still flags the cap when cap_applied is true but cap_reason is null", () => {
+    // cap_applied is the switch, cap_reason only the explanation: a row that says a
+    // ceiling applied must never end up with neither a badge nor a reason on screen.
+    const disagreeing = row({ score_final: 60, cap_applied: true, cap_reason: null });
+    expect(scoreCell(disagreeing)).toEqual({ text: "60", capped: true, capReason: null });
+  });
+
+  it("shows a dash and no cap badge for a week with nothing filled in", () => {
+    expect(scoreCell(row({}))).toEqual({ text: "—", capped: false, capReason: null });
   });
 });
 
