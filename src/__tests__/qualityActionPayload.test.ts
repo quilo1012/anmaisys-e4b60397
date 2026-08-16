@@ -13,6 +13,7 @@ const BASE_FORM: QualityActionFormInput = {
   action_no: "", line: "Line 3", shift: "DAY", leader_id: "leader-123", leader_name: "",
   date: "2026-08-16", sku: "", batch: "", department: "", status: "todo",
   severity: "", labels: [], description: "", domain: "safety", safety_kind: "near_miss",
+  original_leader_id: null,
 };
 
 describe("buildQualityActionPayload", () => {
@@ -41,6 +42,41 @@ describe("buildQualityActionPayload", () => {
 
   it("leaves leader_id null when the form never picked a leader", () => {
     const payload = buildQualityActionPayload({ ...BASE_FORM, leader_id: "" }, null, "2026-08-16T12:00:00.000Z");
+    expect(payload.leader_id).toBeNull();
+  });
+
+  /**
+   * Re-review finding: the edit path resolves `leader_id` by matching `leader_name`
+   * against ACTIVE leaders only. A deactivated leader, or a stored name that no
+   * longer matches any `line_leaders` row exactly, made `openEdit` hand back
+   * `leader_id: ""` — which this function then wrote as `null`, silently dropping
+   * an already-linked row out of `scorecard_safety_counts`. An edit to the
+   * description must never change who the row belongs to.
+   */
+  it("keeps the row's stored leader_id when editing finds no active-leader match", () => {
+    const payload = buildQualityActionPayload(
+      { ...BASE_FORM, leader_id: "", leader_name: "Deactivated Leader", original_leader_id: "leader-999" },
+      null,
+      "2026-08-16T12:00:00.000Z",
+    );
+    expect(payload.leader_id).toBe("leader-999");
+  });
+
+  it("an explicit pick of a different leader still wins over the stored id", () => {
+    const payload = buildQualityActionPayload(
+      { ...BASE_FORM, leader_id: "leader-new", original_leader_id: "leader-999" },
+      "New Leader",
+      "2026-08-16T12:00:00.000Z",
+    );
+    expect(payload.leader_id).toBe("leader-new");
+  });
+
+  it("a brand-new insert with no leader and no stored id still writes null", () => {
+    const payload = buildQualityActionPayload(
+      { ...BASE_FORM, leader_id: "", original_leader_id: null },
+      null,
+      "2026-08-16T12:00:00.000Z",
+    );
     expect(payload.leader_id).toBeNull();
   });
 });

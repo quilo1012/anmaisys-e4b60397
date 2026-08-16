@@ -45,7 +45,7 @@ import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
   id: string; action_no: string | null; action_type_id: string; line: string | null; shift: string | null;
-  leader_name: string | null; department: string | null; status: string; labels: string[] | null;
+  leader_id?: string | null; leader_name: string | null; department: string | null; status: string; labels: string[] | null;
   description: string | null; recorded_at: string; points: number | null;
   severity: string | null; attachments: string[] | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
@@ -73,6 +73,9 @@ const makeEmptyForm = (domain: "quality" | "safety" = "quality") => ({
   date: todayISO(), sku: "", batch: "",
   department: "", status: "todo", severity: "", labels: [] as string[], description: "",
   domain, safety_kind: "",
+  // The leader_id already on the row being edited (null for a new insert) — see the
+  // doc comment on QualityActionFormInput.original_leader_id for why this exists.
+  original_leader_id: null as string | null,
 });
 
 /** Trash button + confirm, for deleting a quality action straight from the list
@@ -169,6 +172,9 @@ export function QualityActionsView() {
       shift: a.shift ?? "DAY",
       leader_id: leaders.find((l) => l.name === a.leader_name)?.id ?? "",
       leader_name: a.leader_name ?? "",
+      // Carried through so saving never turns an already-linked row's leader_id into
+      // null just because the stored name no longer matches an active leader.
+      original_leader_id: a.leader_id ?? null,
       date: a.recorded_at ? a.recorded_at.slice(0, 10) : todayISO(),
       sku: a.sku ?? "",
       batch: a.batch ?? "",

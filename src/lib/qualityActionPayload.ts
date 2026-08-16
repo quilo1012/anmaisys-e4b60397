@@ -9,6 +9,16 @@
  * tables use title case), and a safety row saved without `leader_id` counts nowhere,
  * forever. `leader_name` stays too: it is what every screen on this module reads and
  * filters by today, and dropping it would be a second, unrelated regression.
+ *
+ * `original_leader_id` is the id already stored on the row being edited (`null` for a
+ * brand-new insert). `openEdit` resolves `leader_id` by matching `leader_name` against
+ * ACTIVE leaders only, so a deactivated leader — or any stored name that no longer
+ * matches a `line_leaders` row exactly — leaves `form.leader_id` empty even though the
+ * row already has a leader on it. Falling back to `null` in that case would silently
+ * unlink an already-counted row every time someone edits an unrelated field. Falling
+ * back to `original_leader_id` instead means an edit never changes who the row belongs
+ * to unless the form's own `leader_id` says otherwise (the user picked someone in the
+ * dropdown, which always wins).
  */
 export interface QualityActionFormInput {
   action_no: string;
@@ -26,6 +36,7 @@ export interface QualityActionFormInput {
   description: string;
   domain: "quality" | "safety";
   safety_kind: string;
+  original_leader_id: string | null;
 }
 
 /**
@@ -48,7 +59,7 @@ export function buildQualityActionPayload(
     action_no: form.action_no || null,
     line: form.line || null,
     shift: form.shift || null,
-    leader_id: form.leader_id || null,
+    leader_id: form.leader_id || form.original_leader_id || null,
     leader_name: matchedLeaderName ?? (form.leader_name || null),
     sku: form.sku || null,
     batch: form.batch || null,
