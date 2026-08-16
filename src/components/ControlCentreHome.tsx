@@ -14,7 +14,7 @@ import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { usePmSchedules, pmStatus } from "@/hooks/usePreventiveMaintenance";
 import { useRole } from "@/hooks/useRole";
 import { buildOpportunities } from "@/components/PreventiveOpportunities";
-import { sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
+import { isValidatedPaperwork, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { AlertTriangle, Factory, ShieldCheck, ClipboardList, ArrowRight, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -140,7 +140,10 @@ export function ControlCentreHome() {
       points: sumActionPoints(standing, excluded),
       severe: open.filter((a) => a.severity === "high" || a.severity === "critical").length,
       awaitingVerdict: standing.filter((a) => !["validated", "rejected"].includes(a.validation_status ?? "open")).length,
-      paperwork: standing.filter((a) => (a.labels ?? []).includes("Paperwork") && a.validation_status === "validated").length,
+      // The shared test, not a hand-rolled copy: this tile and the leader scorecard
+      // must agree on what a validated paperwork error is, and two spellings of the
+      // same rule is how they stop agreeing.
+      paperwork: standing.filter(isValidatedPaperwork).length,
     };
   }, [qualityActions, excluded]);
 

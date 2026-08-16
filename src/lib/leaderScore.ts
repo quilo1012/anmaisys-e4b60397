@@ -108,8 +108,14 @@ function productionScore(input: LeaderScoreInput): LeaderScoreComponent {
  *
  * Two things are void: an action Quality rejected, and an action whose labels are not
  * the leader's to answer for. Both tests live in `actionPoints`, which the leader
- * table, the by-leader chart and the line indicators also call — so the same leader
- * cannot read 7 here and 10 one screen over.
+ * table, the by-leader chart and the line indicators also call, so what one action is
+ * worth is decided in one place.
+ *
+ * One number does legitimately differ, and it is worth knowing which before chasing
+ * it as a bug: the Quality-page tally counts every standing action, while this
+ * component hands the validated paperwork errors to the documentation block below.
+ * A leader can therefore read 10 points on the board and "100 less 6" here. The
+ * difference is named on the basis line rather than left for somebody to find.
  *
  * This is deliberately NOT the documentation rule. The paperwork demerit still waits
  * for a validated verdict, because that one is a formal penalty with a name against

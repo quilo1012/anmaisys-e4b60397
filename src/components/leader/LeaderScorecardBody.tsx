@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Figure } from "@/components/ui/Figure";
 import {
-  QUALITY_SEVERITIES, severityMeta, DOCUMENTATION_LABEL, DOCUMENTATION_PENALTY_PCT,
+  QUALITY_SEVERITIES, severityMeta, DOCUMENTATION_LABEL,
   validationMeta,
 } from "@/lib/qualityConstants";
 import { useProfileNames } from "@/hooks/useProfileNames";
@@ -184,8 +184,8 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
         {docs.pending.length > 0 && (
           <p className="mt-2 text-2xs text-amber-200 print:text-black">
             {docs.pending.length} paperwork action{docs.pending.length === 1 ? "" : "s"} awaiting a verdict from
-            Quality — already counted in the quality score, but the −5% documentation penalty only applies once
-            validated.
+            Quality — counted in the quality score while open. Validating {docs.pending.length === 1 ? "it" : "them"} moves
+            the charge here instead of adding to it: −{docs.penaltyPct}% documentation, and the quality score gives it back.
           </p>
         )}
         {dropped.length > 0 && (

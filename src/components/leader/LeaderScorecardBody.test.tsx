@@ -168,4 +168,26 @@ describe("LeaderScorecardBody", () => {
     renderBody();
     expect(screen.getByText(/100% compliant/i)).toBeInTheDocument();
   });
+  it("the pending note quotes the configured price, not a hard-coded 5%", () => {
+    // The demerit reads the Paperwork label's price now. A sentence that still says
+    // "−5%" would contradict the number printed two lines above it.
+    const pendingAction = {
+      id: "p1", status: "todo", severity: "low", recorded_at: "2026-08-05T10:00:00Z",
+      labels: ["Paperwork"], department: null, line: "Line 1", action_no: "QA-9",
+      description: "missing signature", shift: "DAY", validation_status: "open",
+      validated_at: null, validated_by: null, attachments: null, closed_at: null,
+    };
+    const result = makeResult({
+      docs: {
+        penalised: [], pending: [pendingAction], rejected: [],
+        score: 100, impactPct: 0, penaltyPct: 10, pendingImpactPct: 10,
+      },
+    } as never);
+    renderBody(result);
+    const note = screen.getByText(/awaiting a verdict/i);
+    expect(note.textContent).toMatch(/10%/);
+    expect(note.textContent).not.toMatch(/5%/);
+    // And it must say the charge MOVES on validation, not that it piles on top.
+    expect(note.textContent).toMatch(/instead of|moves to|rather than/i);
+  });
 });
