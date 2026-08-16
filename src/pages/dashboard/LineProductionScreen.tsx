@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { refusalMessage } from "@/lib/functionRefusal";
 import { getShiftWindows } from "@/hooks/useShiftDowntime";
 import { shiftClockPct, lineReading, lastEntryAgeMinutes, BAND_BG, BAND_STATUS } from "@/lib/linePerformance";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -452,6 +453,11 @@ export default function LineProductionScreen() {
         body: { session_date: activeSessionDate, shift, line: canonicalLineName, force: true, debug_discover: true },
       });
       if (error) throw error;
+      // invoke() only raises on 400 and up. This function refuses with a 200 body
+      // when the sync flag is off, and it has been off since 29/07 — so without this
+      // the button reported a sync that never happened. See src/lib/functionRefusal.ts.
+      const refusal = refusalMessage(data);
+      if (refusal) throw new Error(refusal);
       return data;
     },
     onSuccess: () => {
