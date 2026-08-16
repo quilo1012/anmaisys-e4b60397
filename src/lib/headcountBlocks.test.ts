@@ -1,20 +1,15 @@
 import { describe, it, expect } from "vitest";
+import { blockOf, HEADCOUNT_BLOCKS } from "./headcountBlocks";
 
 /**
  * Which block an area is drawn in, asserted rather than assumed.
  *
- * Mirrors `blockOf` in ProductionHeadcountPage. The rule it protects: an area is
- * never invisible. The board used to filter on `section` against a fixed list of
- * four names, so an area whose section was renamed, misspelt or left blank dropped
- * off the board while its allocations went on being saved — people rostered onto a
- * column nobody could see.
+ * This file used to declare its own copy of `blockOf`, under a comment saying it
+ * mirrored the one in ProductionHeadcountPage. The copy knew two blocks; the board
+ * draws three. It passed either way, because the only function it ever called was
+ * its own — so the real one could have regressed without a single test going red.
+ * It now imports the thing it is testing.
  */
-const blockOf = (a: { section: string | null; kind: string }): string => {
-  const s = (a.section ?? "").toLowerCase();
-  if (s === "production" || s === "support") return s;
-  return a.kind === "production" ? "production" : "support";
-};
-
 describe("blockOf", () => {
   it("puts the lines in production", () => {
     expect(blockOf({ section: "production", kind: "production" })).toBe("production");
@@ -22,6 +17,14 @@ describe("blockOf", () => {
 
   it("keeps support areas in support", () => {
     expect(blockOf({ section: "support", kind: "support" })).toBe("support");
+  });
+
+  it("draws sectors in their own block", () => {
+    // The case the copy could not express. The board has had a Sectors column all
+    // along; the mirror in this file sent those areas to production or support by
+    // their kind, and agreed with itself about it.
+    expect(blockOf({ section: "sectors", kind: "production" })).toBe("sectors");
+    expect(blockOf({ section: "sectors", kind: "support" })).toBe("sectors");
   });
 
   it("draws Hygiene, Quality and Runner with production even though they count as support", () => {
@@ -45,7 +48,8 @@ describe("blockOf", () => {
       { section: "anything", kind: "production" },
       { section: null, kind: "whatever" },
       { section: "SUPPORT", kind: "production" },
+      { section: "sectors", kind: "support" },
     ];
-    for (const c of cases) expect(["production", "support"]).toContain(blockOf(c));
+    for (const c of cases) expect(HEADCOUNT_BLOCKS as readonly string[]).toContain(blockOf(c));
   });
 });

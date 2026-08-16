@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { blockOf } from "@/lib/headcountBlocks";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -128,26 +129,8 @@ const SECTIONS: { key: string; label: string; accent: string }[] = [
   { key: "support", label: "Support", accent: "text-muted-foreground" },
 ];
 
-/**
- * Which block an area is drawn in.
- *
- * `section` decides, and it is not the same question as `kind`. Hygiene, Quality and
- * Runner are support in the totals and sit in the production block on the board,
- * because that is where the factory's own sheet puts them — the people planning the
- * day read them alongside the lines they serve.
- *
- * The fallback matters more than it looks. The board used to filter on `section`
- * alone against a fixed list of four, so an area whose section was renamed, misspelt
- * or left blank vanished from the board entirely while its allocations carried on
- * being saved. Anything unrecognised now lands in the block its `kind` implies,
- * which is wrong at worst and invisible never.
- */
 /** Which band an area is drawn in. `kind` still decides what the totals count. */
-function blockOf(area: HeadcountArea): string {
-  const s = (area.section ?? "").toLowerCase();
-  if (s === "production" || s === "sectors" || s === "support") return s;
-  return area.kind === "production" ? "production" : "support";
-}
+
 
 /**
  * A section heading that can be folded away.
