@@ -36,7 +36,7 @@ function makeResult(over: Partial<ScorecardResult> = {}): ScorecardResult {
       sev: { critical: 0, high: 0, medium: 0, low: 0 },
       avgResolution: null, topLabels: [], trend: [],
     },
-    docs: { penalised: [], pending: [], rejected: [], score: 100, impactPct: 0 },
+    docs: { penalised: [], pending: [], rejected: [], score: 100, impactPct: 0, penaltyPct: 5, pendingImpactPct: 0 },
     production: {
       sessions: 8, avgOEE: null, downtimeH: null, runtimeH: null,
       output: 40648, attainment: 84, actualQty: 40648, targetQty: 48512,
@@ -141,5 +141,31 @@ describe("LeaderScorecardBody", () => {
     const bar = screen.getByRole("img", { name: /how this score was built/i });
     expect(within(bar).getAllByRole("presentation")).toHaveLength(2);
     expect(screen.getByText(/production is not counted/i)).toBeInTheDocument();
+  });
+  it("does not read 100% compliant while paperwork is still waiting for a verdict", () => {
+    // Only a validated action penalises — that rule stands. But a green box saying
+    // "No penalty · 100% compliant" over two unjudged cases is the card telling a
+    // leader they are clean when nobody has looked yet.
+    const pendingAction = {
+      id: "p1", status: "todo", severity: "low", recorded_at: "2026-08-05T10:00:00Z",
+      labels: ["Paperwork"], department: null, line: "Line 1", action_no: "QA-9",
+      description: "missing signature", shift: "DAY", validation_status: "open",
+      validated_at: null, validated_by: null, attachments: null, closed_at: null,
+    };
+    const result = makeResult({
+      docs: {
+        penalised: [], pending: [pendingAction, { ...pendingAction, id: "p2", action_no: "QA-10" }],
+        rejected: [], score: 100, impactPct: 0, penaltyPct: 5, pendingImpactPct: 10,
+      },
+    } as never);
+    renderBody(result);
+    expect(screen.queryByText(/100% compliant/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/2 under review/i)).toBeInTheDocument();
+    expect(screen.getByText(/up to −10%/i)).toBeInTheDocument();
+  });
+
+  it("still reads 100% compliant when there is nothing raised at all", () => {
+    renderBody();
+    expect(screen.getByText(/100% compliant/i)).toBeInTheDocument();
   });
 });

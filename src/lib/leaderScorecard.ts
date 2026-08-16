@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import {
-  DOCUMENTATION_LABEL, DOCUMENTATION_PENALTY_PCT,
+  DOCUMENTATION_LABEL, documentationPenaltyPct,
   documentationScore, isValidatedPaperwork,
 } from "@/lib/qualityConstants";
 import { computeLeaderScore, DEFAULT_WEIGHTS, type LeaderScoreResult, type LeaderScoreWeights } from "@/lib/leaderScore";
@@ -105,6 +105,16 @@ export interface DocumentationSummary {
   rejected: LSAction[];
   score: number;
   impactPct: number;
+  /** What one validated error costs, from the Paperwork label's price. */
+  penaltyPct: number;
+  /**
+   * What the unjudged cases would cost if Quality validated them all.
+   *
+   * Not a penalty and never subtracted from the score — the demerit still waits for a
+   * verdict. It exists so the card can stop printing "100% compliant" over paperwork
+   * nobody has looked at yet.
+   */
+  pendingImpactPct: number;
 }
 
 export interface ProductionSummary {
@@ -176,12 +186,16 @@ function summariseQuality(actions: LSAction[], completes: LSStatusChange[]): Qua
 function summariseDocumentation(actions: LSAction[]): DocumentationSummary {
   const penalised = actions.filter(isValidatedPaperwork);
   const raised = actions.filter((a) => (a.labels ?? []).includes(DOCUMENTATION_LABEL));
+  const pending = raised.filter((a) => a.validation_status === "open" || a.validation_status === "under_investigation");
+  const penaltyPct = documentationPenaltyPct();
   return {
     penalised,
-    pending: raised.filter((a) => a.validation_status === "open" || a.validation_status === "under_investigation"),
+    pending,
     rejected: raised.filter((a) => a.validation_status === "rejected"),
     score: documentationScore(penalised.length),
-    impactPct: penalised.length * DOCUMENTATION_PENALTY_PCT,
+    impactPct: penalised.length * penaltyPct,
+    penaltyPct,
+    pendingImpactPct: pending.length * penaltyPct,
   };
 }
 

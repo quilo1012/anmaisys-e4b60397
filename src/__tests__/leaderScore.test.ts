@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { setLabelPoints } from "@/lib/qualityConstants";
 
 const noActions: never[] = [];
+
+/** Label prices are module state — leave the next test the unpriced default. */
+afterEach(() => setLabelPoints({}));
 
 /** These cases are about the score maths, not attribution — nothing is excluded. */
 const NOTHING_EXCLUDED = new Set<string>();
@@ -49,6 +53,23 @@ describe("computeLeaderScore", () => {
     ];
     const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED });
     expect(r.documentation.value).toBe(90);
+  });
+
+  it("the documentation penalty is the price Quality put on the Paperwork label", () => {
+    // One price, set once in Lists & scoring. The 5% is what an unpriced label falls
+    // back to, not a second number living beside the first.
+    const actions = [
+      { severity: null, labels: ["Paperwork"], validation_status: "validated" },
+      { severity: null, labels: ["Paperwork"], validation_status: "validated" },
+    ];
+    const input = { actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED };
+
+    setLabelPoints({ Paperwork: 10 });
+    expect(computeLeaderScore(input).documentation.value).toBe(80);
+
+    // Unpriced is not free: it means "no price set", and the old rule stands.
+    setLabelPoints({ Paperwork: 0 });
+    expect(computeLeaderScore(input).documentation.value).toBe(90);
   });
 
   it("weights the three components", () => {

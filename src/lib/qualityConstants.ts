@@ -326,8 +326,33 @@ export function validationMeta(value: string | null | undefined): ValidationStat
  */
 export const DOCUMENTATION_LABEL = "Paperwork";
 
-/** Percentage points a leader loses per validated documentation error. */
+/**
+ * What a leader loses per validated documentation error, when Quality has not priced
+ * the label. The fallback, not the rule — see `documentationPenaltyPct`.
+ */
 export const DOCUMENTATION_PENALTY_PCT = 5;
+
+/**
+ * The price of one validated documentation error.
+ *
+ * There is ONE place to set what a Paperwork error is worth — the label's points in
+ * Lists & scoring — and this reads it. Before, the label carried a price for the
+ * quality score and this block carried a separate hard-coded 5, so pricing the label
+ * at 10 left two different answers on screen for the same error.
+ *
+ * Unpriced falls back to the old 5, on the same reasoning as `actionPoints`: every
+ * label ships at 0, and 0 means "no price set", not "free". So the day this lands,
+ * nobody's documentation score moves.
+ *
+ * Worth stating plainly, because it is a management decision and not an oversight: a
+ * validated Paperwork error is charged TWICE — once as quality points through
+ * `actionPoints`, and again as this demerit. One error is both a quality event and a
+ * formal documentation failure, and the scorecard is built to say so. Pricing the
+ * label therefore moves both components at once.
+ */
+export function documentationPenaltyPct(): number {
+  return labelPoints(DOCUMENTATION_LABEL) || DOCUMENTATION_PENALTY_PCT;
+}
 
 /** True when an action counts against the leader's documentation score. */
 export function isValidatedPaperwork(a: {
@@ -337,7 +362,7 @@ export function isValidatedPaperwork(a: {
   return a.validation_status === "validated" && (a.labels ?? []).includes(DOCUMENTATION_LABEL);
 }
 
-/** 100 minus 5 for each validated documentation error, never below zero. */
+/** 100 minus the label's price for each validated documentation error, never below zero. */
 export function documentationScore(validatedPaperworkCount: number): number {
-  return Math.max(0, 100 - validatedPaperworkCount * DOCUMENTATION_PENALTY_PCT);
+  return Math.max(0, 100 - validatedPaperworkCount * documentationPenaltyPct());
 }

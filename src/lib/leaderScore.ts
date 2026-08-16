@@ -1,4 +1,4 @@
-import { documentationScore, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
+import { documentationPenaltyPct, documentationScore, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
 
 /**
  * The leader's final score: production, quality and documentation, weighted.
@@ -137,11 +137,14 @@ export function computeLeaderScore(
   const validatedPaperwork = input.actions.filter(
     (a) => a.validation_status === "validated" && (a.labels ?? []).includes("Paperwork"),
   ).length;
+  // The price comes from the Paperwork label in Lists & scoring, so the demerit and
+  // the quality points cannot disagree about what one error is worth.
+  const penaltyPct = documentationPenaltyPct();
   const documentation: LeaderScoreComponent = {
     value: documentationScore(validatedPaperwork),
     basis: validatedPaperwork === 0
       ? "No validated paperwork error"
-      : `100 less 5% for each of ${validatedPaperwork} validated paperwork error${validatedPaperwork === 1 ? "" : "s"}`,
+      : `100 less ${penaltyPct}% for each of ${validatedPaperwork} validated paperwork error${validatedPaperwork === 1 ? "" : "s"}`,
   };
 
   // A component with nothing to measure is dropped and its weight shared out, rather

@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import { DOCUMENTATION_PENALTY_PCT } from "@/lib/qualityConstants";
 import { displayScore } from "@/lib/leaderScore";
 import type { ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
 
@@ -34,6 +33,7 @@ export function scorecardRows(
     ["Validated Paperwork actions", String(docs.penalised.length)],
     ["Documentation impact", `-${docs.impactPct}%`],
     ["Paperwork under review (not counted)", String(docs.pending.length)],
+    ["Paperwork under review, potential impact", `-${docs.pendingImpactPct}%`],
     ["Paperwork rejected (not counted)", String(docs.rejected.length)],
     [],
     ["VALIDATED DOCUMENTATION ERRORS"],
@@ -45,7 +45,7 @@ export function scorecardRows(
       a.validated_at ? format(new Date(a.validated_at), "dd/MM/yyyy HH:mm") : "",
       nameOf(a.validated_by),
       String(a.attachments?.length ?? 0),
-      `-${DOCUMENTATION_PENALTY_PCT}%`,
+      `-${docs.penaltyPct}%`,
       (a.description ?? "").replace(/"/g, "'"),
     ]),
     [],

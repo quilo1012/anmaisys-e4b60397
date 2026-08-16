@@ -115,6 +115,23 @@ describe("computeScorecard", () => {
     expect(r.docs.impactPct).toBe(5);
   });
 
+  it("says what the pending paperwork could still cost, so a clean box is not a clean record", () => {
+    // The verdict rule does not change: only "validated" penalises. What changes is
+    // that the card stops reading "100% compliant" while two cases wait for one.
+    const r = computeScorecard({
+      ...EMPTY_RAW,
+      actions: [
+        action({ id: "1", labels: ["Paperwork"], validation_status: "open" }),
+        action({ id: "2", labels: ["Paperwork"], validation_status: "under_investigation" }),
+      ],
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    expect(r.docs.penalised).toHaveLength(0);
+    expect(r.docs.impactPct).toBe(0);
+    expect(r.docs.score).toBe(100);
+    expect(r.docs.penaltyPct).toBe(5);
+    expect(r.docs.pendingImpactPct).toBe(10);
+  });
+
   it("average resolution uses the last time an action was moved to complete", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,

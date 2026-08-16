@@ -315,12 +315,26 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
           Documentation errors
         </SectionHead>
 
-        {docs.penalised.length === 0 ? (
+        {docs.penalised.length === 0 && docs.pending.length > 0 ? (
+          /* Nothing validated, so nothing is charged — but a green "100% compliant"
+             over cases nobody has judged yet is the card vouching for a record it has
+             not seen. Amber says the true thing: no penalty so far, and here is what
+             is still on the table. The score itself does not move. */
+          <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
+            <p className="text-sm font-semibold text-warning-strong">
+              No penalty yet · {docs.pending.length} under review
+            </p>
+            <p className="text-2xs text-muted-foreground">
+              No validated {DOCUMENTATION_LABEL.toLowerCase()} action in this period, so nothing is charged.
+              {" "}A verdict on {docs.pending.length === 1 ? "it" : "them"} would cost up to −{docs.pendingImpactPct}%.
+              {docs.rejected.length > 0 && ` ${docs.rejected.length} rejected by Quality.`}
+            </p>
+          </div>
+        ) : docs.penalised.length === 0 ? (
           <div className="rounded-lg border border-success/40 bg-success/5 p-3">
             <p className="text-sm font-semibold text-success-strong">No penalty · 100% compliant</p>
             <p className="text-2xs text-muted-foreground">
               No validated {DOCUMENTATION_LABEL.toLowerCase()} action in this period.
-              {docs.pending.length > 0 && ` ${docs.pending.length} raised and still under review — a verdict could change this.`}
               {docs.rejected.length > 0 && ` ${docs.rejected.length} rejected by Quality.`}
             </p>
           </div>
@@ -347,7 +361,7 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
                     <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
                       {validationMeta(a.validation_status).label}
                     </Badge>
-                    <span className="font-semibold text-destructive-strong">−{DOCUMENTATION_PENALTY_PCT}%</span>
+                    <span className="font-semibold text-destructive-strong">−{docs.penaltyPct}%</span>
                     {(a.attachments?.length ?? 0) > 0 && (
                       <Badge variant="secondary" className="text-2xs">
                         {a.attachments!.length} evidence file{a.attachments!.length === 1 ? "" : "s"}
