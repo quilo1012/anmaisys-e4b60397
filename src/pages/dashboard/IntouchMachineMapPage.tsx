@@ -37,6 +37,13 @@ export default function IntouchMachineMapPage() {
       if (error) throw error;
       return data as MapRow[];
     },
+    // The freshness banner below is recomputed on render on purpose, so that it goes
+    // stale while somebody is looking at the page. Nothing re-rendered it: this page
+    // lives on a wall screen that nobody touches for a whole shift, so the banner
+    // froze at whatever it said when the tab was opened. The poller runs every
+    // minute, so this matches it — and refetching rather than just ticking a clock
+    // means the banner also CLEARS on its own when the poller comes back.
+    refetchInterval: 60_000,
   });
 
   const { data: lines = [] } = useQuery({
