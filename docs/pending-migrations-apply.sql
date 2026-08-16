@@ -1,9 +1,61 @@
--- Scorecard de Lideres — tudo o que falta aplicar, por ordem.
--- Gerado a partir das duas migracoes do ramo. Colar INTEIRO no SQL Editor do
--- Supabase e executar uma vez. Depois correr supabase/tests/leader_weekly_scorecard_test.sql,
--- que abre transacao e faz ROLLBACK: imprime ALL TESTS PASSED ou aborta a nomear o caso.
+-- As migracoes que estao no repo e NAO estao na base, por ordem cronologica.
+--
+-- Verificado em 16/08/2026 por GET ao PostgREST com a chave publica: as quatro
+-- migracoes de nome escrito a mao continuam por aplicar, enquanto as geradas pelo
+-- Lovable (20260813*) estao aplicadas. Sintoma que levou a esta verificacao:
+-- "Could not find the 'points' column of 'quality_options' in the schema cache".
+--
+-- Colar INTEIRO no SQL Editor do Supabase e executar uma vez. Depois:
+--   1. correr supabase/tests/leader_weekly_scorecard_test.sql (faz ROLLBACK)
+--   2. regenerar src/integrations/supabase/types.ts
+--
+-- Nao inclui 20260814090000 (v1 do scorecard): a v2 abaixo cria a tabela se ela
+-- nao existir, por isso a v1 e redundante e aplica-la primeiro nao acrescenta nada.
 
--- ============ 1/2 ============
+-- ================================================================
+-- 20260815120000_a_label_can_carry_its_own_points
+-- ================================================================
+-- What a label is worth, alongside what a severity is worth.
+--
+-- Severity grades a deviation in the abstract. A label says what actually happened,
+-- and a foreign body is not a paperwork slip however either one was graded. Quality
+-- can now price the label, and when a label carries a price it is the charge — the
+-- severity steps aside. See `actionPoints()` in src/lib/qualityConstants.ts, which is
+-- the only place that decides it.
+--
+-- Every row starts at 0, which means "this label does not price the action". So the
+-- day this runs, nobody's score moves: an action with no priced label is worth its
+-- severity, exactly as before. Pricing is opt-in, one label at a time.
+--
+-- Derived, never stored on the action — the same rule as quality_severity_points.
+-- Re-pricing a label re-scores the history, and no action is left holding a stale
+-- number. That is deliberate: a board that says "Foreign Body" while its score says
+-- otherwise is worse than either.
+ALTER TABLE public.quality_options
+  ADD COLUMN IF NOT EXISTS points integer NOT NULL DEFAULT 0;
+
+-- The same ceiling as a severity weight, for the same reason: a typo'd 50000 in one
+-- box should not silently outrank the entire scoring model.
+DO $$ BEGIN
+  ALTER TABLE public.quality_options
+    ADD CONSTRAINT quality_options_points_range CHECK (points >= 0 AND points <= 1000);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Departments are not labels and never price anything. Enforced rather than merely
+-- hidden in the UI: the editor only shows the box on labels, but the rule belongs
+-- where it cannot be bypassed by whoever writes the next screen.
+DO $$ BEGIN
+  ALTER TABLE public.quality_options
+    ADD CONSTRAINT quality_options_only_labels_are_priced
+    CHECK (kind = 'label' OR points = 0);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+COMMENT ON COLUMN public.quality_options.points IS
+  'What this label charges an action, 0 = unpriced (the action keeps its severity weight). Labels only.';
+
+-- ================================================================
+-- 20260815140000_health_and_safety_is_the_second_gate
+-- ================================================================
 -- Health & Safety is the second gate.
 --
 -- v2 of the weekly Line Leader scorecard. v1
@@ -1477,7 +1529,9 @@ CREATE POLICY "Management closes scorecard threshold"
 -- no longer referenced by anything.
 DROP TABLE IF EXISTS public.leader_scorecard_thresholds;
 
--- ============ 2/2 ============
+-- ================================================================
+-- 20260816090000_the_screen_asks_the_database
+-- ================================================================
 -- The screen asks the database.
 --
 -- Two functions and one column, so that the write screen can show what it must without
@@ -1588,3 +1642,4 @@ REVOKE ALL ON FUNCTION public.scorecard_week_board(date) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.scorecard_derived_volume(uuid, date) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.scorecard_week_board(date) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.scorecard_derived_volume(uuid, date) TO authenticated;
+
