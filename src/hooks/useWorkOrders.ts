@@ -698,6 +698,39 @@ export function stageOfStatus(status: string): WOStage {
 }
 
 /**
+ * Why a drop is refused, or null if it is allowed.
+ *
+ * Two rules, and they are not the same kind of rule.
+ *
+ * Stages are recorded one at a time, so the timestamps the KPIs read are never left
+ * null — that is the adjacency rule, and it is about bookkeeping.
+ *
+ * Closing is refused outright, and that is about the record. `useCloseWorkOrder`
+ * writes `operator_signature_name`, `closed_by`, and resumes the line if this order
+ * stopped it. A drop can supply none of those: it wrote `{status:'closed',
+ * closed_at}` and nothing else, which leaves an order that is closed, unsigned, and
+ * still holding a stopped line — and in the record it is indistinguishable from one
+ * that nobody reviewed. A signature is a name a person types, so the board sends
+ * them to the button that asks for it.
+ *
+ * Dragging a closed order backwards stays allowed: reopening is how a mis-drop is
+ * undone, and it can then be signed off properly.
+ */
+export function stageMoveError(from: WOStage, to: WOStage): string | null {
+  if (from === to) return null;
+  if (to === "closed") {
+    return "Closing an order is a sign-off, not a stage. Open it and use Sign off, so the order carries the name of whoever reviewed it.";
+  }
+  const fromIdx = WO_STAGES.indexOf(from);
+  const toIdx = WO_STAGES.indexOf(to);
+  if (Math.abs(toIdx - fromIdx) !== 1) {
+    const next = WO_STAGES[fromIdx + (toIdx > fromIdx ? 1 : -1)];
+    return `Move it to ${next.replace(/_/g, " ")} first — stages are recorded one at a time.`;
+  }
+  return null;
+}
+
+/**
  * Move an order one stage along the board.
  *
  * Deliberately not a bare status write. Each stage owns a timestamp that the
@@ -715,19 +748,14 @@ export function useMoveWorkOrderStage() {
     mutationFn: async ({ wo, to }: { wo: WorkOrder; to: WOStage }) => {
       const from = stageOfStatus(wo.status);
       if (from === to) return;
-      const fromIdx = WO_STAGES.indexOf(from);
-      const toIdx = WO_STAGES.indexOf(to);
-      if (Math.abs(toIdx - fromIdx) !== 1) {
-        const next = WO_STAGES[fromIdx + (toIdx > fromIdx ? 1 : -1)];
-        throw new Error(`Move it to ${next.replace(/_/g, " ")} first — stages are recorded one at a time.`);
-      }
+      const refusal = stageMoveError(from, to);
+      if (refusal) throw new Error(refusal);
 
       const now = new Date().toISOString();
       const patch: Record<string, string> = { status: to };
       if (to === "received" && !wo.received_at) patch.received_at = now;
       if (to === "in_progress" && !wo.started_at) patch.started_at = now;
       if (to === "finished" && !wo.finished_at) patch.finished_at = now;
-      if (to === "closed" && !wo.closed_at) patch.closed_at = now;
 
       const { error } = await supabase.from("work_orders").update(patch as never).eq("id", wo.id);
       if (error) throw error;
