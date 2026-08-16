@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DailyIssueSummary } from "@/components/rag/DailyIssueSummary";
 import { getCurrentFactoryShift } from "@/lib/shifts";
+import { ragDowntimeBucket } from "@/lib/ragDowntimeBucket";
 import { useDailyIssueSummary, type DayShiftIssues } from "@/hooks/useDailyIssueSummary";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -670,10 +671,9 @@ export default function RAGWeeklyPage() {
         const wo = (ev as { work_orders?: { line_id: string | null } | null }).work_orders;
         const lineName = wo?.line_id ? lineMap.get(wo.line_id) : null;
         if (!lineName) continue;
-        const dt = new Date(ev.stopped_at as string);
-        const londonHour = (dt.getUTCHours() + 1) % 24; // BST
-        const shift: Shift = londonHour >= 6 && londonHour < 18 ? "DAY" : "NIGHT";
-        const dateStr = format(dt, "yyyy-MM-dd");
+        // Same rule the session rows above already carry, instead of a second one
+        // derived here. See src/lib/ragDowntimeBucket.ts.
+        const { date: dateStr, shift } = ragDowntimeBucket(ev.stopped_at as string);
         bump(`${dateStr}|${lineName}|${shift}`, { downtime: Number(ev.duration_minutes ?? 0) });
       }
 
