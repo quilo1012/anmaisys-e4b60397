@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
@@ -27,7 +27,7 @@ import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, statusMeta, severityMeta, actionPoints, sumActionPoints, severityPoints, severityForPoints, severityPointsMap, labelPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityForPoints, severityPointsMap, labelPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
@@ -39,7 +39,7 @@ import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDelete
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
-import { filterByDomain, type ActionDomainFilter } from "@/lib/actionDomain";
+import { filterByDomain, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -65,10 +65,13 @@ async function resolveSkuCode(it: { sku_code_text?: string | null; sku_id?: stri
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const makeEmptyForm = () => ({
+// `domain` defaults to the tab the dialog was opened from — "Log action" from the
+// Safety tab logs a safety occurrence, from the Quality (or All) tab a quality one.
+const makeEmptyForm = (domain: "quality" | "safety" = "quality") => ({
   action_no: "", action_type_id: "", line: "", shift: "DAY", leader_id: "", leader_name: "",
   date: todayISO(), sku: "", batch: "",
   department: "", status: "todo", severity: "", labels: [] as string[], description: "",
+  domain, safety_kind: "",
 });
 
 /** Trash button + confirm, for deleting a quality action straight from the list
@@ -173,6 +176,8 @@ export function QualityActionsView() {
       severity: a.severity ?? "",
       labels: a.labels ?? [],
       description: a.description ?? "",
+      domain: a.domain === "safety" ? "safety" : "quality",
+      safety_kind: a.safety_kind ?? "",
     });
     // The box follows the severity being edited, so it never shows the last action's
     // number beside this one's grade.
@@ -321,6 +326,10 @@ export function QualityActionsView() {
         labels: form.labels,
         description: form.description || null,
         recorded_at,
+        domain: form.domain,
+        // null for quality, the picked kind for safety — the CHECK constraint on the
+        // table refuses any other combination.
+        safety_kind: form.domain === "safety" ? (form.safety_kind || null) : null,
       };
       if (editingId) {
         const { error } = await supabase.from("quality_actions").update(payload as never).eq("id", editingId);
@@ -591,11 +600,53 @@ export function QualityActionsView() {
                 </DropdownMenu>
               )}
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(makeEmptyForm()); setPointsInput(""); } }}>
-              <DialogTrigger asChild><Button size="sm" onClick={() => { setEditingId(null); setForm(makeEmptyForm()); setPointsInput(""); }}><Plus className="h-4 w-4 mr-1.5" />Log action</Button></DialogTrigger>
+              <DialogTrigger asChild>
+                <Button size="sm" onClick={() => { setEditingId(null); setForm(makeEmptyForm(domainFilter === "safety" ? "safety" : "quality")); setPointsInput(""); }}>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  {domainFilter === "safety" ? "Log occurrence" : "Log action"}
+                </Button>
+              </DialogTrigger>
               <DialogContent className="max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>{editingId ? "Edit quality action" : "Log quality action"}</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>{editingId ? "Edit action" : form.domain === "safety" ? "Log safety occurrence" : "Log quality action"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
-                  {(() => {
+                  {form.domain === "safety" ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="min-w-0"><Label>Kind</Label>
+                        <Select value={form.safety_kind || "__none__"} onValueChange={(v) => setForm({ ...form, safety_kind: v === "__none__" ? "" : v })}>
+                          <SelectTrigger><SelectValue placeholder="Pick kind" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— None —</SelectItem>
+                            {/* Grouped by what kind of fact this is, with a separator between
+                                harm and signal — first aid and near miss must never sit
+                                adjacent as if they were the same kind of thing: one is a
+                                consequence, the other a leading signal worth reporting. */}
+                            {(["harm", "signal", "prevention"] as const).map((group, gi) => (
+                              <SelectGroup key={group}>
+                                {gi > 0 && <SelectSeparator />}
+                                {SAFETY_KINDS.filter((k) => k.group === group).map((k) => (
+                                  <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="min-w-0"><Label>Severity</Label>
+                        <Select value={form.severity || "__none__"} onValueChange={(v) => setForm({ ...form, severity: v === "__none__" ? "" : v })}>
+                          <SelectTrigger><SelectValue placeholder="Pick severity" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— None —</SelectItem>
+                            {QUALITY_SEVERITIES.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {/* No Points box here — a safety occurrence scores 0, always (see
+                          actionPoints()), so a points input would only ever show a number
+                          that means nothing. */}
+                    </div>
+                  ) : (() => {
                     // The weights in force, read once per render from the same map the
                     // badges read, so the picker and the score can never disagree.
                     const weights = severityPointsMap();
@@ -663,7 +714,16 @@ export function QualityActionsView() {
                   <p className="-mt-1 text-2xs text-muted-foreground">Pick line, date &amp; shift — leader, SKU and batch fill in automatically. Correct anything that's wrong.</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Leader</Label>
-                      <Select value={form.leader_id} onValueChange={(v) => setForm({ ...form, leader_id: v })}>
+                      <Select
+                        value={form.leader_id}
+                        onValueChange={(v) => {
+                          // Keep leader_name in step with leader_id — the create mutation
+                          // and safetyFormBlockers both read leader_name, and a pick that
+                          // only set the id would leave a safety row that looks unnamed.
+                          const picked = leaders.find((l) => l.id === v);
+                          setForm({ ...form, leader_id: v, leader_name: picked?.name ?? form.leader_name });
+                        }}
+                      >
                         <SelectTrigger><SelectValue placeholder={form.leader_name || "Pick leader"} /></SelectTrigger>
                         <SelectContent>
                           {form.leader_name && !leaders.some((l) => l.name === form.leader_name) && (
@@ -708,7 +768,17 @@ export function QualityActionsView() {
                   </div>
                   <div><Label>Notes</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
                 </div>
-                <DialogFooter><Button onClick={() => create.mutate()} disabled={create.isPending}>Save</Button></DialogFooter>
+                {(() => {
+                  const blockers = safetyFormBlockers(form);
+                  return (
+                    <DialogFooter className="flex-col items-end gap-1.5 sm:flex-col">
+                      <Button onClick={() => create.mutate()} disabled={create.isPending || blockers.length > 0}>Save</Button>
+                      {blockers.length > 0 && (
+                        <p className="text-xs text-destructive-strong">Missing: {blockers.join(", ")}</p>
+                      )}
+                    </DialogFooter>
+                  );
+                })()}
               </DialogContent>
             </Dialog>
             </>

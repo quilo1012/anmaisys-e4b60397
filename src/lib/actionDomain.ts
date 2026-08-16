@@ -15,3 +15,23 @@ export function domainOf(action: { domain?: string | null }): "quality" | "safet
 export function filterByDomain<T>(actions: T[], filter: ActionDomainFilter): T[] {
   return filter === "all" ? actions : actions.filter((a) => domainOf(a as { domain?: string | null }) === filter);
 }
+
+/**
+ * What a safety occurrence cannot be saved without.
+ *
+ * Leader and line stay nullable in the table — tightening them would reject quality rows
+ * that already exist — so the requirement lives here, on the way in. A safety row
+ * missing either cannot be counted per leader or per line, and the weekly counts would
+ * drop it without saying so.
+ */
+export function safetyFormBlockers(form: {
+  domain?: string | null; safety_kind?: string | null;
+  leader_name?: string | null; line?: string | null;
+}): string[] {
+  if (form.domain !== "safety") return [];
+  const missing: string[] = [];
+  if (!form.safety_kind) missing.push("Kind");
+  if (!form.leader_name) missing.push("Leader");
+  if (!form.line) missing.push("Line");
+  return missing;
+}
