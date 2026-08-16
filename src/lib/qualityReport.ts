@@ -26,6 +26,9 @@ export interface QualityReportAction {
   validation_status?: string | null;
   /** Filed by a manager; until then the action is still standing. */
   closed_at?: string | null;
+  /** 'quality' | 'safety' | undefined (rows recorded before the column existed). */
+  domain?: string | null;
+  safety_kind?: string | null;
 }
 
 export interface QualityReportInput {
@@ -97,7 +100,13 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   // Tuesday they mean nothing. What survives on paper is what was raised, how severe
   // it was, and how much of it was paperwork.
   let y = 32;
-  const tracking = leaderTracking(actions);
+  // The ranking/points half of the report is quality's alone — safety never charges
+  // a leader, and `leaderTracking` ranks by points, so a safety row must not reach
+  // it here even when the caller (e.g. `printDaily`) fetched a whole day of both
+  // domains with no filter. The full actions table further down is unaffected: that
+  // is the raw log, not a ranking.
+  const qualityOnly = actions.filter((a) => a.domain !== "safety");
+  const tracking = leaderTracking(qualityOnly);
   doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20, 30, 60);
   doc.text("Summary", margin, y);
   y += 5;

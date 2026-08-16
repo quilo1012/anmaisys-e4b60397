@@ -40,6 +40,7 @@ import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
+import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -268,6 +269,13 @@ export function QualityActionsView() {
 
   const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
 
+  // `filtered` with safety left out — for the two things safety must never rank on:
+  // "who reported most" (QualityTrackingByLeader, the by-leader chart) and "what
+  // keeps recurring" (Top recurring issues). On the Quality tab this is identical to
+  // `filtered`; on Safety it is empty (those cards do not render there at all — see
+  // below); on All it is the difference that keeps a near miss out of a ranking.
+  const qualityOnly = useMemo(() => filtered.filter((a) => domainOf(a) !== "safety"), [filtered]);
+
   // Which of Points / Kind the Log table shows: Quality keeps just Points (unchanged),
   // Safety shows Kind instead (a safety row is never worth a number of points), and All
   // shows both side by side — see the Points cell below for why it reads "—" there.
@@ -310,8 +318,10 @@ export function QualityActionsView() {
   };
 
   // Computed here, not inside the card, because whether there is a pattern to show
-  // decides whether the row below is one column or two.
-  const recurring = useMemo(() => recurringIssues(filtered), [filtered]);
+  // decides whether the row below is one column or two. Fed `qualityOnly`: a near
+  // miss reported twice is not a recurring quality issue, and `issueWeight` prices
+  // whatever it is given — the guard belongs at this call site, not inside it.
+  const recurring = useMemo(() => recurringIssues(qualityOnly), [qualityOnly]);
 
   const toggleLabel = (l: string) =>
     setForm((f) => ({ ...f, labels: f.labels.includes(l) ? f.labels.filter((x) => x !== l) : [...f.labels, l] }));
@@ -320,31 +330,14 @@ export function QualityActionsView() {
     mutationFn: async () => {
       const leader = leaders.find((l) => l.id === form.leader_id);
       const recorded_at = new Date(`${form.date || todayISO()}T12:00:00`).toISOString();
-      const payload = {
-        action_no: form.action_no || null,
-        line: form.line || null,
-        shift: form.shift || null,
-        leader_name: leader?.name ?? (form.leader_name || null),
-        sku: form.sku || null,
-        batch: form.batch || null,
-        department: form.department || null,
-        status: form.status,
-        severity: form.severity || null,
-        labels: form.labels,
-        description: form.description || null,
-        recorded_at,
-        domain: form.domain,
-        // null for quality, the picked kind for safety — the CHECK constraint on the
-        // table refuses any other combination.
-        safety_kind: form.domain === "safety" ? (form.safety_kind || null) : null,
-      };
+      const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at);
       if (editingId) {
         const { error } = await supabase.from("quality_actions").update(payload as never).eq("id", editingId);
         if (error) throw error;
       } else {
         const { data: u } = await supabase.auth.getUser();
         const { error } = await supabase.from("quality_actions").insert({
-          ...payload, action_type_id: null, leader_id: null, points: 1, recorded_by: u.user?.id ?? null,
+          ...payload, action_type_id: null, recorded_by: u.user?.id ?? null,
         } as never);
         if (error) throw error;
       }
@@ -488,16 +481,23 @@ export function QualityActionsView() {
   });
 
   const exportRows = () => {
-    const header = ["Date", "Action #", "Status", "Severity", "Points", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
-    const body = filtered.map((a) => [
-      a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
-      // What the action actually cost, not what its severity weighs. The export is
-      // read next to the board, and a spreadsheet charging 4 for an action the board
-      // shows as 0 is the same divergence again, just harder to spot.
-      String(actionPoints(a, excluded)),
-      a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
-      (a.labels ?? []).join("; "), a.description ?? "",
-    ]);
+    const header = ["Date", "Action #", "Status", "Severity", "Points", "Kind", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
+    const body = filtered.map((a) => {
+      const isSafety = domainOf(a) === "safety";
+      return [
+        a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
+        // What the action actually cost, not what its severity weighs. The export is
+        // read next to the board, and a spreadsheet charging 4 for an action the board
+        // shows as 0 is the same divergence again, just harder to spot.
+        // A safety row gets an EMPTY cell, never "0": a written 0 in a file read away
+        // from any screen that explains it reads as a claim ("this was worth
+        // nothing"), and safety is never worth anything either way — see actionPoints().
+        isSafety ? "" : String(actionPoints(a, excluded)),
+        isSafety ? (safetyKindMeta(a.safety_kind)?.label ?? "") : "",
+        a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
+        (a.labels ?? []).join("; "), a.description ?? "",
+      ];
+    });
     return { header, body };
   };
 
@@ -516,6 +516,7 @@ export function QualityActionsView() {
       line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
       sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
       validation_status: a.validation_status, closed_at: a.closed_at,
+      domain: a.domain, safety_kind: a.safety_kind,
     })),
     periodLabel,
     generatedBy: profile?.name || "—",
@@ -543,6 +544,7 @@ export function QualityActionsView() {
           recorded_at: a.recorded_at, action_no: a.action_no, status: a.status, severity: a.severity,
           line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
           sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
+          domain: a.domain, safety_kind: a.safety_kind,
         })),
         periodLabel: `Daily report · ${format(new Date(), "dd/MM/yyyy")}`,
         generatedBy: profile?.name || "—",
@@ -702,7 +704,7 @@ export function QualityActionsView() {
                     );
                   })()}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="min-w-0"><Label>Line</Label>
+                    <div className="min-w-0"><Label>Line{form.domain === "safety" && <span className="text-destructive-strong" aria-label="required"> *</span>}</Label>
                       <Select value={form.line} onValueChange={(v) => setForm({ ...form, line: v })}>
                         <SelectTrigger><SelectValue placeholder="Pick line" /></SelectTrigger>
                         <SelectContent>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
@@ -720,7 +722,7 @@ export function QualityActionsView() {
                   </div>
                   <p className="-mt-1 text-2xs text-muted-foreground">Pick line, date &amp; shift — leader, SKU and batch fill in automatically. Correct anything that's wrong.</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label>Leader</Label>
+                    <div><Label>Leader{form.domain === "safety" && <span className="text-destructive-strong" aria-label="required"> *</span>}</Label>
                       <Select
                         value={form.leader_id}
                         onValueChange={(v) => {
@@ -859,7 +861,10 @@ export function QualityActionsView() {
             label="Total actions"
             icon={<ClipboardCheck className="h-3.5 w-3.5" />}
             value={kpis.total} accent="blue"
-            sublabel={attributionReady ? `${kpis.totalPoints} points in range` : "Working out which actions count…"}
+            // Safety never has a points figure to report — see actionPoints(). "0
+            // points in range" would read as a claim ("this was worth nothing");
+            // no sublabel at all is the honest version of that same fact.
+            sublabel={domainFilter === "safety" ? undefined : (attributionReady ? `${kpis.totalPoints} points in range` : "Working out which actions count…")}
           />
           <KpiCard
             label="Waiting on Quality"
@@ -869,6 +874,10 @@ export function QualityActionsView() {
             active={filterValidation === "__pending__"}
             onClick={() => setFilterValidation(filterValidation === "__pending__" ? "__all__" : "__pending__")}
           />
+          {/* Not rendered on the Safety tab at all: a safety row is never worth a
+              number of points, and "Open points: 0" is a claim next to a table whose
+              Points column reads "—" for the exact same rows — see actionPoints(). */}
+          {domainFilter !== "safety" && (
           <KpiCard
             label="Open points"
             icon={<Scale className="h-3.5 w-3.5" />}
@@ -876,6 +885,7 @@ export function QualityActionsView() {
             loading={!attributionReady}
             sublabel="Weight still outstanding"
           />
+          )}
           <KpiCard
             label="High / Critical open"
             icon={<AlertTriangle className="h-3.5 w-3.5" />}
@@ -889,17 +899,27 @@ export function QualityActionsView() {
 
         {/* The two readings of the same period, side by side on a wide screen: who
             carries the weight, and what keeps coming back. Stacked, the tracking table
-            ran a metre wide for six figures and pushed the pattern below the fold. */}
+            ran a metre wide for six figures and pushed the pattern below the fold.
+
+            Neither card renders on the Safety tab at all. With every safety row
+            priced at 0, both cards' tie-breaks fall to a raw count — whoever reported
+            the most near misses would sort first under "Quality tracking by leader",
+            and the same problem repeated the most under "Top recurring issues". There
+            is no ordering of either that is not that inversion, so the fix is not to
+            draw them here — this is the ONE purpose the safety domain exists for: a
+            report can never cost, or rank, the person who filed it. */}
+        {domainFilter !== "safety" && (
         <div className={cn("grid items-start gap-4", recurring.length > 0 && "xl:grid-cols-3")}>
           <div className={cn(recurring.length > 0 && "xl:col-span-2")}>
-            <QualityTrackingByLeader actions={filtered} periodLabel={periodLabel} />
+            <QualityTrackingByLeader actions={qualityOnly} periodLabel={periodLabel} />
           </div>
           {recurring.length > 0 && <TopRecurringIssues rows={recurring} />}
         </div>
+        )}
 
         {view === "analytics" ? (
           <SectionErrorBoundary title="Quality analytics">
-            <QualityAnalytics actions={filtered} from={from} />
+            <QualityAnalytics actions={filtered} from={from} domainFilter={domainFilter} />
           </SectionErrorBoundary>
         ) : isMobile ? (
           <Card>
@@ -1297,6 +1317,11 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                {/* Shown only for a safety row — a quality action never carries a
+                    Kind, and Severity above already says what a quality row is. */}
+                {domainOf(action) === "safety" && (
+                  <DetailMeta label="Kind" value={safetyKindMeta(action.safety_kind)?.label} />
+                )}
                 <DetailMeta label="Line" value={action.line} />
                 <DetailMeta label="Shift" value={action.shift} />
                 <DetailMeta label="Leader" value={action.leader_name} />
@@ -1792,7 +1817,7 @@ function TopRecurringIssues({ rows }: { rows: RecurringIssue[] }) {
 // ============================================================
 // Analytics
 // ============================================================
-function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: string }) {
+function QualityAnalytics({ actions, from, domainFilter }: { actions: QualityAction[]; from: string; domainFilter: ActionDomainFilter }) {
   const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
   const byDay = useMemo(() => {
     const m = new Map<string, { key: string; label: string; todo: number; in_progress: number; complete: number }>();
@@ -1822,8 +1847,12 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
   const [leaderSearch, setLeaderSearch] = useState("");
   // The same roll-up the leader table uses, out in qualityBreakdown so a test can
   // hold the two side by side. This bar chart used to charge every action, including
-  // the ones Quality had rejected.
-  const byLeader = useMemo(() => leaderPointsBreakdown(actions, excluded), [actions, excluded]);
+  // the ones Quality had rejected. Safety rows are dropped before this ranks anyone:
+  // with every safety row priced at 0, the chart's tie-break falls to raw count, and
+  // "most near misses reported" would sort first — the ranking is not drawn at all
+  // on the Safety tab, see below.
+  const leaderboardActions = useMemo(() => actions.filter((a) => domainOf(a) !== "safety"), [actions]);
+  const byLeader = useMemo(() => leaderPointsBreakdown(leaderboardActions, excluded), [leaderboardActions, excluded]);
   const filteredLeaders = useMemo(() => {
     const q = leaderSearch.trim().toLowerCase();
     const list = q ? byLeader.filter((l) => l.label.toLowerCase().includes(q)) : byLeader;
@@ -1856,7 +1885,11 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
         </CardContent>
       </Card>
 
-      {/* Leaderboard — who has the most actions */}
+      {/* Leaderboard — who has the most actions. Not drawn at all on the Safety tab:
+          every safety row prices at 0, so the ranking's tie-break is a raw count and
+          "most near misses reported" would sort to the top — the one inversion this
+          domain exists to prevent. No ordering of this card is a correct one there. */}
+      {domainFilter !== "safety" && (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
           <CardTitle className="text-base">Actions by leader <span className="text-xs font-normal text-muted-foreground">· ranked by points</span></CardTitle>
@@ -1906,6 +1939,7 @@ function QualityAnalytics({ actions, from }: { actions: QualityAction[]; from: s
           )}
         </CardContent>
       </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Actions by label" data={byLabel} color="hsl(217 91% 60%)" />
