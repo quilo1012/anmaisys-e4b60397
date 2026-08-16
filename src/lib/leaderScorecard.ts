@@ -25,6 +25,10 @@ export interface LSAction {
   action_no: string | null; description: string | null; shift: string | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
   attachments: string[] | null; closed_at: string | null;
+  /** 'quality' | 'safety' | undefined (rows recorded before the column existed) —
+   *  required so `computeLeaderScore`'s `actionPoints`/`standsAgainstLeader` calls can
+   *  see it. Without it in the select, a safety row prices as a quality one. */
+  domain?: string | null;
 }
 
 export interface LSWorkOrder {

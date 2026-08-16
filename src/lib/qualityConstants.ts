@@ -246,6 +246,10 @@ export function labelChargeFor(action: { labels?: string[] | null }, excluded: S
  * `excluded` comes from `useLabelAttribution`. Passing an empty set is the correct
  * behaviour for "nothing is excluded", which means callers must NOT pass an empty set
  * while the attribution table is still loading — see `useLeaderAttribution`.
+ *
+ * See `standsAgainstLeader` below for its twin: ONE rule about safety, expressed
+ * twice because there are two questions — what is it worth, and does it count at all.
+ * Change the domain guard here, change it there too.
  */
 export function actionPoints(
   action: { domain?: string | null; severity: string | null; labels?: string[] | null; validation_status?: string | null },
@@ -269,11 +273,22 @@ export function sumActionPoints(
   return actions.reduce((sum, a) => sum + actionPoints(a, excluded), 0);
 }
 
-/** Whether an action stands at all — used for counts, where points are not the answer. */
+/**
+ * Whether an action stands at all — used for counts, where points are not the answer.
+ *
+ * ONE rule, expressed twice on purpose, right beside `actionPoints` above: the two
+ * functions answer two different questions — what is it worth (`actionPoints`) and
+ * does it count against the leader at all (`standsAgainstLeader`) — and a safety row
+ * answers "no" to both. They must be changed together. This guard went missing once
+ * already: `actionPoints` learned the domain rule, this one did not, and safety rows
+ * kept counting as quality activity in `leaderScore.qualityScore` and in
+ * ControlCentreHome's open / severe / awaiting-verdict tiles until it was added back.
+ */
 export function standsAgainstLeader(
-  action: { labels?: string[] | null; validation_status?: string | null },
+  action: { domain?: string | null; labels?: string[] | null; validation_status?: string | null },
   excluded: Set<string>,
 ): boolean {
+  if (action.domain === "safety") return false;
   return !isRejected(action) && countsAgainstLeader(action, excluded);
 }
 

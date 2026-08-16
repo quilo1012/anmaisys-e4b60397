@@ -20,6 +20,8 @@ export interface BreakdownAction {
   labels?: string[] | null;
   validation_status?: string | null;
   closed_at?: string | null;
+  /** 'quality' | 'safety' | undefined (rows recorded before the column existed). */
+  domain?: string | null;
 }
 
 export interface LeaderPointsRow {

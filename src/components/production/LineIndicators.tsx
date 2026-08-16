@@ -50,13 +50,16 @@ export function LineIndicators({
     queryFn: async () => {
       const window = shiftDateFetchRange(from, to);
       let q = db.from("quality_actions")
-        .select("line, severity, validation_status, closed_at, labels, shift, recorded_at")
+        .select("line, severity, validation_status, closed_at, labels, shift, recorded_at, domain")
         .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
       if (shift && shift !== "ALL") q = q.eq("shift", shift);
       if (leader) q = q.eq("leader_name", leader);
       const { data, error } = await q;
       if (error) throw error;
-      return ((data ?? []) as Array<{ line: string | null; severity: string | null; validation_status: string | null; closed_at: string | null; shift: string | null; recorded_at: string }>)
+      // 'domain' is optional/undefined for rows recorded before the column existed
+      // (read as quality — see `actionPoints`); without it here, a safety row's
+      // points would land in `linePointsBreakdown`'s per-line total.
+      return ((data ?? []) as Array<{ line: string | null; severity: string | null; validation_status: string | null; closed_at: string | null; shift: string | null; recorded_at: string; domain?: string | null }>)
         .filter((a) => {
           const day = shiftSessionDate(a.recorded_at, a.shift);
           return day >= from && day <= to;

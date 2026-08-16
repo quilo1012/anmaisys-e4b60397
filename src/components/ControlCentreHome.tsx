@@ -73,12 +73,16 @@ export function ControlCentreHome() {
       const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
       const { data, error } = await (supabase as any)
         .from("quality_actions")
-        .select("id, status, severity, labels, validation_status, line, leader_name, recorded_at")
+        .select("id, status, severity, labels, validation_status, line, leader_name, recorded_at, domain")
         .gte("recorded_at", since);
       if (error) throw error;
       return (data ?? []) as Array<{
         id: string; status: string; severity: string | null; labels: string[] | null;
         validation_status: string | null; line: string | null; leader_name: string | null;
+        /** 'quality' | 'safety' | undefined — see `standsAgainstLeader`. Without it
+         *  here, a safety row counts in this tile's open / severe / awaiting-verdict
+         *  figures the same as a quality one. */
+        domain?: string | null;
       }>;
     },
   });

@@ -23,6 +23,8 @@ export interface TrackedAction {
   closed_at?: string | null;
   labels?: string[] | null;
   validation_status?: string | null;
+  /** 'quality' | 'safety' | undefined (rows recorded before the column existed). */
+  domain?: string | null;
 }
 
 export interface LeaderTrackingRow {

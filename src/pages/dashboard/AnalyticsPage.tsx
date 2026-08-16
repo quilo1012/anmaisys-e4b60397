@@ -278,10 +278,17 @@ export default function AnalyticsPage() {
       leader_name: string | null; severity: string | null; status: string | null;
       labels: string[] | null; validation_status: string | null;
       description: string | null; shift: string | null;
+      /** 'quality' | 'safety' | undefined — see `actionPoints`. Without it here, a
+       *  safety row prices like a quality one in this card's Quality/Documentation
+       *  halves and its Open Actions column. */
+      domain: string | null;
     }>({
-      range: (a, b) => supabase
+      // `domain` is newer than the generated Postgrest types, hence the cast — see
+      // `actionPoints()` for why the column has to be here at all.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
+      range: (a, b) => (supabase as any)
         .from("quality_actions")
-        .select("leader_name, severity, status, labels, validation_status, recorded_at, description, shift")
+        .select("leader_name, severity, status, labels, validation_status, recorded_at, description, shift, domain")
         .gte("recorded_at", startDate.toISOString())
         .lte("recorded_at", endDate.toISOString())
         .order("recorded_at", { ascending: true }).order("id", { ascending: true })

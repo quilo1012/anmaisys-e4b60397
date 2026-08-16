@@ -47,8 +47,11 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
       // The fetch reaches into the morning after so a night filed under `to` is not
       // cut off halfway; computeScorecard decides what actually stays.
       const window = shiftDateFetchRange(from, to);
-      let qy = supabase.from("quality_actions")
-        .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at")
+      // `domain` is newer than the generated Postgrest types, hence the cast — see
+      // `actionPoints()` for why the column has to be here at all.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
+      let qy = (supabase as any).from("quality_actions")
+        .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain")
         .eq("leader_name", leaderName as string)
         .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
       if (shift !== "all") qy = qy.eq("shift", shift);
