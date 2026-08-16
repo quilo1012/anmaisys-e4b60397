@@ -37,3 +37,27 @@ export function formatMTBF(hours: number | null | undefined): string {
   if (min === 0) return `${h}h`;
   return `${h}h ${min}min`;
 }
+
+/**
+ * The same duration, without the "0h" in front of a sub-hour figure, and with the
+ * minutes padded once there is an hour to read them against: "45m", "1h 05m".
+ *
+ * This lived in useDailyIssueSummary.ts under the name `formatDuration` — a second
+ * function with the same name and the same signature as the one above, disagreeing
+ * with it. 2700 seconds was "0h 45m" here and "45m" there; 3660 was "1h 1m" against
+ * "1h 01m". Nothing linked the two files, so the same stop printed two ways on two
+ * screens and neither looked wrong on its own.
+ *
+ * Both renderings are wanted: this one goes into a block of text an admin pastes into
+ * a weekly report, where "0h" in front of every short stop is noise. What is gone is
+ * the second definition. The name now says which one you are getting.
+ *
+ * The copy also printed "NaNh NaNm" for NaN — `NaN < 60` is false, so it fell through
+ * to the hours branch.
+ */
+export function formatDurationCompact(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || isNaN(seconds) || seconds < 0) return "—";
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+}

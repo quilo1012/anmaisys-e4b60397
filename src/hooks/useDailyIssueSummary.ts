@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatDurationCompact } from "@/lib/formatDuration";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { shiftSessionDate } from "@/lib/shifts";
@@ -119,13 +120,7 @@ export function useDailyIssueSummary(from: string, to: string) {
   return { byLineDay, isLoading };
 }
 
-/** `1h 20m`, `45m`, or a dash when the clock never ran. */
-export function formatDuration(sec: number | null | undefined): string {
-  if (sec == null || sec < 0) return "—";
-  const mins = Math.round(sec / 60);
-  if (mins < 60) return `${mins}m`;
-  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
-}
+
 
 /**
  * The summary as a single block of text, for the admin who would rather start from
@@ -137,7 +132,7 @@ export function summaryToText(issues: DayShiftIssues): string {
   const section = (label: string, list: DayIssue[]) => {
     if (list.length === 0) return `${label}: no issues`;
     const lines = list.map(
-      (i) => `  • ${i.problem} — down ${formatDuration(i.downtimeSec)}, repair ${formatDuration(i.repairSec)}` +
+      (i) => `  • ${i.problem} — down ${formatDurationCompact(i.downtimeSec)}, repair ${formatDurationCompact(i.repairSec)}` +
              (i.woNumber ? ` (WO-${i.woNumber})` : ""),
     );
     return `${label}:\n${lines.join("\n")}`;

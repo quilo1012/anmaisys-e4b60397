@@ -1,6 +1,7 @@
 import { Sun, Moon, ClipboardCopy } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDuration, summaryToText, type DayShiftIssues } from "@/hooks/useDailyIssueSummary";
+import { summaryToText, type DayShiftIssues } from "@/hooks/useDailyIssueSummary";
+import { formatDurationCompact } from "@/lib/formatDuration";
 
 /**
  * What the orders say happened, above the box where somebody says what really did.
@@ -36,8 +37,8 @@ export function DailyIssueSummary({
           {list.map((i, n) => (
             <li key={`${i.woNumber ?? "x"}-${n}`} className="text-2xs leading-snug text-muted-foreground">
               <span className="font-medium text-foreground">{i.problem}</span>
-              {" · "}down {formatDuration(i.downtimeSec)}
-              {" · "}repair {formatDuration(i.repairSec)}
+              {" · "}down {formatDurationCompact(i.downtimeSec)}
+              {" · "}repair {formatDurationCompact(i.repairSec)}
               {i.woNumber != null && <span className="ml-1 font-mono opacity-70">WO-{i.woNumber}</span>}
             </li>
           ))}

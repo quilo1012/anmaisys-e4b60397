@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, summaryToText } from "@/hooks/useDailyIssueSummary";
+import { summaryToText } from "@/hooks/useDailyIssueSummary";
+import { formatDurationCompact as formatDuration } from "@/lib/formatDuration";
 
 describe("formatDuration", () => {
   it("reads minutes under the hour and hours above it", () => {
