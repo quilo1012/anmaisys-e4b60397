@@ -16,14 +16,34 @@
 -- ============================================================================
 -- 1. O TRILHO DE AUDITORIA ESTA VIVO?   << CORRE ESTA PRIMEIRO >>
 -- ============================================================================
--- Decide: se estiver parado, e mais grave do que tudo o resto neste ficheiro.
--- E a fundacao da defesa BRCGS, e `logAuditEvent` engole falhas num console.error
--- (useAuditLogs.ts:152-154) -- se a edge function log-audit-event nao estiver
--- publicada, o trilho para e NENHUM ecra o diz.
+-- Decide: se estiver parado, e mais grave do que tudo o resto neste ficheiro. E a
+-- fundacao da defesa BRCGS.
 --
--- Ler assim: uma data de max(created_at) parada ha dias, ou um count a zero, quer
--- dizer que parou. Compara com a ultima vez que alguem mexeu em utilizadores ou
--- fechou uma ordem.
+-- CORRIGIDO em 16/08. A primeira versao desta seccao dizia que o trilho podia parar
+-- "sem que nenhum ecra o diga", porque logAuditEvent engole falhas num console.error
+-- (useAuditLogs.ts:152-154). Isso esta ERRADO, e foi verificado no codigo:
+--
+--   - installApiErrorTelemetry() corre no arranque (main.tsx:13) e embrulha o fetch
+--     global; invokeFunction usa supabase.functions.invoke, que passa por la.
+--   - Qualquer resposta nao-ok de /functions/v1/log-audit-event e registada em
+--     system_telemetry_logs e aparece no Root Diagnostics como API_ERROR.
+--   - A propria funcao so devolve 200 DEPOIS de o insert passar; se o insert falhar
+--     devolve 500 (log-audit-event/index.ts:137-145).
+--
+-- Uma funcao nao publicada, ou a falhar a escrever, e portanto VISIVEL. O console.error
+-- e o ultimo de tres registos, nao o unico.
+--
+-- O que continua verdade, e e a razao para correr isto: um sistema de erros nao detecta
+-- SILENCIO. Se ninguem chamar logAuditEvent -- um refactor que deixa cair a chamada, um
+-- tablet offline, uma sessao sem token -- nao ha erro nenhum e tambem nao ha linhas. E
+-- zero linhas numa noite calma e a resposta certa. So olhando se sabe.
+--
+-- Ler assim: compara max(created_at) com a ultima vez que alguem fechou uma ordem ou
+-- mexeu em utilizadores. Se houve accoes e nao ha linhas, parou.
+--
+-- ANTES DE CONCLUIR QUE MORREU: confirma com que conta estas no SQL Editor. A politica
+-- de SELECT de audit_logs e so-admin (20260724140000), e correr isto com outro papel
+-- devolve zero linhas -- que se le exactamente igual a "o trilho esta morto".
 SELECT
   count(*)                                        AS eventos_7d,
   max(created_at)                                 AS mais_recente,
