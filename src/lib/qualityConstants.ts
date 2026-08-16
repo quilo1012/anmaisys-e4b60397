@@ -248,9 +248,14 @@ export function labelChargeFor(action: { labels?: string[] | null }, excluded: S
  * while the attribution table is still loading — see `useLeaderAttribution`.
  */
 export function actionPoints(
-  action: { severity: string | null; labels?: string[] | null; validation_status?: string | null },
+  action: { domain?: string | null; severity: string | null; labels?: string[] | null; validation_status?: string | null },
   excluded: Set<string>,
 ): number {
+  // Safety is counted, never charged. Reporting a near miss is the behaviour we want,
+  // and a score that punishes the report teaches the team to stop reporting. This is
+  // the ONLY place the rule lives: the leader card, the quality breakdown and Analytics
+  // all read this function, so they cannot disagree about it.
+  if (action.domain === "safety") return 0;
   if (isRejected(action)) return 0;
   if (!countsAgainstLeader(action, excluded)) return 0;
   return labelChargeFor(action, excluded) || severityPoints(action.severity);

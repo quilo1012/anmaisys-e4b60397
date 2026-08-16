@@ -119,3 +119,25 @@ describe("Cainan reads the same on every surface", () => {
     expect(new Set([table, chart, scorecard, indicators])).toEqual(new Set([CAINAN_POINTS]));
   });
 });
+
+describe("safety never charges the leader", () => {
+  const excluded = new Set<string>();
+
+  it("scores zero however severe it was", () => {
+    expect(actionPoints({ domain: "safety", severity: "critical", labels: [] }, excluded)).toBe(0);
+  });
+
+  it("scores zero even when a priced label would have charged", () => {
+    // A priced label outranks severity in the quality path. It must not reach across
+    // into safety and charge for a near miss.
+    expect(actionPoints({ domain: "safety", severity: null, labels: ["Batch code"] }, excluded)).toBe(0);
+  });
+
+  it("still charges a quality action the same as before", () => {
+    expect(actionPoints({ domain: "quality", severity: "critical", labels: [] }, excluded)).toBe(4);
+  });
+
+  it("treats a row with no domain as quality, so nothing already logged changes", () => {
+    expect(actionPoints({ severity: "critical", labels: [] }, excluded)).toBe(4);
+  });
+});
