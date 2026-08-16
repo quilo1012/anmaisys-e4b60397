@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   boardCounts,
+  formatScore,
+  scoreCell,
   stateLabel,
   weekEndingFor,
   type ScorecardBoardRow,
@@ -19,6 +21,10 @@ const row = (over: Partial<ScorecardBoardRow>): ScorecardBoardRow => ({
   overall_rag: null,
   rag_driver: null,
   capa_required: null,
+  score_final: null,
+  score_bruto: null,
+  cap_reason: null,
+  cap_applied: null,
   ...over,
 });
 
@@ -45,6 +51,32 @@ describe("boardCounts", () => {
 
   it("counts nothing when there is nothing, rather than guessing", () => {
     expect(boardCounts([])).toEqual({ toFill: 0, toApprove: 0, capasOpen: 0 });
+  });
+});
+
+describe("formatScore", () => {
+  it("never prints a null score as zero", () => {
+    expect(formatScore(null)).toBe("—");
+  });
+
+  it("floors 99.7 to 99, never rounds to nearest", () => {
+    expect(formatScore(99.7)).toBe("99");
+  });
+});
+
+describe("scoreCell", () => {
+  it("exposes the cap reason when a ceiling applied", () => {
+    const capped = row({ score_final: 60, cap_applied: true, cap_reason: "Falha de segurança alimentar" });
+    expect(scoreCell(capped)).toEqual({ text: "60", capReason: "Falha de segurança alimentar" });
+  });
+
+  it("hides the cap reason when no ceiling applied", () => {
+    const uncapped = row({ score_final: 84.9, cap_applied: false, cap_reason: null });
+    expect(scoreCell(uncapped)).toEqual({ text: "84", capReason: null });
+  });
+
+  it("shows a dash and no cap reason for a week with nothing filled in", () => {
+    expect(scoreCell(row({}))).toEqual({ text: "—", capReason: null });
   });
 });
 

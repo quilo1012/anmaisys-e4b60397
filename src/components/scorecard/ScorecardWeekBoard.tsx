@@ -1,6 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ScorecardBoardRow } from "@/lib/scorecardWeek";
-import { stateLabel } from "@/lib/scorecardWeek";
+import { scoreCell, stateLabel } from "@/lib/scorecardWeek";
 import { RagChip } from "./RagChip";
 
 type Props = {
@@ -33,25 +33,40 @@ export function ScorecardWeekBoard({ rows, isLoading, onOpen }: Props) {
             <TableHead>Quality</TableHead>
             <TableHead>H&amp;S</TableHead>
             <TableHead>Overall</TableHead>
+            <TableHead>Score</TableHead>
             <TableHead>State</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
-            <TableRow
-              key={`${r.leader_id}-${r.line_id}`}
-              className="cursor-pointer"
-              onClick={() => onOpen?.(r)}
-            >
-              <TableCell className="font-medium">{r.leader_name}</TableCell>
-              <TableCell>{r.line_name}</TableCell>
-              <TableCell><RagChip value={r.volume_rag} /></TableCell>
-              <TableCell><RagChip value={r.quality_rag} /></TableCell>
-              <TableCell><RagChip value={r.hs_rag} /></TableCell>
-              <TableCell><RagChip value={r.overall_rag} /></TableCell>
-              <TableCell className="text-sm text-muted-foreground">{stateLabel(r.state)}</TableCell>
-            </TableRow>
-          ))}
+          {rows.map((r) => {
+            const { text, capReason } = scoreCell(r);
+            return (
+              <TableRow
+                key={`${r.leader_id}-${r.line_id}`}
+                className="cursor-pointer"
+                onClick={() => onOpen?.(r)}
+              >
+                <TableCell className="font-medium">{r.leader_name}</TableCell>
+                <TableCell>{r.line_name}</TableCell>
+                <TableCell><RagChip value={r.volume_rag} /></TableCell>
+                <TableCell><RagChip value={r.quality_rag} /></TableCell>
+                <TableCell><RagChip value={r.hs_rag} /></TableCell>
+                <TableCell><RagChip value={r.overall_rag} /></TableCell>
+                <TableCell>
+                  <span className="font-medium">{text}</span>
+                  {capReason && (
+                    <span
+                      title={capReason}
+                      className="ml-2 inline-block rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+                    >
+                      Capped
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">{stateLabel(r.state)}</TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
