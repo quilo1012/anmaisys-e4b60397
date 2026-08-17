@@ -100,10 +100,24 @@ export function actionsInPeriod(actions: LSAction[], period: ScorecardPeriod): L
 /**
  * A work order carries no shift column — the shift is where its timestamp falls,
  * the same rule the rest of the factory uses.
+ *
+ * And, like a quality action, the DAY it belongs to is its shift's day rather than its
+ * calendar one: a night that starts on the 5th is still the 5th's night at 02:00 on
+ * the 6th. This used to return every row untouched when the period was "all shifts",
+ * which left the card counting whatever the query happened to fetch — the previous
+ * night's call-outs included, the ones raised after midnight missing, and no way to
+ * tell from the number.
+ *
+ * "Maintenance called" is the figure a leader is least able to argue with. Nobody
+ * remembers whether the engineer was rung at 23:50 or 00:10.
  */
 export function workOrdersInPeriod(wos: LSWorkOrder[], period: ScorecardPeriod): LSWorkOrder[] {
-  if (period.shift === "all") return wos;
-  return wos.filter((w) => getShift(w.created_at) === (period.shift === "DAY" ? "day" : "night"));
+  return wos.filter((w) => {
+    const shift = getShift(w.created_at);
+    if (period.shift !== "all" && shift !== (period.shift === "DAY" ? "day" : "night")) return false;
+    const day = shiftSessionDate(w.created_at, shift === "night" ? "NIGHT" : "DAY");
+    return day >= period.from && day <= period.to;
+  });
 }
 
 export interface QualitySummary {
@@ -198,9 +212,13 @@ function summariseQuality(actions: LSAction[], completes: LSStatusChange[]): Qua
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 
+  // Bucketed on the SHIFT date, the same rule `actionsInPeriod` used to decide the row
+  // belonged here at all. Bucketing on the calendar date of the timestamp drew a night
+  // action at 02:00 on the day after the one it was counted under — a bar standing on
+  // a day the card does not report on, moving a night's failures onto the next shift.
   const dayMap = new Map<string, number>();
   for (const a of actions) {
-    const k = format(new Date(a.recorded_at), "yyyy-MM-dd");
+    const k = shiftSessionDate(a.recorded_at, a.shift);
     dayMap.set(k, (dayMap.get(k) ?? 0) + 1);
   }
   const trend = Array.from(dayMap.entries())

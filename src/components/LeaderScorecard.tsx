@@ -42,7 +42,6 @@ import { LeaderScorecardBody, SCORECARD_PRINT_ID } from "@/components/leader/Lea
 export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
   leaderName: string | null; from: string; to: string; shift?: "all" | "DAY" | "NIGHT";
 }) {
-  const untilTs = `${to}T23:59:59.999`;
   const enabled = !!leaderName;
   const period: ScorecardPeriod = { from, to, shift };
 
@@ -82,7 +81,17 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
 
   const actionIds = useMemo(() => actions.map((a) => a.id), [actions]);
   const { data: completes = [], isError: eCompletes } = useQuery({
-    queryKey: ["ls_hist", leaderName, from, to, actionIds.length],
+    /**
+     * Keyed on the ids themselves, not on how many there are.
+     *
+     * This key counted the actions and omitted `shift`, which every other query on
+     * this card carries. A leader with three actions on days and three on nights
+     * therefore had one cache entry for both: switching the shift filter redrew the
+     * card with the other shift's completion history, and "Avg resolution" reported
+     * on actions that were not on screen. Two different sets of the same size are not
+     * the same set.
+     */
+    queryKey: ["ls_hist", leaderName, from, to, shift, actionIds.join(",")],
     enabled: enabled && actionIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -172,11 +181,17 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     queryKey: ["ls_wos", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
+      const woWindow = shiftDateFetchRange(from, to);
       const { data, error } = await supabase
         .from("work_orders")
         .select("id, wo_number, created_at, status, line_at_time, line_stopped, description")
         .ilike("requester_name", `${escapeLikePattern((leaderName as string).trim())}%`)
-        .gte("created_at", `${from}T00:00:00`).lte("created_at", untilTs)
+        // The same window the quality log uses, and for the same reason: it reaches
+        // into the morning after so a night raised at 02:00 is not cut off halfway,
+        // and `workOrdersInPeriod` throws back what does not belong. It used to stop
+        // at `to` 23:59 with no timezone on either bound, which both lost every
+        // after-midnight call-out and counted the previous night's in their place.
+        .gte("created_at", woWindow.gte).lte("created_at", woWindow.lte)
         .order("created_at");
       if (error) throw error;
       return (data ?? []) as unknown as LSWorkOrder[];

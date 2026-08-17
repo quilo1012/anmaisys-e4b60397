@@ -53,6 +53,59 @@ describe("workOrdersInPeriod", () => {
     expect(workOrdersInPeriod([day, night], period({ shift: "NIGHT" })).map((w) => w.id)).toEqual(["n"]);
     expect(workOrdersInPeriod([day, night], period())).toHaveLength(2);
   });
+
+  /**
+   * A night that starts on the 5th is still the 5th's night at 02:00 on the 6th.
+   *
+   * The quality log has obeyed this from the start: the fetch reaches into the morning
+   * after with `shiftDateFetchRange` and `actionsInPeriod` throws back what does not
+   * belong. Work orders were bounded by the calendar day instead and never filtered by
+   * shift date at all, so "Maintenance called" undercounted every call-out raised after
+   * midnight and counted the previous night's in their place.
+   *
+   * It is the number a leader is least able to argue with — nobody remembers whether
+   * the engineer was called at 23:50 or 00:10 — and it feeds the card's only statement
+   * about how often their line stopped.
+   */
+  it("keeps a night work order raised after midnight on the night it belongs to", () => {
+    // 01:00Z in August is 02:00 in London: the 5th's night shift.
+    const afterMidnight = wo({ id: "late", created_at: "2026-08-06T01:00:00Z" });
+    expect(workOrdersInPeriod([afterMidnight], period()).map((w) => w.id)).toEqual(["late"]);
+    expect(workOrdersInPeriod([afterMidnight], period({ shift: "NIGHT" })).map((w) => w.id)).toEqual(["late"]);
+  });
+
+  it("does not count the previous night's work order as this period's", () => {
+    // 02:00 London on the 5th belongs to the 4th's night, which this period excludes.
+    const previousNight = wo({ id: "early", created_at: "2026-08-05T01:00:00Z" });
+    expect(workOrdersInPeriod([previousNight], period())).toEqual([]);
+  });
+
+  it("still keeps a plain daytime order on its own day", () => {
+    const day = wo({ id: "d", created_at: "2026-08-05T10:00:00Z" });
+    expect(workOrdersInPeriod([day], period()).map((w) => w.id)).toEqual(["d"]);
+  });
+});
+
+describe("the actions-over-time chart", () => {
+  /**
+   * The chart has to bucket an action on the day the card counted it.
+   *
+   * `actionsInPeriod` keeps a row by its SHIFT date — a night at 02:00 on the 6th is
+   * the 5th's night — and the trend then bucketed the same row by the calendar date of
+   * its timestamp. So an action kept because it belongs to the 5th was drawn on the
+   * 6th: a bar standing on a day the card does not report on, in a chart whose whole
+   * job is to say when things happened. Read off a printed card, it moves a night's
+   * failures onto the following shift, which is somebody else's.
+   */
+  it("plots a night action on the night it belongs to, not the calendar day after", () => {
+    const r = computeScorecard({
+      ...EMPTY_RAW,
+      actions: [action({ recorded_at: "2026-08-06T01:00:00Z", shift: "NIGHT" })],
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+
+    expect(r.quality.total).toBe(1);
+    expect(r.quality.trend).toEqual([{ day: "05/08", count: 1 }]);
+  });
 });
 
 describe("computeScorecard", () => {

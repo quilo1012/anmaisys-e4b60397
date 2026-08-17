@@ -182,6 +182,24 @@ describe("LeaderScorecard, matching the leader's name", () => {
     }
   });
 
+  /**
+   * The window, not the filter. `workOrdersInPeriod` can only throw back rows it was
+   * given, and a call-out raised at 02:00 on the morning after `to` belongs to `to`'s
+   * night — so the fetch has to reach that far, exactly as the quality log's does.
+   *
+   * Asserted here because at the pure-function level this case passes for the wrong
+   * reason: the filter happily returns a row nobody ever read.
+   */
+  it("fetches work orders as far as the morning after, like the quality log", async () => {
+    draw();
+    await screen.findByText(/No quality action was raised against this leader/i);
+
+    const bounds = calls.filter((c) => c.table === "work_orders" && c.method === "lte");
+    expect(bounds.length).toBeGreaterThan(0);
+    // 2026-08-17 + 1 day, to 06:59 UTC — the end of that night shift.
+    expect(bounds.some((c) => String(c.args[1]).startsWith("2026-08-18T06:59:59"))).toBe(true);
+  });
+
   it("looks the leader up on every table that holds their name", async () => {
     draw("Cainan");
     await screen.findByText(/No quality action was raised against this leader/i);
