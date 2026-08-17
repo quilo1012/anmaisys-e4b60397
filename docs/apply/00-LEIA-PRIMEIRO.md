@@ -9,17 +9,39 @@ procurar as fronteiras à vista, e é aí que alguém corre o bloco 6 antes do 5
 public.leader_scorecard_thresholds` — a tabela que a v1 criava — e recria a tabela na
 forma da v1 se ela não existir. Fora de ordem, perde-se o backfill.
 
-## Como correr
+## Como correr — este projecto é Lovable Cloud
 
-No SQL Editor do Supabase, com um papel que ignora o RLS (o `postgres` do editor serve).
-Para cada ficheiro, por ordem de 01 a 08:
+A base é gerida pelo Lovable, e o Lovable é o único mecanismo que alguma vez correu SQL
+nela. Os ficheiros de migração com nome UUID neste repositório (`20260813104724_4c005913-…`,
+em commits chamados "Changes") não são instruções por executar: são o **recibo** que o
+Lovable escreve de volta no git depois de já ter corrido o SQL.
 
-1. Cole o ficheiro inteiro.
-2. Corra.
-3. **Confirme que terminou sem erro antes de passar ao seguinte.** Um bloco que falha a
-   meio deixa o seguinte a assentar em algo que não existe.
+Há dois caminhos, e o segundo é o preferível quando existe.
 
-Se um bloco falhar, pare e guarde a mensagem. Não salte para o seguinte.
+### Caminho A — pedir ao Lovable (sempre disponível)
+
+Um bloco por mensagem, de 01 a 08, esperando que cada um termine antes de enviar o
+seguinte. Use o texto de [`PROMPT-LOVABLE.md`](PROMPT-LOVABLE.md) — está escrito para
+impedir a única coisa que corre mal aqui: o agente do Lovable reescrever o SQL que lhe
+dão. Se ele "melhorar" o bloco 06, perde-se a correcção do teto de Health & Safety em
+Red; se reordenar, perde-se o backfill.
+
+Depois de cada bloco, confirme no repositório que apareceu um recibo novo, ou pergunte-lhe
+que SQL correu. **Um "feito" do agente não é prova de que correu** — ver
+[`../scorecard-v2-estado-antes.md`](../scorecard-v2-estado-antes.md) para a sondagem que
+prova, sem credenciais de serviço.
+
+### Caminho B — o SQL Editor, se o alcançar
+
+O Lovable Cloud continua a assentar num projecto Supabase real (`ybtrzqzliepknpzqdajx`).
+Se conseguir chegar ao SQL Editor desse projecto pela vista de backend do Lovable, cole
+cada ficheiro inteiro e corra, com um papel que ignora o RLS (o `postgres` do editor
+serve). É o caminho mais directo, porque o texto vai para a base exactamente como está
+aqui, sem um agente pelo meio.
+
+Em qualquer dos caminhos: **confirme que cada bloco terminou sem erro antes de passar ao
+seguinte.** Um bloco que falha a meio deixa o seguinte a assentar em algo que não existe.
+Se um falhar, pare e guarde a mensagem. Não salte para o seguinte.
 
 | # | Ficheiro | Linhas | O que traz |
 |---|---|---|---|
