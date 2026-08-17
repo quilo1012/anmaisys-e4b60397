@@ -28,7 +28,7 @@ import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 import { isMissingColumn } from "@/lib/postgrestErrors";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityForPoints, severityPointsMap, labelPoints, logFormCharge, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
@@ -42,6 +42,15 @@ import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByL
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
 import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
+
+/**
+ * Why a quality action's severity is not editable anywhere on this screen.
+ *
+ * Said in the same words in all three places that show it, so someone who reads it on
+ * the table and again in the detail drawer does not have to work out whether they are
+ * two different rules.
+ */
+const GRADE_FROM_LABELS = "Graded by its labels — change the labels to change the grade";
 
 interface ActionType { id: string; code: string; label: string; points: number; active: boolean }
 interface QualityAction {
@@ -123,6 +132,7 @@ export function QualityActionsView() {
 
   const { data: qOpts } = useQualityOptions();
   const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
+  const LABEL_LISTS = { labels: LABELS, safetyLabels: qOpts?.safetyLabels ?? [] };
   const DEPTS = qOpts?.departments ?? [...QUALITY_DEPARTMENTS];
 
   // Kanban is gone. A To do / In progress / Complete board is the working view of
@@ -152,15 +162,6 @@ export function QualityActionsView() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmptyForm());
-  /**
-   * What the Points box in the log dialog is showing.
-   *
-   * Kept beside the form rather than in it because points are NOT a stored column —
-   * severity is. The box is a way of choosing the severity, and it holds its own text
-   * so that a number no severity carries (5, say) stays on screen with a warning
-   * instead of vanishing the moment it fails to match.
-   */
-  const [pointsInput, setPointsInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Open the same form pre-filled to edit an existing action.
@@ -187,9 +188,6 @@ export function QualityActionsView() {
       domain: a.domain === "safety" ? "safety" : "quality",
       safety_kind: a.safety_kind ?? "",
     });
-    // The box follows the severity being edited, so it never shows the last action's
-    // number beside this one's grade.
-    setPointsInput(a.severity ? String(severityPointsMap()[a.severity] ?? "") : "");
     setDetailId(null);
     setOpen(true);
   };
@@ -331,28 +329,17 @@ export function QualityActionsView() {
   const recurring = useMemo(() => recurringIssues(qualityOnly), [qualityOnly]);
 
   /**
-   * Ticking a label fills in the grade as well as the number.
+   * Ticking a label is now the whole of what grades and prices a quality action.
    *
-   * The price already decides what the action costs — `actionPoints` puts labels
-   * ahead of severity — so leaving Severity on "None" beside a priced label left the
-   * card ungraded for a deviation the system had already put a number on.
-   *
-   * Only while the labels price it. Untick the last priced one and the severity the
-   * user last saw stays where it is, with the Points box handed back to it: clearing
-   * the grade there would delete a choice nobody asked to undo.
-   *
-   * Safety never scores (`actionPoints` returns 0 for it) and has no points box, so
-   * it is left alone entirely.
+   * The form used to also carry the grade in `form.severity`, filled in from the
+   * charge. It no longer needs to: `buildQualityActionPayload` derives the severity
+   * from the labels on the way to the database, so there is exactly one rule and no
+   * second copy to fall out of step with it. Safety keeps its own picked severity,
+   * which this never touches.
    */
   const toggleLabel = (l: string) => {
     const labels = form.labels.includes(l) ? form.labels.filter((x) => x !== l) : [...form.labels, l];
-    const charge = form.domain === "safety" ? null : logFormCharge(labels, excluded);
-    if (!charge || charge.severity === null) {
-      setForm((f) => ({ ...f, labels }));
-      return;
-    }
-    setPointsInput(String(charge.points));
-    setForm((f) => ({ ...f, labels, severity: charge.severity as string }));
+    setForm((f) => ({ ...f, labels }));
   };
 
   const create = useMutation({
@@ -374,7 +361,7 @@ export function QualityActionsView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quality_actions"] });
       const wasEdit = !!editingId;
-      setOpen(false); setForm(makeEmptyForm()); setPointsInput(""); setEditingId(null);
+      setOpen(false); setForm(makeEmptyForm()); setEditingId(null);
       toast.success(wasEdit ? "Saved" : "Logged");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -637,9 +624,9 @@ export function QualityActionsView() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(makeEmptyForm()); setPointsInput(""); } }}>
+            <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditingId(null); setForm(makeEmptyForm()); } }}>
               <DialogTrigger asChild>
-                <Button size="sm" onClick={() => { setEditingId(null); setForm(makeEmptyForm(domainFilter === "safety" ? "safety" : "quality")); setPointsInput(""); }}>
+                <Button size="sm" onClick={() => { setEditingId(null); setForm(makeEmptyForm(domainFilter === "safety" ? "safety" : "quality")); }}>
                   <Plus className="h-4 w-4 mr-1.5" />
                   {domainFilter === "safety" ? "Log occurrence" : "Log action"}
                 </Button>
@@ -684,69 +671,15 @@ export function QualityActionsView() {
                           actionPoints()), so a points input would only ever show a number
                           that means nothing. */}
                     </div>
-                  ) : (() => {
-                    // The weights in force, read once per render from the same map the
-                    // badges read, so the picker and the score can never disagree.
-                    const weights = severityPointsMap();
-                    const typed = pointsInput.trim() === "" ? null : Number(pointsInput);
-                    const unmatched = typed !== null && Number.isFinite(typed) && severityForPoints(typed, weights) === null;
-                    // A priced label outranks the severity in `actionPoints`, so the box
-                    // has to follow the labels or it prints a number the action will not
-                    // cost. Derived on render rather than kept in state: unticking the
-                    // last priced label hands the box straight back to the severity,
-                    // with the value it already had.
-                    const charge = logFormCharge(form.labels, excluded);
-                    const pickSeverity = (v: string) => {
-                      const severity = v === "__none__" ? "" : v;
-                      setForm({ ...form, severity });
-                      setPointsInput(severity ? String(weights[severity] ?? "") : "");
-                    };
-                    const typePoints = (raw: string) => {
-                      setPointsInput(raw);
-                      const n = raw.trim() === "" ? null : Number(raw);
-                      setForm({ ...form, severity: severityForPoints(n, weights) ?? "" });
-                    };
-                    return (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_7rem]">
-                        <div className="min-w-0"><Label>Severity</Label>
-                          <Select value={form.severity || "__none__"} onValueChange={pickSeverity}>
-                            <SelectTrigger><SelectValue placeholder="Pick severity" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">— None —</SelectItem>
-                              {QUALITY_SEVERITIES.map((s) => (
-                                <SelectItem key={s.value} value={s.value}>{s.label} · {weights[s.value] ?? s.points}p</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="min-w-0"><Label htmlFor="severity-points">Points</Label>
-                          <Input
-                            id="severity-points"
-                            type="number"
-                            min={0}
-                            inputMode="numeric"
-                            className={cn("w-full min-w-0", charge.pricedByLabels && "bg-muted font-semibold")}
-                            value={charge.pricedByLabels ? String(charge.points) : pointsInput}
-                            onChange={(e) => typePoints(e.target.value)}
-                            readOnly={charge.pricedByLabels}
-                            aria-describedby={charge.pricedByLabels ? "points-from-labels" : undefined}
-                            title={charge.pricedByLabels ? "Priced by the labels below — untick them to set it by severity" : undefined}
-                          />
-                        </div>
-                        {charge.pricedByLabels ? (
-                          <p id="points-from-labels" className="text-xs text-muted-foreground sm:col-span-2">
-                            Priced by {charge.sources.map((s) => `${s.label} ${s.points}p`).join(" + ")}
-                            {charge.sources.length > 1 && ` = ${charge.points}p`} — the severity does not count while a
-                            label prices the action. Untick {charge.sources.length === 1 ? "it" : "them"} to score by severity.
-                          </p>
-                        ) : unmatched && (
-                          <p className="text-xs text-muted-foreground sm:col-span-2">
-                            No severity is worth {typed}p — this action scores 0 unless a label prices it.
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })()}
+                  ) : (
+                    /* No Severity and no Points box on a quality action any more.
+                       `actionPoints()` charges the priced labels and falls back to the
+                       grade only when none of them price it, so these two fields spent
+                       most of their life naming a number the system did not use — and
+                       whoever logged the action read that number as the score. The
+                       labels below decide it, and the summary under them says so. */
+                    null
+                  )}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="min-w-0"><Label>Line{form.domain === "safety" && <span className="text-destructive-strong" aria-label="required"> *</span>}</Label>
                       <Select value={form.line} onValueChange={(v) => setForm({ ...form, line: v })}>
@@ -804,11 +737,16 @@ export function QualityActionsView() {
                   <div>
                     <Label>Labels</Label>
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      {LABELS.map((l) => {
+                      {/* Each domain gets its own vocabulary: the quality list names
+                          none of the hazards a safety occurrence is about, which is
+                          how safety got logged with no label at all. */}
+                      {labelsForDomain(form.domain, LABEL_LISTS, form.labels).map((l) => {
                         const on = form.labels.includes(l);
                         // Priced labels say so on the chip: whoever is logging the action
                         // decides the score here, and should not find that out afterwards.
-                        const price = labelPoints(l);
+                        // Never on a safety occurrence — it scores 0 either way, so a
+                        // price on the chip would name a number nothing charges.
+                        const price = form.domain === "safety" ? 0 : labelPoints(l);
                         return (
                           <button key={l} type="button" onClick={() => toggleLabel(l)}
                             className={cn("rounded-full border px-2.5 py-1 text-xs transition-colors", on ? "border-primary bg-primary text-primary-foreground" : "bg-muted/40 hover:bg-accent")}>
@@ -818,6 +756,30 @@ export function QualityActionsView() {
                         );
                       })}
                     </div>
+                    {/* What this action will be charged, said before Save and not after.
+                        Rendered unconditionally on purpose: the zero case is the one
+                        that matters. Most labels in this factory are still priced at 0,
+                        so "no priced label" is a common and legitimate answer — it is
+                        the SILENT zero that cost leaders deviations they had logged in
+                        good faith. aria-live because the sentence changes under the
+                        reader's hands as they tick chips. */}
+                    {form.domain !== "safety" && (() => {
+                      const charge = logFormCharge(form.labels, excluded);
+                      const note = excludedLabelNote(form.labels, excluded);
+                      return (
+                        <div
+                          role="status"
+                          aria-live="polite"
+                          className={cn(
+                            "mt-2 rounded-md border px-2.5 py-1.5 text-xs",
+                            charge.pricedByLabels ? "bg-muted/40" : "border-dashed text-muted-foreground",
+                          )}
+                        >
+                          <span className={cn(charge.pricedByLabels && "font-medium")}>{chargeSummary(charge)}</span>
+                          {note && <span className="mt-0.5 block text-muted-foreground">{note}</span>}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <div><Label>Notes</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
                 </div>
@@ -997,7 +959,12 @@ export function QualityActionsView() {
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
                       <span className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</span>
                       {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
-                      {canManage ? (
+                      {/* Editable on safety only. A quality action's grade is derived
+                          from its labels now (see buildQualityActionPayload); leaving
+                          this picker live would let someone set a severity the next
+                          save silently overwrites — the same two-sources-of-truth this
+                          module keeps having to close. */}
+                      {canManage && a.domain === "safety" ? (
                         <span onClick={(e) => e.stopPropagation()}>
                           <Select
                             value={a.severity || "__none__"}
@@ -1013,7 +980,7 @@ export function QualityActionsView() {
                           </Select>
                         </span>
                       ) : sev ? (
-                        <Badge variant="outline" className={cn("text-2xs", sev.badge)}>{sev.label} · {sev.points}p</Badge>
+                        <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={GRADE_FROM_LABELS}>{sev.label} · {sev.points}p</Badge>
                       ) : null}
                     </div>
                   </div>
@@ -1061,11 +1028,12 @@ export function QualityActionsView() {
                           )}
                         </div>
                       </TableCell>
-                      {/* Editable inline, like Status. Severity drives the points
-                          score, so re-grading had to be quicker than opening the
-                          detail dialog for every row. */}
+                      {/* Editable inline for safety, where the severity is a description
+                          the user picks. A quality action's grade is derived from its
+                          labels and re-derived on every save, so it is shown here and
+                          changed on the labels. */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        {canManage ? (
+                        {canManage && a.domain === "safety" ? (
                           <Select
                             value={a.severity || "__none__"}
                             onValueChange={(v) => setSeverity.mutate({ id: a.id, severity: v === "__none__" ? null : v })}
@@ -1079,9 +1047,9 @@ export function QualityActionsView() {
                             </SelectContent>
                           </Select>
                         ) : sev ? (
-                          <Badge variant="outline" className={cn("text-2xs", sev.badge)}>{sev.label}</Badge>
+                          <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={GRADE_FROM_LABELS}>{sev.label}</Badge>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground" title={a.domain === "safety" ? undefined : GRADE_FROM_LABELS}>—</span>
                         )}
                       </TableCell>
                       {/* What this action actually costs, not what its severity is worth.
@@ -1296,13 +1264,25 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Severity</Label>
-                  <Select value={action.severity || "__none__"} onValueChange={(v) => onSeverity(v === "__none__" ? null : v)} disabled={!canManage}>
-                    <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— None —</SelectItem>
-                      {QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  {action.domain === "safety" ? (
+                    <Select value={action.severity || "__none__"} onValueChange={(v) => onSeverity(v === "__none__" ? null : v)} disabled={!canManage}>
+                      <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— None —</SelectItem>
+                        {QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    /* Read-only for quality: the grade comes from the labels below and
+                       is re-derived whenever the action is saved, so a pick made here
+                       would not survive the next edit. */
+                    <div className="mt-1 flex items-center gap-2">
+                      {severityMeta(action.severity)
+                        ? <Badge variant="outline" className={cn("text-xs", severityMeta(action.severity)!.badge)}>{severityMeta(action.severity)!.label}</Badge>
+                        : <span className="text-sm text-muted-foreground">—</span>}
+                      <span className="text-2xs text-muted-foreground">{GRADE_FROM_LABELS}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1631,7 +1611,7 @@ const clampPoints = (raw: string) => Math.max(0, Math.min(1000, Math.round(Numbe
 function QualityListsManager() {
   const qc = useQueryClient();
   const { data: options = [] } = useAllQualityOptions();
-  const [kind, setKind] = useState<"label" | "department">("label");
+  const [kind, setKind] = useState<QualityOption["kind"]>("label");
   const [value, setValue] = useState("");
   const [points, setPoints] = useState("");
 
@@ -1707,17 +1687,22 @@ function QualityListsManager() {
     refresh();
   };
 
-  const groups: { kind: "label" | "department"; title: string }[] = [
+  const groups: { kind: QualityOption["kind"]; title: string }[] = [
     { kind: "label", title: "Labels" },
+    { kind: "safety_label", title: "Safety labels" },
     { kind: "department", title: "Departments" },
   ];
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Select value={kind} onValueChange={(v) => setKind(v as "label" | "department")}>
+        <Select value={kind} onValueChange={(v) => setKind(v as QualityOption["kind"])}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="label">Label</SelectItem><SelectItem value="department">Department</SelectItem></SelectContent>
+          <SelectContent>
+            <SelectItem value="label">Label</SelectItem>
+            <SelectItem value="safety_label">Safety label</SelectItem>
+            <SelectItem value="department">Department</SelectItem>
+          </SelectContent>
         </Select>
         <Input placeholder="New value..." value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
         {kind === "label" && (
@@ -1742,7 +1727,14 @@ function QualityListsManager() {
           <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">{g.title}</p>
           <div className="divide-y rounded border">
             {options.filter((o) => o.kind === g.kind).length === 0 && (
-              <p className="px-3 py-2 text-sm text-muted-foreground">None yet.</p>
+              // An empty list here does NOT mean an empty picker: both label lists fall
+              // back to the built-in one, and saying "None yet" while the log form shows
+              // eight chips is how a manager ends up adding all eight again.
+              <p className="px-3 py-2 text-sm text-muted-foreground">
+                {g.kind === "safety_label"
+                  ? `None saved — the log uses the built-in list: ${SAFETY_LABELS.join(", ")}.`
+                  : "None yet."}
+              </p>
             )}
             {options.filter((o) => o.kind === g.kind).map((o) => (
               <div key={o.id} className="flex items-center justify-between px-3 py-1.5">
