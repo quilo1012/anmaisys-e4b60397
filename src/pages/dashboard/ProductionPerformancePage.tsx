@@ -19,6 +19,7 @@ import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Do
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { leaderNamePattern } from "@/lib/leaderNameMatch";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { useLineLiveStatus } from "@/hooks/useLineLiveStatus";
 import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
@@ -314,7 +315,11 @@ export default function ProductionPerformancePage() {
         .gte("recorded_at", window.gte).lte("recorded_at", window.lte)
         .order("recorded_at", { ascending: false });
       if (shift !== "all") q = q.eq("shift", shift);
-      if (leaderFilter !== "__all__") q = q.eq("leader_name", leaderFilter);
+      // The leader filter comes from line_leaders, the quality log's name from
+      // whoever raised the action. Matched case-insensitively so the five leaders
+      // spelled in capitals do not filter down to an empty panel — see
+      // leaderNamePattern.
+      if (leaderFilter !== "__all__") q = q.ilike("leader_name", leaderNamePattern(leaderFilter));
       const { data, error } = await q;
       if (error) throw error;
       return ((data ?? []) as any[]).filter((a) => {
@@ -334,7 +339,7 @@ export default function ProductionPerformancePage() {
         .gte("session_date", range.from).lte("session_date", range.to);
       if (shift !== "all") q = q.eq("shift", shift);
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
-      if (leaderFilter !== "__all__") q = q.eq("leader_name", leaderFilter);
+      if (leaderFilter !== "__all__") q = q.ilike("leader_name", leaderNamePattern(leaderFilter));
 
       // Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
       let rq = supabase.from("rag_weekly_entries")

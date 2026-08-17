@@ -9,6 +9,7 @@ import { PointsPending } from "@/components/quality/PointsPending";
 import { shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 import { selectOptionalDomain } from "@/lib/optionalDomain";
+import { leaderNamePattern } from "@/lib/leaderNameMatch";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columns newer than the generated types
 const db = supabase as any;
@@ -59,7 +60,9 @@ export function LineIndicators({
             .select(columns)
             .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
           if (shift && shift !== "ALL") q = q.eq("shift", shift);
-          if (leader) q = q.eq("leader_name", leader);
+          // Case-insensitive: the log spells five leaders in capitals and the
+          // production tables spell them in title case. See leaderNamePattern.
+          if (leader) q = q.ilike("leader_name", leaderNamePattern(leader));
           return q;
         },
       );
@@ -83,7 +86,7 @@ export function LineIndicators({
         .gte("production_sessions.session_date", from)
         .lte("production_sessions.session_date", to);
       if (shift && shift !== "ALL") q = q.eq("production_sessions.shift", shift);
-      if (leader) q = q.eq("production_sessions.leader_name", leader);
+      if (leader) q = q.ilike("production_sessions.leader_name", leaderNamePattern(leader));
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Array<{
