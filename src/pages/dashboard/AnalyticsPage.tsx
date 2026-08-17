@@ -32,6 +32,7 @@ import { KpiCard } from "@/components/reports/KpiCard";
 import { QUALITY_STATUSES, actionPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
 import { rowMatchesShift } from "@/lib/shifts";
 import { woStatusCounts, DONE_STATUSES } from "@/lib/woStatusCounts";
+import { leaderNameKey } from "@/lib/leaderNameMatch";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { PointsPending } from "@/components/quality/PointsPending";
 import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
@@ -338,9 +339,14 @@ export default function AnalyticsPage() {
     type Agg = { leader: string; sessions: number; target: number; actual: number; lines: Set<string>; shifts: Set<string> };
     const map = new Map<string, Agg>();
     for (const s of leaderRows) {
-      const leader = (s.leader_name || "").trim();
+      // Grouped by the forgiving key, labelled with the name the row carries. The log
+      // spells five of these people in capitals and the tablet does not; keying on the
+      // raw string split them in two, and the quality lookups below then missed
+      // entirely — see leaderNameKey.
+      const name = (s.leader_name || "").trim();
+      const leader = leaderNameKey(name);
       if (!leader) continue;
-      const cur = map.get(leader) ?? { leader, sessions: 0, target: 0, actual: 0, lines: new Set<string>(), shifts: new Set<string>() };
+      const cur = map.get(leader) ?? { leader: name, sessions: 0, target: 0, actual: 0, lines: new Set<string>(), shifts: new Set<string>() };
       cur.sessions += 1;
       if (s.line) cur.lines.add(s.line);
       if (s.shift) cur.shifts.add(s.shift);
@@ -363,7 +369,7 @@ export default function AnalyticsPage() {
     for (const a of periodActionRows) {
       // The screen's own question: still on the working board.
       if (a.status !== "todo" && a.status !== "in_progress") continue;
-      const leader = (a.leader_name || "").trim();
+      const leader = leaderNameKey(a.leader_name);
       if (!leader) continue;
       const cur = openMap.get(leader) ?? { open: 0, points: 0, critical: 0 };
       cur.open += 1;
@@ -376,15 +382,16 @@ export default function AnalyticsPage() {
     // Actions in the period, per leader — for the score's Quality and Documentation parts.
     const periodMap = new Map<string, Array<{ severity: string | null; labels: string[] | null; validation_status: string | null }>>();
     for (const a of periodActionRows) {
-      const leader = (a.leader_name || "").trim();
+      const leader = leaderNameKey(a.leader_name);
       if (!leader) continue;
       periodMap.set(leader, [...(periodMap.get(leader) ?? []), a]);
     }
 
     const rows = Array.from(map.values())
       .map((a) => {
-        const oa = openMap.get(a.leader);
-        const acts = periodMap.get(a.leader) ?? [];
+        const leaderKey = leaderNameKey(a.leader);
+        const oa = openMap.get(leaderKey);
+        const acts = periodMap.get(leaderKey) ?? [];
         const score = computeLeaderScore(
           { actual: a.actual, target: a.target, avgOEE: null, actions: acts, excludedLabels: excluded },
           weights,

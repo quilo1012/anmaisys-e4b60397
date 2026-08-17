@@ -40,3 +40,24 @@ export function escapeLikePattern(value: string): string {
 export function leaderNamePattern(leaderName: string): string {
   return escapeLikePattern(leaderName.trim());
 }
+
+/**
+ * The same forgiveness, for a join done in memory rather than in the database.
+ *
+ * `leaderNamePattern` is for `ilike`; this is for `Map` keys. Analytics builds its
+ * Leader Performance card by grouping production sessions by name and then looking up
+ * each leader's quality actions by that name — two maps, one key, and until now no
+ * case folding on either side. For the five leaders the log spells in capitals the
+ * lookup simply missed, and the row rendered with their real production, zero open
+ * actions, and a score computed over no quality actions at all.
+ *
+ * Group by this; display the name the row actually carries. The key is for matching
+ * and is not fit to show anyone.
+ *
+ * Empty for a blank name, and never a group of its own: the callers skip it. Bucketing
+ * the unnamed rows together would invent a leader called nothing and hang everybody's
+ * orphaned actions on them.
+ */
+export function leaderNameKey(leaderName: string | null | undefined): string {
+  return String(leaderName ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
