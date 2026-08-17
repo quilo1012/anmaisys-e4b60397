@@ -238,7 +238,7 @@ describe("ScorecardEntryDrawer — CAPA gate and approval", () => {
     expect(upsertCalls[0].approved_at).toEqual(expect.any(String));
   });
 
-  it("shows the database's own refusal instead of swallowing it", async () => {
+  it("a rejected Submit surfaces the database's refusal and does NOT present itself as submitted", async () => {
     mockCanFill = true;
     upsertError = { message: 'Semana com check reprovado (Fail) nao pode ser aprovada sem CAPA' };
     mockVerdictRow = { leader_id: "leader-1", line_id: "line-1", week_ending: "2026-07-05", quality_fail_type: null };
@@ -250,5 +250,29 @@ describe("ScorecardEntryDrawer — CAPA gate and approval", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
       'Semana com check reprovado (Fail) nao pode ser aprovada sem CAPA',
     ));
+    // The write was rejected — the query's confirmed data never changed — so
+    // the button must still read "Submit" and stay clickable, not flip to a
+    // disabled "Submitted" as if the write had landed.
+    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submitted" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).not.toBeDisabled();
+  });
+
+  it("a rejected Approve surfaces the database's refusal and does NOT present itself as approved", async () => {
+    mockCanApprove = true;
+    upsertError = { message: 'Aprovacao exige approved_by.' };
+    mockVerdictRow = { leader_id: "leader-1", line_id: "line-1", week_ending: "2026-07-05", quality_fail_type: null };
+    renderDrawer();
+
+    const approveButton = await screen.findByRole("button", { name: "Approve" });
+    expect(approveButton).not.toBeDisabled();
+    fireEvent.click(approveButton);
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Aprovacao exige approved_by.'));
+    // Same guarantee for Approve: a rejected write leaves the confirmed record
+    // (and therefore the button) exactly as it was before the click.
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approved" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).not.toBeDisabled();
   });
 });

@@ -17,3 +17,19 @@ export function approvalBlockers(
   if (isBlank(draft.capa_due_date)) missing.push("CAPA due date");
   return missing;
 }
+
+/**
+ * `capa_status` arrives from the database enum in Portuguese — that is DATA,
+ * unchanged by this function — and is translated for display only, the same
+ * shape as `stateLabel()` in `src/lib/scorecardWeek.ts` for the board's four
+ * states. `null`/unrecognised reads as "—", never as a guessed status.
+ */
+export function capaStatusLabel(status: string | null): string {
+  const labels: Record<string, string> = {
+    Aberta: "Open",
+    "Em Andamento": "In Progress",
+    Concluida: "Completed",
+    Verificada: "Verified",
+  };
+  return status ? labels[status] ?? status : "—";
+}

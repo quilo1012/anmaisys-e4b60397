@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { capaStatusLabel } from "@/lib/capaGate";
 import type { ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import type { SetField } from "./pillars/types";
 
@@ -82,7 +83,10 @@ export function CapaBlock({
           >
             <option value="">—</option>
             {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              // The option's VALUE stays the database's Portuguese enum — that is
+              // DATA, unchanged. Only the visible text is translated, the same
+              // split `stateLabel()` makes for the board's four states.
+              <option key={s} value={s}>{capaStatusLabel(s)}</option>
             ))}
           </select>
         </div>

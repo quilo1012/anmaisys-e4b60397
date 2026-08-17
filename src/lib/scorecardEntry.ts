@@ -55,6 +55,19 @@ export type ScorecardEntryVerdict = {
   hs_driver: string[] | null;
   overall_rag: string | null;
   rag_driver: string | null;
+  /**
+   * The CONFIRMED audit trail, straight off `v_leader_weekly_scorecard` — unlike
+   * `ScorecardEntryDraft.submitted_at`/`approved_at`, which flip the instant
+   * `saveNow` is called and stay flipped even if the write is then rejected,
+   * these only change when the query refetches a write that actually landed.
+   * Anything that decides "is this week already submitted/approved" (a button
+   * label, a disabled state) must read these, never the draft's copies — see
+   * the fix note in `ScorecardEntryDrawer.tsx`.
+   */
+  submitted_by: string | null;
+  submitted_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
 };
 
 /** Vazio nao e zero: um campo por preencher fica nulo e le-se "—". */

@@ -50,4 +50,21 @@ describe("CapaBlock", () => {
     fireEvent.change(due, { target: { value: "2026-07-31" } });
     expect(due.value).toBe("2026-07-31");
   });
+
+  it("shows the CAPA status options in English, never the database's raw Portuguese enum", () => {
+    render(<Harness verdict={{ quality_fail_type: "Fail" }} />);
+    const status = screen.getByLabelText("CAPA status") as HTMLSelectElement;
+    const optionText = Array.from(status.options).map((o) => o.textContent);
+
+    expect(optionText).toEqual(["—", "Open", "In Progress", "Completed", "Verified"]);
+    expect(screen.queryByText("Aberta")).not.toBeInTheDocument();
+    expect(screen.queryByText("Em Andamento")).not.toBeInTheDocument();
+    expect(screen.queryByText("Concluida")).not.toBeInTheDocument();
+    expect(screen.queryByText("Verificada")).not.toBeInTheDocument();
+
+    // The underlying VALUE selecting an option writes is still the database's
+    // raw enum — DATA, not translated — only the visible label changed.
+    fireEvent.change(status, { target: { value: "Em Andamento" } });
+    expect(status.value).toBe("Em Andamento");
+  });
 });

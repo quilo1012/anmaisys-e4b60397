@@ -55,8 +55,15 @@ function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow;
   const [pendingAction, setPendingAction] = useState<"submit" | "approve" | null>(null);
 
   const blockers = approvalBlockers(draft, verdict);
-  const alreadySubmitted = draft.submitted_at !== null;
-  const alreadyApproved = draft.approved_at !== null;
+  // Read off `verdict` — the query's CONFIRMED data — never off `draft`.
+  // `saveNow` writes `submitted_at`/`approved_at` into `draft` optimistically,
+  // before the network call resolves, and a previous version of this file left
+  // them there even when the write was then rejected: the button flipped to
+  // "Submitted"/disabled while nothing had actually been recorded. `verdict`
+  // only changes when a write SUCCEEDS (the mutation's `onSuccess` invalidates
+  // and refetches it); a rejected write never touches it, so it cannot lie.
+  const alreadySubmitted = Boolean(verdict?.submitted_at);
+  const alreadyApproved = Boolean(verdict?.approved_at);
 
   /**
    * The database, not `getUser()` alone, decides whether this write is
@@ -142,6 +149,7 @@ function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow;
                 <Button
                   type="button"
                   disabled={isSaving || pendingAction !== null || alreadyApproved || blockers.length > 0}
+                  aria-describedby="capa-approve-blockers"
                   onClick={() => { void approve(); }}
                 >
                   {alreadyApproved ? "Approved" : "Approve"}
@@ -155,12 +163,19 @@ function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow;
               `approvalBlockers` mirrors the trigger, it does not replace it. If the
               database ever disagrees, the toast from `save.onError` (the trigger's own
               message) is what a person should believe.
+
+              The wrapper stays mounted (never unmounts on its own) so `aria-live`
+              announces both the list's arrival and every change to it as fields
+              are filled in — an aria-live region only fires on a mutation of an
+              already-present node, not on first mount of a new one.
             */}
-            {can("scorecard.approve") && !alreadyApproved && blockers.length > 0 && (
-              <p className="text-xs text-destructive-strong">
-                Cannot approve yet — missing: {blockers.join(", ")}.
-              </p>
-            )}
+            <div aria-live="polite">
+              {can("scorecard.approve") && !alreadyApproved && blockers.length > 0 && (
+                <p id="capa-approve-blockers" className="text-xs text-destructive-strong">
+                  Cannot approve yet — missing: {blockers.join(", ")}.
+                </p>
+              )}
+            </div>
 
             {alreadySubmitted && <p className="text-xs text-muted-foreground">Submitted{alreadyApproved ? " and approved" : ""}.</p>}
           </section>
