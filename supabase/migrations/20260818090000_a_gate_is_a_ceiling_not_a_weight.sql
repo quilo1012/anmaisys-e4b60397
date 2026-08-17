@@ -606,7 +606,20 @@ SELECT
   -- nobody can check.
   t.w_prod AS weight_production,
   t.w_qual AS weight_quality,
-  t.w_doc  AS weight_documentation
+  t.w_doc  AS weight_documentation,
+
+  -- volume_source, appended LAST rather than filed under Volume where it belongs
+  -- thematically: inserting a column mid-list renumbers everything after it, and this
+  -- view is read positionally by nothing we can prove. Appending cannot break a reader.
+  --
+  -- It is a base-table column (20260816090000) and a field the screen WRITES, but it was
+  -- missing from every version of this view, and that made it a column the screen could
+  -- only ever write once. src/lib/scorecardEntry.ts pickWritable() projects a fetched view
+  -- row down to the draft's own keys; a key the view does not carry is not restored, so
+  -- the draft held NULL and the next save wrote NULL over the stamp. Reopening a week and
+  -- touching any field erased the record of whether the volume was derived or typed by
+  -- hand — the audit column, silently, on the save that looked like it had worked.
+  s.volume_source
 
 FROM public.leader_weekly_scorecard s
 LEFT JOIN public.line_leaders ll ON ll.id = s.leader_id

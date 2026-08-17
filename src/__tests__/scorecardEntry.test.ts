@@ -134,6 +134,23 @@ describe("pickWritable", () => {
     expect(picked.approved_at).toBe("2026-07-07T08:00:00Z");
   });
 
+  /**
+   * `volume_source` is a draft field AND a base-table column, but it was absent from
+   * every version of `v_leader_weekly_scorecard` — so a loaded row simply did not carry
+   * it, `pickWritable` had nothing to restore, and the next save wrote NULL over the
+   * derived/manual stamp. The fix is in the view (20260818090000), which means the test
+   * that guards it here is that the key is restored WITH ITS VALUE, not merely present:
+   * a fixture missing the column would make this assertion read `undefined`.
+   */
+  it("restores volume_source off the view row, stamp and all", () => {
+    const picked = pickWritable(fullViewRow());
+    expect("volume_source" in picked).toBe(true);
+    expect(picked.volume_source).toBe("derivado");
+    // And the value the screen sets by hand comes back just the same.
+    expect(pickWritable({ ...fullViewRow(), volume_source: "manual" }).volume_source)
+      .toBe("manual");
+  });
+
   it("a column the view gains tomorrow cannot regress this — unknown keys are simply not carried", () => {
     const picked = pickWritable({ ...fullViewRow(), some_column_invented_later: 42 }) as Record<string, unknown>;
     expect("some_column_invented_later" in picked).toBe(false);

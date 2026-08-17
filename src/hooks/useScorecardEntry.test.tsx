@@ -219,6 +219,31 @@ describe("useScorecardEntry", () => {
     expect(sent.planned_volume).toBe(1000);
   });
 
+  it("a loaded week's volume_source survives the next save — the stamp is not wiped by reopening it", async () => {
+    // The regression, end to end. `volume_source` was not a column of
+    // v_leader_weekly_scorecard, so the fetched row did not carry it, pickWritable had
+    // nothing to restore, the draft held null, and the very next save wrote null over
+    // the derivado/manual stamp. It was invisible while only the first save ever
+    // succeeded; the moment saves started working, reopening a week and touching one
+    // field erased the audit column. The fixture below is the view row as it is AFTER
+    // 20260818090000 adds s.volume_source to the select list.
+    mockVerdictRow = fullViewRow();
+    const { result } = renderHook(
+      () => useScorecardEntry("leader-1", "line-1", "2026-07-05"),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.draft.volume_source).toBe("derivado"));
+
+    // Touch something else entirely — the case that used to wipe it.
+    act(() => result.current.setField("near_misses_reported", 5));
+    await act(async () => { vi.advanceTimersByTime(500); });
+    await waitFor(() => expect(upsertCalls.length).toBe(1));
+
+    const sent = upsertCalls[0] as Record<string, unknown>;
+    expect(sent.near_misses_reported).toBe(5);
+    expect(sent.volume_source).toBe("derivado");
+  });
+
   it("does not send a newer debounced write until an older one in flight has settled — the database ends up with the LAST draft, not an arbitrary one", async () => {
     upsertResolvers = [];
     const { result } = renderHook(
