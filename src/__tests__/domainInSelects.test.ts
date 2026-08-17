@@ -19,19 +19,27 @@ import { resolve } from "node:path";
 const root = resolve(__dirname, "../..");
 const read = (relPath: string) => readFileSync(resolve(root, relPath), "utf8");
 
-/** Find a `.select("...")` call by a substring near it — quoted so a rename that
+/** Find the column list a query near `marker` asks for — quoted so a rename that
  *  drops or reorders columns still trips this, rather than an exact-string match
- *  that would tolerate any edit as long as it kept `domain` somewhere in the file. */
+ *  that would tolerate any edit as long as it kept `domain` somewhere in the file.
+ *
+ *  It used to take the first quoted string after `.select(`, which assumed the list is
+ *  always a literal sitting inside the call. LeaderScorecard.tsx now passes it through
+ *  a named constant, because it retries without `domain` when the column has not been
+ *  migrated yet and the two lists must not be able to drift apart. Under the old rule
+ *  that read `.select(columns)` and then grabbed `"leader_name"` from the next filter.
+ *
+ *  So: scan forward for the first quoted string that actually looks like a column list,
+ *  identified by `recorded_at` — every query here selects it. That skips identifiers
+ *  and filter arguments while keeping the teeth: delete `domain` from the list and this
+ *  still fails, wherever the list is written. */
 function selectCallContaining(source: string, marker: string): string {
   const idx = source.indexOf(marker);
   if (idx === -1) throw new Error(`Marker not found: ${marker}`);
-  const selectStart = source.indexOf(".select(", idx);
-  if (selectStart === -1 || selectStart - idx > 1500) {
-    throw new Error(`No .select(...) found near marker: ${marker}`);
-  }
-  const openQuote = source.indexOf('"', selectStart);
-  const closeQuote = source.indexOf('"', openQuote + 1);
-  return source.slice(openQuote + 1, closeQuote);
+  const window = source.slice(Math.max(0, idx - 1500), idx + 3000);
+  const list = window.match(/"([^"]*\brecorded_at\b[^"]*)"/);
+  if (!list) throw new Error(`No column list found near marker: ${marker}`);
+  return list[1];
 }
 
 describe("quality_actions selects that feed actionPoints()/standsAgainstLeader() carry domain", () => {

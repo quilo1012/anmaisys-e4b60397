@@ -11,6 +11,7 @@ import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 import { shiftDateFetchRange } from "@/lib/shifts";
+import { isMissingColumn } from "@/lib/postgrestErrors";
 import {
   computeScorecard, EMPTY_RAW,
   type LSAction, type LSItem, type LSRagRow, type LSSession, type LSStatusChange, type LSWorkOrder,
@@ -44,29 +45,59 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
   const enabled = !!leaderName;
   const period: ScorecardPeriod = { from, to, shift };
 
-  const { data: actions = [] } = useQuery({
+  const { data: actions = [], isError: eActions } = useQuery({
     queryKey: ["ls_actions", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
       // The fetch reaches into the morning after so a night filed under `to` is not
       // cut off halfway; computeScorecard decides what actually stays.
       const window = shiftDateFetchRange(from, to);
-      // `domain` is newer than the generated Postgrest types, hence the cast — see
-      // `actionPoints()` for why the column has to be here at all.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
-      let qy = (supabase as any).from("quality_actions")
-        .select("id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain")
-        .eq("leader_name", leaderName as string)
-        .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
-      if (shift !== "all") qy = qy.eq("shift", shift);
-      const { data, error } = await qy.order("recorded_at");
-      if (error) throw error;
-      return (data ?? []) as unknown as LSAction[];
+      // One list, so the fallback below cannot drift from it — it is this string minus
+      // the one column. `domain` is newer than the generated Postgrest types, hence the
+      // cast — see `actionPoints()` for why the column has to be here at all.
+      const COLUMNS =
+        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain";
+      const run = (columns: string) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
+        let qy = (supabase as any).from("quality_actions")
+          .select(columns)
+          .eq("leader_name", leaderName as string)
+          .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
+        if (shift !== "all") qy = qy.eq("shift", shift);
+        return qy.order("recorded_at");
+      };
+
+      /*
+       * Ask for `domain`, and settle for the log without it.
+       *
+       * `domain` arrives with 20260817090000, which had not run in production on 17/08.
+       * Naming a column PostgREST does not know rejects the ENTIRE query, so the card
+       * lost the whole quality log — not the one field — and reported "No quality
+       * action was raised against this leader" over four open ones, at Quality 100%.
+       *
+       * Dropping the column is the right reading rather than a patch: `domain` only
+       * ever tells `actionPoints()` to score a safety action at zero, and a base with
+       * no `domain` column has no safety actions to find — 20260817090000 is the same
+       * migration that creates them. Undefined therefore means "quality", which is
+       * what every row in such a base is. Same shape as `selectOptions` in
+       * useQualityOptions.ts, for the same reason.
+       *
+       * Only a missing column is forgiven. An RLS refusal or a dead connection still
+       * throws, and `readFailed` below turns it into a message instead of a zero.
+       *
+       * Delete once 20260817090000 is confirmed applied — it hides real schema drift.
+       */
+      const withDomain = await run(COLUMNS);
+      if (!withDomain.error) return (withDomain.data ?? []) as unknown as LSAction[];
+      if (!isMissingColumn(withDomain.error)) throw withDomain.error;
+      const plain = await run(COLUMNS.replace(", domain", ""));
+      if (plain.error) throw plain.error;
+      return (plain.data ?? []) as unknown as LSAction[];
     },
   });
 
   const actionIds = useMemo(() => actions.map((a) => a.id), [actions]);
-  const { data: completes = [] } = useQuery({
+  const { data: completes = [], isError: eCompletes } = useQuery({
     queryKey: ["ls_hist", leaderName, from, to, actionIds.length],
     enabled: enabled && actionIds.length > 0,
     queryFn: async () => {
@@ -80,7 +111,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     },
   });
 
-  const { data: sessions = [] } = useQuery({
+  const { data: sessions = [], isError: eSessions } = useQuery({
     queryKey: ["ls_prod", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
@@ -104,7 +135,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
    * Leader Performance already reads it — and one number cannot be right on two
    * screens if they use different denominators.
    */
-  const { data: ragRows = [] } = useQuery({
+  const { data: ragRows = [], isError: eRag } = useQuery({
     queryKey: ["ls_rag", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
@@ -119,7 +150,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     },
   });
 
-  const { data: items = [] } = useQuery({
+  const { data: items = [], isError: eItems } = useQuery({
     queryKey: ["ls_items", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
@@ -144,7 +175,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
    * the work order carries back to a line leader; there is no user id on a request
    * raised from the floor tablet.
    */
-  const { data: woRequests = [] } = useQuery({
+  const { data: woRequests = [], isError: eWos } = useQuery({
     queryKey: ["ls_wos", leaderName, from, to, shift],
     enabled,
     queryFn: async () => {
@@ -161,6 +192,25 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
 
   const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
   const { excluded, ready: attributionReady } = useLeaderAttribution();
+
+  /**
+   * Every one of the six reads feeds the score, and each `useQuery` above defaults to
+   * `[]` when it fails — so a rejected query is indistinguishable from a quiet period
+   * unless it is asked about directly.
+   *
+   * It was not, and the cost was not theoretical: the `.select()` on quality_actions
+   * names `domain`, a column that arrives with 20260817090000. Against a database
+   * without it PostgREST rejects the query outright, the empty default flowed into
+   * computeScorecard, and a leader with four open actions was shown "No quality action
+   * was raised against this leader in this period" and Quality 100% — half the weight
+   * of a final 100%. A failed read did not lower the score. It raised it.
+   *
+   * So the card does not draw at all. Refusing to say anything is the only honest
+   * option: the same reasoning as `attributionReady` below, which already declines to
+   * draw a score it might have to take back — and this way round is worse, because a
+   * score that flatters is one nobody reports.
+   */
+  const readFailed = eActions || eCompletes || eSessions || eRag || eItems || eWos;
   const result = useMemo(
     () => computeScorecard(
       { ...EMPTY_RAW, actions, completes, sessions, ragRows, items, woRequests },
@@ -199,7 +249,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
               </span>
             </span>
           </h2>
-          <span className="flex shrink-0 gap-2">
+          {/* Hidden rather than disabled: a printed or exported card outlives the screen
+              it came from, and a CSV of a failed read carries none of the warning above
+              with it. There is nothing here to take away yet. */}
+          <span className={`flex shrink-0 gap-2${readFailed ? " hidden" : ""}`}>
               <Button size="sm" variant="outline" onClick={async () => {
                 const el = document.getElementById(SCORECARD_PRINT_ID);
                 try {
@@ -219,7 +272,24 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
               Drawing it before attribution lands would show the leader a worse score
               than they have, then correct it — on the one screen where being wrong
               about somebody costs the most. */}
-          {attributionReady
+          {readFailed ? (
+            <div className="py-16 text-center">
+              <p className="text-sm font-medium">This scorecard could not be read.</p>
+              {/* Named, because the reader's next question is which part is missing,
+                  and because the answer is usually a migration that has not run. */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {[
+                  eActions && "quality actions",
+                  eCompletes && "action history",
+                  eSessions && "production sessions",
+                  eRag && "the RAG weekly plan",
+                  eItems && "production items",
+                  eWos && "work orders",
+                ].filter(Boolean).join(", ")} did not load, so no score is shown —
+                an unreadable period is not an empty one.
+              </p>
+            </div>
+          ) : attributionReady
             ? <LeaderScorecardBody leaderName={leaderName} period={period} result={result} />
             : <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>}
         </div>
