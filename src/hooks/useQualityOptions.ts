@@ -6,7 +6,8 @@ import { QUALITY_LABELS, QUALITY_DEPARTMENTS, setLabelPoints } from "@/lib/quali
 
 export interface QualityOption {
   id: string;
-  kind: "label" | "department";
+  /** `safety_label` is the safety form's own list — see SAFETY_LABELS. */
+  kind: "label" | "department" | "safety_label";
   value: string;
   active: boolean;
   sort: number;
@@ -68,9 +69,13 @@ export function useQualityOptions() {
       const labelRows = rows.filter((r) => r.kind === "label");
       const labels = labelRows.map((r) => r.value);
       const departments = rows.filter((r) => r.kind === "department").map((r) => r.value);
+      // Empty until the seed lands — `labelsForDomain` falls back to SAFETY_LABELS,
+      // so the safety form reads correctly on a database that has never heard of it.
+      const safetyLabels = rows.filter((r) => r.kind === "safety_label").map((r) => r.value);
       return {
         labels: labels.length ? labels : [...QUALITY_LABELS],
         departments: departments.length ? departments : [...QUALITY_DEPARTMENTS],
+        safetyLabels,
         // Keyed by the label's own text; `setLabelPoints` lowercases it.
         labelPoints: Object.fromEntries(labelRows.map((r) => [r.value, Number(r.points ?? 0)])),
       };

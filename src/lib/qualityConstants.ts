@@ -246,24 +246,26 @@ export function labelChargeFor(action: { labels?: string[] | null }, excluded: S
  * label that is not the leader's to answer for must not price their action, or the
  * exclusion comes back in through the points.
  */
-export function logFormCharge(
-  labels: string[],
-  excluded: Set<string>,
-  weights: Record<string, number> = severityPointsMap(),
-): {
+export interface LogFormCharge {
   points: number;
   pricedByLabels: boolean;
   sources: Array<{ label: string; points: number }>;
   /**
    * The severity the price names, for the form to fill in beside the number.
    *
-   * `null` means the labels do not price this at all — leave whatever severity the
-   * user picked alone. `""` means they price it at a number no severity carries
-   * (5 + 3 = 8, and nothing is worth 8): the grade is genuinely absent, and guessing
-   * a neighbouring one would put a severity on the card that nobody chose.
+   * `null` means the labels do not price this at all. `""` means they price it at a
+   * number no severity carries (5 + 3 = 8, and nothing is worth 8): the grade is
+   * genuinely absent, and guessing a neighbouring one would put a severity on the
+   * card that nobody chose.
    */
   severity: string | null;
-} {
+}
+
+export function logFormCharge(
+  labels: string[],
+  excluded: Set<string>,
+  weights: Record<string, number> = severityPointsMap(),
+): LogFormCharge {
   const sources = labels
     .map((label) => ({ label, points: LABEL_POINTS[label.trim().toLowerCase()] ?? 0 }))
     .filter((s) => s.points > 0 && !excluded.has(s.label.trim().toLowerCase()));
@@ -275,6 +277,46 @@ export function logFormCharge(
     sources,
     severity: pricedByLabels ? severityForPoints(points, weights) ?? "" : null,
   };
+}
+
+/**
+ * One sentence saying what the action about to be logged will cost, and why.
+ *
+ * The log form no longer asks for a severity or a points figure — `actionPoints()`
+ * charges the labels and only falls back to the grade, so the two boxes mostly showed
+ * a number the system did not use. This sentence is what replaces them, and it is
+ * rendered unconditionally: the zero case is the one that matters most, because a
+ * deviation logged in good faith that quietly scores nothing is how a leader's
+ * scorecard loses it.
+ *
+ * The number leads. Whoever is logging the action needs to read the price first and
+ * the arithmetic second.
+ */
+export function chargeSummary(charge: LogFormCharge): string {
+  if (!charge.pricedByLabels) return "No priced label — this action scores 0.";
+  const from = charge.sources.map((s) => `${s.label} ${s.points}p`).join(" + ");
+  const grade = charge.severity ? severityMeta(charge.severity)?.label ?? charge.severity : null;
+  // `severity: ""` — priced at a total no grade carries. Say so rather than rounding to
+  // a neighbouring severity nobody chose; the action still costs what it costs.
+  if (!grade) {
+    return `Charged ${charge.points}p, ungraded — no severity is worth ${charge.points}p. ${from}.`;
+  }
+  return `Charged ${charge.points}p (${grade}) — ${from}.`;
+}
+
+/**
+ * The line beneath the summary when a ticked label is not this leader's to answer for.
+ *
+ * `chargeSummary` prices only the labels that count, so without this the form would
+ * show a ticked "Maintenance 3p" chip and a total that does not include it, with no
+ * explanation. Names them — "some labels" would leave the reader to work out which.
+ */
+export function excludedLabelNote(labels: string[], excluded: Set<string>): string | null {
+  const hit = labels.filter((l) => excluded.has(l.trim().toLowerCase()));
+  if (!hit.length) return null;
+  if (hit.length === 1) return `${hit[0]} is not this leader's — it will not count toward their score.`;
+  const named = `${hit.slice(0, -1).join(", ")} and ${hit[hit.length - 1]}`;
+  return `${named} are not this leader's — they will not count toward their score.`;
 }
 
 /**
@@ -471,4 +513,48 @@ export const SAFETY_KINDS: SafetyKind[] = [
 
 export function safetyKindMeta(value: string | null | undefined): SafetyKind | null {
   return SAFETY_KINDS.find((k) => k.value === value) ?? null;
+}
+
+/**
+ * The hazards a safety occurrence is logged against.
+ *
+ * A separate list from `QUALITY_LABELS`, because the quality one describes none of
+ * them: the safety form used to offer Batch code, CCP and Foreign Body, which is why
+ * safety occurrences were logged with no label at all. Held here as the fallback for
+ * `quality_options` rows of kind `safety_label`, exactly as the quality list is —
+ * so the chips read correctly before the seed reaches a database, and offline.
+ *
+ * Unpriced by design and not priceable in the manager: a safety occurrence scores 0,
+ * always (see `actionPoints`), so a price on one of these would name a number that
+ * never gets charged.
+ */
+export const SAFETY_LABELS = [
+  "Slip / trip / fall",
+  "Manual handling",
+  "Machine guarding",
+  "PPE",
+  "Chemical / COSHH",
+  "Forklift / traffic",
+  "Housekeeping",
+  "Electrical",
+] as const;
+
+/**
+ * The label chips one log form shows: its domain's list, plus whatever the action
+ * already carries.
+ *
+ * The second half is the part worth keeping. Occurrences logged before the split
+ * carry quality labels, and a form that showed only the safety list would drop them
+ * on the next save without anybody seeing it go — the chip has to be on screen to be
+ * unticked.
+ */
+export function labelsForDomain(
+  domain: string | null | undefined,
+  lists: { labels?: string[]; safetyLabels?: string[] },
+  current: string[] = [],
+): string[] {
+  const configured = domain === "safety" ? lists.safetyLabels : lists.labels;
+  const fallback = domain === "safety" ? SAFETY_LABELS : QUALITY_LABELS;
+  const list = configured?.length ? configured : [...fallback];
+  return [...list, ...current.filter((l) => l && !list.includes(l))];
 }
