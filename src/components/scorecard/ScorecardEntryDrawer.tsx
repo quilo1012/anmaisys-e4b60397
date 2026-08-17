@@ -3,6 +3,10 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { useScorecardEntry } from "@/hooks/useScorecardEntry";
 import type { ScorecardBoardRow } from "@/lib/scorecardWeek";
 import { ScorecardVerdict } from "./ScorecardVerdict";
+import { VolumePillar } from "./pillars/VolumePillar";
+import { QualityPillar } from "./pillars/QualityPillar";
+import { HealthSafetyPillar } from "./pillars/HealthSafetyPillar";
+import { MonitoredPillar } from "./pillars/MonitoredPillar";
 
 type Props = {
   /** The board row that was clicked. Null closes the drawer. */
@@ -21,8 +25,8 @@ type Props = {
  * error set). Rendering `ScorecardVerdict` for both would blur exactly that line.
  *
  * Tasks 8–11 add `VolumePillar`, `QualityPillar`, `HealthSafetyPillar` and
- * `MonitoredPillar` above the verdict; Task 12 adds `CapaBlock` below it. This
- * task only wires the shell, the header and the verdict itself.
+ * `MonitoredPillar` above the verdict — done below. Task 12 adds `CapaBlock`
+ * below it.
  */
 export function ScorecardEntryDrawer({ row, weekEnding, onClose }: Props) {
   return (
@@ -35,7 +39,7 @@ export function ScorecardEntryDrawer({ row, weekEnding, onClose }: Props) {
 }
 
 function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow; weekEnding: string }) {
-  const { verdict, isLoading, isError, error } = useScorecardEntry(row.leader_id, row.line_id, weekEnding);
+  const { draft, setField, verdict, isLoading, isError, error } = useScorecardEntry(row.leader_id, row.line_id, weekEnding);
 
   return (
     <div className="flex flex-col gap-4">
@@ -60,7 +64,13 @@ function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow;
       ) : isLoading ? (
         <p aria-live="polite" aria-busy="true" className="text-sm text-muted-foreground">Loading…</p>
       ) : (
-        <ScorecardVerdict verdict={verdict} />
+        <>
+          <VolumePillar lineId={row.line_id} weekEnding={weekEnding} draft={draft} setField={setField} />
+          <QualityPillar draft={draft} setField={setField} verdict={verdict} />
+          <HealthSafetyPillar draft={draft} setField={setField} verdict={verdict} />
+          <MonitoredPillar draft={draft} setField={setField} />
+          <ScorecardVerdict verdict={verdict} />
+        </>
       )}
     </div>
   );

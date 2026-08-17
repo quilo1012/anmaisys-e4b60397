@@ -31,6 +31,10 @@ vi.mock("@/integrations/supabase/client", () => {
   return {
     supabase: {
       from: vi.fn(() => ({ select: vi.fn(() => selectBuilder()) })),
+      // scorecard_derived_volume does not exist in the database yet — every call
+      // errors, same as the real thing today. VolumePillar must handle that
+      // without breaking the drawer's other assertions.
+      rpc: vi.fn(async () => ({ data: null, error: new Error('function "scorecard_derived_volume" does not exist') })),
     },
   };
 });
