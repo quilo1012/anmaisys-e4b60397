@@ -219,7 +219,9 @@ export function generateQualityReportExcel(input: QualityReportInput) {
   block("By Severity", tally(actions, (a) => sevLabel(a.severity)));
   block("By Line", tally(actions, (a) => a.line || "—"));
   block("By Department", tally(actions, (a) => a.department || "—"));
-  block("By Leader", tally(actions, (a) => a.leader_name || "—"));
+  // Same rule as `leaderTracking` above and in the PDF's per-leader table: this is a
+  // per-leader ranking, and a safety near miss must not inflate anyone's place in it.
+  block("By Leader", tally(actions.filter((a) => a.domain !== "safety"), (a) => a.leader_name || "—"));
   const wsSum = XLSX.utils.aoa_to_sheet(sum);
   wsSum["!cols"] = [{ wch: 22 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsSum, "Summary");
