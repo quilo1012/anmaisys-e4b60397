@@ -111,6 +111,9 @@ export const navItems: NavItem[] = [
   // Quality — with Headcount declared sixty lines below among the admin screens, so
   // it landed last with nothing near it to say why.
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Production", action: "rag.view" },
+  // Same roles as scorecard.fill in permissions.ts — quality_supervisor sees this
+  // one without seeing RAG Weekly, since the two actions are gated separately.
+  { title: "Leader scorecard", shortTitle: "Scorecard", url: "/dashboard/leader-scorecard", icon: Award, roles: ["admin", "manager", "quality_supervisor", "production_office_admin"], group: "Production", action: "scorecard.fill" },
   // Performance carried Gauge as well, so two adjacent rows opened with the same
   // icon and the icon column stopped telling the two apart. RAG Weekly keeps the
   // dial — it IS a red/amber/green reading; Performance is a trend against target.

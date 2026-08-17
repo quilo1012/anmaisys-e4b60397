@@ -105,6 +105,7 @@ const ShiftHistoryPage = lazyWithReload(() => import("./pages/dashboard/ShiftHis
 
 
 const RAGWeeklyPage = lazyWithReload(() => import("./pages/dashboard/RAGWeeklyPage"));
+const LeaderScorecardWeekPage = lazyWithReload(() => import("./pages/dashboard/LeaderScorecardWeekPage"));
 const IntouchSettingsPage = lazyWithReload(() => import("./pages/dashboard/IntouchSettingsPage"));
 const LineProductionScreen = lazyWithReload(() => import("./pages/dashboard/LineProductionScreen"));
 const LineDisplayScreen = lazyWithReload(() => import("./pages/dashboard/LineDisplayScreen"));
@@ -622,6 +623,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="rag.view">
                       <RAGWeeklyPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/leader-scorecard"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "quality_supervisor", "production_office_admin"]} requiredAction="scorecard.fill">
+                      <LeaderScorecardWeekPage />
                     </ProtectedRoute>
                   }
                 />

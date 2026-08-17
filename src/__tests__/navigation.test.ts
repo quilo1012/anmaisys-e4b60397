@@ -100,12 +100,18 @@ describe("sidebar", () => {
     const order = navItems.filter((i) => i.group === "Production").map((i) => i.title);
     expect(order).toEqual([
       "RAG Weekly",
+      "Leader scorecard",
       "Performance",
       "SKU Products",
       "Production Control",
       "Quality",
       "Headcount",
     ]);
+  });
+
+  it("puts the leader scorecard behind scorecard.fill", () => {
+    expect(can("manager", "scorecard.fill")).toBe(true);
+    expect(can("operator", "scorecard.fill")).toBe(false);
   });
 
   it("gives no two adjacent rows the same icon", () => {
