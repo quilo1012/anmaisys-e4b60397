@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { StatusRail, type RailState } from "@/components/ui/StatusRail";
 import { ControlPlate, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
 import { ConsoleCell } from "@/components/ui/ConsoleStrip";
-import { LeaderScorecard } from "@/components/LeaderScorecard";
+import { scorecardPath } from "@/lib/scorecardRoute";
 import { LineIndicators } from "@/components/production/LineIndicators";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -140,7 +140,6 @@ export default function ProductionPerformancePage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewFrame = useRef<HTMLIFrameElement>(null);
   const [newLeaderName, setNewLeaderName] = useState("");
-  const [scorecardFor, setScorecardFor] = useState<string | null>(null);
 
   const addNewLeader = async (lineName: string, hasSession: boolean) => {
     const name = newLeaderName.trim();
@@ -682,16 +681,6 @@ export default function ProductionPerformancePage() {
         </div>
         {/* Landing screen for supervisors and the production office — same opening. */}
 
-        <SectionErrorBoundary title="Leader scorecard">
-        <LeaderScorecard
-          leaderName={scorecardFor}
-          from={range.from}
-          to={range.to}
-          shift={shift}
-          onClose={() => setScorecardFor(null)}
-        />
-        </SectionErrorBoundary>
-
         <div className="space-y-3">
           {/* A placa de comando.
               Seis controlos soltos por cima de um painel são um formulário; o que eles
@@ -792,12 +781,20 @@ export default function ProductionPerformancePage() {
                 </SelectContent>
               </Select>
             </ControlField>
-            {/* The scorecard belongs here: production runs the leaders, and this is
-                the screen where their lines, shifts and output already are. It used
-                to open from Quality, which only ever saw one third of the score. */}
+            {/* The scorecard opens from here because production runs the leaders and
+                this screen already holds their lines, shifts and output. It is a link
+                rather than a dialog now: the card has its own address, so it can be
+                sent to the person it is about, and it lives beside the week's board
+                instead of being a second scorecard nobody could link to.
+
+                The filters go with it — whoever clicks has already chosen the period
+                and the shift they mean, and making them choose again on the far side
+                is how the two screens end up reporting different figures. */}
             {leaderFilter !== "__all__" && (
-              <Button variant="outline" className="gap-1.5" onClick={() => setScorecardFor(leaderFilter)}>
-                <Medal className="h-4 w-4" /> Scorecard
+              <Button asChild variant="outline" className="gap-1.5">
+                <Link to={scorecardPath(leaderFilter, { from: range.from, to: range.to, shift })}>
+                  <Medal className="h-4 w-4" /> Scorecard
+                </Link>
               </Button>
             )}
 

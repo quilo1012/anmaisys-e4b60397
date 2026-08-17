@@ -106,6 +106,7 @@ const ShiftHistoryPage = lazyWithReload(() => import("./pages/dashboard/ShiftHis
 
 const RAGWeeklyPage = lazyWithReload(() => import("./pages/dashboard/RAGWeeklyPage"));
 const LeaderScorecardWeekPage = lazyWithReload(() => import("./pages/dashboard/LeaderScorecardWeekPage"));
+const LeaderScorecardDetailPage = lazyWithReload(() => import("./pages/dashboard/LeaderScorecardDetailPage"));
 const IntouchSettingsPage = lazyWithReload(() => import("./pages/dashboard/IntouchSettingsPage"));
 const LineProductionScreen = lazyWithReload(() => import("./pages/dashboard/LineProductionScreen"));
 const LineDisplayScreen = lazyWithReload(() => import("./pages/dashboard/LineDisplayScreen"));
@@ -631,6 +632,22 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin", "manager", "quality_supervisor", "production_office_admin"]} requiredAction="scorecard.fill">
                       <LeaderScorecardWeekPage />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* One leader's card, under the same path as the week's board so the
+                    two live in one place instead of a page here and a modal there.
+
+                    Guarded like Production Performance, which is where it is opened
+                    from — NOT like the board above. Reading a leader's scorecard is
+                    not the same right as filling in or approving their week, and
+                    copying the neighbour's guard would take this screen away from
+                    the supervisors who use it today. */}
+                <Route
+                  path="/dashboard/leader-scorecard/:leader"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.performance.view">
+                      <LeaderScorecardDetailPage />
                     </ProtectedRoute>
                   }
                 />

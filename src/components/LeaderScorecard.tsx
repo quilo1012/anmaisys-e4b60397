@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Download, Printer } from "lucide-react";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { toast } from "sonner";
@@ -21,7 +20,12 @@ import { downloadScorecardCsv } from "@/lib/leaderScorecardCsv";
 import { LeaderScorecardBody, SCORECARD_PRINT_ID } from "@/components/leader/LeaderScorecardBody";
 
 /**
- * The manager's copy of a leader's scorecard, opened from Production Performance.
+ * The manager's copy of a leader's scorecard, at its own address.
+ *
+ * It was a dialog on Production Performance until 17/08/2026: reachable one way and
+ * gone on the next click, so it could not be linked, bookmarked or sent to the person
+ * it is about. It is now the page behind `/dashboard/leader-scorecard/:leader`, and
+ * Production Performance links to it with the leader and period already selected.
  *
  * It reads the tables directly, which its audience is allowed to do. The leader's own
  * copy — LeaderMyScorecardPage — cannot: a line tablet is RLS-scoped to one line while
@@ -33,8 +37,8 @@ import { LeaderScorecardBody, SCORECARD_PRINT_ID } from "@/components/leader/Lea
  * @param to    last day, inclusive — every query is bounded by it
  * @param shift "all", "DAY" or "NIGHT", matching the screen's shift filter
  */
-export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }: {
-  leaderName: string | null; from: string; to: string; shift?: "all" | "DAY" | "NIGHT"; onClose: () => void;
+export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
+  leaderName: string | null; from: string; to: string; shift?: "all" | "DAY" | "NIGHT";
 }) {
   const untilTs = `${to}T23:59:59.999`;
   const enabled = !!leaderName;
@@ -174,14 +178,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
   }, [profileNames]);
 
   return (
-    <Dialog open={!!leaderName} onOpenChange={(o) => { if (!o) onClose(); }}>
-      {/* The header stays put and only the body scrolls.
-          It used to be one scrolling box: content wider than the dialog pushed the
-          title row sideways and took Print and Export off the right-hand edge with
-          it, so the card looked as though it had no print option at all. */}
-      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between gap-2 pr-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h2 className="flex flex-col text-lg font-semibold">
             <span className="flex flex-col">
               <span>{leaderName}</span>
               {/* Stated, because every figure below is bounded by it — and because
@@ -206,10 +206,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
                 <Download className="mr-1 h-4 w-4" />Export
               </Button>
             </span>
-          </DialogTitle>
-        </DialogHeader>
+          </h2>
+        </div>
 
-        <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="mt-4 min-w-0">
           {/* Every figure below is weighted, and the quality score is a subtraction.
               Drawing it before attribution lands would show the leader a worse score
               than they have, then correct it — on the one screen where being wrong
@@ -218,7 +218,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all", onClose }
             ? <LeaderScorecardBody leaderName={leaderName} period={period} result={result} />
             : <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
