@@ -20,22 +20,29 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import { VolumePillar } from "./VolumePillar";
 
-function Harness({ initial = {} }: { initial?: Partial<ScorecardEntryDraft> }) {
+function Harness({ initial = {}, onDraftChange }: {
+  initial?: Partial<ScorecardEntryDraft>;
+  onDraftChange?: (d: ScorecardEntryDraft) => void;
+}) {
   const [draft, setDraft] = useState<ScorecardEntryDraft>({
     ...emptyDraft("leader-1", "line-1", "2026-07-05"),
     ...initial,
   });
   const setField = <K extends keyof ScorecardEntryDraft>(key: K, value: ScorecardEntryDraft[K]) => {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setDraft((d) => {
+      const next = { ...d, [key]: value };
+      onDraftChange?.(next);
+      return next;
+    });
   };
   return <VolumePillar lineId="line-1" weekEnding="2026-07-05" draft={draft} setField={setField} />;
 }
 
-function renderHarness(initial?: Partial<ScorecardEntryDraft>) {
+function renderHarness(initial?: Partial<ScorecardEntryDraft>, onDraftChange?: (d: ScorecardEntryDraft) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <Harness initial={initial} />
+      <Harness initial={initial} onDraftChange={onDraftChange} />
     </QueryClientProvider>,
   );
 }
@@ -64,20 +71,36 @@ describe("VolumePillar", () => {
     expect(actual.value).toBe("");
   });
 
-  it("offers production's number into a blank field, and marks it derived", async () => {
+  it("never writes anything just because the drawer was opened and the RPC resolved", async () => {
+    mockRpcData = [{ planned_volume: 1000, actual_volume: 950, unplanned_downtime_minutes: 30, source_label: "RAG Weekly" }];
+    const onDraftChange = vi.fn();
+    renderHarness(undefined, onDraftChange);
+    // Wait for the offer to actually render, proving the RPC has resolved...
+    expect(await screen.findByText(/production recorded 950/i)).toBeInTheDocument();
+    // ...and the field itself is still blank: opening the drawer produced no write.
+    const actual = screen.getByLabelText("Actual volume") as HTMLInputElement;
+    expect(actual.value).toBe("");
+    expect(onDraftChange).not.toHaveBeenCalled();
+  });
+
+  it("offers production's number as text, and only fills the field once the person accepts it", async () => {
     mockRpcData = [{ planned_volume: 1000, actual_volume: 950, unplanned_downtime_minutes: 30, source_label: "RAG Weekly" }];
     renderHarness();
     const actual = screen.getByLabelText("Actual volume") as HTMLInputElement;
+    const offer = await screen.findByText(/production recorded 950/i);
+    expect(actual.value).toBe(""); // the offer is text, not a write
+
+    const useThisNumber = offer.parentElement!.querySelector("button") as HTMLButtonElement;
+    fireEvent.click(useThisNumber);
+
     await waitFor(() => expect(actual.value).toBe("950"));
-    // All three numeric fields matched their derived values, so the note appears
-    // next to each of them.
-    expect((await screen.findAllByText("From RAG Weekly")).length).toBe(3);
+    expect(await screen.findByText("From RAG Weekly")).toBeInTheDocument();
   });
 
-  it("never overwrites a value already on the draft", async () => {
+  it("never overwrites a value already on the draft with production's offer", async () => {
     mockRpcData = [{ planned_volume: 1000, actual_volume: 950, unplanned_downtime_minutes: 30, source_label: "RAG Weekly" }];
     renderHarness({ actual_volume: 500 });
-    await waitFor(() => expect(screen.queryByText(/nothing recorded/i)).not.toBeInTheDocument());
+    expect(await screen.findByText("Changed from 950")).toBeInTheDocument();
     const actual = screen.getByLabelText("Actual volume") as HTMLInputElement;
     expect(actual.value).toBe("500");
   });
@@ -86,8 +109,17 @@ describe("VolumePillar", () => {
     mockRpcData = [{ planned_volume: 1000, actual_volume: 950, unplanned_downtime_minutes: 30, source_label: "RAG Weekly" }];
     renderHarness();
     const actual = screen.getByLabelText("Actual volume") as HTMLInputElement;
-    await waitFor(() => expect(actual.value).toBe("950"));
+    await screen.findByText(/production recorded 950/i);
     fireEvent.change(actual, { target: { value: "900" } });
     expect(await screen.findByText("Changed from 950")).toBeInTheDocument();
+  });
+
+  it("marks a field derived, not manual, when the person types the same number production offered", async () => {
+    mockRpcData = [{ planned_volume: 1000, actual_volume: 950, unplanned_downtime_minutes: 30, source_label: "RAG Weekly" }];
+    renderHarness();
+    const actual = screen.getByLabelText("Actual volume") as HTMLInputElement;
+    await screen.findByText(/production recorded 950/i);
+    fireEvent.change(actual, { target: { value: "950" } });
+    expect(await screen.findByText("From RAG Weekly")).toBeInTheDocument();
   });
 });

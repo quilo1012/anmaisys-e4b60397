@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,12 +32,14 @@ const FIELDS: { key: NumericKey; label: string }[] = [
  * yet). "The lookup failed" and "production has nothing" must never look alike,
  * and neither may ever present as a typed zero.
  *
- * The three fields are pre-filled once, from whatever `scorecard_derived_volume`
- * returns, and only into fields nobody has typed into yet — never overwriting a
- * value already on the draft. This component itself never computes `volume_pct`
- * or a RAG; it only records where `actual_volume` came from, via `sourceFor`, so a
- * hand correction stays visible in the audit instead of looking identical to the
- * derived number.
+ * Production's numbers are an offer, not a write: this is a weekly food-safety
+ * record under BRC audit, and a row that exists only because somebody opened this
+ * drawer is a fact the system manufactured, not one a person confirmed. So a
+ * blank field never calls `setField` on its own just because the RPC resolved —
+ * it only enters the draft (and therefore, 400ms later, the database) when a
+ * person acts: either they type over it themselves, or they press "Use this
+ * number" on the offer shown below the field. "The drawer was opened" and "the
+ * volume was confirmed" have to stay different facts in the audit trail.
  */
 export function VolumePillar({
   lineId, weekEnding, draft, setField,
@@ -49,40 +50,53 @@ export function VolumePillar({
   setField: SetField;
 }) {
   const { data: derived, isLoading, isError, error } = useDerivedVolume(lineId, weekEnding);
-  const prefilledFor = useRef<string | null>(null);
 
-  useEffect(() => {
-    const key = `${lineId}:${weekEnding}`;
-    if (prefilledFor.current === key) return;
-    if (isLoading || !derived) return;
-    prefilledFor.current = key;
-
-    for (const { key: field } of FIELDS) {
-      const derivedValue = derived[field];
-      if (draft[field] === null && derivedValue !== null) {
-        setField(field, derivedValue);
-      }
-    }
-    if (draft.actual_volume === null && derived.actual_volume !== null) {
-      setField("volume_source", sourceFor(derived.actual_volume, derived.actual_volume));
-    }
-  }, [derived, isLoading, lineId, weekEnding, draft, setField]);
-
-  const handleChange = (field: NumericKey, raw: string) => {
-    const value = parseNullableNumber(raw);
+  const applyValue = (field: NumericKey, value: number | null) => {
     setField(field, value);
+    // volume_source only ever tracks actual_volume: it is the one figure
+    // volume_pct is built from downstream. planned_volume and
+    // unplanned_downtime_minutes are context for the RAG, not its input, so a
+    // hand-typed plan or downtime figure never touches this column.
     if (field === "actual_volume" && derived) {
       setField("volume_source", sourceFor(value, derived.actual_volume));
     }
   };
 
-  const noteFor = (field: NumericKey): string | null => {
+  const handleChange = (field: NumericKey, raw: string) => {
+    applyValue(field, parseNullableNumber(raw));
+  };
+
+  const acceptDerived = (field: NumericKey, value: number) => {
+    applyValue(field, value);
+  };
+
+  const noteFor = (field: NumericKey) => {
     const d = derived;
     if (!d) return null;
     const typed = draft[field];
     const derivedValue = d[field];
-    if (typed === null || derivedValue === null) return null;
-    return typed === derivedValue ? `From ${d.source_label ?? "production"}` : `Changed from ${derivedValue}`;
+    if (derivedValue === null) return null;
+
+    if (typed === null) {
+      return (
+        <p className="mt-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
+          <span>Production recorded {derivedValue}.</span>
+          <button
+            type="button"
+            onClick={() => acceptDerived(field, derivedValue)}
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            Use this number
+          </button>
+        </p>
+      );
+    }
+
+    return (
+      <p className="mt-1 text-2xs text-muted-foreground">
+        {typed === derivedValue ? `From ${d.source_label ?? "production"}` : `Changed from ${derivedValue}`}
+      </p>
+    );
   };
 
   return (
@@ -114,7 +128,7 @@ export function VolumePillar({
               onChange={(e) => handleChange(key, e.target.value)}
               className="mt-1 h-9"
             />
-            {noteFor(key) && <p className="mt-1 text-2xs text-muted-foreground">{noteFor(key)}</p>}
+            {noteFor(key)}
           </div>
         ))}
       </div>
