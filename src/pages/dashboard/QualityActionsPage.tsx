@@ -27,6 +27,7 @@ import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
+import { isMissingColumn } from "@/lib/postgrestErrors";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityForPoints, severityPointsMap, labelPoints, logFormCharge, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
@@ -329,8 +330,30 @@ export function QualityActionsView() {
   // whatever it is given — the guard belongs at this call site, not inside it.
   const recurring = useMemo(() => recurringIssues(qualityOnly), [qualityOnly]);
 
-  const toggleLabel = (l: string) =>
-    setForm((f) => ({ ...f, labels: f.labels.includes(l) ? f.labels.filter((x) => x !== l) : [...f.labels, l] }));
+  /**
+   * Ticking a label fills in the grade as well as the number.
+   *
+   * The price already decides what the action costs — `actionPoints` puts labels
+   * ahead of severity — so leaving Severity on "None" beside a priced label left the
+   * card ungraded for a deviation the system had already put a number on.
+   *
+   * Only while the labels price it. Untick the last priced one and the severity the
+   * user last saw stays where it is, with the Points box handed back to it: clearing
+   * the grade there would delete a choice nobody asked to undo.
+   *
+   * Safety never scores (`actionPoints` returns 0 for it) and has no points box, so
+   * it is left alone entirely.
+   */
+  const toggleLabel = (l: string) => {
+    const labels = form.labels.includes(l) ? form.labels.filter((x) => x !== l) : [...form.labels, l];
+    const charge = form.domain === "safety" ? null : logFormCharge(labels, excluded);
+    if (!charge || charge.severity === null) {
+      setForm((f) => ({ ...f, labels }));
+      return;
+    }
+    setPointsInput(String(charge.points));
+    setForm((f) => ({ ...f, labels, severity: charge.severity as string }));
+  };
 
   const create = useMutation({
     mutationFn: async () => {
@@ -1602,9 +1625,6 @@ function PointsBox({ value, label, onCommit }: { value: number; label: string; o
   );
 }
 
-/** Postgres for "no such column" — the points column may not be deployed yet. */
-const UNDEFINED_COLUMN = "42703";
-
 /** The same ceiling the database enforces, so the box cannot promise what it refuses. */
 const clampPoints = (raw: string) => Math.max(0, Math.min(1000, Math.round(Number(raw) || 0)));
 
@@ -1624,9 +1644,14 @@ function QualityListsManager() {
    * The points column arrives in a migration, and a migration in this repo is not
    * proof that production has it. Saying so beats showing "column does not exist" to
    * a quality manager who only wanted to price a label.
+   *
+   * A write is refused by PostgREST rather than by Postgres, so it carries a different
+   * code from a read — which is why this branch never fired on 17/08 and the manager
+   * read "Could not find the 'points' column … in the schema cache" instead. Both
+   * codes live in `isMissingColumn` now.
    */
   const reportSaveError = (error: { code?: string; message: string }) => {
-    if (error.code === UNDEFINED_COLUMN) {
+    if (isMissingColumn(error)) {
       toast.error("Label points are not enabled on this database yet — the migration has not run.");
       return;
     }

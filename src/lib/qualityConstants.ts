@@ -249,12 +249,32 @@ export function labelChargeFor(action: { labels?: string[] | null }, excluded: S
 export function logFormCharge(
   labels: string[],
   excluded: Set<string>,
-): { points: number; pricedByLabels: boolean; sources: Array<{ label: string; points: number }> } {
+  weights: Record<string, number> = severityPointsMap(),
+): {
+  points: number;
+  pricedByLabels: boolean;
+  sources: Array<{ label: string; points: number }>;
+  /**
+   * The severity the price names, for the form to fill in beside the number.
+   *
+   * `null` means the labels do not price this at all — leave whatever severity the
+   * user picked alone. `""` means they price it at a number no severity carries
+   * (5 + 3 = 8, and nothing is worth 8): the grade is genuinely absent, and guessing
+   * a neighbouring one would put a severity on the card that nobody chose.
+   */
+  severity: string | null;
+} {
   const sources = labels
     .map((label) => ({ label, points: LABEL_POINTS[label.trim().toLowerCase()] ?? 0 }))
     .filter((s) => s.points > 0 && !excluded.has(s.label.trim().toLowerCase()));
   const points = sources.reduce((sum, s) => sum + s.points, 0);
-  return { points, pricedByLabels: points > 0, sources };
+  const pricedByLabels = points > 0;
+  return {
+    points,
+    pricedByLabels,
+    sources,
+    severity: pricedByLabels ? severityForPoints(points, weights) ?? "" : null,
+  };
 }
 
 /**

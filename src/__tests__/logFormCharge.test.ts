@@ -60,4 +60,32 @@ describe("logFormCharge", () => {
     setLabelPoints({ "batch code": 0 });
     expect(logFormCharge(["Batch code"], NOTHING_EXCLUDED).pricedByLabels).toBe(false);
   });
+
+  /**
+   * The severity the price names, so ticking one label fills both boxes.
+   *
+   * The weights in force here are the factory's: Low 1, Medium 3, High 4, Critical 5.
+   */
+  const WEIGHTS = { low: 1, medium: 3, high: 4, critical: 5 };
+
+  it("names the severity the price is worth, so one tick fills both boxes", () => {
+    setLabelPoints({ "foreign body": 5, gmp: 3 });
+    expect(logFormCharge(["Foreign Body"], NOTHING_EXCLUDED, WEIGHTS).severity).toBe("critical");
+    expect(logFormCharge(["GMP"], NOTHING_EXCLUDED, WEIGHTS).severity).toBe("medium");
+  });
+
+  it("leaves severity empty when the total is a number no severity carries", () => {
+    // 5 + 3 = 8, and nothing is worth 8. Empty is the honest answer: the action is
+    // worth 8 and 8 has no name. Guessing a neighbouring severity would put a grade
+    // on the card that nobody chose.
+    setLabelPoints({ "foreign body": 5, gmp: 3 });
+    const r = logFormCharge(["Foreign Body", "GMP"], NOTHING_EXCLUDED, WEIGHTS);
+    expect(r.points).toBe(8);
+    expect(r.severity).toBe("");
+  });
+
+  it("names no severity when the labels do not price the action", () => {
+    // The form keeps whatever severity the user picked; this must not clear it.
+    expect(logFormCharge(["Batch code"], NOTHING_EXCLUDED, WEIGHTS).severity).toBeNull();
+  });
 });
