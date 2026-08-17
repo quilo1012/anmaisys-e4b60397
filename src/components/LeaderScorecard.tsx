@@ -11,6 +11,7 @@ import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 import { shiftDateFetchRange } from "@/lib/shifts";
+import { leaderNamePattern, escapeLikePattern } from "@/lib/leaderNameMatch";
 import { selectOptionalDomain } from "@/lib/optionalDomain";
 import {
   computeScorecard, EMPTY_RAW,
@@ -61,7 +62,9 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
         let qy = (supabase as any).from("quality_actions")
           .select(columns)
-          .eq("leader_name", leaderName as string)
+          // Case-insensitive: the log spells five of these people in capitals. See
+          // leaderNamePattern — an `.eq()` here cost Cainan his whole quality section.
+          .ilike("leader_name", leaderNamePattern(leaderName as string))
           .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
         if (shift !== "all") qy = qy.eq("shift", shift);
         return qy.order("recorded_at");
@@ -98,7 +101,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     queryFn: async () => {
       let qy = supabase.from("production_sessions")
         .select("oee_pct, run_time_min, down_time_min, intouch_good_total, session_date, line, shift")
-        .eq("leader_name", leaderName as string)
+        .ilike("leader_name", leaderNamePattern(leaderName as string))
         .gte("session_date", from).lte("session_date", to);
       if (shift !== "all") qy = qy.eq("shift", shift);
       const { data, error } = await qy;
@@ -136,13 +139,22 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     enabled,
     queryFn: async () => {
       let qy = supabase.from("production_items")
-        .select("actual_qty, target_qty, production_sessions!inner(leader_name, session_date, shift)")
-        .eq("production_sessions.leader_name", leaderName as string)
+        // `line` is selected so the card can tell which planned line-shifts logged no
+        // output — see ProductionSummary.plannedWithoutOutput.
+        .select("actual_qty, target_qty, production_sessions!inner(leader_name, session_date, shift, line)")
+        .ilike("production_sessions.leader_name", leaderNamePattern(leaderName as string))
         .gte("production_sessions.session_date", from)
         .lte("production_sessions.session_date", to);
       if (shift !== "all") qy = qy.eq("production_sessions.shift", shift);
       const { data, error } = await qy;
-      if (error) return [] as LSItem[];
+      // Thrown, not swallowed. Returning `[]` here made `eItems` dead code: the flag is
+      // listed in `readFailed` and named in the message below, but could never be set.
+      // A rejected read then reached the card as actual = 0 against a RAG target that
+      // loaded fine — attainment 0%, a Production pillar of zero, weighted into the
+      // final score as though it had been measured. See the note on `readFailed`: an
+      // unreadable period is not an empty one, and here it was not even a flattering
+      // one.
+      if (error) throw error;
       return (data ?? []) as unknown as LSItem[];
     },
   });
@@ -163,7 +175,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
       const { data, error } = await supabase
         .from("work_orders")
         .select("id, wo_number, created_at, status, line_at_time, line_stopped, description")
-        .ilike("requester_name", `${leaderName}%`)
+        .ilike("requester_name", `${escapeLikePattern((leaderName as string).trim())}%`)
         .gte("created_at", `${from}T00:00:00`).lte("created_at", untilTs)
         .order("created_at");
       if (error) throw error;
@@ -171,7 +183,13 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     },
   });
 
-  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
+  /**
+   * Scored on the weights in force at the END of the period, the same date the weekly
+   * scorecard resolves its own on (`week_ending`). Without a date here, re-weighting
+   * the score in November re-scored every card anyone opened about July — including
+   * ones already printed and signed.
+   */
+  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights(to);
   const { excluded, ready: attributionReady } = useLeaderAttribution();
 
   /**
@@ -271,7 +289,14 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
               </p>
             </div>
           ) : attributionReady
-            ? <LeaderScorecardBody leaderName={leaderName} period={period} result={result} />
+            ? <LeaderScorecardBody
+                leaderName={leaderName}
+                period={period}
+                result={result}
+                /* Only this copy of the card links out. The leader's own copy renders
+                   the same rows without a destination — see LeaderScorecardBody. */
+                actionHref={(a) => `/dashboard/quality?action=${encodeURIComponent(a.id)}`}
+              />
             : <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>}
         </div>
       </div>

@@ -117,7 +117,13 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
     return () => clearTimeout(t);
   }, [lastActivity, onLock]);
 
-  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
+  /**
+   * Resolved at the end of the period being shown, exactly as the manager's copy does
+   * it. These two screens share `computeScorecard` precisely so they cannot print
+   * different numbers for the same person — feeding one of them today's weights and
+   * the other the period's would have re-opened that gap from the other end.
+   */
+  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights(period.to);
 
   const cardQuery = useQuery({
     // Keyed on the leader, never on the PIN.

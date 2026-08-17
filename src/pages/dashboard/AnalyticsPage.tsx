@@ -123,7 +123,6 @@ const EmptyChart = () => (
 
 export default function AnalyticsPage() {
   const { role } = useAuth();
-  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights();
   const { excluded, ready: attributionReady } = useLeaderAttribution();
   const { toast } = useToast();
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
@@ -136,6 +135,13 @@ export default function AnalyticsPage() {
   // prints "All time" rather than the sentinel the queries actually use.
   const period = useMemo(() => resolveReportRange(drRange), [drRange]);
   const { startDate, endDate } = period;
+
+  /**
+   * Leader Performance ranks people over this range, so it is scored on the weights in
+   * force at the end of it — the same date the scorecard behind each row resolves on.
+   * Declared here rather than at the top of the component because it needs `endDate`.
+   */
+  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights(format(endDate, "yyyy-MM-dd"));
 
   // Range pushed server-side: without it the hook caps at the 200 newest orders
   // and every widget below silently reported on a truncated set.

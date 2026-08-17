@@ -79,6 +79,71 @@ describe("computeScorecard", () => {
     expect(r.production.attainment).toBe(80);
   });
 
+  /**
+   * A planned shift that logged nothing drags attainment down, and the card had no
+   * way to say so.
+   *
+   * The opposite distortion was already named on screen — output with no RAG plan
+   * adds to the numerator and not the denominator, so the percentage reads high. This
+   * is the same asymmetry the other way round: 5,000 goes onto the target and nothing
+   * onto the actual, and the leader is shown a number that is about an unfilled form
+   * rather than about their production. Nobody can argue with a figure whose cause is
+   * invisible.
+   */
+  const sess = (over: Partial<{ session_date: string; line: string; shift: string }> = {}) => ({
+    oee_pct: null, run_time_min: null, down_time_min: null, intouch_good_total: null,
+    session_date: "2026-08-05", line: "Line 1", shift: "DAY", ...over,
+  });
+
+  it("counts a planned line-shift that logged no output at all", () => {
+    const r = computeScorecard({
+      ...EMPTY_RAW,
+      sessions: [sess(), sess({ line: "Line 2" })],
+      ragRows: [
+        { entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 1000 },
+        { entry_date: "2026-08-05", line: "Line 2", shift: "DAY", plan_qty: 1000 },
+      ],
+      // Line 2 ran and was planned, but nothing was ever logged against it.
+      items: [{
+        actual_qty: 900, target_qty: null,
+        production_sessions: { session_date: "2026-08-05", shift: "DAY", line: "Line 1" },
+      }],
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+
+    expect(r.production.plannedWithoutOutput).toBe(1);
+    // 900 of 2000 — the figure the leader is shown, and now explicable.
+    expect(r.production.attainment).toBe(45);
+  });
+
+  it("does not count a planned line-shift that logged output", () => {
+    const r = computeScorecard({
+      ...EMPTY_RAW,
+      sessions: [sess()],
+      ragRows: [{ entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 1000 }],
+      items: [{
+        actual_qty: 900, target_qty: null,
+        production_sessions: { session_date: "2026-08-05", shift: "DAY", line: "Line 1" },
+      }],
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    expect(r.production.plannedWithoutOutput).toBe(0);
+  });
+
+  /**
+   * The tablet's rows come from a database function whose columns a migration fixes,
+   * so they carry no session. Silence is the only honest answer: reporting every
+   * planned shift as unlogged would put a warning on the leader's own card about a
+   * question this data cannot answer.
+   */
+  it("says nothing when the caller did not select the session behind each item", () => {
+    const r = computeScorecard({
+      ...EMPTY_RAW,
+      sessions: [sess()],
+      ragRows: [{ entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 1000 }],
+      items: [{ actual_qty: 900, target_qty: null }],
+    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    expect(r.production.plannedWithoutOutput).toBe(0);
+  });
+
   it("matches the RAG line however it was typed", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,

@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { writeOptionalDomain } from "@/lib/writeOptionalDomain";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -160,7 +161,19 @@ export function QualityActionsView() {
   // answer it, and neither is findable by picking a single status.
   const [filterValidation, setFilterValidation] = useState("__all__");
   const [filterShift, setFilterShift] = useState("__all__");
-  const [detailId, setDetailId] = useState<string | null>(null);
+  /**
+   * `?action=<id>` opens that action's drawer on arrival.
+   *
+   * The leader scorecard lists the actions a leader is scored on, and until now that
+   * list was dead text: the reader could see "GMP Non-Compliance, −4" and had no way
+   * to reach the evidence, the history or the person who validated it. An audit
+   * finding has to be followable to the record behind it, so the card links here.
+   *
+   * Read once, into initial state, rather than watched: the drawer is closable, and a
+   * `useEffect` on the parameter would reopen it every render after the user shut it.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [detailId, setDetailId] = useState<string | null>(() => searchParams.get("action"));
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmptyForm());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -273,7 +286,40 @@ export function QualityActionsView() {
     [actions, domainFilter, filterLine, filterLeader, filterDept, filterSeverity, filterShift, filterValidation]
   );
 
-  const detailAction = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
+  /**
+   * The linked action, when it is not in the window the page happens to be showing.
+   *
+   * `actions` is bounded by the date filter, so a link to an action from last month
+   * resolved to `null` and the drawer opened empty — a dead link that looked like a
+   * deleted record. Rather than making the incoming link carry the period (and then
+   * trusting a hand-edited date to be the right one), the page fetches the single row
+   * it was asked for. Runs only when the id is not already on screen.
+   */
+  /**
+   * Closing the drawer also drops `?action=` from the address — otherwise a reload, or
+   * the back button, reopens a drawer the reader deliberately shut. `replace` so the
+   * open and closed states are not two entries in the history.
+   */
+  const closeDetail = () => {
+    setDetailId(null);
+    if (searchParams.has("action")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("action");
+      setSearchParams(next, { replace: true });
+    }
+  };
+
+  const inWindow = useMemo(() => actions.find((a) => a.id === detailId) ?? null, [actions, detailId]);
+  const { data: linkedAction = null } = useQuery({
+    queryKey: ["quality_action_by_id", detailId],
+    enabled: !!detailId && !inWindow,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("quality_actions").select("*").eq("id", detailId as string).maybeSingle();
+      if (error) throw error;
+      return (data as unknown as QualityAction) ?? null;
+    },
+  });
+  const detailAction = inWindow ?? linkedAction;
 
   // `filtered` with safety left out — for the two things safety must never rank on:
   // "who reported most" (QualityTrackingByLeader, the by-leader chart) and "what
@@ -1119,14 +1165,14 @@ export function QualityActionsView() {
         <QualityIssueDetail
           action={detailAction}
           canManage={canManage}
-          onOpenChange={(o) => { if (!o) setDetailId(null); }}
+          onOpenChange={(o) => { if (!o) closeDetail(); }}
           onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
           onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
           canValidate={canValidate}
           canClose={canClose}
           onValidation={(validation_status) => detailAction && setValidation.mutate({ id: detailAction.id, validation_status })}
           onClosure={(close) => detailAction && setClosure.mutate({ id: detailAction.id, close })}
-          onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); setDetailId(null); } }}
+          onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); closeDetail(); } }}
           onEdit={() => { if (detailAction) openEdit(detailAction); }}
         />
 

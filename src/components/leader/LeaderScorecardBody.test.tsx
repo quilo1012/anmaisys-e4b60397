@@ -40,7 +40,7 @@ function makeResult(over: Partial<ScorecardResult> = {}): ScorecardResult {
     production: {
       sessions: 8, avgOEE: null, downtimeH: null, runtimeH: null,
       output: 40648, attainment: 84, actualQty: 40648, targetQty: 48512,
-      plannedSessions: 8, sessionsWithPlan: 8,
+      plannedSessions: 8, sessionsWithPlan: 8, plannedWithoutOutput: 0,
     },
     score: {
       production: { value: 83, basis: "Actual against target, capped at 100%" },

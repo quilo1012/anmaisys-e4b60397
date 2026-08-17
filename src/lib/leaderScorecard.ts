@@ -42,7 +42,19 @@ export interface LSSession {
 }
 
 export interface LSRagRow { entry_date: string; line: string; shift: string; plan_qty: number }
-export interface LSItem { actual_qty: number | null; target_qty: number | null }
+export interface LSItem {
+  actual_qty: number | null;
+  target_qty: number | null;
+  /**
+   * The session this item was logged against, when the caller selected it.
+   *
+   * Only needed to answer one question: which of the leader's planned line-shifts
+   * logged no output at all. Optional because the tablet path's rows arrive from a
+   * database function whose shape is fixed by a migration, and a card that cannot
+   * answer the question must say nothing rather than guess at it.
+   */
+  production_sessions?: { session_date: string | null; shift: string | null; line: string | null } | null;
+}
 export interface LSStatusChange { action_id: string; changed_at: string }
 
 /** The rows behind one leader's card, before any period rule is applied. */
@@ -132,6 +144,21 @@ export interface ProductionSummary {
   targetQty: number;
   plannedSessions: number;
   sessionsWithPlan: number;
+  /**
+   * Planned line-shifts that logged no output at all — the mirror of
+   * `sessionsWithPlan`.
+   *
+   * The card already warns about the opposite case: a line-shift with output and no
+   * RAG plan adds to the numerator and not the denominator, so attainment reads
+   * higher than it is. This is the same distortion pointing the other way. A shift
+   * that was planned but never filled in on My Production adds 5,000 to the target
+   * and nothing to the actual, and the leader is shown a percentage that is about
+   * paperwork rather than about production — with nothing on the card to say so.
+   *
+   * Zero when the caller did not select the session behind each item, which is not
+   * the same as zero shifts: see `LSItem.production_sessions`.
+   */
+  plannedWithoutOutput: number;
 }
 
 export interface ScorecardResult {
@@ -231,6 +258,25 @@ function summariseProduction(sessions: LSSession[], items: LSItem[], ragRows: LS
     target += planMap.get(k) ?? 0;
   }
 
+  /**
+   * Which planned line-shifts actually logged something.
+   *
+   * Keyed exactly as the plan is, so a shift can be looked up in both. An item with a
+   * zero quantity counts as no output: the row exists but the shift produced nothing
+   * the plan can be measured against, and the reader's question is about the figure,
+   * not about whether a form was opened.
+   */
+  const loggedOutput = new Set<string>();
+  let itemsCarrySession = false;
+  for (const it of items) {
+    const s = it.production_sessions;
+    if (!s) continue;
+    itemsCarrySession = true;
+    if ((it.actual_qty ?? 0) > 0) {
+      loggedOutput.add(`${s.session_date}|${String(s.shift ?? "").trim().toUpperCase()}|${norm(s.line)}`);
+    }
+  }
+
   return {
     sessions: sessions.length, avgOEE, downtimeH, runtimeH,
     output: actual,
@@ -238,6 +284,9 @@ function summariseProduction(sessions: LSSession[], items: LSItem[], ragRows: LS
     actualQty: actual, targetQty: target,
     plannedSessions: seen.size,
     sessionsWithPlan: Array.from(seen).filter((k) => (planMap.get(k) ?? 0) > 0).length,
+    plannedWithoutOutput: itemsCarrySession
+      ? Array.from(seen).filter((k) => (planMap.get(k) ?? 0) > 0 && !loggedOutput.has(k)).length
+      : 0,
   };
 }
 

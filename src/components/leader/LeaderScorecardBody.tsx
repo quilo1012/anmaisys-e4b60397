@@ -14,6 +14,7 @@ import { useProfileNames } from "@/hooks/useProfileNames";
 import { displayScore } from "@/lib/leaderScore";
 import type { ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Link } from "react-router-dom";
 
 /**
  * The scorecard itself, with no idea where its rows came from.
@@ -47,6 +48,39 @@ export function shiftLabelOf(period: ScorecardPeriod): string {
  */
 const fmt = (n: number) => n.toLocaleString("en-GB");
 
+/**
+ * One action's row: a link when there is somewhere to go, a plain row otherwise.
+ *
+ * Both spellings carry identical layout classes so the list does not reflow depending
+ * on who is reading it. The link keeps the row's own text colours rather than taking
+ * the anchor default — forty rows of underlined blue would turn a document into a
+ * directory — and announces itself by hover, focus ring and cursor instead.
+ *
+ * `print:no-underline` because a printed card is handed to the leader on paper, where
+ * an underline promises a destination the page cannot offer.
+ */
+function RowShell({ href, label, children }: {
+  href?: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  const shared = "flex min-w-0 flex-wrap items-center gap-2 px-2 py-1.5 text-xs";
+  if (!href) return <div className={shared}>{children}</div>;
+  return (
+    <Link
+      to={href}
+      aria-label={`Open ${label} in Quality`}
+      className={cn(
+        shared,
+        "no-underline transition-colors hover:bg-muted/60 focus-visible:outline-none",
+        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hover:bg-transparent",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
 /** A section heading and the hairline that closes it — the card's only structural rule. */
 function SectionHead({ id, icon: Icon, children, aside }: {
   id: string;
@@ -65,10 +99,19 @@ function SectionHead({ id, icon: Icon, children, aside }: {
   );
 }
 
-export function LeaderScorecardBody({ leaderName, period, result }: {
+export function LeaderScorecardBody({ leaderName, period, result, actionHref }: {
   leaderName: string | null;
   period: ScorecardPeriod;
   result: ScorecardResult;
+  /**
+   * Where an action row leads, when the reader is allowed to follow it.
+   *
+   * Optional, and absent on purpose for the leader's own copy: a line tablet is
+   * RLS-scoped to one line and its user has no Quality permission, so a link into
+   * /dashboard/quality would be a promise the session cannot keep. The manager's copy
+   * passes one; the tablet gets the same rows as plain text.
+   */
+  actionHref?: (action: ScorecardResult["actions"][number]) => string;
 }) {
   const { quality: q, docs, production: p, score, actions, woRequests, woStopped } = result;
 
@@ -255,7 +298,11 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
           </div>
           <div className="max-h-56 overflow-y-auto rounded-md border divide-y print:max-h-none print:overflow-visible">
             {actions.slice().reverse().map((a) => (
-              <div key={a.id} className="flex min-w-0 flex-wrap items-center gap-2 px-2 py-1.5 text-xs">
+              /* A row is a link where the reader may follow it. The score says a
+                 leader lost points; the evidence, the history and the name of whoever
+                 validated it all live on the other end, and a figure nobody can audit
+                 back to its record is the thing this module exists to stop being. */
+              <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || a.description || "action"}>
                 <span className="font-mono">{a.action_no || a.id.slice(0, 8)}</span>
                 <span className="text-muted-foreground">{format(new Date(a.recorded_at), "dd/MM")}</span>
                 {a.line && <span className="text-muted-foreground">{a.line}</span>}
@@ -273,7 +320,7 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
                   </Badge>
                 )}
                 <span className="min-w-0 flex-1 truncate text-muted-foreground">{a.description}</span>
-              </div>
+              </RowShell>
             ))}
           </div>
         </div>
@@ -357,7 +404,19 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
               {docs.penalised.map((a) => (
                 <li key={a.id} className="p-3 text-xs">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono font-semibold">{a.action_no || `#${a.id.slice(0, 8)}`}</span>
+                    {/* The demerit names a number and a penalty; this is the only
+                        route from it to the evidence that justified either. */}
+                    {actionHref ? (
+                      <Link
+                        to={actionHref(a)}
+                        aria-label={`Open ${a.action_no || "this documentation error"} in Quality`}
+                        className="font-mono font-semibold underline decoration-dotted underline-offset-2 hover:decoration-solid print:no-underline"
+                      >
+                        {a.action_no || `#${a.id.slice(0, 8)}`}
+                      </Link>
+                    ) : (
+                      <span className="font-mono font-semibold">{a.action_no || `#${a.id.slice(0, 8)}`}</span>
+                    )}
                     <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
                       {validationMeta(a.validation_status).label}
                     </Badge>
@@ -446,6 +505,17 @@ export function LeaderScorecardBody({ leaderName, period, result }: {
               <p className="mt-1 text-2xs text-muted-foreground">
                 {p.plannedSessions - p.sessionsWithPlan} of {p.plannedSessions} line-shifts have no RAG plan, so they add
                 output without adding target — attainment reads higher than it is.
+              </p>
+            )}
+            {/* The same distortion pointing the other way, and the one that costs the
+                leader rather than flattering them. Said out loud because a percentage
+                nobody can explain is a percentage nobody can argue with. */}
+            {p.plannedWithoutOutput > 0 && (
+              <p className="mt-1 text-2xs text-warning-strong">
+                {p.plannedWithoutOutput} of {p.sessionsWithPlan} planned line-shift
+                {p.plannedWithoutOutput === 1 ? "" : "s"} logged no output on My Production, so
+                {p.plannedWithoutOutput === 1 ? " it adds" : " they add"} target without adding
+                output — attainment reads lower than it is.
               </p>
             )}
           </>

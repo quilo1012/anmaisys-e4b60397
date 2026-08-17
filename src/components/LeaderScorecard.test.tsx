@@ -21,6 +21,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 
 /** Which tables should fail this test. Reset per case. */
 const failing = new Set<string>();
@@ -28,6 +29,8 @@ const failing = new Set<string>();
 const rows = new Map<string, unknown[]>();
 /** When set, any select naming `domain` fails the way a pre-20260817090000 base does. */
 const state = { noDomainColumn: false };
+/** Every filter the card applied, so a test can ask HOW a row was looked up. */
+const calls: Array<{ table: string; method: string; args: unknown[] }> = [];
 
 /**
  * A stand-in for the PostgREST builder: every filter returns the builder, and the
@@ -57,7 +60,7 @@ function builder(table: string) {
     select: (c?: string) => { columns = c ?? ""; return chain; },
   };
   for (const m of ["eq", "in", "gte", "lte", "ilike", "order", "limit", "not", "or"]) {
-    chain[m] = () => chain;
+    chain[m] = (...args: unknown[]) => { calls.push({ table, method: m, args }); return chain; };
   }
   return chain;
 }
@@ -86,16 +89,113 @@ vi.mock("recharts", async () => {
 
 import { LeaderScorecard } from "@/components/LeaderScorecard";
 
-function draw() {
+function draw(leaderName = "Ailton") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
+  // The card links each action to its record in Quality, so it renders <Link> and
+  // needs a router the way it has one in the app.
   return render(
-    <QueryClientProvider client={client}>
-      <LeaderScorecard leaderName="Ailton" from="2026-08-01" to="2026-08-17" />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <LeaderScorecard leaderName={leaderName} from="2026-08-01" to="2026-08-17" />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
+
+/**
+ * The card must find a leader's rows whatever case they were stored in.
+ *
+ * This repo spells the same person two ways and has done for months: `leader_pins`
+ * holds HENRIQUE, CAINAN, FILIPI, KAZ and JULIANO in capitals while the production
+ * tables hold Henrique, Cainan, Filipi, Kaz and Juliano. A quality action takes its
+ * `leader_name` from `line_leaders`; a production session takes its own from the
+ * tablet. Nothing guarantees the two agree about capitals.
+ *
+ * `.eq()` is case-sensitive, so the consequence was silent and one-sided: Cainan's
+ * card found twelve production sessions and zero quality actions, and printed "No
+ * quality action was raised against this leader in this period" over Quality 100% —
+ * the same flattering sentence a failed read used to print, arrived at a different
+ * way. A leader's worst month and their best look identical when the name does not
+ * match.
+ *
+ * So the assertion is about the lookup, not the rows: no column carrying a human name
+ * may be matched with `eq`.
+ */
+/**
+ * An action on the card must be followable to its record.
+ *
+ * The list of actions a leader is scored on was plain text. A manager could read
+ * "GMP Non-Compliance · −4" and had no route to the evidence, the history, or the
+ * name of whoever validated it — the score asserted a penalty and offered nothing to
+ * check it against. On a system aiming at BRCGS that is an audit trail with a gap in
+ * the middle of it.
+ */
+describe("LeaderScorecard, following an action to its record", () => {
+  beforeEach(() => {
+    failing.clear();
+    rows.clear();
+    calls.length = 0;
+    state.noDomainColumn = false;
+  });
+
+  it("links each action row to that action in Quality", async () => {
+    rows.set("quality_actions", [
+      {
+        id: "11111111-2222-3333-4444-555555555555", status: "open", severity: "high",
+        recorded_at: "2026-08-13T12:00:00Z", labels: ["GMP"], department: "Production",
+        line: "Line 6", action_no: "QA-0042", description: "GMP Non-Compliance",
+        shift: "DAY", validation_status: "open", validated_at: null, validated_by: null,
+        attachments: null, closed_at: null, domain: "quality",
+      },
+    ]);
+    draw();
+
+    const link = await screen.findByRole("link", { name: /Open QA-0042 in Quality/i });
+    expect(link).toHaveAttribute(
+      "href",
+      "/dashboard/quality?action=11111111-2222-3333-4444-555555555555",
+    );
+  });
+});
+
+describe("LeaderScorecard, matching the leader's name", () => {
+  beforeEach(() => {
+    failing.clear();
+    rows.clear();
+    calls.length = 0;
+    state.noDomainColumn = false;
+  });
+
+  it("never matches a leader's name case-sensitively", async () => {
+    draw("Cainan");
+    await screen.findByText(/No quality action was raised against this leader/i);
+
+    const byName = calls.filter((c) => c.args.some((a) => typeof a === "string" && /leader_name$/.test(a)));
+    expect(byName.length).toBeGreaterThan(0);
+    for (const c of byName) {
+      expect(
+        c.method,
+        `${c.table} matched ${String(c.args[0])} with .${c.method}() — "CAINAN" would not be found`,
+      ).not.toBe("eq");
+    }
+  });
+
+  it("looks the leader up on every table that holds their name", async () => {
+    draw("Cainan");
+    await screen.findByText(/No quality action was raised against this leader/i);
+
+    const named = new Set(
+      calls
+        .filter((c) => c.args.some((a) => typeof a === "string" && /leader_name$/.test(a)))
+        .map((c) => c.table),
+    );
+    expect(named).toContain("quality_actions");
+    expect(named).toContain("production_sessions");
+    expect(named).toContain("production_items");
+  });
+});
 
 describe("LeaderScorecard, when a read fails", () => {
   beforeEach(() => {
@@ -116,6 +216,39 @@ describe("LeaderScorecard, when a read fails", () => {
     expect(
       screen.queryByText(/No quality action was raised against this leader/i),
     ).not.toBeInTheDocument();
+  });
+
+  /**
+   * The same failure as the quality one, pointing the other way.
+   *
+   * `production_items` swallowed its own error and returned `[]`, so `eItems` — which
+   * this component lists in `readFailed` and names in the message — could never become
+   * true. A rejected read therefore produced actual = 0 against a RAG target that read
+   * fine, which is attainment 0%, which is a Production pillar of ZERO weighted into
+   * the final score as a measurement.
+   *
+   * A leader who ran a full month would be shown 0% production and a score to match,
+   * with nothing on the card suggesting the number came from a broken query rather
+   * than from their work. The quality bug flattered and so went unreported; this one
+   * condemns, which is worse in a document somebody is judged by.
+   *
+   * Zero is a real reading. "The query failed" is not zero.
+   */
+  it("does not score a leader at zero when production items could not be read", async () => {
+    failing.add("production_items");
+    rows.set("production_sessions", [
+      { oee_pct: 80, run_time_min: 600, down_time_min: 20, intouch_good_total: 1000,
+        session_date: "2026-08-13", line: "Line 6", shift: "DAY" },
+    ]);
+    rows.set("rag_weekly_entries", [
+      { entry_date: "2026-08-13", line: "Line 6", shift: "DAY", plan_qty: 5000 },
+    ]);
+    draw();
+
+    expect(await screen.findByText("This scorecard could not be read.")).toBeInTheDocument();
+    expect(screen.getByText(/production items did not load/i)).toBeInTheDocument();
+    // The figure that would have been printed as the leader's month.
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
 
   it("does not award a score built on a failed read", async () => {
