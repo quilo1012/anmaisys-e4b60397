@@ -1,6 +1,6 @@
 # Aplicar o scorecard v2 à base
 
-Estado em 16/08/2026: **nenhuma das oito migrações abaixo chegou à produção.** Medido
+Estado em 16/08/2026: **nenhuma das migrações abaixo chegou à produção.** Medido
 contra o PostgREST de `ybtrzqzliepknpzqdajx`, com controlos que fixam a fronteira.
 
 ## Porque é que isto aconteceu
@@ -38,7 +38,7 @@ ao Lovable deixou de ser feito, oito vezes seguidas.
 Este documento explica; aquele corre. Se os dois discordarem, aquele manda — e alguém
 esqueceu-se de actualizar este.
 
-Sete blocos, por ordem cronológica, um de cada vez, confirmando que cada um termina sem
+Oito blocos, por ordem cronológica, um de cada vez, confirmando que cada um termina sem
 erro antes do seguinte:
 
 1. `20260815120000_a_label_can_carry_its_own_points.sql`
@@ -48,6 +48,7 @@ erro antes do seguinte:
 5. `20260817093000_the_week_counts_its_own_safety.sql`
 6. `20260818090000_a_gate_is_a_ceiling_not_a_weight.sql`
 7. `20260819090000_the_score_crosses_the_board_rpc.sql`
+8. `20260820090000_filling_a_week_is_not_approving_it.sql`
 
 **`20260814090000` fica de fora de propósito** — a v1 do scorecard. A migração de 15/08
 cria a tabela na forma da v1 se ela não existir, e como não existe, aplicar a v1 primeiro
@@ -65,6 +66,13 @@ fronteira acima está errada e não se aplica nada até perceber porquê.
 **Depois:** tudo `PRESENTE`, com uma exceção deliberada — `leader_scorecard_thresholds`
 (plural) fica `AUSENTE`, porque o passo 3 a larga de propósito. A que fica é
 `leader_scorecard_threshold`, no singular.
+
+O passo 8 é o único que não cria objetos: reescreve a política de escrita e o trigger da
+CAPA que `20260815140000` instala, para que preencher e aprovar deixem de ser a mesma permissão
+abaixo do ecrã (`scorecard.fill` inclui `production_office_admin`, `scorecard.approve`
+não) e para que uma aprovação tenha de ser assinada por quem a faz — `approved_by =
+auth.uid()`, e com papel que possa aprovar. Correr fora de ordem, antes de `20260815140000`, aborta
+com a mensagem a dizer qual é o ficheiro em falta, sem aplicar metade.
 
 ## O que a migração 6 não faz
 
