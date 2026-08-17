@@ -1,13 +1,19 @@
 # Estado da base ANTES de aplicar o scorecard v2
 
-> **ATENÇÃO — esta medição pode ser à base errada.** Existem DOIS projectos Supabase
-> vivos: `ybtrzqzliepknpzqdajx`, que é o que está no `.env` e no `supabase/config.toml` e
-> o único contra o qual isto foi medido; e `apblxaaktftinstoidvp`, que responde igualmente
-> e **não aparece em nenhum ficheiro deste repositório nem no histórico do git**. Qual
-> deles a aplicação publicada usa não está resolvido: este projecto é Lovable Cloud, e o
-> Lovable injecta as suas próprias variáveis no build, fora do repositório. Se o vivo for
-> o segundo, tudo o que se segue descreve um projecto que ninguém usa, e a conclusão
-> "nada do módulo chegou à base" fica por provar para o que conta.
+> **Qual base é esta, e porque é a certa.** Existem dois projectos Supabase vivos:
+> `ybtrzqzliepknpzqdajx` (o do `.env` e do `supabase/config.toml`) e
+> `apblxaaktftinstoidvp`, que responde igualmente e não aparece em ficheiro nenhum deste
+> repositório nem no histórico do git. A dúvida ficou resolvida pelo lado que conta: o
+> bundle publicado em `https://anmaisys.lovable.app` foi descarregado e contém um único
+> endereço Supabase, `https://ybtrzqzliepknpzqdajx.supabase.co`, e a chave anónima que
+> ele carrega decodifica para `ref: ybtrzqzliepknpzqdajx`. **A aplicação a correr fala
+> com esta base, que é a mesma que aqui foi medida.**
+>
+> Fica por explicar o que é `apblxaaktftinstoidvp`. O build publicado não lhe toca. Se a
+> vista de backend do Lovable abrir esse projecto, então o Lovable Cloud provisionou um
+> backend novo e o bundle publicado está velho — e nesse caso esta medição descreve a
+> base de hoje, não a de amanhã. Sondar o outro projecto precisa apenas da sua chave
+> anónima, que é pública.
 
 Medido em 2026-08-17 11:29 contra o PostgREST de `ybtrzqzliepknpzqdajx`, com a chave
 pública do `.env` (cujo JWT confirma `ref: ybtrzqzliepknpzqdajx`, `role: anon`). Equivalente parcial do passo 1 de `scorecard-v2-apply.md`: o
