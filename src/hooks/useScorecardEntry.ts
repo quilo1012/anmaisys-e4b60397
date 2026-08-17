@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { emptyDraft, type ScorecardEntryDraft, type ScorecardEntryVerdict } from "@/lib/scorecardEntry";
+import { emptyDraft, pickWritable, type ScorecardEntryDraft, type ScorecardEntryVerdict } from "@/lib/scorecardEntry";
 
 /**
  * One leader's one week: the draft they can edit, and the verdict the database
@@ -56,17 +56,34 @@ export function useScorecardEntry(leaderId: string, lineId: string, weekEnding: 
         .eq("week_ending", weekEnding)
         .maybeSingle();
       if (error) throw error;
-      if (data) setDraft((d) => ({ ...d, ...data } as ScorecardEntryDraft));
       return (data ?? null) as (ScorecardEntryVerdict & { id: string }) | null;
     },
   });
+
+  // The fetched row reaches the draft HERE, not inside `queryFn`. Two reasons.
+  // First, `queryFn` runs on every refetch — including the one this hook's own
+  // `onSuccess` triggers after each save — and setting state from inside it
+  // stamped over whatever the person was in the middle of typing. React Query's
+  // structural sharing keeps `verdict.data` referentially stable when a refetch
+  // returns the same row, so an effect on it does not fire for a no-op refetch.
+  // Second and larger: only the draft's OWN columns are merged. The view carries
+  // names, labels, RAGs, drivers and two GENERATED ALWAYS columns that the base
+  // table will not accept on a write — see `pickWritable`.
+  const fetchedRow = verdict.data;
+  useEffect(() => {
+    if (!fetchedRow) return;
+    setDraft((d) => ({ ...d, ...pickWritable(fetchedRow as unknown as Record<string, unknown>) }));
+  }, [fetchedRow]);
 
   const save = useMutation({
     mutationFn: async (next: ScorecardEntryDraft) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
       const { error } = await (supabase as any)
         .from("leader_weekly_scorecard")
-        .upsert(next, { onConflict: "leader_id,line_id,week_ending" });
+        // Projected through the draft's own key set on the way OUT as well as on
+        // the way in: whatever else may have found its way onto the object, only
+        // columns the base table actually has are ever sent.
+        .upsert(pickWritable(next as unknown as Record<string, unknown>), { onConflict: "leader_id,line_id,week_ending" });
       if (error) throw error;
     },
     onSuccess: () => {

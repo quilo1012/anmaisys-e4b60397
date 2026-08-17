@@ -1,5 +1,18 @@
 export type CheckStatus = "Pass" | "Fail" | "Not Done";
 
+/**
+ * `public.scorecard_downtime_reason`, verbatim. These are the six values the
+ * enum accepts — DATA, in the database's Portuguese, never translated on the
+ * wire. `downtimeReasonLabel()` (src/lib/capaGate.ts) is what turns them into
+ * the English a person reads.
+ */
+export type DowntimeReason =
+  | "Quebra" | "Falta de Materia Prima" | "Troca de Mix"
+  | "Falta de Pessoal" | "Outro" | "NA";
+
+/** `public.scorecard_capa_status`, verbatim. Same rule as DowntimeReason. */
+export type CapaStatus = "Aberta" | "Em Andamento" | "Concluida" | "Verificada";
+
 /** So os campos que alguem escreve. Nada calculado entra aqui. */
 export type ScorecardEntryDraft = {
   leader_id: string;
@@ -8,7 +21,7 @@ export type ScorecardEntryDraft = {
   planned_volume: number | null;
   actual_volume: number | null;
   unplanned_downtime_minutes: number | null;
-  downtime_reason: string | null;
+  downtime_reason: DowntimeReason | null;
   volume_source: "derivado" | "manual" | null;
   ccp_check_status: CheckStatus | null;
   starter_check_status: CheckStatus | null;
@@ -30,7 +43,7 @@ export type ScorecardEntryDraft = {
   corrective_action: string | null;
   capa_owner: string | null;
   capa_due_date: string | null;
-  capa_status: string | null;
+  capa_status: CapaStatus | null;
   /**
    * The audit trail. Written only through `saveNow` — never by `setField`/the
    * debounce — because these are stamped by an action (Submit, Approve), not
@@ -90,4 +103,38 @@ export function emptyDraft(leader_id: string, line_id: string, week_ending: stri
     capa_due_date: null, capa_status: null,
     submitted_by: null, submitted_at: null, approved_by: null, approved_at: null,
   };
+}
+
+/**
+ * The draft's own key set, derived from `emptyDraft` so it can never drift from
+ * it: add a field to the draft and it is writable here the same second, forget
+ * to add one and it is simply not carried — never half-carried.
+ */
+const WRITABLE_KEYS = Object.keys(emptyDraft("", "", "")) as (keyof ScorecardEntryDraft)[];
+
+/**
+ * The one filter between `v_leader_weekly_scorecard` (what is READ) and
+ * `leader_weekly_scorecard` (what is WRITTEN).
+ *
+ * The view is far wider than the table: it carries the leader's and the line's
+ * names, the month and quarter labels, every RAG and driver the rules produced,
+ * `pending_approval`, `missing_hs_data` — none of which is a column of the base
+ * table — plus `month_start` and `quarter_start`, which ARE columns but are
+ * `GENERATED ALWAYS … STORED` and so may never appear in a write.
+ *
+ * Merging a fetched row into the draft unfiltered and then upserting the draft
+ * meant every save after the first carried `leader_name`, `volume_rag`,
+ * `month_start`…, and PostgREST rejected it (PGRST204 for the unknown columns,
+ * Postgres 428C9 for the generated ones): the row could be written exactly once,
+ * ever, and Submit and Approve — which go through the same write — were dead
+ * from the second save on. Projecting through this function in BOTH directions
+ * (on merge and on upsert) is what makes a view column added tomorrow harmless.
+ */
+export function pickWritable(row: Record<string, unknown> | null | undefined): Partial<ScorecardEntryDraft> {
+  if (!row) return {};
+  const out: Record<string, unknown> = {};
+  for (const key of WRITABLE_KEYS) {
+    if (key in row) out[key] = row[key];
+  }
+  return out as Partial<ScorecardEntryDraft>;
 }

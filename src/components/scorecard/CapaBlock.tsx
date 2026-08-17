@@ -2,10 +2,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { capaStatusLabel } from "@/lib/capaGate";
-import type { ScorecardEntryDraft } from "@/lib/scorecardEntry";
+import type { CapaStatus, ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import type { SetField } from "./pillars/types";
 
-const STATUS_OPTIONS = ["Aberta", "Em Andamento", "Concluida", "Verificada"] as const;
+const STATUS_OPTIONS: CapaStatus[] = ["Aberta", "Em Andamento", "Concluida", "Verificada"];
 
 /**
  * The investigation, shown only when the database says the week carries a Fail
@@ -78,7 +78,7 @@ export function CapaBlock({
           <select
             id="capa-status"
             value={draft.capa_status ?? ""}
-            onChange={(e) => setField("capa_status", e.target.value || null)}
+            onChange={(e) => setField("capa_status", (e.target.value as CapaStatus | "") || null)}
             className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
           >
             <option value="">—</option>

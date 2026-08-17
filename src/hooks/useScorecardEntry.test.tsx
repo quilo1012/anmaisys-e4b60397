@@ -51,6 +51,38 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 
 import { useScorecardEntry } from "./useScorecardEntry";
+import { emptyDraft } from "@/lib/scorecardEntry";
+
+/**
+ * A row as `v_leader_weekly_scorecard` actually returns one: the writable
+ * columns AND everything the view adds on top of them — names, labels, RAGs,
+ * drivers, flags — plus the two GENERATED ALWAYS columns of the base table.
+ */
+function fullViewRow() {
+  return {
+    id: "row-1",
+    leader_id: "leader-1", line_id: "line-1", week_ending: "2026-07-05",
+    planned_volume: 1000, actual_volume: 950, unplanned_downtime_minutes: 30,
+    downtime_reason: "Quebra", volume_source: "derivado",
+    ccp_check_status: "Pass", starter_check_status: "Pass", volume_weight_check_status: "Pass",
+    lost_time_injuries: 0, reportable_accidents: 0, first_aid_cases: 0,
+    near_misses_reported: 3, safety_observations_done: 4, toolbox_talks_done: 2,
+    ppe_compliance_pct: 0.95, hs_training_compliance_pct: 0.9, overdue_hs_actions: 0,
+    leader_attendance_pct: 1, team_attendance_pct: 0.92,
+    leader_lateness_incidents: 0, team_lateness_incidents: 1,
+    root_cause: null, corrective_action: null, capa_owner: null,
+    capa_due_date: null, capa_status: null,
+    submitted_by: null, submitted_at: null, approved_by: null, approved_at: null,
+    created_at: "2026-07-05T08:00:00Z", updated_at: "2026-07-05T08:00:00Z",
+    month_start: "2026-07-01", quarter_start: "2026-07-01",
+    leader_name: "M. Silva", line_name: "Line 3", month: "jul-2026", quarter: "Q3-2026",
+    volume_pct: 95, volume_pct_adjusted: 97, volume_rag: "Amber",
+    quality_rag: "Green", quality_fail_type: null, capa_required: false,
+    hs_rag: "Green", hs_driver: [], missing_hs_data: false,
+    leader_attendance_below_target: false,
+    overall_rag: "Amber", rag_driver: "Volume 95%.", pending_approval: true,
+  };
+}
 
 function wrapper() {
   const client = new QueryClient({
@@ -141,11 +173,50 @@ describe("useScorecardEntry", () => {
     );
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
+    // "Concluida", not "submitted": capa_status is the enum
+    // public.scorecard_capa_status, whose four values are Portuguese. The old
+    // fixtures used words the database would have rejected outright, which is
+    // exactly the class of mistake the narrowed type now makes impossible.
     await act(async () => {
-      await result.current.saveNow({ capa_status: "submitted" });
+      await result.current.saveNow({ capa_status: "Concluida" });
     });
     expect(upsertCalls.length).toBe(1);
-    expect((upsertCalls[0] as { capa_status: string }).capa_status).toBe("submitted");
+    expect((upsertCalls[0] as { capa_status: string }).capa_status).toBe("Concluida");
+  });
+
+  it("never sends a view column back to the base table — the second save must be as writable as the first", async () => {
+    // The whole view row is what a refetch returns after the first successful
+    // save. Merging it into the draft unfiltered and upserting that is what made
+    // every later save fail: PGRST204 for leader_name/volume_rag/pending_approval,
+    // 428C9 for month_start/quarter_start. The row would be writable exactly once.
+    mockVerdictRow = fullViewRow();
+    const { result } = renderHook(
+      () => useScorecardEntry("leader-1", "line-1", "2026-07-05"),
+      { wrapper: wrapper() },
+    );
+    await waitFor(() => expect(result.current.verdict).not.toBeNull());
+    // The fetched row did reach the draft — this is not a test of merging nothing.
+    await waitFor(() => expect(result.current.draft.planned_volume).toBe(1000));
+
+    await act(async () => {
+      await result.current.saveNow({ submitted_by: "user-9", submitted_at: "2026-07-06T08:00:00Z" });
+    });
+
+    expect(upsertCalls.length).toBe(1);
+    const sent = upsertCalls[0] as Record<string, unknown>;
+    const writable = Object.keys(emptyDraft("leader-1", "line-1", "2026-07-05"));
+    expect(Object.keys(sent).sort()).toEqual([...writable].sort());
+    for (const forbidden of [
+      "leader_name", "line_name", "month", "quarter", "volume_pct", "volume_pct_adjusted",
+      "volume_rag", "quality_rag", "quality_fail_type", "capa_required", "hs_rag",
+      "hs_driver", "missing_hs_data", "leader_attendance_below_target", "overall_rag",
+      "rag_driver", "pending_approval", "month_start", "quarter_start",
+    ]) {
+      expect(`${forbidden}: ${forbidden in sent}`).toBe(`${forbidden}: false`);
+    }
+    // And the write still carries what it is for.
+    expect(sent.submitted_by).toBe("user-9");
+    expect(sent.planned_volume).toBe(1000);
   });
 
   it("does not send a newer debounced write until an older one in flight has settled — the database ends up with the LAST draft, not an arbitrary one", async () => {
@@ -211,7 +282,7 @@ describe("useScorecardEntry", () => {
     // is awaited later, once the queued writes below have been let through.
     let saveNowPromise!: Promise<void>;
     act(() => {
-      saveNowPromise = result.current.saveNow({ capa_status: "approved" });
+      saveNowPromise = result.current.saveNow({ capa_status: "Verificada" });
     });
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     // saveNow's own write must not have been sent yet — it is queued behind
@@ -221,7 +292,7 @@ describe("useScorecardEntry", () => {
     // Let the debounced write settle; only then does saveNow's write fire.
     await act(async () => { upsertResolvers![0](); await Promise.resolve(); await Promise.resolve(); });
     await waitFor(() => expect(upsertCalls.length).toBe(2));
-    expect((upsertCalls[1] as { capa_status: string; planned_volume: number }).capa_status).toBe("approved");
+    expect((upsertCalls[1] as { capa_status: string; planned_volume: number }).capa_status).toBe("Verificada");
     // saveNow's write carries the field edit too — it merges onto the current
     // draft, it does not resurrect an older one.
     expect((upsertCalls[1] as { capa_status: string; planned_volume: number }).planned_volume).toBe(300);
