@@ -27,7 +27,7 @@ import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityForPoints, severityPointsMap, labelPoints, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityForPoints, severityPointsMap, labelPoints, logFormCharge, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
@@ -667,6 +667,12 @@ export function QualityActionsView() {
                     const weights = severityPointsMap();
                     const typed = pointsInput.trim() === "" ? null : Number(pointsInput);
                     const unmatched = typed !== null && Number.isFinite(typed) && severityForPoints(typed, weights) === null;
+                    // A priced label outranks the severity in `actionPoints`, so the box
+                    // has to follow the labels or it prints a number the action will not
+                    // cost. Derived on render rather than kept in state: unticking the
+                    // last priced label hands the box straight back to the severity,
+                    // with the value it already had.
+                    const charge = logFormCharge(form.labels, excluded);
                     const pickSeverity = (v: string) => {
                       const severity = v === "__none__" ? "" : v;
                       setForm({ ...form, severity });
@@ -696,12 +702,21 @@ export function QualityActionsView() {
                             type="number"
                             min={0}
                             inputMode="numeric"
-                            className="w-full min-w-0"
-                            value={pointsInput}
+                            className={cn("w-full min-w-0", charge.pricedByLabels && "bg-muted font-semibold")}
+                            value={charge.pricedByLabels ? String(charge.points) : pointsInput}
                             onChange={(e) => typePoints(e.target.value)}
+                            readOnly={charge.pricedByLabels}
+                            aria-describedby={charge.pricedByLabels ? "points-from-labels" : undefined}
+                            title={charge.pricedByLabels ? "Priced by the labels below — untick them to set it by severity" : undefined}
                           />
                         </div>
-                        {unmatched && (
+                        {charge.pricedByLabels ? (
+                          <p id="points-from-labels" className="text-xs text-muted-foreground sm:col-span-2">
+                            Priced by {charge.sources.map((s) => `${s.label} ${s.points}p`).join(" + ")}
+                            {charge.sources.length > 1 && ` = ${charge.points}p`} — the severity does not count while a
+                            label prices the action. Untick {charge.sources.length === 1 ? "it" : "them"} to score by severity.
+                          </p>
+                        ) : unmatched && (
                           <p className="text-xs text-muted-foreground sm:col-span-2">
                             No severity is worth {typed}p — this action scores 0 unless a label prices it.
                           </p>

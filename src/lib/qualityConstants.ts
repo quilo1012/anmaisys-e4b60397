@@ -228,6 +228,36 @@ export function labelChargeFor(action: { labels?: string[] | null }, excluded: S
 }
 
 /**
+ * What the log form's Points box must show, and where the number came from.
+ *
+ * The box was wired to the severity alone. That was right until a label could carry a
+ * price: with Foreign Body at 5 and High selected, the form said 4 and `actionPoints`
+ * charged 5 — the screen and the database disagreeing about the same action, which is
+ * the one thing this module keeps having to fix.
+ *
+ * So it answers the first branch of `actionPoints` and nothing else. `pricedByLabels`
+ * false means "the labels do not price this", which is the form's cue to leave the
+ * severity in charge and the box editable.
+ *
+ * `sources` is for the line under the box: whoever is logging the action should be
+ * able to see WHICH label put the number there, not just that something did.
+ *
+ * Excluded labels are skipped for the same reason `labelChargeFor` skips them — a
+ * label that is not the leader's to answer for must not price their action, or the
+ * exclusion comes back in through the points.
+ */
+export function logFormCharge(
+  labels: string[],
+  excluded: Set<string>,
+): { points: number; pricedByLabels: boolean; sources: Array<{ label: string; points: number }> } {
+  const sources = labels
+    .map((label) => ({ label, points: LABEL_POINTS[label.trim().toLowerCase()] ?? 0 }))
+    .filter((s) => s.points > 0 && !excluded.has(s.label.trim().toLowerCase()));
+  const points = sources.reduce((sum, s) => sum + s.points, 0);
+  return { points, pricedByLabels: points > 0, sources };
+}
+
+/**
  * What one action costs the leader it was raised against.
  *
  * Zero if Quality rejected it, zero if its labels are not the leader's. Otherwise the
