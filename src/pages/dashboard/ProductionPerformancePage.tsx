@@ -6,7 +6,7 @@ import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { StatusRail, type RailState } from "@/components/ui/StatusRail";
 import { ControlPlate, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
 import { ConsoleCell } from "@/components/ui/ConsoleStrip";
-import { scorecardPath } from "@/lib/scorecardRoute";
+import { scorecardPath, scorecardLinkPeriod } from "@/lib/scorecardRoute";
 import { LineIndicators } from "@/components/production/LineIndicators";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -787,12 +787,13 @@ export default function ProductionPerformancePage() {
                 sent to the person it is about, and it lives beside the week's board
                 instead of being a second scorecard nobody could link to.
 
-                The filters go with it — whoever clicks has already chosen the period
-                and the shift they mean, and making them choose again on the far side
-                is how the two screens end up reporting different figures. */}
+                The dates go with it. The SHIFT deliberately does not: this screen opens
+                pinned to whichever shift is running now, and handing that over showed a
+                day leader looked up at night an empty card about somebody with a month
+                of actions behind them. See scorecardLinkPeriod. */}
             {leaderFilter !== "__all__" && (
               <Button asChild variant="outline" className="gap-1.5">
-                <Link to={scorecardPath(leaderFilter, { from: range.from, to: range.to, shift })}>
+                <Link to={scorecardPath(leaderFilter, scorecardLinkPeriod(range.from, range.to))}>
                   <Medal className="h-4 w-4" /> Scorecard
                 </Link>
               </Button>

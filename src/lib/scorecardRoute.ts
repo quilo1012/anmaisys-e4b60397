@@ -30,6 +30,24 @@ function isIsoDate(v: string | null | undefined): v is string {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
 }
 
+/**
+ * The period a screen hands to the scorecard: its dates, and deliberately not its shift.
+ *
+ * Production Performance opens pinned to the shift running right now — it never opens
+ * on "all". Passing that through meant a leader who works days, looked up during the
+ * night shift, showed "No quality action was raised against this leader in this
+ * period" about somebody with a month of actions behind them. It was not wrong so
+ * much as unanswerable: nothing on the card said a shift had been applied.
+ *
+ * A scorecard is about a person, and their actions are theirs on whichever shift they
+ * were raised. The card can still be narrowed to one shift — `?shift=NIGHT` is read
+ * back by `parseScorecardParams` — but that is now something you ask for, not
+ * something the clock decides for you.
+ */
+export function scorecardLinkPeriod(from: string, to: string): ScorecardPeriod {
+  return { from, to, shift: "all" };
+}
+
 /** The link the Production Performance button carries: this leader, this period. */
 export function scorecardPath(leader: string, period: ScorecardPeriod): string {
   const q = new URLSearchParams({ from: period.from, to: period.to });

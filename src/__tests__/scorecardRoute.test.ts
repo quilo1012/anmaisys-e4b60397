@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseScorecardParams, scorecardPath } from "@/lib/scorecardRoute";
+import { parseScorecardParams, scorecardPath, scorecardLinkPeriod } from "@/lib/scorecardRoute";
 
 /**
  * The scorecard has an address now, so the address has to be read defensively.
@@ -27,6 +27,28 @@ describe("scorecardPath", () => {
   it("leaves shift out of the address when no shift is selected", () => {
     expect(scorecardPath("Ailton", { from: "2026-08-01", to: "2026-08-01", shift: "all" }))
       .not.toContain("shift");
+  });
+});
+
+describe("scorecardLinkPeriod", () => {
+  /**
+   * The regression this exists for.
+   *
+   * Production Performance opens pinned to the shift running right now, never to
+   * "all". Handing that shift to the scorecard meant a leader who works days, opened
+   * during the night shift, showed "No quality action was raised against this leader
+   * in this period" — about a leader with a month of actions behind them. The card is
+   * about a person; their actions are theirs on whichever shift they were raised.
+   */
+  it("carries the dates and drops the screen's shift", () => {
+    expect(scorecardLinkPeriod("2026-08-01", "2026-08-17")).toEqual({
+      from: "2026-08-01", to: "2026-08-17", shift: "all",
+    });
+  });
+
+  it("produces a link with no shift in it", () => {
+    expect(scorecardPath("Ailton", scorecardLinkPeriod("2026-08-17", "2026-08-17")))
+      .toBe("/dashboard/leader-scorecard/Ailton?from=2026-08-17&to=2026-08-17");
   });
 });
 
