@@ -67,12 +67,30 @@ fronteira acima está errada e não se aplica nada até perceber porquê.
 (plural) fica `AUSENTE`, porque o passo 3 a larga de propósito. A que fica é
 `leader_scorecard_threshold`, no singular.
 
+O passo 6 recria `v_leader_weekly_scorecard` (e, por cima dela,
+`v_leader_weekly_scorecard_periods`, que faz `w.*`). Além das colunas do score, a view
+passa a expor `volume_source` — a coluna que o passo 3 acrescenta à tabela e que o ecrã
+escreve. Sem ela na view, o ecrã lia a semana sem o selo `derivado`/`manual` e a gravação
+seguinte escrevia `NULL` por cima dele. A coluna vai no **fim** da lista de select, para
+não mexer na ordem de nenhuma coluna já existente.
+
 O passo 8 é o único que não cria objetos: reescreve a política de escrita e o trigger da
 CAPA que `20260815140000` instala, para que preencher e aprovar deixem de ser a mesma permissão
 abaixo do ecrã (`scorecard.fill` inclui `production_office_admin`, `scorecard.approve`
 não) e para que uma aprovação tenha de ser assinada por quem a faz — `approved_by =
-auth.uid()`, e com papel que possa aprovar. Correr fora de ordem, antes de `20260815140000`, aborta
-com a mensagem a dizer qual é o ficheiro em falta, sem aplicar metade.
+auth.uid()`, e com papel que possa aprovar. Na política de UPDATE a regra está no `USING`
+**e** no `WITH CHECK`: sem a repetir no `USING`, um `production_office_admin` podia pôr
+`approved_at = NULL, approved_by = NULL` numa semana assinada — o `WITH CHECK` via um
+`NULL` e deixava passar, e o trigger sai logo à entrada quando `approved_at` é `NULL`.
+Consequência a saber de antemão: uma semana **já aprovada** deixa de ser editável por
+`production_office_admin`; a correcção passa por quem podia tê-la aprovado. Correr fora de
+ordem, antes de `20260815140000`, aborta com a mensagem a dizer qual é o ficheiro em falta,
+sem aplicar metade.
+
+Nota para quem correr `supabase/tests/scorecard_weighted_score_test.sql` depois do passo 8:
+esse ficheiro desliga `trg_scorecard_require_capa` durante **uma** instrução, para semear
+uma semana aprovada. No SQL Editor `auth.uid()` é `NULL`, e o teste semeia um estado — não
+simula um aprovador. O gate da CAPA continua a ser exercido a valer na asserção seguinte.
 
 ## O que a migração 6 não faz
 
