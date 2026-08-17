@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Target, Wrench, LogOut, Award } from "lucide-react";
+import { Target, Wrench, LogOut } from "lucide-react";
 import { getShift, SHIFT_LABEL } from "@/lib/shifts";
 
 export default function LineHubScreen() {
@@ -74,21 +74,9 @@ export default function LineHubScreen() {
           </div>
         </button>
 
-        {/* The leader's own door, not the line's.
-            A wide bar under the two working tiles rather than a third one beside
-            them: TARGET and REQUEST are what the line does all shift, and this is
-            what one person checks at the end of it. It asks for a PIN before it
-            shows anything. */}
-        <button
-          onClick={() => navigate("/dashboard/leader/scorecard")}
-          className="group md:col-span-2 bg-card border-2 border-border hover:border-primary rounded-3xl p-8 flex items-center justify-center gap-6 transition-all active:scale-95 shadow-xl"
-        >
-          <Award className="h-16 w-16 text-primary group-hover:scale-110 transition-transform" strokeWidth={1.5} />
-          <div className="text-left">
-            <div className="text-3xl font-black mb-1">MY SCORECARD</div>
-            <div className="text-wall-ink-muted text-lg">Line leaders — enter your PIN</div>
-          </div>
-        </button>
+        {/* A wide MY SCORECARD bar used to sit under these two tiles. The hub is back
+            to the two things the line does all shift: TARGET and REQUEST.
+            /dashboard/leader/scorecard is still there behind its PIN, just unlinked. */}
       </div>
     </div>
   );

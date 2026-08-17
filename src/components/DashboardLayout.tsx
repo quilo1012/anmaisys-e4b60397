@@ -57,8 +57,8 @@ export interface NavItem {
   /**
    * What the row is called on the phone's bottom bar, where the sidebar's width is
    * not available: each label is capped at 68px and truncated, which holds about
-   * eleven characters. Without it an operator saw "My Produc…" beside "My Scorec…",
-   * two ellipses differing in one letter. Omit it when the title already fits.
+   * eleven characters. Without it a row renders as "My Produc…" or "Control Cent…" —
+   * an ellipsis where the distinguishing word was. Omit it when the title already fits.
    */
   shortTitle?: string;
   url: string;
@@ -72,13 +72,10 @@ export const navItems: NavItem[] = [
   // Overview
   { title: "Operator Panel", shortTitle: "Panel", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
   { title: "My Production", shortTitle: "Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview", action: "production.target.view" },
-  // For the line leader standing at the tablet, not for the line account it is signed
-  // in as. It carries no `action` on purpose: leaders have no account in this system,
-  // so there is no role the permission matrix could answer for, and an action here
-  // would hide the row from the only people it is for. The route is open for the same
-  // reason; the PIN is the gate, and the database checks it. Third in the list rather
-  // than last because the bottom bar on a phone renders only the first three.
-  { title: "My Scorecard", shortTitle: "Scorecard", url: "/dashboard/leader/scorecard", icon: Award, roles: ["operator"], group: "Overview" },
+  // "My Scorecard" used to sit here, third so it landed in the phone's bottom bar.
+  // The operator's screen no longer offers it at all — neither here nor as a tile on
+  // the line hub. /dashboard/leader/scorecard still exists and still asks for the PIN;
+  // it just has no link pointing at it from the tablet.
   { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer", "co_engineer"], group: "Overview", action: "dashboard.engineer" },
   // "My Tasks" and "History" used to sit here as separate entries. Both opened the
   // same page as Dashboard and only scrolled to a section of it, so the menu offered

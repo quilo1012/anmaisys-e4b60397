@@ -146,35 +146,14 @@ describe("sidebar", () => {
     }
   });
 
-  it("offers the line leader their own scorecard from the operator sidebar", () => {
-    // The leader standing at the tablet is not the account it is signed in as. Their
-    // only way to their own card used to be a button halfway down the operator panel,
-    // in the header of the maintenance-orders card — reachable only by scrolling past
-    // the form, on the one screen whose whole job is the form.
+  it("keeps the leader scorecard out of the operator's navigation", () => {
+    // The operator's screen offers no door to the leader scorecard — it was removed
+    // from here and from the line hub's tiles on the same pass. The route itself is
+    // still live and still gated by the PIN (leader_self_scorecard checks it in the
+    // database); what went away is the link. Re-adding a row here is a product
+    // decision, not a cleanup.
     const item = navItems.find((i) => i.url === "/dashboard/leader/scorecard");
-    expect(item, "the leader scorecard is not in the sidebar at all").toBeTruthy();
-    expect(item!.roles).toEqual(["operator"]);
-  });
-
-  it("leaves the leader scorecard ungated by the permission matrix", () => {
-    // Every other operator row names an action and is filtered on can(). This one
-    // cannot: line leaders have no account here — leader_pins is a name and a PIN
-    // hash — and the tablet is signed in as its line rather than as a person, so
-    // there is no role the matrix could answer for. The route is deliberately open
-    // for the same reason (App.tsx), and the gate is the PIN, checked in the
-    // database by leader_self_scorecard. An action added here would hide the link
-    // from the only people it is for.
-    const item = navItems.find((i) => i.url === "/dashboard/leader/scorecard");
-    expect(item!.action).toBeUndefined();
-  });
-
-  it("keeps the leader scorecard within the operator's first three rows", () => {
-    // On a phone the sidebar is a drawer and the bottom bar is the menu — and the bar
-    // renders filteredItems.slice(0, 3). A fourth row here is not a smaller link, it
-    // is one behind a hamburger. The leader has a phone or a tablet in their hand.
-    const operatorItems = navItems.filter((i) => i.roles.includes("operator"));
-    const titles = operatorItems.slice(0, 3).map((i) => i.title);
-    expect(titles, "My Scorecard dropped out of the mobile tab bar").toContain("My Scorecard");
+    expect(item, "the leader scorecard is back in the operator sidebar").toBeUndefined();
   });
 
   it("gives every bottom-bar row a label that fits without truncating", () => {

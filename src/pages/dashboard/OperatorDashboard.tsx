@@ -738,10 +738,9 @@ function OperatorDashboardContent() {
                 <Factory className="h-4 w-4 mr-2" />
                 My Production
               </Button>
-              {/* My Scorecard used to sit here, beside My Production. It moved to the
-                  sidebar, where the leader can reach it without scrolling past the form
-                  this page exists for. Two doors into one room is what folding My Tasks
-                  and History into Dashboard was meant to end. */}
+              {/* My Scorecard used to sit here, beside My Production; then in the
+                  sidebar. It is off the operator's screen entirely now — the route
+                  survives, the links do not. */}
             </div>
           </div>
         </CardHeader>
