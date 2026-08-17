@@ -100,7 +100,13 @@ export function LineIndicators({
 
     // Same rule as the leader table, the chart and the scorecard — one function, so
     // a line's points and its leader's points can never tell different stories.
-    for (const q of linePointsBreakdown(quality, excluded)) {
+    // `linePointsBreakdown` prices a safety row at 0 already, but its `openActions`
+    // count does not know about domains — it breaks down whatever list it is given.
+    // Deciding what belongs in that list is the call site's job (same ruling as
+    // `qualityOnly` in QualityActionsPage), so a near miss is filtered out here
+    // before it can show up as an open quality action on this line.
+    const qualityOnly = quality.filter((a) => a.domain !== "safety");
+    for (const q of linePointsBreakdown(qualityOnly, excluded)) {
       const e = seed(q.line);
       e.qualityPoints = q.qualityPoints;
       e.openActions = q.openActions;
