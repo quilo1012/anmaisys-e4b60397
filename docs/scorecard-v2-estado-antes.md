@@ -1,7 +1,16 @@
 # Estado da base ANTES de aplicar o scorecard v2
 
+> **ATENÇÃO — esta medição pode ser à base errada.** Existem DOIS projectos Supabase
+> vivos: `ybtrzqzliepknpzqdajx`, que é o que está no `.env` e no `supabase/config.toml` e
+> o único contra o qual isto foi medido; e `apblxaaktftinstoidvp`, que responde igualmente
+> e **não aparece em nenhum ficheiro deste repositório nem no histórico do git**. Qual
+> deles a aplicação publicada usa não está resolvido: este projecto é Lovable Cloud, e o
+> Lovable injecta as suas próprias variáveis no build, fora do repositório. Se o vivo for
+> o segundo, tudo o que se segue descreve um projecto que ninguém usa, e a conclusão
+> "nada do módulo chegou à base" fica por provar para o que conta.
+
 Medido em 2026-08-17 11:29 contra o PostgREST de `ybtrzqzliepknpzqdajx`, com a chave
-pública do `.env`. Equivalente parcial do passo 1 de `scorecard-v2-apply.md`: o
+pública do `.env` (cujo JWT confirma `ref: ybtrzqzliepknpzqdajx`, `role: anon`). Equivalente parcial do passo 1 de `scorecard-v2-apply.md`: o
 verificador SQL consulta `pg_catalog` e `information_schema`, o que a chave pública não
 permite, por isso cada objecto foi sondado pela via REST.
 
