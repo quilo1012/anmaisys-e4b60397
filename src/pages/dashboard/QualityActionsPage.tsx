@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import { writeOptionalDomain } from "@/lib/writeOptionalDomain";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -347,14 +348,21 @@ export function QualityActionsView() {
       const leader = leaders.find((l) => l.id === form.leader_id);
       const recorded_at = new Date(`${form.date || todayISO()}T12:00:00`).toISOString();
       const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at);
+      // `domain` and `safety_kind` arrive with 20260817090000, and PostgREST refuses
+      // the whole write for one unknown column. A quality action is saved without
+      // them; a safety one is refused rather than filed as a quality action. See
+      // src/lib/writeOptionalDomain.ts for why those two are not the same case.
       if (editingId) {
-        const { error } = await supabase.from("quality_actions").update(payload as never).eq("id", editingId);
+        const { error } = await writeOptionalDomain(payload, (p) =>
+          supabase.from("quality_actions").update(p as never).eq("id", editingId),
+        );
         if (error) throw error;
       } else {
         const { data: u } = await supabase.auth.getUser();
-        const { error } = await supabase.from("quality_actions").insert({
-          ...payload, action_type_id: null, recorded_by: u.user?.id ?? null,
-        } as never);
+        const insertPayload = { ...payload, action_type_id: null, recorded_by: u.user?.id ?? null };
+        const { error } = await writeOptionalDomain(insertPayload, (p) =>
+          supabase.from("quality_actions").insert(p as never),
+        );
         if (error) throw error;
       }
     },
