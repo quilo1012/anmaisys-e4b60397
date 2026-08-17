@@ -305,13 +305,37 @@ END $$;
 -- ==============================================================
 -- O gate da CAPA continua a valer com o score por cima dele
 -- ==============================================================
+-- A semana com Fail (W3) tem CAPA preenchida e fica aprovada.
+--
+-- O trigger e desligado SO para esta instrucao, e por um motivo estreito: desde
+-- 20260820090000_filling_a_week_is_not_approving_it.sql uma aprovacao tem de ser assinada
+-- por quem a faz (NEW.approved_by = auth.uid()). Este ficheiro corre no SQL Editor como
+-- `postgres`, onde auth.uid() e NULL — e este UPDATE nao simula um aprovador: SEMEIA um
+-- estado aprovado para que a assercao seguinte possa exercer o gate da CAPA. Com o trigger
+-- activo levantaria check_violation, e fora de um bloco BEGIN … EXCEPTION isso aborta o DO
+-- inteiro e poe a transacao em erro: 'ALL TESTS PASSED' nunca chegaria a imprimir.
+--
+-- O que se testa a seguir continua a ser testado a valer: a assinatura so e exigida quando
+-- a aprovacao e feita ou alterada (_approval_changed), e o UPDATE de root_cause abaixo nao
+-- toca em approved_by/approved_at — logo passa pelo trigger LIGADO e e o gate da CAPA
+-- original que dispara.
+ALTER TABLE public.leader_weekly_scorecard DISABLE TRIGGER trg_scorecard_require_capa;
+
+UPDATE public.leader_weekly_scorecard
+   SET approved_by = '44444444-4444-4444-4444-444444444401', approved_at = now()
+ WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-19';
+
+ALTER TABLE public.leader_weekly_scorecard ENABLE TRIGGER trg_scorecard_require_capa;
+
 DO $$
 DECLARE _ok boolean := false;
 BEGIN
-  -- A semana com Fail (W3) tem CAPA preenchida e pode ser aprovada.
-  UPDATE public.leader_weekly_scorecard
-     SET approved_by = '44444444-4444-4444-4444-444444444401', approved_at = now()
-   WHERE leader_id = '44444444-4444-4444-4444-444444444401' AND week_ending = '2026-07-19';
+  -- A semana ficou mesmo aprovada: sem isto a assercao seguinte passaria por engano,
+  -- porque o trigger devolve NEW logo a entrada quando approved_at e NULL.
+  PERFORM pg_temp.expect_true('a semana com Fail ficou semeada como aprovada', EXISTS (
+    SELECT 1 FROM public.leader_weekly_scorecard
+     WHERE leader_id = '44444444-4444-4444-4444-444444444401'
+       AND week_ending = '2026-07-19' AND approved_at IS NOT NULL));
 
   -- A mesma semana sem a investigacao escrita nao pode.
   BEGIN
