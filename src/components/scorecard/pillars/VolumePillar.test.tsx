@@ -50,6 +50,10 @@ function renderHarness(initial?: Partial<ScorecardEntryDraft>, onDraftChange?: (
 beforeEach(() => {
   mockRpcData = null;
   mockRpcError = null;
+  // Radix's select needs these; jsdom has neither.
+  Element.prototype.scrollIntoView = vi.fn();
+  Element.prototype.hasPointerCapture = vi.fn(() => false);
+  Element.prototype.releasePointerCapture = vi.fn();
 });
 
 describe("VolumePillar", () => {
@@ -121,5 +125,82 @@ describe("VolumePillar", () => {
     await screen.findByText(/production recorded 950/i);
     fireEvent.change(actual, { target: { value: "950" } });
     expect(await screen.findByText("From RAG Weekly")).toBeInTheDocument();
+  });
+
+  it("marks a hand-typed volume manual even when production offered nothing at all", async () => {
+    // The case volume_source was written for: no row from the RPC, so the number
+    // in the box came from a person and nowhere else. The old guard
+    // (`if (field === "actual_volume" && derived)`) left the column null here.
+    mockRpcData = null;
+    const onDraftChange = vi.fn();
+    renderHarness(undefined, onDraftChange);
+    await waitFor(() => expect(screen.getByText(/nothing recorded/i)).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Actual volume"), { target: { value: "1000" } });
+
+    await waitFor(() => expect(onDraftChange).toHaveBeenCalled());
+    const last = onDraftChange.mock.calls[onDraftChange.mock.calls.length - 1][0] as ScorecardEntryDraft;
+    expect(last.volume_source).toBe("manual");
+  });
+
+  it("marks a hand-typed volume manual when the lookup itself failed", async () => {
+    mockRpcError = new Error('function "scorecard_derived_volume" does not exist');
+    const onDraftChange = vi.fn();
+    renderHarness(undefined, onDraftChange);
+    expect(await screen.findByText(/could not check what production recorded/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Actual volume"), { target: { value: "1000" } });
+
+    await waitFor(() => expect(onDraftChange).toHaveBeenCalled());
+    const last = onDraftChange.mock.calls[onDraftChange.mock.calls.length - 1][0] as ScorecardEntryDraft;
+    expect(last.volume_source).toBe("manual");
+  });
+
+  it("clearing the volume clears its source too, rather than leaving a stale stamp", async () => {
+    mockRpcData = null;
+    const onDraftChange = vi.fn();
+    renderHarness({ actual_volume: 1000, volume_source: "manual" }, onDraftChange);
+    await waitFor(() => expect(screen.getByText(/nothing recorded/i)).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText("Actual volume"), { target: { value: "" } });
+
+    await waitFor(() => expect(onDraftChange).toHaveBeenCalled());
+    const last = onDraftChange.mock.calls[onDraftChange.mock.calls.length - 1][0] as ScorecardEntryDraft;
+    expect(last.volume_source).toBeNull();
+  });
+
+  it("offers the downtime reasons in English, never the database's raw Portuguese enum", async () => {
+    renderHarness();
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: " " });
+
+    const options = await screen.findAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Breakdown", "No raw material", "Mix changeover", "Short staffed", "Other", "Not applicable",
+    ]);
+    for (const raw of ["Quebra", "Falta de Materia Prima", "Troca de Mix", "Falta de Pessoal"]) {
+      expect(screen.queryByText(raw)).not.toBeInTheDocument();
+    }
+    // And none of the other table's vocabulary, which this enum rejects outright.
+    expect(screen.queryByText("Mechanical stop")).not.toBeInTheDocument();
+  });
+
+  it("writes the enum value the column accepts, not the label a person read", async () => {
+    const onDraftChange = vi.fn();
+    renderHarness(undefined, onDraftChange);
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: " " });
+
+    fireEvent.click(await screen.findByRole("option", { name: "No raw material" }));
+
+    await waitFor(() => expect(onDraftChange).toHaveBeenCalled());
+    const last = onDraftChange.mock.calls[onDraftChange.mock.calls.length - 1][0] as ScorecardEntryDraft;
+    expect(last.downtime_reason).toBe("Falta de Materia Prima");
+  });
+
+  it("bounds the numeric boxes the way the database does", () => {
+    renderHarness();
+    // CHECK (planned_volume > 0): a planned zero is not a plan.
+    expect(screen.getByLabelText("Planned volume")).toHaveAttribute("min", "1");
+    expect(screen.getByLabelText("Actual volume")).toHaveAttribute("min", "0");
+    expect(screen.getByLabelText("Unplanned downtime (minutes)")).toHaveAttribute("min", "0");
   });
 });

@@ -33,3 +33,24 @@ export function capaStatusLabel(status: string | null): string {
   };
   return status ? labels[status] ?? status : "—";
 }
+
+/**
+ * `scorecard_downtime_reason` is the same split as `capa_status`: the six enum
+ * values are DATA, in the database's Portuguese, and only the visible text is
+ * English. The dropdown that writes this column used to offer a vocabulary
+ * borrowed from `RecordMissedDowntime.tsx` ("Mechanical stop", "Leak", …) — a
+ * different table's words, which this enum rejects outright, making the field
+ * unusable. Sits beside `capaStatusLabel` so the two translations that face the
+ * same screen stay in one place and one shape.
+ */
+export function downtimeReasonLabel(reason: string | null): string {
+  const labels: Record<string, string> = {
+    Quebra: "Breakdown",
+    "Falta de Materia Prima": "No raw material",
+    "Troca de Mix": "Mix changeover",
+    "Falta de Pessoal": "Short staffed",
+    Outro: "Other",
+    NA: "Not applicable",
+  };
+  return reason ? labels[reason] ?? reason : "—";
+}

@@ -34,4 +34,25 @@ describe("MonitoredPillar", () => {
     }
     expect(screen.getAllByRole("spinbutton")).toHaveLength(4);
   });
+
+  it("asks for attendance as a fraction, the same way Health & Safety does", () => {
+    render(<Harness />);
+    for (const label of ["Leader attendance (0\u20131)", "Team attendance (0\u20131)"]) {
+      const input = screen.getByLabelText(label);
+      expect(input).toHaveAttribute("min", "0");
+      expect(input).toHaveAttribute("max", "1");
+      expect(input).toHaveAttribute("step", "0.01");
+    }
+    expect(screen.queryByLabelText("Leader attendance %")).not.toBeInTheDocument();
+  });
+
+  it("bounds the lateness counters at zero and leaves them whole", () => {
+    render(<Harness />);
+    for (const label of ["Leader lateness incidents", "Team lateness incidents"]) {
+      const input = screen.getByLabelText(label);
+      expect(input).toHaveAttribute("min", "0");
+      expect(input).toHaveAttribute("step", "1");
+      expect(input).not.toHaveAttribute("max");
+    }
+  });
 });

@@ -48,4 +48,25 @@ describe("HealthSafetyPillar", () => {
     render(<Harness verdict={{ hs_driver: [] }} />);
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
+
+  it("asks for the four percentages as the fractions the column actually holds", () => {
+    render(<Harness />);
+    // numeric(5,4) CHECK BETWEEN 0 AND 1, judged against fraction thresholds.
+    // A box labelled "%" invites 95 and the database refuses the whole row.
+    for (const label of ["PPE compliance (0\u20131)", "H&S training compliance (0\u20131)"]) {
+      const input = screen.getByLabelText(label);
+      expect(input).toHaveAttribute("min", "0");
+      expect(input).toHaveAttribute("max", "1");
+      expect(input).toHaveAttribute("step", "0.01");
+    }
+    expect(screen.queryByLabelText("PPE compliance %")).not.toBeInTheDocument();
+  });
+
+  it("bounds the counters at zero, as every CHECK on them does", () => {
+    render(<Harness />);
+    for (const label of ["Lost time injuries", "Reportable accidents", "First aid cases",
+      "Near misses reported", "Safety observations done", "Toolbox talks done", "Overdue H&S actions"]) {
+      expect(screen.getByLabelText(label)).toHaveAttribute("min", "0");
+    }
+  });
 });

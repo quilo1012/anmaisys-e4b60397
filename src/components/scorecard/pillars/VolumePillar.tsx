@@ -4,23 +4,35 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDerivedVolume } from "@/hooks/useDerivedVolume";
 import { sourceFor } from "@/lib/derivedVolume";
+import { downtimeReasonLabel } from "@/lib/capaGate";
 import { parseNullableNumber } from "@/lib/scorecardNumberInput";
-import type { ScorecardEntryDraft } from "@/lib/scorecardEntry";
+import type { DowntimeReason, ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import type { SetField } from "./types";
 
-// The same downtime vocabulary RecordMissedDowntime.tsx already offers for a line
-// stop, reused rather than invented a second time for the same fact.
-const DOWNTIME_REASONS = [
-  "Mechanical stop", "Electrical stop", "Leak", "Blender fault", "Filler fault",
-  "Capper fault", "Labeller issue", "Metal detector", "Waiting for parts",
+/**
+ * `public.scorecard_downtime_reason`, and nothing else — the column is that enum
+ * and refuses anything outside it. This list used to be the vocabulary
+ * `RecordMissedDowntime.tsx` offers ("Mechanical stop", "Leak", …), which writes
+ * a DIFFERENT table with a different column; every option here produced
+ * `invalid input value for enum scorecard_downtime_reason` and the field could
+ * not be used at all.
+ *
+ * The value written stays the database's Portuguese — that is DATA — and only
+ * the visible text is English, exactly as `CapaBlock.tsx` does with `capa_status`.
+ */
+const DOWNTIME_REASONS: DowntimeReason[] = [
+  "Quebra", "Falta de Materia Prima", "Troca de Mix", "Falta de Pessoal", "Outro", "NA",
 ];
 
 type NumericKey = "planned_volume" | "actual_volume" | "unplanned_downtime_minutes";
 
-const FIELDS: { key: NumericKey; label: string }[] = [
-  { key: "planned_volume", label: "Planned volume" },
-  { key: "actual_volume", label: "Actual volume" },
-  { key: "unplanned_downtime_minutes", label: "Unplanned downtime (minutes)" },
+// `planned_volume` carries CHECK (planned_volume > 0) — a planned zero is not a
+// plan — while actual volume and downtime are counts and may be zero. The bounds
+// are the database's, restated on the input so the box refuses before the row does.
+const FIELDS: { key: NumericKey; label: string; min: number }[] = [
+  { key: "planned_volume", label: "Planned volume", min: 1 },
+  { key: "actual_volume", label: "Actual volume", min: 0 },
+  { key: "unplanned_downtime_minutes", label: "Unplanned downtime (minutes)", min: 0 },
 ];
 
 /**
@@ -57,8 +69,15 @@ export function VolumePillar({
     // volume_pct is built from downstream. planned_volume and
     // unplanned_downtime_minutes are context for the RAG, not its input, so a
     // hand-typed plan or downtime figure never touches this column.
-    if (field === "actual_volume" && derived) {
-      setField("volume_source", sourceFor(value, derived.actual_volume));
+    //
+    // Stamped whether or not production offered anything. `volume_source` exists
+    // so that a hand-typed correction is visible in the audit instead of silent,
+    // and the case where production had NOTHING — the RPC returned no row, or
+    // failed — is precisely the case where a typed number is most manual.
+    // `sourceFor(1000, null)` already answers "manual"; guarding on `derived`
+    // threw that answer away and left the column null.
+    if (field === "actual_volume") {
+      setField("volume_source", sourceFor(value, derived?.actual_volume ?? null));
     }
   };
 
@@ -118,12 +137,14 @@ export function VolumePillar({
       ) : null}
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {FIELDS.map(({ key, label }) => (
+        {FIELDS.map(({ key, label, min }) => (
           <div key={key}>
             <Label htmlFor={`volume-${key}`} className="text-xs">{label}</Label>
             <Input
               id={`volume-${key}`}
               type="number"
+              min={min}
+              step={1}
               value={draft[key] ?? ""}
               onChange={(e) => handleChange(key, e.target.value)}
               className="mt-1 h-9"
@@ -135,12 +156,17 @@ export function VolumePillar({
 
       <div className="mt-3">
         <Label htmlFor="volume-downtime-reason" className="text-xs">Downtime reason</Label>
-        <Select value={draft.downtime_reason ?? undefined} onValueChange={(v) => setField("downtime_reason", v)}>
+        <Select
+          value={draft.downtime_reason ?? undefined}
+          onValueChange={(v) => setField("downtime_reason", v as DowntimeReason)}
+        >
           <SelectTrigger id="volume-downtime-reason" className="mt-1 h-9">
             <SelectValue placeholder="Select a reason" />
           </SelectTrigger>
           <SelectContent>
-            {DOWNTIME_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+            {DOWNTIME_REASONS.map((r) => (
+              <SelectItem key={r} value={r}>{downtimeReasonLabel(r)}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

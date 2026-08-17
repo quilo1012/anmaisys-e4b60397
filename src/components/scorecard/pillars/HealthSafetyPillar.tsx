@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { parseNullableNumber } from "@/lib/scorecardNumberInput";
+import { COUNT_INPUT, FRACTION_INPUT, fractionLabel, parseNullableNumber } from "@/lib/scorecardNumberInput";
 import type { ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import type { SetField } from "./types";
 
@@ -10,13 +10,15 @@ type NumKey =
   | "ppe_compliance_pct" | "hs_training_compliance_pct" | "overdue_hs_actions";
 
 function NumField({
-  id, label, value, onChange, caption,
+  id, label, value, onChange, caption, bounds = COUNT_INPUT,
 }: {
   id: string;
   label: string;
   value: number | null;
   onChange: (v: number | null) => void;
   caption?: string;
+  /** The database's own domain, restated on the box. Counters by default. */
+  bounds?: { min: number; max?: number; step: number };
 }) {
   return (
     <div>
@@ -24,6 +26,9 @@ function NumField({
       <Input
         id={id}
         type="number"
+        min={bounds.min}
+        max={bounds.max}
+        step={bounds.step}
         value={value ?? ""}
         onChange={(e) => onChange(parseNullableNumber(e.target.value))}
         className="mt-1 h-9"
@@ -76,8 +81,26 @@ export function HealthSafetyPillar({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <NumField id="hs-ppe" label="PPE compliance %" value={draft.ppe_compliance_pct} onChange={set("ppe_compliance_pct")} />
-        <NumField id="hs-training" label="H&S training compliance %" value={draft.hs_training_compliance_pct} onChange={set("hs_training_compliance_pct")} />
+        {/*
+          Fractions, not percentages: numeric(5,4) CHECK BETWEEN 0 AND 1, judged
+          against thresholds that are themselves fractions. Labelled (0-1) with
+          min/max/step from the one shared definition — a box that said "%" and
+          took 95 produced a row the database refused.
+        */}
+        <NumField
+          id="hs-ppe"
+          label={fractionLabel("PPE compliance")}
+          value={draft.ppe_compliance_pct}
+          onChange={set("ppe_compliance_pct")}
+          bounds={FRACTION_INPUT}
+        />
+        <NumField
+          id="hs-training"
+          label={fractionLabel("H&S training compliance")}
+          value={draft.hs_training_compliance_pct}
+          onChange={set("hs_training_compliance_pct")}
+          bounds={FRACTION_INPUT}
+        />
         <NumField id="hs-overdue" label="Overdue H&S actions" value={draft.overdue_hs_actions} onChange={set("overdue_hs_actions")} />
       </div>
 
