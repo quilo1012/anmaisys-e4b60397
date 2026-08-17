@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingColumn } from "@/lib/postgrestErrors";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, setLabelPoints } from "@/lib/qualityConstants";
 
 export interface QualityOption {
@@ -13,8 +14,6 @@ export interface QualityOption {
   points: number;
 }
 
-/** Postgres for "no such column" — the only error we are willing to paper over. */
-const UNDEFINED_COLUMN = "42703";
 
 /**
  * The options, asked for with `points` and again without it if the column is not
@@ -35,7 +34,7 @@ async function selectOptions(columns: string, order: (q: OptionQuery) => OptionQ
   const table = (): OptionQuery => (supabase as unknown as { from: (t: string) => OptionQuery }).from("quality_options");
   const withPoints = await order(table().select(`${columns}, points`));
   if (!withPoints.error) return { rows: withPoints.data ?? [], priced: true };
-  if (withPoints.error.code !== UNDEFINED_COLUMN) throw withPoints.error;
+  if (!isMissingColumn(withPoints.error)) throw withPoints.error;
   const plain = await order(table().select(columns));
   if (plain.error) throw plain.error;
   return { rows: plain.data ?? [], priced: false };
