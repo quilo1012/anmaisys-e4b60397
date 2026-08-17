@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardList, LayoutDashboard, Users, Timer, Activity, Package, BarChart3, Trophy, Award, TrendingUp, TrendingDown, Printer, FileText, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
-import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
 import { useEngineerScores } from "@/hooks/useEngineerScores";
 import { useAllWoMetrics } from "@/hooks/useWoMetrics";
@@ -146,8 +145,6 @@ export default function AnalyticsPage() {
   // Range pushed server-side: without it the hook caps at the 200 newest orders
   // and every widget below silently reported on a truncated set.
   const { data: rawWOs, isLoading: woLoading } = useWorkOrders({ from: startDate, to: endDate });
-  const { data: partsToday } = useTotalPartsUsedToday();
-  const { data: products, isLoading: productsLoading } = useProducts();
   const { data: machines, isLoading: machinesLoading } = useMachines();
   const { data: linesData } = useLines();
   // The stored scores are no longer what ranks anybody — the ranking is computed
@@ -521,7 +518,6 @@ export default function AnalyticsPage() {
   // "No activity in selected period", which is two different claims in one card.
   const { open: openCount, inProgress: inProgressCount, completed: completedCount } =
     woStatusCounts(allWOs ?? []);
-  const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
   const hasNoActivity = !woLoading && !!rawWOs && (allWOs?.length ?? 0) === 0;
 
   // Single source of truth for Response / MTTR / MTBF — shared with Executive Dashboard.
@@ -602,75 +598,12 @@ export default function AnalyticsPage() {
     return Object.entries(pc).map(([priority, count]) => ({ priority, count }));
   }, [allWOs]);
 
-  const { data: partsCountData } = useQuery({
-    queryKey: ["parts_used_counts_all"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("parts_used").select("work_order_id") as any;
-      if (error) throw error;
-      const set = new Set((data as any[]).map((d: any) => d.work_order_id));
-      return set;
-    },
-  });
-
-  const noPartsPercent = useMemo(() => {
-    if (!allWOs || !partsCountData) return 0;
-    const done = allWOs.filter((w) => DONE_STATUSES.includes(w.status));
-    if (!done.length) return 0;
-    const noParts = done.filter((w) => !partsCountData.has(w.id));
-    return Math.round((noParts.length / done.length) * 100);
-  }, [allWOs, partsCountData]);
-
   // Map line_id -> line name
   const lineNameById = useMemo(() => {
     const m = new Map<string, string>();
     (linesData ?? []).forEach((l: any) => m.set(l.id, l.name));
     return m;
   }, [linesData]);
-
-  // Determine shift (day=06:00–18:00 Europe/London, else night) from an ISO timestamp
-  const getLondonShift = (iso: string | null | undefined): "day" | "night" | null => {
-    if (!iso) return null;
-    try {
-      const hourStr = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/London",
-        hour: "2-digit",
-        hour12: false,
-      }).format(new Date(iso));
-      const h = parseInt(hourStr, 10);
-      if (Number.isNaN(h)) return null;
-      return h >= 6 && h < 18 ? "day" : "night";
-    } catch {
-      return null;
-    }
-  };
-
-  const downtimeByMachine = useMemo(() => {
-    if (!allWOs) return [];
-    const map: Record<string, { day: number; night: number; lines: Set<string> }> = {};
-    allWOs.filter((w) => DONE_STATUSES.includes(w.status)).forEach((wo: any) => {
-      const m = metricsById.get(wo.id);
-      if (!m || typeof m.active_repair_sec !== "number") return;
-      const repair = m.active_repair_sec / 60;
-      const lineName = wo.line_id ? lineNameById.get(wo.line_id) : null;
-      const key = (wo.machine && wo.machine.trim()) || lineName || "Unassigned";
-      if (!map[key]) map[key] = { day: 0, night: 0, lines: new Set() };
-      const shift = getLondonShift(wo.line_stopped_at || wo.started_at || wo.created_at);
-      if (shift === "day") map[key].day += repair;
-      else if (shift === "night") map[key].night += repair;
-      else map[key].day += repair; // fallback bucket
-      if (lineName) map[key].lines.add(lineName);
-    });
-    return Object.entries(map)
-      .map(([machine, v]) => ({
-        machine,
-        day: Math.round(v.day),
-        night: Math.round(v.night),
-        total: Math.round(v.day + v.night),
-        lines: Array.from(v.lines).sort().join(", ") || "—",
-      }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-  }, [allWOs, metricsById, lineNameById]);
 
   const { data: downtimeRecords } = useDowntime();
 
@@ -856,7 +789,7 @@ export default function AnalyticsPage() {
           <Badge variant="secondary" className="text-xs">{allWOs?.length ?? 0} WOs in range</Badge>
         </ReportsFilterBar>
 
-        {(woLoading || machinesLoading || metricsLoading || scoresLoading || productsLoading) && !rawWOs && (
+        {(woLoading || machinesLoading || metricsLoading || scoresLoading) && !rawWOs && (
           <div className="space-y-6 print:hidden" aria-busy="true" aria-label="Loading analytics">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {Array.from({ length: 8 }).map((_, i) => (
