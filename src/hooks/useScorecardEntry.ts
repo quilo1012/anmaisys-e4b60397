@@ -1,0 +1,102 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { emptyDraft, type ScorecardEntryDraft, type ScorecardEntryVerdict } from "@/lib/scorecardEntry";
+
+/**
+ * One leader's one week: the draft they can edit, and the verdict the database
+ * computed for it. The verdict is read straight off `v_leader_weekly_scorecard` —
+ * nothing here derives a RAG, a fail type or a score. If the database disagrees
+ * with what this hook shows, the database is right and this hook has a bug.
+ *
+ * `as any` on both calls because neither `v_leader_weekly_scorecard` nor
+ * `leader_weekly_scorecard` is in the generated `src/integrations/supabase/types.ts`
+ * yet — their migration has not been applied to the database. Same escape as
+ * `useScorecardWeek.ts` and `useLeaderScoreWeights.ts:20`; drop the cast once the
+ * migration lands and the types are regenerated.
+ *
+ * Today the table does not exist, so every read errors. That is surfaced as
+ * `verdict.isError`/`verdict.error`, not swallowed into a blank draft — a blank
+ * week (nothing typed yet) and a failed query must stay distinguishable to
+ * whoever opens the drawer.
+ */
+export function useScorecardEntry(leaderId: string, lineId: string, weekEnding: string) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<ScorecardEntryDraft>(() => emptyDraft(leaderId, lineId, weekEnding));
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+
+  // Reset to a blank draft whenever the identity of the week changes, so a stale
+  // leader's numbers can't flash on screen while the new week's query is in flight.
+  useEffect(() => {
+    setDraft(emptyDraft(leaderId, lineId, weekEnding));
+  }, [leaderId, lineId, weekEnding]);
+
+  // O veredicto vem sempre da view. O ecra nunca o calcula.
+  const verdict = useQuery({
+    queryKey: ["scorecard-entry", leaderId, lineId, weekEnding],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- view not in generated types yet
+      const { data, error } = await (supabase as any)
+        .from("v_leader_weekly_scorecard")
+        .select("*")
+        .eq("leader_id", leaderId)
+        .eq("line_id", lineId)
+        .eq("week_ending", weekEnding)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) setDraft((d) => ({ ...d, ...data } as ScorecardEntryDraft));
+      return (data ?? null) as (ScorecardEntryVerdict & { id: string }) | null;
+    },
+  });
+
+  const save = useMutation({
+    mutationFn: async (next: ScorecardEntryDraft) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
+      const { error } = await (supabase as any)
+        .from("leader_weekly_scorecard")
+        .upsert(next, { onConflict: "leader_id,line_id,week_ending" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["scorecard-entry", leaderId, lineId, weekEnding] });
+      qc.invalidateQueries({ queryKey: ["scorecard-week", weekEnding] });
+    },
+    // A base e que manda: a mensagem do trigger da CAPA aparece tal como ela a escreveu.
+    onError: (e: { message: string }) => toast.error(e.message),
+  });
+
+  const setField = useCallback(<K extends keyof ScorecardEntryDraft>(key: K, value: ScorecardEntryDraft[K]) => {
+    setDraft((d) => {
+      const next = { ...d, [key]: value };
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => save.mutate(next), 400);
+      return next;
+    });
+  }, [save]);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  /**
+   * Grava ja, sem esperar pelo debounce. E o que submeter e aprovar usam: um carimbo de
+   * auditoria nao pode ficar 400 ms pendurado num temporizador que a gaveta a fechar
+   * cancela.
+   */
+  const saveNow = useCallback(async (fields: Partial<ScorecardEntryDraft>) => {
+    clearTimeout(timer.current);
+    const next = { ...draft, ...fields };
+    setDraft(next);
+    await save.mutateAsync(next);
+  }, [draft, save]);
+
+  return {
+    draft,
+    setField,
+    saveNow,
+    verdict: verdict.data ?? null,
+    isSaving: save.isPending,
+    isLoading: verdict.isLoading,
+    isError: verdict.isError,
+    error: verdict.error,
+  };
+}

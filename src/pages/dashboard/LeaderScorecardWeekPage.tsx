@@ -4,8 +4,9 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useScorecardWeek } from "@/hooks/useScorecardWeek";
-import { boardCounts, weekEndingFor } from "@/lib/scorecardWeek";
+import { boardCounts, weekEndingFor, type ScorecardBoardRow } from "@/lib/scorecardWeek";
 import { ScorecardWeekBoard } from "@/components/scorecard/ScorecardWeekBoard";
+import { ScorecardEntryDrawer } from "@/components/scorecard/ScorecardEntryDrawer";
 
 /**
  * The week's leader scorecard board: one row per leader assigned to a line,
@@ -22,6 +23,7 @@ export default function LeaderScorecardWeekPage() {
   const [weekEnding, setWeekEnding] = useState(() => weekEndingFor(new Date()));
   const { data: rows, isLoading, isError, error } = useScorecardWeek(weekEnding);
   const counts = useMemo(() => boardCounts(rows ?? []), [rows]);
+  const [open, setOpen] = useState<ScorecardBoardRow | null>(null);
 
   const shiftWeek = (days: number) => {
     const d = new Date(`${weekEnding}T00:00:00Z`);
@@ -59,7 +61,7 @@ export default function LeaderScorecardWeekPage() {
             </div>
           </div>
         ) : (
-          <ScorecardWeekBoard rows={rows ?? []} isLoading={isLoading} />
+          <ScorecardWeekBoard rows={rows ?? []} isLoading={isLoading} onOpen={setOpen} />
         )}
 
         {!isError && (
@@ -68,6 +70,8 @@ export default function LeaderScorecardWeekPage() {
           </footer>
         )}
       </div>
+
+      <ScorecardEntryDrawer row={open} weekEnding={weekEnding} onClose={() => setOpen(null)} />
     </DashboardLayout>
   );
 }
