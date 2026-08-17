@@ -32,6 +32,7 @@ import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QUALITY_STATUSES, actionPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
 import { rowMatchesShift } from "@/lib/shifts";
+import { woStatusCounts, DONE_STATUSES } from "@/lib/woStatusCounts";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { PointsPending } from "@/components/quality/PointsPending";
 import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
@@ -45,7 +46,6 @@ import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { selectOptionalDomain } from "@/lib/optionalDomain";
 
-const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
 
 const truncLabel = (s: string, max = 20) => s.length > max ? s.slice(0, max - 1) + "…" : s;
@@ -515,10 +515,12 @@ export default function AnalyticsPage() {
     },
   });
 
-  const today = new Date().toDateString();
-  const openCount = allWOs?.filter((w) => w.status === "open").length ?? 0;
-  const inProgressCount = allWOs?.filter((w) => w.status === "in_progress").length ?? 0;
-  const completedToday = allWOs?.filter((w) => DONE_STATUSES.includes(w.status) && (w.closed_at || w.completed_at || w.finished_at) && new Date(w.closed_at || w.completed_at || w.finished_at!).toDateString() === today).length ?? 0;
+  // Three readings of one set — the work orders raised in the selected period — so the
+  // row can be held against itself. "Completed Today" used to sit here counting the
+  // calendar day instead: with the period on last month it printed 0 directly above
+  // "No activity in selected period", which is two different claims in one card.
+  const { open: openCount, inProgress: inProgressCount, completed: completedCount } =
+    woStatusCounts(allWOs ?? []);
   const lowStockCount = products?.filter((p) => p.quantity <= p.min_stock).length ?? 0;
   const hasNoActivity = !woLoading && !!rawWOs && (allWOs?.length ?? 0) === 0;
 
@@ -876,7 +878,7 @@ export default function AnalyticsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
           <KpiCard accent="blue" icon={<ClipboardList className="h-4 w-4" />} label="Open WOs" value={openCount} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="indigo" icon={<LayoutDashboard className="h-4 w-4" />} label="In Progress" value={inProgressCount} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
-          <KpiCard accent="green" icon={<ClipboardList className="h-4 w-4" />} label="Completed Today" value={completedToday} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
+          <KpiCard accent="green" icon={<ClipboardList className="h-4 w-4" />} label="Completed" value={completedCount} sublabel={hasNoActivity ? "No activity in selected period" : undefined} />
           <KpiCard accent="muted" icon={<Users className="h-4 w-4" />} label="Total Users" value={userCount ?? 0} />
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
