@@ -54,14 +54,32 @@ export default function IntouchMachineMapPage() {
       return data ?? [];
     },
   });
+  // `line_id` vem com o nome de propósito. Esta página escolhia a máquina e a
+  // linha em dois dropdowns que nada confrontava — e nem sequer lia a linha a
+  // que cada máquina pertence, por isso não tinha como objectar. Foi assim que
+  // a "Label Issue" da Filler Line 1 abriu a WO-2026-000900 na GEL Line.
   const { data: machines = [] } = useQuery({
     queryKey: ["machines-names"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("machines").select("name").order("name");
+      const { data, error } = await supabase.from("machines").select("name, line_id").order("name");
       if (error) throw error;
       return data ?? [];
     },
   });
+  const lineNameById = new Map((lines as any[]).map((l: any) => [l.id as string, l.name as string]));
+  const machineLineById = new Map(
+    (machines as any[]).map((m: any) => [m.name as string, (m.line_id ?? null) as string | null]),
+  );
+  /** A linha do mapa contradiz a linha a que a máquina pertence? */
+  const conflictOf = (r: MapRow): string | null => {
+    if (!r.machine_name || !r.line_id) return null;
+    const owner = machineLineById.get(r.machine_name);
+    // Não saber não é discordar — a mesma regra que o poller aplica.
+    if (owner === undefined || owner === null || owner === r.line_id) return null;
+    return `"${r.machine_name}" pertence a ${lineNameById.get(owner) ?? "outra linha"}, `
+      + `não a ${lineNameById.get(r.line_id) ?? "esta linha"}. Enquanto assim estiver, `
+      + `nenhuma ordem automática é aberta para esta máquina.`;
+  };
 
   const syncFromIntouch = useMutation({
     mutationFn: async () => {
@@ -195,9 +213,20 @@ export default function IntouchMachineMapPage() {
                         >
                           <option value="">— none —</option>
                           {machines.map((m: any) => (
-                            <option key={m.name} value={m.name}>{m.name}</option>
+                            // A linha a que a máquina pertence, escrita ao lado
+                            // do nome: a escolha errada deixa de ser invisível
+                            // no momento em que é feita.
+                            <option key={m.name} value={m.name}>
+                              {m.name}{m.line_id && lineNameById.get(m.line_id) ? ` · ${lineNameById.get(m.line_id)}` : ""}
+                            </option>
                           ))}
                         </select>
+                        {conflictOf(r) && (
+                          <p className="mt-1 flex items-start gap-1 text-2xs text-destructive-strong">
+                            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span>{conflictOf(r)}</span>
+                          </p>
+                        )}
                       </td>
                       <td className="p-2">
                         <select

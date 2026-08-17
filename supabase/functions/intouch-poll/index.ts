@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { readStop, HEALTHY_STATUS } from "./stopReading.ts";
 import { pickRunningJob } from "./liveJob.ts";
+import { checkMachineLine } from "./mappingIntegrity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -758,6 +759,46 @@ Deno.serve(async (req) => {
       if (!m.line_id) {
         results.skipped.push(`${m.intouch_machine_name} (no line mapped)`);
         continue;
+      }
+
+      // Mapeada a uma linha, sim — mas à linha certa? A regra e o caso que a
+      // obrigou estão em `mappingIntegrity.ts`. Aqui só se lê o árbitro
+      // (`machines.line_id`) e se obedece: um mapa que se contradiz não diz
+      // onde a paragem foi, e uma ordem aberta na dúvida chama a manutenção a
+      // uma linha que está a trabalhar.
+      if (m.machine_name) {
+        try {
+          const { data: mach } = await admin
+            .from("machines").select("line_id").eq("name", m.machine_name).maybeSingle();
+          // Os nomes das duas linhas em conflito, só para a mensagem: quem a lê
+          // vai ao ecrã de mapeamento, e lá as linhas têm nome, não UUID.
+          const conflictIds = [m.line_id, mach?.line_id].filter(Boolean) as string[];
+          const { data: lnRows } = conflictIds.length
+            ? await admin.from("lines").select("id, name").in("id", conflictIds)
+            : { data: [] as Array<{ id: string; name: string }> };
+          const lineNameById = new Map((lnRows ?? []).map((l: any) => [l.id, l.name as string]));
+          const verdict = checkMachineLine({
+            machineName: m.machine_name,
+            mapLineId: m.line_id,
+            // `maybeSingle` devolve null quando não há linha nenhuma: isso é
+            // "a tabela não conhece a máquina", que a regra cala de propósito.
+            machineLineId: mach ? mach.line_id : undefined,
+            mapLineName: lineNameById.get(m.line_id) ?? null,
+            machineLineName: mach?.line_id ? lineNameById.get(mach.line_id) ?? null : null,
+          });
+          if (!verdict.ok) {
+            // Em `errors`, não em `skipped`: isto não é uma paragem que não dá
+            // ordem, é uma configuração partida que precisa de mão humana.
+            results.errors.push(`${m.intouch_machine_name}: ${verdict.reason}`);
+            continue;
+          }
+        } catch (e) {
+          // A verificação não pode ser ela própria um motivo para não abrir a
+          // ordem: se a leitura falhar, segue-se em frente como antes dela.
+          console.error("[intouch-poll] machine/line integrity check failed", {
+            machine: m.machine_name, error: (e as Error).message,
+          });
+        }
       }
 
       // Two reasons not to raise an order, and both have to be checked here rather
