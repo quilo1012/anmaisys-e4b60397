@@ -58,7 +58,7 @@ function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow;
           </div>
         </div>
       ) : isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p aria-live="polite" aria-busy="true" className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <ScorecardVerdict verdict={verdict} />
       )}

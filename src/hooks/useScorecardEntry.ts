@@ -25,6 +25,17 @@ export function useScorecardEntry(leaderId: string, lineId: string, weekEnding: 
   const qc = useQueryClient();
   const [draft, setDraft] = useState<ScorecardEntryDraft>(() => emptyDraft(leaderId, lineId, weekEnding));
   const timer = useRef<ReturnType<typeof setTimeout>>();
+  // Every write — debounced or `saveNow` — is chained behind whatever write is
+  // already in flight, rather than fired independently. A record this module
+  // audits cannot afford two upserts landing at the database out of send order:
+  // a bump-counter that just drops a stale *response* still lets the stale
+  // *request* reach Postgres first or last, unpredictably, and the row is
+  // whichever one the network happened to deliver last. Chaining instead means
+  // the next write's `mutateAsync` is simply never called until the previous one
+  // has settled, so completion order always equals send order, and `saveNow`
+  // (used to stamp submitted_by/approved_by) can never be overwritten by an
+  // earlier debounced save that was still in flight when it ran.
+  const pendingWrite = useRef<Promise<unknown>>(Promise.resolve());
 
   // Reset to a blank draft whenever the identity of the week changes, so a stale
   // leader's numbers can't flash on screen while the new week's query is in flight.
@@ -66,14 +77,31 @@ export function useScorecardEntry(leaderId: string, lineId: string, weekEnding: 
     onError: (e: { message: string }) => toast.error(e.message),
   });
 
+  /**
+   * Queues one write behind whatever is already pending, so two upserts for the
+   * same row can never be in flight at once — see the comment on `pendingWrite`
+   * above. The `.catch(() => {})` on the head of the chain only stops one
+   * write's rejection from breaking the chain for the *next* write; it does not
+   * swallow this call's own failure, which the caller still awaits/rejects on.
+   */
+  const enqueueSave = useCallback((next: ScorecardEntryDraft) => {
+    const chained = pendingWrite.current.catch(() => {}).then(() => save.mutateAsync(next));
+    pendingWrite.current = chained;
+    return chained;
+  }, [save]);
+
   const setField = useCallback(<K extends keyof ScorecardEntryDraft>(key: K, value: ScorecardEntryDraft[K]) => {
     setDraft((d) => {
       const next = { ...d, [key]: value };
       clearTimeout(timer.current);
-      timer.current = setTimeout(() => save.mutate(next), 400);
+      // Fire-and-forget from the timer's point of view — `save`'s own onError
+      // already toasts a failure — but still routed through the same queue as
+      // everything else, so a slow debounced write cannot outrun a `saveNow`
+      // that follows it.
+      timer.current = setTimeout(() => { void enqueueSave(next).catch(() => {}); }, 400);
       return next;
     });
-  }, [save]);
+  }, [enqueueSave]);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -81,13 +109,19 @@ export function useScorecardEntry(leaderId: string, lineId: string, weekEnding: 
    * Grava ja, sem esperar pelo debounce. E o que submeter e aprovar usam: um carimbo de
    * auditoria nao pode ficar 400 ms pendurado num temporizador que a gaveta a fechar
    * cancela.
+   *
+   * Clearing the *pending timer* only stops a write that has not fired yet. One
+   * that already has is in `pendingWrite`, and `enqueueSave` queues behind it —
+   * so a debounced save that started just before `saveNow` is called is still
+   * guaranteed to finish, and finish first, rather than racing this one and
+   * possibly landing after it.
    */
   const saveNow = useCallback(async (fields: Partial<ScorecardEntryDraft>) => {
     clearTimeout(timer.current);
     const next = { ...draft, ...fields };
     setDraft(next);
-    await save.mutateAsync(next);
-  }, [draft, save]);
+    await enqueueSave(next);
+  }, [draft, enqueueSave]);
 
   return {
     draft,
