@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { emptyDraft, type ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import { QualityPillar } from "./QualityPillar";
 
@@ -48,6 +48,30 @@ describe("QualityPillar", () => {
     render(<Harness verdict={{ quality_fail_type: "Not Done" }} />);
     expect(screen.getByText(/no product deviation to investigate/i)).toBeInTheDocument();
     expect(screen.queryByText(/a capa is required/i)).not.toBeInTheDocument();
+  });
+
+  it("names each group, so the three are told apart by more than their position", () => {
+    render(<Harness />);
+    // Three radio groups with the same three options: without an accessible name
+    // a screen reader announces three identical anonymous groups and the CCP
+    // check cannot be distinguished from the Starter check.
+    for (const name of ["CCP check", "Starter check", "Volume/weight check"]) {
+      const group = screen.getByRole("radiogroup", { name });
+      expect(group).toBeInTheDocument();
+      expect(within(group).getAllByRole("radio")).toHaveLength(3);
+    }
+  });
+
+  it("reaches each option through its group's name alone — no id fallback needed", () => {
+    render(<Harness />);
+    const starter = screen.getByRole("radiogroup", { name: "Starter check" });
+    const fail = within(starter).getByRole("radio", { name: "Fail" });
+
+    fireEvent.click(fail);
+    expect(fail).toBeChecked();
+    // The other two groups are untouched: the name really did select one group.
+    const ccp = screen.getByRole("radiogroup", { name: "CCP check" });
+    for (const radio of within(ccp).getAllByRole("radio")) expect(radio).not.toBeChecked();
   });
 
   it("shows neither sentence when the server has not flagged anything", () => {

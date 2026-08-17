@@ -37,8 +37,15 @@ export function QualityPillar({
       <div className="mt-3 flex flex-col gap-4">
         {CHECKS.map(({ key, label }) => (
           <div key={key}>
-            <Label className="text-xs">{label}</Label>
+            {/*
+              The group's accessible name. Without the id/aria-labelledby pair a
+              screen reader meets three anonymous groups of "Pass / Fail / Not
+              Done" and cannot tell the CCP check from the Starter one — on a
+              form that records food-safety checks, that is not a nicety.
+            */}
+            <Label id={`${key}-label`} className="text-xs">{label}</Label>
             <RadioGroup
+              aria-labelledby={`${key}-label`}
               className="mt-1 flex flex-row gap-4"
               value={draft[key] ?? ""}
               onValueChange={(v) => setField(key, v as CheckStatus)}

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 /**
  * The weekly leader scorecard board — `/dashboard/leader-scorecard`
@@ -51,14 +51,12 @@ test.describe.skip("leader scorecard week", () => {
     await page.getByRole("row").filter({ hasText: "To fill" }).first().click();
 
     // The three quality checks are radio groups with three states each —
-    // Pass / Fail / Not Done — none pre-selected (QualityPillar.tsx). The
-    // <RadioGroup> itself carries no accessible name (its visible Label is a
-    // plain sibling, not linked by htmlFor/aria-labelledby), so role+name
-    // cannot disambiguate "the CCP group" from "the Starter group" — see the
-    // report for this gap. Falling back to the ids the component itself
-    // assigns (`${key}-${opt}`), which is what QualityPillar.test.tsx does.
-    for (const key of ["ccp_check_status", "starter_check_status", "volume_weight_check_status"]) {
-      await page.locator(`[id="${key}-Pass"]`).check();
+    // Pass / Fail / Not Done — none pre-selected (QualityPillar.tsx). Each
+    // group carries its label as its accessible name (aria-labelledby), so
+    // role+name reaches them the way a screen-reader user does; the id-based
+    // fallback that used to be here existed only because that name was missing.
+    for (const group of ["CCP check", "Starter check", "Volume/weight check"]) {
+      await page.getByRole("radiogroup", { name: group }).getByRole("radio", { name: "Pass" }).check();
     }
 
     await page.getByRole("button", { name: "Submit", exact: true }).click();
@@ -78,7 +76,7 @@ test.describe.skip("leader scorecard week", () => {
     await page.goto("/dashboard/leader-scorecard");
     await page.getByRole("row").filter({ hasText: "To fill" }).first().click();
 
-    await page.locator('[id="ccp_check_status-Fail"]').check();
+    await page.getByRole("radiogroup", { name: "CCP check" }).getByRole("radio", { name: "Fail" }).check();
 
     // QualityPillar shows this sentence only once the server (not the
     // client) has flagged the week as a Fail.
@@ -105,11 +103,26 @@ test.describe.skip("leader scorecard week", () => {
     await expect(approve).toBeEnabled();
   });
 
+  test("no label in the drawer is broken mid-word", async ({ page }) => {
+    // index.css sets `overflow-wrap: anywhere` on every div and span inside
+    // `main`. A word too wide for its box is therefore not clipped and does not
+    // overflow — it is split wherever it runs out, and this repo has shipped
+    // "QUALIT Y" and "DOCUM ENTATIO N" that way. The drawer's own labels
+    // ("Unplanned downtime (minutes)", "H&S training compliance (0-1)") sit in
+    // a narrow three-column grid, which is exactly where it happens.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/dashboard/leader-scorecard");
+    await page.getByRole("row").filter({ hasText: "To fill" }).first().click();
+    await expect(page.getByRole("radiogroup", { name: "CCP check" })).toBeVisible();
+
+    await assertNoWordIsBroken(page, "leader scorecard drawer at 390px");
+  });
+
   test("a Not Done is not asked for a CAPA", async ({ page }) => {
     await page.goto("/dashboard/leader-scorecard");
     await page.getByRole("row").filter({ hasText: "To fill" }).first().click();
 
-    await page.locator('[id="ccp_check_status-Not Done"]').check();
+    await page.getByRole("radiogroup", { name: "CCP check" }).getByRole("radio", { name: "Not Done" }).check();
 
     // A different sentence for a different fact: Not Done is a discipline
     // gap, not a product deviation, and CapaBlock never renders for it.
@@ -123,3 +136,33 @@ test.describe.skip("leader scorecard week", () => {
     await expect(page.getByText(/cannot approve yet/i)).not.toBeVisible();
   });
 });
+
+/**
+ * No single word may be broken across lines.
+ *
+ * Width-based, not height-based: a word that had to be split occupies more
+ * horizontal space than the box it was laid into, so the sum of the rendered
+ * word's line rects exceeds the element's own width. Measuring rects rather than
+ * line tops keeps the assertion honest for a word that wraps into a box wide
+ * enough to hold it — the height-based version reads that as broken.
+ */
+async function assertNoWordIsBroken(page: Page, where: string) {
+  const broken = await page.evaluate(() => {
+    const out: string[] = [];
+    document.querySelectorAll<HTMLElement>("label, p, span, div, li").forEach((el) => {
+      const text = (el.textContent ?? "").trim();
+      // One word only: anything with a space is allowed to wrap between words.
+      if (!text || /\s/.test(text) || el.childElementCount > 0) return;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const rects = Array.from(range.getClientRects());
+      if (rects.length === 0) return;
+      // The word's full rendered width, against the width of the box holding it.
+      const rendered = rects.reduce((sum, r) => sum + r.width, 0);
+      const box = el.getBoundingClientRect().width;
+      if (rendered > box + 1) out.push(text);
+    });
+    return out;
+  });
+  expect(broken, `${where}: these words are split across lines`).toEqual([]);
+}
