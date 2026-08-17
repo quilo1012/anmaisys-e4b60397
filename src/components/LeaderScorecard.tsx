@@ -11,7 +11,7 @@ import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { DEFAULT_WEIGHTS } from "@/lib/leaderScore";
 import { shiftDateFetchRange } from "@/lib/shifts";
-import { isMissingColumn } from "@/lib/postgrestErrors";
+import { selectOptionalDomain } from "@/lib/optionalDomain";
 import {
   computeScorecard, EMPTY_RAW,
   type LSAction, type LSItem, type LSRagRow, type LSSession, type LSStatusChange, type LSWorkOrder,
@@ -67,32 +67,13 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
         return qy.order("recorded_at");
       };
 
-      /*
-       * Ask for `domain`, and settle for the log without it.
-       *
-       * `domain` arrives with 20260817090000, which had not run in production on 17/08.
-       * Naming a column PostgREST does not know rejects the ENTIRE query, so the card
-       * lost the whole quality log — not the one field — and reported "No quality
-       * action was raised against this leader" over four open ones, at Quality 100%.
-       *
-       * Dropping the column is the right reading rather than a patch: `domain` only
-       * ever tells `actionPoints()` to score a safety action at zero, and a base with
-       * no `domain` column has no safety actions to find — 20260817090000 is the same
-       * migration that creates them. Undefined therefore means "quality", which is
-       * what every row in such a base is. Same shape as `selectOptions` in
-       * useQualityOptions.ts, for the same reason.
-       *
-       * Only a missing column is forgiven. An RLS refusal or a dead connection still
-       * throws, and `readFailed` below turns it into a message instead of a zero.
-       *
-       * Delete once 20260817090000 is confirmed applied — it hides real schema drift.
-       */
-      const withDomain = await run(COLUMNS);
-      if (!withDomain.error) return (withDomain.data ?? []) as unknown as LSAction[];
-      if (!isMissingColumn(withDomain.error)) throw withDomain.error;
-      const plain = await run(COLUMNS.replace(", domain", ""));
-      if (plain.error) throw plain.error;
-      return (plain.data ?? []) as unknown as LSAction[];
+      // Asks for `domain` and settles for the log without it when the column has not
+      // been migrated — see selectOptionalDomain for why that is the right reading and
+      // not a workaround. A real failure still throws, and `readFailed` below turns it
+      // into a message rather than a zero.
+      const { data, error } = await selectOptionalDomain(COLUMNS, run);
+      if (error) throw error;
+      return (data ?? []) as unknown as LSAction[];
     },
   });
 

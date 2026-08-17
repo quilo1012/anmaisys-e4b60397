@@ -8,6 +8,7 @@ import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { PointsPending } from "@/components/quality/PointsPending";
 import { shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
+import { selectOptionalDomain } from "@/lib/optionalDomain";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columns newer than the generated types
 const db = supabase as any;
@@ -49,12 +50,19 @@ export function LineIndicators({
     queryKey: ["line-ind-quality", from, to, shift, leader],
     queryFn: async () => {
       const window = shiftDateFetchRange(from, to);
-      let q = db.from("quality_actions")
-        .select("line, severity, validation_status, closed_at, labels, shift, recorded_at, domain")
-        .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
-      if (shift && shift !== "ALL") q = q.eq("shift", shift);
-      if (leader) q = q.eq("leader_name", leader);
-      const { data, error } = await q;
+      // Asks for `domain`, settles without it until 20260817090000 runs — see
+      // selectOptionalDomain.
+      const { data, error } = await selectOptionalDomain(
+        "line, severity, validation_status, closed_at, labels, shift, recorded_at, domain",
+        (columns) => {
+          let q = db.from("quality_actions")
+            .select(columns)
+            .gte("recorded_at", window.gte).lte("recorded_at", window.lte);
+          if (shift && shift !== "ALL") q = q.eq("shift", shift);
+          if (leader) q = q.eq("leader_name", leader);
+          return q;
+        },
+      );
       if (error) throw error;
       // 'domain' is optional/undefined for rows recorded before the column existed
       // (read as quality — see `actionPoints`); without it here, a safety row's

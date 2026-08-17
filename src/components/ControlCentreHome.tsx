@@ -18,6 +18,7 @@ import { isValidatedPaperwork, sumActionPoints, standsAgainstLeader } from "@/li
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { AlertTriangle, Factory, ShieldCheck, ClipboardList, ArrowRight, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { selectOptionalDomain } from "@/lib/optionalDomain";
 
 /**
  * The factory in one screen, built only from numbers the system actually holds.
@@ -71,10 +72,16 @@ export function ControlCentreHome() {
     enabled: can("quality.view"),
     queryFn: async () => {
       const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-      const { data, error } = await (supabase as any)
-        .from("quality_actions")
-        .select("id, status, severity, labels, validation_status, line, leader_name, recorded_at, domain")
-        .gte("recorded_at", since);
+      // Asks for `domain`, settles for the tile without it until 20260817090000 runs —
+      // see selectOptionalDomain. Rejecting the whole query for that one column is what
+      // made this tile report "Open actions 0" over four open ones.
+      const { data, error } = await selectOptionalDomain(
+        "id, status, severity, labels, validation_status, line, leader_name, recorded_at, domain",
+        (columns) => (supabase as any)
+          .from("quality_actions")
+          .select(columns)
+          .gte("recorded_at", since),
+      );
       if (error) throw error;
       return (data ?? []) as Array<{
         id: string; status: string; severity: string | null; labels: string[] | null;

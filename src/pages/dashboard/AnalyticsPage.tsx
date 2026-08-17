@@ -43,6 +43,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { selectOptionalDomain } from "@/lib/optionalDomain";
 
 const DONE_STATUSES = ["completed", "closed", "finished"];
 const COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#10b981", "#6b7280"];
@@ -287,13 +288,19 @@ export default function AnalyticsPage() {
       // `domain` is newer than the generated Postgrest types, hence the cast — see
       // `actionPoints()` for why the column has to be here at all.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
-      range: (a, b) => (supabase as any)
-        .from("quality_actions")
-        .select("leader_name, severity, status, labels, validation_status, recorded_at, description, shift, domain")
-        .gte("recorded_at", startDate.toISOString())
-        .lte("recorded_at", endDate.toISOString())
-        .order("recorded_at", { ascending: true }).order("id", { ascending: true })
-        .range(a, b),
+      // Per page, not once: each `range` call is its own query, so each has to be able
+      // to fall back on a base where `domain` has not been migrated yet — see
+      // selectOptionalDomain.
+      range: (a, b) => selectOptionalDomain(
+        "leader_name, severity, status, labels, validation_status, recorded_at, description, shift, domain",
+        (columns) => (supabase as any)
+          .from("quality_actions")
+          .select(columns)
+          .gte("recorded_at", startDate.toISOString())
+          .lte("recorded_at", endDate.toISOString())
+          .order("recorded_at", { ascending: true }).order("id", { ascending: true })
+          .range(a, b),
+      ),
     }),
   });
 
