@@ -1,9 +1,23 @@
 # Passo 2 — aplicar, um bloco de cada vez
 
-Os oito ficheiros `.sql` desta pasta são o `docs/pending-migrations-apply.sql` partido
-pelas suas próprias fronteiras. Juntos reconstroem-no byte a byte — foi verificado, não
-presumido. Existem por um motivo prático: colar de um ficheiro de 3190 linhas obriga a
-procurar as fronteiras à vista, e é aí que alguém corre o bloco 6 antes do 5.
+Oito dos nove ficheiros `.sql` desta pasta são o `docs/pending-migrations-apply.sql`
+partido pelas suas próprias fronteiras. Os oito numerados 01–08 reconstroem-no byte a
+byte — foi verificado, não presumido. Existem por um motivo prático: colar de um ficheiro
+de 3190 linhas obriga a procurar as fronteiras à vista, e é aí que alguém corre o bloco 6
+antes do 5.
+
+**O nono, `05b`, não vem do `pending-migrations-apply.sql` — vem de lhe faltar.**
+`20260817120000_safety_has_its_own_labels` existe em `supabase/migrations/` mas escapou
+por completo ao ficheiro consolidado quando este foi montado. É ela que alarga o
+`quality_options_kind_check` para aceitar `safety_label`, o `kind` que a app escreve em
+`useQualityOptions.ts`. Sem ela, gravar um rótulo de segurança dá:
+
+```text
+new row for relation "quality_options" violates check constraint "quality_options_kind_check"
+```
+
+Aplicar os oito blocos e mais nada **não** corrige esse erro. Por isso `05b` está aqui, e
+por isso a contagem já não fecha com o ficheiro consolidado.
 
 **A ordem não é negociável.** O bloco 2 faz `DROP TABLE IF EXISTS
 public.leader_scorecard_thresholds` — a tabela que a v1 criava — e recria a tabela na
@@ -20,8 +34,8 @@ Há dois caminhos, e o segundo é o preferível quando existe.
 
 ### Caminho A — pedir ao Lovable (sempre disponível)
 
-Um bloco por mensagem, de 01 a 08, esperando que cada um termine antes de enviar o
-seguinte. Use o texto de [`PROMPT-LOVABLE.md`](PROMPT-LOVABLE.md) — está escrito para
+Um bloco por mensagem, de 01 a 08 — com o `05b` entre o 05 e o 06, na ordem em que o seu
+carimbo manda — esperando que cada um termine antes de enviar o seguinte. Use o texto de [`PROMPT-LOVABLE.md`](PROMPT-LOVABLE.md) — está escrito para
 impedir a única coisa que corre mal aqui: o agente do Lovable reescrever o SQL que lhe
 dão. Se ele "melhorar" o bloco 06, perde-se a correcção do teto de Health & Safety em
 Red; se reordenar, perde-se o backfill.
@@ -50,6 +64,7 @@ Se um falhar, pare e guarde a mensagem. Não salte para o seguinte.
 | 03 | `the_screen_asks_the_database` | 114 | `volume_source`, `scorecard_week_board`, `scorecard_derived_volume` |
 | 04 | `safety_shares_the_log_but_not_the_score` | 52 | `quality_actions.domain` e `safety_kind` |
 | 05 | `the_week_counts_its_own_safety` | 70 | `scorecard_safety_counts` |
+| 05b | `safety_has_its_own_labels` | 39 | o `kind` `safety_label` e os oito perigos — **em falta no ficheiro consolidado** |
 | 06 | `a_gate_is_a_ceiling_not_a_weight` | 1086 | o score 0-100 de duas camadas, os pesos versionados, os tetos |
 | 07 | `the_score_crosses_the_board_rpc` | 62 | as quatro colunas de score na RPC do quadro |
 | 08 | `filling_a_week_is_not_approving_it` | 247 | preencher deixa de ser aprovar: RLS e assinatura da aprovação |
