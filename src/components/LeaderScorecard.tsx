@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Download, Printer } from "lucide-react";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { DEFAULT_WEIGHTS } from "@/lib/leaderScore";
@@ -242,46 +242,32 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
   }, [profileNames]);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      <div className="min-w-0">
-        {/* The title and the two buttons are siblings, not nested. Lifting the dialog's
-            header out into the page left the buttons inside the <h2>, where they
-            inherited its column layout and dropped underneath the date instead of
-            sitting beside it — and a <button> inside a heading is not markup anybody
-            should have to explain to a screen reader either. */}
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <h2 className="flex flex-col text-lg font-semibold">
-            <span className="flex flex-col">
-              <span>{leaderName}</span>
-              {/* Stated, because every figure below is bounded by it — and because
-                  the card used to report from this date onward, with no end. */}
-              <span className="text-xs font-normal text-muted-foreground">
-                {from === to
-                  ? format(new Date(`${from}T00:00:00`), "dd MMM yyyy")
-                  : `${format(new Date(`${from}T00:00:00`), "dd MMM")} → ${format(new Date(`${to}T00:00:00`), "dd MMM yyyy")}`}
-                {shift !== "all" && ` · ${shift === "DAY" ? "Day" : "Night"} shift`}
-              </span>
-            </span>
-          </h2>
-          {/* Hidden rather than disabled: a printed or exported card outlives the screen
-              it came from, and a CSV of a failed read carries none of the warning above
-              with it. There is nothing here to take away yet. */}
-          <span className={`flex shrink-0 gap-2${readFailed ? " hidden" : ""}`}>
-              <Button size="sm" variant="outline" onClick={async () => {
-                const el = document.getElementById(SCORECARD_PRINT_ID);
-                try {
-                  if (el) await printElementAsDocument(el, `Leader Scorecard — ${leaderName ?? ""}`);
-                } catch (e: any) {
-                  toast.error(e?.message ?? "Could not open the print dialog.");
-                }
-              }}><Printer className="mr-1 h-4 w-4" />Print</Button>
-              <Button size="sm" variant="outline" onClick={() => downloadScorecardCsv(leaderName, period, result, nameOf)}>
-                <Download className="mr-1 h-4 w-4" />Export
-              </Button>
-            </span>
-        </div>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      {/* The toolbar sits above the card, and the card carries the figures. The name
+          and the period are the page's header now — printing them again here made the
+          reader check twice whether they were looking at two different things.
 
-        <div className="mt-4 min-w-0">
+          Hidden rather than disabled when a read failed: a printed or exported card
+          outlives the screen it came from, and a CSV of a failed read carries none of
+          the warning below with it. There is nothing here to take away yet. */}
+      {!readFailed && (
+        <div className="flex flex-wrap justify-end gap-2 print:hidden">
+          <Button size="sm" variant="outline" onClick={async () => {
+            const el = document.getElementById(SCORECARD_PRINT_ID);
+            try {
+              if (el) await printElementAsDocument(el, `Leader Scorecard — ${leaderName ?? ""}`);
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "Could not open the print dialog.");
+            }
+          }}><Printer className="mr-1 h-4 w-4" />Print</Button>
+          <Button size="sm" variant="outline" onClick={() => downloadScorecardCsv(leaderName, period, result, nameOf)}>
+            <Download className="mr-1 h-4 w-4" />Export
+          </Button>
+        </div>
+      )}
+
+      <Card className="print:border-0 print:shadow-none">
+        <CardContent className="min-w-0 p-4 sm:p-6 print:p-0">
           {/* Every figure below is weighted, and the quality score is a subtraction.
               Drawing it before attribution lands would show the leader a worse score
               than they have, then correct it — on the one screen where being wrong
@@ -313,8 +299,8 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
                 actionHref={(a) => `/dashboard/quality?action=${encodeURIComponent(a.id)}`}
               />
             : <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
