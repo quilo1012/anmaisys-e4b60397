@@ -31,6 +31,13 @@ FROM (
     ('leader_weekly_scorecard.volume_source','coluna',EXISTS (SELECT 1 FROM information_schema.columns
                                                               WHERE table_schema='public' AND table_name='leader_weekly_scorecard'
                                                                 AND column_name='volume_source'),                           '0816'),
+    -- A coluna existir na TABELA não prova que o ecrã a consegue ler de volta: se a
+    -- view não a expuser, o rascunho carrega-a nula e cada gravação apaga o carimbo
+    -- derivado/manual. Foi exactamente esse o defeito, e o verificador dava tudo
+    -- PRESENTE enquanto ele acontecia. Por isso a view é verificada à parte.
+    ('v_leader_weekly_scorecard.volume_source','coluna',EXISTS (SELECT 1 FROM information_schema.columns
+                                                              WHERE table_schema='public' AND table_name='v_leader_weekly_scorecard'
+                                                                AND column_name='volume_source'),                           '0818'),
     ('scorecard_derived_volume',           'função',  to_regproc('public.scorecard_derived_volume') IS NOT NULL,            '0816'),
     ('scorecard_week_board',               'função',  to_regproc('public.scorecard_week_board') IS NOT NULL,                '0816, substituída pela 0819'),
     -- 20260817090000_safety_shares_the_log_but_not_the_score.sql
