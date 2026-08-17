@@ -49,7 +49,7 @@ export default function LeaderScorecardWeekPage() {
         />
 
         {isError ? (
-          <div className="flex items-start gap-3 rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-strong">
+          <div role="alert" className="flex items-start gap-3 rounded border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-strong">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <div>
               <p className="font-medium">Could not load the week.</p>
