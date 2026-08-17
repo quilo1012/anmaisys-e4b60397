@@ -65,9 +65,19 @@ END $$;
 -- approved_at and approved_by together, so testing approved_at tests both.
 --
 -- One consequence, stated rather than discovered: an already-approved week can no
--- longer be edited by production_office_admin at all — any UPDATE of it would produce a
--- row still carrying the approval. That is the intended reading of a signed record. A
--- correction to an approved week goes through somebody who could have approved it.
+-- longer be edited by production_office_admin at all. That is the intended reading of a
+-- signed record. A correction to an approved week goes through somebody who could have
+-- approved it.
+--
+-- For UPDATE that sentence needs the predicate TWICE, on the OLD row and on the NEW one,
+-- and the first version of this migration only had it on the NEW one. WITH CHECK alone
+-- says "you may not leave an approval behind" — it says nothing about what you were
+-- allowed to pick up. So `UPDATE … SET approved_at = NULL, approved_by = NULL` sailed
+-- through: USING saw only the role, WITH CHECK saw approved_at IS NULL and was content,
+-- and the trigger returns early on a NULL approved_at. A filler could un-sign a week,
+-- edit it freely, and the record of who had signed it was gone. Repeating the conjunct in
+-- USING is what makes the paragraph above true instead of merely intended: the OLD row
+-- must be unsigned, or the writer must be somebody who could have signed it.
 --
 -- The SELECT policy from 20260815140000 ("Signed in reads weekly scorecard") is left
 -- exactly as it is: the card is discussed with the leader it is about, and reading was
@@ -96,11 +106,23 @@ CREATE POLICY "Management fills weekly scorecard"
 DROP POLICY IF EXISTS "Management updates weekly scorecard" ON public.leader_weekly_scorecard;
 CREATE POLICY "Management updates weekly scorecard"
   ON public.leader_weekly_scorecard FOR UPDATE TO authenticated
+  -- USING reads the row as it stands. A signed week is only writable by somebody who
+  -- could have signed it — otherwise un-approving is the way round every line below.
   USING (
-    public.has_role(auth.uid(), 'admin'::app_role)
-    OR public.has_role(auth.uid(), 'manager'::app_role)
-    OR public.has_role(auth.uid(), 'quality_supervisor'::app_role)
-    OR public.has_role(auth.uid(), 'production_office_admin'::app_role))
+    (
+      public.has_role(auth.uid(), 'admin'::app_role)
+      OR public.has_role(auth.uid(), 'manager'::app_role)
+      OR public.has_role(auth.uid(), 'quality_supervisor'::app_role)
+      OR public.has_role(auth.uid(), 'production_office_admin'::app_role)
+    )
+    AND (
+      approved_at IS NULL
+      OR public.has_role(auth.uid(), 'admin'::app_role)
+      OR public.has_role(auth.uid(), 'manager'::app_role)
+      OR public.has_role(auth.uid(), 'quality_supervisor'::app_role)
+    ))
+  -- WITH CHECK reads the row being left behind: a filler may write the week, but may not
+  -- leave an approval on it.
   WITH CHECK (
     (
       public.has_role(auth.uid(), 'admin'::app_role)
