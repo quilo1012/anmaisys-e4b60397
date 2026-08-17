@@ -180,6 +180,11 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div className="min-w-0">
+        {/* The title and the two buttons are siblings, not nested. Lifting the dialog's
+            header out into the page left the buttons inside the <h2>, where they
+            inherited its column layout and dropped underneath the date instead of
+            sitting beside it — and a <button> inside a heading is not markup anybody
+            should have to explain to a screen reader either. */}
         <div className="flex flex-wrap items-start justify-between gap-2">
           <h2 className="flex flex-col text-lg font-semibold">
             <span className="flex flex-col">
@@ -193,7 +198,8 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
                 {shift !== "all" && ` · ${shift === "DAY" ? "Day" : "Night"} shift`}
               </span>
             </span>
-            <span className="flex shrink-0 gap-2">
+          </h2>
+          <span className="flex shrink-0 gap-2">
               <Button size="sm" variant="outline" onClick={async () => {
                 const el = document.getElementById(SCORECARD_PRINT_ID);
                 try {
@@ -206,7 +212,6 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
                 <Download className="mr-1 h-4 w-4" />Export
               </Button>
             </span>
-          </h2>
         </div>
 
         <div className="mt-4 min-w-0">
