@@ -31,6 +31,16 @@ export type ScorecardEntryDraft = {
   capa_owner: string | null;
   capa_due_date: string | null;
   capa_status: string | null;
+  /**
+   * The audit trail. Written only through `saveNow` — never by `setField`/the
+   * debounce — because these are stamped by an action (Submit, Approve), not
+   * typed by hand. `submitted_by`/`approved_by` are auth user ids, not names;
+   * the drawer only needs to know "was this signed", not "by whom" to render.
+   */
+  submitted_by: string | null;
+  submitted_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
 };
 
 /** So os campos que a base calcula. O ecra le-os e nunca os produz. */
@@ -65,5 +75,6 @@ export function emptyDraft(leader_id: string, line_id: string, week_ending: stri
     leader_lateness_incidents: null, team_lateness_incidents: null,
     root_cause: null, corrective_action: null, capa_owner: null,
     capa_due_date: null, capa_status: null,
+    submitted_by: null, submitted_at: null, approved_by: null, approved_at: null,
   };
 }

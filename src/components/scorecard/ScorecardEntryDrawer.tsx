@@ -1,7 +1,14 @@
+import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useRole } from "@/hooks/useRole";
 import { useScorecardEntry } from "@/hooks/useScorecardEntry";
+import { approvalBlockers } from "@/lib/capaGate";
 import type { ScorecardBoardRow } from "@/lib/scorecardWeek";
+import { supabase } from "@/integrations/supabase/client";
+import { CapaBlock } from "./CapaBlock";
 import { ScorecardVerdict } from "./ScorecardVerdict";
 import { VolumePillar } from "./pillars/VolumePillar";
 import { QualityPillar } from "./pillars/QualityPillar";
@@ -39,7 +46,53 @@ export function ScorecardEntryDrawer({ row, weekEnding, onClose }: Props) {
 }
 
 function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow; weekEnding: string }) {
-  const { draft, setField, verdict, isLoading, isError, error } = useScorecardEntry(row.leader_id, row.line_id, weekEnding);
+  const { draft, setField, saveNow, verdict, isSaving, isLoading, isError, error } = useScorecardEntry(row.leader_id, row.line_id, weekEnding);
+  const { can } = useRole();
+  // Guards the click-to-getUser gap: `isSaving` only turns true once the write
+  // itself has started, so without this a second click during the (brief)
+  // `getUser()` await could fire a second submit/approve before the first has
+  // reached `saveNow` at all.
+  const [pendingAction, setPendingAction] = useState<"submit" | "approve" | null>(null);
+
+  const blockers = approvalBlockers(draft, verdict);
+  const alreadySubmitted = draft.submitted_at !== null;
+  const alreadyApproved = draft.approved_at !== null;
+
+  /**
+   * The database, not `getUser()` alone, decides whether this write is
+   * accepted — the trigger's rejection reaches the person through the same
+   * `save.onError` toast every other write in this drawer uses (see
+   * `useScorecardEntry.ts`). Here we only add the one check the trigger
+   * cannot make for us: that somebody IS signed in, so an approval is never
+   * attempted with a null `approved_by`.
+   */
+  const submit = async () => {
+    setPendingAction("submit");
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser?.id) {
+        toast.error("You must be signed in to submit this week.");
+        return;
+      }
+      await saveNow({ submitted_by: authUser.id, submitted_at: new Date().toISOString() }).catch(() => {});
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const approve = async () => {
+    setPendingAction("approve");
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser?.id) {
+        toast.error("You must be signed in to approve this week.");
+        return;
+      }
+      await saveNow({ approved_by: authUser.id, approved_at: new Date().toISOString() }).catch(() => {});
+    } finally {
+      setPendingAction(null);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -70,6 +123,47 @@ function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow;
           <HealthSafetyPillar draft={draft} setField={setField} verdict={verdict} />
           <MonitoredPillar draft={draft} setField={setField} />
           <ScorecardVerdict verdict={verdict} />
+          <CapaBlock draft={draft} setField={setField} verdict={verdict} />
+
+          <section className="flex flex-col gap-2 border-t pt-4">
+            <div className="flex flex-wrap gap-2">
+              {can("scorecard.fill") && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSaving || pendingAction !== null || alreadySubmitted}
+                  onClick={() => { void submit(); }}
+                >
+                  {alreadySubmitted ? "Submitted" : "Submit"}
+                </Button>
+              )}
+
+              {can("scorecard.approve") && (
+                <Button
+                  type="button"
+                  disabled={isSaving || pendingAction !== null || alreadyApproved || blockers.length > 0}
+                  onClick={() => { void approve(); }}
+                >
+                  {alreadyApproved ? "Approved" : "Approve"}
+                </Button>
+              )}
+            </div>
+
+            {/*
+              This list is what the trigger `scorecard_require_capa_before_approval`
+              will demand, computed client-side ONLY to warn before the attempt —
+              `approvalBlockers` mirrors the trigger, it does not replace it. If the
+              database ever disagrees, the toast from `save.onError` (the trigger's own
+              message) is what a person should believe.
+            */}
+            {can("scorecard.approve") && !alreadyApproved && blockers.length > 0 && (
+              <p className="text-xs text-destructive-strong">
+                Cannot approve yet — missing: {blockers.join(", ")}.
+              </p>
+            )}
+
+            {alreadySubmitted && <p className="text-xs text-muted-foreground">Submitted{alreadyApproved ? " and approved" : ""}.</p>}
+          </section>
         </>
       )}
     </div>
