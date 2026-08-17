@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Award, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays, TrendingUp } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays, TrendingUp } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,9 +108,9 @@ export const navItems: NavItem[] = [
   // Quality — with Headcount declared sixty lines below among the admin screens, so
   // it landed last with nothing near it to say why.
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Production", action: "rag.view" },
-  // Same roles as scorecard.fill in permissions.ts — quality_supervisor sees this
-  // one without seeing RAG Weekly, since the two actions are gated separately.
-  { title: "Leader scorecard", shortTitle: "Scorecard", url: "/dashboard/leader-scorecard", icon: Award, roles: ["admin", "manager", "quality_supervisor", "production_office_admin"], group: "Production", action: "scorecard.fill" },
+  // The leader scorecard has no row of its own: it is opened from Performance, on
+  // the leader the page is already filtered to, so the week and the shift travel
+  // with the link. A menu row would have opened it on nobody in particular.
   // Performance carried Gauge as well, so two adjacent rows opened with the same
   // icon and the icon column stopped telling the two apart. RAG Weekly keeps the
   // dial — it IS a red/amber/green reading; Performance is a trend against target.

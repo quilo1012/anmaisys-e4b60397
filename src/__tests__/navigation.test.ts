@@ -100,7 +100,6 @@ describe("sidebar", () => {
     const order = navItems.filter((i) => i.group === "Production").map((i) => i.title);
     expect(order).toEqual([
       "RAG Weekly",
-      "Leader scorecard",
       "Performance",
       "SKU Products",
       "Production Control",
