@@ -31,6 +31,7 @@ import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QUALITY_STATUSES, actionPoints, isValidatedPaperwork } from "@/lib/qualityConstants";
+import { rowMatchesShift } from "@/lib/shifts";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { PointsPending } from "@/components/quality/PointsPending";
 import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
@@ -154,10 +155,10 @@ export default function AnalyticsPage() {
     // Paged. PostgREST caps a select at 1000 rows and reports nothing — the request
     // succeeds and the rest of the period is simply absent, which on this page reads
     // as "quality got quieter" rather than "the page stopped counting".
-    queryFn: () => fetchAllRows<{ recorded_at: string; status: string | null; severity: string | null; line: string | null; department: string | null }>({
+    queryFn: () => fetchAllRows<{ recorded_at: string; status: string | null; severity: string | null; line: string | null; department: string | null; shift: string | null }>({
       range: (a, b) => supabase
         .from("quality_actions")
-        .select("recorded_at, status, severity, line, department")
+        .select("recorded_at, status, severity, line, department, shift")
         .gte("recorded_at", startDate.toISOString())
         .lte("recorded_at", endDate.toISOString())
         .order("recorded_at", { ascending: true }).order("id", { ascending: true })
@@ -166,10 +167,10 @@ export default function AnalyticsPage() {
   });
 
   const qa = useMemo(() => {
-    // Shift-filtered on recorded_at, so the Quality block agrees with the KPIs above.
-    const rows = shift === "ALL"
-      ? qaRows
-      : qaRows.filter((r) => londonShiftOf(r.recorded_at) === shift);
+    // Filtered on the action's own shift column, not on the hour it was written at.
+    // Guessing from `recorded_at` filed a night action typed up at 07:00 under DAY
+    // here while the scorecard, which reads the column, called it NIGHT.
+    const rows = qaRows.filter((r) => rowMatchesShift(r.shift, shift));
     const byStatus: Record<string, number> = {};
     const bySeverity: Record<string, number> = {};
     const byLine: Record<string, number> = {};
@@ -270,7 +271,7 @@ export default function AnalyticsPage() {
    * it is answered; a leader's card for a day cannot answer it without saying that the
    * numbers on it come from different months.
    */
-  const { data: periodActionRows = [] } = useQuery({
+  const { data: allPeriodActionRows = [] } = useQuery({
     queryKey: ["analytics-leader-period-actions", startDate.toISOString(), endDate.toISOString()],
     // Paged: this feeds the Quality and Documentation halves of every leader's score,
     // and a score computed off a partial set is a score that cannot be argued with.
@@ -295,6 +296,24 @@ export default function AnalyticsPage() {
         .range(a, b),
     }),
   });
+
+  /**
+   * The same rows, cut to the selected shift.
+   *
+   * This feeds the Quality and Documentation halves of every leader's score and the
+   * documentation panel below. It used to feed them the whole period whatever the
+   * filter said, while the production half beside it filtered server-side — so NIGHT
+   * gave a leader their night's output against a month of everybody's quality points,
+   * and the score mixed the two without saying so.
+   *
+   * Cut here rather than in the query on purpose: the fetch is paged for correctness
+   * and the rows are already in hand, so switching shift re-cuts what is cached
+   * instead of going back to the database for it.
+   */
+  const periodActionRows = useMemo(
+    () => allPeriodActionRows.filter((a) => rowMatchesShift(a.shift, shift)),
+    [allPeriodActionRows, shift],
+  );
 
   const leaderPerf = useMemo(() => {
     const normLine = (v: string | null | undefined) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, "");

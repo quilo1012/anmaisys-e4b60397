@@ -68,6 +68,26 @@ export function shiftSessionDate(recordedAt: string | Date, shift: string | null
 }
 
 /**
+ * Whether a row that carries its own shift column belongs to the selected shift.
+ *
+ * For rows that RECORD a shift — a quality action, a production session — as opposed
+ * to rows that only have a timestamp, where {@link getShift} is the right question.
+ * The distinction is not academic: a night action written up at 07:00 answers DAY by
+ * the clock and NIGHT by its column, and the column is the one a person filled in.
+ *
+ * Blank is neither shift, matching `actionsInPeriod`, which the leader scorecard has
+ * always used. Counting a blank in both would make DAY plus NIGHT exceed the total,
+ * and a screen whose halves outrun its whole is a screen nobody can reconcile.
+ */
+export function rowMatchesShift(
+  rowShift: string | null | undefined,
+  selected: "ALL" | "DAY" | "NIGHT",
+): boolean {
+  if (selected === "ALL") return true;
+  return String(rowShift ?? "").trim().toUpperCase() === selected;
+}
+
+/**
  * The window of timestamps that can hold a session date in [from, to].
  *
  * A night filed under `to` is still being written at 05:59 the following morning, so
