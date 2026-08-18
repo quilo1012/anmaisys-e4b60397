@@ -280,8 +280,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRole(null);
       setOwner(false);
       setIsOwner(false);
-    setOwner(false);
-    setIsOwner(false);
       setProfile(null);
       setAuthError(null);
     };
