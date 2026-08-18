@@ -1,164 +1,114 @@
-# Unify access control under the Permissions Matrix
+# Inventário do estado actual — perfis, rotas, acções, RLS e sidebar
 
-Goal: make `can(role, action)` the single source of truth applied at runtime for every route and every sidebar item, while guaranteeing no role loses access it has today and admin can never lock itself out.
+Relatório apenas. Nada foi alterado.
 
-## Guiding rules for the mapping
+## 1) Roles
 
-For each route we pick one Action from `ALL_ACTIONS` and, when the route's current `allowedRoles` is broader than the Action's MATRIX row, we widen the MATRIX row to the union `MATRIX[action] ∪ allowedRoles` (minus `admin`, always implicit). No MATRIX row is ever narrowed. `co_engineer` inherits `engineer` at the gate layer, so we don't need to add it to MATRIX rows where `engineer` is present.
+Enum `public.app_role` (12 valores): `admin, engineer, operator, manager, viewer, maintenance_manager, co_engineer, supervisor, planner, warehouse, quality_supervisor, production_office_admin`.
 
-Legend for the "MATRIX change" column: `=` no change, `+X` add role X to that MATRIX row.
+Armazenamento: tabela `public.user_roles (id, user_id, role)`. `public.profiles` NÃO tem coluna de role (colunas: id, name, email, active, shift, created_at, updated_at, last_seen_at, labor_rate, ui_preferences, production_line).
 
-## 1. Route → Action mapping (every route in `App.tsx`)
+Distribuição real hoje: admin=10, operator=12, engineer=2, quality_supervisor=2, maintenance_manager=1, warehouse=1. Os restantes 6 perfis existem no enum e na matriz mas não têm nenhum utilizador atribuído.
 
-| Route | Current `allowedRoles` | Action | Current MATRIX row | MATRIX change to preserve access |
-|---|---|---|---|---|
-| `/dashboard/operator` | admin, manager, operator, engineer, maintenance_manager | `dashboard.operator` | admin, operator | **+manager, +engineer, +maintenance_manager** |
-| `/dashboard/operator/my-production` | operator | `production.target.view` | admin, manager, supervisor, maintenance_manager, planner, operator | = (operator already in) |
-| `/dashboard/operator/performance` | operator | `production.performance.view` | admin, manager, supervisor, maintenance_manager, planner | **+operator** |
-| `/dashboard/warehouse` | warehouse, admin | *(no action — see Risks §1)* | — | keep `allowedRoles` fallback |
-| `/dashboard/engineer` | engineer, co_engineer, admin, manager, supervisor, maintenance_manager, planner | `dashboard.engineer` | admin, engineer, co_engineer | **+manager, +supervisor, +maintenance_manager, +planner** |
-| `/dashboard/manager` | admin, manager, supervisor, maintenance_manager, planner, viewer | `dashboard.manager` | admin, manager, supervisor, maintenance_manager, planner, viewer | = |
-| `/dashboard/analytics` | admin, manager, supervisor | `reports.analytics` | admin, manager, supervisor | = |
-| `/dashboard/financial` | admin | `reports.financial` | admin | = |
-| `/dashboard/work-orders` | admin, manager, supervisor, maintenance_manager, planner | `wo.view` | ALL + warehouse | = |
-| `/dashboard/machines` | admin, manager, supervisor, maintenance_manager, planner | `machines.view` | ALL | = |
-| `/dashboard/problems` | admin, manager, supervisor, maintenance_manager, planner | `problems.view` | ALL | = |
-| `/dashboard/control-center` | admin, manager, supervisor, maintenance_manager, planner | `controlcenter.view` | admin, manager, supervisor, maintenance_manager | **+planner** |
-| `/dashboard/machines/:name/history` | admin, manager, supervisor, maintenance_manager, planner | `machines.view` | ALL | = |
-| `/dashboard/audit-logs` | admin | `audit.view` | admin, manager, supervisor | = (narrower `allowedRoles`, but with new rule the gate becomes `can(admin,audit.view)`; **manager & supervisor GAIN access via matrix** — see Risks §2) |
-| `/dashboard/executive` | admin | `reports.executive` | admin | = |
-| `/dashboard/downtime` | admin, manager, supervisor, maintenance_manager, planner | `downtime.view` | ALL | = |
-| `/dashboard/preventive` | admin, manager, supervisor, engineer, co_engineer, maintenance_manager, planner | `pm.view` | admin, manager, supervisor, maintenance_manager, engineer, co_engineer | **+planner** |
-| `/dashboard/reliability` | admin, manager, supervisor, maintenance_manager, planner | `reports.analytics` | admin, manager, supervisor | **+maintenance_manager, +planner** (or introduce `reliability.view`, see Risks §3) |
-| `/dashboard/wo/:id` | operator, engineer, co_engineer, admin, manager, supervisor, maintenance_manager, planner | `wo.view` | ALL + warehouse | = |
-| `/dashboard/stock` | engineer, co_engineer, admin, manager, supervisor, maintenance_manager, planner | `stock.view` | admin, manager, supervisor, maintenance_manager, planner, engineer, co_engineer | = |
-| `/users/manage` | admin, manager | `users.manage` | admin, manager | = |
-| `/dashboard/users` | admin | `users.manage` | admin, manager | = (manager gains via matrix — see Risks §2) |
-| `/dashboard/permissions` | admin | `permissions.manage` | admin | = |
-| `/dashboard/settings` | admin | `system.settings` | admin | = |
-| `/dashboard/suppliers` | admin, manager, supervisor, maintenance_manager, planner | `stock.manage` | admin, manager, supervisor | **+maintenance_manager, +planner** (or introduce `suppliers.view` — Risks §3) |
-| `/dashboard/planner` | admin, manager, planner | `planner.manage` | admin, manager, planner | = |
-| `/dashboard/sku-products` | admin, manager | `sku.manage` | admin, manager, planner | = (planner gains via matrix — see Risks §2) |
-| `/dashboard/production-performance` | admin, manager | `production.performance.view` | admin, manager, supervisor, maintenance_manager, planner | = (supervisor/mm/planner gain — Risks §2) |
-| `/dashboard/smart-target` | admin, manager | `smarttarget.view` | admin, manager, supervisor, maintenance_manager, planner | = (others gain — Risks §2) |
-| `/dashboard/weekly-report` | admin, manager | `rag.view` | admin, manager, supervisor, maintenance_manager, planner | = (others gain — Risks §2) |
-| `/dashboard/sku-efficiency` | admin, manager | `sku.view` | admin, manager, supervisor, maintenance_manager, planner, operator | = (others gain — Risks §2) |
-| `/dashboard/forecast` | admin, manager | `production.performance.view` | admin, manager, supervisor, maintenance_manager, planner | = (others gain — Risks §2) |
-| `/dashboard/quality` | admin, manager | `quality.view` | admin, manager, supervisor, engineer, co_engineer | = (others gain — Risks §2) |
-| `/dashboard/shift-history` | admin, manager | `production.manage` | admin, manager, supervisor, maintenance_manager, planner, operator | = (others gain — Risks §2) |
-| `/dashboard/rag-weekly` | admin, manager, supervisor, maintenance_manager, planner | `rag.view` | admin, manager, supervisor, maintenance_manager, planner | = |
-| `/dashboard/line-production` | admin, manager, supervisor, engineer, co_engineer, maintenance_manager, planner | `production.manage` | admin, manager, supervisor, maintenance_manager, planner, operator | **+engineer** |
-| `/dashboard/line-display` | admin, manager, supervisor, operator, engineer, co_engineer, maintenance_manager, planner | `production.view` | ALL | = |
-| `/dashboard/intouch-settings` | admin | `intouch.manage` | admin, maintenance_manager | = (mm gains — Risks §2) |
-| `/dashboard/intouch-machines` | admin | `intouch.manage` | admin, maintenance_manager | = |
-| `/dashboard/intouch-stop-codes` | admin | `intouch.manage` | admin, maintenance_manager | = |
-| `/dashboard/pm-intelligence` | admin, manager, supervisor, maintenance_manager, planner | `pm.view` | admin, manager, supervisor, maintenance_manager, engineer, co_engineer | **+planner** (engineer/co_engineer already implicit) |
-| `/dashboard/operator-preview` | admin, manager, supervisor, maintenance_manager, planner | *(preview — see Risks §4)* | — | keep `allowedRoles` fallback |
-| `/dashboard/engineer-preview` | admin, manager, supervisor, maintenance_manager, planner | *(preview — see Risks §4)* | — | keep `allowedRoles` fallback |
-| `/dashboard/messages` | operator, manager, supervisor, maintenance_manager, planner, admin (already has `requiredAction="chat.dm"`) | `chat.dm` | *(empty today)* | **set to `[admin, manager, supervisor, maintenance_manager, planner, operator]`** so this route stops being effectively blocked once we honor `requiredAction` exclusively |
-| `/`, `*` (SessionRedirect) | — | — | — | no gate |
-| `/login`, `/.lovable/oauth/consent` | public | — | — | no gate |
+Leitura no servidor: RPC `public.get_user_role(_user_id)`, mais `has_role`, `has_any_role`, `has_action` (esta resolve a matriz + overrides dentro da base de dados).
 
-### Consolidated MATRIX diff (defaults, admin implicit)
+## 2) Frontend — onde o role é lido e verificado
 
-```text
-dashboard.operator            + manager, engineer, maintenance_manager
-dashboard.engineer            + manager, supervisor, maintenance_manager, planner
-controlcenter.view            + planner
-pm.view                       + planner
-reports.analytics             + maintenance_manager, planner       (only if we reuse it for /reliability; otherwise add new reliability.view — see Risks §3)
-stock.manage                  + maintenance_manager, planner       (only if we reuse it for /suppliers; otherwise add new suppliers.view)
-production.performance.view   + operator                           (only for /operator/performance)
-production.manage             + engineer                           (for /line-production)
-chat.dm                       = [admin, manager, supervisor, maintenance_manager, planner, operator]  (was empty)
-```
+- `src/contexts/AuthContext.tsx` — única fonte: chama `supabase.rpc("get_user_role")` (linha ~215), guarda `role` no estado; se não houver role lança "No access role is assigned to this account.".
+- `src/lib/permissions.ts` (497 linhas) — matriz `MATRIX: Record<Action, Role[]>` com ~80 acções, `can()`, `canAny/canAll`, `canForDevice`, `roleDashMap`, `dashboardPathFor`, `ALL_ACTIONS`, `ALL_ROLES`, `ACTION_GROUPS`. Nota: `can()` faz `if (role === "admin") return true` — o admin passa sempre, ignorando overrides.
+- Overrides em runtime: `setPermissionOverrides` (tabela `role_permission_overrides`) e `setDeviceHidden` (`role_mobile_hidden`), sincronizados por `PermissionOverridesSync` em `src/App.tsx`.
+- `src/hooks/useRole.ts` — ponte `useAuth().role` → `can()`.
+- `src/components/ProtectedRoute.tsx` — guarda de rota: admin passa sempre; `co_engineer` herda `engineer`; se existir `requiredAction`, decide SÓ por `can()` e ignora `allowedRoles`; senão usa `allowedRoles`; depois aplica `isDeviceHidden`.
+- `src/components/DashboardLayout.tsx` — filtra `navItems` por role + acção + dispositivo.
+- `src/components/RoleShortcutGrid.tsx` — deriva os atalhos dos mesmos `navItems`.
+- `src/pages/dashboard/PermissionsMatrixPage.tsx` — edição dos overrides (admin).
+- ~74 ficheiros em `src/` chamam `useAuth()`/`useRole()` para esconder botões.
 
-No other row changes. `warehouse` is not added to any new action — the warehouse route keeps the `allowedRoles` fallback.
+## 3) Rotas (todas, `src/App.tsx`)
 
-## 2. `ProtectedRoute` change
+Públicas (sem guarda): `/login` (Login.tsx), `/signup` (SignUp.tsx), `/reset-password` (ResetPassword.tsx), `/.lovable/oauth/consent` (OAuthConsent.tsx).
 
-New gate order (`src/components/ProtectedRoute.tsx`, replacing the current `allowedRoles && !allowedRoles.includes(...) || requiredAction && !can(...)` block):
+Redirects sem guarda própria: `/`, `/*`, `/dashboard/home` → `SessionRedirect`; `/dashboard/work-orders/:id` → `LegacyWoLinkRedirect`; `/dashboard/workforce` → `/dashboard/people`; `/dashboard/line-hub` → `/dashboard/operator`; `/dashboard/downtime-map` → `/dashboard/downtime`.
 
-```text
-1. effectiveRole = role === "co_engineer" ? "engineer" : role
-2. if effectiveRole === "admin" → allow                     // admin bypass, no self-lockout
-3. if requiredAction is set → allow iff can(effectiveRole, requiredAction)
-                              (ignore allowedRoles entirely — no AND lockout)
-4. else if allowedRoles is set → allow iff allowedRoles.includes(effectiveRole)
-5. else → allow
-```
+Autenticada mas SEM role nem acção: `/dashboard/leader/scorecard` (LeaderMyScorecardPage.tsx) — gate é o PIN na base de dados.
 
-The existing loading / auth-error / deactivated / no-session branches stay untouched.
+Protegidas só por `allowedRoles` (sem acção, logo sem override possível): `/dashboard/warehouse` (WarehouseDashboard), `/dashboard/system` (SystemHubPage — admin+manager), `/dashboard/operator-chat-settings` (admin+manager), `/dashboard/shift-password-settings` (admin), `/dashboard/root-diagnostics` (admin).
 
-Every route in `App.tsx` from the table above gets a `requiredAction={...}` prop added; `allowedRoles` stays as a safety net (used only for the routes that intentionally don't have an action: `warehouse`, `operator-preview`, `engineer-preview`).
+Protegidas por acção (`requiredAction` manda):
 
-## 3. Sidebar (`navItems` in `DashboardLayout.tsx`)
+| Rota | Ficheiro | Acção |
+|---|---|---|
+| /dashboard/operator | OperatorDashboard.tsx | dashboard.operator |
+| /dashboard/operator/my-production | MyProductionPage | production.target.view |
+| /dashboard/operator/performance | OperatorPerformancePage.tsx | production.performance.view |
+| /dashboard/engineer | EngineerDashboard.tsx | dashboard.engineer |
+| /dashboard/manager | ManagerDashboard.tsx | dashboard.manager |
+| /dashboard/analytics | AnalyticsPage | reports.analytics |
+| /dashboard/reports | ReportsPage.tsx | reports.analytics |
+| /dashboard/work-orders | WorkOrdersPage | wo.view |
+| /dashboard/wo/:id | WorkOrderDetail.tsx | wo.view |
+| /dashboard/machines, /machines/:name/history | MachinesPage, MachineHistoryPage | machines.view |
+| /dashboard/problems | ProblemsPage.tsx | problems.view |
+| /dashboard/control-center | ControlCenterPage.tsx | controlcenter.view |
+| /dashboard/people, /leave, /finance-close, /attendance | PeoplePage, LeavePage, FinanceClosePage, AttendancePage | workforce.view (admin only) |
+| /dashboard/headcount | ProductionHeadcountPage | headcount.view (admin only) |
+| /dashboard/audit-logs | AuditLogsPage.tsx | audit.view |
+| /dashboard/downtime | DowntimePage | downtime.view |
+| /dashboard/preventive | PreventiveMaintenancePage.tsx | pm.view |
+| /dashboard/pm-intelligence | PMIntelligencePage.tsx | pm.view |
+| /dashboard/reliability | ReliabilityDashboard.tsx | reliability.view |
+| /dashboard/stock | StockPage.tsx | stock.view |
+| /users/manage, /dashboard/users | ManageUsers.tsx | users.manage |
+| /dashboard/permissions | PermissionsMatrixPage.tsx | permissions.manage |
+| /dashboard/settings | SettingsPage.tsx | system.settings |
+| /dashboard/suppliers | SuppliersPage.tsx | suppliers.view |
+| /dashboard/sku-products | SKUProductsPage.tsx | sku.manage |
+| /dashboard/production-performance | ProductionPerformancePage | production.performance.view |
+| /dashboard/quality, /quality-report | QualityPage.tsx | quality.view |
+| /dashboard/shift-history | (Production Control) | production.manage |
+| /dashboard/rag-weekly | RAG Weekly | rag.view |
+| /dashboard/leader-scorecard | LeaderScorecardWeekPage.tsx | scorecard.fill |
+| /dashboard/leader-scorecard/:leader | LeaderScorecardDetailPage.tsx | production.performance.view |
+| /dashboard/line-production | LineProductionScreen.tsx | production.manage |
+| /dashboard/line-display | LineDisplayScreen.tsx | production.view |
+| /dashboard/intouch-settings, -machines, -stop-codes | Intouch*Page.tsx | intouch.manage |
+| /dashboard/messages | DirectMessagesPage.tsx | chat.dm |
 
-- Add an `action: Action` field to every entry (`action` is already optional on the type). Use the same mapping as the routes table.
-- Change the `filteredItems` filter (line 383) from `roles.includes(role)` to:
-  - `if (role === "admin") show`
-  - `else if item.action → can(effectiveRole, item.action)`
-  - `else → item.roles.includes(effectiveRole)` (fallback for `Warehouse` / previews if we ever add them)
-- Keep `roles` on each item as a UX hint / fallback; nothing else needs to change (grouping, ordering, icons stay).
-- Subscribe to `subscribePermissionOverrides` in `DashboardLayout` (same pattern as `ProtectedRoute`) so toggling permissions in the Matrix updates the sidebar live.
+## 4) Acções sensíveis por área e se verificam role
 
-Sidebar item → action assignments (only the ones not obvious from §1):
+Verificadas pela matriz (existe acção dedicada): apagar/forçar OM (`wo.delete`, `wo.force` — admin), fechar OM (`wo.close`), corrigir downtime (`downtime.correct` — admin + maintenance_manager, validado também no RPC `correct_downtime_event` via `has_action`), ajustar downtime (`downtime.adjust`), preços de stock (`stock.pricing` — admin), gerir utilizadores (`users.manage`), limpar sistema (`system.clear`), definições (`system.settings`), matriz de permissões (`permissions.manage`), exportar relatórios (`reports.export` via `canPrintReport`), validar/fechar qualidade (`quality.validate` / `quality.close`, espelhado no trigger `enforce_quality_validation`), aprovar scorecard (`scorecard.approve`), gerir SKU (`sku.manage`), gerir RAG (`rag.manage`), gerir PM (`pm.manage`), gerir iTouching (`intouch.manage`), gerir headcount/attendance (`headcount.manage`, `attendance.manage`, `workforce.manage`).
 
-```text
-Dashboard (operator)    dashboard.operator
-My Production           production.target.view
-Dashboard (engineer)    dashboard.engineer
-My Tasks / History      dashboard.engineer
-Dashboard (manager)     dashboard.manager
-Control Center          controlcenter.view
-Work Orders             wo.view
-Downtime & Reliability  downtime.view
-PM Intelligence         pm.view
-Machines                machines.view
-Problems                problems.view
-Stock                   stock.view
-Planner                 planner.manage
-Production Control      production.manage
-RAG Weekly              rag.view
-Performance             production.performance.view
-Quality Actions         quality.view
-SKU Products            sku.manage
-SKU Efficiency          sku.view
-Forecast                production.performance.view
-Smart Target            smarttarget.view
-Analytics               reports.analytics
-Financial               reports.financial
-Executive               reports.executive
-Weekly Report           rag.view
-Messages                chat.dm            (already there)
-Users                   users.manage
-Audit Logs              audit.view
-Permissions             permissions.manage
-Settings                system.settings
-Operator Preview        (no action — fallback to roles)
-Engineer Preview        (no action — fallback to roles)
-```
+Sem acção dedicada (só role na rota, ou nada): SystemHubPage, OperatorChatSettingsPage, ShiftPasswordSettingsPage, RootDiagnosticsPage, WarehouseDashboard. Importações (RAG template import, `import_sku_products`, `import_production_rows`) e exportações CSV/Excel/PDF não têm todas uma acção própria — parte é coberta por `rag.manage`/`sku.manage`, parte não é verificada no cliente. Thresholds e parâmetros (`leader_scorecard_threshold`, `leader_score_weights`, `quality_severity_points`) são lidos por todos os autenticados; a escrita é a que está restringida.
 
-## 4. Risks & special cases
+## 5) RLS
 
-1. **`/dashboard/warehouse`** — the whole point of the `warehouse` role is a locked-down page; there's no matching Action and warehouse is deliberately excluded from most MATRIX rows. Decision: keep this route on `allowedRoles=["warehouse","admin"]` with **no `requiredAction`**. It won't be governed by the Matrix — that's intentional and documented in the route.
-2. **Roles that GAIN access via the matrix** (rows where MATRIX today is broader than the route's `allowedRoles`): `/dashboard/audit-logs`, `/dashboard/users`, `/dashboard/sku-products`, `/dashboard/production-performance`, `/dashboard/smart-target`, `/dashboard/weekly-report`, `/dashboard/sku-efficiency`, `/dashboard/forecast`, `/dashboard/quality`, `/dashboard/shift-history`, `/dashboard/intouch-settings`. The requirement is access-**preserving**, not access-**freezing** — no one loses access, and the matrix now becomes the single knob the admin can tighten. If you'd rather keep any of these locked to the current `allowedRoles`, tell me which and I'll **narrow the MATRIX row** in the same change (safe: admin still bypasses). Two clean options per row:
-   - **Option A (recommended):** accept the widened default, admin narrows in the UI as needed.
-   - **Option B:** narrow the MATRIX row to exactly the route's current `allowedRoles` in the same PR.
-3. **Routes with no perfect action** — `/dashboard/reliability` and `/dashboard/suppliers` don't have a dedicated action today. Two options:
-   - **A.** Reuse `reports.analytics` / `stock.manage` and widen those rows as shown in the diff.
-   - **B.** Add two new actions `reliability.view` and `suppliers.view`, seed each with the current `allowedRoles`, and register them in `ACTION_GROUPS` / `ACTION_DESCRIPTIONS`. Cleaner long-term, one extra migration-free code change. I'll default to **B** unless you prefer A.
-4. **Preview routes** (`/dashboard/operator-preview`, `/dashboard/engineer-preview`) — intentionally admin-role-shaped diagnostics for non-operator/non-engineer roles. Keep on `allowedRoles` only, no action, no matrix entry.
-5. **`chat.dm` row is empty today** — `/dashboard/messages` currently allow-lists the roles inline. Once we honor `requiredAction`, an empty row would lock everyone (except admin via bypass). Seed the row to the exact current inline list so behavior is preserved.
-6. **`co_engineer` inheritance** — done at gate level (`effectiveRole` mapping), so no MATRIX rows need `co_engineer` added anywhere. Existing MATRIX rows that list `co_engineer` explicitly stay as-is (harmless).
-7. **Overrides table (`role_permission_overrides`)** — no schema change. `can()` already consults overrides; both the new `ProtectedRoute` and the new sidebar filter go through it, so admin edits in the Permissions Matrix take effect live for both.
-8. **Live update on override change** — `ProtectedRoute` already subscribes; `DashboardLayout` needs the same subscription so the sidebar re-filters without a reload.
-9. **No RLS / no data-layer change** — this plan touches only route/sidebar presentation gating. Server-side authorization (RLS, edge functions) is untouched.
+132 tabelas em `public`. RLS activo em 132 — nenhuma tabela com RLS desligado. Nenhuma policy concede acesso ao papel `anon`, e o `anon` não tem qualquer GRANT em `public` (0 grants). A única policy que menciona `anon` é `system_settings` → "Deny anon access", com `using=false`.
 
-## Deliverable when you approve
+Destaques:
+- **`shift_passwords` — RLS activo e ZERO policies.** Fica inacessível pela API (fail-closed), mas é uma tabela órfã: ou tem policies explícitas ou deve deixar de existir.
+- **Policies com `USING (true)` (leitura aberta a qualquer autenticado)**: `headcount_areas`, `intouch_stop_code_catalog`, `leader_line_assignment`, `leader_score_weights`, `leader_scorecard_threshold`, `leader_weekly_scorecard`, `login_branding`, `quality_severity_points`, `rag_weekly_comments`, `site_banner`. Em catálogos e branding é intencional; em `leader_weekly_scorecard` e `rag_weekly_comments` significa que qualquer conta autenticada — incluindo os 12 tablets de operador — lê o scorecard de todos os líderes e os comentários semanais.
+- **~20 tabelas `*_bak_*` / `*_backup*` / `*_dedupe*`** (wo802/803/804, `wo_dedupe_backup_20260804`, `employees_backup_*`, `daily_allocations_backup_0308`, `attendance_days_bak_20260804`, `overtime_entries_backup_20260802`, `sku_products_backup`, etc.) têm 1 policy cada, geralmente restrita a admin, mas contêm cópias integrais de dados de pessoas e ordens.
+- Apenas leitura, sem escrita pela API: `downtime_corrections`, `intouch_*_log/runs/quota`, `pin_attempts`, `teams_webhook_logs` (escrita só por RPC/service_role) — está correcto.
+- `user_roles` tem 9 policies — vale a pena consolidar antes de mexer nos perfis.
 
-Two files edited (`src/lib/permissions.ts` for the MATRIX widenings + optional new actions; `src/components/ProtectedRoute.tsx` for the new gate order), `src/App.tsx` gets `requiredAction` added to every gated route, `src/components/DashboardLayout.tsx` gets `action` on each `navItem` + the new filter + override subscription. No migrations, no query changes.
+## 6) Sidebar
 
-Please confirm:
-- **(a)** Option A or B for Risks §2 (widened defaults vs. narrow MATRIX to match today).
-- **(b)** Option A or B for Risks §3 (reuse actions vs. add `reliability.view` / `suppliers.view`).
+- Layout e sidebar: `src/components/DashboardLayout.tsx` (727 linhas), sobre os componentes shadcn `@/components/ui/sidebar`.
+- Lista de itens: `export const navItems: NavItem[]` (linha ~71) — cada item tem `title`, `shortTitle?`, `url`, `icon`, `roles[]`, `group`, `action?`. Grupos usados: Overview, Maintenance, Production, Planning, Reports, Communication, Administration, System. Filtragem em `filteredItems` (~linha 518) por role + `canForDevice(action)`.
+- Colapso e persistência: **já existem**. `type SidebarUiState = "expanded" | "rail" | "hidden"` (~linha 212), ciclo por botão do cabeçalho / rail / `Ctrl+B`, gravado em `localStorage` sob `SIDEBAR_STATE_KEY` e `SIDEBAR_STORAGE_KEY`; por omissão expandido em ≥1024px, rail em tablet/telemóvel. Grupos abrem em acordeão (`openGroup`).
+- Testes que fixam a forma da sidebar: `src/__tests__/navigation.test.ts` (nada de infraestrutura fora do hub System, sem grupos de um item, ordem do grupo Production, ícones não repetidos lado a lado, `shortTitle` ≤ 11 caracteres na barra inferior).
+- Os mesmos `navItems` alimentam `RoleShortcutGrid.tsx` — mudar a sidebar muda o ecrã de atalhos.
+
+## 7) Cinco sítios onde hoje se chega a mais do que se devia
+
+1. **`can()` devolve `true` para admin antes de consultar overrides** (`src/lib/permissions.ts`). Não há maneira de retirar uma capacidade a um admin, e há 10 contas admin — mais de metade dos utilizadores com role atribuído. Qualquer desenho de perfis começa por reduzir esse número.
+2. **Rotas com `allowedRoles` e sem `requiredAction`**: `/dashboard/system` (admin+manager), `/dashboard/operator-chat-settings` (admin+manager), `/dashboard/shift-password-settings`, `/dashboard/root-diagnostics`, `/dashboard/warehouse`. Escapam à matriz e aos overrides — a página de permissões não as consegue governar, e um manager entra no hub System por URL directo.
+3. **`leader_weekly_scorecard` e `rag_weekly_comments` com `USING (true)`**: qualquer sessão autenticada, incluindo os tablets de linha partilhados, lê o desempenho semanal de todos os líderes e os comentários de gestão. É avaliação de pessoas visível para o chão de fábrica.
+4. **Tabelas de backup (~20)** com cópias completas de `employees`, `attendance_days`, `overtime_entries` e ordens de trabalho. Mesmo restritas a admin, mantêm dados pessoais e salariais fora do modelo de acesso da aplicação e fora de qualquer auditoria.
+5. **Contas de tablet partilhadas com role `operator` (12)**: o role é da linha, não da pessoa. Tudo o que `operator` alcança — `wo.create`, `production.manage`, `production.target.view`, `chat.dm`, `chat.line` — é alcançável por quem estiver junto ao tablet, sem identidade individual. O PIN só protege o scorecard do líder.
+
+Complementos: `shift_passwords` sem policies, e `has_action` na base de dados só é usada por `correct_downtime_event` — as restantes acções sensíveis dependem da verificação do cliente mais das policies genéricas.
+
+## O que proponho a seguir
+
+Quando quiseres avançar, o passo seguinte é um plano de execução em três frentes: (a) dar `requiredAction` a todas as rotas para que a matriz passe a ser a única autoridade, (b) fechar `USING (true)` nas tabelas de avaliação de pessoas e decidir o destino das tabelas de backup, (c) redesenhar `navItems` a partir dos perfis finais. Diz-me quais os perfis que queres manter e desenho isso.
