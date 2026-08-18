@@ -78,6 +78,14 @@ const EXPECTED: Record<Action, Role[]> = {
   "permissions.manage": ["admin"],
   "workforce.view": ["admin"],
   "workforce.manage": ["admin"],
+  // The five screens that used to be gated by `allowedRoles` alone, now actions the
+  // matrix owns. system.hub is admin only by decision — a manager keeps Users and
+  // nothing else behind that door.
+  "system.hub": ["admin"],
+  "system.diagnostics": ["admin"],
+  "system.shiftpasswords": ["admin"],
+  "chat.settings": ["admin", "manager"],
+  "dashboard.warehouse": ["admin"],
 };
 
 describe("permissions.can — full role × action matrix", () => {
