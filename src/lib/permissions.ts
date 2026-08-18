@@ -36,6 +36,9 @@ export type Action =
   // System
   | "system.clear"
   | "system.settings"
+  | "system.hub"
+  | "system.diagnostics"
+  | "system.shiftpasswords"
   // Production
   | "production.view"
   | "production.manage"
@@ -81,6 +84,7 @@ export type Action =
   // Chat / DM
   | "chat.line"
   | "chat.dm"
+  | "chat.settings"
   // Notifications
   | "notifications.view"
   | "notifications.manage"
@@ -95,6 +99,7 @@ export type Action =
   | "dashboard.manager"
   | "dashboard.engineer"
   | "dashboard.operator"
+  | "dashboard.warehouse"
   // Reliability / Suppliers (dedicated view actions)
   | "reliability.view"
   | "suppliers.view"
@@ -133,6 +138,12 @@ const MATRIX: Record<Action, Role[]> = {
 
   "system.clear": ["admin"],
   "system.settings": ["admin"],
+  // The System hub gathers the audit trail, the integration settings and the
+  // diagnostics behind one door. Admin only, by decision: a manager keeps the Users
+  // screen (users.manage) and nothing else that lives in there.
+  "system.hub": ["admin"],
+  "system.diagnostics": ["admin"],
+  "system.shiftpasswords": ["admin"],
 
   "production.view": [...ALL, "production_office_admin"],
   // engineer/co_engineer intentionally excluded: they never edit production
@@ -211,6 +222,9 @@ const MATRIX: Record<Action, Role[]> = {
 
   "chat.line": [...ALL.filter((r) => r !== "viewer"), "warehouse", "quality_supervisor", "production_office_admin"],
   "chat.dm": ["admin", "manager", "supervisor", "operator"],
+  // Who may name the chat administrators the operators write to. Was admin+manager
+  // on the route; kept exactly as it was, now as an action the matrix can govern.
+  "chat.settings": ["admin", "manager"],
 
 
   "notifications.view": [...ALL, "quality_supervisor", "production_office_admin"],
@@ -226,6 +240,7 @@ const MATRIX: Record<Action, Role[]> = {
   "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer", "production_office_admin"],
   "dashboard.engineer": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
   "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"],
+  "dashboard.warehouse": ["admin", "warehouse"],
 
   "reliability.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
   "suppliers.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
