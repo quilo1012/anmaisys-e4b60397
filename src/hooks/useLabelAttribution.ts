@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isMissingTable } from "@/lib/postgrestErrors";
 
 /**
  * Which quality labels are the shift leader's to answer for.
@@ -59,5 +60,45 @@ export function useLeaderAttribution() {
     ready: query.isSuccess,
     /** Attribution could not be read — show a dash and say why, do not show a total. */
     failed: query.isError,
+    /**
+     * The table itself is not there, so NO exclusion is in force anywhere.
+     *
+     * Separate from `failed` because it is the one failure with a specific, actionable
+     * cause: the migration has not been applied to this database. Every other failure
+     * is transient or a permission problem. This is what the lists manager says out
+     * loud — otherwise a leader is charged for a machine failure and the screen that
+     * is supposed to govern that shows nothing at all.
+     */
+    missing: isMissingTable(query.error as { code?: string } | null),
   };
+}
+
+/**
+ * Turning one label's attribution on or off, from the lists manager.
+ *
+ * An upsert rather than an update: the seed lists only the labels that were excluded
+ * on day one, so switching OFF a label that has always counted has no row to update.
+ * `label` is the primary key, so the upsert lands on the right row either way.
+ *
+ * Invalidates the action queries as well as its own: the score of every action
+ * carrying this label changes the moment this is saved — `actionPoints()` reads the
+ * exclusion set on every render — and leaving the board showing the old total is how
+ * the module loses its credibility again.
+ */
+export function useSetLabelAttribution() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ label, counts, note }: { label: string; counts: boolean; note?: string | null }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- newer than the generated types
+      const { error } = await (supabase as any)
+        .from("quality_label_attribution")
+        .upsert({ label, counts_against_leader: counts, note: note ?? null }, { onConflict: "label" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["quality_label_attribution"] });
+      qc.invalidateQueries({ queryKey: ["quality_actions"] });
+      qc.invalidateQueries({ queryKey: ["analytics-quality"] });
+    },
+  });
 }

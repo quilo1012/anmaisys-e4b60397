@@ -1,3 +1,5 @@
+import { logFormCharge } from "@/lib/qualityConstants";
+
 /**
  * What the log form saves to `quality_actions`, pulled out of the mutation so the
  * shape of the write is something a test can hold without mounting the page.
@@ -50,10 +52,53 @@ export interface QualityActionFormInput {
  * nothing reads (score is derived by `actionPoints()`), and writing 1 into it on
  * every insert only invited someone to think it did something.
  */
+/**
+ * The grade a quality action is saved with — derived from its labels, never typed.
+ *
+ * The log form stopped asking for a severity: `actionPoints()` charges the priced
+ * labels and only falls back to the grade, so the field mostly named a number the
+ * system did not use. Writing `form.severity` through unchanged would keep that
+ * fallback alive with a value nobody can see any more — untick the last priced label
+ * and the action would go on charging the grade it briefly held.
+ *
+ * Derived from what is CHARGED, exclusions applied — see the `excluded` parameter.
+ *
+ * This has been both ways round. It shipped applying no exclusions, on the argument
+ * that an exclusion decides whose score an action lands on and the grade should
+ * describe the deviation itself. That put two numbers on the same row saying
+ * different things: "Batch code · Maintenance" with Maintenance excluded read 2
+ * points and Critical, and a leader reading their own scorecard could not tell which
+ * of the two they were being judged on. A grade describing a charge nobody is paying
+ * is a contradiction printed in bold, not extra information.
+ *
+ * The accepted cost: an action whose only priced label is excluded now saves with no
+ * grade. Metal on a magnet, wholly maintenance's, keeps its 0 and loses its Critical
+ * badge. That severity is not lost to the business — `issueWeight()` prices recurring
+ * problems off the labels and ignores attribution, which is the table the question
+ * "how bad is this problem" belongs on.
+ *
+ * Safety keeps whatever was picked. A safety occurrence always scores 0, so its
+ * severity is a description rather than a price, and it stays the user's to choose.
+ */
+function qualitySeverity(form: QualityActionFormInput, excluded: Set<string>): string | null {
+  if (form.domain !== "quality") return form.severity || null;
+  return logFormCharge(form.labels, excluded).severity || null;
+}
+
+/**
+ * @param excluded  the labels that are not this leader's, from `useLabelAttribution`.
+ *   Defaults to empty, which means "nothing is excluded" — the correct reading for a
+ *   caller that has no attribution to apply, and what every test that does not care
+ *   about attribution relies on. A caller that DOES have it must not pass an empty
+ *   set while the table is still loading: the grade would be written from the
+ *   unfiltered charge and, unlike a number on screen, it does not settle a moment
+ *   later. The log form blocks Save until attribution has loaded, for that reason.
+ */
 export function buildQualityActionPayload(
   form: QualityActionFormInput,
   matchedLeaderName: string | null,
   recordedAt: string,
+  excluded: Set<string> = new Set(),
 ) {
   return {
     action_no: form.action_no || null,
@@ -65,7 +110,7 @@ export function buildQualityActionPayload(
     batch: form.batch || null,
     department: form.department || null,
     status: form.status,
-    severity: form.severity || null,
+    severity: qualitySeverity(form, excluded),
     labels: form.labels,
     description: form.description || null,
     recorded_at: recordedAt,

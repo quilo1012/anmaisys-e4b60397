@@ -30,9 +30,9 @@ import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { cn } from "@/lib/utils";
 import { isMissingColumn } from "@/lib/postgrestErrors";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, pointsBreakdown, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
-import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { useLeaderAttribution, useSetLabelAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
@@ -41,6 +41,7 @@ import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
+import { ActionScore } from "@/components/quality/ActionScore";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
 import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
@@ -393,7 +394,10 @@ export function QualityActionsView() {
     mutationFn: async () => {
       const leader = leaders.find((l) => l.id === form.leader_id);
       const recorded_at = new Date(`${form.date || todayISO()}T12:00:00`).toISOString();
-      const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at);
+      // `excluded` decides the grade now, not just the score — see qualitySeverity.
+      // Save is blocked until it has loaded, so this is never the empty set standing
+      // in for an answer that has not arrived.
+      const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at, excluded);
       // `domain` and `safety_kind` arrive with 20260817090000, and PostgREST refuses
       // the whole write for one unknown column. A quality action is saved without
       // them; a safety one is refused rather than filed as a quality action. See
@@ -838,7 +842,14 @@ export function QualityActionsView() {
                   <div><Label>Notes</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
                 </div>
                 {(() => {
-                  const blockers = safetyFormBlockers(form);
+                  // Unlike a number drawn early, a grade written early persists: an
+                  // empty exclusion set is a valid answer meaning "nothing is
+                  // excluded", so saving before the table loads files the unfiltered
+                  // grade forever. Same guard the score block uses, different stakes.
+                  const blockers = [
+                    ...safetyFormBlockers(form),
+                    ...(attributionReady || form.domain === "safety" ? [] : ["attribution still loading"]),
+                  ];
                   return (
                     <DialogFooter className="flex-col items-end gap-1.5 sm:flex-col">
                       <Button onClick={() => create.mutate()} disabled={create.isPending || blockers.length > 0}>Save</Button>
@@ -1121,8 +1132,11 @@ export function QualityActionsView() {
                             const charged = actionPoints(a, excluded);
                             const bySeverity = severityPoints(a.severity);
                             if (!sev && !charged) return <span className="font-normal text-muted-foreground">—</span>;
+                            // The same sentence the detail dialog prints, from the same
+                            // function. Two hand-written explanations of one number is
+                            // how the log and the dialog end up contradicting each other.
                             return (
-                              <span title={charged === bySeverity ? undefined : `Priced by its labels — ${sev?.label ?? "no severity"} alone would be ${bySeverity}`}>
+                              <span title={pointsBreakdown(a, excluded).explanation}>
                                 {charged}
                                 {charged !== bySeverity && <span className="ml-0.5 font-normal text-muted-foreground">*</span>}
                               </span>
@@ -1289,6 +1303,10 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
   onDelete: () => void; onEdit: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
+  // Read here rather than threaded down: the score block is the one part of this
+  // dialog that must not draw before attribution has loaded, and a prop passed from
+  // a parent that does not need it would be one more place to forget the guard.
+  const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
   const upload = useUploadQualityPhoto();
   const del = useDeleteQualityPhoto();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1316,6 +1334,14 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {/* The charge leads. It is the figure this action is remembered by, and
+                  the dialog used to be the one place that would not say it. */}
+              <ActionScore
+                action={action}
+                excluded={excluded}
+                ready={attributionReady}
+                failed={attributionFailed}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>Severity</Label>
                   {action.domain === "safety" ? (
@@ -1665,6 +1691,13 @@ const clampPoints = (raw: string) => Math.max(0, Math.min(1000, Math.round(Numbe
 function QualityListsManager() {
   const qc = useQueryClient();
   const { data: options = [] } = useAllQualityOptions();
+  // Which labels are the leader's to answer for is scoring, not taxonomy, so it
+  // belongs on the screen that prices them. It lived only in a migration until now:
+  // Maintenance and GMP shipped excluded and no screen showed it, so nobody could
+  // see whether the rule was in force — and when the table is absent it silently
+  // is not. That is the "Maintenance is charging the leader 3 points" case.
+  const { excluded, missing: attributionMissing } = useLeaderAttribution();
+  const setAttribution = useSetLabelAttribution();
   const [kind, setKind] = useState<QualityOption["kind"]>("label");
   const [value, setValue] = useState("");
   const [points, setPoints] = useState("");
@@ -1741,9 +1774,12 @@ function QualityListsManager() {
     refresh();
   };
 
+  // Named for what the factory calls them. The `kind` values in the database stay
+  // `label` / `safety_label` — renaming those would orphan every row already saved,
+  // and nothing about the scoring changes just because the heading reads better.
   const groups: { kind: QualityOption["kind"]; title: string }[] = [
-    { kind: "label", title: "Labels" },
-    { kind: "safety_label", title: "Safety labels" },
+    { kind: "label", title: "Quality Actions" },
+    { kind: "safety_label", title: "Health & Safety" },
     { kind: "department", title: "Departments" },
   ];
 
@@ -1753,8 +1789,8 @@ function QualityListsManager() {
         <Select value={kind} onValueChange={(v) => setKind(v as QualityOption["kind"])}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="label">Label</SelectItem>
-            <SelectItem value="safety_label">Safety label</SelectItem>
+            <SelectItem value="label">Quality action</SelectItem>
+            <SelectItem value="safety_label">Health &amp; Safety</SelectItem>
             <SelectItem value="department">Department</SelectItem>
           </SelectContent>
         </Select>
@@ -1772,8 +1808,20 @@ function QualityListsManager() {
       </div>
       {kind === "label" && (
         <p className="-mt-2 text-xs text-muted-foreground">
-          A label's points replace the severity weight: an action carrying priced labels is worth
+          A quality action's points replace the severity weight: an action carrying priced items is worth
           their total, and one carrying none is worth its severity. Leave it at 0 to leave severity in charge.
+          Switch one to <span className="font-medium">Not leader's</span> and it stops charging them — a
+          machine failure is maintenance's, not the person running the line that night.
+        </p>
+      )}
+      {/* The rule is off, and an absent rule looks exactly like "nothing is excluded".
+          Said here, once, because this is the screen that governs it: without the
+          table every label charges the leader, Maintenance included, and the totals
+          on the board are quietly too high. */}
+      {attributionMissing && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-strong">
+          Attribution is not enabled on this database yet — the migration has not run. Every quality action
+          is currently charging the leader, including the ones marked below as not theirs.
         </p>
       )}
       {groups.map((g) => (
@@ -1795,12 +1843,47 @@ function QualityListsManager() {
                 <span className={cn("text-sm", !o.active && "text-muted-foreground line-through")}>{o.value}</span>
                 <div className="flex items-center gap-1">
                   {g.kind === "label" && (
-                    <PointsBox
-                      key={`${o.id}:${o.points}`}
-                      value={o.points}
-                      label={o.value}
-                      onCommit={(raw) => setLabelPrice(o, raw)}
-                    />
+                    <>
+                      <PointsBox
+                        key={`${o.id}:${o.points}`}
+                        value={o.points}
+                        label={o.value}
+                        onCommit={(raw) => setLabelPrice(o, raw)}
+                      />
+                      {/* Two states, both spelled out, because the difference is money
+                          on somebody's scorecard. Re-attributing re-scores the history
+                          the same way re-pricing does — see useSetLabelAttribution. */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={attributionMissing || setAttribution.isPending}
+                        className={cn(
+                          "h-8 whitespace-nowrap text-xs",
+                          excluded.has(o.value.trim().toLowerCase()) && "border-warning/40 bg-warning/10 text-warning-strong",
+                        )}
+                        title={
+                          excluded.has(o.value.trim().toLowerCase())
+                            ? `"${o.value}" does not count toward a leader's score`
+                            : `"${o.value}" counts toward the leader's score`
+                        }
+                        onClick={() => {
+                          const counts = excluded.has(o.value.trim().toLowerCase());
+                          setAttribution.mutate(
+                            { label: o.value, counts },
+                            {
+                              onError: (e: unknown) => toast.error((e as { message?: string })?.message ?? "Could not save"),
+                              onSuccess: () => toast.success(
+                                counts
+                                  ? `"${o.value}" now counts toward the leader's score`
+                                  : `"${o.value}" no longer counts toward the leader's score`,
+                              ),
+                            },
+                          );
+                        }}
+                      >
+                        {excluded.has(o.value.trim().toLowerCase()) ? "Not leader's" : "Counts"}
+                      </Button>
+                    </>
                   )}
                   <Button size="sm" variant="outline" onClick={() => toggle(o)}>{o.active ? "Hide" : "Show"}</Button>
                   <AlertDialog>
