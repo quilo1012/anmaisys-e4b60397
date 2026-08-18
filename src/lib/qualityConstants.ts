@@ -603,6 +603,46 @@ export function safetyKindMeta(value: string | null | undefined): SafetyKind | n
 }
 
 /**
+ * What the three groups above MEAN, in the words the form puts on screen.
+ *
+ * The grouping was already in `SAFETY_KINDS` and was visible only as a separator
+ * line inside a dropdown, which is a hint nobody reads. It carries the one thing
+ * this module must never let a user get wrong: first aid and near miss are not
+ * degrees of the same event. One is somebody already hurt, the other is the warning
+ * that arrived in time — and `scorecard_safety_counts` is emphatic that the two are
+ * never summed. Naming the groups on the form is how that rule reaches the person
+ * holding the tablet, at the moment they are deciding.
+ *
+ * `harm` first, deliberately. Not because it is the common case — it is the rarest —
+ * but because a list that opens with Toolbox talk invites the reader to scan for the
+ * mildest thing that fits.
+ */
+export interface SafetyKindGroup {
+  group: SafetyKind["group"];
+  title: string;
+  /** One line under the title, in the voice of what the reader is deciding. */
+  hint: string;
+}
+
+export const SAFETY_KIND_GROUPS: SafetyKindGroup[] = [
+  { group: "harm", title: "Harm", hint: "Someone was hurt" },
+  { group: "signal", title: "Signal", hint: "A warning that arrived in time" },
+  { group: "prevention", title: "Prevention", hint: "Work done before anything happened" },
+];
+
+/**
+ * The kinds that mean somebody was actually hurt.
+ *
+ * Exported rather than written out at the call site because the Safety board counts
+ * them and `scorecard_safety_counts` counts the same three as separate columns —
+ * a fourth `harm` kind added to `SAFETY_KINDS` must reach the board without anyone
+ * remembering to come back here.
+ */
+export function isHarmKind(value: string | null | undefined): boolean {
+  return safetyKindMeta(value)?.group === "harm";
+}
+
+/**
  * The hazards a safety occurrence is logged against.
  *
  * A separate list from `QUALITY_LABELS`, because the quality one describes none of

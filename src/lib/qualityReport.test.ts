@@ -29,8 +29,11 @@ vi.mock("xlsx-js-style", async () => {
 import XLSX from "xlsx-js-style";
 import { generateQualityReportExcel, type QualityReportAction } from "@/lib/qualityReport";
 
+// `status` stays on the fixture on purpose, set to a value that would be obvious in
+// the output: nothing in the report may read it, and a fixture that omits it could not
+// tell "not read" from "not present".
 const base = {
-  action_no: null, status: "todo", severity: "low", line: "Line 1", shift: "DAY",
+  action_no: null, status: "complete", severity: "low", line: "Line 1", shift: "DAY",
   department: null, sku: null, batch: null, labels: [] as string[], description: null,
   validation_status: "validated", closed_at: null,
 };
@@ -92,5 +95,51 @@ describe("generateQualityReportExcel — By Leader block", () => {
     const grid = summaryGrid(ws);
     const total = grid.find((r) => r[0] === "Total actions");
     expect(total?.[1]).toBe(actions.length);
+  });
+});
+
+/**
+ * The report used to count and print To do / In progress / Complete.
+ *
+ * Nothing writes `status` any more — an action is logged because it already happened,
+ * so there is no "not started" for it to be in, and every new row now carries only the
+ * column's default. A KPI counting that would have shown a backlog growing with every
+ * action ever logged, on a document that gets signed and filed.
+ *
+ * What it counts instead is the state an audit asks about: has Quality ruled on this.
+ */
+describe("generateQualityReportExcel — the lifecycle it reports", () => {
+  const grid = () => {
+    capturedBooks.length = 0;
+    generateQualityReportExcel({ actions, periodLabel: "Aug 2026", generatedBy: "Test" });
+    return summaryGrid((capturedBooks[capturedBooks.length - 1] as any).Sheets["Summary"]);
+  };
+  const cells = (g: (string | number | undefined)[][]) =>
+    g.flat().filter((v) => typeof v === "string") as string[];
+
+  it("names no board state anywhere on the Summary sheet", () => {
+    const found = cells(grid()).filter((v) => ["To do", "In progress", "Complete", "By Status"].includes(v));
+    expect(found).toEqual([]);
+  });
+
+  it("counts the validation lifecycle instead", () => {
+    const g = grid();
+    // Two validated quality actions, five safety rows still open.
+    expect(g.find((r) => r[0] === "Validated")?.[1]).toBe(2);
+    expect(g.find((r) => r[0] === "Awaiting verdict")?.[1]).toBe(5);
+    expect(g.find((r) => r[0] === "Rejected")?.[1]).toBe(0);
+  });
+
+  it("breaks the period down By Validation", () => {
+    expect(cells(grid())).toContain("By Validation");
+  });
+
+  it("puts Validation where the Actions sheet used to put Status", () => {
+    capturedBooks.length = 0;
+    generateQualityReportExcel({ actions, periodLabel: "Aug 2026", generatedBy: "Test" });
+    const g = summaryGrid((capturedBooks[capturedBooks.length - 1] as any).Sheets["Actions"]);
+    expect(g[0][2]).toBe("Validation");
+    // The fixture's status is "complete"; the column must show the verdict instead.
+    expect(g[1][2]).toBe("Validated");
   });
 });

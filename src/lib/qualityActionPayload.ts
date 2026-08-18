@@ -32,7 +32,6 @@ export interface QualityActionFormInput {
   sku: string;
   batch: string;
   department: string;
-  status: string;
   severity: string;
   labels: string[];
   description: string;
@@ -77,8 +76,10 @@ export interface QualityActionFormInput {
  * problems off the labels and ignores attribution, which is the table the question
  * "how bad is this problem" belongs on.
  *
- * Safety keeps whatever was picked. A safety occurrence always scores 0, so its
- * severity is a description rather than a price, and it stays the user's to choose.
+ * Safety passes through whatever it is handed. A safety occurrence always scores 0,
+ * so its grade is a description rather than a price — and the safety form stopped
+ * asking for one at all, classifying by `safety_kind` instead, which is what the
+ * weekly H&S scorecard counts. Rows saved while the picker existed keep their grade.
  */
 function qualitySeverity(form: QualityActionFormInput, excluded: Set<string>): string | null {
   if (form.domain !== "quality") return form.severity || null;
@@ -109,7 +110,16 @@ export function buildQualityActionPayload(
     sku: form.sku || null,
     batch: form.batch || null,
     department: form.department || null,
-    status: form.status,
+    // No `status`. An action is written down because it already happened, so there is
+    // no To do / In progress / Complete for it to be in — the lifecycle that decides
+    // anything is `validation_status`, which Quality rules on and which is the only
+    // one that moves a score.
+    //
+    // Omitted rather than sent as 'todo': the column is NOT NULL DEFAULT 'todo' with a
+    // CHECK (20260722120000), so an insert takes the default and an UPDATE leaves
+    // whatever the row already carried. PostgREST writes every key it is given, so a
+    // literal here would reset any row moved to Complete while the board existed, on
+    // the next unrelated edit.
     severity: qualitySeverity(form, excluded),
     labels: form.labels,
     description: form.description || null,

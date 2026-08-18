@@ -12,7 +12,7 @@ import { setLabelPoints, setSeverityPoints } from "@/lib/qualityConstants";
 
 const BASE_FORM: QualityActionFormInput = {
   action_no: "", line: "Line 3", shift: "DAY", leader_id: "leader-123", leader_name: "",
-  date: "2026-08-16", sku: "", batch: "", department: "", status: "todo",
+  date: "2026-08-16", sku: "", batch: "", department: "",
   severity: "", labels: [], description: "", domain: "safety", safety_kind: "near_miss",
   original_leader_id: null,
 };
@@ -189,10 +189,33 @@ describe("buildQualityActionPayload — severity follows the labels", () => {
   });
 
   it("leaves a safety occurrence's severity exactly as it was picked", () => {
-    // Safety always scores 0, so its severity is a description, not a price — it stays
-    // the user's to choose.
+    // Safety no longer offers a severity on the form, but the payload still passes
+    // through whatever it is handed for this domain — the grade is a description
+    // there, never a price, and rows saved while the picker existed keep theirs.
     setLabelPoints({ "foreign body": 5 });
     const payload = buildQualityActionPayload({ ...BASE_FORM, severity: "high" }, null, AT);
     expect(payload.severity).toBe("high");
+  });
+
+  /**
+   * `status` is To do / In progress / Complete — the state of a working board, and an
+   * action is written down because it already happened, so there is no "not started"
+   * for it to be in. The lifecycle that decides anything is `validation_status`.
+   *
+   * The column is still NOT NULL DEFAULT 'todo' with a CHECK (20260722120000), which
+   * is exactly why this has to be ABSENT rather than set to a literal: on an UPDATE,
+   * PostgREST writes every key it is given, so a hard-coded 'todo' would reset any row
+   * that had been moved to Complete while the board existed, on the next unrelated
+   * edit. An absent key leaves the stored value alone and lets the default fill an
+   * insert.
+   */
+  it("never writes status — not even the default the column already has", () => {
+    const payload = buildQualityActionPayload(BASE_FORM, null, AT);
+    expect("status" in payload).toBe(false);
+  });
+
+  it("writes no status on a quality action either", () => {
+    const payload = buildQualityActionPayload(QUALITY, null, AT);
+    expect("status" in payload).toBe(false);
   });
 });
