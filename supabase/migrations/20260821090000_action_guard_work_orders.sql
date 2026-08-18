@@ -12,7 +12,11 @@ SET search_path = public
 AS $$
   -- Sem utilizador (edge functions, pg_cron) nada é negado: um switch do Admin
   -- não pode parar o sync do iTouching nem os fechos noturnos.
-  SELECT auth.uid() IS NOT NULL AND EXISTS (
+  -- Mesmo invariante de permissions.ts:307 (if (role === "admin") return true;):
+  -- o admin nunca se tranca a si próprio, nem através da base de dados.
+  SELECT auth.uid() IS NOT NULL
+    AND public.current_user_role() <> 'admin'
+    AND EXISTS (
     SELECT 1
     FROM public.role_permission_overrides o
     WHERE o.action = _action
@@ -20,6 +24,9 @@ AS $$
       AND o.role = public.current_user_role()
   )
 $$;
+
+REVOKE ALL ON FUNCTION public.action_revoked(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.action_revoked(text) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.enforce_action()
 RETURNS trigger
@@ -32,9 +39,15 @@ BEGIN
     RAISE EXCEPTION 'Permission "%" is turned off for your role.', TG_ARGV[0]
       USING ERRCODE = '42501';
   END IF;
-  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.enforce_action() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.enforce_action() TO authenticated;
 
 DROP TRIGGER IF EXISTS wo_guard_insert ON public.work_orders;
 CREATE TRIGGER wo_guard_insert
@@ -71,5 +84,7 @@ CREATE TRIGGER wo_guard_force
 --   DROP TRIGGER IF EXISTS wo_guard_delete ON public.work_orders;
 --   DROP TRIGGER IF EXISTS wo_guard_update ON public.work_orders;
 --   DROP TRIGGER IF EXISTS wo_guard_insert ON public.work_orders;
+--   REVOKE ALL ON FUNCTION public.enforce_action() FROM PUBLIC;
 --   DROP FUNCTION IF EXISTS public.enforce_action();
+--   REVOKE ALL ON FUNCTION public.action_revoked(text) FROM PUBLIC;
 --   DROP FUNCTION IF EXISTS public.action_revoked(text);

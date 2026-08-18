@@ -304,3 +304,12 @@ git commit -m "The proof runs where the database lives, not where the code does"
 - **`SELECT` não é coberto.** Esconder leitura obriga a editar políticas existentes, que foi a decisão recusada no desenho.
 - **Ligar um switch acima da base não dá permissão nenhuma.** É a semântica só-negar; está na spec.
 - **Os outros cinco lotes** (`downtime_events` + `downtime_corrections`, `quality_actions`, `daily_allocations`, stock, `user_roles`) só começam depois de o Bloco 1 da prova falhar como deve ser na base real.
+
+## Alterações depois da revisão final
+
+- `action_revoked` passou a isentar o `admin` (`current_user_role() <> 'admin'`), espelhando o invariante de `permissions.ts:307`, porque uma linha `('admin', 'wo.update', false)` já escrevível hoje na página de permissões trancaria todos os admins fora da base assim que a migração fosse aplicada.
+- `docs/apply/VERIFY-action-guard.sql` deixou de testar `wo.delete`/`DELETE`: um `engineer` não tem política de DELETE em `work_orders`, e o `DELETE` seria filtrado pela RLS antes do trigger disparar, dando um falso negativo (`DELETE 0` sem erro). Os Blocos 1 e 2 passaram a testar `wo.update`/`UPDATE`.
+- `docs/apply/PROMPT-LOVABLE-action-guard.md` ganhou uma consulta a correr e mostrar antes de aplicar (`SELECT role, action, allowed FROM role_permission_overrides WHERE allowed = false`), para ver com antecedência que linhas passam a ser cumpridas a sério.
+- A spec corrigiu a premissa central de "Problema": não é verdade que nenhuma política consulte `role_permission_overrides` — `has_action`/`dt_insert_adjusters` em `downtime_events` já o faz; a lacuna é só fora desse ponto, incluindo `work_orders`. A spec também explica por que `action_revoked` não reaproveita `has_action` (allow-and-deny com baseline vs. só-negar) e nomeia a divergência de semântica entre as duas funções como dívida a convergir.
+- `enforce_action()` trocou `RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;` pela forma `IF TG_OP = 'DELETE' THEN RETURN OLD; END IF; RETURN NEW;`, seguindo o estilo mais claro já usado noutras funções de trigger do repositório.
+- A migração ganhou `REVOKE ALL ... FROM PUBLIC` + `GRANT EXECUTE ... TO authenticated` depois de cada função nova, e o bloco de rollback em comentário passou a incluir os `REVOKE` correspondentes — seguindo o padrão de `has_action` e `correct_downtime_event`.

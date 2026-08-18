@@ -11,6 +11,13 @@ que já está no repositório. Ela cria duas funções (`public.action_revoked`,
 Não alteres nenhuma política RLS existente. Não alteres nenhum ficheiro de frontend.
 Não mudes o conteúdo da migração — aplica-a tal como está.
 
+Antes de aplicar, corre e mostra-me o resultado de:
+
+    SELECT role, action, allowed FROM role_permission_overrides WHERE allowed = false;
+
+Estas são as linhas que a base de dados passa a cumprir a sério assim que a migração
+for aplicada — hoje só escondem um botão no ecrã. Quero ver a lista antes de aplicar.
+
 Depois de aplicar, mostra-me o resultado de:
 
     SELECT tgname FROM pg_trigger

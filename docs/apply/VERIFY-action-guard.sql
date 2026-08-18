@@ -23,18 +23,24 @@
 -- próprios. Este comportamento está documentado na spec.
 
 -- ── BLOCO 1: com o switch desligado, tem de rebentar ─────────────────────
+-- Usa-se wo.update, não wo.delete: um engineer não tem nenhuma política de DELETE
+-- em work_orders (só "Admins can delete WOs" sobrevive), portanto um DELETE de
+-- engineer é filtrado pela RLS antes de o trigger BEFORE DELETE sequer disparar —
+-- devolve DELETE 0 sem erro nenhum, e pareceria "a guarda não está instalada"
+-- mesmo instalada. wo.update é coberto pela política "Engineers can update locked
+-- or unlocked WOs", que deixa passar uma escrita inofensiva na própria ordem.
 BEGIN;
 
 INSERT INTO role_permission_overrides (role, action, allowed)
-VALUES ('engineer', 'wo.delete', false)
+VALUES ('engineer', 'wo.update', false)
 ON CONFLICT (role, action) DO UPDATE SET allowed = false;
 
 SET LOCAL request.jwt.claims = '{"sub":"<engineer_uuid>","role":"authenticated"}';
 SET LOCAL ROLE authenticated;  -- a claim primeiro: ja com o papel trocado podes nao a poder definir
 
--- ESPERADO: ERROR 42501 — Permission "wo.delete" is turned off for your role.
--- Se este DELETE passar, a guarda NÃO está instalada. Parar aqui.
-DELETE FROM work_orders WHERE id = '<wo_uuid>';
+-- ESPERADO: ERROR 42501 — Permission "wo.update" is turned off for your role.
+-- Se este UPDATE passar, a guarda NÃO está instalada. Parar aqui.
+UPDATE work_orders SET priority = priority WHERE id = '<wo_uuid>';
 
 ROLLBACK;
 
@@ -43,15 +49,16 @@ ROLLBACK;
 BEGIN;
 
 INSERT INTO role_permission_overrides (role, action, allowed)
-VALUES ('engineer', 'wo.delete', true)
+VALUES ('engineer', 'wo.update', true)
 ON CONFLICT (role, action) DO UPDATE SET allowed = true;
 
 SET LOCAL request.jwt.claims = '{"sub":"<engineer_uuid>","role":"authenticated"}';
 SET LOCAL ROLE authenticated;  -- a claim primeiro: ja com o papel trocado podes nao a poder definir
 
--- ESPERADO: DELETE 1 (ou 0 se a RLS de work_orders já o impedia por outra razão,
--- o que também é informação: nesse caso a guarda não é o que está a bloquear).
-DELETE FROM work_orders WHERE id = '<wo_uuid>';
+-- ESPERADO: UPDATE 1 (ou 0 se a RLS de work_orders já o impedia por outra razão —
+-- por exemplo a ordem estar locked a outro engineer — o que também é informação:
+-- nesse caso a guarda não é o que está a bloquear).
+UPDATE work_orders SET priority = priority WHERE id = '<wo_uuid>';
 
 ROLLBACK;
 
