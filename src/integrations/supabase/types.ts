@@ -1812,6 +1812,51 @@ export type Database = {
         }
         Relationships: []
       }
+      leader_line_assignment: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          leader_id: string
+          line_id: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          leader_id: string
+          line_id: string
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          leader_id?: string
+          line_id?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_line_assignment_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leader_line_assignment_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leader_pins: {
         Row: {
           created_at: string
@@ -1871,6 +1916,228 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      leader_scorecard_threshold: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          note: string | null
+          pillar: string
+          valid_from: string
+          valid_to: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          note?: string | null
+          pillar: string
+          valid_from: string
+          valid_to?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          note?: string | null
+          pillar?: string
+          valid_from?: string
+          valid_to?: string | null
+          value?: number
+        }
+        Relationships: []
+      }
+      leader_weekly_scorecard: {
+        Row: {
+          actual_volume: number | null
+          approved_at: string | null
+          approved_by: string | null
+          capa_due_date: string | null
+          capa_owner: string | null
+          capa_status:
+            | Database["public"]["Enums"]["scorecard_capa_status"]
+            | null
+          ccp_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          corrective_action: string | null
+          created_at: string
+          created_by: string | null
+          downtime_reason:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          effectiveness_verified_by: string | null
+          effectiveness_verified_on: string | null
+          first_aid_cases: number | null
+          hs_training_compliance_pct: number | null
+          id: string
+          leader_attendance_pct: number | null
+          leader_id: string
+          leader_lateness_incidents: number | null
+          line_id: string | null
+          lost_time_injuries: number | null
+          month_start: string | null
+          near_misses_reported: number | null
+          overdue_hs_actions: number | null
+          planned_volume: number | null
+          ppe_compliance_pct: number | null
+          quarter_start: string | null
+          reportable_accidents: number | null
+          root_cause: string | null
+          safety_observations_done: number | null
+          starter_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          submitted_at: string | null
+          submitted_by: string | null
+          team_attendance_pct: number | null
+          team_lateness_incidents: number | null
+          toolbox_talks_done: number | null
+          unplanned_downtime_minutes: number | null
+          updated_at: string
+          updated_by: string | null
+          volume_source:
+            | Database["public"]["Enums"]["scorecard_volume_source"]
+            | null
+          volume_weight_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          week_ending: string
+        }
+        Insert: {
+          actual_volume?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          capa_due_date?: string | null
+          capa_owner?: string | null
+          capa_status?:
+            | Database["public"]["Enums"]["scorecard_capa_status"]
+            | null
+          ccp_check_status?:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          corrective_action?: string | null
+          created_at?: string
+          created_by?: string | null
+          downtime_reason?:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          effectiveness_verified_by?: string | null
+          effectiveness_verified_on?: string | null
+          first_aid_cases?: number | null
+          hs_training_compliance_pct?: number | null
+          id?: string
+          leader_attendance_pct?: number | null
+          leader_id: string
+          leader_lateness_incidents?: number | null
+          line_id?: string | null
+          lost_time_injuries?: number | null
+          month_start?: string | null
+          near_misses_reported?: number | null
+          overdue_hs_actions?: number | null
+          planned_volume?: number | null
+          ppe_compliance_pct?: number | null
+          quarter_start?: string | null
+          reportable_accidents?: number | null
+          root_cause?: string | null
+          safety_observations_done?: number | null
+          starter_check_status?:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          team_attendance_pct?: number | null
+          team_lateness_incidents?: number | null
+          toolbox_talks_done?: number | null
+          unplanned_downtime_minutes?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          volume_source?:
+            | Database["public"]["Enums"]["scorecard_volume_source"]
+            | null
+          volume_weight_check_status?:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          week_ending: string
+        }
+        Update: {
+          actual_volume?: number | null
+          approved_at?: string | null
+          approved_by?: string | null
+          capa_due_date?: string | null
+          capa_owner?: string | null
+          capa_status?:
+            | Database["public"]["Enums"]["scorecard_capa_status"]
+            | null
+          ccp_check_status?:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          corrective_action?: string | null
+          created_at?: string
+          created_by?: string | null
+          downtime_reason?:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          effectiveness_verified_by?: string | null
+          effectiveness_verified_on?: string | null
+          first_aid_cases?: number | null
+          hs_training_compliance_pct?: number | null
+          id?: string
+          leader_attendance_pct?: number | null
+          leader_id?: string
+          leader_lateness_incidents?: number | null
+          line_id?: string | null
+          lost_time_injuries?: number | null
+          month_start?: string | null
+          near_misses_reported?: number | null
+          overdue_hs_actions?: number | null
+          planned_volume?: number | null
+          ppe_compliance_pct?: number | null
+          quarter_start?: string | null
+          reportable_accidents?: number | null
+          root_cause?: string | null
+          safety_observations_done?: number | null
+          starter_check_status?:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          team_attendance_pct?: number | null
+          team_lateness_incidents?: number | null
+          toolbox_talks_done?: number | null
+          unplanned_downtime_minutes?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          volume_source?:
+            | Database["public"]["Enums"]["scorecard_volume_source"]
+            | null
+          volume_weight_check_status?:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          week_ending?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_weekly_scorecard_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leader_weekly_scorecard_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leave_requests: {
         Row: {
@@ -3779,6 +4046,7 @@ export type Database = {
           created_at: string
           department: string | null
           description: string | null
+          domain: Database["public"]["Enums"]["action_domain"]
           id: string
           labels: string[]
           leader_id: string | null
@@ -3787,6 +4055,7 @@ export type Database = {
           points: number | null
           recorded_at: string
           recorded_by: string | null
+          safety_kind: Database["public"]["Enums"]["safety_kind"] | null
           session_id: string | null
           severity: string | null
           shift: string | null
@@ -3807,6 +4076,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           description?: string | null
+          domain?: Database["public"]["Enums"]["action_domain"]
           id?: string
           labels?: string[]
           leader_id?: string | null
@@ -3815,6 +4085,7 @@ export type Database = {
           points?: number | null
           recorded_at?: string
           recorded_by?: string | null
+          safety_kind?: Database["public"]["Enums"]["safety_kind"] | null
           session_id?: string | null
           severity?: string | null
           shift?: string | null
@@ -3835,6 +4106,7 @@ export type Database = {
           created_at?: string
           department?: string | null
           description?: string | null
+          domain?: Database["public"]["Enums"]["action_domain"]
           id?: string
           labels?: string[]
           leader_id?: string | null
@@ -3843,6 +4115,7 @@ export type Database = {
           points?: number | null
           recorded_at?: string
           recorded_by?: string | null
+          safety_kind?: Database["public"]["Enums"]["safety_kind"] | null
           session_id?: string | null
           severity?: string | null
           shift?: string | null
@@ -6452,6 +6725,206 @@ export type Database = {
         }
         Relationships: []
       }
+      v_leader_weekly_scorecard: {
+        Row: {
+          actual_volume: number | null
+          approved_at: string | null
+          approved_by: string | null
+          cap_applied: boolean | null
+          cap_reason: string | null
+          capa_due_date: string | null
+          capa_owner: string | null
+          capa_required: boolean | null
+          capa_status:
+            | Database["public"]["Enums"]["scorecard_capa_status"]
+            | null
+          ccp_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          corrective_action: string | null
+          created_at: string | null
+          doc_score: number | null
+          downtime_reason:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          effectiveness_verified_by: string | null
+          effectiveness_verified_on: string | null
+          first_aid_cases: number | null
+          hs_driver: string[] | null
+          hs_rag: string | null
+          hs_training_compliance_pct: number | null
+          id: string | null
+          leader_attendance_below_target: boolean | null
+          leader_attendance_pct: number | null
+          leader_id: string | null
+          leader_lateness_incidents: number | null
+          leader_name: string | null
+          line_id: string | null
+          line_name: string | null
+          lost_time_injuries: number | null
+          missing_hs_data: boolean | null
+          month: string | null
+          month_start: string | null
+          near_misses_reported: number | null
+          overall_rag: string | null
+          overdue_hs_actions: number | null
+          pending_approval: boolean | null
+          planned_volume: number | null
+          ppe_compliance_pct: number | null
+          prod_score: number | null
+          qual_score: number | null
+          quality_fail_type: string | null
+          quality_rag: string | null
+          quarter: string | null
+          quarter_start: string | null
+          rag_driver: string | null
+          reportable_accidents: number | null
+          root_cause: string | null
+          safety_observations_done: number | null
+          score_bruto: number | null
+          score_final: number | null
+          starter_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          submitted_at: string | null
+          submitted_by: string | null
+          team_attendance_pct: number | null
+          team_lateness_incidents: number | null
+          toolbox_talks_done: number | null
+          unplanned_downtime_minutes: number | null
+          updated_at: string | null
+          volume_pct: number | null
+          volume_pct_adjusted: number | null
+          volume_rag: string | null
+          volume_source:
+            | Database["public"]["Enums"]["scorecard_volume_source"]
+            | null
+          volume_weight_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          week_ending: string | null
+          weight_documentation: number | null
+          weight_production: number | null
+          weight_quality: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_weekly_scorecard_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leader_weekly_scorecard_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_leader_weekly_scorecard_periods: {
+        Row: {
+          actual_volume: number | null
+          approved_at: string | null
+          approved_by: string | null
+          cap_applied: boolean | null
+          cap_reason: string | null
+          capa_due_date: string | null
+          capa_owner: string | null
+          capa_required: boolean | null
+          capa_status:
+            | Database["public"]["Enums"]["scorecard_capa_status"]
+            | null
+          ccp_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          corrective_action: string | null
+          created_at: string | null
+          doc_score: number | null
+          downtime_reason:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          effectiveness_verified_by: string | null
+          effectiveness_verified_on: string | null
+          first_aid_cases: number | null
+          hs_driver: string[] | null
+          hs_rag: string | null
+          hs_training_compliance_pct: number | null
+          id: string | null
+          leader_attendance_below_target: boolean | null
+          leader_attendance_pct: number | null
+          leader_id: string | null
+          leader_lateness_incidents: number | null
+          leader_name: string | null
+          line_id: string | null
+          line_name: string | null
+          lost_time_injuries: number | null
+          missing_hs_data: boolean | null
+          month: string | null
+          month_start: string | null
+          near_misses_reported: number | null
+          overall_rag: string | null
+          overdue_hs_actions: number | null
+          pending_approval: boolean | null
+          period_start: string | null
+          period_type: string | null
+          planned_volume: number | null
+          ppe_compliance_pct: number | null
+          prod_score: number | null
+          qual_score: number | null
+          quality_fail_type: string | null
+          quality_rag: string | null
+          quarter: string | null
+          quarter_start: string | null
+          rag_driver: string | null
+          reportable_accidents: number | null
+          root_cause: string | null
+          safety_observations_done: number | null
+          score_bruto: number | null
+          score_final: number | null
+          starter_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          submitted_at: string | null
+          submitted_by: string | null
+          team_attendance_pct: number | null
+          team_lateness_incidents: number | null
+          toolbox_talks_done: number | null
+          unplanned_downtime_minutes: number | null
+          updated_at: string | null
+          volume_pct: number | null
+          volume_pct_adjusted: number | null
+          volume_rag: string | null
+          volume_source:
+            | Database["public"]["Enums"]["scorecard_volume_source"]
+            | null
+          volume_weight_check_status:
+            | Database["public"]["Enums"]["scorecard_check_status"]
+            | null
+          week_ending: string | null
+          weight_documentation: number | null
+          weight_production: number | null
+          weight_quality: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_weekly_scorecard_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leader_weekly_scorecard_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_line_live_status: {
         Row: {
           job_code: string | null
@@ -6468,6 +6941,281 @@ export type Database = {
           stop_since: string | null
         }
         Relationships: []
+      }
+      v_scorecard_period_spine: {
+        Row: {
+          leader_id: string | null
+          line_id: string | null
+          period_end: string | null
+          period_label: string | null
+          period_start: string | null
+          period_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_line_assignment_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leader_line_assignment_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scorecard_ranking_leader: {
+        Row: {
+          leader_id: string | null
+          leader_name: string | null
+          pct_weeks_red: number | null
+          period_label: string | null
+          period_start: string | null
+          period_type: string | null
+          rank: number | null
+          total_lti: number | null
+          weeks_recorded: number | null
+          weeks_red: number | null
+          weeks_with_fail: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_weekly_scorecard_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scorecard_ranking_line: {
+        Row: {
+          line_id: string | null
+          line_name: string | null
+          pct_weeks_red: number | null
+          period_label: string | null
+          period_start: string | null
+          period_type: string | null
+          rank: number | null
+          total_lti: number | null
+          weeks_recorded: number | null
+          weeks_red: number | null
+          weeks_with_fail: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_weekly_scorecard_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scorecard_rollup_leader: {
+        Row: {
+          avg_hs_training_pct: number | null
+          avg_leader_attendance: number | null
+          avg_ppe_pct: number | null
+          avg_score_final: number | null
+          avg_team_attendance: number | null
+          avg_volume_pct: number | null
+          avg_volume_pct_adjusted: number | null
+          capa_closure_rate: number | null
+          hs_rag: string | null
+          leader_id: string | null
+          leader_name: string | null
+          max_overdue_hs_actions: number | null
+          near_misses_per_week: number | null
+          overall_rag: string | null
+          period_label: string | null
+          period_start: string | null
+          period_type: string | null
+          quality_rag: string | null
+          top_downtime_reason:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          total_first_aid: number | null
+          total_lti: number | null
+          total_near_misses: number | null
+          total_reportable: number | null
+          total_safety_observations: number | null
+          total_team_lateness: number | null
+          total_toolbox_talks: number | null
+          total_unplanned_downtime_minutes: number | null
+          volume_rag: string | null
+          weeks_quality_red: number | null
+          weeks_recorded: number | null
+          weeks_with_cap_applied: number | null
+          weeks_with_fail: number | null
+          weeks_with_not_done: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_line_assignment_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scorecard_rollup_leader_line: {
+        Row: {
+          avg_hs_training_pct: number | null
+          avg_leader_attendance: number | null
+          avg_ppe_pct: number | null
+          avg_score_final: number | null
+          avg_team_attendance: number | null
+          avg_volume_pct: number | null
+          avg_volume_pct_adjusted: number | null
+          capa_closure_rate: number | null
+          hs_rag: string | null
+          leader_id: string | null
+          leader_name: string | null
+          line_id: string | null
+          line_name: string | null
+          max_overdue_hs_actions: number | null
+          near_misses_per_week: number | null
+          overall_rag: string | null
+          period_label: string | null
+          period_start: string | null
+          period_type: string | null
+          quality_rag: string | null
+          top_downtime_reason:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          total_first_aid: number | null
+          total_lti: number | null
+          total_near_misses: number | null
+          total_reportable: number | null
+          total_safety_observations: number | null
+          total_team_lateness: number | null
+          total_toolbox_talks: number | null
+          total_unplanned_downtime_minutes: number | null
+          volume_rag: string | null
+          weeks_quality_red: number | null
+          weeks_recorded: number | null
+          weeks_with_cap_applied: number | null
+          weeks_with_fail: number | null
+          weeks_with_not_done: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_line_assignment_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leader_line_assignment_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scorecard_rollup_line: {
+        Row: {
+          avg_hs_training_pct: number | null
+          avg_leader_attendance: number | null
+          avg_ppe_pct: number | null
+          avg_score_final: number | null
+          avg_team_attendance: number | null
+          avg_volume_pct: number | null
+          avg_volume_pct_adjusted: number | null
+          capa_closure_rate: number | null
+          hs_rag: string | null
+          line_id: string | null
+          line_name: string | null
+          max_overdue_hs_actions: number | null
+          near_misses_per_week: number | null
+          overall_rag: string | null
+          period_label: string | null
+          period_start: string | null
+          period_type: string | null
+          quality_rag: string | null
+          top_downtime_reason:
+            | Database["public"]["Enums"]["scorecard_downtime_reason"]
+            | null
+          total_first_aid: number | null
+          total_lti: number | null
+          total_near_misses: number | null
+          total_reportable: number | null
+          total_safety_observations: number | null
+          total_team_lateness: number | null
+          total_toolbox_talks: number | null
+          total_unplanned_downtime_minutes: number | null
+          volume_rag: string | null
+          weeks_quality_red: number | null
+          weeks_recorded: number | null
+          weeks_with_cap_applied: number | null
+          weeks_with_fail: number | null
+          weeks_with_not_done: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_line_assignment_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scorecard_trend_leader: {
+        Row: {
+          direction: string | null
+          leader_id: string | null
+          leader_name: string | null
+          near_misses: number | null
+          near_misses_ma4: number | null
+          overall_ma4: number | null
+          overall_num: number | null
+          overall_slope8: number | null
+          volume_pct: number | null
+          volume_pct_ma4: number | null
+          week_ending: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_weekly_scorecard_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_scorecard_trend_line: {
+        Row: {
+          direction: string | null
+          line_id: string | null
+          line_name: string | null
+          near_misses: number | null
+          near_misses_ma4: number | null
+          overall_ma4: number | null
+          overall_num: number | null
+          overall_slope8: number | null
+          volume_pct: number | null
+          volume_pct_ma4: number | null
+          week_ending: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leader_weekly_scorecard_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "lines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_wo_downtime_total: {
         Row: {
@@ -6707,6 +7455,40 @@ export type Database = {
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
       is_operator_chat_admin_now: { Args: { uid: string }; Returns: boolean }
       is_session_locked: { Args: { _session_id: string }; Returns: boolean }
+      leader_scorecard_summary: {
+        Args: {
+          _from: string
+          _leader_id?: string
+          _line_id?: string
+          _to: string
+        }
+        Returns: {
+          avg_volume_vs_plan: number
+          near_misses_per_week: number
+          open_capas: number
+          pct_weeks_red: number
+          rows_missing_hs_data: number
+          rows_missing_line: number
+          rows_pending_approval: number
+          total_lti: number
+          total_near_misses: number
+          total_overdue_hs_actions: number
+          total_reportable: number
+          total_unplanned_downtime: number
+          weeks_amber: number
+          weeks_green: number
+          weeks_hs_amber: number
+          weeks_hs_red: number
+          weeks_overproduction: number
+          weeks_quality_red: number
+          weeks_recorded: number
+          weeks_red: number
+          weeks_volume_below_min: number
+          weeks_with_fail: number
+          weeks_with_fail_without_capa: number
+          weeks_with_not_done: number
+        }[]
+      }
       leader_self_scorecard: {
         Args: { _from: string; _pin: string; _shift?: string; _to: string }
         Returns: Json
@@ -6867,6 +7649,167 @@ export type Database = {
         Args: { _notes: string; _session_id: string }
         Returns: undefined
       }
+      scorecard_derived_volume: {
+        Args: { _line_id: string; _week_ending: string }
+        Returns: {
+          actual_volume: number
+          planned_volume: number
+          source_label: string
+          unplanned_downtime_minutes: number
+        }[]
+      }
+      scorecard_doc_score: {
+        Args: {
+          _checks: Database["public"]["Enums"]["scorecard_check_status"][]
+        }
+        Returns: number
+      }
+      scorecard_hs_evaluate: {
+        Args: {
+          _first_aid: number
+          _lti: number
+          _near_min: number
+          _near_misses: number
+          _obs_min: number
+          _overdue: number
+          _ppe: number
+          _ppe_min: number
+          _reportable: number
+          _safety_obs: number
+          _toolbox: number
+          _toolbox_min: number
+          _train_green: number
+          _train_red: number
+          _training: number
+        }
+        Returns: Database["public"]["CompositeTypes"]["scorecard_hs_eval"]
+        SetofOptions: {
+          from: "*"
+          to: "scorecard_hs_eval"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      scorecard_month_label: { Args: { _d: string }; Returns: string }
+      scorecard_overall_rag: {
+        Args: { _hs_rag: string; _quality_rag: string; _volume_rag: string }
+        Returns: string
+      }
+      scorecard_pct_label: { Args: { _pct: number }; Returns: string }
+      scorecard_prod_score: {
+        Args: {
+          _amber_min: number
+          _green_max: number
+          _green_min: number
+          _over_band: number
+          _over_penalty: number
+          _pct: number
+          _vol_zero: number
+        }
+        Returns: number
+      }
+      scorecard_qual_score: {
+        Args: {
+          _checks: Database["public"]["Enums"]["scorecard_check_status"][]
+          _penalty: number
+        }
+        Returns: number
+      }
+      scorecard_quality_fail_type: {
+        Args: {
+          _checks: Database["public"]["Enums"]["scorecard_check_status"][]
+        }
+        Returns: string
+      }
+      scorecard_quality_rag: {
+        Args: {
+          _checks: Database["public"]["Enums"]["scorecard_check_status"][]
+        }
+        Returns: string
+      }
+      scorecard_quarter_label: { Args: { _d: string }; Returns: string }
+      scorecard_safety_counts: {
+        Args: { _leader_id: string; _line: string; _week_ending: string }
+        Returns: {
+          first_aid_cases: number
+          lost_time_injuries: number
+          near_misses_reported: number
+          overdue_hs_actions: number
+          reportable_accidents: number
+          rows_missing_attribution: number
+          safety_observations_done: number
+          toolbox_talks_done: number
+        }[]
+      }
+      scorecard_score_evaluate: {
+        Args: {
+          _amber_min: number
+          _cap_gate: number
+          _cap_hs_amber: number
+          _cap_not_done: number
+          _checks: Database["public"]["Enums"]["scorecard_check_status"][]
+          _fail_penalty: number
+          _green_max: number
+          _green_min: number
+          _hs_rag: string
+          _lti: number
+          _over_band: number
+          _over_penalty: number
+          _reportable: number
+          _vol_zero: number
+          _volume_pct: number
+          _w_doc: number
+          _w_prod: number
+          _w_qual: number
+        }
+        Returns: Database["public"]["CompositeTypes"]["scorecard_score_eval"]
+        SetofOptions: {
+          from: "*"
+          to: "scorecard_score_eval"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      scorecard_score_label: { Args: { _n: number }; Returns: string }
+      scorecard_volume_pct_adjusted: {
+        Args: {
+          _actual: number
+          _downtime: number
+          _planned: number
+          _prod_minutes: number
+        }
+        Returns: number
+      }
+      scorecard_volume_rag: {
+        Args: {
+          _amber_min: number
+          _green_max: number
+          _green_min: number
+          _pct: number
+        }
+        Returns: string
+      }
+      scorecard_week_board: {
+        Args: { _week_ending: string }
+        Returns: {
+          cap_applied: boolean
+          cap_reason: string
+          capa_required: boolean
+          entry_id: string
+          hs_rag: string
+          leader_id: string
+          leader_name: string
+          line_id: string
+          line_name: string
+          overall_rag: string
+          quality_rag: string
+          rag_driver: string
+          score_bruto: number
+          score_final: number
+          state: string
+          volume_rag: string
+        }[]
+      }
       session_write_deadline: {
         Args: { _session_date: string; _shift: string }
         Returns: string
@@ -6936,6 +7879,7 @@ export type Database = {
       work_order_access_hint: { Args: { _wo_id: string }; Returns: Json }
     }
     Enums: {
+      action_domain: "quality" | "safety"
       app_role:
         | "admin"
         | "engineer"
@@ -6952,6 +7896,28 @@ export type Database = {
       machine_category: "line_fixed" | "line_mobile" | "support"
       mobile_asset_type: "printer" | "bag_sealer"
       po_status: "draft" | "sent" | "received" | "cancelled"
+      safety_kind:
+        | "lost_time_injury"
+        | "reportable_accident"
+        | "first_aid"
+        | "near_miss"
+        | "safety_observation"
+        | "toolbox_talk"
+        | "ppe_breach"
+      scorecard_capa_status:
+        | "Aberta"
+        | "Em Andamento"
+        | "Concluida"
+        | "Verificada"
+      scorecard_check_status: "Pass" | "Fail" | "Not Done"
+      scorecard_downtime_reason:
+        | "Quebra"
+        | "Falta de Materia Prima"
+        | "Troca de Mix"
+        | "Falta de Pessoal"
+        | "Outro"
+        | "NA"
+      scorecard_volume_source: "derivado" | "manual"
       wo_status:
         | "open"
         | "in_progress"
@@ -6964,7 +7930,18 @@ export type Database = {
         | "rejected"
     }
     CompositeTypes: {
-      [_ in never]: never
+      scorecard_hs_eval: {
+        rag: string | null
+        drivers: string[] | null
+      }
+      scorecard_score_eval: {
+        prod_score: number | null
+        qual_score: number | null
+        doc_score: number | null
+        score_bruto: number | null
+        score_final: number | null
+        cap_reason: string | null
+      }
     }
   }
 }
@@ -7089,6 +8066,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      action_domain: ["quality", "safety"],
       app_role: [
         "admin",
         "engineer",
@@ -7106,6 +8084,31 @@ export const Constants = {
       machine_category: ["line_fixed", "line_mobile", "support"],
       mobile_asset_type: ["printer", "bag_sealer"],
       po_status: ["draft", "sent", "received", "cancelled"],
+      safety_kind: [
+        "lost_time_injury",
+        "reportable_accident",
+        "first_aid",
+        "near_miss",
+        "safety_observation",
+        "toolbox_talk",
+        "ppe_breach",
+      ],
+      scorecard_capa_status: [
+        "Aberta",
+        "Em Andamento",
+        "Concluida",
+        "Verificada",
+      ],
+      scorecard_check_status: ["Pass", "Fail", "Not Done"],
+      scorecard_downtime_reason: [
+        "Quebra",
+        "Falta de Materia Prima",
+        "Troca de Mix",
+        "Falta de Pessoal",
+        "Outro",
+        "NA",
+      ],
+      scorecard_volume_source: ["derivado", "manual"],
       wo_status: [
         "open",
         "in_progress",
