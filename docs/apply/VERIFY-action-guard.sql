@@ -9,6 +9,11 @@
 -- Para os encontrar:
 --   SELECT ur.user_id, ur.role FROM user_roles ur WHERE ur.role = 'engineer' LIMIT 5;
 --   SELECT id, wo_number, status FROM work_orders ORDER BY created_at DESC LIMIT 5;
+--
+-- IMPORTANTE: Os três blocos abaixo correm UM DE CADA VEZ — seleciona o bloco,
+-- executa-o, lê o resultado, depois o seguinte. O Bloco 1 é suposto falhar com erro 42501;
+-- depois da falha, a transação está abortada e o ROLLBACK tem de ser executado sozinho
+-- antes de continuares para o Bloco 2.
 
 -- NOTA: Fechar uma work order é uma UPDATE, portanto wo_guard_update dispara em paralelo
 -- com wo_guard_close. Revogar wo.update a um papel bloqueia igualmente o fecho normal e
@@ -17,6 +22,7 @@
 -- in_progress ou received sem guarda nenhuma, porque só closed e force_closed têm triggers
 -- próprios. Este comportamento está documentado na spec.
 
+-- ── BLOCO 1: com o switch desligado, tem de rebentar ─────────────────────
 BEGIN;
 
 INSERT INTO role_permission_overrides (role, action, allowed)
@@ -50,13 +56,28 @@ DELETE FROM work_orders WHERE id = '<wo_uuid>';
 ROLLBACK;
 
 -- ── BLOCO 3: o trabalho automático não pode ser apanhado ─────────────────
--- Sem contexto de utilizador, action_revoked tem de devolver false mesmo com
--- o switch desligado — é o que protege o sync do iTouching e o pg_cron.
+-- A cláusula auth.uid() IS NOT NULL em action_revoked é a que levanta a guarda para
+-- work orders criadas por sync ou pg_cron. O par de SELECTs abaixo prova que funciona:
+-- com utilizador torna-se TRUE (a guarda ativa), sem utilizador torna-se FALSE (sem guarda).
+-- Se ambas não forem assim, a cláusula não está a fazer o seu trabalho.
 BEGIN;
 
 INSERT INTO role_permission_overrides (role, action, allowed)
 VALUES ('engineer', 'wo.update', false)
 ON CONFLICT (role, action) DO UPDATE SET allowed = false;
+
+-- COM contexto de utilizador (engineer), action_revoked tem de devolver TRUE:
+-- a guarda está ativa e bloquearia a escrita.
+SET LOCAL request.jwt.claims = '{"sub":"<engineer_uuid>","role":"authenticated"}';
+SET LOCAL ROLE authenticated;
+
+-- ESPERADO: true
+SELECT public.action_revoked('wo.update') AS deve_ser_true;
+
+-- Agora SEM contexto de utilizador, action_revoked tem de devolver FALSE:
+-- é o que protege o sync do iTouching e o pg_cron.
+RESET ROLE;
+RESET request.jwt.claims;
 
 -- ESPERADO: false
 SELECT public.action_revoked('wo.update') AS deve_ser_false;
