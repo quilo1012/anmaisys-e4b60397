@@ -423,14 +423,14 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
-  { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm"] },
+  { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm", "chat.settings"] },
   { key: "notif", label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
   { key: "intouch", label: "iTouching", actions: ["intouch.view", "intouch.manage"] },
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
-  { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator"] },
+  { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator", "dashboard.warehouse"] },
   { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
   { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.export", "reliability.view", "suppliers.view"] },
-  { key: "system", label: "System", actions: ["system.clear", "system.settings", "permissions.manage"] },
+  { key: "system", label: "System", actions: ["system.hub", "system.clear", "system.settings", "system.shiftpasswords", "system.diagnostics", "permissions.manage"] },
 ];
 
 export const ACTION_LABELS: Partial<Record<Action, string>> = {
@@ -489,6 +489,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "leaders.manage": "Add, edit or deactivate line leaders.",
   "chat.line": "Use the per-line chat button and screen.",
   "chat.dm": "Send direct messages to Supervisor / Manager.",
+  "chat.settings": "Choose who the operators reach when they write from a line.",
   "notifications.view": "See the notifications center.",
   "notifications.manage": "Configure and clear notifications.",
   "intouch.view": "Open the iTouching monitoring pages.",
@@ -499,6 +500,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "dashboard.manager": "Access the Manager dashboard.",
   "dashboard.engineer": "Access the Engineer dashboard.",
   "dashboard.operator": "Access the Operator dashboard.",
+  "dashboard.warehouse": "Access the Warehouse dashboard and its service requests.",
   "users.view": "See the Staff Members list.",
   "users.manage": "Create, edit or deactivate users and roles.",
   "audit.view": "See the audit log of security-sensitive events.",
@@ -507,6 +509,9 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "suppliers.view": "Open the Suppliers directory.",
   "system.clear": "Bulk-clear operational data (dangerous, admin only).",
   "system.settings": "Change system-wide settings.",
+  "system.hub": "Open the System hub — setup, integrations and the audit trail behind one door.",
+  "system.diagnostics": "Open Root Diagnostics (raw system state, for troubleshooting).",
+  "system.shiftpasswords": "Set the shift passwords the line tablets are unlocked with.",
   "permissions.manage": "Edit this Permissions Matrix.",
 };
 
