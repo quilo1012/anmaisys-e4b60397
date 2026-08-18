@@ -8,7 +8,12 @@
 --
 -- Para os encontrar:
 --   SELECT ur.user_id, ur.role FROM user_roles ur WHERE ur.role = 'engineer' LIMIT 5;
---   SELECT id, wo_number, status FROM work_orders ORDER BY created_at DESC LIMIT 5;
+--   SELECT id, wo_number, status, locked_engineer_id FROM work_orders
+--     ORDER BY created_at DESC LIMIT 5;
+--   A ordem escolhida TEM de ter locked_engineer_id NULL (ou ser do próprio
+--   engineer do teste): a política "Engineers can update locked or unlocked WOs"
+--   exige isso, e uma ordem trancada a outro engenheiro é filtrada pela RLS antes
+--   de o trigger disparar.
 --
 -- IMPORTANTE: Os três blocos abaixo correm UM DE CADA VEZ — seleciona o bloco,
 -- executa-o, lê o resultado, depois o seguinte. O Bloco 1 é suposto falhar com erro 42501;
@@ -39,7 +44,12 @@ SET LOCAL request.jwt.claims = '{"sub":"<engineer_uuid>","role":"authenticated"}
 SET LOCAL ROLE authenticated;  -- a claim primeiro: ja com o papel trocado podes nao a poder definir
 
 -- ESPERADO: ERROR 42501 — Permission "wo.update" is turned off for your role.
--- Se este UPDATE passar, a guarda NÃO está instalada. Parar aqui.
+-- Ler o resultado com cuidado, porque há três desfechos e só um é bom:
+--   ERROR 42501  -> a guarda está instalada e a negar. É o que se quer.
+--   UPDATE 1     -> a guarda NÃO está instalada. Parar aqui.
+--   UPDATE 0     -> a RLS filtrou a linha e o trigger nunca chegou a correr.
+--                   NÃO é falha da guarda: é a ordem errada. Escolher outra com
+--                   locked_engineer_id NULL e repetir o bloco.
 UPDATE work_orders SET priority = priority WHERE id = '<wo_uuid>';
 
 ROLLBACK;
