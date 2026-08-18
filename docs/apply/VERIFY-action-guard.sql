@@ -29,7 +29,8 @@
 
 -- ── BLOCO 1: com o switch desligado, tem de rebentar ─────────────────────
 -- Usa-se wo.update, não wo.delete: um engineer não tem nenhuma política de DELETE
--- em work_orders (só "Admins can delete WOs" sobrevive), portanto um DELETE de
+-- em work_orders (sobrevivem "Admins can delete WOs" e "office_admin all", nenhuma
+-- delas para engineer), portanto um DELETE de
 -- engineer é filtrado pela RLS antes de o trigger BEFORE DELETE sequer disparar —
 -- devolve DELETE 0 sem erro nenhum, e pareceria "a guarda não está instalada"
 -- mesmo instalada. wo.update é coberto pela política "Engineers can update locked

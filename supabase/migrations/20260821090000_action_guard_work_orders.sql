@@ -1,6 +1,9 @@
--- A matriz de permissões do Admin escreve em role_permission_overrides, mas
--- nenhuma política RLS a consultava: desligar um switch escondia o botão e
--- deixava a escrita passar. Estes triggers fazem o Postgres recusá-la.
+-- A matriz de permissões do Admin escreve em role_permission_overrides. Do lado da
+-- base, essa tabela só era consultada num sítio — public.has_action, usada pela
+-- política dt_insert_adjusters em downtime_events. work_orders não tinha guarda
+-- nenhuma, e nenhum ecrã chama can() para as cinco ações wo.* (só wo.view), pelo
+-- que estes triggers são a primeira e única coisa a fazê-las valer: uma ação
+-- revogada aparece como erro cru num fluxo que não avisou de nada.
 -- Semântica: só negar. A base de quem pode o quê continua no MATRIX (TypeScript).
 
 CREATE OR REPLACE FUNCTION public.action_revoked(_action text)

@@ -150,7 +150,10 @@ ficheiro é escrito e commitado no ramo; a aplicação é pedida ao Lovable pelo
   paragem de linha — e o erro que a pessoa vê nomeia `wo.update`, não a ação de
   downtime que estava de facto a tentar.
 - Fechar uma ordem invoca `action_revoked` duas vezes por linha (`wo_guard_update` e
-  `wo_guard_close`), cada uma com uma consulta a `user_roles` via `current_user_role()`.
+  `wo_guard_close`), e cada invocação chama `current_user_role()` até duas vezes — uma
+  na isenção do admin, outra na comparação do papel — o que dá até quatro consultas a
+  `user_roles` por linha fechada. A função é `STABLE`, portanto o planeador pode dobrar
+  as chamadas, mas isso não é garantido dentro do `EXISTS`.
   Este repositório já foi mordido por `has_role` avaliado por linha em políticas de
   `work_orders` (`20260802080000_work_order_policies_evaluate_once.sql`, 220x mais lento
   a 349 ordens). Aqui o alcance fica limitado porque os dois escritores em lote — o
