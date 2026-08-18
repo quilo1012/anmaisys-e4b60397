@@ -104,7 +104,9 @@ ficheiro é escrito e commitado no ramo; a aplicação é pedida ao Lovable pelo
 ## Riscos aceites
 
 - O `BEFORE UPDATE` corre em todas as escritas de `work_orders`, incluindo as automáticas.
-  Mitigado pela cláusula `auth.uid() IS NOT NULL` — a confirmar no teste, não a presumir.
+  O teste confirma que sem utilizador nada é bloqueado, protegendo sync do iTouching e
+  pg_cron. A cláusula `auth.uid() IS NOT NULL` é defesa em profundidade, não distinguível
+  em teste porque `current_user_role()` já devolve NULL sem utilizador.
 - Revogar `wo.update` ao próprio `admin` deixa-o sem editar ordens até desligar o switch,
   o que continua a conseguir fazer (a página de permissões escreve noutra tabela). Fica
   documentado; não se protege com código.

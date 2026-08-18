@@ -56,26 +56,30 @@ DELETE FROM work_orders WHERE id = '<wo_uuid>';
 ROLLBACK;
 
 -- ── BLOCO 3: o trabalho automático não pode ser apanhado ─────────────────
--- A cláusula auth.uid() IS NOT NULL em action_revoked é a que levanta a guarda para
--- work orders criadas por sync ou pg_cron. O par de SELECTs abaixo prova que funciona:
--- com utilizador torna-se TRUE (a guarda ativa), sem utilizador torna-se FALSE (sem guarda).
--- Se ambas não forem assim, a cláusula não está a fazer o seu trabalho.
+-- O par de SELECTs abaixo mostra o comportamento observável: com utilizador, um
+-- engineer revogado é bloqueado (TRUE); sem utilizador, nada é bloqueado (FALSE).
+-- Isto confirma que sync do iTouching e pg_cron passam sem guarda.
+--
+-- A cláusula auth.uid() IS NOT NULL em action_revoked é defesa em profundidade,
+-- escrita para quem lê a função. Não é testável em isolamento: current_user_role()
+-- já devolve NULL sem utilizador, portanto o EXISTS é false de qualquer forma,
+-- com ou sem a cláusula. A observação aqui prova o comportamento, não a cláusula.
 BEGIN;
 
 INSERT INTO role_permission_overrides (role, action, allowed)
 VALUES ('engineer', 'wo.update', false)
 ON CONFLICT (role, action) DO UPDATE SET allowed = false;
 
--- COM contexto de utilizador (engineer), action_revoked tem de devolver TRUE:
--- a guarda está ativa e bloquearia a escrita.
+-- COM contexto de utilizador (engineer), a guarda está ativa:
+-- action_revoked devolve TRUE, bloqueando a escrita.
 SET LOCAL request.jwt.claims = '{"sub":"<engineer_uuid>","role":"authenticated"}';
 SET LOCAL ROLE authenticated;
 
 -- ESPERADO: true
 SELECT public.action_revoked('wo.update') AS deve_ser_true;
 
--- Agora SEM contexto de utilizador, action_revoked tem de devolver FALSE:
--- é o que protege o sync do iTouching e o pg_cron.
+-- SEM contexto de utilizador, nada é bloqueado:
+-- action_revoked devolve FALSE, deixando passar o trabalho automático.
 RESET ROLE;
 RESET request.jwt.claims;
 
