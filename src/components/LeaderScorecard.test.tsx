@@ -58,6 +58,10 @@ function builder(table: string) {
   const chain: Record<string, unknown> = {
     then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => settle().then(res, rej),
     select: (c?: string) => { columns = c ?? ""; return chain; },
+    // The weights row is read with `.maybeSingle()`. Without it here the weighting
+    // query threw, and the card — which now declines to draw a score before the
+    // weighting lands — waited forever on a promise the harness never made.
+    maybeSingle: () => settle().then((r: any) => ({ ...r, data: Array.isArray(r.data) ? (r.data[0] ?? null) : r.data })),
   };
   for (const m of ["eq", "in", "gte", "lte", "ilike", "order", "limit", "not", "or"]) {
     chain[m] = (...args: unknown[]) => { calls.push({ table, method: m, args }); return chain; };

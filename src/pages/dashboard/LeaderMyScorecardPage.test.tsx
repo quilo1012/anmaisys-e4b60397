@@ -20,6 +20,15 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: () => ({
       select: () => ({
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        // The dated weights table. Answering the way a database without it answers is
+        // the honest stand-in — production has not run 20260818090000 — and it is the
+        // path `chooseWeights` is built for. Without this the weighting query threw,
+        // and the card, which no longer draws a score before the weighting lands,
+        // waited on it forever.
+        in: () => Promise.resolve({
+          data: null,
+          error: { code: "42P01", message: 'relation "leader_scorecard_threshold" does not exist' },
+        }),
       }),
     }),
   },

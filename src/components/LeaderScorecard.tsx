@@ -8,8 +8,7 @@ import { Download, Printer } from "lucide-react";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { toast } from "sonner";
 import { useProfileNames } from "@/hooks/useProfileNames";
-import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
-import { DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { useLeaderWeighting } from "@/hooks/useLeaderScoreWeights";
 import { shiftDateFetchRange } from "@/lib/shifts";
 import { leaderNamePattern, escapeLikePattern } from "@/lib/leaderNameMatch";
 import { selectOptionalDomain } from "@/lib/optionalDomain";
@@ -204,7 +203,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
    * the score in November re-scored every card anyone opened about July — including
    * ones already printed and signed.
    */
-  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights(to);
+  const { weights, ready: weightsReady, failed: weightsFailed } = useLeaderWeighting(to);
   const { excluded, ready: attributionReady } = useLeaderAttribution();
 
   /**
@@ -224,7 +223,12 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
    * draw a score it might have to take back — and this way round is worse, because a
    * score that flatters is one nobody reports.
    */
-  const readFailed = eActions || eCompletes || eSessions || eRag || eItems || eWos;
+  // The weighting counts as a read, because a score is the three pillars weighted and
+  // without the weights there is no score to show. Folded in here rather than left to
+  // the readiness gate below: `ready` false and `failed` true look identical to that
+  // gate, so a failed weighting would have sat under "Working out which actions
+  // count…" forever, about actions, which is not what broke.
+  const readFailed = eActions || eCompletes || eSessions || eRag || eItems || eWos || weightsFailed;
   const result = useMemo(
     () => computeScorecard(
       { ...EMPTY_RAW, actions, completes, sessions, ragRows, items, woRequests },
@@ -285,11 +289,12 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
                   eRag && "the RAG weekly plan",
                   eItems && "production items",
                   eWos && "work orders",
+                  weightsFailed && "the score weighting",
                 ].filter(Boolean).join(", ")} did not load, so no score is shown —
                 an unreadable period is not an empty one.
               </p>
             </div>
-          ) : attributionReady
+          ) : attributionReady && weightsReady
             ? <LeaderScorecardBody
                 leaderName={leaderName}
                 period={period}

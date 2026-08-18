@@ -35,9 +35,9 @@ import { woStatusCounts, DONE_STATUSES } from "@/lib/woStatusCounts";
 import { leaderNameKey } from "@/lib/leaderNameMatch";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { PointsPending } from "@/components/quality/PointsPending";
-import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, rankLeadersByScore } from "@/lib/leaderScore";
 import { canPrintReport } from "@/lib/permissions";
-import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
+import { useLeaderWeighting } from "@/hooks/useLeaderScoreWeights";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { EmptyState } from "@/components/EmptyState";
@@ -141,7 +141,7 @@ export default function AnalyticsPage() {
    * force at the end of it — the same date the scorecard behind each row resolves on.
    * Declared here rather than at the top of the component because it needs `endDate`.
    */
-  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights(format(endDate, "yyyy-MM-dd"));
+  const { weights, ready: weightsReady } = useLeaderWeighting(format(endDate, "yyyy-MM-dd"));
 
   // Range pushed server-side: without it the hook caps at the 200 newest orders
   // and every widget below silently reported on a truncated set.
@@ -900,10 +900,11 @@ export default function AnalyticsPage() {
                           </td>
                           <td className="p-2 font-medium">{r.leader}</td>
                           <td className="p-2 text-right">
-                            {!attributionReady ? (
-                              /* The score subtracts quality points, so it moves when
-                                 attribution lands. A leader must not watch their own
-                                 percentage drop a second after the page paints. */
+                            {!attributionReady || !weightsReady ? (
+                              /* The score subtracts quality points and then weights the
+                                 three pillars, so it moves when either attribution or
+                                 the weighting lands. A leader must not watch their own
+                                 percentage change a second after the page paints. */
                               <PointsPending />
                             ) : r.score === null ? (
                               <span className="text-muted-foreground" title="Nothing measurable in this period">—</span>

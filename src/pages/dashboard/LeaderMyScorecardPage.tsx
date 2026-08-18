@@ -14,8 +14,7 @@ import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 import { computeScorecard, type ScorecardPeriod } from "@/lib/leaderScorecard";
 import { downloadScorecardCsv } from "@/lib/leaderScorecardCsv";
 import { printElementAsDocument } from "@/lib/printDocument";
-import { useLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
-import { DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { useLeaderWeighting } from "@/hooks/useLeaderScoreWeights";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { fetchLeaderSelfScorecard, type LeaderIdentity } from "@/hooks/useLeaderSelfScorecard";
 import { LeaderScorecardBody, SCORECARD_PRINT_ID } from "@/components/leader/LeaderScorecardBody";
@@ -123,7 +122,7 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
    * different numbers for the same person — feeding one of them today's weights and
    * the other the period's would have re-opened that gap from the other end.
    */
-  const { data: weights = DEFAULT_WEIGHTS } = useLeaderScoreWeights(period.to);
+  const { weights, ready: weightsReady } = useLeaderWeighting(period.to);
 
   const cardQuery = useQuery({
     // Keyed on the leader, never on the PIN.
@@ -269,7 +268,7 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
             </div>
           </CardContent>
         </Card>
-      ) : !attributionReady ? (
+      ) : !attributionReady || !weightsReady ? (
         /* The leader is reading their own score. Showing them a worse one and then
            correcting it is the single worst place in the app to do that. */
         <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>

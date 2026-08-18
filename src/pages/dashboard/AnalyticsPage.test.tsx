@@ -45,8 +45,12 @@ vi.mock("@/hooks/useMaintenanceKpis", () => ({
   useMaintenanceKpis: () => ({ avgResponseMin: 0, avgMTTRMin: 0, avgMTBFMin: 0 }),
 }));
 vi.mock("@/hooks/useDowntime", () => ({ useDowntime: () => ({ data: [] }) }));
+const TEST_WEIGHTS = { production_pct: 50, quality_pct: 30, documentation_pct: 20 };
 vi.mock("@/hooks/useLeaderScoreWeights", () => ({
-  useLeaderScoreWeights: () => ({ data: { production_pct: 50, quality_pct: 30, documentation_pct: 20 } }),
+  useLeaderScoreWeights: () => ({ data: TEST_WEIGHTS }),
+  // `ready` true: these cases are about the period the card reports on, not about
+  // what it draws while the weighting is still in flight.
+  useLeaderWeighting: () => ({ weights: TEST_WEIGHTS, ready: true, failed: false }),
 }));
 
 const TODAY = new Date();

@@ -53,6 +53,31 @@ export function useLeaderScoreWeights(asOf?: string) {
   });
 }
 
+/**
+ * The weights, plus whether they are the factory's or a stand-in.
+ *
+ * Every scoring screen wrote `data = DEFAULT_WEIGHTS`, so while the query was in
+ * flight it computed and drew a real score on a guessed weighting, then replaced it
+ * when the row arrived. Nobody watching sees a query settle; they see a score that
+ * changed by itself, which is indistinguishable from a bug and corrodes the one
+ * number this module exists to make arguable.
+ *
+ * Shaped like `useLeaderAttribution` on purpose — the screens already refuse to draw
+ * a score before attribution lands, and this is the same refusal for the same reason.
+ * The fallback stays for the arithmetic, which needs three numbers to run at all; what
+ * changes is that its output is not shown to anyone.
+ */
+export function useLeaderWeighting(asOf?: string) {
+  const query = useLeaderScoreWeights(asOf);
+  return {
+    weights: query.data ?? DEFAULT_WEIGHTS,
+    /** A score may be drawn. */
+    ready: query.isSuccess,
+    /** The weighting could not be read — say so rather than show a number. */
+    failed: query.isError,
+  };
+}
+
 export function useUpdateLeaderScoreWeights() {
   const qc = useQueryClient();
   return useMutation({

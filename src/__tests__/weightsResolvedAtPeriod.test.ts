@@ -34,15 +34,22 @@ const SCORING = [
  */
 const EDITING = "pages/dashboard/QualityActionsPage.tsx";
 
+/**
+ * Both names, because the scoring screens and the editing form ask different
+ * questions of the same module: a screen that draws a score calls `useLeaderWeighting`,
+ * which also reports whether the weighting has landed, and the editor calls
+ * `useLeaderScoreWeights` directly because it wants the row and not a readiness flag.
+ * What this guards is the argument, and that rule is the same for both.
+ */
 const callsIn = (file: string) =>
-  Array.from(readFileSync(join(SRC, file), "utf8").matchAll(/useLeaderScoreWeights\(([^)]*)\)/g))
+  Array.from(readFileSync(join(SRC, file), "utf8").matchAll(/useLeader(?:ScoreWeights|Weighting)\(([^)]*)\)/g))
     .map((m) => m[1].trim());
 
 describe("the weights a leader is scored on", () => {
   for (const file of SCORING) {
     it(`${file} resolves them at the period it reports on`, () => {
       const args = callsIn(file);
-      expect(args.length, `${file} no longer calls useLeaderScoreWeights`).toBeGreaterThan(0);
+      expect(args.length, `${file} no longer asks for the weights at all`).toBeGreaterThan(0);
       for (const a of args) {
         expect(
           a,
