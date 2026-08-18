@@ -16,7 +16,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles, requiredAction }: ProtectedRouteProps) {
-  const { session, role, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut } = useAuth();
+  const { session, role, isOwner, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut } = useAuth();
   const [, setPermissionVersion] = useState(0);
   const device = useDeviceType();
 
@@ -136,15 +136,17 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
 
   // Role loaded — evaluate access.
   // Rules (unified with Permissions Matrix):
-  //   1. admin always passes (no self-lockout).
+  //   1. the owner account always passes — the break-glass valve. The admin ROLE no
+  //      longer does: it is resolved by the matrix and its overrides like any other,
+  //      so the Permissions page tells the truth about what an admin reaches.
   //   2. co_engineer inherits engineer.
   //   3. When requiredAction is set, gate SOLELY by can(role, action) —
   //      allowedRoles is ignored so we never create an AND-lockout.
   //   4. Otherwise fall back to allowedRoles (used by routes that intentionally
-  //      have no matching action, e.g. warehouse and *-preview pages).
+  //      have no matching action, e.g. the *-preview pages).
   const effectiveRole = role === "co_engineer" ? "engineer" : role;
   let denied = false;
-  if (effectiveRole !== "admin") {
+  if (!isOwner) {
     if (requiredAction) {
       denied = !can(effectiveRole, requiredAction);
     } else if (allowedRoles) {

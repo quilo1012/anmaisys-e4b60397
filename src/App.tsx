@@ -319,7 +319,7 @@ const App = () => (
                 <Route
                   path="/dashboard/warehouse"
                   element={
-                    <ProtectedRoute allowedRoles={["warehouse", "admin"]}>
+                    <ProtectedRoute requiredAction="dashboard.warehouse">
                       <WarehouseDashboard />
                     </ProtectedRoute>
                   }
@@ -460,7 +460,7 @@ const App = () => (
                 <Route
                   path="/dashboard/system"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute requiredAction="system.hub">
                       <SystemHubPage />
                     </ProtectedRoute>
                   }
@@ -550,7 +550,7 @@ const App = () => (
                 <Route
                   path="/dashboard/operator-chat-settings"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <ProtectedRoute requiredAction="chat.settings">
                       <OperatorChatSettingsPage />
                     </ProtectedRoute>
                   }
@@ -558,7 +558,7 @@ const App = () => (
                 <Route
                   path="/dashboard/shift-password-settings"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
+                    <ProtectedRoute requiredAction="system.shiftpasswords">
                       <ShiftPasswordSettingsPage />
                     </ProtectedRoute>
                   }
@@ -566,7 +566,7 @@ const App = () => (
                 <Route
                   path="/dashboard/root-diagnostics"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]}>
+                    <ProtectedRoute requiredAction="system.diagnostics">
                       <RootDiagnosticsPage />
                     </ProtectedRoute>
                   }
