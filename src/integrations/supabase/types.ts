@@ -83,6 +83,24 @@ export type Database = {
         }
         Relationships: []
       }
+      app_owner: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       attendance_backfill_bak_20260804: {
         Row: {
           board_status: string | null
@@ -7454,6 +7472,7 @@ export type Database = {
       intouch_is_fault_code: { Args: { _code: string }; Returns: boolean }
       is_operator_chat_admin: { Args: { uid: string }; Returns: boolean }
       is_operator_chat_admin_now: { Args: { uid: string }; Returns: boolean }
+      is_owner: { Args: { _uid: string }; Returns: boolean }
       is_session_locked: { Args: { _session_id: string }; Returns: boolean }
       leader_scorecard_summary: {
         Args: {
