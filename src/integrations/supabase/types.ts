@@ -4007,6 +4007,7 @@ export type Database = {
           created_at: string
           id: string
           kind: string
+          points: number
           sort: number
           value: string
         }
@@ -4015,6 +4016,7 @@ export type Database = {
           created_at?: string
           id?: string
           kind: string
+          points?: number
           sort?: number
           value: string
         }
@@ -4023,6 +4025,7 @@ export type Database = {
           created_at?: string
           id?: string
           kind?: string
+          points?: number
           sort?: number
           value?: string
         }
