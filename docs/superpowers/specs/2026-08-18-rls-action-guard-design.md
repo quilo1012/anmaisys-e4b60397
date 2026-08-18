@@ -109,6 +109,7 @@ ficheiro é escrito e commitado no ramo; a aplicação é pedida ao Lovable pelo
   o que continua a conseguir fazer (a página de permissões escreve noutra tabela). Fica
   documentado; não se protege com código.
 - `SELECT` não é coberto. Esconder leitura exige editar políticas e fica fora deste piloto.
+- Fechar uma ordem (inclusive via força) é uma `UPDATE`, portanto `wo_guard_update` dispara em paralelo com `wo_guard_close` e `wo_guard_force`. Revogar `wo.update` bloqueia igualmente o fecho normal — a negação acumula e falha fechado.
 
 ## Depois deste piloto
 
