@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { logSystemError } from "@/lib/telemetry";
+import { setIsOwner } from "@/lib/permissions";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 
@@ -11,6 +12,8 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   role: AppRole | null;
+  /** The break-glass account (public.app_owner). Passes every permission check. */
+  isOwner: boolean;
   profile: Omit<Database["public"]["Tables"]["profiles"]["Row"], "labor_rate"> | null;
   loading: boolean;
   authError: string | null;
@@ -26,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   role: null,
+  isOwner: false,
   profile: null,
   loading: true,
   authError: null,
@@ -71,6 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [isOwner, setOwner] = useState(false);
   const [profile, setProfile] = useState<Omit<Database["public"]["Tables"]["profiles"]["Row"], "labor_rate"> | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [roleLoading, setRoleLoading] = useState(false);
@@ -193,6 +198,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setRole(null);
+    setOwner(false);
+    setIsOwner(false);
     setProfile(null);
     toast.error("Your account has been deactivated. Contact your supervisor.");
     // Hard redirect to clear any in-memory state
@@ -213,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq("id", userId)
             .single(),
           supabase.rpc("get_user_role", { _user_id: userId }),
+          supabase.rpc("is_owner", { _uid: userId }),
         ]),
         12_000,
         null,
@@ -222,7 +230,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error("The backend is taking too long to load your access permissions.");
       }
 
-      const [profileRes, roleRes] = result;
+      const [profileRes, roleRes, ownerRes] = result;
+      // The owner check is a safety valve, not a gate: if it fails we simply do not
+      // hand out the valve, and the role decides as usual.
+      const owner = !ownerRes.error && ownerRes.data === true;
+      setOwner(owner);
+      setIsOwner(owner);
       if (profileRes.error) throw profileRes.error;
       if (roleRes.error) throw roleRes.error;
 
@@ -265,6 +278,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setUser(null);
       setRole(null);
+      setOwner(false);
+      setIsOwner(false);
+    setOwner(false);
+    setIsOwner(false);
       setProfile(null);
       setAuthError(null);
     };
@@ -550,6 +567,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setUser(null);
     setRole(null);
+    setOwner(false);
+    setIsOwner(false);
     setProfile(null);
     setAuthError(null);
   };
@@ -582,7 +601,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loading = !isReady || (!!session && !role && roleLoading);
 
   return (
-    <AuthContext.Provider value={{ session, user, role, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, isOwner, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut }}>
       {children}
     </AuthContext.Provider>
   );
