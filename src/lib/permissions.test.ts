@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import {
-  can, canAny, canAll, canPrintReport, canForDevice, setPermissionOverrides,
+  can, canAny, canAll, canPrintReport, canForDevice, setPermissionOverrides, setIsOwner,
   type Role, type Action,
 } from "./permissions";
 
@@ -171,43 +171,41 @@ describe("canPrintReport", () => {
 });
 
 /**
- * The lock the admin could close on themselves.
+ * Who holds the key when a permission is taken away.
  *
- * `ProtectedRoute` writes the rule down in its own comment — "admin always passes (no
- * self-lockout)" — and implements it, so a route never turns an admin away. `can()`
- * did not implement it, and `can()` is what the navigation reads.
+ * The admin role used to pass every check unconditionally, which made the Permissions
+ * Matrix lie: it drew an editable cell for admin, saved the override, and then `can()`
+ * ignored it. The rule now sits on an ACCOUNT instead of a role — whoever is in
+ * `public.app_owner` passes everything, and that is the only break-glass left. The
+ * admin role is resolved by the matrix and its overrides like any other, so what the
+ * Permissions page shows is what an admin actually reaches.
  *
- * The Permissions Matrix guards on WHO is editing (`if (!isAdmin) return`) and not on
- * WHICH role is being edited, and it draws a cell for every role in `ALL_ROLES`. So an
- * admin can click their own `reports.analytics` off, save it into
- * `role_permission_overrides`, and the sidebar — which filters on
- * `canForDevice(role, item.action, device)` — drops Reports out of their menu. The
- * screen stays reachable by typing the URL, because the route still waves the admin
- * through. The promise held in one layer and broke in the one above it, which is the
- * worst of both: the entry disappears and nothing explains why.
- *
- * So the rule moves down to `can()`, where the rest of the app reads it. Overrides go
- * on working for every other role, in both directions — taking away and granting — and
- * per-device visibility is untouched: hiding Reports on the tablet is a decision about
+ * Per-device visibility is untouched: hiding Reports on the tablet is a decision about
  * a small screen, not a lock, and desktop still shows everything the role can reach.
  */
-describe("no self-lockout", () => {
-  afterEach(() => setPermissionOverrides({}));
+describe("the owner is the only account that always passes", () => {
+  afterEach(() => { setPermissionOverrides({}); setIsOwner(false); });
 
-  it("keeps the admin's access when an override tries to take it away", () => {
-    setPermissionOverrides({ "admin:reports.analytics": false });
-    expect(can("admin", "reports.analytics")).toBe(true);
+  it("lets the owner through an action their role does not have", () => {
+    expect(can("operator", "system.clear")).toBe(false);
+    setIsOwner(true);
+    expect(can("operator", "system.clear")).toBe(true);
   });
 
-  it("keeps it in the navigation too, which is where the entry went missing", () => {
+  it("lets the owner through even before the role has resolved", () => {
+    setIsOwner(true);
+    expect(can(null, "system.hub")).toBe(true);
+  });
+
+  it("carries into the navigation, so nothing can hide a screen from the owner", () => {
     setPermissionOverrides({ "admin:reports.analytics": false });
+    setIsOwner(true);
     expect(canForDevice("admin", "reports.analytics", "desktop")).toBe(true);
   });
 
-  it("holds for every action, not just the one that was reported", () => {
-    setPermissionOverrides({ "admin:wo.view": false, "admin:quality.view": false });
-    expect(can("admin", "wo.view")).toBe(true);
-    expect(can("admin", "quality.view")).toBe(true);
+  it("no longer waves the admin role through an override that denies it", () => {
+    setPermissionOverrides({ "admin:reports.analytics": false });
+    expect(can("admin", "reports.analytics")).toBe(false);
   });
 
   it("still lets an override take an action away from any other role", () => {
