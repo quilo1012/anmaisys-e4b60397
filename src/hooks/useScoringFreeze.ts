@@ -54,9 +54,13 @@ export function useScoringFreeze(): ScoringFreezeState {
         .select("id, valid_from")
         .is("valid_to", null)
         .maybeSingle();
-      if (error) throw error;
+      // A database without the migration is a valid state, not a failure: answer
+      // "not frozen" quietly instead of surfacing a global error.
+      if (error && !isMissingTable(error)) throw error;
+      if (error) return null;
       return (data as { id: number; valid_from: string } | null) ?? null;
     },
+
   });
 
   // A missing table is the answer "not frozen", not an error to report upward — the
