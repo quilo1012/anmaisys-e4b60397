@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { actionPoints, setLabelPoints, setSeverityPoints } from "@/lib/qualityConstants";
+import { actionPoints, setLabelPoints, setSeverityPoints, setExcludedDepartments } from "@/lib/qualityConstants";
 
 /**
  * `actionPoints()` now has a twin in SQL, and twins drift.
@@ -62,6 +62,9 @@ const EXCLUDED = new Set(["maintenance"]);
 beforeEach(() => {
   setSeverityPoints(SEVERITY);
   setLabelPoints(LABELS);
+  // The golden table below is about labels and grades, so no department is excluded
+  // for it. The department cases set their own, further down.
+  setExcludedDepartments({});
 });
 
 /**
@@ -151,6 +154,55 @@ describe("the golden table the SQL twin must reproduce", () => {
   }
 });
 
+/**
+ * The department half of the golden table, kept separate because it needs its own
+ * module state — the exclusion set is pushed in rather than passed as an argument.
+ *
+ * Same contract as the table above: these are the rows the SQL twin must reproduce
+ * when somebody runs it against a live database.
+ */
+describe("the golden table, with a department that is not the leader's", () => {
+  const DEPT_CASES: Array<{ name: string; action: Parameters<typeof actionPoints>[0]; points: number }> = [
+    {
+      name: "an excluded department pays nothing, whatever the grade says",
+      action: { domain: "quality", severity: "critical", labels: [], validation_status: "open", department: "Maintenance" },
+      points: 0,
+    },
+    {
+      name: "an excluded department pays nothing, whatever the labels are priced at",
+      action: { domain: "quality", severity: "low", labels: ["Foreign Body"], validation_status: "open", department: "Maintenance" },
+      points: 0,
+    },
+    {
+      name: "a department that counts changes nothing about the arithmetic",
+      action: { domain: "quality", severity: "low", labels: ["Foreign Body"], validation_status: "open", department: "Production" },
+      points: 5,
+    },
+    {
+      name: "a blank department still counts — an empty field removes nobody's deviation",
+      action: { domain: "quality", severity: "high", labels: [], validation_status: "open", department: null },
+      points: 3,
+    },
+    {
+      name: "matched trimmed and case-folded, exactly as the snapshot keys it",
+      action: { domain: "quality", severity: "critical", labels: [], validation_status: "open", department: "  MAINTENANCE " },
+      points: 0,
+    },
+    {
+      name: "a department the list has never heard of counts, rather than failing closed",
+      action: { domain: "quality", severity: "medium", labels: [], validation_status: "open", department: "Hygiene" },
+      points: 2,
+    },
+  ];
+
+  for (const c of DEPT_CASES) {
+    it(c.name, () => {
+      setExcludedDepartments({ Maintenance: false, Production: true });
+      expect(actionPoints(c.action, EXCLUDED)).toBe(c.points);
+    });
+  }
+});
+
 describe("action_points_at() keeps the guards, and keeps them in order", () => {
   /** The function body alone — the file also discusses these rules in prose. */
   const body = sql.slice(sql.indexOf("FUNCTION public.action_points_at"), sql.indexOf("COMMENT ON FUNCTION public.action_points_at"));
@@ -163,7 +215,7 @@ describe("action_points_at() keeps the guards, and keeps them in order", () => {
    * new rule — which is the review this failure is asking for.
    */
   it("is read from the migration that is actually in force", () => {
-    expect(MIGRATION).toBe("20260823090000_a_label_may_aggravate_never_soften.sql");
+    expect(MIGRATION).toBe("20260827093000_a_department_can_be_someone_elses.sql");
   });
 
   it("returns 0 for safety before it looks at anything else", () => {
@@ -178,6 +230,32 @@ describe("action_points_at() keeps the guards, and keeps them in order", () => {
     const price = body.indexOf("scoring_version_label");
     expect(attribution).toBeGreaterThan(-1);
     expect(price).toBeGreaterThan(attribution);
+  });
+
+  /**
+   * The department veto sits between the rejection guard and the labels, and the
+   * position is the rule rather than a preference.
+   *
+   * Above the labels because it is the broader claim: the action belongs to somebody
+   * else entirely, so there is nothing for a label to price. Below safety and
+   * rejection because those two are about whether the action is chargeable AT ALL,
+   * and the sentence printed beside a rejected Maintenance row has to name the
+   * rejection — Quality looked and said it did not happen — not the department.
+   */
+  it("vetoes on the department after rejection and before the labels", () => {
+    const rejected = body.indexOf("_validation_status = 'rejected'");
+    const department = body.indexOf("scoring_version_excluded_department");
+    const labels = body.indexOf("scoring_version_excluded_label");
+    expect(department).toBeGreaterThan(rejected);
+    expect(labels).toBeGreaterThan(department);
+  });
+
+  it("lets a blank department through rather than treating it as excluded", () => {
+    expect(body).toMatch(/btrim\(coalesce\(_department, ''\)\) <> ''/);
+  });
+
+  it("matches the department trimmed and case-folded, as the snapshot stores it", () => {
+    expect(body).toMatch(/lower\(btrim\(_department\)\)/);
   });
 
   it("takes the greater of the two — a label raises a charge, never lowers it", () => {

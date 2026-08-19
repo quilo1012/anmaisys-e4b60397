@@ -249,7 +249,28 @@ function qualityScore(input: LeaderScoreInput): LeaderScoreComponent {
   // this leader's was already out of the total, and subtracting it twice would push
   // "not attributable" negative on the very line that explains the score.
   const onTheDemerit = attributable.length - standing.length;
-  const notTheirs = input.actions.length - attributable.length - rejected;
+  /**
+   * Counted out separately, because `standsAgainstLeader` rejects a safety row on its
+   * FIRST line — before it has looked at a label or a department — and folding that
+   * into `notTheirs` printed "6 not attributable to the leader" over six near misses.
+   *
+   * The two exclusions are not the same statement and a leader will read them very
+   * differently. "Not attributable" says it happened and it was somebody else's fault.
+   * A safety occurrence is nobody's fault for scoring purposes: `actionPoints` prices
+   * every one of them at zero on purpose, so that reporting a hazard can never cost the
+   * person who reported it. Saying so is the point — a leader who reads that their
+   * three near misses were "not attributable" learns that filing them is an argument
+   * about blame, which is the behaviour the pricing exists to prevent.
+   *
+   * The line was accurate for as long as no safety row could reach this function:
+   * `safety_kind` was in no select and `domain` in no projection of the tablet's card.
+   * Fixing the fetch is what put the wrong words on the screen.
+   */
+  const rejectedSafety = input.actions.filter(
+    (a) => a.domain === "safety" && a.validation_status === "rejected",
+  ).length;
+  const safetyRows = input.actions.filter((a) => a.domain === "safety").length - rejectedSafety;
+  const notTheirs = input.actions.length - attributable.length - rejected - safetyRows;
   const points = sumActionPoints(standing, input.excludedLabels);
   return {
     value: Math.max(0, 100 - points),
@@ -257,6 +278,7 @@ function qualityScore(input: LeaderScoreInput): LeaderScoreComponent {
       `100 less ${points} severity point${points === 1 ? "" : "s"} from ${standing.length} action${standing.length === 1 ? "" : "s"}` +
       (rejected ? ` · ${rejected} rejected by Quality and not counted` : "") +
       (onTheDemerit ? ` · ${onTheDemerit} charged to documentation instead` : "") +
+      (safetyRows ? ` · ${safetyRows} safety occurrence${safetyRows === 1 ? "" : "s"}, counted under Health & Safety and not scored` : "") +
       (notTheirs ? ` · ${notTheirs} not attributable to the leader` : ""),
   };
 }

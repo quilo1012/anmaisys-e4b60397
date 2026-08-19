@@ -6,7 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
-import { reportQueryError } from "@/lib/queryErrors";
+import { reportQueryError, type QueryErrorMeta } from "@/lib/queryErrors";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
@@ -136,7 +136,12 @@ const queryClient = new QueryClient({
   // React Query put the screen into an error state, and most screens render nothing
   // for that state. A policy that says no, a dropped connection and an empty table
   // all looked identical.
-  queryCache: new QueryCache({ onError: (error) => { reportQueryError(error); } }),
+  // A query that declares `schemaOptional` is asking whether a migration has landed,
+  // and reads the "no" itself — see QueryErrorMeta. Same courtesy the mutation cache
+  // below extends to a mutation with its own onError.
+  queryCache: new QueryCache({
+    onError: (error, query) => { reportQueryError(error, undefined, query.meta as QueryErrorMeta | undefined); },
+  }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
       // A mutation with its own onError is already telling the user in its own words.

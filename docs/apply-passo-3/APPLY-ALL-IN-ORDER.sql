@@ -1,0 +1,2151 @@
+-- PASSO 3 — as dez migracoes que o docs/apply/ nao carrega
+--
+-- O docs/apply/ termina no bloco 08, 20260820090000. Dez migracoes aterraram desde
+-- entao e nenhuma delas tinha um ficheiro para colar. A segunda cria
+-- public.scoring_version, que e a tabela que o ecra passa a vida a dizer que nao
+-- encontra:
+--
+--     Something did not load
+--     Could not find the table 'public.scoring_version' in the schema cache
+--
+-- Isso nao e cache velha do PostgREST nem um erro de nome. A tabela nao existe.
+-- Medido a 19/08/2026 com docs/apply/probe-schema.sh, que so le, contra
+-- ybtrzqzliepknpzqdajx:
+--
+--     quality_actions                       200        <- controlo, existe
+--     zzz_tabela_que_nao_existe             404        <- controlo, nao existe
+--     scoring_version                       404 PGRST205
+--     scoring_version_severity              404 PGRST205
+--     scoring_version_label                 404 PGRST205
+--     scoring_version_excluded_label        404 PGRST205
+--     scoring_version_excluded_department   404 PGRST205
+--     quality_actions.points_at_creation    400 42703
+--     quality_actions.scoring_version_id    400 42703
+--     quality_options.is_gate               400 42703
+--
+-- O 42703 vem do Postgres depois de analisar a query, por isso exclui de vez a
+-- hipotese de ser cache.
+--
+-- A ORDEM E CRONOLOGICA E IMPORTA. 20260822090000 cria as tabelas que 20260822093000
+-- le, e 20260827093000 acrescenta uma coluna a uma tabela que 20260822090000 cria.
+-- Fora de ordem, a colagem falha a meio.
+--
+-- PODE SER COLADO MAIS DO QUE UMA VEZ, ao contrario do APPLY-ALL-IN-ORDER.sql do
+-- docs/apply/. Nao e sorte, foi verificado ficheiro a ficheiro: as unicas escritas de
+-- topo sao o seed de scoring_version, guardado por WHERE NOT EXISTS, o backfill, que
+-- so escreve colunas a NULL, e o insert em quality_options, com ON CONFLICT DO
+-- NOTHING. Tudo o resto e CREATE ... IF NOT EXISTS, CREATE OR REPLACE, ou um bloco DO
+-- que verifica antes de mexer. Os DELETE que aparecem no grep estao dentro do corpo de
+-- scoring_version_snapshot e correm quando essa funcao e chamada, nao ao colar.
+--
+-- COMO CORRER — este projecto e Lovable Cloud. More -> Cloud -> SQL editor, ou colar
+-- no chat do editor com a instrucao explicita de aplicar verbatim e nao aplicar mais
+-- nada. Nao ha CLI que chegue a esta base: ela vive na organizacao do Lovable.
+--
+-- DEPOIS DE CORRER, verificar em vez de acreditar:
+--
+--     bash docs/apply/probe-schema.sh
+--
+-- Tudo o que esta 404/400 acima tem de passar a 200. Se ficar a meio, parar e olhar.
+-- Ver docs/migrations-in-repo-are-not-proof-of-production: um ficheiro neste
+-- repositorio e um recibo do que se pretendeu, nunca uma prova do que a base tem.
+--
+-- Este ficheiro e reconstruido byte a byte a partir de supabase/migrations/ e o
+-- src/__tests__/theApplyPackageStopsWhereTheErrorStarts.test.ts falha se uma migracao
+-- nova ficar de fora. Foi assim que este pacote ficou dez atras sem ninguem reparar.
+
+
+-- ================================================================
+-- BLOCO 09
+-- 20260821090000_action_guard_work_orders.sql
+-- ================================================================
+
+-- A matriz de permissões do Admin escreve em role_permission_overrides. Do lado da
+-- base, essa tabela só era consultada num sítio — public.has_action, usada pela
+-- política dt_insert_adjusters em downtime_events. work_orders não tinha guarda
+-- nenhuma, e nenhum ecrã chama can() para as cinco ações wo.* (só wo.view), pelo
+-- que estes triggers são a primeira e única coisa a fazê-las valer: uma ação
+-- revogada aparece como erro cru num fluxo que não avisou de nada.
+-- Semântica: só negar. A base de quem pode o quê continua no MATRIX (TypeScript).
+
+CREATE OR REPLACE FUNCTION public.action_revoked(_action text)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  -- Sem utilizador (edge functions, pg_cron) nada é negado: um switch do Admin
+  -- não pode parar o sync do iTouching nem os fechos noturnos.
+  -- Mesmo invariante de permissions.ts:307 (if (role === "admin") return true;):
+  -- o admin nunca se tranca a si próprio, nem através da base de dados.
+  SELECT auth.uid() IS NOT NULL
+    AND public.current_user_role() <> 'admin'
+    AND EXISTS (
+    SELECT 1
+    FROM public.role_permission_overrides o
+    WHERE o.action = _action
+      AND o.allowed = false
+      AND o.role = public.current_user_role()
+  )
+$$;
+
+REVOKE ALL ON FUNCTION public.action_revoked(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.action_revoked(text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.enforce_action()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF public.action_revoked(TG_ARGV[0]) THEN
+    RAISE EXCEPTION 'Permission "%" is turned off for your role.', TG_ARGV[0]
+      USING ERRCODE = '42501';
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.enforce_action() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.enforce_action() TO authenticated;
+
+DROP TRIGGER IF EXISTS wo_guard_insert ON public.work_orders;
+CREATE TRIGGER wo_guard_insert
+  BEFORE INSERT ON public.work_orders
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_action('wo.create');
+
+DROP TRIGGER IF EXISTS wo_guard_update ON public.work_orders;
+CREATE TRIGGER wo_guard_update
+  BEFORE UPDATE ON public.work_orders
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_action('wo.update');
+
+DROP TRIGGER IF EXISTS wo_guard_delete ON public.work_orders;
+CREATE TRIGGER wo_guard_delete
+  BEFORE DELETE ON public.work_orders
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_action('wo.delete');
+
+DROP TRIGGER IF EXISTS wo_guard_close ON public.work_orders;
+CREATE TRIGGER wo_guard_close
+  BEFORE UPDATE ON public.work_orders
+  FOR EACH ROW
+  WHEN (NEW.status = 'closed' AND OLD.status IS DISTINCT FROM 'closed')
+  EXECUTE FUNCTION public.enforce_action('wo.close');
+
+DROP TRIGGER IF EXISTS wo_guard_force ON public.work_orders;
+CREATE TRIGGER wo_guard_force
+  BEFORE UPDATE ON public.work_orders
+  FOR EACH ROW
+  WHEN (NEW.status = 'force_closed' AND OLD.status IS DISTINCT FROM 'force_closed')
+  EXECUTE FUNCTION public.enforce_action('wo.force');
+
+-- Rollback:
+--   DROP TRIGGER IF EXISTS wo_guard_force  ON public.work_orders;
+--   DROP TRIGGER IF EXISTS wo_guard_close  ON public.work_orders;
+--   DROP TRIGGER IF EXISTS wo_guard_delete ON public.work_orders;
+--   DROP TRIGGER IF EXISTS wo_guard_update ON public.work_orders;
+--   DROP TRIGGER IF EXISTS wo_guard_insert ON public.work_orders;
+--   REVOKE ALL ON FUNCTION public.enforce_action() FROM PUBLIC;
+--   DROP FUNCTION IF EXISTS public.enforce_action();
+--   REVOKE ALL ON FUNCTION public.action_revoked(text) FROM PUBLIC;
+--   DROP FUNCTION IF EXISTS public.action_revoked(text);
+
+
+-- ================================================================
+-- BLOCO 10
+-- 20260822090000_a_score_is_frozen_at_the_scale_of_its_day.sql
+-- ================================================================
+
+-- A score is frozen at the scale of its day.
+--
+-- The UI said it out loud: "Changing a weight re-scores past actions too". That was
+-- written as a feature and it is an audit finding. Re-pricing a label in November
+-- rewrote July: the leader ranking compared periods measured with different rulers,
+-- a report printed in August stopped reproducing, and in a BRC audit there was no way
+-- to show which criterion was in force on the date of the event.
+--
+-- HALF OF THIS ALREADY EXISTS, and it is not rebuilt here. 20260818090000 versioned
+-- the three WEIGHTS into leader_scorecard_threshold by validity date, gave them a
+-- trigger that closes the current version and opens a new one on every save, and
+-- src/lib/leaderScoreWeights.ts resolves them at the period being reported on.
+-- Editing the weights today already cannot re-score July.
+--
+-- Two rulers were left unversioned, and they are the ones that move a leader's number
+-- most often: quality_severity_points (what a severity is worth) and
+-- quality_options.points (what a label is worth). A third was not even on the list —
+-- quality_label_attribution, which decides whether an action counts against the leader
+-- at all. Marking a label "not the leader's" re-scores the whole history exactly the
+-- same way a price does, so freezing points without freezing attribution would have
+-- left the back door open and called the room secure.
+--
+-- WHAT IS DELIBERATELY *NOT* HERE. The specification asked for a scoring_version table
+-- holding severity_points, label_prices, weights AND caps. The weights and caps are not
+-- copied into it. They already live versioned in leader_scorecard_threshold, and
+-- 20260818090000 states the reason in its own words: "Two tables of weights with the
+-- same three names would drift, and the day they disagreed nobody would be able to say
+-- which was the real one." So scoring_version is a TIME STAMP, not a second copy: it
+-- carries the two rulers that had no home, and for weights and caps its valid_from
+-- resolves against the table that already holds them. One foreign key on the action,
+-- one answer to "which ruler was in force that day".
+--
+-- WHAT A RE-GRADE DOES, decided explicitly rather than left to fall out of the code.
+-- If Quality corrects a misclassification in August on a July action — it was logged
+-- Low and it was Critical — the frozen points DO move, and they are recomputed with
+-- JULY's scale, not with today's. points_recalculated_at is stamped so the change is
+-- visible. The scale stays frozen; what gets corrected is the fact, not the ruler. The
+-- alternative was refusing to recompute at all, which would leave a card reading
+-- "Critical" beside a score of 1 — the silent-mismatch failure this module keeps
+-- having to close.
+--
+-- NOTHING BELOW MOVES A NUMBER ON A SCREEN. It writes the frozen figures and starts
+-- keeping them current. No rollup, ranking or report reads points_at_creation yet;
+-- that switch is a separate deploy, on purpose, so this one can sit in production and
+-- be verified against the live figures before anything depends on it.
+
+
+-- =====================================================================
+-- 1. The version stamp
+--
+-- valid_to IS NULL means "in force". The partial unique index is what makes that
+-- readable as a fact rather than a hope: two open versions at once and every lookup
+-- below becomes a coin toss that nobody would notice until a report disagreed with
+-- itself.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS public.scoring_version (
+  id         bigserial PRIMARY KEY,
+  valid_from date NOT NULL,
+  valid_to   date,
+  opened_by  uuid,
+  note       text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT scoring_version_range CHECK (valid_to IS NULL OR valid_to >= valid_from)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS scoring_version_one_in_force
+  ON public.scoring_version ((valid_to IS NULL)) WHERE valid_to IS NULL;
+
+COMMENT ON TABLE public.scoring_version IS
+  'Uma regua de pontuacao com vigencia. Cada gravacao em Lists & scoring FECHA a versao vigente e ABRE uma nova; nenhuma linha e sobrescrita. Pesos e tetos NAO estao aqui — vivem versionados em leader_scorecard_threshold e resolvem-se pelo valid_from desta versao.';
+
+
+-- =====================================================================
+-- 2. The three rulers this version carries
+--
+-- Snapshots, not references. A reference would point at a row that the next save
+-- overwrites, which is the whole defect: the point of a version is that it still says
+-- in November what it said in July.
+--
+-- Labels are keyed lower(trim(value)) because that is exactly how the TypeScript keys
+-- them (setLabelPoints / labelPoints in src/lib/qualityConstants.ts). Keying them any
+-- other way would make the two implementations disagree on "GMP" versus "gmp", which
+-- is the kind of difference that surfaces as one leader, once, and is never explained.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS public.scoring_version_severity (
+  version_id bigint  NOT NULL REFERENCES public.scoring_version(id) ON DELETE CASCADE,
+  severity   text    NOT NULL,
+  points     integer NOT NULL CHECK (points >= 0 AND points <= 1000),
+  PRIMARY KEY (version_id, severity)
+);
+
+CREATE TABLE IF NOT EXISTS public.scoring_version_label (
+  version_id bigint  NOT NULL REFERENCES public.scoring_version(id) ON DELETE CASCADE,
+  label      text    NOT NULL,
+  points     integer NOT NULL CHECK (points >= 0 AND points <= 1000),
+  PRIMARY KEY (version_id, label)
+);
+
+-- Only the EXCLUDED labels are stored: `counts_against_leader = false`. Anything absent
+-- counts, which is the rule quality_label_attribution itself runs on — "a new label has
+-- to be excluded on purpose, so nothing silently stops counting". Storing the positives
+-- too would invent a second way to express the same fact.
+CREATE TABLE IF NOT EXISTS public.scoring_version_excluded_label (
+  version_id bigint NOT NULL REFERENCES public.scoring_version(id) ON DELETE CASCADE,
+  label      text   NOT NULL,
+  PRIMARY KEY (version_id, label)
+);
+
+COMMENT ON TABLE public.scoring_version_excluded_label IS
+  'As labels que NAO sao do lider nesta versao. A ausencia significa que conta — a mesma regra de quality_label_attribution. Congelada junto com os precos porque marcar uma label como "nao e do lider" re-pontuava a historia exactamente como um preco.';
+
+
+-- =====================================================================
+-- 3. The frozen figure on the action
+--
+-- NOT reusing quality_actions.points. That column exists, from 20260624175840, created
+-- with DEFAULT 1 and read by nothing — src/lib/qualityActionPayload.ts calls it a dead
+-- column and refuses to write it. Every old row therefore already holds a 1, and a
+-- backfill into it could not tell "1 because I computed it" from "1 because that was
+-- the default in June". A new column has no such ambiguity.
+-- =====================================================================
+
+ALTER TABLE public.quality_actions
+  ADD COLUMN IF NOT EXISTS points_at_creation     integer,
+  ADD COLUMN IF NOT EXISTS scoring_version_id     bigint REFERENCES public.scoring_version(id),
+  ADD COLUMN IF NOT EXISTS points_recalculated_at timestamptz;
+
+COMMENT ON COLUMN public.quality_actions.points_at_creation IS
+  'Os pontos calculados com a regua vigente na data da accao. E ESTE o numero que os rollups, o ranking e os relatorios historicos devem ler. Recalcular com a escala nova e uma accao explicita, nunca o comportamento por omissao.';
+COMMENT ON COLUMN public.quality_actions.points_recalculated_at IS
+  'Carimbado quando a accao foi re-classificada (severidade, labels ou veredicto) e os pontos foram recalculados — sempre com a regua da PROPRIA versao da accao, nunca com a de hoje.';
+
+
+-- =====================================================================
+-- 4. The SQL twin of actionPoints()
+--
+-- src/lib/qualityConstants.ts:355 is the original and stays the original. This is the
+-- same four rules against a dated snapshot instead of against the live tables, and the
+-- order of the guards is part of the rule: safety before rejected before attribution
+-- before price. A rejected safety row must return 0 for the FIRST reason, not the
+-- second, or the explanation printed beside it would name the wrong one.
+--
+-- The risk this function carries is the honest one to state: it is a second
+-- implementation of a rule that already had one, and if the two drift the backfill
+-- freezes wrong numbers with nothing to compare them against. See
+-- src/__tests__/scoringVersionParity.test.ts for what is and is not checked.
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.action_points_at(
+  _domain text,
+  _severity text,
+  _labels text[],
+  _validation_status text,
+  _version_id bigint)
+RETURNS integer
+LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
+DECLARE
+  _norm     text[];
+  _excluded text[];
+  _charge   integer;
+BEGIN
+  -- Safety is counted, never charged. Reporting a near miss has to stay free, or the
+  -- reporting stops and the number that looks best is the one that means least.
+  IF _domain = 'safety' THEN RETURN 0; END IF;
+  IF _validation_status = 'rejected' THEN RETURN 0; END IF;
+
+  SELECT coalesce(array_agg(l), ARRAY[]::text[]) INTO _norm
+    FROM (SELECT DISTINCT lower(trim(x)) AS l
+            FROM unnest(coalesce(_labels, ARRAY[]::text[])) AS x
+           WHERE trim(coalesce(x, '')) <> '') s;
+
+  SELECT coalesce(array_agg(label), ARRAY[]::text[]) INTO _excluded
+    FROM public.scoring_version_excluded_label WHERE version_id = _version_id;
+
+  -- countsAgainstLeader: one attributable label is enough, and NO labels also counts.
+  -- The second half is not an oversight — leaving the labels blank must not quietly
+  -- remove a deviation from somebody's score.
+  IF cardinality(_norm) > 0
+     AND NOT EXISTS (SELECT 1 FROM unnest(_norm) AS l WHERE NOT (l = ANY(_excluded)))
+  THEN
+    RETURN 0;
+  END IF;
+
+  SELECT coalesce(sum(v.points), 0) INTO _charge
+    FROM unnest(_norm) AS l
+    JOIN public.scoring_version_label v
+      ON v.version_id = _version_id AND v.label = l
+   WHERE NOT (l = ANY(_excluded));
+
+  IF _charge > 0 THEN RETURN _charge; END IF;
+
+  RETURN coalesce(
+    (SELECT points FROM public.scoring_version_severity
+      WHERE version_id = _version_id AND severity = _severity), 0);
+END $$;
+
+COMMENT ON FUNCTION public.action_points_at(text, text, text[], text, bigint) IS
+  'O gemeo SQL de actionPoints() em src/lib/qualityConstants.ts, contra uma versao datada. Mudar um, mudar o outro.';
+
+
+-- =====================================================================
+-- 5. Which version was in force on a date
+-- =====================================================================
+
+/**
+ * Vigencia e DIARIA, e uma accao tem hora. As duas coisas nao encaixam sempre.
+ *
+ * Uma regua mudada as 14h fecha a versao anterior com valid_to = ontem e abre a nova
+ * hoje. Uma accao registada as 09h da mesma manha ja tinha sido congelada contra a
+ * versao antiga — cujo intervalo passa a terminar ontem. O ponteiro dessa accao aponta
+ * portanto para uma versao que, lida pelas datas, ja nao cobre o dia dela.
+ *
+ * NAO e corrupcao, e vale a pena saber antes de alguem o encontrar e o tratar como tal:
+ *   - os pontos congelados estao certos — foram calculados com a regua que estava
+ *     mesmo em vigor no momento em que a accao foi registada;
+ *   - scoring_version_id e a resposta AUTORIZADA a "sob que regua e que isto foi
+ *     pontuado"; esta funcao e uma conveniencia para quem so tem uma data;
+ *   - as duas so discordam para accoes registadas antes de uma mudanca de regua no
+ *     MESMO dia, e discordam apenas sobre o ponteiro, nunca sobre o numero.
+ *
+ * Nao se resolve subindo a granularidade sem levar leader_scorecard_threshold junto,
+ * que e diaria pela mesma razao desde 20260818090000 e cujo scorecard_version_weights()
+ * faz exactamente este valid_to = _today - 1. Duas granularidades diferentes para a
+ * mesma decisao de gestao seria pior do que esta aresta.
+ */
+CREATE OR REPLACE FUNCTION public.scoring_version_at(_on date)
+RETURNS bigint
+LANGUAGE sql STABLE SET search_path TO 'public' AS $$
+  SELECT id FROM public.scoring_version
+   WHERE valid_from <= _on AND (valid_to IS NULL OR valid_to >= _on)
+   ORDER BY valid_from DESC LIMIT 1;
+$$;
+
+
+-- =====================================================================
+-- 6. Opening a version, and what it captures
+--
+-- Modelled on scorecard_version_weights() from 20260818090000, including the rule that
+-- earns its keep: a version that has not started being used yet is an EDIT of today's
+-- decision, not a new one. Without it, three corrections to a typo on the same
+-- afternoon would leave three versions, two of which nothing was ever scored under.
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.scoring_version_snapshot(_version_id bigint)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+BEGIN
+  DELETE FROM public.scoring_version_severity       WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_label          WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_excluded_label WHERE version_id = _version_id;
+
+  INSERT INTO public.scoring_version_severity (version_id, severity, points)
+  SELECT _version_id, severity, points FROM public.quality_severity_points;
+
+  INSERT INTO public.scoring_version_label (version_id, label, points)
+  SELECT _version_id, lower(trim(value)), max(points)
+    FROM public.quality_options WHERE kind = 'label' AND trim(coalesce(value, '')) <> ''
+   GROUP BY lower(trim(value));
+
+  -- Guarded: quality_label_attribution arrives in its own migration and the app already
+  -- treats its absence as a state to report rather than an error (see attributionMissing
+  -- in QualityActionsPage). An absent table means nothing is excluded, which is the same
+  -- answer an empty table gives.
+  IF to_regclass('public.quality_label_attribution') IS NOT NULL THEN
+    EXECUTE '
+      INSERT INTO public.scoring_version_excluded_label (version_id, label)
+      SELECT $1, lower(trim(label)) FROM public.quality_label_attribution
+       WHERE counts_against_leader = false AND btrim(coalesce(label, '''')) <> ''''
+       GROUP BY lower(trim(label))'
+    USING _version_id;
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.scoring_version_open(_note text DEFAULT 'Versao aberta pela edicao em Lists & scoring.')
+RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE
+  _today date := current_date;
+  _id    bigint;
+BEGIN
+  SELECT id INTO _id FROM public.scoring_version
+   WHERE valid_to IS NULL AND valid_from >= _today;
+
+  IF _id IS NULL THEN
+    UPDATE public.scoring_version SET valid_to = _today - 1
+     WHERE valid_to IS NULL AND valid_from < _today;
+
+    INSERT INTO public.scoring_version (valid_from, opened_by, note)
+    VALUES (_today, auth.uid(), _note)
+    RETURNING id INTO _id;
+  END IF;
+
+  PERFORM public.scoring_version_snapshot(_id);
+  RETURN _id;
+END $$;
+
+
+-- =====================================================================
+-- 7. Backfill — version 1, and the frozen figure for every action already logged
+--
+-- v1 starts at the OLDEST action, not today. Starting it today would leave every action
+-- ever logged outside all validity, so scoring_version_at() would return NULL for them
+-- and the freeze would silently apply to nothing.
+--
+-- Non-destructive by construction: it only ever writes columns that are NULL, so
+-- re-running this migration cannot overwrite a figure already frozen.
+-- =====================================================================
+
+INSERT INTO public.scoring_version (valid_from, note)
+SELECT COALESCE(min(recorded_at)::date, current_date),
+       'Versao 1: a escala em vigor no momento do congelamento, aplicada a todo o historico.'
+  FROM public.quality_actions
+ WHERE NOT EXISTS (SELECT 1 FROM public.scoring_version);
+
+SELECT public.scoring_version_snapshot(id) FROM public.scoring_version WHERE valid_to IS NULL;
+
+UPDATE public.quality_actions a
+   SET scoring_version_id = public.scoring_version_at(a.recorded_at::date)
+ WHERE a.scoring_version_id IS NULL;
+
+-- `domain` arrives with 20260817090000, and this codebase does NOT assume it landed:
+-- src/lib/writeOptionalDomain.ts exists precisely because the app has to survive a
+-- database without it. A migration that names the column unconditionally would fail on
+-- exactly the databases that file was written for, so the backfill asks first.
+DO $backfill$
+DECLARE
+  _has_domain boolean := EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'quality_actions' AND column_name = 'domain');
+BEGIN
+  EXECUTE format($fmt$
+    UPDATE public.quality_actions a
+       SET points_at_creation = public.action_points_at(
+             %s, a.severity, a.labels, a.validation_status, a.scoring_version_id)
+     WHERE a.points_at_creation IS NULL AND a.scoring_version_id IS NOT NULL
+  $fmt$, CASE WHEN _has_domain THEN 'a.domain' ELSE 'NULL::text' END);
+
+  RAISE NOTICE 'points_at_creation preenchido em % accoes (domain presente: %).',
+    (SELECT count(*) FROM public.quality_actions WHERE points_at_creation IS NOT NULL), _has_domain;
+END $backfill$;
+
+
+-- =====================================================================
+-- 8. Keeping it current
+--
+-- Every save on a ruler opens a version. Every action carries the figure it was worth
+-- under the version in force on its own date.
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.scoring_version_on_ruler_change()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+BEGIN
+  PERFORM public.scoring_version_open();
+  RETURN NULL;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_scoring_version_severity ON public.quality_severity_points;
+CREATE TRIGGER trg_scoring_version_severity
+  AFTER UPDATE ON public.quality_severity_points
+  FOR EACH ROW WHEN (OLD.points IS DISTINCT FROM NEW.points)
+  EXECUTE FUNCTION public.scoring_version_on_ruler_change();
+
+-- Only a change that can move a score opens a version. Adding a label at 0 points moves
+-- nothing, and a version nobody was ever scored under is noise in the very history this
+-- table exists to make readable.
+DROP TRIGGER IF EXISTS trg_scoring_version_label_upd ON public.quality_options;
+CREATE TRIGGER trg_scoring_version_label_upd
+  AFTER UPDATE ON public.quality_options
+  FOR EACH ROW WHEN (NEW.kind = 'label' AND OLD.points IS DISTINCT FROM NEW.points)
+  EXECUTE FUNCTION public.scoring_version_on_ruler_change();
+
+DROP TRIGGER IF EXISTS trg_scoring_version_label_ins ON public.quality_options;
+CREATE TRIGGER trg_scoring_version_label_ins
+  AFTER INSERT ON public.quality_options
+  FOR EACH ROW WHEN (NEW.kind = 'label' AND NEW.points > 0)
+  EXECUTE FUNCTION public.scoring_version_on_ruler_change();
+
+DROP TRIGGER IF EXISTS trg_scoring_version_label_del ON public.quality_options;
+CREATE TRIGGER trg_scoring_version_label_del
+  AFTER DELETE ON public.quality_options
+  FOR EACH ROW WHEN (OLD.kind = 'label' AND OLD.points > 0)
+  EXECUTE FUNCTION public.scoring_version_on_ruler_change();
+
+DO $$ BEGIN
+  IF to_regclass('public.quality_label_attribution') IS NOT NULL THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_scoring_version_attribution ON public.quality_label_attribution';
+    EXECUTE 'CREATE TRIGGER trg_scoring_version_attribution
+               AFTER INSERT OR UPDATE OR DELETE ON public.quality_label_attribution
+               FOR EACH ROW EXECUTE FUNCTION public.scoring_version_on_ruler_change()';
+  END IF;
+END $$;
+
+/**
+ * The figure on the action itself.
+ *
+ * On INSERT: the version in force on the action's own recorded_at, not today's. An
+ * action backdated to last month is worth what last month's ruler said.
+ *
+ * On re-grade: recomputed against the action's OWN scoring_version_id. This is the
+ * decision written out at the top of this file — the fact gets corrected, the ruler
+ * does not. Using current_date here instead would quietly re-open every door this
+ * migration closes.
+ */
+CREATE OR REPLACE FUNCTION public.quality_action_freeze_points()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE
+  _v bigint;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    _v := public.scoring_version_at(coalesce(NEW.recorded_at, now())::date);
+    NEW.scoring_version_id := _v;
+    NEW.points_at_creation := public.action_points_at(
+      to_jsonb(NEW)->>'domain', NEW.severity, NEW.labels, NEW.validation_status, _v);
+    RETURN NEW;
+  END IF;
+
+  _v := coalesce(NEW.scoring_version_id,
+                 public.scoring_version_at(coalesce(NEW.recorded_at, now())::date));
+  NEW.scoring_version_id     := _v;
+  NEW.points_at_creation     := public.action_points_at(
+    to_jsonb(NEW)->>'domain', NEW.severity, NEW.labels, NEW.validation_status, _v);
+  NEW.points_recalculated_at := now();
+  RETURN NEW;
+END $$;
+
+DROP TRIGGER IF EXISTS trg_quality_action_freeze_points_ins ON public.quality_actions;
+CREATE TRIGGER trg_quality_action_freeze_points_ins
+  BEFORE INSERT ON public.quality_actions
+  FOR EACH ROW EXECUTE FUNCTION public.quality_action_freeze_points();
+
+-- A trigger WHEN clause is parsed at CREATE time and cannot reach for to_jsonb, so the
+-- domain condition is added only where the column exists.
+DO $trg$
+DECLARE
+  _has_domain boolean := EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'quality_actions' AND column_name = 'domain');
+BEGIN
+  EXECUTE 'DROP TRIGGER IF EXISTS trg_quality_action_freeze_points_upd ON public.quality_actions';
+  EXECUTE format(
+    'CREATE TRIGGER trg_quality_action_freeze_points_upd
+       BEFORE UPDATE ON public.quality_actions
+       FOR EACH ROW WHEN (OLD.severity          IS DISTINCT FROM NEW.severity
+                       OR OLD.labels            IS DISTINCT FROM NEW.labels
+                       OR OLD.validation_status IS DISTINCT FROM NEW.validation_status%s)
+       EXECUTE FUNCTION public.quality_action_freeze_points()',
+    CASE WHEN _has_domain THEN '
+                       OR OLD.domain            IS DISTINCT FROM NEW.domain' ELSE '' END);
+END $trg$;
+
+
+-- =====================================================================
+-- 9. RLS
+--
+-- Read for everyone signed in, the same reason quality_severity_points is readable by
+-- everyone: the figures appear on the board, the log and the leader's own scorecard.
+--
+-- NO write policy on any of the three, deliberately. Nothing writes these tables except
+-- the SECURITY DEFINER functions above. A version is opened by editing a ruler, never
+-- by editing the version — which is what "never overwrites the previous one" means when
+-- it is enforced instead of merely intended.
+-- =====================================================================
+
+ALTER TABLE public.scoring_version                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scoring_version_severity       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scoring_version_label          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scoring_version_excluded_label ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone signed in can read scoring versions" ON public.scoring_version;
+CREATE POLICY "Anyone signed in can read scoring versions"
+  ON public.scoring_version FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Anyone signed in can read versioned severity points" ON public.scoring_version_severity;
+CREATE POLICY "Anyone signed in can read versioned severity points"
+  ON public.scoring_version_severity FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Anyone signed in can read versioned label points" ON public.scoring_version_label;
+CREATE POLICY "Anyone signed in can read versioned label points"
+  ON public.scoring_version_label FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Anyone signed in can read versioned exclusions" ON public.scoring_version_excluded_label;
+CREATE POLICY "Anyone signed in can read versioned exclusions"
+  ON public.scoring_version_excluded_label FOR SELECT TO authenticated USING (true);
+
+
+-- ================================================================
+-- BLOCO 11
+-- 20260822093000_the_leaders_own_card_reads_the_frozen_figure.sql
+-- ================================================================
+
+-- The leader's own card has to read the frozen figure too.
+--
+-- src/lib/leaderScorecard.ts opens with the rule this migration exists to keep: "Two
+-- fetch paths, one arithmetic. If the score were computed twice the leader and the
+-- manager could be looking at different numbers for the same person and period, which
+-- is the one thing a scorecard may never do."
+--
+-- The manager's path is a PostgREST select and its column list was widened in the same
+-- change as this one. The leader's path is this SECURITY DEFINER function, because RLS
+-- scopes a line tablet to a single line — and its projection is a fixed list written in
+-- 20260811090000. A column the list does not name simply is not in the JSON, so
+-- `actionPoints` would fall back to today's scale on the tablet while the manager reads
+-- the scale of the action's day. Same leader, same week, two numbers.
+--
+-- WHY THIS PATCHES INSTEAD OF REPLACING. The function is 209 lines. Re-issuing it from
+-- the copy in this repository would overwrite whatever is actually deployed with
+-- whatever this repository happens to hold, and those are not known to be the same
+-- thing — nothing here applies migrations, so the repo is a record of intent and the
+-- database is the record of fact. So this reads the live definition, checks it has the
+-- shape it expects, and rewrites only the projection. If the live function has drifted,
+-- it RAISES rather than guessing: a scorecard that silently keeps computing the wrong
+-- number is the failure being fixed, and repeating it in the fix would be worse.
+
+DO $patch$
+DECLARE
+  _src text;
+  -- The last four columns of the projection, on one line, exactly as 20260811090000
+  -- wrote them. Anchoring on the tail rather than on the whole list keeps this working
+  -- if an earlier column was added in between.
+  _old constant text := 'qa.validated_at, qa.validated_by, qa.attachments, qa.closed_at';
+  _new constant text := 'qa.validated_at, qa.validated_by, qa.attachments, qa.closed_at,
+             qa.points_at_creation';
+  _hits integer;
+BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO _src
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND p.proname = 'leader_self_scorecard';
+
+  IF _src IS NULL THEN
+    RAISE NOTICE 'leader_self_scorecard nao existe nesta base. Nada a corrigir.';
+    RETURN;
+  END IF;
+
+  -- Idempotent: re-running a migration must not be a way to break something.
+  IF position('points_at_creation' IN _src) > 0 THEN
+    RAISE NOTICE 'leader_self_scorecard ja projecta points_at_creation. Sem alteracao.';
+    RETURN;
+  END IF;
+
+  _hits := (length(_src) - length(replace(_src, _old, ''))) / length(_old);
+
+  IF _hits <> 1 THEN
+    RAISE EXCEPTION
+      'A projeccao de leader_self_scorecard nao tem a forma esperada (% ocorrencias de "%"). '
+      'A funcao viva divergiu do que esta migracao conhece: comparar antes de aplicar, e '
+      'acrescentar qa.points_at_creation a mao. Um cartao que continua a calcular pela '
+      'escala de hoje enquanto o gestor le a escala do dia e o defeito que isto corrige.',
+      _hits, _old
+      USING ERRCODE = 'raise_exception';
+  END IF;
+
+  EXECUTE replace(_src, _old, _new);
+  RAISE NOTICE 'leader_self_scorecard passa a projectar points_at_creation.';
+END $patch$;
+
+-- NOT fixed here, and named so it is not mistaken for an oversight: the same projection
+-- omits `domain` and `safety_kind`. On the tablet a safety occurrence therefore arrives
+-- looking like a quality one, so `standsAgainstLeader` counts it as quality activity and
+-- the H&S ceiling in computeLeaderScore has nothing to fire on. That is a defect older
+-- than this change and wider than it — it moves a leader's Quality figure and their RAG,
+-- not just where a number is read from — so it belongs to a decision of its own rather
+-- than riding along inside a scoring migration.
+
+
+-- ================================================================
+-- BLOCO 12
+-- 20260823090000_a_label_may_aggravate_never_soften.sql
+-- ================================================================
+
+-- A label may aggravate an action. It may never soften one.
+--
+-- The rule was: the priced labels REPLACE the grade. An action graded Critical carrying
+-- one label priced at 1 was worth 1, and the card went on showing Critical in red. The
+-- only place the two numbers meet is inside one expression, so nobody could see it — a
+-- silent downgrade, in the direction that hurts, on a scorecard people are appraised on.
+--
+-- It becomes MAX(labels, grade). A label answers the narrower question and may say the
+-- deviation was worse than the grade suggested; it may not say it was milder. The old
+-- fall-through is subsumed rather than removed: no priced label means a label charge of
+-- 0, and MAX(0, grade) is the grade, so an unpriced action behaves exactly as it did.
+--
+-- This is the SQL half. src/lib/qualityConstants.ts is the other, and they have to land
+-- together: the trigger from 20260822090000 freezes every new action through THIS
+-- function, so shipping the TypeScript alone would freeze new rows under the old rule
+-- while every screen displayed the new one. src/__tests__/scoringVersionParity.test.ts
+-- is what stands between those two drifting.
+--
+-- ON THE CEILING, and a deliberate departure from the specification. It asked for
+-- MAX_LABEL_POINTS to start equal to Critical's points. In THIS system that would not
+-- have been a ceiling, it would have been a price cut: labels here are priced above the
+-- top grade on purpose — severityForPoints() documents 5 as "reachable only by pricing
+-- a label" — so a Foreign Body at 5 against a Critical of 4 would have been quietly
+-- charged 4 from the day this shipped. Making a food safety label cheaper as a side
+-- effect of adding a safety rail is the opposite of the point. It therefore ships
+-- ABSENT, meaning uncapped, on the same reasoning that every label ships at 0: on the
+-- day this lands, nobody's score moves.
+
+-- =====================================================================
+-- 0. Order, enforced rather than requested
+--
+-- This migration REPLACES public.action_points_at, which 20260822090000 creates. Applied
+-- before it, this one lands first and 20260822090000's version then overwrites it — so
+-- the MAX rule vanishes with no error, no warning, and every sign of having been applied.
+-- A silent revert is the worst failure this pair has, so the order stops being a request
+-- and becomes a precondition.
+--
+-- Checked on the TABLE rather than on the function: the function is what this file
+-- rewrites, so its presence proves nothing about which version is there.
+-- =====================================================================
+
+DO $order$ BEGIN
+  IF to_regclass('public.scoring_version') IS NULL THEN
+    RAISE EXCEPTION
+      '20260822090000 tem de ser aplicada primeiro. Esta migracao substitui '
+      'action_points_at, que essa cria — aplicadas ao contrario, a versao dela aterra '
+      'por ultimo e a regra do MAX desaparece sem erro nenhum. Aplicar '
+      '20260822090000_a_score_is_frozen_at_the_scale_of_its_day.sql e depois esta.'
+      USING ERRCODE = 'invalid_table_definition';
+  END IF;
+END $order$;
+
+-- =====================================================================
+-- 1. The ceiling, where the other scoring parameters already live
+--
+-- NOT in scoring_version's own snapshot tables, and not in the source. It is a scoring
+-- parameter, and an unversioned scoring parameter re-scores history the moment it moves
+-- — the door 20260822090000 exists to close. leader_scorecard_threshold is already
+-- dated and already the home of CAP_Gate, CAP_NotDone and CAP_HSAmber, and its name
+-- CHECK already admits CAP_[A-Za-z]+. An action resolves it through its own version's
+-- valid_from, which is the arrangement 20260822090000 documents for weights and caps.
+--
+-- No row is seeded. An absent parameter is the uncapped reading, and that is the state
+-- this is meant to ship in: setting a ceiling is a decision, taken once, in the open.
+-- =====================================================================
+
+COMMENT ON TABLE public.leader_scorecard_threshold IS
+  'Parametros datados do scorecard. CAP_LabelPoints (opcional, ausente = sem tecto) limita o TOTAL que as etiquetas precificadas de uma accao podem cobrar entre elas. Nao limita o grau: um Critical vale sempre o que Critical vale.';
+
+-- =====================================================================
+-- 2. The rule
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.action_points_at(
+  _domain text,
+  _severity text,
+  _labels text[],
+  _validation_status text,
+  _version_id bigint)
+RETURNS integer
+LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
+DECLARE
+  _norm     text[];
+  _excluded text[];
+  _charge   integer;
+  _grade    integer;
+  _cap      numeric;
+  _from     date;
+BEGIN
+  -- Safety is counted, never charged. Reporting a near miss has to stay free, or the
+  -- reporting stops and the number that looks best is the one that means least.
+  IF _domain = 'safety' THEN RETURN 0; END IF;
+  IF _validation_status = 'rejected' THEN RETURN 0; END IF;
+
+  SELECT coalesce(array_agg(l), ARRAY[]::text[]) INTO _norm
+    FROM (SELECT DISTINCT lower(trim(x)) AS l
+            FROM unnest(coalesce(_labels, ARRAY[]::text[])) AS x
+           WHERE trim(coalesce(x, '')) <> '') s;
+
+  SELECT coalesce(array_agg(label), ARRAY[]::text[]) INTO _excluded
+    FROM public.scoring_version_excluded_label WHERE version_id = _version_id;
+
+  -- countsAgainstLeader: one attributable label is enough, and NO labels also counts.
+  -- The second half is not an oversight — leaving the labels blank must not quietly
+  -- remove a deviation from somebody's score.
+  IF cardinality(_norm) > 0
+     AND NOT EXISTS (SELECT 1 FROM unnest(_norm) AS l WHERE NOT (l = ANY(_excluded)))
+  THEN
+    RETURN 0;
+  END IF;
+
+  SELECT coalesce(sum(v.points), 0) INTO _charge
+    FROM unnest(_norm) AS l
+    JOIN public.scoring_version_label v
+      ON v.version_id = _version_id AND v.label = l
+   WHERE NOT (l = ANY(_excluded));
+
+  -- The ceiling in force on the date this action's own version opened, not today's.
+  -- Resolving it against current_date would let raising the cap in November change what
+  -- a July action is worth — through the one number this whole module was rebuilt to
+  -- stop moving.
+  SELECT valid_from INTO _from FROM public.scoring_version WHERE id = _version_id;
+  IF _from IS NOT NULL THEN
+    SELECT max(value) INTO _cap
+      FROM public.leader_scorecard_threshold
+     WHERE name = 'CAP_LabelPoints'
+       AND valid_from <= _from
+       AND (valid_to IS NULL OR valid_to >= _from);
+  END IF;
+  -- NULL is uncapped, and LEAST would return the charge unchanged anyway — written out
+  -- so the absent-parameter case is a stated reading rather than a lucky one.
+  IF _cap IS NOT NULL THEN
+    _charge := LEAST(_charge, _cap::integer);
+  END IF;
+
+  SELECT coalesce(points, 0) INTO _grade
+    FROM public.scoring_version_severity
+   WHERE version_id = _version_id AND severity = _severity;
+
+  RETURN GREATEST(_charge, coalesce(_grade, 0));
+END $$;
+
+COMMENT ON FUNCTION public.action_points_at(text, text, text[], text, bigint) IS
+  'O gemeo SQL de actionPoints() em src/lib/qualityConstants.ts, contra uma versao datada. MAX(etiquetas, grau): a etiqueta agrava, nunca atenua. Mudar um, mudar o outro.';
+
+-- =====================================================================
+-- 3. What this does NOT do, said out loud
+--
+-- It does not re-freeze anything. Every action already carrying points_at_creation
+-- keeps it, including any that the replace rule under-charged. That is not an oversight
+-- being deferred — it is the freeze working: those actions were scored under the rule in
+-- force on their date, and a report already printed about them still reproduces.
+--
+-- Re-scoring the affected history with the new rule is a separate, explicit, auditable
+-- act, which is what 20260822090000 made possible in the first place. It needs a
+-- decision about which periods, and it will move published numbers.
+-- =====================================================================
+
+
+-- ================================================================
+-- BLOCO 13
+-- 20260824090000_a_failed_ccp_is_a_ceiling_too.sql
+-- ================================================================
+
+-- A failed CCP is a ceiling, not a number of points.
+--
+-- Fail CCP and Foreign Body were priced like Pallet and Office — points, in the same
+-- plane, feeding the same averages. Points average out. A leader could close a quarter
+-- in green having had a critical control point fail in it, because eleven good weeks
+-- diluted one bad day. In a BRC/HACCP plant that is not a scoring preference, it is an
+-- audit finding: the system cannot show that a food safety deviation was treated as
+-- one.
+--
+-- THE MECHANISM ALREADY EXISTS AND IS NOT REBUILT HERE. 20260818090000 established the
+-- sentence this module is organised around — "Production, Quality and Documentation are
+-- WEIGHTS; food safety and Health & Safety are CEILINGS" — and built the ceiling:
+-- CAP_Gate at 49, applied with LEAST() AFTER the weighted sum, with a cap_reason beside
+-- it. What that migration wired up were the check-sheet and H&S triggers. This adds the
+-- third trigger the sentence always named and nothing yet fired on: an ACTION carrying
+-- a food safety label.
+--
+-- Nothing here creates a fourth weight, and nothing may. A weight would price a failed
+-- CCP at some number of points and let a good volume week buy it back. A ceiling can
+-- only ever lower, so no arithmetic anywhere can turn a failed CCP into a good period.
+--
+-- THE GATE IS NOT ATTRIBUTION. An action whose labels are "not the leader's" still
+-- gates, and this is deliberate rather than overlooked: the gate records that the event
+-- OCCURRED in the period, not who is to blame for it. It is the same rule the H&S gate
+-- already runs on — computeLeaderScore's `gating` filter applies no attribution either —
+-- and the same reason a completed CAPA does not erase it. Only a REJECTED action is
+-- void, because Quality looked and said it did not happen.
+
+-- =====================================================================
+-- 1. The flag
+--
+-- Mirrors quality_options_only_labels_are_priced from 20260815120000: a department is
+-- not a label and cannot gate anything, and that belongs where it cannot be bypassed by
+-- whoever writes the next screen.
+-- =====================================================================
+
+ALTER TABLE public.quality_options
+  ADD COLUMN IF NOT EXISTS is_gate boolean NOT NULL DEFAULT false;
+
+DO $$ BEGIN
+  ALTER TABLE public.quality_options
+    ADD CONSTRAINT quality_options_only_labels_gate
+    CHECK (kind = 'label' OR is_gate = false);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+COMMENT ON COLUMN public.quality_options.is_gate IS
+  'Uma accao com esta etiqueta forca RED e limita o score a CAP_Gate no periodo em que ocorreu. NAO e um peso e nao e compensavel. Nao e apagada por CAPA concluida — a CAPA fecha-se noutro sitio.';
+
+-- =====================================================================
+-- 2. Marking the four
+--
+-- Matched by NAME, lowercased and trimmed, because these labels were created through
+-- the UI and exist in no migration — there is no id to target and no seed to amend.
+--
+-- Which means the match can silently hit nothing. A label spelled 'CCP' where this
+-- expects 'Fail CCP' would leave the gate switched off on the exact deviation it was
+-- built for, and the migration would report success. So it counts what it marked and
+-- RAISES when the count is short: zero rows updated is a wrong work order, not a
+-- completed one.
+--
+-- It does NOT create the missing labels. Inventing a food safety category because a
+-- string did not match would put a label on the picker that nobody in the plant chose.
+-- =====================================================================
+
+DO $gates$
+DECLARE
+  _wanted constant text[] := ARRAY[
+    'fail ccp', 'foreign body', 'wrong weight volume check', 'bag inside blender'];
+  _found  text[];
+  _absent text[];
+BEGIN
+  UPDATE public.quality_options
+     SET is_gate = true
+   WHERE kind = 'label'
+     AND lower(btrim(value)) = ANY(_wanted)
+     AND is_gate = false;
+
+  SELECT coalesce(array_agg(DISTINCT lower(btrim(value))), ARRAY[]::text[]) INTO _found
+    FROM public.quality_options
+   WHERE kind = 'label' AND is_gate = true;
+
+  SELECT coalesce(array_agg(w), ARRAY[]::text[]) INTO _absent
+    FROM unnest(_wanted) AS w WHERE NOT (w = ANY(_found));
+
+  RAISE NOTICE 'Etiquetas com gate activo: %', array_to_string(_found, ', ');
+
+  IF cardinality(_absent) > 0 THEN
+    RAISE EXCEPTION
+      'Estas etiquetas de gate nao existem em quality_options: %. '
+      'Nao foram criadas de proposito — inventar uma categoria de seguranca alimentar '
+      'porque uma string nao bateu poria no picker uma etiqueta que ninguem na fabrica '
+      'escolheu. Confirmar a grafia exacta com: SELECT value FROM quality_options WHERE '
+      'kind = ''label'' ORDER BY value; e corrigir a lista desta migracao ou o nome da '
+      'etiqueta. Um gate que nao dispara e pior do que gate nenhum.',
+      array_to_string(_absent, ', ')
+      USING ERRCODE = 'no_data_found';
+  END IF;
+END $gates$;
+
+-- =====================================================================
+-- 3. The ceiling itself is already seeded
+--
+-- CAP_Gate = 49 exists since 20260818090000 and is shared with the check-sheet and H&S
+-- triggers on purpose: one number for "a gate fired", so a failed CCP and a lost-time
+-- injury cannot come to disagree about what a gate costs. There is deliberately no
+-- CAP_FoodSafety.
+-- =====================================================================
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.leader_scorecard_threshold
+                  WHERE name = 'CAP_Gate' AND valid_to IS NULL) THEN
+    RAISE EXCEPTION
+      'CAP_Gate nao tem versao vigente. 20260818090000 nao foi aplicada, e sem o tecto '
+      'esta migracao marca etiquetas que nada limita.'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+END $$;
+
+
+-- ================================================================
+-- BLOCO 14
+-- 20260826090000_the_weekly_row_learns_about_the_actions.sql
+-- ================================================================
+
+-- The weekly row learns about the actions, too.
+--
+-- 20260824090000 marked four labels as gates and made computeLeaderScore cap on them, so
+-- a leader opening their own card sees a failed CCP limit the period to 49. The weekly
+-- SQL row did not learn: v_leader_weekly_scorecard is fed by leader_weekly_scorecard, a
+-- hand-filled table of check statuses and counts, and it has never read quality_actions.
+--
+-- So the same failed CCP produced two different answers depending on which screen you
+-- opened. That is the one thing this module may not do, and it is stated as such at the
+-- top of src/lib/leaderScorecard.ts: two fetch paths, one arithmetic.
+--
+-- WHY THIS IS NOT DOUBLE-COUNTING, since the week already gates on a 'Fail' check. The
+-- check sheet answers "was the CCP check done this week, and did it pass". An action
+-- answers "an incident occurred". They are two records of two different facts that can
+-- and do diverge — an action can be raised in a week whose sheet was never marked Fail.
+-- Both gate. Gating twice is arithmetically harmless (LEAST is idempotent, and Red twice
+-- is Red) and the alternative is a food safety event that reaches no weekly row at all
+-- because nobody ticked a box.
+--
+-- HOW THIS IS BUILT. The view is re-issued whole, because a view's definition is stored
+-- as a parse tree and pg_get_viewdef reconstructs it — the targeted-patch trick used on
+-- leader_self_scorecard in 20260822093000 cannot work here. To keep the re-issue honest
+-- the body below was GENERATED from the 20260818090000 source by applying four edits,
+-- not retyped: every line this migration does not deliberately change is byte-identical
+-- to the definition in force. The four changes are marked in place.
+--
+-- CREATE OR REPLACE VIEW keeps column names, types and order, so the eight dependent
+-- views — the periods view, three rollups, two rankings and the trends — are untouched
+-- and are not re-issued here.
+
+-- =====================================================================
+-- 0. Preconditions
+--
+-- Both are the same class of failure: the migration would apply cleanly and the gate
+-- would never fire, which is worse than not applying at all.
+-- =====================================================================
+
+DO $pre$ BEGIN
+  IF to_regclass('public.v_leader_weekly_scorecard') IS NULL THEN
+    RAISE EXCEPTION '20260818090000 tem de estar aplicada: esta migracao re-emite a view que ela cria.'
+      USING ERRCODE = 'invalid_table_definition';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'quality_options'
+                    AND column_name = 'is_gate') THEN
+    RAISE EXCEPTION
+      '20260824090000 tem de estar aplicada primeiro. Sem quality_options.is_gate esta '
+      'view nao compila, e se compilasse nao teria nenhuma etiqueta por onde gatear.'
+      USING ERRCODE = 'undefined_column';
+  END IF;
+
+  /**
+   * quality_actions.leader_id tem de apontar para line_leaders, nao para auth.users.
+   *
+   * Ate 20260825090000 apontava para auth.users, e lideres de linha nao tem conta — o
+   * PIN e um segundo factor sobre a sessao de outra pessoa, nao um login. Uma accao com
+   * leader_id preenchido guardava portanto um id que NAO existe em line_leaders.
+   *
+   * O que isso faria a este gate, se corresse antes: a juncao abaixo compara
+   * a.leader_id com s.leader_id (line_leaders) e so cai para o nome quando a.leader_id
+   * E NULL. Uma accao com o id antigo preenchido nao bate na primeira condicao nem
+   * entra na segunda — escapa ao gate inteiro, em silencio, e a semana fecha verde com
+   * um CCP reprovado dentro. Falhar aberto num gate e a unica falha que este modulo
+   * trata como inaceitavel.
+   */
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint c
+     WHERE c.conrelid = 'public.quality_actions'::regclass
+       AND c.contype = 'f'
+       AND c.confrelid = 'public.line_leaders'::regclass
+       AND c.conkey = ARRAY[(SELECT attnum FROM pg_attribute
+                              WHERE attrelid = 'public.quality_actions'::regclass
+                                AND attname = 'leader_id')]
+  ) THEN
+    RAISE EXCEPTION
+      '20260825090000_a_line_leader_is_not_an_account tem de estar aplicada primeiro. '
+      'Enquanto quality_actions.leader_id apontar para auth.users, uma accao com o id '
+      'preenchido escapa ao gate desta view sem erro nenhum.'
+      USING ERRCODE = 'invalid_foreign_key';
+  END IF;
+END $pre$;
+
+-- =====================================================================
+-- 1. A view, com o gate das accoes
+-- =====================================================================
+
+CREATE OR REPLACE VIEW public.v_leader_weekly_scorecard
+WITH (security_invoker = true) AS
+SELECT
+  s.id,
+  s.leader_id,
+  ll.name  AS leader_name,
+  s.line_id,
+  ln.name  AS line_name,
+  s.week_ending,
+  s.month_start,
+  s.quarter_start,
+  public.scorecard_month_label(s.month_start)     AS month,
+  public.scorecard_quarter_label(s.quarter_start) AS quarter,
+
+  -- Volume
+  s.planned_volume,
+  s.actual_volume,
+  s.unplanned_downtime_minutes,
+  s.downtime_reason,
+  v.volume_pct,
+  v.volume_pct_adjusted,
+  v.volume_rag,
+
+  -- Quality
+  s.ccp_check_status,
+  s.starter_check_status,
+  s.volume_weight_check_status,
+  q.quality_rag,
+  q.quality_fail_type,
+  (q.quality_fail_type = 'Fail') AS capa_required,
+
+  -- Health & Safety
+  s.lost_time_injuries,
+  s.reportable_accidents,
+  s.first_aid_cases,
+  s.near_misses_reported,
+  s.safety_observations_done,
+  s.toolbox_talks_done,
+  s.ppe_compliance_pct,
+  s.hs_training_compliance_pct,
+  s.overdue_hs_actions,
+  (h.eval).rag     AS hs_rag,
+  (h.eval).drivers AS hs_driver,
+  ((h.eval).rag IS NULL) AS missing_hs_data,
+
+  -- Monitored — collected, shown, aggregated, and scoring nothing
+  s.leader_attendance_pct,
+  s.team_attendance_pct,
+  s.leader_lateness_incidents,
+  s.team_lateness_incidents,
+  (s.leader_attendance_pct IS NOT NULL AND s.leader_attendance_pct < t.attend_target)
+    AS leader_attendance_below_target,
+
+  -- Rule G
+  -- Rule G, plus the action gate. GREATEST is not available for text, so the gate is
+  -- an explicit override rather than a max: a gated week is Red, full stop, and the
+  -- band the three pillars would have produced is not consulted. That is what a gate
+  -- IS — if the pillars could still argue it down, it would be a weight.
+  CASE WHEN g.gated THEN 'Red'
+       ELSE public.scorecard_overall_rag(v.volume_rag, q.quality_rag, (h.eval).rag)
+  END AS overall_rag,
+
+  -- Rule H. Quality, H&S, Volume, missing data — in that order, only the applicable
+  -- parts, and every part sourced from a value computed above rather than re-derived.
+  NULLIF(concat_ws(' ',
+    -- The gate leads. A leader reading a Red week asks what to fix, and a food safety
+    -- event outranks every other line here — including on a line-row that did not have
+    -- the incident, which is why naming it is not optional. See the `g` lateral.
+    CASE WHEN g.gated THEN 'Seguranca alimentar: ' || g.reason END,
+    CASE WHEN q.quality_rag = 'Red' THEN
+      'Qualidade: ' || concat_ws('; ',
+        CASE s.ccp_check_status WHEN 'Fail' THEN 'CCP reprovado'
+                                WHEN 'Not Done' THEN 'CCP nao realizado' END,
+        CASE s.starter_check_status WHEN 'Fail' THEN 'Starter reprovado'
+                                    WHEN 'Not Done' THEN 'Starter nao realizado' END,
+        CASE s.volume_weight_check_status WHEN 'Fail' THEN 'Vol&Peso reprovado'
+                                          WHEN 'Not Done' THEN 'Vol&Peso nao realizado' END,
+        CASE WHEN s.ccp_check_status IS NULL OR s.starter_check_status IS NULL
+               OR s.volume_weight_check_status IS NULL THEN 'check nao registado' END)
+      || CASE WHEN q.quality_fail_type = 'Fail' THEN '; CAPA obrigatoria.' ELSE '.' END
+    END,
+    CASE WHEN (h.eval).rag IN ('Red', 'Amber')
+      THEN 'H&S: ' || array_to_string((h.eval).drivers, '; ') || '.' END,
+    CASE
+      WHEN v.volume_rag = 'Red'
+        THEN 'Volume ' || public.scorecard_pct_label(v.volume_pct) || '% (abaixo do plano).'
+      WHEN v.volume_rag = 'Amber' AND v.volume_pct > t.vol_green_max
+        THEN 'Volume ' || public.scorecard_pct_label(v.volume_pct) || '% (superproducao).'
+      WHEN v.volume_rag = 'Amber'
+        THEN 'Volume ' || public.scorecard_pct_label(v.volume_pct) || '% (levemente abaixo do plano).'
+    END,
+    CASE WHEN s.line_id IS NULL     THEN 'Linha de producao nao informada.' END,
+    CASE WHEN (h.eval).rag IS NULL  THEN 'Dados de H&S ausentes.' END,
+    CASE WHEN v.volume_pct IS NULL  THEN 'Volume nao informado.' END
+  ), '') AS rag_driver,
+
+  -- CAPA
+  s.root_cause, s.corrective_action, s.capa_owner, s.capa_due_date, s.capa_status,
+  s.effectiveness_verified_by, s.effectiveness_verified_on,
+
+  -- Audit trail
+  s.submitted_by, s.submitted_at, s.approved_by, s.approved_at,
+  (s.approved_at IS NULL) AS pending_approval,
+  s.created_at, s.updated_at,
+
+  -- Rule M. The score sits BESIDE the RAG and is not derived from it, nor it from the
+  -- score. It is here to rank and to trend, and the leader reads rag_driver to find out
+  -- what to do. A single number cannot do both jobs: 82 does not name a missed check.
+  --
+  -- As shipped, nothing reads score_final yet except the rollups' avg_score_final: the
+  -- two ranking views still order by pct_weeks_red and the trend views still read the
+  -- RAG. Ranking on the score is the intended next step, not the current state, and it
+  -- is a decision of its own — ranking by score would rank on a number the ceilings
+  -- flatten, so several capped weeks would tie where the RAG still tells them apart.
+  sc.prod_score,
+  sc.qual_score,
+  sc.doc_score,
+  sc.score_bruto,
+  -- The gate ceiling, applied OUTSIDE scorecard_score_evaluate rather than as a new
+  -- argument to it. Adding a parameter to that function would not replace it, it would
+  -- create a second one beside it — the trap this migration's own closing comment warns
+  -- about — and every caller would then have to be found and moved. LEAST here is the
+  -- same arithmetic in a place that cannot fork the function.
+  --
+  -- Still AFTER the weighted sum and still only ever downward, which is the whole rule.
+  CASE WHEN g.gated THEN LEAST(sc.score_final, t.cap_gate) ELSE sc.score_final END
+    AS score_final,
+  CASE WHEN g.gated
+       THEN concat_ws(' ',
+              'Teto ' || public.scorecard_score_label(t.cap_gate) || ': ' || g.reason || '.',
+              sc.cap_reason)
+       ELSE sc.cap_reason
+  END AS cap_reason,
+  (g.gated OR sc.cap_reason IS NOT NULL) AS cap_applied,
+  -- Printed next to the score, because a score whose weights nobody can see is a score
+  -- nobody can check.
+  t.w_prod AS weight_production,
+  t.w_qual AS weight_quality,
+  t.w_doc  AS weight_documentation,
+
+  -- volume_source, appended LAST rather than filed under Volume where it belongs
+  -- thematically: inserting a column mid-list renumbers everything after it, and this
+  -- view is read positionally by nothing we can prove. Appending cannot break a reader.
+  --
+  -- It is a base-table column (20260816090000) and a field the screen WRITES, but it was
+  -- missing from every version of this view, and that made it a column the screen could
+  -- only ever write once. src/lib/scorecardEntry.ts pickWritable() projects a fetched view
+  -- row down to the draft's own keys; a key the view does not carry is not restored, so
+  -- the draft held NULL and the next save wrote NULL over the stamp. Reopening a week and
+  -- touching any field erased the record of whether the volume was derived or typed by
+  -- hand — the audit column, silently, on the save that looked like it had worked.
+  s.volume_source
+
+FROM public.leader_weekly_scorecard s
+LEFT JOIN public.line_leaders ll ON ll.id = s.leader_id
+LEFT JOIN public.lines        ln ON ln.id = s.line_id
+
+-- The thresholds as of the week being judged. One pass over the table per row, pivoted
+-- here so no rule below has to know how the table is shaped.
+CROSS JOIN LATERAL (
+  SELECT
+    max(th.value) FILTER (WHERE th.name = 'THR_VolAmberMin')  AS vol_amber_min,
+    max(th.value) FILTER (WHERE th.name = 'THR_VolGreenMin')  AS vol_green_min,
+    max(th.value) FILTER (WHERE th.name = 'THR_VolGreenMax')  AS vol_green_max,
+    max(th.value) FILTER (WHERE th.name = 'THR_ProdMinutes')  AS prod_minutes,
+    max(th.value) FILTER (WHERE th.name = 'THR_HSTrainRed')   AS hs_train_red,
+    max(th.value) FILTER (WHERE th.name = 'THR_HSTrainGreen') AS hs_train_green,
+    max(th.value) FILTER (WHERE th.name = 'THR_NearMissMin')  AS near_miss_min,
+    max(th.value) FILTER (WHERE th.name = 'THR_SafetyObsMin') AS safety_obs_min,
+    max(th.value) FILTER (WHERE th.name = 'THR_ToolboxMin')   AS toolbox_min,
+    max(th.value) FILTER (WHERE th.name = 'THR_PPEMin')       AS ppe_min,
+    max(th.value) FILTER (WHERE th.name = 'THR_AttendTarget') AS attend_target,
+    -- The score's parameters, resolved on exactly the same as-of date as the RAG's, so
+    -- a week can never be banded under one vintage and scored under another.
+    max(th.value) FILTER (WHERE th.name = 'W_Production')        AS w_prod,
+    max(th.value) FILTER (WHERE th.name = 'W_Quality')           AS w_qual,
+    max(th.value) FILTER (WHERE th.name = 'W_Documentation')     AS w_doc,
+    max(th.value) FILTER (WHERE th.name = 'THR_OverProdBand')    AS over_prod_band,
+    max(th.value) FILTER (WHERE th.name = 'THR_OverProdPenalty') AS over_prod_penalty,
+    max(th.value) FILTER (WHERE th.name = 'THR_VolZero')         AS vol_zero,
+    max(th.value) FILTER (WHERE th.name = 'THR_QualFailPenalty') AS qual_fail_penalty,
+    max(th.value) FILTER (WHERE th.name = 'CAP_Gate')            AS cap_gate,
+    max(th.value) FILTER (WHERE th.name = 'CAP_NotDone')         AS cap_not_done,
+    max(th.value) FILTER (WHERE th.name = 'CAP_HSAmber')         AS cap_hs_amber,
+    max(th.value) FILTER (WHERE th.name = 'USE_AdjustedForScore') AS use_adjusted
+  FROM public.leader_scorecard_threshold th
+  WHERE s.week_ending >= th.valid_from
+    AND (th.valid_to IS NULL OR s.week_ending <= th.valid_to)
+) t
+
+CROSS JOIN LATERAL (
+  SELECT
+    CASE WHEN s.planned_volume IS NULL OR s.actual_volume IS NULL THEN NULL
+         ELSE s.actual_volume::numeric / s.planned_volume::numeric END AS volume_pct
+) p
+CROSS JOIN LATERAL (
+  SELECT
+    p.volume_pct,
+    public.scorecard_volume_pct_adjusted(
+      s.actual_volume, s.planned_volume, s.unplanned_downtime_minutes, t.prod_minutes)
+      AS volume_pct_adjusted,
+    -- The official band reads the RAW figure. The adjusted one is displayed beside it
+    -- and judges nothing.
+    public.scorecard_volume_rag(
+      p.volume_pct, t.vol_amber_min, t.vol_green_min, t.vol_green_max) AS volume_rag
+) v
+CROSS JOIN LATERAL (
+  SELECT ARRAY[s.ccp_check_status, s.starter_check_status, s.volume_weight_check_status]
+    AS checks
+) c
+CROSS JOIN LATERAL (
+  SELECT public.scorecard_quality_rag(c.checks)       AS quality_rag,
+         public.scorecard_quality_fail_type(c.checks) AS quality_fail_type
+) q
+CROSS JOIN LATERAL (
+  SELECT public.scorecard_hs_evaluate(
+    s.lost_time_injuries, s.reportable_accidents, s.first_aid_cases,
+    s.near_misses_reported, s.safety_observations_done, s.toolbox_talks_done,
+    s.ppe_compliance_pct, s.hs_training_compliance_pct, s.overdue_hs_actions,
+    t.hs_train_red, t.hs_train_green, t.near_miss_min,
+    t.safety_obs_min, t.toolbox_min, t.ppe_min) AS eval
+) h
+
+-- Rule M, both layers, in one call. It is given the H&S band that h computed rather
+-- than the raw H&S fields, so the ceiling and the RAG cannot ever disagree about
+-- whether the week was Amber.
+-- Called in FROM rather than as (f(...)).* in the select list: the star form re-runs
+-- the function once per column it expands, and this one is six columns wide.
+-- The action gate: a quality action carrying a label marked is_gate.
+--
+-- LEADER AND WEEK, NOT LINE. The specification says the gate applies to "aquele periodo
+-- e aquele lider", and this follows it literally — so a CCP failure on Line 3 also turns
+-- the same leader's Line 5 row Red that week. That is a real consequence and it is the
+-- reason rag_driver names the event first: somebody reading Red on a clean line has to
+-- be able to see, on the row itself, that the cause was a food safety event elsewhere in
+-- that leader's week. Matching the line instead would need quality_actions.line to agree
+-- with lines.name as free text, which is the class of match that has already cost this
+-- project a leader's entire quality section.
+--
+-- The leader join takes the id when the action has one and falls back to the name
+-- otherwise: quality_actions.leader_id is nullable, and a gate that skipped the rows
+-- without it would fail OPEN on exactly the oldest data.
+--
+-- A rejected action is void — Quality looked and said it did not happen. Nothing else
+-- voids it: not a closed CAPA, not attribution. The gate records that the event occurred.
+CROSS JOIN LATERAL (
+  SELECT
+    count(*) > 0 AS gated,
+    string_agg(DISTINCT o.value || ' em ' || to_char(a.recorded_at, 'DD/MM'), '; ')
+      AS reason
+  FROM public.quality_actions a
+  JOIN public.quality_options o
+    ON o.kind = 'label' AND o.is_gate = true AND o.value = ANY(a.labels)
+  WHERE a.validation_status IS DISTINCT FROM 'rejected'
+    AND a.recorded_at::date BETWEEN s.week_ending - 6 AND s.week_ending
+    AND (a.leader_id = s.leader_id
+         OR (a.leader_id IS NULL
+             AND ll.name IS NOT NULL
+             AND lower(btrim(a.leader_name)) = lower(btrim(ll.name))))
+) g
+
+CROSS JOIN LATERAL public.scorecard_score_evaluate(
+    -- The raw figure by default. USE_AdjustedForScore is the business decision, held
+    -- as a parameter precisely so it is never an accident.
+    CASE WHEN coalesce(t.use_adjusted, 0) = 1 THEN v.volume_pct_adjusted ELSE p.volume_pct END,
+    c.checks, s.lost_time_injuries, s.reportable_accidents, (h.eval).rag,
+    t.w_prod, t.w_qual, t.w_doc,
+    t.vol_amber_min, t.vol_green_min, t.vol_green_max,
+    t.over_prod_band, t.over_prod_penalty, t.vol_zero, t.qual_fail_penalty,
+    t.cap_gate, t.cap_not_done, t.cap_hs_amber) AS sc;
+
+COMMENT ON VIEW public.v_leader_weekly_scorecard IS
+  'O scorecard semanal calculado, ao nivel lider x linha x semana. Definicao unica de volume_pct, volume_pct_adjusted, volume_rag, quality_rag, quality_fail_type, hs_rag, hs_driver, overall_rag e rag_driver: os rollups, o resumo, a tendencia e o ranking leem esta view e nao repetem nenhuma regra. Desde 20260826090000 o RAG e o tecto tambem respondem a accoes com etiqueta is_gate, ao nivel lider x semana.';
+
+
+-- ================================================================
+-- BLOCO 15
+-- 20260827090000_the_evidence_gate_outlived_the_place_to_attach_it.sql
+-- ================================================================
+
+-- "Attach the evidence before validating this action." — there is nowhere left to
+-- attach it.
+--
+-- The rule was right when it was written (20260730230000, ALCOA+: a validated
+-- deviation carries its evidence) because the detail dialog had a Photos block with an
+-- upload beside it. Both are gone from the screen: attachments for a deviation are
+-- captured in SafetyCulture now, and the verdict picker went with them. A trigger that
+-- demands a file no screen can produce does not enforce a standard, it just refuses
+-- every write and teaches whoever hits it that the app is broken.
+--
+-- Nothing else in the function changes. Only Quality still rules on a deviation, a
+-- closed action still has to be reopened before its verdict moves, closure is still a
+-- manager's and still needs a verdict first. The `attachments` column is untouched and
+-- every path already in it stays exactly where it is — this drops the gate, not the
+-- evidence.
+CREATE OR REPLACE FUNCTION public.enforce_quality_validation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _uid uuid := auth.uid();
+  _is_admin boolean;
+  _is_quality boolean;
+  _is_manager boolean;
+  _verdict_changed boolean := new.validation_status IS DISTINCT FROM old.validation_status;
+  _closure_changed boolean := (new.closed_at IS NULL) IS DISTINCT FROM (old.closed_at IS NULL);
+BEGIN
+  IF NOT _verdict_changed AND NOT _closure_changed THEN RETURN new; END IF;
+
+  -- Backend paths (cron, service key) have no auth.uid(); RLS keeps anon out.
+  IF _uid IS NULL THEN RETURN new; END IF;
+
+  _is_admin   := has_role(_uid,'admin');
+  _is_quality := _is_admin OR has_role(_uid,'quality_supervisor');
+  _is_manager := _is_admin OR has_role(_uid,'manager') OR has_role(_uid,'maintenance_manager');
+
+  IF _verdict_changed THEN
+    -- A closed action is a filed record. Changing its verdict changes a leader's
+    -- score after the fact, so it takes a manager reopening it first — and that
+    -- reopening is in the history.
+    IF old.closed_at IS NOT NULL AND new.closed_at IS NOT NULL THEN
+      RAISE EXCEPTION 'This action is closed. A manager must reopen it before the verdict can change.';
+    END IF;
+
+    IF new.validation_status IN ('validated','rejected') AND NOT _is_quality THEN
+      RAISE EXCEPTION 'Only Quality or an admin can validate or reject a quality action.';
+    END IF;
+
+    IF new.validation_status = 'validated' THEN
+      -- The evidence check stood here. See the header: the upload it required was
+      -- removed from the screen, so it could only ever refuse.
+      new.validated_by := COALESCE(new.validated_by, _uid);
+      new.validated_at := COALESCE(new.validated_at, now());
+    ELSE
+      -- Withdrawing the verdict withdraws the signature with it.
+      new.validated_by := NULL;
+      new.validated_at := NULL;
+    END IF;
+  END IF;
+
+  IF _closure_changed THEN
+    IF NOT _is_manager THEN
+      RAISE EXCEPTION 'Only a manager or an admin can approve the closure of a quality action.';
+    END IF;
+    IF new.closed_at IS NOT NULL THEN
+      IF new.validation_status NOT IN ('validated','rejected') THEN
+        RAISE EXCEPTION 'Quality must validate or reject this action before it can be closed.';
+      END IF;
+      new.closed_by := COALESCE(new.closed_by, _uid);
+      new.closed_at := COALESCE(new.closed_at, now());
+    ELSE
+      new.closed_by := NULL;
+    END IF;
+  END IF;
+
+  RETURN new;
+END
+$function$;
+
+
+-- ================================================================
+-- BLOCO 16
+-- 20260827093000_a_department_can_be_someone_elses.sql
+-- ================================================================
+
+-- A department can be somebody else's, the same way a label can.
+--
+-- Until now attribution ran on labels alone. `quality_actions.department` existed, was
+-- required on the log form, printed in its own column and drove a bar chart — and never
+-- touched a single point. So the factory's own reading of the field ("this one is
+-- Maintenance's") had no effect on the score the field looks like it should govern, and
+-- clearing a machine failure off a leader meant remembering to also put the Maintenance
+-- LABEL on it. Two ways to say one thing, one of which did nothing.
+--
+-- This makes the department an attribution axis beside the labels:
+--
+--   * `quality_options.counts_against_leader` — the switch, on the department rows.
+--   * `scoring_version_excluded_department`   — the switch, frozen per scoring version.
+--   * `action_points_at(..., _department, ...)` — the rule, applied.
+--
+-- The rule is a VETO, which is deliberately not what the label rule does. Read the
+-- reasoning in `countsAgainstLeaderDepartment` in src/lib/qualityConstants.ts before
+-- changing either: a label lives in a set, so a veto there was a lever anybody could
+-- pull by adding "Maintenance" to a paperwork error, invisibly. A department is one
+-- value, chosen on the way in, printed on the list, the detail panel and the export.
+-- It cannot hide, so it can veto.
+--
+-- WHAT THIS DOES NOT DO: it does not re-price history. `points_at_creation` stays
+-- exactly as frozen — 20260822090000 exists to make that true and this migration is not
+-- the exception. The new rule opens a new scoring version and applies from it onward.
+-- Nobody's July total moves because of a decision taken in August.
+
+BEGIN;
+
+-- =====================================================================
+-- 1. The switch
+-- =====================================================================
+
+ALTER TABLE public.quality_options
+  ADD COLUMN IF NOT EXISTS counts_against_leader boolean NOT NULL DEFAULT true;
+
+COMMENT ON COLUMN public.quality_options.counts_against_leader IS
+  'Se uma accao registada neste departamento cobra pontos ao lider. Lido nas linhas kind = department. O default true e a direccao estrita: nada deixa de contar sem alguem o dizer.';
+
+-- Production is what the lines actually book against and it charges, which is the
+-- default — named here anyway so the row exists on a database seeded before it.
+-- Maintenance is the whole point of the change and does not charge.
+INSERT INTO public.quality_options (kind, value, active, sort, counts_against_leader)
+VALUES
+  ('department', 'Production',  true, 40, true),
+  ('department', 'Maintenance', true, 50, false)
+ON CONFLICT DO NOTHING;
+
+-- ON CONFLICT DO NOTHING covers a fresh insert, not a Maintenance row somebody already
+-- added by hand through Lists & scoring — which is exactly how this database got its
+-- Production row. Without this the switch would silently stay at the default and the
+-- migration would report success having changed nothing.
+UPDATE public.quality_options
+   SET counts_against_leader = false
+ WHERE kind = 'department'
+   AND lower(btrim(value)) = 'maintenance';
+
+-- =====================================================================
+-- 2. The switch, frozen per version
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS public.scoring_version_excluded_department (
+  version_id bigint NOT NULL REFERENCES public.scoring_version(id) ON DELETE CASCADE,
+  department text   NOT NULL,
+  PRIMARY KEY (version_id, department)
+);
+
+COMMENT ON TABLE public.scoring_version_excluded_department IS
+  'Os departamentos que NAO sao do lider nesta versao. A ausencia significa que conta. Congelado junto com os precos e com as labels excluidas, pela mesma razao: mudar quem responde por uma accao re-pontuava a historia tal como mudar um preco.';
+
+ALTER TABLE public.scoring_version_excluded_department ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone signed in can read versioned department exclusions"
+  ON public.scoring_version_excluded_department;
+CREATE POLICY "Anyone signed in can read versioned department exclusions"
+  ON public.scoring_version_excluded_department FOR SELECT TO authenticated USING (true);
+
+-- =====================================================================
+-- 3. The snapshot learns about departments
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.scoring_version_snapshot(_version_id bigint)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+BEGIN
+  DELETE FROM public.scoring_version_severity            WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_label               WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_excluded_label      WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_excluded_department WHERE version_id = _version_id;
+
+  INSERT INTO public.scoring_version_severity (version_id, severity, points)
+  SELECT _version_id, severity, points FROM public.quality_severity_points;
+
+  INSERT INTO public.scoring_version_label (version_id, label, points)
+  SELECT _version_id, lower(trim(value)), max(points)
+    FROM public.quality_options WHERE kind = 'label' AND trim(coalesce(value, '')) <> ''
+   GROUP BY lower(trim(value));
+
+  -- Guarded: quality_label_attribution arrives in its own migration and the app already
+  -- treats its absence as a state to report rather than an error (see attributionMissing
+  -- in QualityActionsPage). An absent table means nothing is excluded, which is the same
+  -- answer an empty table gives.
+  IF to_regclass('public.quality_label_attribution') IS NOT NULL THEN
+    EXECUTE '
+      INSERT INTO public.scoring_version_excluded_label (version_id, label)
+      SELECT $1, lower(trim(label)) FROM public.quality_label_attribution
+       WHERE counts_against_leader = false AND btrim(coalesce(label, '''')) <> ''''
+       GROUP BY lower(trim(label))'
+    USING _version_id;
+  END IF;
+
+  -- Unguarded, unlike the label exclusions above: the column is created by this same
+  -- migration a few statements up, so it is there by the time this body ever runs.
+  -- ACTIVE rows only — a hidden department cannot be picked on the form, so whether it
+  -- would have charged is not a question this version needs an answer to.
+  INSERT INTO public.scoring_version_excluded_department (version_id, department)
+  SELECT _version_id, lower(btrim(value))
+    FROM public.quality_options
+   WHERE kind = 'department'
+     AND active = true
+     AND counts_against_leader = false
+     AND btrim(coalesce(value, '')) <> ''
+   GROUP BY lower(btrim(value));
+END $$;
+
+-- =====================================================================
+-- 4. The rule
+-- =====================================================================
+
+/**
+ * The SQL twin of livePoints() in src/lib/qualityConstants.ts, against a dated version.
+ *
+ * New signature: `_department` joins the action's own fields, `_version_id` stays last.
+ * The 5-argument version is dropped at the end of this file rather than left beside it —
+ * two live definitions of one rule is the drift this whole module was rebuilt to stop,
+ * and a caller that missed the change would silently keep scoring without the veto.
+ *
+ * Guard ORDER is part of the rule and is asserted by scoringVersionParity.test.ts:
+ * safety, then rejected, then department, then labels. A rejected safety row must
+ * return 0 for the SAFETY reason, because that is the sentence printed beside it.
+ * The department sits above the labels because it is the broader claim — it says the
+ * action belongs to somebody else entirely, and no label argues that back.
+ */
+CREATE OR REPLACE FUNCTION public.action_points_at(
+  _domain text,
+  _severity text,
+  _labels text[],
+  _validation_status text,
+  _department text,
+  _version_id bigint)
+RETURNS integer
+LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
+DECLARE
+  _norm     text[];
+  _excluded text[];
+  _charge   integer;
+  _grade    integer;
+  _cap      numeric;
+  _from     date;
+BEGIN
+  -- Safety is counted, never charged. Reporting a near miss has to stay free, or the
+  -- reporting stops and the number that looks best is the one that means least.
+  IF _domain = 'safety' THEN RETURN 0; END IF;
+  IF _validation_status = 'rejected' THEN RETURN 0; END IF;
+
+  -- countsAgainstLeaderDepartment: one department per action, so this is a veto. A
+  -- blank department still counts — leaving the field empty must not quietly remove a
+  -- deviation from somebody's score, the same rule the blank label list follows below.
+  IF btrim(coalesce(_department, '')) <> ''
+     AND EXISTS (SELECT 1 FROM public.scoring_version_excluded_department d
+                  WHERE d.version_id = _version_id
+                    AND d.department = lower(btrim(_department)))
+  THEN
+    RETURN 0;
+  END IF;
+
+  SELECT coalesce(array_agg(l), ARRAY[]::text[]) INTO _norm
+    FROM (SELECT DISTINCT lower(trim(x)) AS l
+            FROM unnest(coalesce(_labels, ARRAY[]::text[])) AS x
+           WHERE trim(coalesce(x, '')) <> '') s;
+
+  SELECT coalesce(array_agg(label), ARRAY[]::text[]) INTO _excluded
+    FROM public.scoring_version_excluded_label WHERE version_id = _version_id;
+
+  -- countsAgainstLeader: one attributable label is enough, and NO labels also counts.
+  -- The second half is not an oversight — leaving the labels blank must not quietly
+  -- remove a deviation from somebody's score.
+  IF cardinality(_norm) > 0
+     AND NOT EXISTS (SELECT 1 FROM unnest(_norm) AS l WHERE NOT (l = ANY(_excluded)))
+  THEN
+    RETURN 0;
+  END IF;
+
+  SELECT coalesce(sum(v.points), 0) INTO _charge
+    FROM unnest(_norm) AS l
+    JOIN public.scoring_version_label v
+      ON v.version_id = _version_id AND v.label = l
+   WHERE NOT (l = ANY(_excluded));
+
+  -- The ceiling in force on the date this action's own version opened, not today's.
+  -- Resolving it against current_date would let raising the cap in November change what
+  -- a July action is worth — through the one number this whole module was rebuilt to
+  -- stop moving.
+  SELECT valid_from INTO _from FROM public.scoring_version WHERE id = _version_id;
+  IF _from IS NOT NULL THEN
+    SELECT max(value) INTO _cap
+      FROM public.leader_scorecard_threshold
+     WHERE name = 'CAP_LabelPoints'
+       AND valid_from <= _from
+       AND (valid_to IS NULL OR valid_to >= _from);
+  END IF;
+  -- NULL is uncapped, and LEAST would return the charge unchanged anyway — written out
+  -- so the absent-parameter case is a stated reading rather than a lucky one.
+  IF _cap IS NOT NULL THEN
+    _charge := LEAST(_charge, _cap::integer);
+  END IF;
+
+  SELECT coalesce(points, 0) INTO _grade
+    FROM public.scoring_version_severity
+   WHERE version_id = _version_id AND severity = _severity;
+
+  RETURN GREATEST(_charge, coalesce(_grade, 0));
+END $$;
+
+COMMENT ON FUNCTION public.action_points_at(text, text, text[], text, text, bigint) IS
+  'O gemeo SQL de actionPoints() em src/lib/qualityConstants.ts, contra uma versao datada. Desde 20260827093000 o departamento tambem atribui, como veto. Mudar um, mudar o outro.';
+
+-- =====================================================================
+-- 5. The freeze trigger calls the new rule
+-- =====================================================================
+
+/**
+ * Unchanged in intent, rewritten only to pass the department through.
+ *
+ * On INSERT: the version in force on the action's own recorded_at, not today's.
+ * On re-grade: the action's OWN scoring_version_id. The fact gets corrected, the ruler
+ * does not — using current_date here would re-open every door 20260822090000 closed.
+ *
+ * `department` is read through to_jsonb for the same reason `domain` is: the column is
+ * optional on older databases, and a plpgsql field reference to a column that does not
+ * exist fails at run time rather than degrading.
+ */
+CREATE OR REPLACE FUNCTION public.quality_action_freeze_points()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+DECLARE
+  _v bigint;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    _v := public.scoring_version_at(coalesce(NEW.recorded_at, now())::date);
+    NEW.scoring_version_id := _v;
+    NEW.points_at_creation := public.action_points_at(
+      to_jsonb(NEW)->>'domain', NEW.severity, NEW.labels, NEW.validation_status,
+      to_jsonb(NEW)->>'department', _v);
+    RETURN NEW;
+  END IF;
+
+  _v := coalesce(NEW.scoring_version_id,
+                 public.scoring_version_at(coalesce(NEW.recorded_at, now())::date));
+  NEW.scoring_version_id     := _v;
+  NEW.points_at_creation     := public.action_points_at(
+    to_jsonb(NEW)->>'domain', NEW.severity, NEW.labels, NEW.validation_status,
+    to_jsonb(NEW)->>'department', _v);
+  NEW.points_recalculated_at := now();
+  RETURN NEW;
+END $$;
+
+-- Dropped only now that nothing calls it. Two live definitions of one rule is the
+-- drift this module was rebuilt to stop.
+DROP FUNCTION IF EXISTS public.action_points_at(text, text, text[], text, bigint);
+
+-- =====================================================================
+-- 6. Changing the switch opens a version
+-- =====================================================================
+
+-- Mirrors the label triggers from 20260822090000, including their rule: only a change
+-- that can MOVE a score opens a version. Adding a department that charges moves
+-- nothing — it is the default — so only an exclusion, or a change to one, counts.
+DROP TRIGGER IF EXISTS trg_scoring_version_department_upd ON public.quality_options;
+CREATE TRIGGER trg_scoring_version_department_upd
+  AFTER UPDATE ON public.quality_options
+  FOR EACH ROW WHEN (NEW.kind = 'department'
+                     AND (OLD.counts_against_leader IS DISTINCT FROM NEW.counts_against_leader
+                          OR (NEW.counts_against_leader = false AND OLD.active IS DISTINCT FROM NEW.active)))
+  EXECUTE FUNCTION public.scoring_version_on_ruler_change();
+
+DROP TRIGGER IF EXISTS trg_scoring_version_department_ins ON public.quality_options;
+CREATE TRIGGER trg_scoring_version_department_ins
+  AFTER INSERT ON public.quality_options
+  FOR EACH ROW WHEN (NEW.kind = 'department' AND NEW.counts_against_leader = false)
+  EXECUTE FUNCTION public.scoring_version_on_ruler_change();
+
+DROP TRIGGER IF EXISTS trg_scoring_version_department_del ON public.quality_options;
+CREATE TRIGGER trg_scoring_version_department_del
+  AFTER DELETE ON public.quality_options
+  FOR EACH ROW WHEN (OLD.kind = 'department' AND OLD.counts_against_leader = false)
+  EXECUTE FUNCTION public.scoring_version_on_ruler_change();
+
+-- =====================================================================
+-- 7. Open the version that carries the new rule
+-- =====================================================================
+
+-- The seed above ran as plain DML before the triggers existed, so nothing has opened a
+-- version for it yet. Done explicitly, once, at the end: from today Maintenance stops
+-- charging, and every action already frozen keeps the figure it was frozen with.
+SELECT public.scoring_version_open('Departamento passa a atribuir: Maintenance deixa de cobrar ao lider.');
+
+COMMIT;
+
+
+-- ================================================================
+-- BLOCO 17
+-- 20260827113000_the_ceiling_cannot_see_the_injury.sql
+-- ================================================================
+
+-- The ceiling could not see the injury.
+--
+-- computeLeaderScore gates a period on `domain = 'safety' AND safety_kind IN
+-- (lost_time_injury, reportable_accident)`, and neither fetch path ever asked for
+-- safety_kind. The manager's PostgREST select named `domain` and stopped there; this
+-- function, the leader's own path, named neither. So the field arrived undefined on
+-- every real row, the condition was never true, and a period holding a lost-time injury
+-- scored its plain weighted sum with no ceiling and nothing on the card to say so.
+--
+-- Every unit test of the gate passed throughout. They hand the function an object with
+-- safety_kind on it, which is the one place it was ever present. The TypeScript side of
+-- this is guarded by src/__tests__/theCeilingCannotSeeTheInjury.test.ts, which also
+-- requires this file to exist and to name both columns.
+--
+-- 20260822093000 saw this and deliberately left it: "NOT fixed here, and named so it is
+-- not mistaken for an oversight ... it moves a leader's Quality figure and their RAG,
+-- not just where a number is read from — so it belongs to a decision of its own rather
+-- than riding along inside a scoring migration." This is that decision.
+--
+-- WHAT IT CHANGES ON THE TABLET, stated plainly because it is not only the ceiling:
+--   1. The H&S ceiling can fire on the leader's own card, as it now can on the
+--      manager's. Same person, same period, same number — the rule src/lib/
+--      leaderScorecard.ts opens with.
+--   2. `standsAgainstLeader` and `actionPoints` finally see `domain`, so a safety
+--      occurrence stops being priced as a quality one. A leader's Quality figure will
+--      MOVE on the tablet the day this is applied, upward, because rows that were being
+--      charged severity points are worth zero and always were. That is a correction,
+--      not a gift, and it makes the tablet agree with the manager's card rather than
+--      with its own history.
+--   3. The Health & Safety band on the scorecard has rows to count.
+--
+-- WHY THIS PATCHES INSTEAD OF REPLACING — the same reasoning as 20260822093000, which
+-- is not repeated at length here: the function is over two hundred lines, nothing in
+-- this repository applies migrations, and re-issuing the repo's copy would overwrite
+-- what is actually deployed with what this repository happens to hold. So it reads the
+-- live definition, checks the shape it expects, and rewrites only the projection. If
+-- the live function has drifted, it RAISES rather than guessing.
+
+DO $patch$
+DECLARE
+  _src text;
+  -- Anchored on the tail of the projection as 20260811090000 wrote it, and on a pair
+  -- rather than on `qa.closed_at` alone so it cannot match a `closed_at` elsewhere in
+  -- two hundred lines. Deliberately NOT anchored past it: 20260822093000 may or may not
+  -- have appended `qa.points_at_creation` after this point, and this has to apply to a
+  -- base in either state.
+  _old constant text := 'qa.attachments, qa.closed_at';
+  _new constant text := 'qa.attachments, qa.closed_at, qa.domain, qa.safety_kind';
+  _hits integer;
+  _has_columns boolean;
+BEGIN
+  -- 20260817090000 creates the enum, the column and the CHECK in one statement, so a
+  -- base has both columns or neither. Projecting a column that does not exist would
+  -- make the function fail to create and take the leader's whole card down with it —
+  -- and a base without them has no safety rows to gate on in the first place.
+  SELECT count(*) = 2 INTO _has_columns
+    FROM information_schema.columns
+   WHERE table_schema = 'public'
+     AND table_name = 'quality_actions'
+     AND column_name IN ('domain', 'safety_kind');
+
+  IF NOT _has_columns THEN
+    RAISE NOTICE
+      'quality_actions ainda nao tem domain/safety_kind (20260817090000 por aplicar). '
+      'Nada a projectar. Aplicar 20260817090000 primeiro e voltar a correr esta.';
+    RETURN;
+  END IF;
+
+  SELECT pg_get_functiondef(p.oid) INTO _src
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND p.proname = 'leader_self_scorecard';
+
+  IF _src IS NULL THEN
+    RAISE NOTICE 'leader_self_scorecard nao existe nesta base. Nada a corrigir.';
+    RETURN;
+  END IF;
+
+  -- Idempotent: re-running a migration must not be a way to break something.
+  IF position('safety_kind' IN _src) > 0 THEN
+    RAISE NOTICE 'leader_self_scorecard ja projecta safety_kind. Sem alteracao.';
+    RETURN;
+  END IF;
+
+  _hits := (length(_src) - length(replace(_src, _old, ''))) / length(_old);
+
+  IF _hits <> 1 THEN
+    RAISE EXCEPTION
+      'A projeccao de leader_self_scorecard nao tem a forma esperada (% ocorrencias de "%"). '
+      'A funcao viva divergiu do que esta migracao conhece: comparar antes de aplicar, e '
+      'acrescentar qa.domain e qa.safety_kind a mao. Um tecto de H&S que nunca dispara '
+      'e o defeito que isto corrige — repeti-lo dentro da correccao seria pior.',
+      _hits, _old
+      USING ERRCODE = 'raise_exception';
+  END IF;
+
+  EXECUTE replace(_src, _old, _new);
+  RAISE NOTICE 'leader_self_scorecard passa a projectar domain e safety_kind.';
+END $patch$;
+
+-- The enum reaches the JSON as its text label, which is what the TypeScript compares
+-- against: GATING_KINDS is keyed 'lost_time_injury' / 'reportable_accident', the same
+-- labels 20260817090000 declared. to_jsonb on an enum emits the label, so no cast is
+-- needed here — recorded because the absence of a cast is the kind of thing a later
+-- reader adds "to be safe", and ::text would work while ::integer would not.
+
+
+-- ================================================================
+-- BLOCO 18
+-- 20260828090000_maintenance_keeps_its_own_list_and_a_hazard_can_cost.sql
+-- ================================================================
+
+-- Maintenance gets a list of its own, and a hazard may be priced.
+--
+-- Two changes that arrive together because they are the same change to one screen —
+-- Lists & scoring now shows four lists, and three of them carry a points box.
+--
+-- What each list's price DOES is the part worth reading slowly:
+--
+--   label             priced, charges, may gate    (unchanged)
+--   safety_label      priced, charges, never gates (NEW — see below)
+--   maintenance_label priced, NEVER charges        (NEW)
+--   department        never priced                 (unchanged)
+--
+-- Health & Safety pricing reverses a rule this schema has enforced since 20260817090000
+-- and the reasoning against it still stands and is still enforced: a score that
+-- punishes the report teaches the team to stop reporting. So the SEVERITY grade still
+-- cannot charge a safety occurrence at all — an unpriced hazard is 0 however badly it
+-- is graded, and a near miss is free by default. What is now possible is pricing one
+-- named hazard deliberately, on a screen that says so, one row at a time.
+--
+-- The two price lists are kept APART rather than merged, which is the subtle half.
+-- Occurrences logged before the lists split carry QUALITY labels — Foreign Body, GMP —
+-- because that was the only list there was. One flat price table would have made
+-- pricing Foreign Path for the quality log start charging those old occurrences too,
+-- silently, for a decision nobody made about safety. So `scoring_version_label` gains
+-- a `kind` and the domain picks which rows apply.
+--
+-- The TypeScript twin is `livePoints` / `standsAgainstLeader` / `chargingLabelPoints`
+-- in src/lib/qualityConstants.ts. Change one, change the other — the parity test
+-- src/__tests__/scoringVersionParity.test.ts exists to catch it when they drift.
+
+-- =====================================================================
+-- 1. A fourth kind, and three lists that may carry a price
+-- =====================================================================
+
+ALTER TABLE public.quality_options DROP CONSTRAINT IF EXISTS quality_options_kind_check;
+ALTER TABLE public.quality_options
+  ADD CONSTRAINT quality_options_kind_check
+  CHECK (kind IN ('label', 'department', 'safety_label', 'maintenance_label'));
+
+-- Departments are not labels and never price anything. That half of
+-- 20260815120000's rule is unchanged; what widens is which LABEL kinds may.
+ALTER TABLE public.quality_options DROP CONSTRAINT IF EXISTS quality_options_only_labels_are_priced;
+ALTER TABLE public.quality_options
+  ADD CONSTRAINT quality_options_only_labels_are_priced
+  CHECK (kind <> 'department' OR points = 0);
+
+-- Gates do NOT widen with the points box. A gate caps a whole period at CAP_Gate and
+-- forces it Red; that is a food-safety ceiling and only the quality list may set one.
+-- 20260824090000's constraint already says so and is deliberately left alone.
+
+COMMENT ON COLUMN public.quality_options.points IS
+  'What this label charges an action, 0 = unpriced. Charged for kind label (quality) and safety_label (hazards); shown but never charged for maintenance_label; always 0 for department.';
+
+INSERT INTO public.quality_options (kind, value, sort) VALUES
+  ('maintenance_label', 'Breakdown', 1),
+  ('maintenance_label', 'Bearing failure', 2),
+  ('maintenance_label', 'Belt / conveyor', 3),
+  ('maintenance_label', 'Sensor / photocell', 4),
+  ('maintenance_label', 'Air leak', 5),
+  ('maintenance_label', 'Electrical fault', 6),
+  ('maintenance_label', 'Lubrication', 7),
+  ('maintenance_label', 'Spare part missing', 8),
+  ('maintenance_label', 'Calibration', 9)
+ON CONFLICT (kind, value) DO NOTHING;
+
+-- =====================================================================
+-- 2. The frozen price list learns which list a price came from
+-- =====================================================================
+
+-- Default 'label' so every row already frozen keeps meaning exactly what it meant:
+-- a quality label's price. Nothing is re-scored by this migration.
+ALTER TABLE public.scoring_version_label
+  ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'label';
+
+DO $$ BEGIN
+  ALTER TABLE public.scoring_version_label
+    ADD CONSTRAINT scoring_version_label_kind_check
+    CHECK (kind IN ('label', 'safety_label'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- The primary key has to widen with it: the same word may appear on both lists in
+-- principle, and a key that could not tell them apart would drop one at snapshot time.
+DO $$ BEGIN
+  ALTER TABLE public.scoring_version_label DROP CONSTRAINT scoring_version_label_pkey;
+  ALTER TABLE public.scoring_version_label
+    ADD CONSTRAINT scoring_version_label_pkey PRIMARY KEY (version_id, kind, label);
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+
+COMMENT ON COLUMN public.scoring_version_label.kind IS
+  'De que lista veio o preco: label (accoes de qualidade) ou safety_label (perigos). O dominio da accao escolhe qual se aplica — um preco de qualidade nao cobra uma ocorrencia de seguranca, nem o contrario.';
+
+-- =====================================================================
+-- 3. The snapshot freezes both priced lists
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.scoring_version_snapshot(_version_id bigint)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public' AS $$
+BEGIN
+  DELETE FROM public.scoring_version_severity            WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_label               WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_excluded_label      WHERE version_id = _version_id;
+  DELETE FROM public.scoring_version_excluded_department WHERE version_id = _version_id;
+
+  INSERT INTO public.scoring_version_severity (version_id, severity, points)
+  SELECT _version_id, severity, points FROM public.quality_severity_points;
+
+  -- Both priced lists, kept apart by kind. `maintenance_label` is deliberately absent:
+  -- it is priced for whoever reads the log and never charges a leader, so freezing its
+  -- numbers would put a figure in the scoring tables that no rule may read.
+  INSERT INTO public.scoring_version_label (version_id, kind, label, points)
+  SELECT _version_id, kind, lower(trim(value)), max(points)
+    FROM public.quality_options
+   WHERE kind IN ('label', 'safety_label') AND trim(coalesce(value, '')) <> ''
+   GROUP BY kind, lower(trim(value));
+
+  IF to_regclass('public.quality_label_attribution') IS NOT NULL THEN
+    EXECUTE '
+      INSERT INTO public.scoring_version_excluded_label (version_id, label)
+      SELECT $1, lower(trim(label)) FROM public.quality_label_attribution
+       WHERE counts_against_leader = false AND btrim(coalesce(label, '''')) <> ''''
+       GROUP BY lower(trim(label))'
+      USING _version_id;
+  END IF;
+
+  -- Unchanged from 20260827093000, active filter included: a hidden department cannot
+  -- be picked on the form, so whether it would have charged is not a question this
+  -- version needs an answer to.
+  INSERT INTO public.scoring_version_excluded_department (version_id, department)
+  SELECT _version_id, lower(btrim(value))
+    FROM public.quality_options
+   WHERE kind = 'department'
+     AND active = true
+     AND counts_against_leader = false
+     AND btrim(coalesce(value, '')) <> ''
+   GROUP BY lower(btrim(value));
+END $$;
+
+-- =====================================================================
+-- 4. The rule itself: a hazard charges what it is priced at, and nothing else
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.action_points_at(
+  _domain text,
+  _severity text,
+  _labels text[],
+  _validation_status text,
+  _department text,
+  _version_id bigint)
+RETURNS integer
+LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
+DECLARE
+  _norm     text[];
+  _excluded text[];
+  _kind     text;
+  _charge   integer;
+  _grade    integer;
+  _cap      numeric;
+  _from     date;
+BEGIN
+  IF _validation_status = 'rejected' THEN RETURN 0; END IF;
+
+  -- Which price list applies. The domain decides, and it decides for the whole action:
+  -- a safety occurrence is priced by the hazard list and by nothing else.
+  _kind := CASE WHEN _domain = 'safety' THEN 'safety_label' ELSE 'label' END;
+
+  -- countsAgainstLeaderDepartment: one department per action, so this is a veto. A
+  -- blank department still counts — leaving the field empty must not quietly remove a
+  -- deviation from somebody's score, the same rule the blank label list follows below.
+  IF btrim(coalesce(_department, '')) <> ''
+     AND EXISTS (SELECT 1 FROM public.scoring_version_excluded_department d
+                  WHERE d.version_id = _version_id
+                    AND d.department = lower(btrim(_department)))
+  THEN
+    RETURN 0;
+  END IF;
+
+  SELECT coalesce(array_agg(l), ARRAY[]::text[]) INTO _norm
+    FROM (SELECT DISTINCT lower(trim(x)) AS l
+            FROM unnest(coalesce(_labels, ARRAY[]::text[])) AS x
+           WHERE trim(coalesce(x, '')) <> '') s;
+
+  SELECT coalesce(array_agg(label), ARRAY[]::text[]) INTO _excluded
+    FROM public.scoring_version_excluded_label WHERE version_id = _version_id;
+
+  -- countsAgainstLeader: one attributable label is enough, and NO labels also counts.
+  -- The second half is not an oversight — leaving the labels blank must not quietly
+  -- remove a deviation from somebody's score.
+  IF cardinality(_norm) > 0
+     AND NOT EXISTS (SELECT 1 FROM unnest(_norm) AS l WHERE NOT (l = ANY(_excluded)))
+  THEN
+    RETURN 0;
+  END IF;
+
+  SELECT coalesce(sum(v.points), 0) INTO _charge
+    FROM unnest(_norm) AS l
+    JOIN public.scoring_version_label v
+      ON v.version_id = _version_id AND v.kind = _kind AND v.label = l
+   WHERE NOT (l = ANY(_excluded));
+
+  -- The ceiling in force on the date this action's own version opened, not today's.
+  SELECT valid_from INTO _from FROM public.scoring_version WHERE id = _version_id;
+  IF _from IS NOT NULL THEN
+    SELECT max(value) INTO _cap
+      FROM public.leader_scorecard_threshold
+     WHERE name = 'CAP_LabelPoints'
+       AND valid_from <= _from
+       AND (valid_to IS NULL OR valid_to >= _from);
+  END IF;
+  IF _cap IS NOT NULL THEN
+    _charge := LEAST(_charge, _cap::integer);
+  END IF;
+
+  -- Safety stops here. The priced hazard is the whole charge and the grade never adds
+  -- to it: otherwise every occurrence would start charging the moment somebody graded
+  -- it, and reporting a near miss would stop being free. Mirrors the same early return
+  -- in `livePoints`.
+  IF _domain = 'safety' THEN RETURN _charge; END IF;
+
+  SELECT coalesce(points, 0) INTO _grade
+    FROM public.scoring_version_severity
+   WHERE version_id = _version_id AND severity = _severity;
+
+  RETURN GREATEST(_charge, coalesce(_grade, 0));
+END $$;
+
+COMMENT ON FUNCTION public.action_points_at(text, text, text[], text, text, bigint) IS
+  'O gemeo SQL de actionPoints() em src/lib/qualityConstants.ts, contra uma versao datada. Desde 20260828090000 uma ocorrencia de seguranca e cobrada pelo preco do seu perigo — e so por ele, nunca pela gravidade. Mudar um, mudar o outro.';
+
+-- =====================================================================
+-- 5. Re-freeze the OPEN version so it holds the hazard prices too
+-- =====================================================================
+--
+-- Only the open one. Closed versions are the record of what past actions were charged
+-- and re-snapshotting them would re-score history, which is the one thing 20260822090000
+-- exists to prevent. The open version has no hazard rows until this runs, which would
+-- read as "every hazard is unpriced" — true today, since nothing has been priced yet,
+-- and it stops being true the moment somebody types a number.
+
+DO $$
+DECLARE _open bigint;
+BEGIN
+  SELECT id INTO _open FROM public.scoring_version WHERE valid_to IS NULL ORDER BY valid_from DESC LIMIT 1;
+  IF _open IS NOT NULL THEN
+    PERFORM public.scoring_version_snapshot(_open);
+  END IF;
+END $$;

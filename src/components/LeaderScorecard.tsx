@@ -53,10 +53,18 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
       // cut off halfway; computeScorecard decides what actually stays.
       const window = shiftDateFetchRange(from, to);
       // One list, so the fallback below cannot drift from it — it is this string minus
-      // the one column. `domain` is newer than the generated Postgrest types, hence the
-      // cast — see `actionPoints()` for why the column has to be here at all.
+      // the optional columns. `domain` is newer than the generated Postgrest types,
+      // hence the cast — see `actionPoints()` for why the column has to be here at all.
+      //
+      // `safety_kind` is here for the H&S ceiling, and it was missing for ten days.
+      // `computeLeaderScore` gates on `domain === 'safety' && safety_kind in
+      // GATING_KINDS`; without the column every row arrived with it undefined, the
+      // condition was never true, and a period holding a lost-time injury scored its
+      // weighted sum. Every unit test of the gate passed throughout, because they hand
+      // the function the field this query never asked for. See
+      // theCeilingCannotSeeTheInjury.test.ts.
       const COLUMNS =
-        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain, points_at_creation, scoring_version_id";
+        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain, safety_kind, points_at_creation, scoring_version_id";
       const run = (columns: string) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
         let qy = (supabase as any).from("quality_actions")

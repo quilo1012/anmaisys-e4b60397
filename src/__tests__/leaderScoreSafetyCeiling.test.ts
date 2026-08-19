@@ -144,3 +144,54 @@ describe("documentation only scores what was judged", () => {
     expect(r.documentation.value).toBe(95);
   });
 });
+
+/**
+ * A safety row is not "not attributable to the leader".
+ *
+ * The quality basis subtracts everything `standsAgainstLeader` rejects and calls the
+ * whole remainder not attributable. That test rejects a safety row FIRST, before it
+ * looks at labels or department — so a period with six near misses printed "6 not
+ * attributable to the leader", which says somebody else's fault about six occurrences
+ * that were nobody's fault and are not scored by design.
+ *
+ * The sentence was true while safety rows could not reach this function: `safety_kind`
+ * was missing from every select and `domain` from the tablet's projection, so nothing
+ * ever took that branch on real data. Fixing the fetch is what put the wrong words on
+ * the screen — see theCeilingCannotSeeTheInjury.test.ts.
+ */
+describe("what the quality basis calls a safety row", () => {
+  const withSafety = () => computeLeaderScore({
+    actual: 100, target: 100, avgOEE: null,
+    actions: [
+      { severity: "high", validation_status: "open", domain: "quality" },
+      safety("near_miss"), safety("near_miss"), safety("toolbox_talk"),
+    ] as never,
+    excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>(),
+  });
+
+  it("does not call it somebody else's fault", () => {
+    expect(withSafety().quality.basis).not.toMatch(/not attributable/i);
+  });
+
+  it("names them as safety, and says they are not scored here", () => {
+    const basis = withSafety().quality.basis;
+    expect(basis).toMatch(/3 safety/i);
+    expect(basis).toMatch(/health & safety|not scored/i);
+  });
+
+  it("still says not attributable when something genuinely is not theirs", () => {
+    const r = computeLeaderScore({
+      actual: 100, target: 100, avgOEE: null,
+      actions: [
+        { severity: "high", validation_status: "open", domain: "quality" },
+        { severity: "high", validation_status: "open", domain: "quality", labels: ["Maintenance"] },
+        safety("near_miss"),
+      ] as never,
+      // Lowercased: `countsAgainstLeader` normalises the action's labels before the
+      // lookup, so the excluded set has to be in the same case the hook stores it in.
+      excludedLabels: new Set(["maintenance"]), gateLabels: new Set<string>(),
+    });
+    expect(r.quality.basis).toMatch(/1 not attributable/i);
+    expect(r.quality.basis).toMatch(/1 safety/i);
+  });
+});

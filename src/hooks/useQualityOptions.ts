@@ -25,7 +25,7 @@ export interface QualityOption {
    * Whether an action booked to this option charges the leader.
    *
    * Read on `department` rows; carried on every row because the column is on the table
-   * rather than on a kind. Arrives with 20260827090000; absent reads as true, so a
+   * rather than on a kind. Arrives with 20260827093000; absent reads as true, so a
    * database without the column charges everything, which is the strict direction.
    */
   counts_against_leader: boolean;
@@ -54,7 +54,7 @@ async function selectOptions(columns: string, order: (q: OptionQuery) => OptionQ
   // PostgREST names only ONE unknown column per error, so probing them individually
   // would cost a round trip each and still need this. Dropping the newest and retrying
   // is the only reliable walk down, and the order is the order they arrived in:
-  // `counts_against_leader` (20260827090000), `is_gate` (20260824090000), `points`
+  // `counts_against_leader` (20260827093000), `is_gate` (20260824090000), `points`
   // (20260815120000). A database can genuinely have any prefix of those.
   //
   // Each rung is a real, correct reading rather than a degraded one: without
@@ -191,7 +191,7 @@ export function useDepartmentAttribution() {
   return {
     attribution: query.data?.departmentAttribution ?? {},
     ready: query.isSuccess,
-    /** The column is not there: 20260827090000 has not been applied. */
+    /** The column is not there: 20260827093000 has not been applied. */
     missing: query.isSuccess && !(query.data?.departmentAttributionKnown ?? false),
     failed: query.isError,
   };

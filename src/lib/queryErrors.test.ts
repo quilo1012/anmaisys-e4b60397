@@ -50,3 +50,42 @@ describe("reportQueryError", () => {
     expect(reportQueryError({ code: "P0001" }, 1_000)).toBe(false);
   });
 });
+
+describe("a query that answers the missing-schema question itself", () => {
+  beforeEach(() => resetErrorDedupe());
+
+  /**
+   * `useScoringFreeze` and `useLabelAttribution` ask "has this migration landed here",
+   * and a missing table IS their answer — `isMissingTable` turns it into `missing:
+   * true` and the screen adjusts its wording. They still have to throw, because that
+   * is the only way React Query hands them `query.error` to read.
+   *
+   * On 19/08/2026 production had the frontend of 20260822090000 and not its SQL, and
+   * every screen carrying the hook toasted "Something did not load — Could not find
+   * the table 'public.scoring_version' in the schema cache" over a screen that had
+   * already handled it. The mutation side of the same cache has always known this
+   * rule: a mutation with its own onError is left to speak for itself.
+   */
+  it("is left to speak for itself when the table is simply not there yet", () => {
+    const err = { code: "PGRST205", message: "Could not find the table 'public.scoring_version' in the schema cache" };
+    expect(reportQueryError(err, 1_000, { schemaOptional: true })).toBe(false);
+  });
+
+  it("is left to speak for itself for a column that has not arrived either", () => {
+    expect(reportQueryError({ code: "42703" }, 1_000, { schemaOptional: true })).toBe(false);
+  });
+
+  /**
+   * Narrow on purpose. The flag says "this query knows what an absent table means",
+   * never "this query is allowed to fail in silence" — a policy refusing it is still
+   * the thing the person needs to be told, and staying quiet would send them looking
+   * for an unapplied migration that has nothing to do with it.
+   */
+  it("still says so when the same query is refused rather than unmigrated", () => {
+    expect(reportQueryError({ status: 403 }, 1_000, { schemaOptional: true })).toBe(true);
+  });
+
+  it("says so for a missing table on any query that has not claimed to handle it", () => {
+    expect(reportQueryError({ code: "PGRST205" }, 1_000)).toBe(true);
+  });
+});

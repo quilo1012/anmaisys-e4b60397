@@ -380,16 +380,58 @@ export interface LogFormCharge {
    * card that nobody chose.
    */
   severity: string | null;
+  /**
+   * The department this action is booked to, when that department charges nobody.
+   *
+   * `null` for every other case, INCLUDING a blank department — a form that has not
+   * been filled in yet must read as "not decided", never as "charged to nobody".
+   *
+   * Named rather than a boolean because the sentence has to say which one: "Maintenance
+   * is charged to nobody" is a fact the person can act on — change the department, or
+   * leave it and know why the action costs nothing. "This is charged to nobody" sends
+   * them looking for the reason.
+   */
+  chargedToNobody: string | null;
 }
 
+/**
+ * @param department the department picked on the form, so the preview can answer the
+ *   same question the freeze trigger will. Optional, and defaulting to undefined rather
+ *   than to a lookup, because the form is the only caller that has one.
+ */
 export function logFormCharge(
   labels: string[],
   excluded: Set<string>,
   weights: Record<string, number> = severityPointsMap(),
+  department?: string | null,
+  excludedDepartments: Set<string> = excludedDepartmentSet(),
 ): LogFormCharge {
   const sources = labels
     .map((label) => ({ label, points: LABEL_POINTS[label.trim().toLowerCase()] ?? 0 }))
     .filter((s) => s.points > 0 && !excluded.has(s.label.trim().toLowerCase()));
+
+  /**
+   * The department veto, applied here for the same reason it is applied first in
+   * `livePoints` and in `action_points_at`: it decides whether there is anything to
+   * price at all.
+   *
+   * Without it this function priced the labels and the grade, and the form printed a
+   * number the database was about to overwrite with 0. A form that promises what the
+   * trigger refuses is worse than a form with no summary — the number is read once, at
+   * the only moment the person could still have changed what they were logging.
+   */
+  if (!countsAgainstLeaderDepartment({ department }, excludedDepartments)) {
+    return {
+      points: 0,
+      pricedByLabels: false,
+      // Kept, not cleared. The ticked chips still show what they would have cost, which
+      // is what makes the sentence below readable as a decision rather than a glitch.
+      sources,
+      severity: null,
+      chargedToNobody: (department ?? "").trim(),
+    };
+  }
+
   const points = sources.reduce((sum, s) => sum + s.points, 0);
   const pricedByLabels = points > 0;
   return {
@@ -397,6 +439,7 @@ export function logFormCharge(
     pricedByLabels,
     sources,
     severity: pricedByLabels ? severityForPoints(points, weights) ?? "" : null,
+    chargedToNobody: null,
   };
 }
 
@@ -423,6 +466,16 @@ export function chargeSummary(charge: LogFormCharge, picked?: string | null): st
    * scores 0 because they have not ticked a priced label — which is exactly the sentence
    * that made the old rule invisible, printed on the screen where the action is created.
    */
+  /**
+   * First, above the grade and above the labels, because it overrides both.
+   *
+   * Printed before `gradePoints` is even read: the branch below would otherwise
+   * announce "Charged 4p — the Critical grade" for an action the trigger freezes at 0.
+   */
+  if (charge.chargedToNobody) {
+    return `Charged 0p — ${charge.chargedToNobody} is charged to nobody. The action is recorded in full and costs no leader a point.`;
+  }
+
   const gradePoints = picked ? severityPoints(picked) : 0;
   const capped = Math.min(charge.points, maxLabelPoints());
 

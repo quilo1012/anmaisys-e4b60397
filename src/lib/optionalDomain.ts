@@ -36,16 +36,20 @@ type Settled<T> = { data: T[] | null; error: unknown };
  * The columns that are newer than some live database, in the order they arrived.
  *
  * A second entry is what forced this to stop being about one column. `domain` arrives
- * with 20260817090000 and `points_at_creation` with 20260822090000, and a database
- * that has neither would have been retried once, still without the second column, and
- * still refused — so the screen would have lost the whole log exactly as it did in
- * August, for a new reason. PostgREST names only ONE unknown column per error, so the
- * only reliable retry is one that drops every optional column at once.
+ * with 20260817090000 and `points_at_creation` with 20260822090000, and a database that
+ * has neither would have been retried once, still without the second column, and still
+ * refused — so the screen would have lost the whole log exactly as it did in August, for
+ * a new reason. PostgREST names only ONE unknown column per error, so the only reliable
+ * retry is one that drops every optional column at once.
+ *
+ * `safety_kind` sits beside `domain` because it arrives in the same migration: the enum,
+ * the column and the CHECK that ties them together are one statement, so no live base
+ * can have one without the other.
  *
  * Delete an entry the day its migration is confirmed applied everywhere. Each one hides
  * real schema drift for as long as it stays.
  */
-const OPTIONAL_COLUMNS = ["domain", "points_at_creation", "scoring_version_id"];
+const OPTIONAL_COLUMNS = ["domain", "safety_kind", "points_at_creation", "scoring_version_id"];
 
 export async function selectOptionalColumns<T>(
   columns: string,
