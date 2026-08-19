@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import XLSX from "xlsx-js-style";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveLeaderId } from "@/lib/leaderNameMatch";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -68,6 +70,29 @@ export function QualityImportDialog({
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
 
+  /**
+   * EVERY leader, not only the active ones — deliberately unlike the log form's
+   * picker, which offers active leaders because you should not assign new work to
+   * someone who has left. An import is usually history, and history contains people
+   * who have since left; filtering here would silently drop exactly the rows nobody
+   * is around to notice are missing.
+   */
+  const { data: allLeaders = [] } = useQuery({
+    queryKey: ["line_leaders_for_import"],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("line_leaders").select("id, name");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string }[];
+    },
+  });
+
+  /** Rows that name a leader nobody answers to — shown before importing, not after. */
+  const unmatched = useMemo(
+    () => rows.filter((r) => r.leader_name && !resolveLeaderId(r.leader_name, allLeaders)).length,
+    [rows, allLeaders],
+  );
+
   const handleFile = async (file: File) => {
     try {
       const buf = await file.arrayBuffer();
@@ -115,7 +140,17 @@ export function QualityImportDialog({
     if (rows.length === 0) return;
     setImporting(true);
     try {
-      const payload = rows.map((r) => ({ ...r, recorded_by: user?.id ?? null, points: 1 }));
+      // `leader_id`, not just `leader_name`. The name alone is what this importer used
+      // to write, and `scorecard_safety_counts` counts `WHERE leader_id = _leader_id`,
+      // so every imported occurrence counted against nobody — present on the board and
+      // missing from every weekly card. Unresolved names stay null on purpose; see
+      // `resolveLeaderId` for why a shared name is not guessed at.
+      const payload = rows.map((r) => ({
+        ...r,
+        leader_id: resolveLeaderId(r.leader_name, allLeaders),
+        recorded_by: user?.id ?? null,
+        points: 1,
+      }));
       // insert in chunks to stay well within request limits
       for (let i = 0; i < payload.length; i += 200) {
         const { error } = await supabase.from("quality_actions").insert(payload.slice(i, i + 200));
@@ -167,6 +202,7 @@ export function QualityImportDialog({
                     <th className="px-2 py-1 text-left font-medium">Line</th>
                     <th className="px-2 py-1 text-left font-medium">Status</th>
                     <th className="px-2 py-1 text-left font-medium">Dept</th>
+                    <th className="px-2 py-1 text-left font-medium">Leader</th>
                     <th className="px-2 py-1 text-left font-medium">Labels</th>
                     <th className="px-2 py-1 text-left font-medium">Notes</th>
                   </tr>
@@ -178,7 +214,12 @@ export function QualityImportDialog({
                       <td className="px-2 py-1 font-mono">{r.action_no ?? "—"}</td>
                       <td className="px-2 py-1">{r.line ?? "—"}</td>
                       <td className="px-2 py-1">{r.status}</td>
-                      <td className="px-2 py-1">{r.department ?? "—"}</td>
+                      <td className="px-2 py-1">
+                        {r.leader_name ?? "—"}
+                        {r.leader_name && !resolveLeaderId(r.leader_name, allLeaders) && (
+                          <span className="ml-1 text-amber-600" title="No single leader answers to this name — the action will be imported without one">?</span>
+                        )}
+                      </td>
                       <td className="px-2 py-1"><div className="flex flex-wrap gap-0.5">{r.labels.map((l) => <Badge key={l} variant="secondary" className="text-[9px]">{l}</Badge>)}</div></td>
                       <td className="max-w-[220px] truncate px-2 py-1">{r.description ?? "—"}</td>
                     </tr>
@@ -186,6 +227,12 @@ export function QualityImportDialog({
                 </tbody>
               </table>
               {rows.length > 20 && <p className="px-2 py-1 text-2xs text-muted-foreground">Showing first 20 of {rows.length}.</p>}
+              {unmatched > 0 && (
+                <p className="px-2 py-1 text-2xs text-amber-600">
+                  {unmatched} of {rows.length} name a leader that matches no single record. They import
+                  without a leader and count towards nobody&apos;s scorecard.
+                </p>
+              )}
             </div>
           )}
         </div>
