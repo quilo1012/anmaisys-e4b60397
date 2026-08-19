@@ -4153,6 +4153,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "quality_actions_leader_id_fkey"
+            columns: ["leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "quality_actions_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
