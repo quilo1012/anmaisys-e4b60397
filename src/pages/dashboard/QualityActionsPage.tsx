@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { writeOptionalDomain } from "@/lib/writeOptionalDomain";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Camera, Clock, X, Loader2, ClipboardCheck, Printer, Pencil, ShieldCheck, MoreHorizontal, SlidersHorizontal, Scale, AlertTriangle, Repeat } from "lucide-react";
+import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Clock, X, Loader2, ClipboardCheck, Printer, Pencil, ShieldCheck, MoreHorizontal, SlidersHorizontal, Scale, AlertTriangle, Repeat } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
@@ -38,7 +38,7 @@ import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeveri
 import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { DEFAULT_WEIGHTS, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { useRole } from "@/hooks/useRole";
-import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
+import { useQualityHistory, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
 import { ActionScore } from "@/components/quality/ActionScore";
@@ -121,11 +121,11 @@ function RowDeleteButton({ actionNo, onConfirm }: { actionNo?: string | number |
 export function QualityActionsView() {
   const { can } = useRole();
   const canManage = can("quality.manage");
-  // Two capabilities, not one, because the database holds two: Quality rules on the
-  // deviation, a manager approves filing it. Showing a supervisor a control the
-  // trigger will refuse is worse than not showing it.
-  const canValidate = can("quality.validate");
-  const canClose = can("quality.close");
+  // `canValidate` and `canClose` were read here, for the verdict and the closure
+  // controls in the detail dialog. Both controls are gone. A capability nothing renders
+  // is how a dead control gets rebuilt, so they are not left standing: `quality.validate`
+  // and `quality.close` are still in the permission matrix and the database triggers
+  // still enforce them, and whatever writes a verdict next has to ask for them itself.
   const qc = useQueryClient();
 
   // Points on this screen are charged, so they wait for the attribution table. An
@@ -514,45 +514,16 @@ export function QualityActionsView() {
   // (20260722120000). Nothing writes it any more; the default fills it on insert and
   // an edit leaves whatever a row already had, so no history is rewritten.
 
-  /**
-   * The verdict. Separate from `status` (the kanban column) because they answer
-   * different questions: where the work is, versus whether the deviation is real.
-   * Only "validated" costs a leader points, and the database refuses it from anyone
-   * outside Quality or without evidence attached — the error surfaces here.
-   */
-  const setValidation = useMutation({
-    mutationFn: async ({ id, validation_status }: { id: string; validation_status: string }) => {
-      const { error } = await supabase.from("quality_actions").update({ validation_status } as never).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["quality_actions"] });
-      // The leader scorecard reads the verdict, so it has to be told.
-      qc.invalidateQueries({ queryKey: ["ls_actions"] });
-      toast.success("Validation updated");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  /**
-   * Closure — the manager's approval to file the matter, separate from Quality's
-   * verdict. The database refuses it from anyone else, refuses it before there is a
-   * verdict, and refuses a verdict change while it stands; those errors surface here.
-   */
-  const setClosure = useMutation({
-    mutationFn: async ({ id, close }: { id: string; close: boolean }) => {
-      const { error } = await supabase.from("quality_actions")
-        .update({ closed_at: close ? new Date().toISOString() : null } as never)
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: ["quality_actions"] });
-      qc.invalidateQueries({ queryKey: ["ls_actions"] });
-      toast.success(v.close ? "Action closed" : "Action reopened");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // `setValidation` and `setClosure` were removed here, with the Validation block in
+  // the detail dialog that was their only caller. Nothing in `src/` writes
+  // `validation_status` or `closed_at` any more.
+  //
+  // Read what that costs before restoring either: `rejected` was the only verdict that
+  // spared a leader the points for a deviation that was not theirs — a machine fault,
+  // a supplier defect — so every action now charges in full (leaderScore.ts, and
+  // `isRejected` in qualityConstants.ts). Closure needs a verdict this screen can no
+  // longer give, so nothing closes. The columns and every value already in them are
+  // untouched; the scorecard, the filters and the export still read them.
 
   // `setSeverity` was removed here. It existed for the safety rows, the only ones with
   // a severity anybody could still set by hand, and safety stopped being graded — a
@@ -1224,10 +1195,6 @@ export function QualityActionsView() {
           action={detailAction}
           canManage={canManage}
           onOpenChange={(o) => { if (!o) closeDetail(); }}
-          canValidate={canValidate}
-          canClose={canClose}
-          onValidation={(validation_status) => detailAction && setValidation.mutate({ id: detailAction.id, validation_status })}
-          onClosure={(close) => detailAction && setClosure.mutate({ id: detailAction.id, close })}
           onDelete={() => { if (detailAction) { deleteAction.mutate(detailAction.id); closeDetail(); } }}
           onEdit={() => { if (detailAction) openEdit(detailAction); }}
         />
@@ -1288,35 +1255,14 @@ function describeHistory(h: QualityHistoryRow): string {
   return `${h.field}: ${h.old_value ?? "—"} → ${h.new_value ?? "—"}`;
 }
 
-function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: boolean; onDelete: () => void }) {
-  const [url, setUrl] = useState("");
-  useEffect(() => {
-    let ok = true;
-    getQualityPhotoUrl(path).then((u) => { if (ok) setUrl(u); });
-    return () => { ok = false; };
-  }, [path]);
-  return (
-    <div className="group relative aspect-square overflow-hidden rounded border bg-muted">
-      {url
-        ? <a href={url} target="_blank" rel="noreferrer"><img src={url} alt="Quality issue attachment" className="h-full w-full object-cover" /></a>
-        : <div className="flex h-full items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
-      {canDelete && (
-        <button type="button" onClick={onDelete}
-          className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100">
-          <X className="h-3 w-3" />
-        </button>
-      )}
-    </div>
-  );
-}
+// `PhotoThumb` was removed here, with the Photos block it rendered. Attachments are
+// captured in SafetyCulture now; the `attachments` column and every path already in it
+// are untouched, so nothing that was uploaded is lost — this page simply stops being a
+// second place to look for it.
 
-function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenChange, onValidation, onClosure, onDelete, onEdit }: {
+function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit }: {
   action: QualityAction | null; canManage: boolean;
   onOpenChange: (open: boolean) => void;
-  canValidate: boolean;
-  canClose: boolean;
-  onValidation: (validation_status: string) => void;
-  onClosure: (close: boolean) => void;
   onDelete: () => void; onEdit: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
@@ -1324,22 +1270,6 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
   // dialog that must not draw before attribution has loaded, and a prop passed from
   // a parent that does not need it would be one more place to forget the guard.
   const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
-  const upload = useUploadQualityPhoto();
-  const del = useDeleteQualityPhoto();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const attachments = action?.attachments ?? [];
-
-  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f && action) {
-      upload.mutate(
-        { actionId: action.id, file: f, current: attachments },
-        { onError: (err) => toast.error((err as Error).message) },
-      );
-    }
-    e.target.value = "";
-  };
-
   return (
     <Dialog open={!!action} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
@@ -1388,60 +1318,22 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
                 </div>
               </div>
 
-              {/* Validation — the audit-facing decision. */}
-              <div>
-                <Label>Validation</Label>
-                <Select value={action.validation_status ?? "open"} onValueChange={onValidation} disabled={!canValidate}>
-                  <SelectTrigger className={cn("border", validationMeta(action.validation_status).badge)}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="mt-1 text-2xs text-muted-foreground">
-                  {canValidate
-                    ? validationMeta(action.validation_status).hint
-                    : "Only Quality or an admin rules on a deviation. " + validationMeta(action.validation_status).hint}
-                  {action.validated_at && ` · validated ${format(new Date(action.validated_at), "dd/MM/yyyy HH:mm")}`}
-                </p>
-                {canValidate && attachments.length === 0 && action.validation_status !== "validated" && (
-                  <p className="mt-1 text-2xs text-warning-strong">
-                    Attach the evidence first — validating without it is refused.
-                  </p>
-                )}
+              {/* The Validation block was removed here: the verdict picker (Open / Under
+                  investigation / Validated / Rejected), the hint under it, and the
+                  closure box with Approve closure and Reopen.
 
-                {/* Closure — the manager's approval, separate from the verdict. */}
-                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border p-2">
-                  {action.closed_at ? (
-                    <>
-                      <Badge variant="outline" className="bg-success/15 text-success-strong border-success/40 text-2xs">
-                        Closed {format(new Date(action.closed_at), "dd/MM/yyyy HH:mm")}
-                      </Badge>
-                      <span className="text-2xs text-muted-foreground">The verdict cannot change until it is reopened.</span>
-                      {canClose && <Button size="sm" variant="outline" className="ml-auto" onClick={() => onClosure(false)}>Reopen</Button>}
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-2xs text-muted-foreground">
-                        {["validated", "rejected"].includes(action.validation_status ?? "")
-                          ? "Ready for a manager to approve the closure."
-                          : "Quality has to validate or reject this before it can be closed."}
-                      </span>
-                      {canClose && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="ml-auto"
-                          disabled={!["validated", "rejected"].includes(action.validation_status ?? "")}
-                          onClick={() => onClosure(true)}
-                        >
-                          Approve closure
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
+                  It is not hidden, it is gone, and the consequence belongs next to the
+                  hole rather than in a commit message. `rejected` was the only way to
+                  say a deviation was not the leader's — a machine fault, a supplier
+                  defect — and no screen can say it any more, so every logged action
+                  charges its leader in full. Closure needed a verdict first, so no
+                  action can be closed either, and the "Awaiting verdict" filter now
+                  matches every open row by construction.
 
+                  `validation_status`, `validated_at`, `validated_by` and `closed_at`
+                  keep every value they already hold; the leader scorecard, the filters,
+                  the table badge and the export all still read them. What has gone is
+                  the only writer. */}
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                 {/* Shown only for a safety row — a quality action never carries a
                     Kind, and Severity above already says what a quality row is. */}
@@ -1460,30 +1352,22 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
               )}
               {action.description && <p className="whitespace-pre-wrap rounded border bg-muted/30 p-2 text-sm">{action.description}</p>}
 
-              {/* Photos */}
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <Label className="flex items-center gap-1"><Camera className="h-4 w-4" /> Photos ({attachments.length})</Label>
-                  {canManage && (
-                    <>
-                      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPick} />
-                      <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
-                        {upload.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Camera className="mr-1 h-4 w-4" />}Add photo
-                      </Button>
-                    </>
-                  )}
-                </div>
-                {attachments.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No photos.</p>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    {attachments.map((p) => (
-                      <PhotoThumb key={p} path={p} canDelete={canManage}
-                        onDelete={() => del.mutate({ actionId: action.id, path: p, current: attachments }, { onError: (e) => toast.error((e as Error).message) })} />
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* The Photos block was removed here, with the upload, the thumbnails and
+                  the evidence gate on validation above. Evidence for a deviation lives
+                  in SafetyCulture, which is where it is captured on the floor; a second
+                  place to put it is a second place to look for it, and the one that is
+                  half-populated is the one that gets believed.
+
+                  The gate had to go with it, and it lives in the database rather than
+                  here: `enforce_quality_validation` refused a validation while
+                  `attachments` was empty, so removing the upload without removing the
+                  trigger would leave the only verdict path one the database always
+                  rejects. That is dropped in
+                  20260827090000_the_evidence_gate_outlived_the_place_to_attach_it.sql —
+                  a migration this repository does not apply, so it is only true of
+                  production once it has been run there.
+
+                  Existing rows keep their `attachments`; nothing is deleted. */}
 
               {/* History */}
               <div>
