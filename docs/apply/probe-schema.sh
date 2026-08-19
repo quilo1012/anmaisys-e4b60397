@@ -56,6 +56,19 @@ echo
 echo "COLUNA is_gate EM quality_options  (20260824090000)"
 ask "quality_options?select=is_gate&limit=0" "is_gate"
 
+# 20260827093000 acrescenta esta a scoring_version, portanto depende do bloco 10 e nao
+# do 09. Esta aqui porque o docs/apply-passo-3/00-LEIA-PRIMEIRO.md promete que esta
+# sonda responde por tudo o que esse pacote traz, e uma sonda que fica atras do pacote
+# e exactamente como o pacote ficou atras das migracoes.
+echo
+echo "TABELA DA MIGRAÇÃO 20260827093000"
+tabela scoring_version_excluded_department
+
+# 20260827113000 nao se ve daqui, e o PostgREST nao chega la: e uma alteracao a
+# projeccao de leader_self_scorecard, que e SECURITY DEFINER e exige sessao e PIN. A
+# unica leitura honesta e abrir o cartao do lider e ver se a banda de Health & Safety
+# aparece com as ocorrencias do periodo.
+
 echo
 echo "Antes de aplicar: tudo 404/400 acima, e os controlos a bater."
 echo "Depois de aplicar: tudo 200. Se ficar a meio, parar e olhar."
