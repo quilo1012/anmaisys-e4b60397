@@ -357,6 +357,93 @@ export function actionPoints(
   return labelChargeFor(action, excluded) || severityPoints(action.severity);
 }
 
+/**
+ * The same number `actionPoints` returns, with the arithmetic that produced it.
+ *
+ * `actionPoints` is the authority and stays the authority: this calls it for the
+ * total rather than re-deriving one, so the explanation can never drift from the
+ * score it explains. Everything else here is the reasoning made printable.
+ *
+ * It exists because of a real, unanswerable screen. An action labelled
+ * "Batch code · Maintenance" showed 5 points, and no one could tell from the module
+ * whether that was Batch code 2 + Maintenance 3 with the attribution rule not in
+ * force, or Batch code priced at 5 with Maintenance already costing nothing. One is
+ * a leader being charged for a machine failure; the other is the system working. A
+ * score people are appraised on has to be auditable from the screen it appears on.
+ *
+ * `spared` is the half that was missing everywhere: a total that has quietly had
+ * something removed looks identical to a total that never had it. Naming the label
+ * AND its price is what makes the rule visible — including the awkward case where
+ * skipping it changes the total by nothing because the severity then pays in full.
+ */
+export type PointsBasis = "safety" | "rejected" | "not_leaders" | "labels" | "severity" | "unpriced";
+
+export interface PointsBreakdown {
+  /** Always equal to `actionPoints` for the same arguments. */
+  points: number;
+  basis: PointsBasis;
+  /** The labels that priced it, in the order they sit on the action. */
+  charged: Array<{ label: string; points: number }>;
+  /** Priced labels skipped because they are not this leader's. */
+  spared: Array<{ label: string; points: number }>;
+  /** One sentence, ready to print. The number leads; the arithmetic follows. */
+  explanation: string;
+}
+
+/** "Batch code 2 + Foreign Body 5" — the sum written out, never abbreviated to a total. */
+function sumInWords(parts: Array<{ label: string; points: number }>): string {
+  return parts.map((p) => `${p.label} ${p.points}`).join(" + ");
+}
+
+/** "Maintenance is not the leader's, so its 3 is not charged." */
+function sparedNote(spared: Array<{ label: string; points: number }>): string {
+  if (!spared.length) return "";
+  const named = spared.map((s) => s.label);
+  const subject = named.length === 1 ? `${named[0]} is` : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]} are`;
+  const total = spared.reduce((sum, s) => sum + s.points, 0);
+  return ` ${subject} not the leader's, so ${named.length === 1 ? "its" : "their"} ${total} is not charged.`;
+}
+
+export function pointsBreakdown(
+  action: { domain?: string | null; severity: string | null; labels?: string[] | null; validation_status?: string | null },
+  excluded: Set<string>,
+): PointsBreakdown {
+  const priced = (action.labels ?? [])
+    .map((label) => ({ label, points: LABEL_POINTS[label.trim().toLowerCase()] ?? 0 }))
+    .filter((p) => p.points > 0);
+  const charged = priced.filter((p) => !excluded.has(p.label.trim().toLowerCase()));
+  const spared = priced.filter((p) => excluded.has(p.label.trim().toLowerCase()));
+  const points = actionPoints(action, excluded);
+  const base = { points, charged, spared };
+
+  // The three zeroes, told apart. "0" alone is the answer that made people distrust
+  // the module: a deviation logged in good faith and a deviation Quality threw out
+  // look the same on a card, and only one of them should.
+  if (action.domain === "safety") {
+    return { ...base, basis: "safety", explanation: "Safety is counted, never charged — reporting it costs the leader nothing." };
+  }
+  if (action.validation_status === "rejected") {
+    return { ...base, basis: "rejected", explanation: "Quality rejected this — it is not charged." };
+  }
+  if (!countsAgainstLeader(action, excluded)) {
+    const named = (action.labels ?? []).join(", ");
+    return { ...base, basis: "not_leaders", explanation: `${named} is not the leader's — this is not charged to them.` };
+  }
+
+  if (charged.length) {
+    return { ...base, basis: "labels", explanation: `${points} points — ${sumInWords(charged)}.${sparedNote(spared)}` };
+  }
+
+  const grade = severityMeta(action.severity)?.label;
+  if (grade) {
+    // The fall-through worth seeing: an excluded price left nothing behind it, so the
+    // grade pays in full and the exclusion moved the total by nothing. Documented in
+    // `actionPoints` as accepted — but silent, it reads as the rule failing.
+    return { ...base, basis: "severity", explanation: `${points} points from the ${grade} grade — no label here carries a price.${sparedNote(spared)}` };
+  }
+  return { ...base, basis: "unpriced", explanation: `No priced label and no grade — this scores 0.${sparedNote(spared)}` };
+}
+
 /** Total charged across a set of actions. Filter the set first; this only weighs it. */
 export function sumActionPoints(
   actions: Array<{ severity: string | null; labels?: string[] | null; validation_status?: string | null }>,
@@ -513,6 +600,46 @@ export const SAFETY_KINDS: SafetyKind[] = [
 
 export function safetyKindMeta(value: string | null | undefined): SafetyKind | null {
   return SAFETY_KINDS.find((k) => k.value === value) ?? null;
+}
+
+/**
+ * What the three groups above MEAN, in the words the form puts on screen.
+ *
+ * The grouping was already in `SAFETY_KINDS` and was visible only as a separator
+ * line inside a dropdown, which is a hint nobody reads. It carries the one thing
+ * this module must never let a user get wrong: first aid and near miss are not
+ * degrees of the same event. One is somebody already hurt, the other is the warning
+ * that arrived in time — and `scorecard_safety_counts` is emphatic that the two are
+ * never summed. Naming the groups on the form is how that rule reaches the person
+ * holding the tablet, at the moment they are deciding.
+ *
+ * `harm` first, deliberately. Not because it is the common case — it is the rarest —
+ * but because a list that opens with Toolbox talk invites the reader to scan for the
+ * mildest thing that fits.
+ */
+export interface SafetyKindGroup {
+  group: SafetyKind["group"];
+  title: string;
+  /** One line under the title, in the voice of what the reader is deciding. */
+  hint: string;
+}
+
+export const SAFETY_KIND_GROUPS: SafetyKindGroup[] = [
+  { group: "harm", title: "Harm", hint: "Someone was hurt" },
+  { group: "signal", title: "Signal", hint: "A warning that arrived in time" },
+  { group: "prevention", title: "Prevention", hint: "Work done before anything happened" },
+];
+
+/**
+ * The kinds that mean somebody was actually hurt.
+ *
+ * Exported rather than written out at the call site because the Safety board counts
+ * them and `scorecard_safety_counts` counts the same three as separate columns —
+ * a fourth `harm` kind added to `SAFETY_KINDS` must reach the board without anyone
+ * remembering to come back here.
+ */
+export function isHarmKind(value: string | null | undefined): boolean {
+  return safetyKindMeta(value)?.group === "harm";
 }
 
 /**

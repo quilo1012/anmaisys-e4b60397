@@ -61,3 +61,36 @@ export function leaderNamePattern(leaderName: string): string {
 export function leaderNameKey(leaderName: string | null | undefined): string {
   return String(leaderName ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
+
+/**
+ * The id of the leader a free-text name belongs to — or null, said out loud.
+ *
+ * Written for the Excel import, which reads a "Leader" column and had no way to turn
+ * it into `quality_actions.leader_id`. Every imported row landed with a name and a
+ * null id, and `scorecard_safety_counts` counts on the id, so imported occurrences
+ * counted against nobody. The board showed them; no weekly card did.
+ *
+ * Exactly one match, or nothing. This is the same rule the migration used when it
+ * rehomed the ids already in the table (20260819092343), and it is a rule rather than
+ * a nicety: two leaders can share a first name, and this database stores first names.
+ * Picking either one moves a real occurrence onto an innocent leader's card, where it
+ * costs them points they cannot appeal because the row looks like theirs. A null costs
+ * the count one row and tells the truth — `leader_name` still prints beside it.
+ *
+ * Blank never matches, on either side. An empty cell and a leader row with an empty
+ * name would otherwise find each other, and every unnamed import would be attributed
+ * to the same accidental person.
+ *
+ * Match against ALL leaders, not just the active ones. An import is usually history,
+ * and history contains people who have since left; filtering by `active` would drop
+ * exactly the rows nobody is left to notice are missing.
+ */
+export function resolveLeaderId(
+  leaderName: string | null | undefined,
+  leaders: ReadonlyArray<{ id: string; name: string }>,
+): string | null {
+  const key = leaderNameKey(leaderName);
+  if (!key) return null;
+  const matches = leaders.filter((l) => leaderNameKey(l.name) === key);
+  return matches.length === 1 ? matches[0].id : null;
+}

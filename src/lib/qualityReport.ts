@@ -6,13 +6,16 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import logoUrl from "@/assets/appliedlogo.jpeg";
-import { statusMeta, severityMeta } from "@/lib/qualityConstants";
+import { severityMeta, validationMeta } from "@/lib/qualityConstants";
 import { leaderTracking, pointsLabel } from "@/lib/leaderTracking";
 
 export interface QualityReportAction {
   recorded_at: string;
   action_no: string | null;
-  status: string;
+  // No `status`. The To do / In progress / Complete board is gone and nothing writes
+  // the column any more, so a report that asked for it would be asking every caller
+  // for a value none of them can mean anything by. `validation_status` below is the
+  // lifecycle this report prints.
   severity: string | null;
   line: string | null;
   shift: string | null;
@@ -49,12 +52,23 @@ function tally(actions: QualityReportAction[], pick: (a: QualityReportAction) =>
   return Array.from(m.entries()).sort((x, y) => y[1] - x[1]);
 }
 
+/**
+ * Counted on the validation lifecycle, not on To do / In progress / Complete.
+ *
+ * That board is gone: an action is written down because it already happened, so
+ * nothing writes `status` any more and every new row carries the column's default.
+ * Counting it here would have printed a backlog that grew with every action logged
+ * and meant nothing — on a signed document, which is the worst place for it.
+ *
+ * What replaces it is the state an audit asks about: has Quality ruled on this.
+ */
 function summarize(actions: QualityReportAction[]) {
-  const s = { total: actions.length, todo: 0, in_progress: 0, complete: 0, highCritical: 0 };
+  const s = { total: actions.length, awaitingVerdict: 0, validated: 0, rejected: 0, highCritical: 0 };
   for (const a of actions) {
-    if (a.status === "todo") s.todo++;
-    else if (a.status === "in_progress") s.in_progress++;
-    else if (a.status === "complete") s.complete++;
+    const v = a.validation_status ?? "open";
+    if (v === "validated") s.validated++;
+    else if (v === "rejected") s.rejected++;
+    else s.awaitingVerdict++;
     if (a.severity === "high" || a.severity === "critical") s.highCritical++;
   }
   return s;
@@ -167,9 +181,9 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   // Full actions table
   autoTable(doc, {
     startY: y + 2,
-    head: [["Date", "Action #", "Status", "Severity", "Line", "Shift", "Leader", "Dept", "SKU", "Batch", "Notes"]],
+    head: [["Date", "Action #", "Validation", "Severity", "Line", "Shift", "Leader", "Dept", "SKU", "Batch", "Notes"]],
     body: actions.map((a) => [
-      fmtDate(a.recorded_at), a.action_no ?? "", statusMeta(a.status).label, sevLabel(a.severity),
+      fmtDate(a.recorded_at), a.action_no ?? "", validationMeta(a.validation_status).label, sevLabel(a.severity),
       a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
       (a.description ?? "").slice(0, 60),
     ]),
@@ -206,16 +220,16 @@ export function generateQualityReportExcel(input: QualityReportInput) {
   sum.push([]);
   sum.push([{ v: "KPIs", s: { font: { bold: true } } }]);
   sum.push(["Total actions", s.total]);
-  sum.push(["To do", s.todo]);
-  sum.push(["In progress", s.in_progress]);
-  sum.push(["Complete", s.complete]);
+  sum.push(["Awaiting verdict", s.awaitingVerdict]);
+  sum.push(["Validated", s.validated]);
+  sum.push(["Rejected", s.rejected]);
   sum.push(["High / Critical", s.highCritical]);
   const block = (title: string, rows: [string, number][]) => {
     sum.push([]);
     sum.push([{ v: title, s: HEAD_STYLE }, { v: "Count", s: HEAD_STYLE }]);
     for (const [k, v] of (rows.length ? rows : [["—", 0] as [string, number]])) sum.push([k, v]);
   };
-  block("By Status", tally(actions, (a) => statusMeta(a.status).label));
+  block("By Validation", tally(actions, (a) => validationMeta(a.validation_status).label));
   block("By Severity", tally(actions, (a) => sevLabel(a.severity)));
   block("By Line", tally(actions, (a) => a.line || "—"));
   block("By Department", tally(actions, (a) => a.department || "—"));
@@ -227,11 +241,11 @@ export function generateQualityReportExcel(input: QualityReportInput) {
   XLSX.utils.book_append_sheet(wb, wsSum, "Summary");
 
   // Actions sheet
-  const header = ["Date", "Action #", "Status", "Severity", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
+  const header = ["Date", "Action #", "Validation", "Severity", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
   const rows: any[][] = [header.map((h) => ({ v: h, s: HEAD_STYLE }))];
   for (const a of actions) {
     rows.push([
-      fmtDate(a.recorded_at), a.action_no ?? "", statusMeta(a.status).label, sevLabel(a.severity),
+      fmtDate(a.recorded_at), a.action_no ?? "", validationMeta(a.validation_status).label, sevLabel(a.severity),
       a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
       (a.labels ?? []).join("; "), a.description ?? "",
     ]);

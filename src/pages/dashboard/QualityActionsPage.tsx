@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
@@ -27,12 +27,12 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
 import { isMissingColumn } from "@/lib/postgrestErrors";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_KIND_GROUPS, isHarmKind, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, pointsBreakdown, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
-import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { useLeaderAttribution, useSetLabelAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
@@ -41,6 +41,7 @@ import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, getQualityPhotoUrl, useUploadQualityPhoto, useDeleteQualityPhoto, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { KpiCard } from "@/components/reports/KpiCard";
 import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByLeader";
+import { ActionScore } from "@/components/quality/ActionScore";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
 import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
@@ -83,7 +84,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const makeEmptyForm = (domain: "quality" | "safety" = "quality") => ({
   action_no: "", action_type_id: "", line: "", shift: "DAY", leader_id: "", leader_name: "",
   date: todayISO(), sku: "", batch: "",
-  department: "", status: "todo", severity: "", labels: [] as string[], description: "",
+  department: "", severity: "", labels: [] as string[], description: "",
   domain, safety_kind: "",
   // The leader_id already on the row being edited (null for a new insert) — see the
   // doc comment on QualityActionFormInput.original_leader_id for why this exists.
@@ -195,7 +196,6 @@ export function QualityActionsView() {
       sku: a.sku ?? "",
       batch: a.batch ?? "",
       department: a.department ?? "",
-      status: a.status ?? "todo",
       severity: a.severity ?? "",
       labels: a.labels ?? [],
       description: a.description ?? "",
@@ -352,6 +352,24 @@ export function QualityActionsView() {
       totalPoints: sumActionPoints(filtered, excluded),
       openSevere: open.filter((x) => x.severity === "high" || x.severity === "critical").length,
       ungraded: filtered.filter((x) => !x.severity).length,
+      // Safety's own answer to "how bad is this period", counted off the kind.
+      //
+      // The severity field came off the safety form: it charged nothing, it was graded
+      // by hand, and the card that read it would now sit at 0 forever while people
+      // logged injuries. Harm is the reading that replaces it, and it is the better
+      // question anyway — an audit asks how many people were hurt, not how somebody
+      // graded it. Counted over `filtered`, like `total` beside it: a lost-time injury
+      // does not stop having happened once the paperwork is closed.
+      harm: filtered.filter((x) => isHarmKind(x.safety_kind)).length,
+      // Named separately because `scorecard_safety_counts` reports them as three
+      // columns and never as a sum — the card should not be the one screen that
+      // flattens them.
+      harmBreakdown: (["lost_time_injury", "reportable_accident", "first_aid"] as const)
+        .map((k) => ({ kind: k, n: filtered.filter((x) => x.safety_kind === k).length })),
+      // Occurrences nobody classified. They are invisible to every count above and to
+      // the whole H&S half of the weekly scorecard, so the card says so rather than
+      // reporting a total that quietly excludes them.
+      unclassified: filtered.filter((x) => domainOf(x) === "safety" && !x.safety_kind).length,
       // Counted over `actions`, not `filtered`: the moment the filter is set to
       // "Waiting on Quality" a count taken from the filtered rows would equal the
       // total and stop being an answer to anything.
@@ -393,7 +411,10 @@ export function QualityActionsView() {
     mutationFn: async () => {
       const leader = leaders.find((l) => l.id === form.leader_id);
       const recorded_at = new Date(`${form.date || todayISO()}T12:00:00`).toISOString();
-      const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at);
+      // `excluded` decides the grade now, not just the score — see qualitySeverity.
+      // Save is blocked until it has loaded, so this is never the empty set standing
+      // in for an answer that has not arrived.
+      const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at, excluded);
       // `domain` and `safety_kind` arrive with 20260817090000, and PostgREST refuses
       // the whole write for one unknown column. A quality action is saved without
       // them; a safety one is refused rather than filed as a quality action. See
@@ -483,14 +504,15 @@ export function QualityActionsView() {
     return () => clearTimeout(t);
   }, [open, form.batch]);
 
-  const setStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase.from("quality_actions").update({ status }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["quality_actions"] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // `setStatus` was removed here, with the last of the To do / In progress / Complete
+  // machinery. An action is logged after it happened — the supervisor writes it down
+  // because it already occurred — so there is no "not started" for it to be in. The
+  // lifecycle that remains is the one an audit asks about and that carries a
+  // signature: open → under investigation → validated or rejected → closed.
+  //
+  // The column itself stays in the database, NOT NULL DEFAULT 'todo' with a CHECK
+  // (20260722120000). Nothing writes it any more; the default fills it on insert and
+  // an edit leaves whatever a row already had, so no history is rewritten.
 
   /**
    * The verdict. Separate from `status` (the kanban column) because they answer
@@ -532,14 +554,10 @@ export function QualityActionsView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const setSeverity = useMutation({
-    mutationFn: async ({ id, severity }: { id: string; severity: string | null }) => {
-      const { error } = await supabase.from("quality_actions").update({ severity }).eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["quality_actions"] }),
-    onError: (e: Error) => toast.error(e.message),
-  });
+  // `setSeverity` was removed here. It existed for the safety rows, the only ones with
+  // a severity anybody could still set by hand, and safety stopped being graded — a
+  // quality action's grade has been derived from its labels since d9ff473d. A mutation
+  // that writes a column no form collects is how the next stale grade gets in.
 
   const deleteAction = useMutation({
     mutationFn: async (id: string) => {
@@ -551,11 +569,15 @@ export function QualityActionsView() {
   });
 
   const exportRows = () => {
-    const header = ["Date", "Action #", "Status", "Severity", "Points", "Kind", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
+    // "Status" is gone from this file, and "Validation" takes its place rather than
+    // its slot being dropped: a spreadsheet read away from the board has to say
+    // whether Quality ruled on the deviation, which is the only state that moves a
+    // score. Same position, so a saved import mapping shifts no other column.
+    const header = ["Date", "Action #", "Validation", "Severity", "Points", "Kind", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
     const body = filtered.map((a) => {
       const isSafety = domainOf(a) === "safety";
       return [
-        a.recorded_at, a.action_no ?? "", statusMeta(a.status).label, severityMeta(a.severity)?.label ?? "",
+        a.recorded_at, a.action_no ?? "", validationMeta(a.validation_status).label, severityMeta(a.severity)?.label ?? "",
         // What the action actually cost, not what its severity weighs. The export is
         // read next to the board, and a spreadsheet charging 4 for an action the board
         // shows as 0 is the same divergence again, just harder to spot.
@@ -582,7 +604,7 @@ export function QualityActionsView() {
 
   const reportInput = () => ({
     actions: filtered.map((a) => ({
-      recorded_at: a.recorded_at, action_no: a.action_no, status: a.status, severity: a.severity,
+      recorded_at: a.recorded_at, action_no: a.action_no, severity: a.severity,
       line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
       sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
       validation_status: a.validation_status, closed_at: a.closed_at,
@@ -611,9 +633,14 @@ export function QualityActionsView() {
       if (rows.length === 0) { toast.info("No quality actions logged today"); return; }
       await generateQualityReportPDF({
         actions: rows.map((a) => ({
-          recorded_at: a.recorded_at, action_no: a.action_no, status: a.status, severity: a.severity,
+          recorded_at: a.recorded_at, action_no: a.action_no, severity: a.severity,
           line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
           sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
+          // Never passed before. It did not show while the report printed `status`;
+          // the moment the report started printing the verdict instead, every row of
+          // the daily PDF would have read "Open" — including the ones Quality had
+          // already validated that morning.
+          validation_status: a.validation_status, closed_at: a.closed_at,
           domain: a.domain, safety_kind: a.safety_kind,
         })),
         periodLabel: `Daily report · ${format(new Date(), "dd/MM/yyyy")}`,
@@ -689,42 +716,67 @@ export function QualityActionsView() {
                 <DialogHeader><DialogTitle>{editingId ? "Edit action" : form.domain === "safety" ? "Log safety occurrence" : "Log quality action"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
                   {form.domain === "safety" ? (
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <div className="min-w-0"><Label>Kind</Label>
-                        <Select value={form.safety_kind || "__none__"} onValueChange={(v) => setForm({ ...form, safety_kind: v === "__none__" ? "" : v })}>
-                          <SelectTrigger><SelectValue placeholder="Pick kind" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— None —</SelectItem>
-                            {/* Grouped by what kind of fact this is, with a separator between
-                                harm and signal — first aid and near miss must never sit
-                                adjacent as if they were the same kind of thing: one is a
-                                consequence, the other a leading signal worth reporting. */}
-                            {(["harm", "signal", "prevention"] as const).map((group, gi) => (
-                              <SelectGroup key={group}>
-                                {gi > 0 && <SelectSeparator />}
-                                {SAFETY_KINDS.filter((k) => k.group === group).map((k) => (
-                                  <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>
-                                ))}
-                              </SelectGroup>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                    /* The kind is the whole form.
+                     *
+                     * `scorecard_safety_counts` builds seven of the weekly scorecard's
+                     * nine H&S fields out of this one value and nothing else, so it is
+                     * the most consequential thing on screen — and it was a dropdown
+                     * whose grouping only appeared once the menu was open. Laid out, it
+                     * teaches the distinction it depends on: harm above signal above
+                     * prevention, never a flat list of seven where First aid and Near
+                     * miss read as neighbouring degrees.
+                     *
+                     * No Severity box any more. It charged nothing (a safety occurrence
+                     * scores 0, always — see actionPoints()), it was graded by hand so
+                     * no two people graded alike, and it sat beside the one field that
+                     * does drive the scorecard looking equally important. What harm was
+                     * done is now said by the kind, which is also the thing that counts.
+                     *
+                     * No Points box either, for the older half of the same reason.
+                     */
+                    <fieldset className="rounded-lg border border-border bg-muted/30 p-3">
+                      <legend className="px-1 text-xs font-medium">
+                        What happened<span className="text-destructive-strong" aria-label="required"> *</span>
+                      </legend>
+                      <div className="space-y-2.5">
+                        {SAFETY_KIND_GROUPS.map((g) => (
+                          <div key={g.group}>
+                            <p className="text-2xs text-muted-foreground">
+                              <span className="font-semibold uppercase tracking-wide">{g.title}</span>
+                              <span> · {g.hint}</span>
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {SAFETY_KINDS.filter((k) => k.group === g.group).map((k) => {
+                                const on = form.safety_kind === k.value;
+                                return (
+                                  <button
+                                    key={k.value}
+                                    type="button"
+                                    // A toggle, not a radio: picking the same kind twice
+                                    // clears it, so a misclick is undone where it was
+                                    // made rather than by hunting for a "— None —" row.
+                                    aria-pressed={on}
+                                    onClick={() => setForm({ ...form, safety_kind: on ? "" : k.value })}
+                                    className={cn(
+                                      "rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                                      on
+                                        // The badge the same kind wears everywhere else on
+                                        // this screen, so the choice and the row it becomes
+                                        // are recognisably the same thing.
+                                        ? cn(k.badge, "font-semibold shadow-sm")
+                                        : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                                    )}
+                                  >
+                                    {k.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="min-w-0"><Label>Severity</Label>
-                        <Select value={form.severity || "__none__"} onValueChange={(v) => setForm({ ...form, severity: v === "__none__" ? "" : v })}>
-                          <SelectTrigger><SelectValue placeholder="Pick severity" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— None —</SelectItem>
-                            {QUALITY_SEVERITIES.map((s) => (
-                              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {/* No Points box here — a safety occurrence scores 0, always (see
-                          actionPoints()), so a points input would only ever show a number
-                          that means nothing. */}
-                    </div>
+                    </fieldset>
                   ) : (
                     /* No Severity and no Points box on a quality action any more.
                        `actionPoints()` charges the priced labels and falls back to the
@@ -838,7 +890,14 @@ export function QualityActionsView() {
                   <div><Label>Notes</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
                 </div>
                 {(() => {
-                  const blockers = safetyFormBlockers(form);
+                  // Unlike a number drawn early, a grade written early persists: an
+                  // empty exclusion set is a valid answer meaning "nothing is
+                  // excluded", so saving before the table loads files the unfiltered
+                  // grade forever. Same guard the score block uses, different stakes.
+                  const blockers = [
+                    ...safetyFormBlockers(form),
+                    ...(attributionReady || form.domain === "safety" ? [] : ["attribution still loading"]),
+                  ];
                   return (
                     <DialogFooter className="flex-col items-end gap-1.5 sm:flex-col">
                       <Button onClick={() => create.mutate()} disabled={create.isPending || blockers.length > 0}>Save</Button>
@@ -946,6 +1005,26 @@ export function QualityActionsView() {
             sublabel="Weight still outstanding"
           />
           )}
+          {/* Two different questions wearing one slot.
+              Quality grades an action and asks how many severe ones stand. Safety no
+              longer grades anything — the severity box came off that form — and asks
+              the question an audit asks first: how many people were hurt. Counted off
+              `safety_kind`, which is also what the weekly scorecard counts, so this
+              card and that scorecard can never report different weeks. */}
+          {domainFilter === "safety" ? (
+          <KpiCard
+            label="Harm reported"
+            icon={<AlertTriangle className="h-3.5 w-3.5" />}
+            value={kpis.harm} accent="danger"
+            toneValue
+            sublabel={
+              kpis.unclassified
+                // Louder than the breakdown, because it is the one that invalidates it.
+                ? `${kpis.unclassified} occurrence${kpis.unclassified === 1 ? "" : "s"} not classified — counted nowhere`
+                : kpis.harmBreakdown.map((b) => `${b.n} ${safetyKindMeta(b.kind)?.label.toLowerCase()}`).join(" · ")
+            }
+          />
+          ) : (
           <KpiCard
             label="High / Critical open"
             icon={<AlertTriangle className="h-3.5 w-3.5" />}
@@ -955,6 +1034,7 @@ export function QualityActionsView() {
             active={filterSeverity === "high" || filterSeverity === "critical"}
             onClick={() => setFilterSeverity(filterSeverity === "critical" ? "__all__" : "critical")}
           />
+          )}
         </div>
 
         {/* The two readings of the same period, side by side on a wide screen: who
@@ -1013,27 +1093,13 @@ export function QualityActionsView() {
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
                       <span className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</span>
                       {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
-                      {/* Editable on safety only. A quality action's grade is derived
-                          from its labels now (see buildQualityActionPayload); leaving
-                          this picker live would let someone set a severity the next
-                          save silently overwrites — the same two-sources-of-truth this
-                          module keeps having to close. */}
-                      {canManage && a.domain === "safety" ? (
-                        <span onClick={(e) => e.stopPropagation()}>
-                          <Select
-                            value={a.severity || "__none__"}
-                            onValueChange={(v) => setSeverity.mutate({ id: a.id, severity: v === "__none__" ? null : v })}
-                          >
-                            <SelectTrigger className={cn("h-7 w-28 border text-2xs", sev?.badge)}><SelectValue placeholder="Severity" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">—</SelectItem>
-                              {QUALITY_SEVERITIES.map((x) => (
-                                <SelectItem key={x.value} value={x.value}>{x.label} · {x.points}p</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </span>
-                      ) : sev ? (
+                      {/* Read-only in both domains now. A quality action's grade is
+                          derived from its labels (see buildQualityActionPayload), and
+                          safety stopped having one at all — leaving either picker live
+                          would let someone set a severity that charges nothing and that
+                          the next save silently overwrites, which is the same
+                          two-sources-of-truth this module keeps having to close. */}
+                      {sev ? (
                         <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={GRADE_FROM_LABELS}>{sev.label} · {sev.points}p</Badge>
                       ) : null}
                     </div>
@@ -1082,28 +1148,17 @@ export function QualityActionsView() {
                           )}
                         </div>
                       </TableCell>
-                      {/* Editable inline for safety, where the severity is a description
-                          the user picks. A quality action's grade is derived from its
-                          labels and re-derived on every save, so it is shown here and
-                          changed on the labels. */}
+                      {/* Shown, never edited — in either domain. A quality action's
+                          grade is derived from its labels and re-derived on every save;
+                          a safety occurrence has no grade at all now, and says what it
+                          was through its Kind badge in the Labels column instead. */}
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        {canManage && a.domain === "safety" ? (
-                          <Select
-                            value={a.severity || "__none__"}
-                            onValueChange={(v) => setSeverity.mutate({ id: a.id, severity: v === "__none__" ? null : v })}
-                          >
-                            <SelectTrigger className={cn("h-7 w-28 border text-xs", sev?.badge)}><SelectValue placeholder="—" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">—</SelectItem>
-                              {QUALITY_SEVERITIES.map((x) => (
-                                <SelectItem key={x.value} value={x.value}>{x.label} · {x.points}p</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        {isSafetyRow ? (
+                          <span className="text-muted-foreground" title="Safety is classified by kind, not graded">—</span>
                         ) : sev ? (
                           <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={GRADE_FROM_LABELS}>{sev.label}</Badge>
                         ) : (
-                          <span className="text-muted-foreground" title={a.domain === "safety" ? undefined : GRADE_FROM_LABELS}>—</span>
+                          <span className="text-muted-foreground" title={GRADE_FROM_LABELS}>—</span>
                         )}
                       </TableCell>
                       {/* What this action actually costs, not what its severity is worth.
@@ -1121,8 +1176,11 @@ export function QualityActionsView() {
                             const charged = actionPoints(a, excluded);
                             const bySeverity = severityPoints(a.severity);
                             if (!sev && !charged) return <span className="font-normal text-muted-foreground">—</span>;
+                            // The same sentence the detail dialog prints, from the same
+                            // function. Two hand-written explanations of one number is
+                            // how the log and the dialog end up contradicting each other.
                             return (
-                              <span title={charged === bySeverity ? undefined : `Priced by its labels — ${sev?.label ?? "no severity"} alone would be ${bySeverity}`}>
+                              <span title={pointsBreakdown(a, excluded).explanation}>
                                 {charged}
                                 {charged !== bySeverity && <span className="ml-0.5 font-normal text-muted-foreground">*</span>}
                               </span>
@@ -1166,8 +1224,6 @@ export function QualityActionsView() {
           action={detailAction}
           canManage={canManage}
           onOpenChange={(o) => { if (!o) closeDetail(); }}
-          onStatus={(status) => detailAction && setStatus.mutate({ id: detailAction.id, status })}
-          onSeverity={(severity) => detailAction && setSeverity.mutate({ id: detailAction.id, severity })}
           canValidate={canValidate}
           canClose={canClose}
           onValidation={(validation_status) => detailAction && setValidation.mutate({ id: detailAction.id, validation_status })}
@@ -1179,10 +1235,19 @@ export function QualityActionsView() {
         {canManage && (
           <Dialog open={listsOpen} onOpenChange={setListsOpen}>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Lists &amp; scoring</DialogTitle></DialogHeader>
-              <SeverityPointsEditor />
-              <LeaderScoreWeightsEditor />
-              <QualityListsManager />
+              {/* Scoped to the tab it was opened from.
+                  Opened from Safety, this dialog showed the severity weights, the three
+                  pillar weights of the leader score and the quality label prices —
+                  every one of which is arithmetic a safety occurrence is deliberately
+                  exempt from (see actionPoints()). Offering someone a scoring editor on
+                  the one domain that is never scored invites them to set a number and
+                  then wonder why nothing moved. */}
+              <DialogHeader>
+                <DialogTitle>{domainFilter === "safety" ? "Health & Safety lists" : "Lists & scoring"}</DialogTitle>
+              </DialogHeader>
+              {domainFilter !== "safety" && <SeverityPointsEditor />}
+              {domainFilter !== "safety" && <LeaderScoreWeightsEditor />}
+              <QualityListsManager domain={domainFilter === "safety" ? "safety" : "quality"} />
             </DialogContent>
           </Dialog>
         )}
@@ -1200,48 +1265,11 @@ export function QualityActionsView() {
 }
 
 
-function IssueCard({ a, canManage, onOpen, onMove }: {
-  a: QualityAction; canManage: boolean;
-  onOpen: (id: string) => void; onMove: (id: string, status: string) => void;
-}) {
-  const sev = severityMeta(a.severity);
-  const nPhotos = a.attachments?.length ?? 0;
-  return (
-    <div
-      draggable={canManage}
-      onDragStart={(e) => { e.dataTransfer.setData("text/plain", a.id); e.dataTransfer.effectAllowed = "move"; }}
-      onClick={() => onOpen(a.id)}
-      className={cn("rounded-md border bg-background p-2.5 shadow-sm transition-colors hover:bg-accent/50", canManage ? "cursor-grab active:cursor-grabbing" : "cursor-pointer", sev?.accent ?? "border-l-[3px] border-l-transparent")}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-figure text-xs font-semibold text-foreground">{a.action_no || <span className="font-sans font-normal italic text-muted-foreground/60">no #</span>}</span>
-        {sev && (
-          <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={`${sev.label} — ${sev.points} point${sev.points === 1 ? "" : "s"}`}>
-            {sev.label} · {sev.points}p
-          </Badge>
-        )}
-      </div>
-      {a.description && <p className="mt-1 line-clamp-2 text-xs">{a.description}</p>}
-      {(a.sku || a.batch) && (
-        <div className="mt-1.5 flex flex-wrap gap-1 text-2xs">
-          {a.sku && <span className="rounded bg-muted px-1.5 py-0.5 font-figure text-muted-foreground">SKU {a.sku}</span>}
-          {a.batch && <span className="rounded bg-muted px-1.5 py-0.5 font-figure text-muted-foreground">Batch {a.batch}</span>}
-        </div>
-      )}
-      {(a.labels?.length ?? 0) > 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {(a.labels ?? []).slice(0, 4).map((l) => <Badge key={l} variant="secondary" className="text-2xs">{l}</Badge>)}
-        </div>
-      )}
-      <div className="mt-1.5 flex items-center justify-between text-2xs text-muted-foreground">
-        <span className="truncate">{a.line ?? "—"}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          {nPhotos > 0 && <span className="inline-flex items-center gap-0.5"><Camera className="h-3 w-3" />{nPhotos}</span>}
-          {format(new Date(a.recorded_at), "dd/MM")}
-        </span>
-      </div>
-    </div>
-  );
-}
+// `IssueCard` was removed here. It was the Kanban card — draggable, with an `onMove`
+// that set To do / In progress / Complete — and nothing has rendered it since the board
+// came off this page. It was the last thing in `src/` that could still write `status`,
+// which is exactly the sort of leftover that gets wired back up by someone who assumes
+// a component this finished must be in use.
 
 // ============================================================
 // Issue detail — photos + audit history
@@ -1252,6 +1280,9 @@ function DetailMeta({ label, value }: { label: string; value: string | null | un
 
 function describeHistory(h: QualityHistoryRow): string {
   if (h.field === "created") return "Issue created";
+  // Kept, alone, deliberately. Nothing writes `status` any more, but entries recorded
+  // while it did are in the history of real actions, and a history that cannot read
+  // its own past entries is worse than the field it is trying to forget.
   if (h.field === "status") return `Status: ${statusMeta(h.old_value).label} → ${statusMeta(h.new_value).label}`;
   if (h.field === "severity") return `Severity: ${severityMeta(h.old_value)?.label ?? "None"} → ${severityMeta(h.new_value)?.label ?? "None"}`;
   return `${h.field}: ${h.old_value ?? "—"} → ${h.new_value ?? "—"}`;
@@ -1279,9 +1310,9 @@ function PhotoThumb({ path, canDelete, onDelete }: { path: string; canDelete: bo
   );
 }
 
-function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenChange, onStatus, onSeverity, onValidation, onClosure, onDelete, onEdit }: {
+function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenChange, onValidation, onClosure, onDelete, onEdit }: {
   action: QualityAction | null; canManage: boolean;
-  onOpenChange: (open: boolean) => void; onStatus: (status: string) => void; onSeverity: (severity: string | null) => void;
+  onOpenChange: (open: boolean) => void;
   canValidate: boolean;
   canClose: boolean;
   onValidation: (validation_status: string) => void;
@@ -1289,6 +1320,10 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
   onDelete: () => void; onEdit: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
+  // Read here rather than threaded down: the score block is the one part of this
+  // dialog that must not draw before attribution has loaded, and a prop passed from
+  // a parent that does not need it would be one more place to forget the guard.
+  const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
   const upload = useUploadQualityPhoto();
   const del = useDeleteQualityPhoto();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1316,16 +1351,29 @@ function QualityIssueDetail({ action, canManage, canValidate, canClose, onOpenCh
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
+              {/* The charge leads. It is the figure this action is remembered by, and
+                  the dialog used to be the one place that would not say it. */}
+              <ActionScore
+                action={action}
+                excluded={excluded}
+                ready={attributionReady}
+                failed={attributionFailed}
+              />
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Severity</Label>
+                <div><Label>{action.domain === "safety" ? "Kind" : "Severity"}</Label>
                   {action.domain === "safety" ? (
-                    <Select value={action.severity || "__none__"} onValueChange={(v) => onSeverity(v === "__none__" ? null : v)} disabled={!canManage}>
-                      <SelectTrigger><SelectValue placeholder="—" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— None —</SelectItem>
-                        {QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                    /* A safety occurrence is classified, not graded. The severity
+                       picker that stood here charged nothing and was set by hand; the
+                       kind is what `scorecard_safety_counts` reads, so it is the fact
+                       worth showing. Changed on Edit action, with the rest of the row,
+                       rather than nudged from a detail view — the weekly H&S counts
+                       move when it changes. */
+                    <div className="mt-1 flex items-center gap-2">
+                      {safetyKindMeta(action.safety_kind)
+                        ? <Badge variant="outline" className={cn("text-xs", safetyKindMeta(action.safety_kind)!.badge)}>{safetyKindMeta(action.safety_kind)!.label}</Badge>
+                        : <span className="text-sm text-muted-foreground">—</span>}
+                      <span className="text-2xs text-muted-foreground">Counted in the weekly H&amp;S scorecard</span>
+                    </div>
                   ) : (
                     /* Read-only for quality: the grade comes from the labels below and
                        is re-derived whenever the action is saved, so a pick made here
@@ -1662,10 +1710,23 @@ function PointsBox({ value, label, onCommit }: { value: number; label: string; o
 /** The same ceiling the database enforces, so the box cannot promise what it refuses. */
 const clampPoints = (raw: string) => Math.max(0, Math.min(1000, Math.round(Number(raw) || 0)));
 
-function QualityListsManager() {
+/**
+ * @param domain  which tab this was opened from. On `safety` the manager shows the
+ *   H&S hazard list and nothing else: the quality label prices, the severity weights
+ *   and the leader-score weights are all arithmetic a safety occurrence never touches.
+ */
+function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "safety" }) {
+  const isSafety = domain === "safety";
   const qc = useQueryClient();
   const { data: options = [] } = useAllQualityOptions();
-  const [kind, setKind] = useState<QualityOption["kind"]>("label");
+  // Which labels are the leader's to answer for is scoring, not taxonomy, so it
+  // belongs on the screen that prices them. It lived only in a migration until now:
+  // Maintenance and GMP shipped excluded and no screen showed it, so nobody could
+  // see whether the rule was in force — and when the table is absent it silently
+  // is not. That is the "Maintenance is charging the leader 3 points" case.
+  const { excluded, missing: attributionMissing } = useLeaderAttribution();
+  const setAttribution = useSetLabelAttribution();
+  const [kind, setKind] = useState<QualityOption["kind"]>(isSafety ? "safety_label" : "label");
   const [value, setValue] = useState("");
   const [points, setPoints] = useState("");
 
@@ -1741,24 +1802,33 @@ function QualityListsManager() {
     refresh();
   };
 
-  const groups: { kind: QualityOption["kind"]; title: string }[] = [
-    { kind: "label", title: "Labels" },
-    { kind: "safety_label", title: "Safety labels" },
-    { kind: "department", title: "Departments" },
-  ];
+  // Named for what the factory calls them. The `kind` values in the database stay
+  // `label` / `safety_label` — renaming those would orphan every row already saved,
+  // and nothing about the scoring changes just because the heading reads better.
+  const groups: { kind: QualityOption["kind"]; title: string }[] = isSafety
+    ? [{ kind: "safety_label", title: "Health & Safety" }]
+    : [
+        { kind: "label", title: "Quality Actions" },
+        { kind: "safety_label", title: "Health & Safety" },
+        { kind: "department", title: "Departments" },
+      ];
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
+        {/* One kind to add here, so the picker would be a control with a single
+            answer. Named in the placeholder below instead. */}
+        {!isSafety && (
         <Select value={kind} onValueChange={(v) => setKind(v as QualityOption["kind"])}>
           <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="label">Label</SelectItem>
-            <SelectItem value="safety_label">Safety label</SelectItem>
+            <SelectItem value="label">Quality action</SelectItem>
+            <SelectItem value="safety_label">Health &amp; Safety</SelectItem>
             <SelectItem value="department">Department</SelectItem>
           </SelectContent>
         </Select>
-        <Input placeholder="New value..." value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
+        )}
+        <Input placeholder={isSafety ? "New hazard..." : "New value..."} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
         {kind === "label" && (
           <Input
             type="number" min={0} max={1000} inputMode="numeric"
@@ -1772,8 +1842,27 @@ function QualityListsManager() {
       </div>
       {kind === "label" && (
         <p className="-mt-2 text-xs text-muted-foreground">
-          A label's points replace the severity weight: an action carrying priced labels is worth
+          A quality action's points replace the severity weight: an action carrying priced items is worth
           their total, and one carrying none is worth its severity. Leave it at 0 to leave severity in charge.
+          Switch one to <span className="font-medium">Not leader's</span> and it stops charging them — a
+          machine failure is maintenance's, not the person running the line that night.
+        </p>
+      )}
+      {/* The rule is off, and an absent rule looks exactly like "nothing is excluded".
+          Said here, once, because this is the screen that governs it: without the
+          table every label charges the leader, Maintenance included, and the totals
+          on the board are quietly too high. */}
+      {isSafety && (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Hazards, not scoring. A safety occurrence is counted and never charged, so
+          nothing here carries points and no leader's score moves when this list changes
+          — which is the point: reporting a near miss has to stay free.
+        </p>
+      )}
+      {attributionMissing && !isSafety && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-strong">
+          Attribution is not enabled on this database yet — the migration has not run. Every quality action
+          is currently charging the leader, including the ones marked below as not theirs.
         </p>
       )}
       {groups.map((g) => (
@@ -1795,12 +1884,47 @@ function QualityListsManager() {
                 <span className={cn("text-sm", !o.active && "text-muted-foreground line-through")}>{o.value}</span>
                 <div className="flex items-center gap-1">
                   {g.kind === "label" && (
-                    <PointsBox
-                      key={`${o.id}:${o.points}`}
-                      value={o.points}
-                      label={o.value}
-                      onCommit={(raw) => setLabelPrice(o, raw)}
-                    />
+                    <>
+                      <PointsBox
+                        key={`${o.id}:${o.points}`}
+                        value={o.points}
+                        label={o.value}
+                        onCommit={(raw) => setLabelPrice(o, raw)}
+                      />
+                      {/* Two states, both spelled out, because the difference is money
+                          on somebody's scorecard. Re-attributing re-scores the history
+                          the same way re-pricing does — see useSetLabelAttribution. */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={attributionMissing || setAttribution.isPending}
+                        className={cn(
+                          "h-8 whitespace-nowrap text-xs",
+                          excluded.has(o.value.trim().toLowerCase()) && "border-warning/40 bg-warning/10 text-warning-strong",
+                        )}
+                        title={
+                          excluded.has(o.value.trim().toLowerCase())
+                            ? `"${o.value}" does not count toward a leader's score`
+                            : `"${o.value}" counts toward the leader's score`
+                        }
+                        onClick={() => {
+                          const counts = excluded.has(o.value.trim().toLowerCase());
+                          setAttribution.mutate(
+                            { label: o.value, counts },
+                            {
+                              onError: (e: unknown) => toast.error((e as { message?: string })?.message ?? "Could not save"),
+                              onSuccess: () => toast.success(
+                                counts
+                                  ? `"${o.value}" now counts toward the leader's score`
+                                  : `"${o.value}" no longer counts toward the leader's score`,
+                              ),
+                            },
+                          );
+                        }}
+                      >
+                        {excluded.has(o.value.trim().toLowerCase()) ? "Not leader's" : "Counts"}
+                      </Button>
+                    </>
                   )}
                   <Button size="sm" variant="outline" onClick={() => toggle(o)}>{o.active ? "Hide" : "Show"}</Button>
                   <AlertDialog>
@@ -1911,18 +2035,16 @@ function TopRecurringIssues({ rows }: { rows: RecurringIssue[] }) {
 // ============================================================
 function QualityAnalytics({ actions, from, domainFilter }: { actions: QualityAction[]; from: string; domainFilter: ActionDomainFilter }) {
   const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
-  const byDay = useMemo(() => {
-    const m = new Map<string, { key: string; label: string; todo: number; in_progress: number; complete: number }>();
-    for (const a of actions) {
-      const d = new Date(a.recorded_at);
-      const key = format(d, "yyyy-MM-dd");
-      const cur = m.get(key) ?? { key, label: format(d, "dd/MM"), todo: 0, in_progress: 0, complete: 0 };
-      const s = (a.status === "in_progress" || a.status === "complete") ? a.status : "todo";
-      cur[s] += 1;
-      m.set(key, cur);
-    }
-    return Array.from(m.values()).sort((a, b) => a.key.localeCompare(b.key));
-  }, [actions]);
+  // `byDay` was removed here, with the "Actions by status over time" chart it fed.
+  //
+  // It stacked To do / In progress / Complete, which is the state of a working board —
+  // and this is not where that work happens: an open action is tracked in
+  // SafetyCulture, and the module exists to control actions by line leader and to feed
+  // the leader's performance scorecard. The chart also flattered the record. Its `s`
+  // fell back to "todo" for any unrecognised status, so rows carrying nothing were
+  // drawn as a real backlog, and it counted rows Quality had already rejected as if
+  // they stood. What replaces it is the card that was always underneath: who is
+  // carrying the weight.
 
   const byLabel = useMemo(() => {
     const m = new Map<string, number>();
@@ -1959,24 +2081,6 @@ function QualityAnalytics({ actions, from, domainFilter }: { actions: QualityAct
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">Actions by status over time</CardTitle></CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={byDay} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-              <XAxis dataKey="label" fontSize={11} tickLine={false} />
-              <YAxis fontSize={11} allowDecimals={false} tickLine={false} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="todo" stackId="s" fill={statusMeta("todo").color} name="To do" />
-              <Bar dataKey="in_progress" stackId="s" fill={statusMeta("in_progress").color} name="In progress" />
-              <Bar dataKey="complete" stackId="s" fill={statusMeta("complete").color} name="Complete" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
       {/* Leaderboard — who has the most actions. Not drawn at all on the Safety tab:
           every safety row prices at 0, so the ranking's tie-break is a raw count and
           "most near misses reported" would sort to the top — the one inversion this

@@ -19,6 +19,23 @@ new row for relation "quality_options" violates check constraint "quality_option
 Aplicar os oito blocos e mais nada **não** corrige esse erro. Por isso `05b` está aqui, e
 por isso a contagem já não fecha com o ficheiro consolidado.
 
+**Há um décimo ficheiro, `00b`, e também ele vem de uma falta — mas de outra ordem.**
+`20260801060000_not_every_action_on_the_line_is_the_leaders` tem carimbo de 01/08, é
+anterior a todos os blocos 01–08, e o `pending-migrations-apply.sql` começa em 15/08:
+nunca a viu. É ela que cria `quality_label_attribution`, a tabela que diz que rótulos
+**não** são do chefe de turno.
+
+Sem ela não há erro nenhum no ecrã, e é isso que a torna perigosa. A leitura falha, o
+conjunto de exclusões fica vazio, e um conjunto vazio é uma resposta *válida* a dizer
+"nada está excluído" — por isso a avaria de máquina passa a ser cobrada ao chefe de
+turno e ninguém repara. Foi assim que uma acção "Batch code · Maintenance" apareceu a
+5 pontos em vez de 2.
+
+`00b` **não entra no `APPLY-ALL-IN-ORDER.sql`**, de propósito: é inteiramente
+idempotente e independente dos outros nove, portanto pode ser colado sozinho, a
+qualquer momento, antes ou depois deles, e as vezes que forem precisas — ao contrário
+do ficheiro consolidado, que não sobrevive a uma segunda passagem completa.
+
 **A ordem não é negociável.** O bloco 2 faz `DROP TABLE IF EXISTS
 public.leader_scorecard_thresholds` — a tabela que a v1 criava — e recria a tabela na
 forma da v1 se ela não existir. Fora de ordem, perde-se o backfill.
