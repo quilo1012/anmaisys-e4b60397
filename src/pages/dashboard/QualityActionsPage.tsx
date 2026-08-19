@@ -1374,7 +1374,7 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
               {action.description && <p className="whitespace-pre-wrap rounded border bg-muted/30 p-2 text-sm">{action.description}</p>}
 
               {/* The Photos block was removed here, with the upload, the thumbnails and
-                  the evidence gate on validation below. Evidence for a deviation lives
+                  the evidence gate on validation above. Evidence for a deviation lives
                   in SafetyCulture, which is where it is captured on the floor; a second
                   place to put it is a second place to look for it, and the one that is
                   half-populated is the one that gets believed.
@@ -1382,8 +1382,8 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
                   The gate had to go with it, and it lives in the database rather than
                   here: `enforce_quality_validation` refused a validation while
                   `attachments` was empty, so removing the upload without removing the
-                  trigger left the only verdict path one the database would always
-                  reject. That is dropped in
+                  trigger would leave the only verdict path one the database always
+                  rejects. That is dropped in
                   20260827090000_the_evidence_gate_outlived_the_place_to_attach_it.sql —
                   a migration this repository does not apply, so it is only true of
                   production once it has been run there.
