@@ -223,7 +223,7 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION public.action_points_at(text, text, text[], text, text, bigint) IS
-  'O gemeo SQL de actionPoints() em src/lib/qualityConstants.ts, contra uma versao datada. Desde 20260827090000 o departamento tambem atribui, como veto. Mudar um, mudar o outro.';
+  'O gemeo SQL de actionPoints() em src/lib/qualityConstants.ts, contra uma versao datada. Desde 20260827093000 o departamento tambem atribui, como veto. Mudar um, mudar o outro.';
 
 -- =====================================================================
 -- 5. The freeze trigger calls the new rule

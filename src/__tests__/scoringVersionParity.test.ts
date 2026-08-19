@@ -215,7 +215,7 @@ describe("action_points_at() keeps the guards, and keeps them in order", () => {
    * new rule — which is the review this failure is asking for.
    */
   it("is read from the migration that is actually in force", () => {
-    expect(MIGRATION).toBe("20260827090000_a_department_can_be_someone_elses.sql");
+    expect(MIGRATION).toBe("20260827093000_a_department_can_be_someone_elses.sql");
   });
 
   it("returns 0 for safety before it looks at anything else", () => {

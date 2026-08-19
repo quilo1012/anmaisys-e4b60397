@@ -12,7 +12,7 @@ import {
  *
  * `buildQualityActionPayload` deliberately does not write `points` — the value is
  * frozen server-side by `quality_action_freeze_points`, which calls `action_points_at`,
- * which since 20260827090000 returns 0 for an action booked to an excluded department.
+ * which since 20260827093000 returns 0 for an action booked to an excluded department.
  *
  * The live summary above the Save button did not know that. Pick Department =
  * Maintenance, grade it Critical, and the form said "Charged 4p — the Critical grade"

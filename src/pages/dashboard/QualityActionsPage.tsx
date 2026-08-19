@@ -1661,7 +1661,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
   // is not. That is the "Maintenance is charging the leader 3 points" case.
   const { excluded, missing: attributionMissing } = useLeaderAttribution();
   const { missing: gatesMissing } = useGateLabels();
-  // The department half of attribution, added with 20260827090000. `missing` matters
+  // The department half of attribution, added with 20260827093000. `missing` matters
   // for the same reason it does for the labels: without the column NOTHING is excluded,
   // every department charges, and a row of switches that save nothing is worse than a
   // warning saying so.
@@ -1782,7 +1782,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
    * Moving a department on or off the leader's bill.
    *
    * The same shape as `setLabelGate` — a boolean on `quality_options` — and reaching
-   * exactly as far as a re-price does under the freeze: 20260827090000 opens a new
+   * exactly as far as a re-price does under the freeze: 20260827093000 opens a new
    * scoring version on this write, so actions already logged keep the figure they were
    * frozen with and everything from here on is scored under the new answer.
    *
@@ -2003,7 +2003,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
 
                     {g.columns.attribution && g.kind === "department" && (
                       /* The department half of the same decision, added with
-                         20260827090000. A veto rather than a vote — see
+                         20260827093000. A veto rather than a vote — see
                          countsAgainstLeaderDepartment for why one field may do that
                          and a label may not. */
                       <Button
