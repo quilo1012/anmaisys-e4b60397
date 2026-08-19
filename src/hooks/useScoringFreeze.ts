@@ -41,25 +41,33 @@ export function useScoringFreeze(): ScoringFreezeState {
     staleTime: 5 * 60 * 1000,
     retry: false,
     queryFn: async (): Promise<{ id: number; valid_from: string } | null> => {
-      const { data, error } = await (supabase as unknown as {
-        from: (t: string) => {
-          select: (c: string) => {
-            is: (c: string, v: null) => {
-              maybeSingle: () => Promise<{ data: unknown; error: { code?: string } | null }>;
+      try {
+        const { data, error } = await (supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              is: (c: string, v: null) => {
+                maybeSingle: () => Promise<{ data: unknown; error: { code?: string } | null }>;
+              };
             };
           };
-        };
-      })
-        .from("scoring_version")
-        .select("id, valid_from")
-        .is("valid_to", null)
-        .maybeSingle();
-      // A database without the migration is a valid state, not a failure: answer
-      // "not frozen" quietly instead of surfacing a global error.
-      if (error && !isMissingTable(error)) throw error;
-      if (error) return null;
-      return (data as { id: number; valid_from: string } | null) ?? null;
+        })
+          .from("scoring_version")
+          .select("id, valid_from")
+          .is("valid_to", null)
+          .maybeSingle();
+        // A database without the migration is a valid state, not a failure: answer
+        // "not frozen" quietly instead of surfacing a global error.
+        if (error && !isMissingTable(error)) throw error;
+        if (error) return null;
+        return (data as { id: number; valid_from: string } | null) ?? null;
+      } catch (e) {
+        // Some clients throw the same refusal instead of returning it; a thrown
+        // "table not found" still means the migration has not landed.
+        if (isMissingTable(e as { code?: string; message?: string })) return null;
+        throw e;
+      }
     },
+
 
   });
 

@@ -46,5 +46,8 @@ const TABLE_CACHE_MISS = "PGRST205";
  * to be able to say which of the two happened.
  */
 export function isMissingTable(error: { code?: string; message?: string } | null | undefined): boolean {
-  return error?.code === UNDEFINED_TABLE || error?.code === TABLE_CACHE_MISS;
+  if (error?.code === UNDEFINED_TABLE || error?.code === TABLE_CACHE_MISS) return true;
+  // Some clients drop the code and keep only PostgREST's wording.
+  return /could not find the table .* in the schema cache|relation .* does not exist/i.test(error?.message ?? "");
 }
+
