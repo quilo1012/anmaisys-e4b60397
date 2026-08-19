@@ -25,6 +25,10 @@ export function useLabelAttribution() {
   return useQuery({
     queryKey: ["quality_label_attribution"],
     staleTime: 5 * 60 * 1000,
+    // `missing` below reads an absent table as an answer the screen prints itself, so
+    // the global handler does not also announce it. Same declaration as
+    // useScoringFreeze, for the same reason — see QueryErrorMeta.
+    meta: { schemaOptional: true },
     queryFn: async (): Promise<LabelAttribution[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- newer than the generated types
       const { data, error } = await (supabase as any).from("quality_label_attribution").select("*");

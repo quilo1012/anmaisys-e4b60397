@@ -1,4 +1,22 @@
 import { toast } from "sonner";
+import { isMissingColumn, isMissingTable } from "@/lib/postgrestErrors";
+
+/**
+ * What a query can declare about itself before this file decides to speak.
+ *
+ * `schemaOptional` marks a query whose whole subject is "has this migration landed on
+ * the database I am running against" — `useScoringFreeze`, `useLabelAttribution`. For
+ * those, an absent table is the ANSWER, read back through `isMissingTable` and turned
+ * into wording the screen prints on purpose. They still have to throw, because
+ * `query.error` is the only place React Query will hand them the code to read.
+ *
+ * It does not mean "allowed to fail quietly". Only the two missing-schema readings are
+ * covered; a refusal or a dropped connection on the same query still gets said out
+ * loud, because those send the person somewhere completely different.
+ */
+export interface QueryErrorMeta {
+  schemaOptional?: boolean;
+}
 
 /**
  * Turn a failed request into something a person can act on.
@@ -35,7 +53,17 @@ export function describeError(error: unknown): { title: string; description?: st
 /** Same message twice in a few seconds is one broken screen, not two problems. */
 const recent = new Map<string, number>();
 
-export function reportQueryError(error: unknown, now: number = Date.now()): boolean {
+export function reportQueryError(
+  error: unknown,
+  now: number = Date.now(),
+  meta?: QueryErrorMeta,
+): boolean {
+  // The query said it reads this answer itself. Same rule the mutation side of the
+  // cache has always applied to a mutation carrying its own onError: whoever is
+  // already speaking is left to speak.
+  const err = error as { code?: string; message?: string } | null;
+  if (meta?.schemaOptional && (isMissingTable(err) || isMissingColumn(err))) return false;
+
   const described = describeError(error);
   if (!described) return false;
   const key = `${described.title}|${described.description ?? ""}`;

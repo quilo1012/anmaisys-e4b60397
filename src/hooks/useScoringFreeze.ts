@@ -40,6 +40,11 @@ export function useScoringFreeze(): ScoringFreezeState {
     queryKey: ["scoring_version_in_force"],
     staleTime: 5 * 60 * 1000,
     retry: false,
+    // The throw below is how this hook READS its answer, not a failure to announce.
+    // Without this the global queryCache handler put "Something did not load — Could
+    // not find the table 'public.scoring_version'" over every screen carrying the
+    // hook, on exactly the databases the hook was written to cope with.
+    meta: { schemaOptional: true },
     queryFn: async (): Promise<{ id: number; valid_from: string } | null> => {
       const { data, error } = await (supabase as unknown as {
         from: (t: string) => {
