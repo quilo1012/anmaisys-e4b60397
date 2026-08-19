@@ -34,6 +34,7 @@ import { rowMatchesShift } from "@/lib/shifts";
 import { woStatusCounts, DONE_STATUSES } from "@/lib/woStatusCounts";
 import { leaderNameKey } from "@/lib/leaderNameMatch";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { useGateLabels } from "@/hooks/useQualityOptions";
 import { PointsPending } from "@/components/quality/PointsPending";
 import { computeLeaderScore, displayScore, rankLeadersByScore } from "@/lib/leaderScore";
 import { canPrintReport } from "@/lib/permissions";
@@ -124,6 +125,7 @@ const EmptyChart = () => (
 export default function AnalyticsPage() {
   const { role } = useAuth();
   const { excluded, ready: attributionReady } = useLeaderAttribution();
+  const { gateLabels, ready: gatesReady } = useGateLabels();
   const { toast } = useToast();
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
@@ -296,7 +298,7 @@ export default function AnalyticsPage() {
       // to fall back on a base where `domain` has not been migrated yet — see
       // selectOptionalDomain.
       range: (a, b) => selectOptionalDomain(
-        "leader_name, severity, status, labels, validation_status, recorded_at, description, shift, domain",
+        "leader_name, severity, status, labels, validation_status, recorded_at, description, shift, domain, points_at_creation, scoring_version_id",
         (columns) => (supabase as any)
           .from("quality_actions")
           .select(columns)
@@ -393,7 +395,7 @@ export default function AnalyticsPage() {
         const oa = openMap.get(leaderKey);
         const acts = periodMap.get(leaderKey) ?? [];
         const score = computeLeaderScore(
-          { actual: a.actual, target: a.target, avgOEE: null, actions: acts, excludedLabels: excluded },
+          { actual: a.actual, target: a.target, avgOEE: null, actions: acts, excludedLabels: excluded, gateLabels },
           weights,
         );
         return {
@@ -900,7 +902,7 @@ export default function AnalyticsPage() {
                           </td>
                           <td className="p-2 font-medium">{r.leader}</td>
                           <td className="p-2 text-right">
-                            {!attributionReady || !weightsReady ? (
+                            {!attributionReady || !weightsReady || !gatesReady ? (
                               /* The score subtracts quality points and then weights the
                                  three pillars, so it moves when either attribution or
                                  the weighting lands. A leader must not watch their own

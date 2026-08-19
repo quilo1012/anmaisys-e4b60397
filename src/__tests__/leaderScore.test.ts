@@ -12,14 +12,14 @@ const NOTHING_EXCLUDED = new Set<string>();
 
 describe("computeLeaderScore", () => {
   it("production is attainment, capped at 100", () => {
-    const over = computeLeaderScore({ actual: 130, target: 100, avgOEE: null, actions: noActions, excludedLabels: NOTHING_EXCLUDED });
+    const over = computeLeaderScore({ actual: 130, target: 100, avgOEE: null, actions: noActions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(over.production.value).toBe(100);
-    const under = computeLeaderScore({ actual: 80, target: 100, avgOEE: null, actions: noActions, excludedLabels: NOTHING_EXCLUDED });
+    const under = computeLeaderScore({ actual: 80, target: 100, avgOEE: null, actions: noActions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(under.production.value).toBe(80);
   });
 
   it("falls back to OEE when nothing was planned", () => {
-    const r = computeLeaderScore({ actual: 0, target: 0, avgOEE: 72, actions: noActions, excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 0, target: 0, avgOEE: 72, actions: noActions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(r.production.value).toBe(72);
     expect(r.production.basis).toMatch(/no target/i);
   });
@@ -28,18 +28,18 @@ describe("computeLeaderScore", () => {
     // An action raised against the shift is a quality event while it is open. A
     // leader with an open action reading 100% is the number nobody believes twice.
     const open = [{ severity: "critical", validation_status: "open" }];
-    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: open, excludedLabels: NOTHING_EXCLUDED }).quality.value).toBe(96);
+    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: open, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() }).quality.value).toBe(96);
 
     const investigating = [{ severity: "high", validation_status: "under_investigation" }];
-    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: investigating, excludedLabels: NOTHING_EXCLUDED }).quality.value).toBe(97);
+    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: investigating, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() }).quality.value).toBe(97);
 
     const validated = [{ severity: "critical", validation_status: "validated" }];
-    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: validated, excludedLabels: NOTHING_EXCLUDED }).quality.value).toBe(96);
+    expect(computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: validated, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() }).quality.value).toBe(96);
   });
 
   it("a rejected action is void — Quality looked and said it was not real", () => {
     const rejected = [{ severity: "critical", validation_status: "rejected" }];
-    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: rejected, excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: rejected, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(r.quality.value).toBe(100);
     expect(r.quality.basis).toMatch(/rejected/i);
   });
@@ -51,7 +51,7 @@ describe("computeLeaderScore", () => {
       { severity: "low", labels: ["Paperwork"], validation_status: "open" },
       { severity: "low", labels: ["Label"], validation_status: "validated" },
     ];
-    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(r.documentation.value).toBe(90);
   });
 
@@ -62,7 +62,7 @@ describe("computeLeaderScore", () => {
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },
     ];
-    const input = { actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED };
+    const input = { actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() };
 
     setLabelPoints({ Paperwork: 10 });
     expect(computeLeaderScore(input).documentation.value).toBe(80);
@@ -76,7 +76,7 @@ describe("computeLeaderScore", () => {
     // It used to be charged twice: quality points AND the demerit. The two components
     // then moved together on one error, and pricing the label moved both at once.
     const validated = [{ severity: "critical", labels: ["Paperwork"], validation_status: "validated" }];
-    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: validated, excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: validated, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(r.quality.value).toBe(100);
     expect(r.documentation.value).toBe(95);
     expect(r.quality.basis).toMatch(/documentation/i);
@@ -86,9 +86,13 @@ describe("computeLeaderScore", () => {
     // Only the validated ones move to the demerit. Letting an open one out of quality
     // too would mean a raised action is charged nowhere until somebody signs it off.
     const open = [{ severity: "critical", labels: ["Paperwork"], validation_status: "open" }];
-    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: open, excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: open, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(r.quality.value).toBe(96);
-    expect(r.documentation.value).toBe(100);
+    // ...and documentation is UNMEASURED, not 100. This assertion used to read 100,
+    // which was the bug: "no validated paperwork error" was true of a pillar nobody
+    // had ruled on, and it paid out a full quarter of the final score for the
+    // difference. See the documentation block in leaderScoreSafetyCeiling.test.ts.
+    expect(r.documentation.value).toBeNull();
   });
 
   it("weights the three components", () => {
@@ -98,14 +102,14 @@ describe("computeLeaderScore", () => {
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },
       { severity: null, labels: ["Paperwork"], validation_status: "validated" },
     ];
-    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED }, DEFAULT_WEIGHTS);
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() }, DEFAULT_WEIGHTS);
     expect(r.final!).toBeCloseTo(97.5, 5);
   });
 
   it("drops a component with no data and shares its weight, instead of scoring it zero", () => {
     // No target and no OEE: production cannot be measured. A leader with a clean
     // quality and documentation record must not be dragged to 60 by an absent plan.
-    const r = computeLeaderScore({ actual: 0, target: 0, avgOEE: null, actions: noActions, excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 0, target: 0, avgOEE: null, actions: noActions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(r.production.value).toBeNull();
     expect(r.final).toBe(100);
     expect(r.applied.production_pct).toBe(0);
@@ -118,13 +122,13 @@ describe("displayScore", () => {
     // One Low action: quality 99, the other two 100 → 99.7 weighted. Shown as 100%
     // it read as a clean period with an action open on the board.
     const actions = [{ severity: "low", validation_status: "open" }];
-    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(r.final).toBeCloseTo(99.7, 1);
     expect(displayScore(r.final)).toBe(99);
   });
 
   it("leaves a genuine 100 alone", () => {
-    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: [], excludedLabels: NOTHING_EXCLUDED });
+    const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions: [], excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
     expect(displayScore(r.final)).toBe(100);
   });
 });

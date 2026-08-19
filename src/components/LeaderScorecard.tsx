@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { useGateLabels } from "@/hooks/useQualityOptions";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,7 +56,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
       // the one column. `domain` is newer than the generated Postgrest types, hence the
       // cast — see `actionPoints()` for why the column has to be here at all.
       const COLUMNS =
-        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain";
+        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain, points_at_creation, scoring_version_id";
       const run = (columns: string) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
         let qy = (supabase as any).from("quality_actions")
@@ -205,6 +206,16 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
    */
   const { weights, ready: weightsReady, failed: weightsFailed } = useLeaderWeighting(to);
   const { excluded, ready: attributionReady } = useLeaderAttribution();
+  /**
+   * The gate labels, and the same refusal the two lines above already make.
+   *
+   * `gatesReady` false must stop a score being drawn, not merely soften it. An empty
+   * gate set and an unloaded one are the same value, and the difference between them is
+   * a leader with a failed CCP reading 97 instead of 49. Every other unreadiness here
+   * risks a number that is slightly wrong; this one risks a number that is wrong in the
+   * direction an auditor asks about.
+   */
+  const { gateLabels, ready: gatesReady } = useGateLabels();
 
   /**
    * Every one of the six reads feeds the score, and each `useQuery` above defaults to
@@ -233,7 +244,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     () => computeScorecard(
       { ...EMPTY_RAW, actions, completes, sessions, ragRows, items, woRequests },
       period,
-      { weights, excludedLabels: excluded },
+      { weights, excludedLabels: excluded, gateLabels },
     ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- period is rebuilt each render from these three
     [actions, completes, sessions, ragRows, items, woRequests, from, to, shift, weights, excluded],
@@ -294,7 +305,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
                 an unreadable period is not an empty one.
               </p>
             </div>
-          ) : attributionReady && weightsReady
+          ) : attributionReady && weightsReady && gatesReady
             ? <LeaderScorecardBody
                 leaderName={leaderName}
                 period={period}

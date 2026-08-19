@@ -7,12 +7,23 @@
  * the database is shown in words the floor can act on, and that the screen carries no
  * way to look up somebody else.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
 const rpc = vi.fn();
+
+/**
+ * A query chain that answers empty however far it is followed.
+ *
+ * `.eq().order().order()` has to keep returning something chainable and end up
+ * awaitable, which a plain Promise cannot do.
+ */
+const chain: Record<string, unknown> = {};
+chain.eq = () => chain;
+chain.order = () => chain;
+chain.then = (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -29,6 +40,15 @@ vi.mock("@/integrations/supabase/client", () => ({
           data: null,
           error: { code: "42P01", message: 'relation "leader_scorecard_threshold" does not exist' },
         }),
+        // The options list, which the card now reads to find out which labels gate the
+        // period. Same stand-in and same reason as the weights above: unmocked, the
+        // chain threw, the gate query never settled, and the card — which does not draw
+        // a score it cannot compute correctly — waited on it forever.
+        //
+        // An empty list is the honest answer here, not a shortcut: it is what a database
+        // with no gates configured returns, and these tests are not about gates.
+        eq: () => chain,
+        order: () => chain,
       }),
     }),
   },
@@ -73,6 +93,32 @@ const typePin = async (pin: string) => {
     fireEvent.change(input, { target: { value: pin } });
   });
 };
+
+/**
+ * Let `input-otp`'s stray timers land while the environment still exists.
+ *
+ * The PIN keypad is an `OTPInput`, and input-otp schedules three timeouts — 0ms, 10ms
+ * and 50ms — from a `useEffect` that returns no cleanup:
+ *
+ *     function syncTimeouts(cb) { setTimeout(cb, 0); setTimeout(cb, 10); setTimeout(cb, 50) }
+ *     useEffect(() => { syncTimeouts(() => { ...setState... }) }, [value, isFocused])
+ *
+ * So the 50ms one fires after the component is gone. It calls setState, React reaches
+ * for `window`, and jsdom has already been torn down: `ReferenceError: window is not
+ * defined`, reported as an uncaught exception. Every test PASSES and the run still exits
+ * 1 — which is what CI does with `bun run test`, so the whole suite goes red over a
+ * timer in a third-party component.
+ *
+ * This is not a workaround for a flaky test. The timers are real work the component
+ * scheduled; waiting for them is letting it finish. Nothing here can fix the missing
+ * cleanup — it is inside node_modules — and suppressing the error instead would hide
+ * the next genuine one.
+ *
+ * 60ms clears the longest of the three. Paid once per test in one file.
+ */
+afterEach(async () => {
+  await new Promise((resolve) => setTimeout(resolve, 60));
+});
 
 beforeEach(() => {
   rpc.mockReset();

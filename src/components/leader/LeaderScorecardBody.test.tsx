@@ -47,6 +47,8 @@ function makeResult(over: Partial<ScorecardResult> = {}): ScorecardResult {
       quality: { value: 100, basis: "No quality actions raised in this period" },
       documentation: { value: 100, basis: "No validated paperwork error" },
       final: 93,
+      cap: null,
+      scales: null,
       applied: { production_pct: 40, quality_pct: 30, documentation_pct: 30 },
     },
     ...over,
@@ -134,6 +136,8 @@ describe("LeaderScorecardBody", () => {
         quality: { value: 100, basis: "No quality actions raised in this period" },
         documentation: { value: 100, basis: "No validated paperwork error" },
         final: 100,
+        cap: null,
+      scales: null,
         applied: { production_pct: 0, quality_pct: 50, documentation_pct: 50 },
       },
     });
@@ -189,5 +193,58 @@ describe("LeaderScorecardBody", () => {
     expect(note.textContent).not.toMatch(/5%/);
     // And it must say the charge MOVES on validation, not that it piles on top.
     expect(note.textContent).toMatch(/instead of|moves to|rather than/i);
+  });
+});
+
+/**
+ * A ceiling nobody can see on the card is a score nobody can check.
+ *
+ * The whole reason H&S is a ceiling and not a 25% weight is that an injury must not be
+ * purchasable with production volume — so when it fires, the card has to say that it
+ * fired, what the score was before, and why. A leader shown 49 with no sight of the 97
+ * it was cut from has been given a verdict, not a scorecard.
+ */
+describe("the H&S ceiling on the card", () => {
+  const capped = (over: Record<string, unknown>) =>
+    makeResult({
+      score: {
+        production: { value: 100, basis: "Actual against target, capped at 100%" },
+        quality: { value: 92, basis: "100 less 8 severity points from 2 actions" },
+        documentation: { value: 100, basis: "No validated paperwork error" },
+        applied: { production_pct: 40, quality_pct: 35, documentation_pct: 25 },
+        ...over,
+      },
+    } as never);
+
+  it("says nothing at all when no occurrence gated the period", () => {
+    renderBody();
+    expect(screen.queryByText(/ceiling/i)).not.toBeInTheDocument();
+  });
+
+  it("shows the score it was cut from, and the one that stands", () => {
+    renderBody(capped({
+      final: 49,
+      cap: { value: 49, applied: true, weighted: 97.2, reason: "A lost-time injury limits this score to 49%." },
+    }));
+    // "Score ceiling", not "Health & Safety ceiling". The heading stopped naming the
+    // cause when a failed CCP became able to cap a period too — a heading that names the
+    // wrong cause is the first thing a leader reads. What fired is on the reason line,
+    // which is asserted below.
+    expect(screen.getByText(/Score ceiling/i)).toBeInTheDocument();
+    // The number that was lost, struck through, beside the one that replaced it.
+    expect(screen.getByText("97%")).toBeInTheDocument();
+    expect(screen.getByText(/lost-time injury/i)).toBeInTheDocument();
+  });
+
+  it("does not claim a limit it did not impose", () => {
+    // The gate fired on a period already scoring below the ceiling. "Limited to 49"
+    // would credit the ceiling with work it did not do — and the occurrence still has
+    // to appear, or a bad week hides the injury in it.
+    renderBody(capped({
+      final: 31,
+      cap: { value: 49, applied: false, weighted: 31, reason: "A lost-time injury limits this score to 49%." },
+    }));
+    expect(screen.getByText(/already scored below it/i)).toBeInTheDocument();
+    expect(screen.getByText(/still stands on the record/i)).toBeInTheDocument();
   });
 });

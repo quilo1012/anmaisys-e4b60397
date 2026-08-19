@@ -23,7 +23,7 @@ import { RefreshCw, WifiOff } from "lucide-react";
 import { roleDashMap } from "@/lib/permissions";
 import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
 import { useSeverityPointsSync } from "@/hooks/useSeverityPoints";
-import { useLabelPointsSync } from "@/hooks/useQualityOptions";
+import { useLabelPointsSync, useDepartmentAttributionSync } from "@/hooks/useQualityOptions";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
@@ -39,6 +39,12 @@ function SeverityPointsSync() {
 /** The other half of the same answer: what each label charges, when it is priced. */
 function LabelPointsSync() {
   useLabelPointsSync();
+  return null;
+}
+
+/** And who is charged at all: the departments that answer for their own problems. */
+function DepartmentAttributionSync() {
+  useDepartmentAttributionSync();
   return null;
 }
 
@@ -271,6 +277,7 @@ const App = () => (
             <PermissionOverridesSync />
             <SeverityPointsSync />
             <LabelPointsSync />
+            <DepartmentAttributionSync />
             <TelemetryInit />
             <Suspense fallback={<PageLoader />}>
               <Routes>

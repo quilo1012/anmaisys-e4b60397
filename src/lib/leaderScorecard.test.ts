@@ -5,6 +5,8 @@ import {
 } from "@/lib/leaderScorecard";
 
 /** These cases test the scorecard's arithmetic, not attribution — nothing is excluded. */
+/** No label gates the period — the state every test here but the gate ones is in. */
+const NO_GATES = new Set<string>();
 const NOTHING_EXCLUDED = new Set<string>();
 
 const action = (over: Partial<LSAction> = {}): LSAction => ({
@@ -101,7 +103,7 @@ describe("the actions-over-time chart", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,
       actions: [action({ recorded_at: "2026-08-06T01:00:00Z", shift: "NIGHT" })],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
 
     expect(r.quality.total).toBe(1);
     expect(r.quality.trend).toEqual([{ day: "05/08", count: 1 }]);
@@ -110,7 +112,7 @@ describe("the actions-over-time chart", () => {
 
 describe("computeScorecard", () => {
   it("an empty card scores on quality and documentation, and not on production", () => {
-    const r = computeScorecard(EMPTY_RAW, period(), { excludedLabels: NOTHING_EXCLUDED });
+    const r = computeScorecard(EMPTY_RAW, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.quality.total).toBe(0);
     expect(r.production.attainment).toBeNull();
     expect(r.score.production.value).toBeNull();
@@ -127,7 +129,7 @@ describe("computeScorecard", () => {
       ],
       ragRows: [{ entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 1000 }],
       items: [{ actual_qty: 800, target_qty: null }],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.production.targetQty).toBe(1000);
     expect(r.production.attainment).toBe(80);
   });
@@ -161,7 +163,7 @@ describe("computeScorecard", () => {
         actual_qty: 900, target_qty: null,
         production_sessions: { session_date: "2026-08-05", shift: "DAY", line: "Line 1" },
       }],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
 
     expect(r.production.plannedWithoutOutput).toBe(1);
     // 900 of 2000 — the figure the leader is shown, and now explicable.
@@ -177,7 +179,7 @@ describe("computeScorecard", () => {
         actual_qty: 900, target_qty: null,
         production_sessions: { session_date: "2026-08-05", shift: "DAY", line: "Line 1" },
       }],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.production.plannedWithoutOutput).toBe(0);
   });
 
@@ -193,7 +195,7 @@ describe("computeScorecard", () => {
       sessions: [sess()],
       ragRows: [{ entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 1000 }],
       items: [{ actual_qty: 900, target_qty: null }],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.production.plannedWithoutOutput).toBe(0);
   });
 
@@ -203,7 +205,7 @@ describe("computeScorecard", () => {
       sessions: [{ oee_pct: null, run_time_min: null, down_time_min: null, intouch_good_total: null, session_date: "2026-08-05", line: "line  1", shift: "day" }],
       ragRows: [{ entry_date: "2026-08-05", line: "Line 1", shift: "DAY", plan_qty: 500 }],
       items: [{ actual_qty: 500, target_qty: null }],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.production.attainment).toBe(100);
   });
 
@@ -211,7 +213,7 @@ describe("computeScorecard", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,
       sessions: [{ oee_pct: null, run_time_min: null, down_time_min: null, intouch_good_total: null, session_date: "2026-08-05", line: "Line 1", shift: "DAY" }],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.production.downtimeH).toBeNull();
     expect(r.production.avgOEE).toBeNull();
   });
@@ -225,7 +227,7 @@ describe("computeScorecard", () => {
         action({ id: "3", labels: ["Paperwork"], validation_status: "rejected" }),
       ],
     };
-    const r = computeScorecard(raw, period(), { excludedLabels: NOTHING_EXCLUDED });
+    const r = computeScorecard(raw, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.docs.penalised.map((a) => a.id)).toEqual(["1"]);
     expect(r.docs.pending.map((a) => a.id)).toEqual(["2"]);
     expect(r.docs.rejected.map((a) => a.id)).toEqual(["3"]);
@@ -242,7 +244,7 @@ describe("computeScorecard", () => {
         action({ id: "1", labels: ["Paperwork"], validation_status: "open" }),
         action({ id: "2", labels: ["Paperwork"], validation_status: "under_investigation" }),
       ],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.docs.penalised).toHaveLength(0);
     expect(r.docs.impactPct).toBe(0);
     expect(r.docs.score).toBe(100);
@@ -258,7 +260,7 @@ describe("computeScorecard", () => {
         { action_id: "a1", changed_at: "2026-08-06T00:00:00Z" },
         { action_id: "a1", changed_at: "2026-08-07T00:00:00Z" },
       ],
-    }, period({ to: "2026-08-05" }), { excludedLabels: NOTHING_EXCLUDED });
+    }, period({ to: "2026-08-05" }), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.quality.avgResolution).toBe(2);
     expect(r.quality.pctClosed).toBe(100);
   });
@@ -267,7 +269,7 @@ describe("computeScorecard", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,
       actions: [action({ id: "a1", closed_at: "2026-08-06T00:00:00Z" })],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.actions).toHaveLength(1);
     expect(r.quality.filed).toBe(1);
   });
@@ -276,13 +278,13 @@ describe("computeScorecard", () => {
     const r = computeScorecard({
       ...EMPTY_RAW,
       woRequests: [wo({ id: "1", line_stopped: true }), wo({ id: "2", line_stopped: false })],
-    }, period(), { excludedLabels: NOTHING_EXCLUDED });
+    }, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.woRequests).toHaveLength(2);
     expect(r.woStopped).toBe(1);
   });
 
   it("survives a payload with missing arrays, as the RPC path may send", () => {
-    const r = computeScorecard({} as never, period(), { excludedLabels: NOTHING_EXCLUDED });
+    const r = computeScorecard({} as never, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.quality.total).toBe(0);
     expect(r.woRequests).toEqual([]);
   });

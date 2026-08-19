@@ -91,22 +91,45 @@ describe("buildQualityActionPayload", () => {
  * see any more: untick the last priced label and the action would silently keep
  * charging the grade it briefly held.
  */
-describe("buildQualityActionPayload — severity follows the labels", () => {
+/**
+ * The grade is what the person logging the action chose. It is no longer derived.
+ *
+ * This block used to be titled "severity follows the labels" and asserted the opposite
+ * of everything below: `qualitySeverity()` threw away `form.severity` and wrote back the
+ * grade whose weight matched the label total. That was the right call under the rule in
+ * force at the time — the labels REPLACED the grade, so a picked grade named a number
+ * the system did not use, and writing it through would have kept a dead fallback alive.
+ *
+ * MAX removed the premise. The grade is now half the comparison and is frequently the
+ * half that decides: an action graded Critical carrying one label priced at 1 is worth
+ * Critical. A derived grade can never express that, because it IS the label total
+ * wearing a grade's name — MAX(labels, derived) compares a number with itself, and the
+ * whole of change 2 would have been a no-op for every action logged through this form.
+ */
+describe("buildQualityActionPayload — the grade is chosen, not derived", () => {
   const QUALITY: QualityActionFormInput = { ...BASE_FORM, domain: "quality", safety_kind: "" };
   const AT = "2026-08-16T12:00:00.000Z";
 
   afterEach(() => { setLabelPoints({}); setSeverityPoints({}); });
 
-  it("grades a quality action by what its labels charge", () => {
+  it("writes the grade the form carries, whatever the labels charge", () => {
     setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
     setLabelPoints({ "foreign body": 5 });
-    const payload = buildQualityActionPayload({ ...QUALITY, labels: ["Foreign Body"] }, null, AT);
-    expect(payload.severity).toBe("critical");
+    const payload = buildQualityActionPayload(
+      { ...QUALITY, severity: "low", labels: ["Foreign Body"] },
+      null,
+      AT,
+    );
+    // Low is what was chosen, so Low is what is stored. The action is still CHARGED 5,
+    // because Foreign Body outranks the grade — that is `actionPoints`, not this.
+    expect(payload.severity).toBe("low");
   });
 
-  it("clears the grade when the last priced label is unticked", () => {
-    // The regression this exists to prevent: the form used to keep the old grade on
-    // purpose, because a user could still see and change it. They cannot now.
+  it("keeps the grade when the last priced label is unticked", () => {
+    // The inversion of what this test used to assert. Under the derivation, unticking
+    // the last priced label wiped the grade — a Critical action silently became
+    // ungraded because somebody corrected a label. The grade is the person's now, and
+    // nothing but the person removes it.
     setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
     setLabelPoints({ "foreign body": 5 });
     const payload = buildQualityActionPayload(
@@ -114,10 +137,13 @@ describe("buildQualityActionPayload — severity follows the labels", () => {
       null,
       AT,
     );
-    expect(payload.severity).toBeNull();
+    expect(payload.severity).toBe("critical");
   });
 
-  it("writes no grade when the total is a number no severity carries", () => {
+  it("writes the chosen grade even when no severity is worth the label total", () => {
+    // 5 + 3 = 8, and no grade is worth 8. The derivation wrote null here, because it
+    // had nothing to write. A chosen grade has no such problem: High was chosen, High
+    // is stored, and the action is charged 8 by its labels.
     setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
     setLabelPoints({ "foreign body": 5, gmp: 3 });
     const payload = buildQualityActionPayload(
@@ -125,67 +151,90 @@ describe("buildQualityActionPayload — severity follows the labels", () => {
       null,
       AT,
     );
+    expect(payload.severity).toBe("high");
+  });
+
+  it("stores no grade when none was chosen — ungraded stays a real answer", () => {
+    setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
+    setLabelPoints({ "foreign body": 5 });
+    const payload = buildQualityActionPayload({ ...QUALITY, labels: ["Foreign Body"] }, null, AT);
     expect(payload.severity).toBeNull();
   });
 
   /**
-   * The grade is derived from what is CHARGED, exclusions applied.
+   * The badge may now show a grade the charge exceeds, and that is the rule working.
    *
-   * This rule has been both ways round, so the history is worth having in front of
-   * you before changing it a third time:
+   * A long argument used to live here, and it is worth keeping in view rather than
+   * deleting, because it was right about its own period and the reasoning is the reason
+   * this test still exists:
    *
-   *   - It shipped applying no exclusions, deliberately: the argument was that an
-   *     exclusion decides whose score an action lands on, and baking "not this
-   *     leader's" into the grade would put it on the card everyone reads.
-   *   - Reversed here, on 18/08, with the cost below known and accepted.
+   *   The grade was derived from what is CHARGED, exclusions applied. It shipped the
+   *   other way round — the argument being that an exclusion decides whose score an
+   *   action lands on, and baking "not this leader's" into the grade would put it on
+   *   the card everyone reads. It was reversed on 18/08 because the two numbers sat
+   *   side by side on one row and disagreed: "Batch code · Maintenance" with Maintenance
+   *   excluded read 2 points and Critical, and a leader had no way to know which of the
+   *   two they were being judged on.
    *
-   * The reason for reversing: the two numbers appeared side by side on the same row
-   * and disagreed. "Batch code · Maintenance" with Maintenance excluded read 2 points
-   * and Critical — the points said one thing, the badge beside them another, and a
-   * leader looking at their own scorecard had no way to know which one they were
-   * being judged on. A grade that describes a charge nobody is paying is not extra
-   * information, it is a contradiction printed in bold.
+   * MAX settles that argument differently, and better. The two numbers are ALLOWED to
+   * differ now, because the rule that relates them is stated: a label may raise a
+   * charge and never lower it, so a charge above the grade means a label aggravated the
+   * action. `pointsBreakdown` prints which of the two won and why. What was a
+   * contradiction printed in bold is now a sentence somebody can check.
    *
-   * The cost, accepted: an action whose ONLY priced label is excluded now saves with
-   * no grade at all. A metal-on-magnet finding, wholly maintenance's, keeps its 0 and
-   * loses its Critical badge. The severity of the deviation itself is not lost to the
-   * business — `issueWeight()` prices recurring problems off the labels and ignores
-   * attribution entirely, which is the table that question belongs on.
+   * The old cost is refunded, too: an action whose only priced label is excluded used
+   * to lose its badge entirely. It keeps it now — see below.
    */
-  it("grades by what is charged, so the badge and the points cannot disagree", () => {
+  it("lets the badge show a grade the charge exceeds — the label aggravated it", () => {
     setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
     setLabelPoints({ "batch code": 3, maintenance: 5 });
-    // Batch code 3 is charged; maintenance's 5 is not. 3 is Medium, and Medium is
-    // what the badge must say — 8 would be Critical and nobody is paying 8.
     const payload = buildQualityActionPayload(
-      { ...QUALITY, labels: ["Batch code", "Maintenance"] },
+      { ...QUALITY, severity: "low", labels: ["Batch code", "Maintenance"] },
       null,
       AT,
-      new Set(["maintenance"]),
     );
-    expect(payload.severity).toBe("medium");
+    // Low was chosen and Low is stored, while Batch code charges 3 and Maintenance's 5
+    // is spared. The card reads "3 points — Batch code 3" beside a Low badge, and the
+    // breakdown says so.
+    expect(payload.severity).toBe("low");
   });
 
-  it("writes no grade for an action whose only price is not the leader's", () => {
-    // The accepted cost, nailed down so it is a decision and not a surprise.
+  it("still writes the grade when the only priced label is not the leader's", () => {
+    // The cost the derivation accepted, now refunded. A metal-on-magnet finding wholly
+    // maintenance's kept its 0 and LOST its Critical badge, because the charge it was
+    // derived from was 0. The grade describes the deviation; the charge decides who
+    // pays for it. They were never the same question.
     setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
     setLabelPoints({ maintenance: 5 });
     const payload = buildQualityActionPayload(
-      { ...QUALITY, labels: ["Maintenance"] },
+      { ...QUALITY, severity: "critical", labels: ["Maintenance"] },
       null,
       AT,
-      new Set(["maintenance"]),
     );
-    expect(payload.severity).toBeNull();
-  });
-
-  it("grades on the full charge when nothing is excluded", () => {
-    // The default caller passes an empty set, and an empty set means "nothing is
-    // excluded" — the behaviour every existing test above relies on.
-    setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
-    setLabelPoints({ maintenance: 5 });
-    const payload = buildQualityActionPayload({ ...QUALITY, labels: ["Maintenance"] }, null, AT);
     expect(payload.severity).toBe("critical");
+  });
+
+  it("is unaffected by attribution, which decides the charge and not the grade", () => {
+    /**
+     * The same form, saved twice, under opposite attribution. The stored grade must not
+     * move — and this is the assertion the derivation could not make: it read the
+     * exclusion set to decide the grade, so these two calls disagreed about what the
+     * deviation WAS because they disagreed about who PAYS for it.
+     *
+     * It also means the payload no longer depends on the attribution table having
+     * loaded. The form still blocks Save until it has, because the charge shown on
+     * screen depends on it — but a stale exclusion set can no longer write a wrong
+     * grade into a row, which is the failure that outlives a page refresh.
+     */
+    setSeverityPoints({ low: 1, medium: 3, high: 4, critical: 5 });
+    setLabelPoints({ maintenance: 5 });
+    const form = { ...QUALITY, severity: "critical", labels: ["Maintenance"] };
+
+    // The function no longer TAKES an exclusion set, which is the strongest form this
+    // assertion can have: attribution cannot reach the grade because it is not in
+    // scope. Left as a test rather than deleted, so removing the parameter stays a
+    // decision somebody has to undo on purpose.
+    expect(buildQualityActionPayload(form, null, AT).severity).toBe("critical");
   });
 
   it("leaves a safety occurrence's severity exactly as it was picked", () => {

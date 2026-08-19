@@ -44,7 +44,10 @@ describe("pointsBreakdown", () => {
     // The case that started this. Without naming Maintenance and its 3, a leader
     // reading 2 has no way to know the rule fired — or that it exists.
     setLabelPoints({ "batch code": 2, maintenance: 3 });
-    const b = pointsBreakdown(action(["Batch code", "Maintenance"]), EXCLUDED);
+    // Graded Low on purpose. This test is about the spared label being named, and with
+    // a Critical grade the labels now lose the MAX and the sentence becomes a different
+    // one — see "the grade wins" below. A test should fail for one reason.
+    const b = pointsBreakdown(action(["Batch code", "Maintenance"], { severity: "low" }), EXCLUDED);
     expect(b.points).toBe(2);
     expect(b.spared).toEqual([{ label: "Maintenance", points: 3 }]);
     expect(b.explanation).toBe(

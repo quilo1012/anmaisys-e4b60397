@@ -54,7 +54,7 @@ export function LineIndicators({
       // Asks for `domain`, settles without it until 20260817090000 runs — see
       // selectOptionalDomain.
       const { data, error } = await selectOptionalDomain(
-        "line, severity, validation_status, closed_at, labels, shift, recorded_at, domain",
+        "line, severity, validation_status, closed_at, labels, shift, recorded_at, domain, points_at_creation",
         (columns) => {
           let q = db.from("quality_actions")
             .select(columns)

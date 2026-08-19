@@ -217,6 +217,56 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
           </div>
         </div>
 
+        {/* The ceiling, when one fired.
+            Above the three bases and not among them, because it is not a fourth
+            component — it is a limit on the whole. It carries the arithmetic in full:
+            a leader shown 49 with no sight of the 97 it was cut from cannot check it,
+            and this is the line they will argue with hardest. Amber rather than the
+            panel's white, and it survives to paper, where this card is signed. */}
+        {score.cap && (
+          <div className="mt-4 rounded-lg border border-amber-300/50 bg-amber-400/15 p-3 print:border-black/40 print:bg-white">
+            {/* Not "Health & Safety ceiling" any more. It was accurate while an injury
+                was the only thing that could cap a period; a failed CCP can now, and a
+                heading naming the wrong cause is the first thing a leader reads. The
+                reason line below names what actually fired. */}
+            <p className="font-display text-2xs font-bold uppercase tracking-[0.14em] text-amber-200 print:text-black">
+              Score ceiling
+            </p>
+            <p className="mt-1.5 text-xs leading-snug text-white/90 print:text-black">
+              {score.cap.applied && score.cap.weighted !== null ? (
+                <>
+                  <span className="font-figure line-through decoration-2 text-white/60 print:text-black/50">
+                    {displayScore(score.cap.weighted)}%
+                  </span>
+                  <span className="px-1.5 text-white/60 print:text-black/50">→</span>
+                  <span className="font-figure font-semibold">{score.cap.value}%</span>
+                  <span className="pl-2">{score.cap.reason}</span>
+                </>
+              ) : (
+                // The gate fired on a week already below the ceiling. Saying "limited
+                // to 49" there would claim work the ceiling did not do, so it says what
+                // actually happened: the occurrence stands, the score was already lower.
+                <>
+                  {score.cap.reason} This period already scored below it, so the ceiling
+                  changed nothing — the occurrence still stands on the record.
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* The period does not sit on one ruler.
+            Quieter than the ceiling on purpose: nothing here is wrong, and nothing needs
+            fixing. It is a caveat about comparability — the figures inside this period
+            were measured under more than one version of the scale — and a leader
+            comparing this card to an older one has to know that before they do. Loud
+            styling would read as a fault and teach people to dismiss it. */}
+        {score.scales && (
+          <p className="mt-3 text-2xs leading-snug text-white/55 print:text-black/60">
+            {score.scales}
+          </p>
+        )}
+
         {/* How each number was arrived at. On the panel rather than under it: the basis
             is the part a leader argues with, and it belongs beside the claim. */}
         <ul className="mt-4 grid gap-1 border-t border-white/15 pt-3 text-2xs text-white/70 sm:grid-cols-3 print:border-black/20 print:text-black/70">
