@@ -289,3 +289,62 @@ describe("computeScorecard", () => {
     expect(r.woRequests).toEqual([]);
   });
 });
+
+/**
+ * The Quality section counts quality actions.
+ *
+ * It counted every row in the log, safety included, which was invisible for as long as
+ * a safety row could not be told apart — `domain` reached the manager's select in
+ * August and never reached the tablet at all. The Health & Safety band made it a
+ * contradiction on one page: "Quality · Total actions 9" beside a band naming three
+ * near misses, one first aid case and two prevention entries, all six of them counted
+ * twice and none of them a quality action.
+ *
+ * `% closed` was the worse half. A near miss is filed, not "completed", so six of them
+ * sat in the denominator for ever and a leader who had closed every quality action they
+ * had was shown 33%.
+ */
+describe("the quality summary and the safety band do not count the same row", () => {
+  const at = (over: Partial<LSAction>): LSAction => ({
+    id: over.id ?? "a", status: "todo", severity: "low", recorded_at: "2026-08-05T09:00:00Z",
+    labels: null, department: null, line: "Line 3", action_no: null, description: null,
+    shift: "DAY", validation_status: "open", validated_at: null, validated_by: null,
+    attachments: null, closed_at: null, domain: "quality", ...over,
+  });
+
+  const result = () => computeScorecard(
+    {
+      ...EMPTY_RAW,
+      actions: [
+        at({ id: "q1", status: "complete" }),
+        at({ id: "q2" }),
+        at({ id: "s1", domain: "safety", safety_kind: "near_miss", severity: null }),
+        at({ id: "s2", domain: "safety", safety_kind: "near_miss", severity: null }),
+        at({ id: "s3", domain: "safety", safety_kind: "first_aid", severity: null }),
+      ],
+    },
+    { from: "2026-08-01", to: "2026-08-31", shift: "all" },
+    { excludedLabels: new Set(), gateLabels: new Set() },
+  );
+
+  it("leaves safety occurrences out of the quality total", () => {
+    expect(result().quality.total).toBe(2);
+  });
+
+  it("does not park them in the % closed denominator", () => {
+    // One of two quality actions complete. With the safety rows in, this was 1 of 5.
+    expect(result().quality.pctClosed).toBe(50);
+  });
+
+  it("counts them in the safety band instead, by kind", () => {
+    expect(result().safety.byKind).toEqual({ near_miss: 2, first_aid: 1 });
+    expect(result().safety.total).toBe(3);
+  });
+
+  it("keeps the full log on `actions`, which is the audit trail", () => {
+    // The list at the foot of the card is every row raised in the period, whatever it
+    // was about. Filtering it would hide a safety occurrence from the one place the
+    // card promises everything.
+    expect(result().actions).toHaveLength(5);
+  });
+});

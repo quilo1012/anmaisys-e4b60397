@@ -29,6 +29,20 @@ export interface LSAction {
    *  required so `computeLeaderScore`'s `actionPoints`/`standsAgainstLeader` calls can
    *  see it. Without it in the select, a safety row prices as a quality one. */
   domain?: string | null;
+  /**
+   * Which safety occurrence this is — `lost_time_injury`, `near_miss`, and so on.
+   *
+   * Required for the same reason `domain` is, one step further on: `domain` tells
+   * `actionPoints` to price the row at zero, and this tells `computeLeaderScore`
+   * whether the row is one of the two that put a 49% ceiling on the whole period. It
+   * was missing from every select for ten days, so the ceiling could not fire on any
+   * real data while every unit test of it passed. See
+   * theCeilingCannotSeeTheInjury.test.ts.
+   *
+   * Undefined means the same as a missing `domain`: the migration has not run, in
+   * which case the base holds no safety rows to gate on either.
+   */
+  safety_kind?: string | null;
   /** What the action was worth under the scale of its own day, from 20260822090000.
    *  Undefined means the same as a missing `domain` does — either the migration has not
    *  run, or a select forgot to ask — and `actionPoints` falls back to today's scale.
@@ -152,6 +166,39 @@ export interface DocumentationSummary {
   pendingImpactPct: number;
 }
 
+/**
+ * What happened to people in this period — counted, never scored.
+ *
+ * Three groups, and they are the point. `SAFETY_KIND_GROUPS` says harm, signal and
+ * prevention are not degrees of the same event: first aid is somebody already hurt,
+ * a near miss is the warning that arrived in time. Summing them produces a figure that
+ * goes DOWN when a team reports more hazards, which would teach the floor to stop
+ * filing them — the one inversion this domain exists to prevent, and the same reason
+ * `actionPoints` prices every safety row at zero.
+ *
+ * So there is no `total` across the groups here on purpose. `total` counts occurrences
+ * for the one question that needs a single number — "is there anything to show?" —
+ * and the card never prints it.
+ */
+export interface SafetySummary {
+  /** Occurrences in the period. Used to decide whether the band appears at all. */
+  total: number;
+  /** Rejected by Quality: it did not happen, so it counts nowhere and gates nothing. */
+  rejected: number;
+  /**
+   * Per `SAFETY_KINDS` value. A kind with none in the period is simply absent.
+   *
+   * Counts by KIND and not by group, although the card draws the groups. `SAFETY_KINDS`
+   * already says which group a kind belongs to, and a second copy of that mapping here
+   * is a copy that can disagree with it — a seventh kind added there would land in the
+   * card's three columns and in nobody's total, or the reverse, and the mismatch would
+   * be invisible in both.
+   */
+  byKind: Record<string, number>;
+  /** The rows themselves, so the band can name the ones that fired the ceiling. */
+  occurrences: LSAction[];
+}
+
 export interface ProductionSummary {
   sessions: number;
   avgOEE: number | null;
@@ -187,6 +234,7 @@ export interface ScorecardResult {
   woStopped: number;
   quality: QualitySummary;
   docs: DocumentationSummary;
+  safety: SafetySummary;
   production: ProductionSummary;
   score: LeaderScoreResult;
 }
@@ -251,6 +299,30 @@ function summariseDocumentation(actions: LSAction[]): DocumentationSummary {
     penaltyPct,
     pendingImpactPct: pending.length * penaltyPct,
   };
+}
+
+/**
+ * Counted off the whole log, with one exclusion and no attribution test.
+ *
+ * Rejected rows are out: Quality looked and said it did not happen, the same rule the
+ * quality pillar and the gate both apply.
+ *
+ * Nothing else is. `actionPoints` asks whose fault an action was because it is deciding
+ * who PAYS; this band is not charging anybody, it is reporting what occurred on the
+ * leader's shifts. A near miss caught by an operator on somebody else's fault still
+ * happened here, and a card that dropped it would answer a different question from the
+ * one the leader is being asked in the review.
+ */
+function summariseSafety(actions: LSAction[]): SafetySummary {
+  const safety = actions.filter((a) => a.domain === "safety" && a.safety_kind);
+  const rejected = safety.filter((a) => a.validation_status === "rejected");
+  const occurrences = safety.filter((a) => a.validation_status !== "rejected");
+  const byKind: Record<string, number> = {};
+  for (const a of occurrences) {
+    const kind = a.safety_kind as string;
+    byKind[kind] = (byKind[kind] ?? 0) + 1;
+  }
+  return { total: occurrences.length, rejected: rejected.length, byKind, occurrences };
 }
 
 function summariseProduction(sessions: LSSession[], items: LSItem[], ragRows: LSRagRow[]): ProductionSummary {
@@ -343,14 +415,34 @@ export function computeScorecard(
   const { weights = DEFAULT_WEIGHTS, excludedLabels, gateLabels } = ctx;
   const actions = actionsInPeriod(raw.actions ?? [], period);
   const woRequests = workOrdersInPeriod(raw.woRequests ?? [], period);
-  const quality = summariseQuality(actions, raw.completes ?? []);
+  /**
+   * The Quality section counts quality actions, and the H&S band counts the rest.
+   *
+   * `summariseQuality` was handed the whole log, which was invisible for as long as a
+   * safety row could not be told apart — `domain` reached the manager's select in
+   * August and the tablet's projection not at all. The band made it a contradiction on
+   * one page: "Quality · Total actions 9" beside three near misses, a first aid case
+   * and two prevention entries named individually below it, every one of them counted
+   * in both places.
+   *
+   * `% closed` was the worse half of it. A near miss is filed, never "completed", so
+   * each one sat in the denominator permanently and a leader who had closed every
+   * quality action they had was shown 33%.
+   *
+   * `docs` is deliberately still given the whole log: a paperwork error is quality
+   * domain by construction — 20260817090000's CHECK ties `domain = 'safety'` to a
+   * `safety_kind` and nothing else — so the filter would change nothing there, and
+   * narrowing an input that does not need narrowing invites the reverse mistake later.
+   */
+  const quality = summariseQuality(actions.filter((a) => a.domain !== "safety"), raw.completes ?? []);
   const docs = summariseDocumentation(actions);
+  const safety = summariseSafety(actions);
   const production = summariseProduction(raw.sessions ?? [], raw.items ?? [], raw.ragRows ?? []);
 
   return {
     actions, woRequests,
     woStopped: woRequests.filter((w) => w.line_stopped).length,
-    quality, docs, production,
+    quality, docs, safety, production,
     score: computeLeaderScore(
       { actual: production.actualQty, target: production.targetQty, avgOEE: production.avgOEE, actions, excludedLabels, gateLabels },
       weights,

@@ -1,17 +1,17 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Factory, FileWarning } from "lucide-react";
+import { AlertTriangle, Factory, FileWarning, HardHat } from "lucide-react";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Figure } from "@/components/ui/Figure";
 import {
   QUALITY_SEVERITIES, severityMeta, DOCUMENTATION_LABEL,
-  validationMeta,
+  validationMeta, SAFETY_KINDS, SAFETY_KIND_GROUPS,
 } from "@/lib/qualityConstants";
 import { useProfileNames } from "@/hooks/useProfileNames";
-import { displayScore } from "@/lib/leaderScore";
+import { displayScore, GATE_CAP } from "@/lib/leaderScore";
 import type { ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Link } from "react-router-dom";
@@ -99,6 +99,83 @@ function SectionHead({ id, icon: Icon, children, aside }: {
   );
 }
 
+/**
+ * What happened to people in the period. Three columns, and never a fourth figure
+ * summing them.
+ *
+ * The score is silent about safety until somebody is hurt badly enough to fire the
+ * ceiling, so a leader whose team reported nine near misses and ran four toolbox talks
+ * has been reading a card that never mentioned safety at all — and so has one with a
+ * first aid case. Neither is scored, and neither should be; both belong on the page the
+ * leader signs.
+ *
+ * The columns are `SAFETY_KIND_GROUPS`, printed with the hints it carries, because the
+ * grouping is the one thing this band must not let a reader get wrong. First aid and
+ * near miss are not degrees of a single event: one is somebody already hurt, the other
+ * is the warning that arrived in time. `scorecard_safety_counts` is emphatic that the
+ * two are never summed, and a row of six identical tiles is an invitation to sum them.
+ *
+ * Which is why the ledger rule from `Figure` does the work here. Harm HANGS FROM its
+ * rule and signal and prevention STAND ON theirs, so the direction of good is legible
+ * as a position before a digit is read, and the same "2" means opposite things in
+ * adjacent columns. The empty state carries it further: a group with nothing in it says
+ * something different in each column, because a zero does.
+ */
+function SafetyBand({ safety }: { safety: ScorecardResult["safety"] }) {
+  const EMPTY: Record<string, string> = {
+    harm: "Nobody was hurt.",
+    // The one figure on this card that is bad news for being low. Said here rather than
+    // left to the hint, because an empty column is exactly where it will be misread.
+    signal: "Nothing reported — which reads as under-reporting, not as a safe line.",
+    prevention: "Nothing recorded.",
+  };
+
+  return (
+    <section aria-labelledby="sc-hs">
+      <SectionHead id="sc-hs" icon={HardHat}>Health &amp; Safety</SectionHead>
+
+      {/* Hairlines between the columns, not around them: a border on each would make
+          three objects out of one reading, and boxing the groups is the visual form of
+          the sum this band exists to prevent. */}
+      <div className="grid gap-x-5 gap-y-4 sm:grid-cols-3 sm:divide-x sm:[&>*+*]:pl-5">
+        {SAFETY_KIND_GROUPS.map((g) => {
+          const kinds = SAFETY_KINDS.filter((k) => k.group === g.group && (safety.byKind[k.value] ?? 0) > 0);
+          return (
+            <div key={g.group} className="min-w-0">
+              <p className="font-display text-2xs font-bold uppercase tracking-[0.14em]">{g.title}</p>
+              <p className="mt-0.5 text-2xs leading-snug text-muted-foreground">{g.hint}</p>
+              {kinds.length === 0 ? (
+                <p className="mt-3 text-xs leading-snug text-muted-foreground">{EMPTY[g.group]}</p>
+              ) : (
+                <div className="mt-3 space-y-2.5">
+                  {kinds.map((k) => (
+                    <Figure
+                      key={k.value}
+                      bare
+                      label={k.label}
+                      value={fmt(safety.byKind[k.value])}
+                      // Taken from the GROUP and never from the kind, so a seventh kind
+                      // added to SAFETY_KINDS inherits the reading rather than needing a
+                      // decision nobody remembers to come back and make.
+                      tone={g.group === "harm" ? "owed" : "earned"}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-4 border-t pt-2.5 text-2xs leading-snug text-muted-foreground">
+        Not scored. A lost-time injury or a reportable accident puts a {GATE_CAP}% ceiling on the whole
+        card instead — a ceiling only ever lowers a score, so no amount of production buys one back.
+        {safety.rejected > 0 && ` ${safety.rejected} occurrence${safety.rejected === 1 ? " was" : "s were"} rejected by Quality and ${safety.rejected === 1 ? "is" : "are"} not counted here.`}
+      </p>
+    </section>
+  );
+}
+
 export function LeaderScorecardBody({ leaderName, period, result, actionHref }: {
   leaderName: string | null;
   period: ScorecardPeriod;
@@ -113,7 +190,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
    */
   actionHref?: (action: ScorecardResult["actions"][number]) => string;
 }) {
-  const { quality: q, docs, production: p, score, actions, woRequests, woStopped } = result;
+  const { quality: q, docs, safety, production: p, score, actions, woRequests, woStopped } = result;
 
   /**
    * The three parts of the score, and what each is worth.
@@ -128,9 +205,26 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
     ["Documentation", score.documentation, score.applied.documentation_pct],
   ] as const).filter(([, c, w]) => c.value !== null && w > 0);
 
+  /**
+   * Documentation is unscored because nobody has RULED on its actions, not because
+   * there are none.
+   *
+   * The two are different facts and the card had one sentence for both. "There was
+   * nothing to measure it on" is exactly right for a period with no production target;
+   * printed over two open paperwork actions it tells the leader they made no paperwork
+   * errors, which is the opposite of what the null means. It also ran directly against
+   * the note beside it, which was at the same moment offering a −2% discount on the
+   * pillar it had just said was not counted.
+   *
+   * So this case leaves the generic list and gets its own sentence below.
+   */
+  const docsAwaitingVerdict = score.documentation.value === null && docs.pending.length > 0;
+
   const dropped = ([
     ["Production", score.production], ["Quality", score.quality], ["Documentation", score.documentation],
-  ] as const).filter(([, c]) => c.value === null).map(([label]) => label);
+  ] as const)
+    .filter(([label, c]) => c.value === null && !(label === "Documentation" && docsAwaitingVerdict))
+    .map(([label]) => label);
 
   const barLabel = `How this score was built. ${parts
     .map(([label, c, w]) => `${label} ${displayScore(c.value)}% of 100, counting ${w}%`)
@@ -163,7 +257,11 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
           Navy on the brand's --section, the same panel ModuleHeader uses, so the one
           number the screen exists for is the one thing that is not a white card. It
           goes back to ink on paper for print — the page is meant to be handed over. */}
-      <div className="rounded-xl bg-[hsl(var(--section))] p-4 text-white shadow-sm sm:p-5 print:rounded-none print:border print:bg-white print:p-0 print:text-black print:shadow-none">
+      <div
+        role="region"
+        aria-label="Final score"
+        className="rounded-xl bg-[hsl(var(--section))] p-4 text-white shadow-sm sm:p-5 print:rounded-none print:border print:bg-white print:p-0 print:text-black print:shadow-none"
+      >
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-7">
           <div className="shrink-0">
             <p className="font-display text-2xs font-bold uppercase leading-none tracking-[0.18em] text-white/60 print:text-black/50">
@@ -276,9 +374,24 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
         </ul>
         {docs.pending.length > 0 && (
           <p className="mt-2 text-2xs text-amber-200 print:text-black">
-            {docs.pending.length} paperwork action{docs.pending.length === 1 ? "" : "s"} awaiting a verdict from
-            Quality — counted in the quality score while open. Validating {docs.pending.length === 1 ? "it" : "them"} moves
-            the charge here instead of adding to it: −{docs.penaltyPct}% documentation, and the quality score gives it back.
+            {docsAwaitingVerdict ? (
+              /* The pillar is not being scored. Say that first, say where its weight
+                 went, and only then say what a verdict would do — a sentence that opens
+                 with "−2% documentation" reads as a penalty already taken. */
+              <>
+                Documentation is not scored in this period: {docs.pending.length} paperwork
+                action{docs.pending.length === 1 ? " is" : "s are"} still awaiting a verdict from Quality, so
+                its weight is shared between the blocks above rather than counted as a full mark. {docs.pending.length === 1 ? "It is" : "They are"} charged to
+                the quality score while open — a verdict moves the charge here at −{docs.penaltyPct}% each instead,
+                and quality gives it back.
+              </>
+            ) : (
+              <>
+                {docs.pending.length} paperwork action{docs.pending.length === 1 ? "" : "s"} awaiting a verdict from
+                Quality — counted in the quality score while open. Validating {docs.pending.length === 1 ? "it" : "them"} moves
+                the charge here instead of adding to it: −{docs.penaltyPct}% documentation, and the quality score gives it back.
+              </>
+            )}
           </p>
         )}
         {dropped.length > 0 && (
@@ -403,6 +516,9 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
           </div>
         </div>
       )}
+
+      {/* Health & Safety. Counted here, scored nowhere — see SafetyBand. */}
+      {safety.total > 0 && <SafetyBand safety={safety} />}
 
       {/* Documentation errors — the demerit block. Answers, on its own, the question an
           audit asks: why did this leader lose points, who decided, when, and where is
