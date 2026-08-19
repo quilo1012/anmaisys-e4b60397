@@ -35,7 +35,9 @@ import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useScoringFreeze } from "@/hooks/useScoringFreeze";
 import { useGateLabels } from "@/hooks/useQualityOptions";
 import { useLeaderAttribution, useSetLabelAttribution } from "@/hooks/useLabelAttribution";
-import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
+import { useQualityOptions, useAllQualityOptions, useDepartmentAttribution, type QualityOption } from "@/hooks/useQualityOptions";
+import { listGroups } from "@/lib/qualityListGroups";
+import { railEdge } from "@/lib/rail";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
 import { DEFAULT_WEIGHTS, GATE_CAP, type LeaderScoreWeights } from "@/lib/leaderScore";
@@ -878,7 +880,10 @@ export function QualityActionsView() {
                         good faith. aria-live because the sentence changes under the
                         reader's hands as they tick chips. */}
                     {form.domain !== "safety" && (() => {
-                      const charge = logFormCharge(form.labels, excluded);
+                      // The department is passed because the freeze trigger reads it:
+                      // without it this sentence promised a grade that
+                      // `action_points_at` was about to overwrite with 0.
+                      const charge = logFormCharge(form.labels, excluded, undefined, form.department);
                       const note = excludedLabelNote(form.labels, excluded);
                       // The grade is passed in now. Without it this sentence would go on
                       // telling somebody their Critical action scores 0 because they have
@@ -941,46 +946,61 @@ export function QualityActionsView() {
             screen — the KPIs, the tracking, the recurring issues — above the control
             that decides what is counted. Read top to bottom it now says: this period
             and this line, then here is what it came to. */}
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-2">
-          <span className="flex shrink-0 items-center gap-1.5 pl-1 pr-0.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-          </span>
-          <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey={OPS_RANGE_KEY} />
-          <Select value={filterSeverity} onValueChange={setFilterSeverity}>
-            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterValidation} onValueChange={setFilterValidation}>
-            <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All validations</SelectItem>
-              <SelectItem value="__pending__">Waiting on Quality</SelectItem>
-              {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterLine} onValueChange={setFilterLine}>
-            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterDept} onValueChange={setFilterDept}>
-            <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All departments</SelectItem>{DEPTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterLeader} onValueChange={setFilterLeader}>
-            <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={filterShift} onValueChange={setFilterShift}>
-            <SelectTrigger className="h-9 w-32"><SelectValue /></SelectTrigger>
-            <SelectContent><SelectItem value="__all__">All Shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
-          </Select>
-          {activeFilters > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearFilters} className="ml-auto h-9 text-xs text-muted-foreground hover:text-foreground">
-              <X className="mr-1 h-3.5 w-3.5" />
-              Clear {activeFilters} filter{activeFilters === 1 ? "" : "s"}
-            </Button>
-          )}
+        {/* A grid, not a wrapping flex row.
+            Seven controls at six different fixed widths (w-32 … w-44) wrapped into
+            ragged rows and regularly orphaned the last one on a line of its own — the
+            shape a control panel must not have, because a filter nobody notices is a
+            number nobody can explain. Equal columns reflow 7 → 4 → 3 → 2 predictably
+            and every control keeps the same target size at every width. */}
+        <div className="rounded-lg border bg-muted/30 p-2">
+          <div className="mb-2 flex items-center justify-between gap-2 pl-1">
+            <span className="flex shrink-0 items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Filters
+            </span>
+            {activeFilters > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs text-muted-foreground hover:text-foreground">
+                <X className="mr-1 h-3.5 w-3.5" />
+                Clear {activeFilters} filter{activeFilters === 1 ? "" : "s"}
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+            {/* Period first, and spanning two columns at the narrow widths: it carries a
+                date range rather than one word, and squeezing it to a half column is
+                where "22/05/2026 – 19/08/2026" becomes an ellipsis. */}
+            <div className="col-span-2 sm:col-span-1">
+              <DateRangeFilter value={drRange} preset={drPreset} onChange={(r, p) => { setDrRange(r); setDrPreset(p); }} storageKey={OPS_RANGE_KEY} />
+            </div>
+            <Select value={filterSeverity} onValueChange={setFilterSeverity}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={filterValidation} onValueChange={setFilterValidation}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All validations</SelectItem>
+                <SelectItem value="__pending__">Waiting on Quality</SelectItem>
+                {VALIDATION_STATES.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterLine} onValueChange={setFilterLine}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={filterDept} onValueChange={setFilterDept}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="__all__">All departments</SelectItem>{DEPTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={filterLeader} onValueChange={setFilterLeader}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <Select value={filterShift} onValueChange={setFilterShift}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="__all__">All Shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* KPIs. The To do / In progress / Complete counters are gone: they are the
@@ -1641,6 +1661,11 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
   // is not. That is the "Maintenance is charging the leader 3 points" case.
   const { excluded, missing: attributionMissing } = useLeaderAttribution();
   const { missing: gatesMissing } = useGateLabels();
+  // The department half of attribution, added with 20260827090000. `missing` matters
+  // for the same reason it does for the labels: without the column NOTHING is excluded,
+  // every department charges, and a row of switches that save nothing is worse than a
+  // warning saying so.
+  const { missing: deptAttributionMissing } = useDepartmentAttribution();
   const setAttribution = useSetLabelAttribution();
   const [kind, setKind] = useState<QualityOption["kind"]>(isSafety ? "safety_label" : "label");
   const [value, setValue] = useState("");
@@ -1753,19 +1778,55 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
     refresh();
   };
 
-  // Named for what the factory calls them. The `kind` values in the database stay
-  // `label` / `safety_label` — renaming those would orphan every row already saved,
-  // and nothing about the scoring changes just because the heading reads better.
-  const groups: { kind: QualityOption["kind"]; title: string }[] = isSafety
-    ? [{ kind: "safety_label", title: "Health & Safety" }]
-    : [
-        { kind: "label", title: "Quality Actions" },
-        { kind: "safety_label", title: "Health & Safety" },
-        { kind: "department", title: "Departments" },
-      ];
+  /**
+   * Moving a department on or off the leader's bill.
+   *
+   * The same shape as `setLabelGate` — a boolean on `quality_options` — and reaching
+   * exactly as far as a re-price does under the freeze: 20260827090000 opens a new
+   * scoring version on this write, so actions already logged keep the figure they were
+   * frozen with and everything from here on is scored under the new answer.
+   *
+   * Nobody's July total moves because of a decision taken in August. That is worth
+   * knowing before clicking, so the toast says which way it went rather than "Saved".
+   */
+  const setDepartmentCharge = async (o: QualityOption, next: boolean) => {
+    const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
+      .from("quality_options" as any)
+      .update({ counts_against_leader: next } as unknown as never)
+      .eq("id", o.id);
+    if (error) { reportSaveError(error); return; }
+    qc.invalidateQueries({ queryKey: ["quality_actions"] });
+    qc.invalidateQueries({ queryKey: ["analytics-quality"] });
+    refresh();
+    toast.success(
+      next
+        ? `Actions in ${o.value} are charged to the leader`
+        : `Actions in ${o.value} are charged to nobody`,
+    );
+  };
+
+  const groups = listGroups(domain);
+
+  /**
+   * A column the list does not have, said out loud.
+   *
+   * The whole reason this screen was reported as broken: a Health & Safety row drew
+   * nothing under Points, and an empty cell under a live column header reads as a
+   * control that failed to load. A dash reads as an answer. The title carries the
+   * reason for anyone who wants it.
+   */
+  const NotApplicable = ({ why }: { why: string }) => (
+    <span className="text-center text-sm text-muted-foreground/50" title={why} aria-label={why}>
+      —
+    </span>
+  );
+
+  /** Item · Points · Gate · Charged to · Shown. One grid, so every list lines up. */
+  const GRID = "grid min-w-[40rem] grid-cols-[minmax(9rem,1fr)_4.5rem_7rem_8rem_7.5rem] items-center gap-2";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="flex gap-2">
         {/* One kind to add here, so the picker would be a control with a single
             answer. Named in the placeholder below instead. */}
@@ -1791,25 +1852,11 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
         )}
         <Button onClick={add}>Add</Button>
       </div>
-      {kind === "label" && (
-        <p className="-mt-2 text-xs text-muted-foreground">
-          A quality action's points replace the severity weight: an action carrying priced items is worth
-          their total, and one carrying none is worth its severity. Leave it at 0 to leave severity in charge.
-          Switch one to <span className="font-medium">Not leader's</span> and it stops charging them — a
-          machine failure is maintenance's, not the person running the line that night.
-        </p>
-      )}
-      {/* The rule is off, and an absent rule looks exactly like "nothing is excluded".
-          Said here, once, because this is the screen that governs it: without the
-          table every label charges the leader, Maintenance included, and the totals
-          on the board are quietly too high. */}
-      {isSafety && (
-        <p className="-mt-2 text-xs text-muted-foreground">
-          Hazards, not scoring. A safety occurrence is counted and never charged, so
-          nothing here carries points and no leader's score moves when this list changes
-          — which is the point: reporting a near miss has to stay free.
-        </p>
-      )}
+
+      {/* The three ways this screen can be lying about what is in force. Each one is a
+          migration that has not run, and each leaves a control that saves nothing or a
+          rule that is quietly off. Said before the lists, because they change how every
+          row below should be read. */}
       {gatesMissing && !isSafety && (
         <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-strong">
           Food safety gates are not enabled on this database yet — the migration has not run. Nothing below
@@ -1818,46 +1865,87 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
       )}
       {attributionMissing && !isSafety && (
         <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-strong">
-          Attribution is not enabled on this database yet — the migration has not run. Every quality action
-          is currently charging the leader, including the ones marked below as not theirs.
+          Label attribution is not enabled on this database yet — the migration has not run. Every quality
+          action is currently charging the leader, including the ones marked below as charged to nobody.
         </p>
       )}
-      {groups.map((g) => (
-        <div key={g.kind}>
-          <p className="mb-1 text-xs font-semibold uppercase text-muted-foreground">{g.title}</p>
-          <div className="divide-y rounded border">
-            {options.filter((o) => o.kind === g.kind).length === 0 && (
-              // An empty list here does NOT mean an empty picker: both label lists fall
-              // back to the built-in one, and saying "None yet" while the log form shows
-              // eight chips is how a manager ends up adding all eight again.
-              <p className="px-3 py-2 text-sm text-muted-foreground">
-                {g.kind === "safety_label"
-                  ? `None saved — the log uses the built-in list: ${SAFETY_LABELS.join(", ")}.`
-                  : "None yet."}
-              </p>
-            )}
-            {options.filter((o) => o.kind === g.kind).map((o) => (
-              <div key={o.id} className="flex items-center justify-between px-3 py-1.5">
-                <span className={cn("text-sm", !o.active && "text-muted-foreground line-through")}>{o.value}</span>
-                <div className="flex items-center gap-1">
-                  {g.kind === "label" && (
-                    <>
+      {deptAttributionMissing && !isSafety && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-strong">
+          Department attribution is not enabled on this database yet — the migration has not run. Every
+          department is currently charging the leader, Maintenance included.
+        </p>
+      )}
+
+      {groups.map((g) => {
+        const rows = options.filter((o) => o.kind === g.kind);
+        const priced = rows.filter((o) => o.points > 0).length;
+        return (
+          <section key={g.kind} className={cn("overflow-hidden rounded-lg border bg-card", railEdge(g.rail))}>
+            <header className="border-b bg-muted/40 px-3 py-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold tracking-tight">{g.title}</h3>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {rows.length} {rows.length === 1 ? "item" : "items"}
+                  {g.columns.points && ` · ${priced} priced`}
+                </span>
+              </div>
+              {/* The sentence that was missing on this tab. See qualityListGroups.ts. */}
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">{g.effect}</p>
+            </header>
+
+            <div className="overflow-x-auto">
+              {/* Column headers are the fix, not decoration. Under a live header a dash
+                  says "this list is not priced"; with no header at all the same empty
+                  space said "the points box is broken". */}
+              <div className={cn(GRID, "border-b px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground")}>
+                <span>Item</span>
+                <span className="text-center">Points</span>
+                <span className="text-center">Gate</span>
+                <span className="text-center">Charged to</span>
+                <span className="text-right">Shown</span>
+              </div>
+
+              {rows.length === 0 && (
+                // An empty list here does NOT mean an empty picker: both label lists fall
+                // back to the built-in one, and saying "None yet" while the log form shows
+                // eight chips is how a manager ends up adding all eight again.
+                <p className="px-3 py-2.5 text-sm text-muted-foreground">
+                  {g.kind === "safety_label"
+                    ? `None saved — the log uses the built-in list: ${SAFETY_LABELS.join(", ")}.`
+                    : "None yet. Add the first one above."}
+                </p>
+              )}
+
+              {rows.map((o) => {
+                const isExcludedLabel = excluded.has(o.value.trim().toLowerCase());
+                return (
+                  <div key={o.id} className={cn(GRID, "border-b px-3 py-1.5 last:border-b-0 hover:bg-muted/30")}>
+                    <span className={cn("truncate text-sm", !o.active && "text-muted-foreground line-through")} title={o.value}>
+                      {o.value}
+                    </span>
+
+                    {g.columns.points ? (
                       <PointsBox
                         key={`${o.id}:${o.points}`}
                         value={o.points}
                         label={o.value}
                         onCommit={(raw) => setLabelPrice(o, raw)}
                       />
-                      {/* A gate is a different kind of thing from a price and reads as
-                          one: no number, and the on state is the destructive colour,
-                          because switching it on is a statement about the whole period
-                          and not an adjustment to a total. */}
+                    ) : (
+                      <NotApplicable why={`${g.title} carry no points.`} />
+                    )}
+
+                    {g.columns.gate ? (
+                      /* A gate is a different kind of thing from a price and reads as
+                         one: no number, and the on state is the destructive colour,
+                         because switching it on is a statement about the whole period
+                         and not an adjustment to a total. */
                       <Button
                         size="sm"
                         variant="outline"
                         disabled={gatesMissing}
                         className={cn(
-                          "h-8 whitespace-nowrap text-xs",
+                          "h-8 w-full whitespace-nowrap text-xs",
                           o.is_gate && "border-destructive/40 bg-destructive/10 text-destructive-strong",
                         )}
                         title={
@@ -1871,65 +1959,107 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
                       >
                         {o.is_gate ? "Gate" : "Not a gate"}
                       </Button>
-                      {/* Two states, both spelled out, because the difference is money
-                          on somebody's scorecard. Re-attributing reaches exactly as far
-                          as re-pricing does — the whole history without the freeze, and
-                          only from here on with it, because 20260822090000 versions the
-                          exclusion set alongside the prices. See useSetLabelAttribution. */}
+                    ) : (
+                      <NotApplicable why={`${g.title} cannot cap a period.`} />
+                    )}
+
+                    {g.columns.attribution && g.kind === "label" && (
+                      /* Two states, both spelled out, because the difference is money
+                         on somebody's scorecard. Re-attributing reaches exactly as far
+                         as re-pricing does — the whole history without the freeze, and
+                         only from here on with it, because 20260822090000 versions the
+                         exclusion set alongside the prices. See useSetLabelAttribution. */
                       <Button
                         size="sm"
                         variant="outline"
                         disabled={attributionMissing || setAttribution.isPending}
                         className={cn(
-                          "h-8 whitespace-nowrap text-xs",
-                          excluded.has(o.value.trim().toLowerCase()) && "border-warning/40 bg-warning/10 text-warning-strong",
+                          "h-8 w-full whitespace-nowrap text-xs",
+                          isExcludedLabel && "border-warning/40 bg-warning/10 text-warning-strong",
                         )}
                         title={
-                          excluded.has(o.value.trim().toLowerCase())
-                            ? `"${o.value}" does not count toward a leader's score`
-                            : `"${o.value}" counts toward the leader's score`
+                          isExcludedLabel
+                            ? `An action labelled "${o.value}" costs the leader nothing. Click to charge it to them.`
+                            : `An action labelled "${o.value}" is charged to the leader. Click to stop charging it.`
                         }
                         onClick={() => {
-                          const counts = excluded.has(o.value.trim().toLowerCase());
+                          const counts = isExcludedLabel;
                           setAttribution.mutate(
                             { label: o.value, counts },
                             {
                               onError: (e: unknown) => toast.error((e as { message?: string })?.message ?? "Could not save"),
                               onSuccess: () => toast.success(
                                 counts
-                                  ? `"${o.value}" now counts toward the leader's score`
-                                  : `"${o.value}" no longer counts toward the leader's score`,
+                                  ? `Actions labelled "${o.value}" are charged to the leader`
+                                  : `Actions labelled "${o.value}" are charged to nobody`,
                               ),
                             },
                           );
                         }}
                       >
-                        {excluded.has(o.value.trim().toLowerCase()) ? "Not leader's" : "Counts"}
+                        {isExcludedLabel ? "Nobody" : "Leader"}
                       </Button>
-                    </>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => toggle(o)}>{o.active ? "Hide" : "Show"}</Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive-strong"><Trash2 className="h-4 w-4" /></Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remove "{o.value}"?</AlertDialogTitle>
-                        <AlertDialogDescription>This removes the option from the list. You can add it again later.</AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => remove(o)}>Remove</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+                    )}
+
+                    {g.columns.attribution && g.kind === "department" && (
+                      /* The department half of the same decision, added with
+                         20260827090000. A veto rather than a vote — see
+                         countsAgainstLeaderDepartment for why one field may do that
+                         and a label may not. */
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={deptAttributionMissing}
+                        className={cn(
+                          "h-8 w-full whitespace-nowrap text-xs",
+                          !o.counts_against_leader && "border-warning/40 bg-warning/10 text-warning-strong",
+                        )}
+                        title={
+                          deptAttributionMissing
+                            ? "Not available until the department attribution migration has run."
+                            : o.counts_against_leader
+                              ? `Actions booked to ${o.value} are charged to the leader. Click to stop charging them.`
+                              : `Actions booked to ${o.value} cost no leader a point. Click to charge them to the leader.`
+                        }
+                        onClick={() => setDepartmentCharge(o, !o.counts_against_leader)}
+                      >
+                        {o.counts_against_leader ? "Leader" : "Nobody"}
+                      </Button>
+                    )}
+
+                    {!g.columns.attribution && (
+                      <NotApplicable why={`${g.title} are never charged to anybody.`} />
+                    )}
+
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => toggle(o)}>
+                        {o.active ? "Hide" : "Show"}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive-strong" aria-label={`Remove ${o.value}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove "{o.value}"?</AlertDialogTitle>
+                            <AlertDialogDescription>This removes the option from the list. You can add it again later.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => remove(o)}>Remove</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
