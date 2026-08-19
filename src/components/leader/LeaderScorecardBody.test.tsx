@@ -166,7 +166,8 @@ describe("LeaderScorecardBody", () => {
     renderBody(result);
     expect(screen.queryByText(/100% compliant/i)).not.toBeInTheDocument();
     expect(screen.getByText(/2 under review/i)).toBeInTheDocument();
-    expect(screen.getByText(/up to −10%/i)).toBeInTheDocument();
+    // "up to −10%" used to be asserted here. It was the wrong number and, worse, the
+    // wrong SIGN — see "what a verdict on pending paperwork actually does" below.
   });
 
   it("still reads 100% compliant when there is nothing raised at all", () => {
@@ -403,5 +404,84 @@ describe("the Health & Safety band", () => {
     const band = screen.getByRole("region", { name: /health & safety/i });
     expect(within(band).getByText(/not scored/i).textContent).toMatch(/ceiling/i);
     expect(within(band).getByText(/not scored/i).textContent).toMatch(/49/);
+  });
+});
+
+/**
+ * The Documentation section still described the world before the charge moved.
+ *
+ * Three claims in one small amber box, written when a pending paperwork error was
+ * charged nowhere and the pillar was always scored:
+ *
+ *   "No penalty yet"          — there is no penalty because there is no SCORE. The
+ *                               pillar is null and its 25% has been shared out.
+ *   "so nothing is charged"   — flatly false since d107199a. An open paperwork action
+ *                               is charged, in the quality pillar, and the panel two
+ *                               blocks above now says so in as many words.
+ *   "would cost up to −4%"    — not a cost. Measured on two low-severity paperwork
+ *                               actions priced at 2%: open scores 98, validated scores
+ *                               99. A verdict RAISES the final score, because quality
+ *                               gives back more than documentation takes.
+ *
+ * 33b3ce58 fixed "the three places that still said it doubled" and named them: the note
+ * under the score, qualityScore's comment, and ControlCentreHome. This box was a fourth
+ * and was not on the list.
+ */
+describe("the Documentation section agrees with the panel above it", () => {
+  const pendingAction = {
+    id: "p1", status: "todo", severity: "low", recorded_at: "2026-08-05T10:00:00Z",
+    labels: ["Paperwork"], department: null, line: "Line 1", action_no: "QA-9",
+    description: "missing signature", shift: "DAY", validation_status: "open",
+    validated_at: null, validated_by: null, attachments: null, closed_at: null,
+  };
+
+  const unjudged = () => makeResult({
+    docs: {
+      penalised: [], pending: [pendingAction, { ...pendingAction, id: "p2", action_no: "QA-10" }],
+      rejected: [], score: 100, impactPct: 0, penaltyPct: 2, pendingImpactPct: 4,
+    },
+    score: {
+      production: { value: 100, basis: "Actual against target, capped at 100%" },
+      quality: { value: 96, basis: "100 less 4 severity points from 2 actions" },
+      documentation: {
+        value: null,
+        basis: "2 paperwork actions awaiting a verdict from Quality — not scored until one is given",
+      },
+      final: 98, cap: null, scales: null,
+      applied: { production_pct: 53, quality_pct: 47, documentation_pct: 0 },
+    },
+  } as never);
+
+  const section = () => screen.getByRole("region", { name: /documentation errors/i });
+
+  it("never says nothing is charged", () => {
+    renderBody(unjudged());
+    expect(within(section()).queryByText(/nothing is charged/i)).not.toBeInTheDocument();
+  });
+
+  it("never prices a verdict as a cost", () => {
+    renderBody(unjudged());
+    expect(within(section()).queryByText(/would cost/i)).not.toBeInTheDocument();
+  });
+
+  it("says the pillar is not scored, rather than that it carries no penalty", () => {
+    renderBody(unjudged());
+    expect(within(section()).getByText(/not scored/i)).toBeInTheDocument();
+    expect(within(section()).queryByText(/no penalty yet/i)).not.toBeInTheDocument();
+  });
+
+  it("names where the charge sits while the verdict is outstanding", () => {
+    renderBody(unjudged());
+    const body = within(section()).getByText(/quality score/i).textContent ?? "";
+    expect(body).toMatch(/charged/i);
+    // And says what a verdict does to it: moves it, at the configured price.
+    expect(body).toMatch(/moves|transfer/i);
+    expect(body).toMatch(/2%/);
+    expect(body).not.toMatch(/5%/);
+  });
+
+  it("still reads 100% compliant when nothing was raised at all", () => {
+    renderBody();
+    expect(screen.getByText(/100% compliant/i)).toBeInTheDocument();
   });
 });

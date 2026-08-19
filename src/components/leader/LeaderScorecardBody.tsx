@@ -529,17 +529,31 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
         </SectionHead>
 
         {docs.penalised.length === 0 && docs.pending.length > 0 ? (
-          /* Nothing validated, so nothing is charged — but a green "100% compliant"
-             over cases nobody has judged yet is the card vouching for a record it has
-             not seen. Amber says the true thing: no penalty so far, and here is what
-             is still on the table. The score itself does not move. */
+          /* A green "100% compliant" over cases nobody has judged yet is the card
+             vouching for a record it has not seen, which is why this box exists. What
+             it SAID was written before either of the two changes it now has to survive.
+
+             "No penalty yet · nothing is charged" was true when an unjudged paperwork
+             error was charged nowhere. Since d107199a it is charged, in the quality
+             pillar, and the panel above says so — so the card carried both sentences at
+             once. And since the pillar goes unscored while nothing has a verdict, there
+             is no penalty here for the reason that there is no score here.
+
+             "A verdict would cost up to −N%" was the worse half, because the sign is
+             wrong rather than the number. Measured on two low-severity paperwork actions
+             priced at 2%: open scores 98, validated scores 99. Quality gives back more
+             than documentation takes, so a verdict RAISES the score — and a leader read
+             this box as a reason to leave the paperwork unjudged. */
           <div className="rounded-lg border border-warning/40 bg-warning/5 p-3">
             <p className="text-sm font-semibold text-warning-strong">
-              No penalty yet · {docs.pending.length} under review
+              Not scored · {docs.pending.length} under review
             </p>
             <p className="text-2xs text-muted-foreground">
-              No validated {DOCUMENTATION_LABEL.toLowerCase()} action in this period, so nothing is charged.
-              {" "}A verdict on {docs.pending.length === 1 ? "it" : "them"} would cost up to −{docs.pendingImpactPct}%.
+              No {DOCUMENTATION_LABEL.toLowerCase()} action in this period has a verdict, so this block scores
+              nothing and its share of the final score is spread across the pillars that could be measured.
+              {" "}{docs.pending.length === 1 ? "It is" : "They are"} charged to the quality score meanwhile. A verdict
+              moves that charge here at −{docs.penaltyPct}% each rather than adding to it, and quality gives
+              back what it was holding — a verdict is a transfer, not a new penalty.
               {docs.rejected.length > 0 && ` ${docs.rejected.length} rejected by Quality.`}
             </p>
           </div>

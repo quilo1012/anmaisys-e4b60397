@@ -192,3 +192,58 @@ describe("rankLeadersByScore", () => {
     expect(rank.get("Bruno")).toBeNull();
   });
 });
+
+/**
+ * A verdict on pending paperwork is a TRANSFER, and the card is allowed to say so.
+ *
+ * The Documentation section used to offer "a verdict on them would cost up to −4%",
+ * which is not a smaller version of the truth — it is the wrong sign. While an error is
+ * unjudged the quality pillar is charging its severity points AND the documentation
+ * pillar is unscored, so its 25% is being carried by production and quality. Validating
+ * it hands the charge to documentation at the label's price and quality gives the points
+ * back, which on ordinary numbers leaves the leader BETTER off.
+ *
+ * A leader who read that box learned that leaving paperwork unjudged protects their
+ * score. It does the opposite, and Quality is the one who cannot act on it.
+ *
+ * These cases exist so the sentence the card now prints — "a verdict is a transfer, not
+ * a new penalty" — cannot quietly stop being true. If a re-pricing ever makes a verdict
+ * genuinely cost, this fails and the copy has to be rewritten with it.
+ */
+describe("what a verdict on pending paperwork actually does", () => {
+  const twoPaperwork = (validation: string) => {
+    setLabelPoints({ Paperwork: 2 });
+    return computeLeaderScore(
+      {
+        actual: 100, target: 100, avgOEE: null,
+        actions: [
+          { severity: "low", labels: ["Paperwork"], validation_status: validation, domain: "quality" },
+          { severity: "low", labels: ["Paperwork"], validation_status: validation, domain: "quality" },
+        ] as never,
+        excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>(),
+      },
+      DEFAULT_WEIGHTS,
+    );
+  };
+
+  it("charges the open error in quality, and leaves documentation unscored", () => {
+    const open = twoPaperwork("open");
+    expect(open.quality.value).toBe(96);
+    expect(open.documentation.value).toBeNull();
+    expect(open.applied.documentation_pct).toBe(0);
+  });
+
+  it("hands the charge to documentation and gives the quality points back", () => {
+    const validated = twoPaperwork("validated");
+    expect(validated.quality.value).toBe(100);
+    expect(validated.documentation.value).toBe(96);
+  });
+
+  it("does not lower the final score — the card may not call it a cost", () => {
+    // 98 → 99 on these numbers. The assertion is the DIRECTION, not the pair: a
+    // re-priced label moves both figures and the claim on the card is only that a
+    // verdict is not a penalty.
+    expect(displayScore(twoPaperwork("validated").final)!)
+      .toBeGreaterThanOrEqual(displayScore(twoPaperwork("open").final)!);
+  });
+});
