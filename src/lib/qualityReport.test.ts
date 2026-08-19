@@ -143,3 +143,66 @@ describe("generateQualityReportExcel — the lifecycle it reports", () => {
     expect(g[1][2]).toBe("Validated");
   });
 });
+
+/**
+ * A printed column that is blank on most of its rows is not neutral: it takes width
+ * from the one column a reader actually needs (Notes, truncated and wrapping), and it
+ * makes a signed document look like a form nobody finished filling in.
+ *
+ * On the 19/08/2026 report — 69 actions across three months — `Action #` was blank on
+ * 49 rows (only the 20 rows imported from the old Excel carry a number; the log form
+ * does not require one) and `Severity` printed an em dash on 46 (the grade is a
+ * judgement the form leaves optional). Two of the eleven columns were mostly nothing.
+ *
+ * The rule is per period, not per column-forever: import a spreadsheet that carries
+ * action numbers and the column has to come back on its own, because then it says
+ * something. So this is decided from the rows being printed, not from a constant.
+ */
+import { qualityDetailTable } from "@/lib/qualityReport";
+
+describe("qualityDetailTable — a column has to earn its width", () => {
+  const row = (over: Partial<QualityReportAction> = {}): QualityReportAction => ({
+    ...base, recorded_at: "2026-08-13", leader_name: "Everton", domain: "quality",
+    action_no: null, severity: null, ...over,
+  });
+
+  it("drops Action # when not one row in the period carries a number", () => {
+    const { head } = qualityDetailTable([row(), row()]);
+    expect(head).not.toContain("Action #");
+  });
+
+  it("drops Severity when no action in the period was graded", () => {
+    const { head } = qualityDetailTable([row(), row()]);
+    expect(head).not.toContain("Severity");
+  });
+
+  it("keeps Action # as soon as a single row has one, and puts it in that row's cell", () => {
+    const { head, body } = qualityDetailTable([row(), row({ action_no: "AC-6179" })]);
+    expect(head).toContain("Action #");
+    expect(body[1][head.indexOf("Action #")]).toBe("AC-6179");
+  });
+
+  it("keeps Severity as soon as a single action is graded", () => {
+    const { head, body } = qualityDetailTable([row(), row({ severity: "high" })]);
+    expect(head).toContain("Severity");
+    expect(body[1][head.indexOf("Severity")]).toBe("High");
+  });
+
+  it("treats a blank string the same as null — an imported empty cell is not data", () => {
+    const { head } = qualityDetailTable([row({ action_no: "  ", severity: "" })]);
+    expect(head).not.toContain("Action #");
+    expect(head).not.toContain("Severity");
+  });
+
+  // `base` sets status: "complete" — the fixture carries the dead column on purpose.
+  it("never prints a board state, whatever the dead status column says", () => {
+    const { head, body } = qualityDetailTable([row()]);
+    expect(head).not.toContain("Status");
+    expect(body.flat()).not.toContain("Complete");
+  });
+
+  it("always keeps the columns that identify the action", () => {
+    const { head } = qualityDetailTable([row()]);
+    expect(head).toEqual(["Date", "Validation", "Line", "Shift", "Leader", "Dept", "SKU", "Batch", "Notes"]);
+  });
+});

@@ -86,20 +86,97 @@ async function loadLogoDataUrl(): Promise<string | null> {
   } catch { return null; }
 }
 
+// ── Detail table ─────────────────────────────────────────────────────────────
+/**
+ * The action log's columns, decided by the rows being printed rather than by a
+ * constant — a column that is blank on most of its rows is not neutral. It takes
+ * width from Notes, which is the column a reader is actually looking for, and it
+ * makes a document that gets signed and filed look like a form nobody finished.
+ *
+ * On the 19/08/2026 report (69 actions, three months) `Action #` was blank on 49
+ * rows — only the 20 rows imported from the old spreadsheet carry a number, the log
+ * form has never required one — and `Severity` printed an em dash on 46, because the
+ * grade is a judgement the form leaves optional. Two of eleven columns said nothing.
+ *
+ * Both come back on their own the moment the period contains them: import a sheet
+ * with action numbers and the column is worth its width again. Nothing here is
+ * hidden — what is not printed is what no row in the period has.
+ */
+const filled = (v: string | null | undefined) => (v ?? "").trim() !== "";
+
+/** Long enough to read, cut on a word so the last word is not sliced in half. */
+const NOTE_MAX = 140;
+function noteText(a: QualityReportAction) {
+  const t = (a.description ?? "").trim().replace(/\s+/g, " ");
+  if (t.length <= NOTE_MAX) return t;
+  const cut = t.slice(0, NOTE_MAX);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > NOTE_MAX * 0.6 ? cut.slice(0, space) : cut).trimEnd()}\u2026`;
+}
+
+interface DetailColumn {
+  header: string;
+  /** mm. Notes is left unset so autoTable gives it everything the others leave. */
+  width?: number;
+  cell: (a: QualityReportAction) => string;
+}
+
+export function qualityDetailTable(actions: QualityReportAction[]) {
+  // Widths in mm, out of the 269 a landscape A4 leaves between the margins. Each is
+  // the width its own longest real value measures at 7pt Helvetica plus autoTable's
+  // 1.4mm padding either side — measured with `doc.getTextWidth`, not estimated — so
+  // that Notes, the one column whose length is not bounded, keeps 104mm when the
+  // optional two are absent and still 77mm when both are present.
+  const columns: DetailColumn[] = [
+    { header: "Date", width: 16, cell: (a) => fmtDate(a.recorded_at) },
+    ...(actions.some((a) => filled(a.action_no))
+      ? [{ header: "Action #", width: 14, cell: (a: QualityReportAction) => a.action_no ?? "" }]
+      : []),
+    // "Awaiting verdict" is the longest verdict, at 17.2mm.
+    { header: "Validation", width: 21, cell: (a) => validationMeta(a.validation_status).label },
+    ...(actions.some((a) => filled(a.severity))
+      ? [{ header: "Severity", width: 13, cell: (a: QualityReportAction) => sevLabel(a.severity) }]
+      : []),
+    // Sized for "Capsules Machine 2" (22.2mm), not for "Line 5". The old width broke
+    // that name across two lines and pushed the whole row's shift into a third.
+    { header: "Line", width: 25, cell: (a) => a.line ?? "" },
+    { header: "Shift", width: 11, cell: (a) => a.shift ?? "" },
+    { header: "Leader", width: 18, cell: (a) => a.leader_name ?? "" },
+    { header: "Dept", width: 17, cell: (a) => a.department ?? "" },
+    // A full product name lives here ("ORIGINAL CRITICAL MASS CHOCOLATE 2.4Kg"), so
+    // this one wraps by design rather than taking the width Notes needs.
+    { header: "SKU", width: 32, cell: (a) => a.sku ?? "" },
+    { header: "Batch", width: 25, cell: (a) => a.batch ?? "" },
+    { header: "Notes", cell: noteText },
+  ];
+  return {
+    head: columns.map((c) => c.header),
+    body: actions.map((a) => columns.map((c) => c.cell(a))),
+    columnStyles: Object.fromEntries(
+      columns.flatMap((c, i) => (c.width ? [[i, { cellWidth: c.width }]] : [])),
+    ) as Record<number, { cellWidth: number }>,
+  };
+}
+
 // ── PDF ──────────────────────────────────────────────────────────────────────
+const INK = [20, 30, 60] as const;
+const HEAD_FILL = [30, 41, 59] as const;
+const ZEBRA = [245, 247, 250] as const;
+
 export async function generateQualityReportPDF(input: QualityReportInput) {
   const { actions, periodLabel, generatedBy } = input;
-  // Landscape: the detail table carries eleven columns, and portrait squeezed Notes
-  // to a sliver while wrapping Leader and Department onto two lines each.
+  // Landscape: the log carries up to eleven columns, and portrait squeezed Notes to
+  // a sliver while wrapping Leader and Department onto two lines each.
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
   const margin = 14;
   const logo = await loadLogoDataUrl();
   const generatedOn = new Date().toLocaleString("en-GB");
 
   const drawHeader = () => {
     if (logo) { try { doc.addImage(logo, "JPEG", margin, 8, 22, 12); } catch { /* ignore */ } }
-    doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(20, 30, 60);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(...INK);
     doc.text("Quality Report", pageW - margin, 14, { align: "right" });
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(90);
     doc.text(periodLabel, pageW - margin, 20, { align: "right" });
@@ -117,11 +194,11 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   // The ranking/points half of the report is quality's alone — safety never charges
   // a leader, and `leaderTracking` ranks by points, so a safety row must not reach
   // it here even when the caller (e.g. `printDaily`) fetched a whole day of both
-  // domains with no filter. The full actions table further down is unaffected: that
-  // is the raw log, not a ranking.
+  // domains with no filter. The action log further down is unaffected: that is the
+  // raw record, not a ranking.
   const qualityOnly = actions.filter((a) => a.domain !== "safety");
   const tracking = leaderTracking(qualityOnly);
-  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20, 30, 60);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...INK);
   doc.text("Summary", margin, y);
   y += 5;
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(0);
@@ -137,7 +214,7 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   y += 6;
 
   // Quality tracking by leader — the accountability view.
-  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(20, 30, 60);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...INK);
   doc.text("Quality tracking by leader", margin, y);
   y += 2;
   autoTable(doc, {
@@ -155,8 +232,8 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
         ])
       : [["—", "—", "0", "0", "0", "0", "0 pts"]],
     styles: { fontSize: 8, cellPadding: 1.8, overflow: "linebreak" },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
+    headStyles: { fillColor: [...HEAD_FILL], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [...ZEBRA] },
     columnStyles: {
       2: { halign: "center", cellWidth: 18 },
       3: { halign: "center", cellWidth: 16 },
@@ -174,31 +251,49 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
       if (data.column.index === 5 && r.highCritical > 0) { data.cell.styles.textColor = [190, 18, 60]; data.cell.styles.fontStyle = "bold"; }
       if (data.column.index === 6) data.cell.styles.fontStyle = "bold";
     },
-    margin: { left: margin, right: margin },
-  });
-  y = (doc as any).lastAutoTable.finalY + 6;
-
-  // Full actions table
-  autoTable(doc, {
-    startY: y + 2,
-    head: [["Date", "Action #", "Validation", "Severity", "Line", "Shift", "Leader", "Dept", "SKU", "Batch", "Notes"]],
-    body: actions.map((a) => [
-      fmtDate(a.recorded_at), a.action_no ?? "", validationMeta(a.validation_status).label, sevLabel(a.severity),
-      a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
-      (a.description ?? "").slice(0, 60),
-    ]),
-    styles: { fontSize: 7, cellPadding: 1.2, overflow: "linebreak" },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
     margin: { left: margin, right: margin, top: 26 },
-    didDrawPage: (data: any) => {
-      if (data.pageNumber > 1) drawHeader();
-      const page = doc.internal.pageSize;
-      doc.setFontSize(7); doc.setTextColor(130);
-      doc.text(`Generated ${generatedOn} by ${generatedBy}`, margin, page.getHeight() - 6);
-      doc.text(`Page ${data.pageNumber}`, page.getWidth() - margin, page.getHeight() - 6, { align: "right" });
-    },
+    didDrawPage: () => { if (doc.getCurrentPageInfo().pageNumber > 1) drawHeader(); },
   });
+  y = (doc as any).lastAutoTable.finalY + 8;
+
+  // The action log — every action in the period, in the order it was raised.
+  //
+  // A heading with no table under it is worse than no heading, so if the leader table
+  // finished near the foot of the page the log starts on a fresh one rather than
+  // leaving "Action log" stranded above the footer.
+  const detail = qualityDetailTable(actions);
+  if (y > pageH - 45) { doc.addPage(); drawHeader(); y = 32; }
+  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...INK);
+  doc.text("Action log", margin, y);
+  autoTable(doc, {
+    startY: y + 3,
+    head: [detail.head],
+    body: detail.body,
+    styles: { fontSize: 7, cellPadding: 1.4, overflow: "linebreak", valign: "top" },
+    headStyles: { fillColor: [...HEAD_FILL], textColor: 255, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [...ZEBRA] },
+    columnStyles: detail.columnStyles as any,
+    // One action, one row, one page. autoTable splits a tall row across the page break
+    // by default, which left a note's second line and its SKU stranded at the top of
+    // the next page under a header row belonging to a record that started overleaf.
+    rowPageBreak: "avoid",
+    margin: { left: margin, right: margin, top: 26 },
+    didDrawPage: () => { if (doc.getCurrentPageInfo().pageNumber > 1) drawHeader(); },
+  });
+
+  // Footer last, in one pass over the finished document.
+  //
+  // It used to be stamped from the log table's `didDrawPage`, where `pageNumber`
+  // counts that table's pages and not the document's: page 1 — the summary and the
+  // leader table — got no footer at all, and a five-page report ended on a page
+  // numbered 4. A signed document has to say which page of how many this is.
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(130);
+    doc.text(`Generated ${generatedOn} by ${generatedBy}`, margin, pageH - 6);
+    doc.text(`Page ${p} of ${pages}`, pageW - margin, pageH - 6, { align: "right" });
+  }
 
   doc.save(`quality-report-${Date.now()}.pdf`);
 }
