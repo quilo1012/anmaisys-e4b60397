@@ -33,11 +33,21 @@ describe("label points", () => {
     expect(actionPoints(critical([]), EXCLUDED)).toBe(4);
   });
 
-  it("a label with points replaces the severity, up or down", () => {
+  it("a label may raise a charge and may never lower one", () => {
     setLabelPoints({ "foreign body": 5, paperwork: 2 });
+    // Up: Foreign Body is worth more than any grade, so it prices the action.
     expect(actionPoints(critical(["Foreign Body"]), EXCLUDED)).toBe(5);
-    // Down as well as up: a Critical paperwork slip is worth what paperwork is worth.
-    expect(actionPoints(critical(["Paperwork"]), EXCLUDED)).toBe(2);
+    /**
+     * NOT down, and this line used to assert the opposite.
+     *
+     * It read `.toBe(2)` under the comment "a Critical paperwork slip is worth what
+     * paperwork is worth" — a Critical action silently charged 2 because a cheap label
+     * sat on it, while the card went on showing Critical in red. The test was not
+     * wrong about the code; it was an accurate description of a defect, which is the
+     * hardest kind to notice. A label answers the narrower question and may say the
+     * deviation is worse than the grade suggested. It may not say it is milder.
+     */
+    expect(actionPoints(critical(["Paperwork"]), EXCLUDED)).toBe(4);
   });
 
   it("several priced labels add up", () => {
@@ -82,11 +92,21 @@ describe("label points", () => {
     expect(issueWeight([critical(["Batch code"])])).toBe(4);
   });
 
-  it("changing a price re-scores the history — points are never stored", () => {
+  it("re-prices a row that carries no frozen figure — and only such a row", () => {
+    /**
+     * This was titled "changing a price re-scores the history — points are never
+     * stored", and that claim about the SYSTEM stopped being true with 20260822090000:
+     * an action carrying `points_at_creation` keeps it. What is still true, and is what
+     * this exercises, is the live path these fixtures take — a row with nothing frozen
+     * on it, which is what every row was before the migration and what a row on an
+     * un-migrated database still is. See pointsFrozenAtCreation.test.ts for the other
+     * half.
+     */
     const raised = [critical(["Foreign Body"]), critical(["Paperwork"])];
     setLabelPoints({ "foreign body": 5, paperwork: 2 });
-    expect(sumActionPoints(raised, EXCLUDED)).toBe(7);
+    // 5 from the label, and 4 from the Critical grade the cheap label cannot lower.
+    expect(sumActionPoints(raised, EXCLUDED)).toBe(9);
     setLabelPoints({ "foreign body": 9, paperwork: 2 });
-    expect(sumActionPoints(raised, EXCLUDED)).toBe(11);
+    expect(sumActionPoints(raised, EXCLUDED)).toBe(13);
   });
 });

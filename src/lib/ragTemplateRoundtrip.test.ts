@@ -28,6 +28,15 @@ describe("RAG template export ↔ import round-trip", () => {
     comment: (line) => comments[line],
   };
 
+  // 20s, against ~2s in isolation. Not a slow test — a test whose work is real: it
+  // builds an xlsx workbook and parses it back, which is CPU-bound, and vitest runs
+  // 150+ files in parallel. On 19/08 it took 5.09s against the default 5000ms budget
+  // and failed the suite while passing on its own, which is the worst way for a test
+  // to fail: it accuses the change under review of something it did not do.
+  //
+  // The budget is raised rather than the work reduced. Trimming the fixture down to fit
+  // 5s would drop the round-trip coverage this file exists for, to buy back time on a
+  // test that is not slow — it is merely honest about what importing a spreadsheet costs.
   it("re-imports every value that was exported", async () => {
     const buf = await buildRagWorkbookBuffer(weekStart, lines, fill);
     const result = await parseRagTemplateFile(asFile(buf), lines);
@@ -49,7 +58,7 @@ describe("RAG template export ↔ import round-trip", () => {
     const capsNight = byKey.get("2026-07-21|Capsules & Tablets|NIGHT");
     expect(capsNight!.plan_qty).toBe(500);
     expect(capsNight!.downtime_min).toBe(120);
-  });
+  }, 20_000);
 
   it("round-trips per-line comments", async () => {
     const buf = await buildRagWorkbookBuffer(weekStart, lines, fill);

@@ -34,7 +34,10 @@ describe("ActionScore", () => {
 
   it("itemises the charge, and names what the exclusion took off", () => {
     setLabelPoints({ "batch code": 2, maintenance: 3 });
-    render(<ActionScore action={action} excluded={EXCLUDED} ready />);
+    // Low, not the fixture's Critical: this test is about the spared label appearing on
+    // screen, and under MAX a Critical grade outranks the 2 the labels charge, which
+    // rewrites the whole sentence being asserted.
+    render(<ActionScore action={{ ...action, severity: "low" }} excluded={EXCLUDED} ready />);
     // "2" is on screen twice on purpose — the figure and the line item that produced
     // it — so the assertion is on the whole sentence, which is also what a screen
     // reader is given.

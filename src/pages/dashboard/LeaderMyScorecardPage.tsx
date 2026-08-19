@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
+import { useGateLabels } from "@/hooks/useQualityOptions";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -137,11 +138,14 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
   });
 
   const { excluded, ready: attributionReady } = useLeaderAttribution();
+  // Same refusal as the manager's copy of this card: an unloaded gate set and an empty
+  // one are the same value, and the difference is a capped score reading uncapped.
+  const { gateLabels, ready: gatesReady } = useGateLabels();
   const result = useMemo(
     () => (cardQuery.data?.status === "ok"
-      ? computeScorecard(cardQuery.data.raw, period, { weights, excludedLabels: excluded })
+      ? computeScorecard(cardQuery.data.raw, period, { weights, excludedLabels: excluded, gateLabels })
       : null),
-    [cardQuery.data, period, weights, excluded],
+    [cardQuery.data, period, weights, excluded, gateLabels],
   );
 
   const { data: profileNames = [] } = useProfileNames();
@@ -268,7 +272,7 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
             </div>
           </CardContent>
         </Card>
-      ) : !attributionReady || !weightsReady ? (
+      ) : !attributionReady || !weightsReady || !gatesReady ? (
         /* The leader is reading their own score. Showing them a worse one and then
            correcting it is the single worst place in the app to do that. */
         <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>

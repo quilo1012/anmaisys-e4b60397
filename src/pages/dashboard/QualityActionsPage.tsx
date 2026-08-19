@@ -32,11 +32,13 @@ import { cn } from "@/lib/utils";
 import { isMissingColumn } from "@/lib/postgrestErrors";
 import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_KIND_GROUPS, isHarmKind, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, pointsBreakdown, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
+import { useScoringFreeze } from "@/hooks/useScoringFreeze";
+import { useGateLabels } from "@/hooks/useQualityOptions";
 import { useLeaderAttribution, useSetLabelAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, type QualityOption } from "@/hooks/useQualityOptions";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
 import { useLeaderScoreWeights, useUpdateLeaderScoreWeights } from "@/hooks/useLeaderScoreWeights";
-import { DEFAULT_WEIGHTS, type LeaderScoreWeights } from "@/lib/leaderScore";
+import { DEFAULT_WEIGHTS, GATE_CAP, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { useRole } from "@/hooks/useRole";
 import { useQualityHistory, type QualityHistoryRow } from "@/hooks/useQualityIssue";
 import { KpiCard } from "@/components/reports/KpiCard";
@@ -333,7 +335,9 @@ export function QualityActionsView() {
   // shows both side by side — see the Points cell below for why it reads "—" there.
   const showPointsColumn = domainFilter !== "safety";
   const showKindColumn = domainFilter !== "quality";
-  const logColSpan = 9 + (showPointsColumn ? 1 : 0) + (showKindColumn ? 1 : 0) + (canManage ? 1 : 0);
+  // When, #, Line, Leader, Dept, Labels, Notes — seven fixed columns since Validation
+  // and Severity came off. Wrong here and the "No actions" row stops spanning the table.
+  const logColSpan = 7 + (showPointsColumn ? 1 : 0) + (showKindColumn ? 1 : 0) + (canManage ? 1 : 0);
 
 
   const kpis = useMemo(() => {
@@ -411,10 +415,10 @@ export function QualityActionsView() {
     mutationFn: async () => {
       const leader = leaders.find((l) => l.id === form.leader_id);
       const recorded_at = new Date(`${form.date || todayISO()}T12:00:00`).toISOString();
-      // `excluded` decides the grade now, not just the score — see qualitySeverity.
-      // Save is blocked until it has loaded, so this is never the empty set standing
-      // in for an answer that has not arrived.
-      const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at, excluded);
+      // No `excluded` here any more. Attribution decides what an action CHARGES, never
+      // what it IS: the grade is now the one the person picked. Save still waits for the
+      // attribution table, because the charge shown beside the labels depends on it.
+      const payload = buildQualityActionPayload(form, leader?.name ?? null, recorded_at);
       // `domain` and `safety_kind` arrive with 20260817090000, and PostgREST refuses
       // the whole write for one unknown column. A quality action is saved without
       // them; a safety one is refused rather than filed as a quality action. See
@@ -811,6 +815,39 @@ export function QualityActionsView() {
                       <Input value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="auto from production" />
                     </div>
                   </div>
+                  {/* The grade, asked for again.
+                      It was removed because `actionPoints()` let the labels REPLACE it,
+                      which made the field name a number the system mostly did not use —
+                      so the form derived it from the labels instead. Under MAX the grade
+                      is half the comparison and can be the half that decides: an action
+                      graded Critical carrying one cheap label is worth Critical. A
+                      derived grade can never say that, because it is the label total
+                      wearing a grade's name.
+                      Quality only. A safety occurrence scores 0 whatever it is graded,
+                      and classifies by `safety_kind` instead — see actionPoints(). */}
+                  {form.domain !== "safety" && (
+                    <div>
+                      <Label>Severity</Label>
+                      <Select
+                        value={form.severity || "none"}
+                        onValueChange={(v) => setForm({ ...form, severity: v === "none" ? "" : v })}
+                      >
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Not graded" /></SelectTrigger>
+                        <SelectContent>
+                          {/* Ungraded is a real answer and stays reachable. An action
+                              priced only by its labels needs no grade, and forcing one
+                              would put a severity on the card that nobody chose — the
+                              failure `severityForPoints` returns null for. */}
+                          <SelectItem value="none">Not graded</SelectItem>
+                          {QUALITY_SEVERITIES.map((sv) => (
+                            <SelectItem key={sv.value} value={sv.value}>
+                              {sv.label} · {severityPoints(sv.value)}p
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div>
                     <Label>Labels</Label>
                     <div className="mt-1 flex flex-wrap gap-1.5">
@@ -843,16 +880,20 @@ export function QualityActionsView() {
                     {form.domain !== "safety" && (() => {
                       const charge = logFormCharge(form.labels, excluded);
                       const note = excludedLabelNote(form.labels, excluded);
+                      // The grade is passed in now. Without it this sentence would go on
+                      // telling somebody their Critical action scores 0 because they have
+                      // not ticked a priced label.
+                      const summary = chargeSummary(charge, form.severity || null);
                       return (
                         <div
                           role="status"
                           aria-live="polite"
                           className={cn(
                             "mt-2 rounded-md border px-2.5 py-1.5 text-xs",
-                            charge.pricedByLabels ? "bg-muted/40" : "border-dashed text-muted-foreground",
+                            charge.pricedByLabels || form.severity ? "bg-muted/40" : "border-dashed text-muted-foreground",
                           )}
                         >
-                          <span className={cn(charge.pricedByLabels && "font-medium")}>{chargeSummary(charge)}</span>
+                          <span className={cn((charge.pricedByLabels || form.severity) && "font-medium")}>{summary}</span>
                           {note && <span className="mt-0.5 block text-muted-foreground">{note}</span>}
                         </div>
                       );
@@ -1085,8 +1126,13 @@ export function QualityActionsView() {
             <CardContent className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow>
+                  {/* Validation and Severity came off this table.
+                      Both are on the row's Issue dialog, one click away, and neither
+                      was doing work here: the grade is derived from the labels and the
+                      Points column already says what the action cost, while the verdict
+                      is a decision Quality makes in the dialog rather than something
+                      scanned across a page of 49 rows. */}
                   <TableHead>When</TableHead><TableHead>#</TableHead>
-                  <TableHead>Validation</TableHead><TableHead>Severity</TableHead>
                   {/* A safety row is never worth a number of points — see actionPoints().
                       The Safety tab shows Kind instead of a Points column that would only
                       ever read 0; the All tab keeps both, with Points reading "—" on
@@ -1107,31 +1153,6 @@ export function QualityActionsView() {
                     <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailId(a.id)}>
                       <TableCell className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</TableCell>
                       <TableCell className="font-figure text-xs">{a.action_no ?? "—"}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
-                            {validationMeta(a.validation_status).label}
-                          </Badge>
-                          {a.closed_at && (
-                            <Badge variant="outline" className="border-success/40 bg-success/15 text-2xs text-success-strong">
-                              Closed
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      {/* Shown, never edited — in either domain. A quality action's
-                          grade is derived from its labels and re-derived on every save;
-                          a safety occurrence has no grade at all now, and says what it
-                          was through its Kind badge in the Labels column instead. */}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        {isSafetyRow ? (
-                          <span className="text-muted-foreground" title="Safety is classified by kind, not graded">—</span>
-                        ) : sev ? (
-                          <Badge variant="outline" className={cn("text-2xs", sev.badge)} title={GRADE_FROM_LABELS}>{sev.label}</Badge>
-                        ) : (
-                          <span className="text-muted-foreground" title={GRADE_FROM_LABELS}>—</span>
-                        )}
-                      </TableCell>
                       {/* What this action actually costs, not what its severity is worth.
                           The two differ once a label is priced, and the column that adds
                           up to the totals above must be the one people read.
@@ -1368,7 +1389,6 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
                   production once it has been run there.
 
                   Existing rows keep their `attachments`; nothing is deleted. */}
-
               {/* History */}
               <div>
                 <Label className="flex items-center gap-1"><Clock className="h-4 w-4" /> History</Label>
@@ -1493,13 +1513,20 @@ function LeaderScoreWeightsEditor() {
  * so changing how quality is scored needed a developer and a deploy. Quality owns
  * that judgement.
  *
- * Changing a weight re-scores the whole history, because points are derived from
- * severity rather than stored on the action. That is stated on screen: it is the
- * behaviour people need to know before they change a number.
+ * What changing a weight DOES depends on the database, so the screen asks rather than
+ * asserts — see `useScoringFreeze`. With 20260822090000 applied, a save opens a new
+ * dated scoring version and every action already logged keeps the points in force on
+ * its own date. Without it, points are still derived on every render and a change
+ * genuinely re-scores the whole history.
+ *
+ * Both sentences are true somewhere, and the wrong one is worse than none: this is the
+ * screen where somebody is about to change a number, and they will change it based on
+ * what this paragraph told them it would do.
  */
 function SeverityPointsEditor() {
   const { data: rows, isLoading } = useSeverityPointRows();
   const save = useUpdateSeverityPoints();
+  const { frozen } = useScoringFreeze();
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   const value = (sev: string, current: number) => draft[sev] ?? String(current);
@@ -1523,8 +1550,10 @@ function SeverityPointsEditor() {
       <div>
         <h3 className="text-sm font-semibold">Severity points</h3>
         <p className="text-xs text-muted-foreground">
-          Used for column totals, the leader scorecard and Analytics. Changing a weight re-scores
-          past actions too — the score always follows the severity on the card.
+          Used for column totals, the leader scorecard and Analytics.{" "}
+          {frozen
+            ? "Changing a weight opens a new scoring version — actions already logged keep the points that were in force on the date they were recorded."
+            : "Changing a weight re-scores past actions too — the score always follows the severity on the card."}
         </p>
       </div>
 
@@ -1571,9 +1600,11 @@ function SeverityPointsEditor() {
  * The price on one label, saved when the box loses focus or on Enter.
  *
  * A draft rather than a live value: typing "12" over a "5" passes through "1", and
- * saving that would re-score every action carrying the label for as long as it took
- * to type the second digit. No Save button, because one number is not a form — the
- * toast confirms it landed.
+ * saving that would price the label at 1 for as long as it took to type the second
+ * digit. The freeze does not make this safe — it makes it worse in a way that lasts:
+ * every action logged during that keystroke would be frozen at the wrong price, and a
+ * frozen figure is the one thing a later correction to the label does not reach.
+ * No Save button, because one number is not a form — the toast confirms it landed.
  */
 function PointsBox({ value, label, onCommit }: { value: number; label: string; onCommit: (raw: string) => void }) {
   const [draft, setDraft] = useState(String(value));
@@ -1609,6 +1640,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
   // see whether the rule was in force — and when the table is absent it silently
   // is not. That is the "Maintenance is charging the leader 3 points" case.
   const { excluded, missing: attributionMissing } = useLeaderAttribution();
+  const { missing: gatesMissing } = useGateLabels();
   const setAttribution = useSetLabelAttribution();
   const [kind, setKind] = useState<QualityOption["kind"]>(isSafety ? "safety_label" : "label");
   const [value, setValue] = useState("");
@@ -1651,7 +1683,42 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
     setValue(""); setPoints(""); refresh();
   };
 
-  /** Re-pricing a label re-scores every action carrying it, past ones included. */
+  /**
+   * Marking a label as a gate, or unmarking it.
+   *
+   * Deliberately NOT a points field with a magic value. A gate is not an amount — it is
+   * a ceiling, and the whole reason it exists is that no number of points could express
+   * "this period is Red whatever else happened". Giving it a number would invite
+   * somebody to weigh it against one.
+   *
+   * Invalidates the action queries because every leader's score can move on this: a
+   * period holding a newly-gated label is capped from the moment this saves. It does
+   * NOT re-score the past through points — the cap is computed at read time from the
+   * label list, which is why a gate reaches history and a price no longer does.
+   */
+  const setLabelGate = async (o: QualityOption, next: boolean) => {
+    const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
+      .from("quality_options" as any)
+      .update({ is_gate: next } as unknown as never)
+      .eq("id", o.id);
+    if (error) { reportSaveError(error); return; }
+    qc.invalidateQueries({ queryKey: ["quality_actions"] });
+    refresh();
+    toast.success(next ? `${o.value} now gates the period` : `${o.value} no longer gates`);
+  };
+
+  /**
+   * Re-pricing a label. What that reaches depends on the database.
+   *
+   * Frozen (20260822090000 applied): it opens a new scoring version and applies from
+   * here on. Actions already logged keep what they were worth. Not frozen: it re-scores
+   * every action carrying the label, past ones included.
+   *
+   * The invalidation below is right either way — under the freeze the boards still have
+   * to redraw, because an action logged TODAY was frozen against the version this save
+   * just replaced.
+   */
   const setLabelPrice = async (o: QualityOption, raw: string) => {
     const n = clampPoints(raw);
     if (n === o.points) return;
@@ -1743,6 +1810,12 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
           — which is the point: reporting a near miss has to stay free.
         </p>
       )}
+      {gatesMissing && !isSafety && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-strong">
+          Food safety gates are not enabled on this database yet — the migration has not run. Nothing below
+          can be marked as a gate, and no period is being capped for a failed CCP or a foreign body.
+        </p>
+      )}
       {attributionMissing && !isSafety && (
         <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-strong">
           Attribution is not enabled on this database yet — the migration has not run. Every quality action
@@ -1775,9 +1848,34 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
                         label={o.value}
                         onCommit={(raw) => setLabelPrice(o, raw)}
                       />
+                      {/* A gate is a different kind of thing from a price and reads as
+                          one: no number, and the on state is the destructive colour,
+                          because switching it on is a statement about the whole period
+                          and not an adjustment to a total. */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={gatesMissing}
+                        className={cn(
+                          "h-8 whitespace-nowrap text-xs",
+                          o.is_gate && "border-destructive/40 bg-destructive/10 text-destructive-strong",
+                        )}
+                        title={
+                          gatesMissing
+                            ? "Not available until the food safety gate migration has run."
+                            : o.is_gate
+                              ? `An action labelled ${o.value} forces the period to Red and limits the score to ${GATE_CAP}%. Click to stop it gating.`
+                              : `Make ${o.value} a gate: any action carrying it caps the period at ${GATE_CAP}%, whatever else happened.`
+                        }
+                        onClick={() => setLabelGate(o, !o.is_gate)}
+                      >
+                        {o.is_gate ? "Gate" : "Not a gate"}
+                      </Button>
                       {/* Two states, both spelled out, because the difference is money
-                          on somebody's scorecard. Re-attributing re-scores the history
-                          the same way re-pricing does — see useSetLabelAttribution. */}
+                          on somebody's scorecard. Re-attributing reaches exactly as far
+                          as re-pricing does — the whole history without the freeze, and
+                          only from here on with it, because 20260822090000 versions the
+                          exclusion set alongside the prices. See useSetLabelAttribution. */}
                       <Button
                         size="sm"
                         variant="outline"

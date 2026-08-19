@@ -91,11 +91,16 @@ export function severityPointsMap(): Record<string, number> {
 }
 
 /**
- * Points for one action, derived from its severity and the configured weight.
+ * What a severity is worth TODAY, under the configured weight.
  *
- * Points are NOT a stored column: severity is the single source of truth, so
- * re-grading an action can never leave a stale score behind, and changing a weight
- * re-scores the history consistently. An action with no severity scores 0.
+ * Not what a given action is worth — that is `actionPoints`, which prefers the figure
+ * frozen on the action and only falls through to here. This one answers the narrower
+ * question the badges and the log form ask: what does this grade cost right now.
+ *
+ * The claim that used to be here — "points are NOT a stored column, so changing a
+ * weight re-scores the history consistently" — was true when it was written and is the
+ * behaviour 20260822090000 exists to end. `points_at_creation` IS a stored column now.
+ * An action with no severity scores 0.
  */
 export function severityPoints(value: string | null | undefined): number {
   return severityMeta(value)?.points ?? 0;
@@ -191,6 +196,39 @@ export function countsAgainstLeader(
 }
 
 /**
+ * Whether an action's DEPARTMENT makes it the leader's to answer for.
+ *
+ * A veto — and yes, that is the exact rule the labels above refuse, so read this
+ * before assuming one of the two is a mistake.
+ *
+ * The label veto was reverted (`cd417686`) because a label lives in a SET: anyone who
+ * worked out that adding "Maintenance" to a genuine paperwork error cleared it had a
+ * lever nobody audits, and nothing on the leader's total showed it had been pulled.
+ *
+ * A department cannot be that lever. There is exactly one per action, it is the field
+ * the person logging it picks on the way in, and it prints in its own column on the
+ * list, in the detail panel and in the export. Choosing "Maintenance" is not a value
+ * hidden inside a set — it IS the claim about whose problem this is, made in the one
+ * place built to make it, where a supervisor scanning the week can see it.
+ *
+ * So the lever the label rule guards against does not exist here, and the veto buys
+ * what the factory actually asked for: a machine failure stops charging the person who
+ * was running the line that night, without Quality having to remember to also strip a
+ * label off the action.
+ *
+ * An action with NO department counts, for the same reason a blank label list counts:
+ * leaving the field empty must never quietly remove a deviation from somebody's score.
+ */
+export function countsAgainstLeaderDepartment(
+  action: { department?: string | null },
+  excluded: Set<string> = excludedDepartmentSet(),
+): boolean {
+  const department = (action.department ?? "").trim().toLowerCase();
+  if (!department) return true;
+  return !excluded.has(department);
+}
+
+/**
  * What each label is worth, from `quality_options.points`, keyed lowercase.
  *
  * Module-level and pushed in by `useLabelPointsSync`, for the same reason the
@@ -208,9 +246,92 @@ export function setLabelPoints(map: Record<string, number>) {
   listeners.forEach((l) => l());
 }
 
+/**
+ * The departments that are NOT the leader's to answer for, lowercased.
+ *
+ * Module-level and pushed in by `useDepartmentAttributionSync`, exactly like the label
+ * prices above and for the same reason: the callers are plain functions inside charts,
+ * table cells and PDF builders, and threading a set through all of them would be a lot
+ * of churn for one lookup.
+ *
+ * Held differently from the LABEL exclusion set, which `livePoints` demands as an
+ * argument and refuses to default. That rule is not being relaxed by accident, so here
+ * is the difference that makes a default safe here and unsafe there:
+ *
+ *   - Empty means "nothing is excluded", which is also what an unloaded query looks
+ *     like. Both sets share that ambiguity.
+ *   - For the label set the codebase decided the ambiguity had to be forced into the
+ *     caller's face. Fine — and it stays forced.
+ *   - The direction of the error is what matters, and it is the SAME here: an empty
+ *     set charges a leader for something that may not be theirs. Too high, on screen,
+ *     arguable. It never scores anybody green who should not be.
+ *   - And the number that ends up on a scorecard is `points_at_creation`, frozen in
+ *     the database by `action_points_at` — which reads its own versioned copy of this
+ *     set and never consults this one. `actionPoints` returns the frozen figure
+ *     without calling `livePoints` at all. This set governs the preview and the
+ *     explanation, not the record.
+ *
+ * If that last point ever stops being true, this default has to go with it.
+ */
+let EXCLUDED_DEPARTMENTS: Set<string> = new Set();
+
+/** Takes the option rows as `{ [department]: counts_against_leader }`. */
+export function setExcludedDepartments(map: Record<string, boolean>) {
+  EXCLUDED_DEPARTMENTS = new Set(
+    Object.entries(map ?? {})
+      .filter(([, counts]) => counts === false)
+      .map(([dept]) => dept.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  listeners.forEach((l) => l());
+}
+
+/** The departments in force right now, lowercased. */
+export function excludedDepartmentSet(): Set<string> {
+  return EXCLUDED_DEPARTMENTS;
+}
+
 /** What one label is worth. Zero means it does not price an action. */
 export function labelPoints(label: string): number {
   return LABEL_POINTS[label.trim().toLowerCase()] ?? 0;
+}
+
+/**
+ * The ceiling on what an action's labels may charge between them.
+ *
+ * Three priced labels used to be able to sum past the top of the severity scale with
+ * nobody deciding that they should. Foreign Body 5 + GMP 15 + Paperwork 5 is 25 on a
+ * scale whose worst single grade is 20 — a number the scale cannot express, arrived at
+ * by addition rather than by judgement.
+ *
+ * DEFAULTS TO UNCAPPED, which is a deliberate departure from the specification. That
+ * asked for an initial value equal to Critical's points, and in this system that would
+ * not have been a ceiling — it would have been a silent price cut. Labels here are
+ * priced ABOVE the top grade on purpose: `severityForPoints` documents 5 as "reachable
+ * only by pricing a label", and a Foreign Body priced at 5 against a Critical of 4
+ * would have been quietly charged 4 from the day this shipped. Lowering what a food
+ * safety label costs, as a side effect of adding a safety rail, is the exact opposite
+ * of what the rail is for.
+ *
+ * So it ships uncapped and the ceiling becomes a decision somebody takes on purpose, in
+ * `leader_scorecard_threshold` as CAP_LabelPoints — the same shape as every label
+ * shipping at 0. On the day it lands, nobody's score moves.
+ *
+ * It is NOT held in this module's own config the way the prices are. It is a scoring
+ * parameter, and a scoring parameter that is not versioned re-scores history the moment
+ * it moves — which is the door 20260822090000 exists to close. It therefore lives in
+ * `leader_scorecard_threshold`, dated, and resolves through the action's own scoring
+ * version. Until that row is read into this module the default below applies.
+ */
+let LABEL_POINTS_CAP: number | null = null;
+
+export function setMaxLabelPoints(cap: number | null) {
+  LABEL_POINTS_CAP = cap;
+  listeners.forEach((l) => l());
+}
+
+export function maxLabelPoints(): number {
+  return LABEL_POINTS_CAP ?? Infinity;
 }
 
 /**
@@ -292,7 +413,28 @@ export function logFormCharge(
  * The number leads. Whoever is logging the action needs to read the price first and
  * the arithmetic second.
  */
-export function chargeSummary(charge: LogFormCharge): string {
+export function chargeSummary(charge: LogFormCharge, picked?: string | null): string {
+  /**
+   * The grade the person logging this actually chose, when the form asks for one.
+   *
+   * Optional because it did not use to exist: the form derived the grade from the
+   * labels, so there was nothing to pass. With MAX in force the grade is half the
+   * comparison, and a summary that ignored it would tell somebody their Critical action
+   * scores 0 because they have not ticked a priced label — which is exactly the sentence
+   * that made the old rule invisible, printed on the screen where the action is created.
+   */
+  const gradePoints = picked ? severityPoints(picked) : 0;
+  const capped = Math.min(charge.points, maxLabelPoints());
+
+  // One branch, not two: with no priced label `capped` is 0, so a graded action always
+  // lands here and never falls through to the "scores 0" sentence below.
+  if (gradePoints > capped) {
+    const name = severityMeta(picked)?.label ?? picked;
+    return charge.pricedByLabels
+      ? `Charged ${gradePoints}p — the ${name} grade. Its labels charge ${capped}, and a label can only raise a charge.`
+      : `Charged ${gradePoints}p — the ${name} grade. No priced label.`;
+  }
+
   if (!charge.pricedByLabels) return "No priced label — this action scores 0.";
   const from = charge.sources.map((s) => `${s.label} ${s.points}p`).join(" + ");
   const grade = charge.severity ? severityMeta(charge.severity)?.label ?? charge.severity : null;
@@ -332,8 +474,25 @@ export function excludedLabelNote(labels: string[], excluded: Set<string>): stri
  * is not a paperwork slip whatever either one was graded. Every label ships at 0, so
  * until Quality prices one this is exactly the old behaviour.
  *
- * Still derived, never stored: re-pricing a label re-scores the history, the same way
- * re-weighting a severity does, and no action can be left holding a stale number.
+ * FROZEN AT CREATION, since 20260822090000. `points_at_creation` carries what this
+ * action was worth under the scale in force on its own date, and when the row has one
+ * it IS the answer — the four rules below then describe how that number was reached,
+ * not how it is reached now.
+ *
+ * This reverses what this comment said for two months ("still derived, never stored:
+ * re-pricing a label re-scores the history"). That was written as a virtue and it was
+ * an audit finding: re-pricing a label in November rewrote July, so the leader ranking
+ * compared periods measured with different rulers, a report printed in August stopped
+ * reproducing, and in a BRC audit there was no way to show which criterion was in force
+ * on the date of the event. Correcting a misclassification still moves the figure — the
+ * database recomputes it against the action's OWN version, and stamps
+ * `points_recalculated_at`. The fact gets corrected; the ruler does not.
+ *
+ * The live fallback is not decoration. A row arrives without the column in two real
+ * cases: a database where 20260822090000 has not run, and a query whose explicit column
+ * list forgot to ask for it. The second is the dangerous one, because it looks like
+ * nothing at all — see src/__tests__/frozenPointsInSelects.test.ts, which exists because
+ * exactly that shape of bug once cost a leader his entire quality section.
  *
  * `excluded` comes from `useLabelAttribution`. Passing an empty set is the correct
  * behaviour for "nothing is excluded", which means callers must NOT pass an empty set
@@ -343,9 +502,35 @@ export function excludedLabelNote(labels: string[], excluded: Set<string>): stri
  * twice because there are two questions — what is it worth, and does it count at all.
  * Change the domain guard here, change it there too.
  */
-export function actionPoints(
-  action: { domain?: string | null; severity: string | null; labels?: string[] | null; validation_status?: string | null },
+export interface ScorableAction {
+  domain?: string | null;
+  severity: string | null;
+  labels?: string[] | null;
+  validation_status?: string | null;
+  /**
+   * Whose problem this is, as picked on the log form.
+   *
+   * A scoring input since departments got their own attribution — see
+   * `countsAgainstLeaderDepartment`. It was on every action already; only the type
+   * did not admit it, so nothing could be written against it.
+   */
+  department?: string | null;
+  /** What this action was worth under the scale of its own day. See `actionPoints`. */
+  points_at_creation?: number | null;
+}
+
+/**
+ * The charge computed against TODAY's rulers, ignoring anything frozen.
+ *
+ * Split out so the frozen figure and the live one can be compared — which is the only
+ * way `pointsBreakdown` can notice that the scale has moved since and say so, instead
+ * of printing today's arithmetic beside yesterday's total and letting the reader work
+ * out that the two do not add up.
+ */
+export function livePoints(
+  action: ScorableAction,
   excluded: Set<string>,
+  excludedDepartments: Set<string> = excludedDepartmentSet(),
 ): number {
   // Safety is counted, never charged. Reporting a near miss is the behaviour we want,
   // and a score that punishes the report teaches the team to stop reporting. This is
@@ -353,8 +538,36 @@ export function actionPoints(
   // all read this function, so they cannot disagree about it.
   if (action.domain === "safety") return 0;
   if (isRejected(action)) return 0;
+  // Before the labels, because it is the broader claim: the department says the action
+  // belongs to somebody else entirely, and no label can argue it back.
+  if (!countsAgainstLeaderDepartment(action, excludedDepartments)) return 0;
   if (!countsAgainstLeader(action, excluded)) return 0;
-  return labelChargeFor(action, excluded) || severityPoints(action.severity);
+
+  /**
+   * A label may AGGRAVATE an action. It may never soften one.
+   *
+   * This was `labelChargeFor(...) || severityPoints(...)` — the label total REPLACED
+   * the grade. The consequence was a silent downgrade in the direction that hurts: an
+   * action graded Critical carrying one label priced at 1 was worth 1, while the card
+   * went on showing "Critical" in red. Nobody could see it, because the only place the
+   * two numbers meet is inside this expression.
+   *
+   * MAX also subsumes the old fall-through — no priced label means a label charge of 0,
+   * and MAX(0, grade) is the grade — so the case the previous rule was written for
+   * still behaves exactly as it did.
+   */
+  const fromLabels = Math.min(labelChargeFor(action, excluded), maxLabelPoints());
+  return Math.max(fromLabels, severityPoints(action.severity));
+}
+
+export function actionPoints(
+  action: ScorableAction,
+  excluded: Set<string>,
+  excludedDepartments: Set<string> = excludedDepartmentSet(),
+): number {
+  const frozen = action.points_at_creation;
+  if (frozen !== null && frozen !== undefined && Number.isFinite(frozen)) return frozen;
+  return livePoints(action, excluded, excludedDepartments);
 }
 
 /**
@@ -376,7 +589,7 @@ export function actionPoints(
  * AND its price is what makes the rule visible — including the awkward case where
  * skipping it changes the total by nothing because the severity then pays in full.
  */
-export type PointsBasis = "safety" | "rejected" | "not_leaders" | "labels" | "severity" | "unpriced";
+export type PointsBasis = "safety" | "rejected" | "not_leaders" | "labels" | "severity" | "unpriced" | "frozen" | "severity_over_labels";
 
 export interface PointsBreakdown {
   /** Always equal to `actionPoints` for the same arguments. */
@@ -405,7 +618,7 @@ function sparedNote(spared: Array<{ label: string; points: number }>): string {
 }
 
 export function pointsBreakdown(
-  action: { domain?: string | null; severity: string | null; labels?: string[] | null; validation_status?: string | null },
+  action: ScorableAction,
   excluded: Set<string>,
 ): PointsBreakdown {
   const priced = (action.labels ?? [])
@@ -415,6 +628,30 @@ export function pointsBreakdown(
   const spared = priced.filter((p) => excluded.has(p.label.trim().toLowerCase()));
   const points = actionPoints(action, excluded);
   const base = { points, charged, spared };
+
+  /**
+   * The scale moved after this action was logged, so every sentence below would be
+   * arithmetic about a total that is no longer this action's.
+   *
+   * This is the failure mode the whole module keeps closing, arriving through a new
+   * door: a card reading "20 points — Foreign Body 5 + GMP 15" beside a frozen 8 is
+   * worse than a card that explains nothing, because the reader checks the sum, finds
+   * it wrong, and stops believing the number rather than the explanation. Both figures
+   * are named instead, and which one is being charged is said outright.
+   *
+   * Only when they actually DIFFER. An action whose scale has not moved gets its
+   * ordinary explanation, which is almost every action almost all of the time.
+   */
+  const live = livePoints(action, excluded);
+  if (points !== live) {
+    return {
+      ...base,
+      basis: "frozen",
+      explanation:
+        `${points} points — the scale in force when this was logged. ` +
+        `Today's scale would make it ${live}; past actions keep the scale of their own day.`,
+    };
+  }
 
   // The three zeroes, told apart. "0" alone is the answer that made people distrust
   // the module: a deviation logged in good faith and a deviation Quality threw out
@@ -431,7 +668,38 @@ export function pointsBreakdown(
   }
 
   if (charged.length) {
-    return { ...base, basis: "labels", explanation: `${points} points — ${sumInWords(charged)}.${sparedNote(spared)}` };
+    const raw = charged.reduce((sum, c) => sum + c.points, 0);
+    const cap = maxLabelPoints();
+    const fromLabels = Math.min(raw, cap);
+    const fromSeverity = severityPoints(action.severity);
+    // "24 pts — labels: Foreign Body + GMP", capped at 20 if a ceiling is set.
+    const capNote = raw > cap ? ` Their ${raw} is capped at ${cap}.` : "";
+
+    /**
+     * Which of the two won, said outright.
+     *
+     * Under the old rule the labels always won when there were any, so naming them was
+     * the whole explanation. Under MAX they can lose, and a card that listed
+     * "Batch code 2" beside a total of 20 would be arithmetic nobody can follow — the
+     * reader checks the sum, finds it wrong, and stops trusting the number. Both sides
+     * are named and the winner is stated.
+     */
+    if (fromSeverity > fromLabels) {
+      const grade = severityMeta(action.severity)?.label ?? action.severity;
+      return {
+        ...base,
+        basis: "severity_over_labels",
+        explanation:
+          `${points} points — the ${grade} grade. Its labels would charge ${fromLabels}` +
+          ` (${sumInWords(charged)}), and a label can only ever raise a charge, never lower it.` +
+          `${capNote}${sparedNote(spared)}`,
+      };
+    }
+    return {
+      ...base,
+      basis: "labels",
+      explanation: `${points} points — ${sumInWords(charged)}.${capNote}${sparedNote(spared)}`,
+    };
   }
 
   const grade = severityMeta(action.severity)?.label;
@@ -446,7 +714,7 @@ export function pointsBreakdown(
 
 /** Total charged across a set of actions. Filter the set first; this only weighs it. */
 export function sumActionPoints(
-  actions: Array<{ severity: string | null; labels?: string[] | null; validation_status?: string | null }>,
+  actions: ScorableAction[],
   excluded: Set<string>,
 ): number {
   return actions.reduce((sum, a) => sum + actionPoints(a, excluded), 0);
@@ -464,10 +732,17 @@ export function sumActionPoints(
  * ControlCentreHome's open / severe / awaiting-verdict tiles until it was added back.
  */
 export function standsAgainstLeader(
-  action: { domain?: string | null; labels?: string[] | null; validation_status?: string | null },
+  action: {
+    domain?: string | null;
+    labels?: string[] | null;
+    department?: string | null;
+    validation_status?: string | null;
+  },
   excluded: Set<string>,
+  excludedDepartments: Set<string> = excludedDepartmentSet(),
 ): boolean {
   if (action.domain === "safety") return false;
+  if (!countsAgainstLeaderDepartment(action, excludedDepartments)) return false;
   return !isRejected(action) && countsAgainstLeader(action, excluded);
 }
 

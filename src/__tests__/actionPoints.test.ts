@@ -91,7 +91,7 @@ describe("Cainan reads the same on every surface", () => {
   it("the scorecard", () => {
     const score = computeLeaderScore({
       actual: 100, target: 100, avgOEE: null,
-      actions: CAINAN, excludedLabels: EXCLUDED,
+      actions: CAINAN, excludedLabels: EXCLUDED, gateLabels: new Set<string>(),
     });
     // Quality is 100 less the points that stand against him.
     expect(score.quality.value).toBe(100 - CAINAN_POINTS);
@@ -112,7 +112,7 @@ describe("Cainan reads the same on every surface", () => {
     const table = leaderTracking(CAINAN, EXCLUDED).find((r) => r.leader === "Cainan")!.points;
     const chart = leaderPointsBreakdown(CAINAN, EXCLUDED).find((r) => r.label === "Cainan")!.points;
     const scorecard = 100 - computeLeaderScore({
-      actual: 100, target: 100, avgOEE: null, actions: CAINAN, excludedLabels: EXCLUDED,
+      actual: 100, target: 100, avgOEE: null, actions: CAINAN, excludedLabels: EXCLUDED, gateLabels: new Set<string>(),
     }).quality.value!;
     const indicators = linePointsBreakdown(CAINAN, EXCLUDED).reduce((s, l) => s + l.qualityPoints, 0);
 

@@ -29,6 +29,11 @@ export interface LSAction {
    *  required so `computeLeaderScore`'s `actionPoints`/`standsAgainstLeader` calls can
    *  see it. Without it in the select, a safety row prices as a quality one. */
   domain?: string | null;
+  /** What the action was worth under the scale of its own day, from 20260822090000.
+   *  Undefined means the same as a missing `domain` does — either the migration has not
+   *  run, or a select forgot to ask — and `actionPoints` falls back to today's scale.
+   *  See frozenPointsInSelects.test.ts for why the second case needs guarding. */
+  points_at_creation?: number | null;
 }
 
 export interface LSWorkOrder {
@@ -320,6 +325,14 @@ export interface ScorecardContext {
    * with the board their manager is reading.
    */
   excludedLabels: Set<string>;
+  /**
+   * The labels that gate the period — `quality_options.is_gate`, lowercased.
+   *
+   * Threaded rather than looked up here for the same reason `excludedLabels` is: this
+   * function is shared by the manager's card and the leader's own, and a lookup inside
+   * it would run twice with two different loading states for one number.
+   */
+  gateLabels: Set<string>;
 }
 
 export function computeScorecard(
@@ -327,7 +340,7 @@ export function computeScorecard(
   period: ScorecardPeriod,
   ctx: ScorecardContext,
 ): ScorecardResult {
-  const { weights = DEFAULT_WEIGHTS, excludedLabels } = ctx;
+  const { weights = DEFAULT_WEIGHTS, excludedLabels, gateLabels } = ctx;
   const actions = actionsInPeriod(raw.actions ?? [], period);
   const woRequests = workOrdersInPeriod(raw.woRequests ?? [], period);
   const quality = summariseQuality(actions, raw.completes ?? []);
@@ -339,7 +352,7 @@ export function computeScorecard(
     woStopped: woRequests.filter((w) => w.line_stopped).length,
     quality, docs, production,
     score: computeLeaderScore(
-      { actual: production.actualQty, target: production.targetQty, avgOEE: production.avgOEE, actions, excludedLabels },
+      { actual: production.actualQty, target: production.targetQty, avgOEE: production.avgOEE, actions, excludedLabels, gateLabels },
       weights,
     ),
   };

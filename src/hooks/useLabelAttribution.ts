@@ -80,10 +80,15 @@ export function useLeaderAttribution() {
  * on day one, so switching OFF a label that has always counted has no row to update.
  * `label` is the primary key, so the upsert lands on the right row either way.
  *
- * Invalidates the action queries as well as its own: the score of every action
- * carrying this label changes the moment this is saved — `actionPoints()` reads the
- * exclusion set on every render — and leaving the board showing the old total is how
- * the module loses its credibility again.
+ * Invalidates the action queries as well as its own, and still has to under the freeze.
+ *
+ * Before 20260822090000 the reason was blunt: `actionPoints()` read the exclusion set
+ * on every render, so every action carrying this label changed value the moment this
+ * saved. With the freeze, past actions keep what they were worth — but the save opens a
+ * new scoring version, and an action logged TODAY was frozen against the version this
+ * just replaced. The board still has to redraw, for a narrower reason than before.
+ *
+ * Leaving it showing the old total is how the module loses its credibility again.
  */
 export function useSetLabelAttribution() {
   const qc = useQueryClient();
