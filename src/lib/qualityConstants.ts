@@ -247,6 +247,34 @@ export function setLabelPoints(map: Record<string, number>) {
 }
 
 /**
+ * The hazard list's prices, held apart from the quality labels' on purpose.
+ *
+ * One flat map would have been less code and it would have re-scored history. Safety
+ * occurrences logged before the two lists split carry QUALITY labels — Foreign Body,
+ * GMP — because that was the only list there was, and `labelsForDomain` still shows
+ * them so they can be unticked. With one map, pricing Foreign Body at 5 for the
+ * quality log would have started charging those old occurrences 5 as well, silently,
+ * for a decision nobody made about safety.
+ *
+ * So the domain picks the map: a safety row is priced by the hazard list and by
+ * nothing else, and a quality row by the quality list and by nothing else. Maintenance
+ * is in neither, which is what "shown, never charged" means in practice.
+ */
+let HAZARD_POINTS: Record<string, number> = {};
+
+export function setHazardPoints(map: Record<string, number>) {
+  HAZARD_POINTS = Object.fromEntries(
+    Object.entries(map ?? {}).map(([k, v]) => [k.trim().toLowerCase(), v]),
+  );
+  listeners.forEach((l) => l());
+}
+
+/** The prices in force for one domain's own list. See `setHazardPoints`. */
+function priceMapFor(domain: string | null | undefined): Record<string, number> {
+  return domain === "safety" ? HAZARD_POINTS : LABEL_POINTS;
+}
+
+/**
  * The departments that are NOT the leader's to answer for, lowercased.
  *
  * Module-level and pushed in by `useDepartmentAttributionSync`, exactly like the label
@@ -291,9 +319,14 @@ export function excludedDepartmentSet(): Set<string> {
   return EXCLUDED_DEPARTMENTS;
 }
 
-/** What one label is worth. Zero means it does not price an action. */
-export function labelPoints(label: string): number {
-  return LABEL_POINTS[label.trim().toLowerCase()] ?? 0;
+/**
+ * What one label is worth on an action of this domain. Zero means it does not price it.
+ *
+ * The domain is not decoration: the same text can be priced on the quality list and
+ * absent from the hazard list, and on a safety row the second answer is the right one.
+ */
+export function labelPoints(label: string, domain?: string | null): number {
+  return priceMapFor(domain)[label.trim().toLowerCase()] ?? 0;
 }
 
 /**
@@ -341,11 +374,15 @@ export function maxLabelPoints(): number {
  * "Maintenance is not the leader's" would hold for the attribution rule and fail for
  * the score, and the exclusion would come back in through the points.
  */
-export function labelChargeFor(action: { labels?: string[] | null }, excluded: Set<string>): number {
+export function labelChargeFor(
+  action: { labels?: string[] | null; domain?: string | null },
+  excluded: Set<string>,
+): number {
+  const prices = priceMapFor(action.domain);
   return (action.labels ?? [])
     .map((l) => l.trim().toLowerCase())
     .filter((l) => l && !excluded.has(l))
-    .reduce((sum, l) => sum + (LABEL_POINTS[l] ?? 0), 0);
+    .reduce((sum, l) => sum + (prices[l] ?? 0), 0);
 }
 
 /**
@@ -405,9 +442,14 @@ export function logFormCharge(
   weights: Record<string, number> = severityPointsMap(),
   department?: string | null,
   excludedDepartments: Set<string> = excludedDepartmentSet(),
+  /**
+   * Which list prices these chips. Last and optional because every existing caller is
+   * a quality form, and undefined is exactly what those forms mean.
+   */
+  domain?: string | null,
 ): LogFormCharge {
   const sources = labels
-    .map((label) => ({ label, points: LABEL_POINTS[label.trim().toLowerCase()] ?? 0 }))
+    .map((label) => ({ label, points: labelPoints(label, domain) }))
     .filter((s) => s.points > 0 && !excluded.has(s.label.trim().toLowerCase()));
 
   /**
@@ -585,11 +627,6 @@ export function livePoints(
   excluded: Set<string>,
   excludedDepartments: Set<string> = excludedDepartmentSet(),
 ): number {
-  // Safety is counted, never charged. Reporting a near miss is the behaviour we want,
-  // and a score that punishes the report teaches the team to stop reporting. This is
-  // the ONLY place the rule lives: the leader card, the quality breakdown and Analytics
-  // all read this function, so they cannot disagree about it.
-  if (action.domain === "safety") return 0;
   if (isRejected(action)) return 0;
   // Before the labels, because it is the broader claim: the department says the action
   // belongs to somebody else entirely, and no label can argue it back.
@@ -610,6 +647,26 @@ export function livePoints(
    * still behaves exactly as it did.
    */
   const fromLabels = Math.min(labelChargeFor(action, excluded), maxLabelPoints());
+
+  /**
+   * Safety is charged by its priced hazard and by NOTHING else.
+   *
+   * This used to be a flat `return 0` above every other rule, on the reasoning that a
+   * score punishing the report teaches the team to stop reporting. That reasoning is
+   * still right about the report, and it is why the severity grade is dropped here:
+   * an unpriced hazard is 0 however badly it is graded, so nobody can start charging
+   * occurrences by re-grading them, and a near miss stays free by default.
+   *
+   * What changed is that Health & Safety may now price a hazard deliberately, one row
+   * at a time, on a screen that says so — see qualityListGroups.ts. Pricing PPE at 2
+   * is a decision somebody makes and can be read back off the list; grading an
+   * occurrence Critical is not.
+   *
+   * Change this, change `standsAgainstLeader` below in the same commit. The two have
+   * gone out of step over exactly this guard once already.
+   */
+  if (action.domain === "safety") return fromLabels;
+
   return Math.max(fromLabels, severityPoints(action.severity));
 }
 
@@ -675,7 +732,7 @@ export function pointsBreakdown(
   excluded: Set<string>,
 ): PointsBreakdown {
   const priced = (action.labels ?? [])
-    .map((label) => ({ label, points: LABEL_POINTS[label.trim().toLowerCase()] ?? 0 }))
+    .map((label) => ({ label, points: labelPoints(label, action.domain) }))
     .filter((p) => p.points > 0);
   const charged = priced.filter((p) => !excluded.has(p.label.trim().toLowerCase()));
   const spared = priced.filter((p) => excluded.has(p.label.trim().toLowerCase()));
@@ -709,8 +766,15 @@ export function pointsBreakdown(
   // The three zeroes, told apart. "0" alone is the answer that made people distrust
   // the module: a deviation logged in good faith and a deviation Quality threw out
   // look the same on a card, and only one of them should.
-  if (action.domain === "safety") {
-    return { ...base, basis: "safety", explanation: "Safety is counted, never charged — reporting it costs the leader nothing." };
+  // Only when it IS a zero. A priced hazard falls through to the ordinary label
+  // explanation below, which names the hazard and what it charged — the reader has to
+  // be able to see where the points on a safety row came from.
+  if (action.domain === "safety" && points === 0) {
+    return {
+      ...base,
+      basis: "safety",
+      explanation: "No priced hazard on this occurrence — reporting it costs the leader nothing.",
+    };
   }
   if (action.validation_status === "rejected") {
     return { ...base, basis: "rejected", explanation: "Quality rejected this — it is not charged." };
@@ -794,9 +858,14 @@ export function standsAgainstLeader(
   excluded: Set<string>,
   excludedDepartments: Set<string> = excludedDepartmentSet(),
 ): boolean {
-  if (action.domain === "safety") return false;
   if (!countsAgainstLeaderDepartment(action, excludedDepartments)) return false;
-  return !isRejected(action) && countsAgainstLeader(action, excluded);
+  if (isRejected(action) || !countsAgainstLeader(action, excluded)) return false;
+  // A safety occurrence stands exactly when it costs something. That is the invariant
+  // this function exists to hold with `livePoints`: anything worth points must also
+  // count, or a leader is charged for a row the same screen says does not stand.
+  // Unpriced — the ordinary near miss — still answers no, as it always has.
+  if (action.domain === "safety") return labelChargeFor(action, excluded) > 0;
+  return true;
 }
 
 
@@ -983,6 +1052,66 @@ export function isHarmKind(value: string | null | undefined): boolean {
  * always (see `actionPoints`), so a price on one of these would name a number that
  * never gets charged.
  */
+/**
+ * The breakdowns a maintenance label names.
+ *
+ * A list of its own rather than the single "Maintenance" chip the quality list has
+ * carried since the start. That chip answered "was maintenance involved" and nothing
+ * else, so every machine fault in the factory arrived at the scorecard as one word
+ * and the log could not tell a seized bearing from a missing guard sensor.
+ *
+ * Deliberately disjoint from both other lists — `Electrical fault` here against
+ * `Electrical` on the safety list, which is the hazard of touching live equipment and
+ * not the reason the line stopped. The log colours a chip by which list it came from,
+ * and a word on two lists would take two colours.
+ *
+ * Priced but never charged: see CHARGING_LABEL_KINDS.
+ */
+export const MAINTENANCE_LABELS = [
+  "Breakdown",
+  "Bearing failure",
+  "Belt / conveyor",
+  "Sensor / photocell",
+  "Air leak",
+  "Electrical fault",
+  "Lubrication",
+  "Spare part missing",
+  "Calibration",
+] as const;
+
+/**
+ * The option kinds whose `points` actually reach a leader's total.
+ *
+ * Three lists carry a price and only two of them charge one. Quality actions always
+ * have; Health & Safety now does, by an explicit decision recorded in
+ * `qualityListGroups.ts`. Maintenance shows a price and never charges it — a machine
+ * fault is not the person running the line that night, which is the same rule the
+ * department attribution has enforced since 20260827093000.
+ *
+ * This constant is the ONE place that answers it. `chargingLabelPoints` below builds
+ * the price map every score reads, and it is the only builder — so a fourth list
+ * cannot start charging by accident, and this one cannot stop.
+ */
+export const CHARGING_LABEL_KINDS = ["label", "safety_label"] as const;
+
+/**
+ * The two price maps, built from the raw option rows and kept apart by kind.
+ *
+ * Pure and exported because the alternative — filtering inside the hook — is a rule
+ * about money living in a data-fetching file where no test would ever look at it.
+ * `maintenance_label` and `department` rows fall out here and reach neither map, which
+ * is the whole enforcement of "shown, never charged".
+ */
+export function chargingLabelPoints(
+  rows: { kind: string; value: string; points?: number | null }[],
+): { labels: Record<string, number>; hazards: Record<string, number> } {
+  const of = (kind: string) =>
+    Object.fromEntries(
+      rows.filter((r) => r.kind === kind).map((r) => [r.value, Number(r.points ?? 0)]),
+    );
+  return { labels: of("label"), hazards: of("safety_label") };
+}
+
 export const SAFETY_LABELS = [
   "Slip / trip / fall",
   "Manual handling",
@@ -1005,11 +1134,52 @@ export const SAFETY_LABELS = [
  */
 export function labelsForDomain(
   domain: string | null | undefined,
-  lists: { labels?: string[]; safetyLabels?: string[] },
+  lists: { labels?: string[]; safetyLabels?: string[]; maintenanceLabels?: string[] },
   current: string[] = [],
 ): string[] {
   const configured = domain === "safety" ? lists.safetyLabels : lists.labels;
   const fallback = domain === "safety" ? SAFETY_LABELS : QUALITY_LABELS;
-  const list = configured?.length ? configured : [...fallback];
+  const own = configured?.length ? configured : [...fallback];
+  // Maintenance is a list INSIDE the quality log, not a domain of its own: the same
+  // deviation is logged once and can be both a quality problem and a machine one, so
+  // both sets of chips have to be on the same form. The safety form does not get them
+  // — a hazard is graded against hazards.
+  const list = domain === "safety" ? own : [...own, ...(lists.maintenanceLabels ?? [])];
   return [...list, ...current.filter((l) => l && !list.includes(l))];
+}
+
+/**
+ * Which list a label on a logged action came from, or null if no list claims it.
+ *
+ * The action stores labels as plain text (`labels: string[]`), so the list is not on
+ * the row — it is recovered by looking the text up in the configured options. Null is
+ * a real and common answer: a label removed from a list, or renamed, stays on every
+ * action already logged against it, and those chips must still render.
+ */
+export function labelKindOf(
+  label: string,
+  kinds: Record<string, string>,
+): string | null {
+  return kinds[label.trim().toLowerCase()] ?? null;
+}
+
+/**
+ * The badge a label chip wears, by the list it came from.
+ *
+ * Four answers, four colours, because a chip that cannot say which list it belongs to
+ * is why "Maintenance" and "CCP" read as the same kind of fact on the log today. The
+ * neutral one is not a fallback nobody sees — it is what an unconfigured or renamed
+ * label gets, and it has to read as "no list", not as a fourth list.
+ */
+export function labelBadge(kind: string | null | undefined): string {
+  switch (kind) {
+    case "label":
+      return "bg-primary/15 text-primary border-primary/40";
+    case "maintenance_label":
+      return "bg-warning/15 text-warning-strong border-warning/40";
+    case "safety_label":
+      return "bg-destructive/15 text-destructive-strong border-destructive/40";
+    default:
+      return "bg-muted text-muted-foreground border-border";
+  }
 }

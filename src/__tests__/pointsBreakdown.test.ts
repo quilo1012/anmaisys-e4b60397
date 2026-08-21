@@ -79,8 +79,11 @@ describe("pointsBreakdown", () => {
 
   it("explains the three ways an action costs nothing, differently", () => {
     setLabelPoints({ "foreign body": 5, maintenance: 3 });
+    // Foreign Body is priced on the QUALITY list, which does not reach a safety row —
+    // so this occurrence carries no priced hazard and is free, as every occurrence was
+    // before the hazard list could be priced at all.
     expect(pointsBreakdown(action(["Foreign Body"], { domain: "safety" }), EXCLUDED).explanation)
-      .toBe("Safety is counted, never charged — reporting it costs the leader nothing.");
+      .toBe("No priced hazard on this occurrence — reporting it costs the leader nothing.");
     expect(pointsBreakdown(action(["Foreign Body"], { validation_status: "rejected" }), EXCLUDED).explanation)
       .toBe("Quality rejected this — it is not charged.");
     expect(pointsBreakdown(action(["Maintenance"]), EXCLUDED).explanation)

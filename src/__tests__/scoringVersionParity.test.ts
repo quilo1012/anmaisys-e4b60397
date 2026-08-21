@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { actionPoints, setLabelPoints, setSeverityPoints, setExcludedDepartments } from "@/lib/qualityConstants";
+import { actionPoints, setHazardPoints, setLabelPoints, setSeverityPoints, setExcludedDepartments } from "@/lib/qualityConstants";
 
 /**
  * `actionPoints()` now has a twin in SQL, and twins drift.
@@ -62,6 +62,10 @@ const EXCLUDED = new Set(["maintenance"]);
 beforeEach(() => {
   setSeverityPoints(SEVERITY);
   setLabelPoints(LABELS);
+  // The hazard list is a SECOND price map, and the golden table below is priced on the
+  // quality one. Cleared here so every safety row in it reads as "no priced hazard",
+  // which is what those rows have always been asserting.
+  setHazardPoints({});
   // The golden table below is about labels and grades, so no department is excluded
   // for it. The department cases set their own, further down.
   setExcludedDepartments({});
@@ -73,7 +77,10 @@ beforeEach(() => {
  */
 const CASES: Array<{ name: string; action: Parameters<typeof actionPoints>[0]; points: number }> = [
   {
-    name: "safety is counted, never charged — before any other test",
+    // Foreign Body is priced on the QUALITY list. It does not reach a safety row, and
+    // the Critical grade cannot charge one either — so this is still 0, as every
+    // safety row was before a hazard could be priced at all.
+    name: "a safety row is not charged by a quality price, nor by its grade",
     action: { domain: "safety", severity: "critical", labels: ["Foreign Body"], validation_status: "validated" },
     points: 0,
   },
@@ -203,6 +210,53 @@ describe("the golden table, with a department that is not the leader's", () => {
   }
 });
 
+/**
+ * The hazard list, priced. Its own block because it needs its own price map — and
+ * because the SQL reaches these rows through `v.kind = _kind`, which is the join the
+ * golden table above can never exercise.
+ */
+describe("the golden table, with a hazard that carries a price", () => {
+  const HAZARD_CASES: Array<{ name: string; action: Parameters<typeof actionPoints>[0]; points: number }> = [
+    {
+      name: "a priced hazard charges exactly what it is priced at",
+      action: { domain: "safety", severity: "low", labels: ["PPE"], validation_status: "validated" },
+      points: 2,
+    },
+    {
+      name: "the grade never adds to it — a Critical occurrence is still worth its hazard",
+      action: { domain: "safety", severity: "critical", labels: ["PPE"], validation_status: "validated" },
+      points: 2,
+    },
+    {
+      name: "an unpriced hazard is free, however it is graded",
+      action: { domain: "safety", severity: "critical", labels: ["Machine guarding"], validation_status: "validated" },
+      points: 0,
+    },
+    {
+      name: "priced hazards sum, exactly as priced labels do",
+      action: { domain: "safety", severity: "low", labels: ["PPE", "Housekeeping"], validation_status: "validated" },
+      points: 3,
+    },
+    {
+      name: "rejected voids a priced hazard too",
+      action: { domain: "safety", severity: "low", labels: ["PPE"], validation_status: "rejected" },
+      points: 0,
+    },
+    {
+      name: "a hazard price does not reach a quality action",
+      action: { domain: "quality", severity: "low", labels: ["PPE"], validation_status: "validated" },
+      points: 1,
+    },
+  ];
+
+  for (const c of HAZARD_CASES) {
+    it(c.name, () => {
+      setHazardPoints({ ppe: 2, housekeeping: 1 });
+      expect(actionPoints(c.action, EXCLUDED)).toBe(c.points);
+    });
+  }
+});
+
 describe("action_points_at() keeps the guards, and keeps them in order", () => {
   /** The function body alone — the file also discusses these rules in prose. */
   const body = sql.slice(sql.indexOf("FUNCTION public.action_points_at"), sql.indexOf("COMMENT ON FUNCTION public.action_points_at"));
@@ -215,14 +269,45 @@ describe("action_points_at() keeps the guards, and keeps them in order", () => {
    * new rule — which is the review this failure is asking for.
    */
   it("is read from the migration that is actually in force", () => {
-    expect(MIGRATION).toBe("20260827093000_a_department_can_be_someone_elses.sql");
+    expect(MIGRATION).toBe("20260828090000_maintenance_keeps_its_own_list_and_a_hazard_can_cost.sql");
   });
 
-  it("returns 0 for safety before it looks at anything else", () => {
-    const safety = body.indexOf("_domain = 'safety'");
+  /**
+   * Safety used to be the FIRST guard, a flat `RETURN 0` above everything.
+   *
+   * 20260828090000 moved it, deliberately: a hazard may now carry a price and an
+   * occurrence carrying it is charged that much. What did NOT move is the half the old
+   * guard was really protecting — the severity grade still cannot charge a safety row,
+   * so an unpriced hazard is 0 however badly it is graded and reporting a near miss
+   * stays free. The early return therefore sits AFTER the label pricing and BEFORE the
+   * grade, and that position is the rule.
+   */
+  it("prices a safety occurrence off its hazards and stops before the grade", () => {
+    const price = body.indexOf("scoring_version_label");
+    const safety = body.indexOf("IF _domain = 'safety' THEN RETURN _charge");
+    const grade = body.indexOf("scoring_version_severity");
+    expect(price).toBeGreaterThan(-1);
+    expect(safety).toBeGreaterThan(price);
+    expect(grade).toBeGreaterThan(safety);
+  });
+
+  it("rejects before it prices anything, safety included", () => {
     const rejected = body.indexOf("_validation_status = 'rejected'");
-    expect(safety).toBeGreaterThan(-1);
-    expect(rejected).toBeGreaterThan(safety);
+    expect(rejected).toBeGreaterThan(-1);
+    expect(body.indexOf("scoring_version_label")).toBeGreaterThan(rejected);
+  });
+
+  /**
+   * The two priced lists never reach each other.
+   *
+   * Occurrences logged before the lists split carry quality labels, so a price lookup
+   * that ignored the kind would have started charging them the moment somebody priced
+   * Foreign Body for the quality log — silently, for a decision nobody made about
+   * safety. The join carries the kind, and the kind is chosen from the domain.
+   */
+  it("looks a price up in the list the action's own domain names", () => {
+    expect(body).toMatch(/_kind\s*:=\s*CASE WHEN _domain = 'safety' THEN 'safety_label' ELSE 'label' END/);
+    expect(body).toMatch(/v\.kind = _kind/);
   });
 
   it("applies attribution before it prices anything", () => {

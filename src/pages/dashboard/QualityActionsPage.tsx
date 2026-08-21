@@ -30,10 +30,10 @@ import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
 import { isMissingColumn } from "@/lib/postgrestErrors";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_KIND_GROUPS, isHarmKind, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, pointsBreakdown, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_KIND_GROUPS, isHarmKind, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, pointsBreakdown, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed, labelBadge, labelKindOf } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useScoringFreeze } from "@/hooks/useScoringFreeze";
-import { useGateLabels } from "@/hooks/useQualityOptions";
+import { useGateLabels, useLabelKinds } from "@/hooks/useQualityOptions";
 import { useLeaderAttribution, useSetLabelAttribution } from "@/hooks/useLabelAttribution";
 import { useQualityOptions, useAllQualityOptions, useDepartmentAttribution, type QualityOption } from "@/hooks/useQualityOptions";
 import { listGroups } from "@/lib/qualityListGroups";
@@ -139,7 +139,15 @@ export function QualityActionsView() {
 
   const { data: qOpts } = useQualityOptions();
   const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
-  const LABEL_LISTS = { labels: LABELS, safetyLabels: qOpts?.safetyLabels ?? [] };
+  const LABEL_LISTS = {
+    labels: LABELS,
+    safetyLabels: qOpts?.safetyLabels ?? [],
+    // Appended to the quality form's chips by `labelsForDomain` — the same deviation
+    // can be both a quality problem and a machine one, and is logged once.
+    maintenanceLabels: qOpts?.maintenanceLabels ?? [],
+  };
+  // Which list each chip came from, for the colour it wears in the log below.
+  const LABEL_KINDS = qOpts?.labelKinds ?? {};
   const DEPTS = qOpts?.departments ?? [...QUALITY_DEPARTMENTS];
 
   // Kanban is gone. A To do / In progress / Complete board is the working view of
@@ -883,7 +891,9 @@ export function QualityActionsView() {
                       // The department is passed because the freeze trigger reads it:
                       // without it this sentence promised a grade that
                       // `action_points_at` was about to overwrite with 0.
-                      const charge = logFormCharge(form.labels, excluded, undefined, form.department);
+                      // The domain picks which price list the chips are read against:
+                      // a hazard prices a safety occurrence, a quality label does not.
+                      const charge = logFormCharge(form.labels, excluded, undefined, form.department, undefined, form.domain);
                       const note = excludedLabelNote(form.labels, excluded);
                       // The grade is passed in now. Without it this sentence would go on
                       // telling somebody their Critical action scores 0 because they have
@@ -1214,7 +1224,13 @@ export function QualityActionsView() {
                       <TableCell>{a.department ?? "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {(a.labels ?? []).map((l) => <Badge key={l} variant="secondary" className="text-2xs">{l}</Badge>)}
+                          {/* Coloured by which list the label came from — quality,
+                              maintenance or hazard — because three lists now share one
+                              log and a flat grey chip made them read as one vocabulary.
+                              A label no list claims keeps the neutral badge. */}
+                          {(a.labels ?? []).map((l) => (
+                            <Badge key={l} variant="outline" className={cn("text-2xs", labelBadge(labelKindOf(l, LABEL_KINDS)))}>{l}</Badge>
+                          ))}
                         </div>
                       </TableCell>
                       <TableCell className="max-w-xs truncate">{a.description ?? "—"}</TableCell>
@@ -1307,6 +1323,10 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
   onDelete: () => void; onEdit: () => void;
 }) {
   const { data: history = [] } = useQualityHistory(action?.id);
+  // Same colours as the table behind it. Read through the hook rather than threaded
+  // down as a prop: the detail dialog is opened from three places and one of them
+  // would have been given the wrong map eventually.
+  const labelKinds = useLabelKinds();
   // Read here rather than threaded down: the score block is the one part of this
   // dialog that must not draw before attribution has loaded, and a prop passed from
   // a parent that does not need it would be one more place to forget the guard.
@@ -1389,7 +1409,9 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
               </div>
 
               {(action.labels?.length ?? 0) > 0 && (
-                <div className="flex flex-wrap gap-1">{(action.labels ?? []).map((l) => <Badge key={l} variant="secondary" className="text-2xs">{l}</Badge>)}</div>
+                <div className="flex flex-wrap gap-1">{(action.labels ?? []).map((l) => (
+                  <Badge key={l} variant="outline" className={cn("text-2xs", labelBadge(labelKindOf(l, labelKinds)))}>{l}</Badge>
+                ))}</div>
               )}
               {action.description && <p className="whitespace-pre-wrap rounded border bg-muted/30 p-2 text-sm">{action.description}</p>}
 
@@ -1698,7 +1720,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
     const v = value.trim();
     if (!v) return;
     const maxSort = options.filter((o) => o.kind === kind).reduce((m, o) => Math.max(m, o.sort), 0);
-    const p = kind === "label" ? clampPoints(points) : 0;
+    const p = kind === "department" ? 0 : clampPoints(points);
     const row = { kind, value: v, sort: maxSort + 1, active: true, ...(p ? { points: p } : {}) };
     const { error } = await supabase
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
@@ -1832,16 +1854,20 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
             answer. Named in the placeholder below instead. */}
         {!isSafety && (
         <Select value={kind} onValueChange={(v) => setKind(v as QualityOption["kind"])}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="label">Quality action</SelectItem>
+            <SelectItem value="maintenance_label">Maintenance</SelectItem>
             <SelectItem value="safety_label">Health &amp; Safety</SelectItem>
             <SelectItem value="department">Department</SelectItem>
           </SelectContent>
         </Select>
         )}
         <Input placeholder={isSafety ? "New hazard..." : "New value..."} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
-        {kind === "label" && (
+        {/* Every label list carries a price now; only departments never do. What the
+            price DOES differs by list and is stated on each list's own header — see
+            qualityListGroups.ts. */}
+        {kind !== "department" && (
           <Input
             type="number" min={0} max={1000} inputMode="numeric"
             className="w-20 tabular-nums" placeholder="pts"

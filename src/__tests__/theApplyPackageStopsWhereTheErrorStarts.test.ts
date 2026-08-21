@@ -99,6 +99,28 @@ describe("the consolidated file is safe to hand to a person", () => {
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
 
+  /**
+   * The other direction, which was open until 19/08/2026.
+   *
+   * Everything above walks `supabase/migrations/` and asks whether the package carries
+   * it — so a migration nobody packaged fails. Nothing asked the reverse, and on main
+   * the package shipped BLOCO 18 naming
+   * `20260828090000_maintenance_keeps_its_own_list_and_a_hazard_can_cost.sql` while
+   * that file was not committed at all. CI stayed green the whole time: `owned` is
+   * built from the files that exist, so a file that does not exist is simply never
+   * checked, and its absence is invisible to every assertion in this file.
+   *
+   * A block whose migration is missing is the worse of the two failures. The packaged
+   * SQL is what a person pastes into production, and if the repository has no copy,
+   * nothing can ever verify what they pasted.
+   */
+  it("carries no block whose migration is missing from the repository", () => {
+    const named = [...consolidated().matchAll(/^-- (20260\d{9}_[a-z0-9_]+\.sql)$/gm)].map((m) => m[1]);
+    expect(named.length).toBeGreaterThan(5);
+    const present = new Set(readdirSync(MIGRATIONS));
+    expect(named.filter((f) => !present.has(f))).toEqual([]);
+  });
+
   it("says which objects to probe for afterwards", () => {
     // "It ran without an error" is not the same as "it landed", and the last package
     // learned that the expensive way. The reader is told what to check.

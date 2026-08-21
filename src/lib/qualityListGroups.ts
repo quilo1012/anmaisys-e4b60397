@@ -26,7 +26,7 @@ export interface QualityListGroup {
    * already saved carries, and renaming them would orphan the lot — nothing about the
    * scoring changes because a heading reads better.
    */
-  kind: "label" | "safety_label" | "department";
+  kind: "label" | "maintenance_label" | "safety_label" | "department";
   /** The heading, in the words the factory uses. */
   title: string;
   /** One line: what this list does to a leader's score. Never empty. */
@@ -72,14 +72,49 @@ const QUALITY_ACTIONS: QualityListGroup = {
  * One object, used by both tabs, so the two cannot drift into saying different things
  * about the same list. That drift was the bug.
  */
+/**
+ * The maintenance list, added because "Maintenance" was one chip on the quality list.
+ *
+ * It carries a price and never charges one, which is the one combination this file
+ * did not have a shape for before. The price is for whoever reads the log — how big a
+ * breakdown this was — and the leader is not the person who chooses when a bearing
+ * seizes. That is the same answer department attribution has given since
+ * 20260827093000; this list makes it visible on the label as well.
+ *
+ * `CHARGING_LABEL_KINDS` in qualityConstants.ts is what actually enforces it. The
+ * sentence below only has to be true.
+ */
+const MAINTENANCE: QualityListGroup = {
+  kind: "maintenance_label",
+  title: "Maintenance",
+  effect:
+    "How big the breakdown was. Points here are for reading the log, never charged: a machine fault costs no leader a point, whatever it is priced at.",
+  // Priced but never charged, so the price cannot be re-attributed either.
+  columns: { points: true, gate: false, attribution: false },
+  // Records a fact about a machine; it moves no score in either direction.
+  rail: "idle",
+};
+
+/**
+ * One object, used by both tabs, so the two cannot drift into saying different things
+ * about the same list. That drift was the bug.
+ *
+ * This list did NOT price anything until now, and the reasoning against it is worth
+ * keeping in front of whoever changes it back: a score that punishes the report
+ * teaches the team to stop reporting, so a near miss has to stay free. It still is —
+ * an unpriced hazard charges nothing however badly the occurrence is graded, and the
+ * severity grade cannot charge a safety row at all (see `livePoints`). What is now
+ * possible is pricing one named hazard deliberately, on this screen, where it can be
+ * read back. Requested and confirmed with that consequence stated.
+ */
 const HEALTH_AND_SAFETY: QualityListGroup = {
   kind: "safety_label",
   title: "Health & Safety",
   effect:
-    "Hazards, not scoring. An occurrence is counted and never charged, so nothing here carries points and no leader's score moves when this list changes — reporting a near miss has to stay free.",
-  columns: { points: false, gate: false, attribution: false },
-  // Touches no score, by design and permanently.
-  rail: "idle",
+    "Hazards. Leave one at 0 and reporting it stays free, whatever the grade. Price one and every occurrence carrying it charges the leader that much — the grade never adds to it.",
+  columns: { points: true, gate: false, attribution: false },
+  // It can charge now, but it cannot cap: no hazard turns a period Red by itself.
+  rail: "hold",
 };
 
 const DEPARTMENTS: QualityListGroup = {
@@ -100,5 +135,5 @@ const DEPARTMENTS: QualityListGroup = {
 export function listGroups(domain: "quality" | "safety"): QualityListGroup[] {
   return domain === "safety"
     ? [HEALTH_AND_SAFETY]
-    : [QUALITY_ACTIONS, HEALTH_AND_SAFETY, DEPARTMENTS];
+    : [QUALITY_ACTIONS, MAINTENANCE, HEALTH_AND_SAFETY, DEPARTMENTS];
 }
