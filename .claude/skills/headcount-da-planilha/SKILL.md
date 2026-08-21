@@ -87,9 +87,35 @@ insert into daily_allocations (on_date, shift, employee_id, area_id, status) val
 
 Restrições da tabela, que rejeitam a escrita inteira se forem violadas:
 
-- `shift` só aceita **`Day` | `Night` | `Weekend`**. Não há turno de armazém: mapeia
-  `Warehouse Day` → `Day` e `Warehouse Weekend` → `Weekend`, e **diz que o fizeste** —
-  são 18 pessoas que perdem o turno próprio.
+- `shift` é **o board, não a crew, e não o relógio**. A coluna aceita `Day` | `Night`
+  | `Weekend`, mas o board só tem dois separadores e dobra as crews assim
+  (`boardShiftFor`, src/hooks/useHeadcount.ts):
+
+      shift_group = 'Night'  →  shift 'Night'
+      tudo o resto           →  shift 'Day'   (Day, Weekend, Warehouse Day, Warehouse Weekend)
+
+  **Uma aba de dia da planilha é o board `Day`.** Nunca escrevas `Night` porque é de
+  noite quando estás a gravar, nem porque o ecrã abriu nesse separador: a página abre
+  no board do relógio (`currentShift()`), e depois das 18:00 isso é Night.
+
+  Escrever o dia no board errado não dá erro nenhum — dá **overtime**. `isOffRota`
+  (src/lib/rotaStatus.ts:57) considera fora da rota quem não é da crew do board, e
+  `statusForPlacement` grava `overtime` a cada um. A 21/08/2026 foram 57 pessoas de
+  uma vez, e a marca é pegajosa: não se desfaz mudando o board depois.
+
+  Nunca escrevas `Weekend`: a tabela aceita-o e o board não tem separador que o mostre
+  — as linhas ficam gravadas e invisíveis (já aconteceu a 37 delas). A crew Fri–Mon
+  vai para `Day`, como o `boardShiftFor` faz. Diz que o fizeste: são 18 pessoas de
+  armazém e a crew de fim-de-semana que perdem o turno próprio na coluna `shift`.
+
+  Depois de gravar, **confirma o board** antes de dizer que está feito:
+
+  ```sql
+  select shift, count(*) from daily_allocations where on_date = '<data>' group by 1;
+  ```
+
+  Uma aba de dia que produza linhas em `Night` (tirando quem é mesmo crew Night) ou
+  em `Weekend` está errada — repara antes de reportar.
 - `status` só aceita **`assigned` | `absence` | `holiday` | `overtime`**.
 - Único por `(on_date, shift, employee_id)`.
 

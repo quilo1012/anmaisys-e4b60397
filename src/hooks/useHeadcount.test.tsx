@@ -48,6 +48,7 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 
 import { useSetShiftPattern, useChangeShift } from "./useHeadcount";
+import { useUpdateEmployee } from "./useWorkforce";
 
 function wrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
@@ -115,5 +116,41 @@ describe("useChangeShift", () => {
     const moved = calls.find((c) => c.table === "daily_allocations" && c.op === "update");
     expect(moved?.payload).toMatchObject({ shift: "Night" });
     expect(moved?.filters).toMatchObject({ "gte:on_date": "2026-08-08" });
+  });
+});
+
+/**
+ * The third writer, and the one the fix of 08/08 missed.
+ *
+ * The board's two controls record the position; the Workforce panel's Save writes
+ * `employees.shift_pattern_id` on its own. A rota corrected there reaches every screen
+ * and none of the rules — and the board goes on judging the person against the rota
+ * the history still holds, which is how a Tue–Fri person's Friday was written as
+ * overtime while the panel showed Tue–Fri back to whoever had just set it.
+ */
+describe("useUpdateEmployee", () => {
+  it("records a rota changed from the Workforce panel in the history too", async () => {
+    const { result } = renderHook(() => useUpdateEmployee(), { wrapper: wrapper() });
+    result.current.mutate({ id: "josiley", patch: { shift_pattern_id: "tue-fri" } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(history()).toHaveLength(1);
+    expect(history()[0].payload).toMatchObject({
+      employee_id: "josiley",
+      shift_pattern_id: "tue-fri",
+      // The crew is the other half of a position and is not being changed here, so it
+      // is read off the employee and carried, exactly as the board's controls do.
+      shift_group: "Day",
+    });
+  });
+
+  it("leaves the history alone when the patch says nothing about the position", async () => {
+    // A leaving date, a department, a manager: none of them is a position, and a row
+    // per edit would fill the history with dates nothing happened on.
+    const { result } = renderHook(() => useUpdateEmployee(), { wrapper: wrapper() });
+    result.current.mutate({ id: "josiley", patch: { department: "Production" } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(history()).toHaveLength(0);
   });
 });

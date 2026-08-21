@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { currentShift } from "@/lib/operationalShift";
 import type { PatternDayOverride } from "@/lib/overtime";
 
 /**
@@ -530,14 +531,74 @@ export function useEmployeeOvertime(employeeId: string | null) {
   });
 }
 
+/**
+ * Edit somebody's record — and, when the edit moves their position, say so where the
+ * rules can hear it.
+ *
+ * `employees.shift_group` and `employees.shift_pattern_id` are what every screen
+ * shows. `employee_shift_history` is what every *date-aware* read asks, including the
+ * one that decides whether a day is an ordinary shift or overtime — see
+ * `resolveShiftOn` and the board's `recordPosition`.
+ *
+ * This panel wrote only the columns. So a rota corrected here reached every screen and
+ * none of the rules: the board went on judging the person against the rota the history
+ * still held, and a Tue–Fri person's Friday was saved as `overtime` while this very
+ * panel showed Tue–Fri back to whoever had just set it. The board's two controls were
+ * fixed on 08/08; this third writer was missed, and it is the one the office uses.
+ *
+ * Effective from the operational date, not from `new Date()`: at half past midnight
+ * the calendar has turned over and the night crew has not, and a rota that starts
+ * "today" has to mean the day the factory is working.
+ *
+ * Only a patch that touches the position writes a row. A department, a manager or a
+ * leaving date is not a position, and a row per edit would fill the history with dates
+ * on which nothing moved.
+ */
 export function useUpdateEmployee() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<Employee> }) => {
+      const movesPosition = "shift_group" in patch || "shift_pattern_id" in patch;
+
+      // The half not being changed, read before the write. A history row holds both,
+      // and writing one while leaving the other null would move the person to no crew
+      // at all on that date — the same reason the board reads it first.
+      let held: { shift_group: string | null; shift_pattern_id: string | null } | null = null;
+      if (movesPosition) {
+        const { data, error: readErr } = await db
+          .from("employees")
+          .select("shift_group, shift_pattern_id")
+          .eq("id", id)
+          .single();
+        if (readErr) throw readErr;
+        held = data as { shift_group: string | null; shift_pattern_id: string | null };
+      }
+
       const { error } = await db.from("employees").update(patch).eq("id", id);
       if (error) throw error;
+
+      if (movesPosition) {
+        const { error: histErr } = await db.from("employee_shift_history").upsert(
+          {
+            employee_id: id,
+            shift_group: "shift_group" in patch ? patch.shift_group ?? null : held?.shift_group ?? null,
+            shift_pattern_id:
+              "shift_pattern_id" in patch ? patch.shift_pattern_id ?? null : held?.shift_pattern_id ?? null,
+            effective_from: currentShift().operationalDate,
+            note: "Position changed on the employee panel",
+          },
+          { onConflict: "employee_id,effective_from" },
+        );
+        if (histErr) throw histErr;
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      // The rules read these two, and a rota that has changed has to reach them or the
+      // board keeps deciding overtime against the old one until a reload.
+      qc.invalidateQueries({ queryKey: ["employee_shift_history"] });
+      qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
+    },
   });
 }
 
