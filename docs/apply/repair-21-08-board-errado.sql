@@ -62,15 +62,21 @@ on conflict (employee_id, effective_from) do update
 returning employee_id;
 
 
--- ── Bloco 2 · mover o dia para o board certo e desfazer o overtime ──────────
--- Move quem não é crew Night. Também apanha shift='Weekend', que a tabela aceita e
--- o board não tem separador para mostrar — linhas gravadas e depois invisíveis.
+-- ── Bloco 2 · mover o dia inteiro para o board Day ─────────────────────────
+-- Decisão do utilizador, 21/08: o dia 21/08 é todo do board Day. Move TUDO o que não
+-- está em 'Day' — inclui `Weekend`, que a tabela aceita e o board não tem separador
+-- para mostrar (linhas gravadas e depois invisíveis, já aconteceu a 37 delas).
 --
--- O status é recomposto pela regra da app, não apagado: no board Day, quem tem uma
--- rota que cobre a sexta volta a 'assigned'; quem tem uma rota que NÃO a cobre fica
--- em 'overtime', porque aí a marca é verdadeira — é uma chamada num dia de folga.
--- Quem não tem rota nenhuma volta a 'assigned' (desconhecido não é "fora da rota",
--- rotaStatus.ts:49). Ausências, doença e férias não são tocadas.
+-- O status é recomposto pela regra da app (isOffRota), não apagado:
+--   · crew não-Night + rota que cobre a sexta   → 'assigned'
+--   · crew não-Night + sem rota registada       → 'assigned'  (desconhecido não é
+--                                                  "fora da rota", rotaStatus.ts:49)
+--   · crew não-Night + rota que NÃO cobre sexta → fica 'overtime' — é uma chamada
+--                                                  num dia de folga, e é verdade
+--   · crew Night no board Day                   → fica 'overtime', pela mesma razão:
+--     está a trabalhar fora da rota. Forçar 'assigned' aqui era mentira e o primeiro
+--     arrasto no board voltava a escrever 'overtime' na mesma.
+-- Ausências, doença e férias não são tocadas.
 --
 -- `is_leader` só sobrevive se a coluna não tiver já um líder no board de destino: o
 -- índice `daily_allocations_one_leader_per_area` recusa o segundo, e recusa a
@@ -82,7 +88,9 @@ update daily_allocations da
 set shift = 'Day',
     status = case
       when da.status = 'overtime'
-       and (sp.id is null or 5 = any(sp.days)) then 'assigned'   -- 5 = sexta
+       and coalesce(e.shift_group, '') <> 'Night'
+       and (sp.id is null or 5 = any(sp.days))      -- 5 = sexta
+      then 'assigned'
       else da.status
     end,
     is_leader = coalesce(da.is_leader, false) and not exists (
@@ -95,8 +103,7 @@ from employees e
 left join shift_patterns sp on sp.id = e.shift_pattern_id
 where da.employee_id = e.id
   and da.on_date = date '2026-08-21'
-  and da.shift in ('Night', 'Weekend')
-  and coalesce(e.shift_group, '') <> 'Night'
+  and da.shift <> 'Day'
   -- Ninguém pode ter duas linhas no mesmo dia e board: a chave
   -- (on_date, shift, employee_id) é única, e a instrução inteira falharia.
   and not exists (
@@ -104,15 +111,15 @@ where da.employee_id = e.id
     where d2.on_date = da.on_date and d2.shift = 'Day'
       and d2.employee_id = da.employee_id
   )
-returning e.full_name, da.status, da.area_id, da.is_leader;
+returning e.full_name, coalesce(e.shift_group,'(sem crew)') as crew, da.status, da.is_leader;
 
 
 -- ── Bloco 3 · quem NÃO foi movido, e porquê ────────────────────────────────
--- Nada é deixado para trás em silêncio. Duas razões possíveis: já tinha linha no
--- board Day (conflito), ou é mesmo crew Night e está no sítio certo.
+-- Nada é deixado para trás em silêncio. Depois do bloco 2 só sobra uma razão para
+-- alguém ficar fora do board Day: já tinha lá uma linha própria nesse dia. Se este
+-- bloco devolver zero linhas, o dia inteiro está no board certo.
 select e.full_name, coalesce(e.shift_group,'(sem crew)') as crew, da.shift, da.status,
-       case when e.shift_group = 'Night' then 'crew Night — fica'
-            else 'ja tinha linha no board Day' end as porque
+       'ja tinha linha no board Day — conflito de chave' as porque
 from daily_allocations da
 join employees e on e.id = da.employee_id
 where da.on_date = date '2026-08-21' and da.shift <> 'Day'
