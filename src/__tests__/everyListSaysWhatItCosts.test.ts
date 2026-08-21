@@ -59,10 +59,17 @@ describe("the columns a group declares match what it can actually do", () => {
     expect(byKind("label").columns).toEqual({ points: true, gate: true, attribution: true });
   });
 
-  it("gives Health & Safety no scoring column at all", () => {
-    // Counted, never charged — so a price, a gate and an attribution switch would all
-    // be controls that change nothing. The columns render as "—" rather than as gaps.
-    expect(byKind("safety_label").columns).toEqual({ points: false, gate: false, attribution: false });
+  it("prices Health & Safety, and gives it nothing else", () => {
+    // It prices now, by an explicit decision recorded in qualityListGroups.ts. It still
+    // cannot gate — no hazard turns a period Red by itself — and there is nothing to
+    // re-attribute, because an occurrence is the leader's or it is worth nothing.
+    expect(byKind("safety_label").columns).toEqual({ points: true, gate: false, attribution: false });
+  });
+
+  it("prices Maintenance and charges nobody for it", () => {
+    // The one combination this screen did not have before: a live points box whose
+    // number never reaches a scorecard. See CHARGING_LABEL_KINDS for the enforcement.
+    expect(byKind("maintenance_label").columns).toEqual({ points: true, gate: false, attribution: false });
   });
 
   it("attributes departments, and prices nothing", () => {
@@ -77,7 +84,8 @@ describe("the safety tab shows the hazard list and nothing else", () => {
     expect(listGroups("safety").map((g) => g.kind)).toEqual(["safety_label"]);
   });
 
-  it("shows all three on the quality tab, hazards included", () => {
-    expect(listGroups("quality").map((g) => g.kind)).toEqual(["label", "safety_label", "department"]);
+  it("shows all four on the quality tab, hazards and maintenance included", () => {
+    expect(listGroups("quality").map((g) => g.kind))
+      .toEqual(["label", "maintenance_label", "safety_label", "department"]);
   });
 });

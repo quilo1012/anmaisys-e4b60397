@@ -54,7 +54,7 @@ describe("ActionScore", () => {
   it("explains a zero rather than just printing one", () => {
     // Three different zeroes exist and only one of them is the leader's problem.
     render(<ActionScore action={{ ...action, domain: "safety" }} excluded={EXCLUDED} ready />);
-    expect(screen.getByText(/Safety is counted, never charged/)).toBeTruthy();
+    expect(screen.getByText(/No priced hazard on this occurrence/)).toBeTruthy();
   });
 
   it("says the grade paid when no label carries a price", () => {

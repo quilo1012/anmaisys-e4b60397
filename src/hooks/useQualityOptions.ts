@@ -2,12 +2,15 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isMissingColumn } from "@/lib/postgrestErrors";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, setLabelPoints, setExcludedDepartments } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, chargingLabelPoints, setLabelPoints, setHazardPoints, setExcludedDepartments } from "@/lib/qualityConstants";
 
 export interface QualityOption {
   id: string;
-  /** `safety_label` is the safety form's own list — see SAFETY_LABELS. */
-  kind: "label" | "department" | "safety_label";
+  /**
+   * `safety_label` is the safety form's own list — see SAFETY_LABELS.
+   * `maintenance_label` is the breakdown list — priced for the log, never charged.
+   */
+  kind: "label" | "department" | "safety_label" | "maintenance_label";
   value: string;
   active: boolean;
   sort: number;
@@ -116,12 +119,27 @@ export function useQualityOptions() {
       // Empty until the seed lands — `labelsForDomain` falls back to SAFETY_LABELS,
       // so the safety form reads correctly on a database that has never heard of it.
       const safetyLabels = rows.filter((r) => r.kind === "safety_label").map((r) => r.value);
+      // Empty until the seed lands, same as the hazards — `labelsForDomain` simply
+      // appends nothing, so the quality form reads exactly as it did before.
+      const maintenanceLabels = rows.filter((r) => r.kind === "maintenance_label").map((r) => r.value);
+      // Which list each label came from, keyed the way `labelKindOf` looks it up. The
+      // log colours a chip off this: the action stores the text only.
+      const labelKinds = Object.fromEntries(
+        rows.filter((r) => r.kind !== "department").map((r) => [r.value.trim().toLowerCase(), r.kind]),
+      );
+      // One builder, so a fourth list cannot start charging by accident. See
+      // CHARGING_LABEL_KINDS — maintenance rows reach neither map.
+      const prices = chargingLabelPoints(rows as { kind: string; value: string; points?: number | null }[]);
       return {
+        maintenanceLabels,
+        labelKinds,
         labels: labels.length ? labels : [...QUALITY_LABELS],
         departments: departments.length ? departments : [...QUALITY_DEPARTMENTS],
         safetyLabels,
-        // Keyed by the label's own text; `setLabelPoints` lowercases it.
-        labelPoints: Object.fromEntries(labelRows.map((r) => [r.value, Number(r.points ?? 0)])),
+        // Keyed by the label's own text; the setters lowercase it. Two maps, because a
+        // quality price must not reach a safety row nor a hazard price a quality one.
+        labelPoints: prices.labels,
+        hazardPoints: prices.hazards,
         // Lowercased, because that is how `computeLeaderScore` compares them.
         gateLabels: new Set(labelRows.filter((r) => r.is_gate).map((r) => r.value.trim().toLowerCase())),
         /** False when the column is not there — the caller must not read an empty set as "no gates". */
@@ -156,7 +174,22 @@ export function useLabelPointsSync() {
   useEffect(() => {
     if (!data) return;
     setLabelPoints(data.labelPoints);
+    // Pushed together, always. A screen holding yesterday's hazard prices beside
+    // today's label prices is the drift these two maps exist to prevent.
+    setHazardPoints(data.hazardPoints);
   }, [data]);
+}
+
+/**
+ * Which list each configured label belongs to, for the chips in the log.
+ *
+ * Not synced into a module-level map like the prices are: the badges are rendered
+ * inside components that can hold a hook, and a colour that settles a frame late is a
+ * colour, not a number on a scorecard.
+ */
+export function useLabelKinds(): Record<string, string> {
+  const { data } = useQualityOptions();
+  return data?.labelKinds ?? {};
 }
 
 /**
