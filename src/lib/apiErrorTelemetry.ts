@@ -1,5 +1,6 @@
 import { logSystemError } from "@/lib/telemetry";
 import { isUserCorrectable } from "@/lib/userCorrectable";
+import { isProbedColumn } from "@/lib/schemaProbes";
 
 // Automatic backend-failure capture. supabase-js issues every PostgREST / RPC /
 // edge-function call through the global fetch, so wrapping fetch once lets Root
@@ -81,11 +82,20 @@ export function installApiErrorTelemetry(): void {
       // `userCorrectable`, which is also where the reason it is not one is written
       // down. Everything unlisted stays a fault, which is the direction that catches
       // things. A denial is never somebody's typing, so RLS is decided first.
+      // A GET that names a column the code deliberately probes for is the fallback
+      // ladder doing its job, not a fault — see `schemaProbes`. Reads only: no ladder
+      // walks down a write, so a POST naming a missing column is still a screen
+      // sending the database something it should never have sent.
+      const isHandledProbe =
+        method === "GET" && body?.code === "42703" && isProbedColumn(body?.message);
+
       const type = isRls
         ? "RLS_ERROR"
-        : isUserCorrectable(message)
-          ? "USER_ERROR"
-          : "API_ERROR";
+        : isHandledProbe
+          ? "SCHEMA_DRIFT"
+          : isUserCorrectable(message)
+            ? "USER_ERROR"
+            : "API_ERROR";
 
       logSystemError(type, message, {
         metadata: {

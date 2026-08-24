@@ -12,6 +12,12 @@ export type TelemetryErrorType =
   // holding the code — but not a fault. `userCorrectable` decides, one constraint at
   // a time, and everything unlisted stays a fault.
   | "USER_ERROR"
+  // A read that asked for a column the code knows may not be there, on a database
+  // where it is not. The ladder in `selectOptions` handled it and the screen is
+  // right; what is left is the migration, unapplied. Worth recording — it is the
+  // only place the drift surfaces — but not a fault anybody caused. `schemaProbes`
+  // decides, one column at a time, and everything unlisted stays a fault.
+  | "SCHEMA_DRIFT"
   | "REALTIME";
 
 // Best-effort context, set from AuthContext so logs carry the user + role

@@ -68,3 +68,45 @@ describe("what the interceptor calls a fault", () => {
     expect(logged).not.toHaveBeenCalled();
   });
 });
+
+const UNDEFINED_COLUMN = (col: string) => ({
+  code: "42703",
+  message: `column ${col} does not exist`,
+});
+
+describe("a read that probes for a column the code can live without", () => {
+  beforeEach(() => logged.mockClear());
+
+  // `selectOptions` in useQualityOptions.ts asks for the newest columns first and walks
+  // down a rung at a time. On a database missing 20260824090000 the top rungs 400 by
+  // design, the ladder catches them, and the screen renders the right answer. Filing
+  // those as faults puts a wolf in the list on every route the root-level sync runs on,
+  // which is all of them.
+  it("does not file the gate probe as a fault", async () => {
+    serving(UNDEFINED_COLUMN("quality_options.is_gate"), 400);
+    await window.fetch("https://x.supabase.co/rest/v1/quality_options?select=kind,value,points,is_gate");
+    expect(logged.mock.calls[0][0]).toBe("SCHEMA_DRIFT");
+  });
+
+  it("still records it — the migration really has not landed", async () => {
+    serving(UNDEFINED_COLUMN("quality_options.is_gate"), 400);
+    await window.fetch("https://x.supabase.co/rest/v1/quality_options?select=is_gate");
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0][1]).toContain("quality_options.is_gate");
+    expect(logged.mock.calls[0][2]?.metadata).toMatchObject({ code: "42703" });
+  });
+
+  it("keeps an undeclared missing column a fault", async () => {
+    serving(UNDEFINED_COLUMN("quality_actions.scoring_version_id"), 400);
+    await window.fetch("https://x.supabase.co/rest/v1/quality_actions?select=scoring_version_id");
+    expect(logged.mock.calls[0][0]).toBe("API_ERROR");
+  });
+
+  // No ladder walks down a write. A POST naming a column that is not there is a screen
+  // sending the database something it should never have sent.
+  it("keeps a write naming the same column a fault", async () => {
+    serving(UNDEFINED_COLUMN("quality_options.is_gate"), 400);
+    await window.fetch("https://x.supabase.co/rest/v1/quality_options", { method: "POST" });
+    expect(logged.mock.calls[0][0]).toBe("API_ERROR");
+  });
+});
