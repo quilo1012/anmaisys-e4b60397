@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { productWritePayload } from "@/lib/productPricing";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
@@ -83,7 +84,13 @@ export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, name, line, code, quantity, min_stock, category, price }: { id: string; name: string; line?: string; code: string; quantity: number; min_stock: number; category: string; price?: number }) => {
-      const { error } = await supabase.from("products").update({ name, line: line ?? '', code, quantity, min_stock, category, price: price ?? 0 }).eq("id", id);
+      // `price` is omitted, not zeroed, when the caller did not send one — see
+      // `productWritePayload`. NULL → 0 is a change, and 20260831090000 refuses a
+      // price that moved without `stock.pricing`.
+      const payload = productWritePayload(
+        { name, line: line ?? '', code, quantity, min_stock, category }, price, true,
+      );
+      const { error } = await supabase.from("products").update(payload).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),

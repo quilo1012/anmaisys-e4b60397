@@ -41,6 +41,11 @@ export default function StockPage() {
   // nothing here, and an admin toggling stock.manage in Permissions changed nothing on
   // this page. A rule stated in two places is a rule that disagrees with itself.
   const isManager = can("stock.manage");
+  // Seeing and setting a part's value is its own right — "See and edit part unit
+  // prices and financial values" — and the matrix has said admin-only all along. It
+  // governed nothing until 20260831090000; adjusting a quantity after a part is used
+  // is the job most of these roles are here to do, valuing the part is not.
+  const canPrice = can("stock.pricing");
   // Deleting a product is admin-only in RLS — don't offer it to the others.
   const isAdmin = role === "admin";
   const queryClient = useQueryClient();
@@ -74,12 +79,12 @@ export default function StockPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     const priceNum = parseFloat(price);
-    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+    if (canPrice && (!Number.isFinite(priceNum) || priceNum <= 0)) {
       toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
       return;
     }
     try {
-      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: priceNum });
+      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: canPrice ? priceNum : undefined });
       toast({ title: "Product added" });
       logAuditEvent("create", "product", (result as any)?.id, { name, code });
       setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice("");
@@ -127,12 +132,12 @@ export default function StockPage() {
   const handleEdit = async () => {
     if (!editProduct) return;
     const priceNum = parseFloat(editPrice);
-    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+    if (canPrice && (!Number.isFinite(priceNum) || priceNum <= 0)) {
       toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
       return;
     }
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: priceNum });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: canPrice ? priceNum : undefined });
       toast({ title: "Product updated" });
       logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
@@ -223,7 +228,7 @@ export default function StockPage() {
                           </div>
                           <div className="text-right space-y-1">
                             <Badge variant="outline" className="capitalize">{p.category}</Badge>
-                            {isManager && <p className="text-sm font-medium">£{(p.price || 0).toFixed(2)}</p>}
+                            {canPrice && <p className="text-sm font-medium">£{(p.price || 0).toFixed(2)}</p>}
                           </div>
                         </div>
                         {isManager && (
@@ -249,7 +254,7 @@ export default function StockPage() {
                      <TableHead>Line</TableHead>
                      <TableHead>Code</TableHead>
                      <TableHead>Category</TableHead>
-                     {isManager && <TableHead>Price</TableHead>}
+                     {canPrice && <TableHead>Price</TableHead>}
                      <TableHead>Quantity</TableHead>
                      <TableHead>Min Stock</TableHead>
                      <TableHead>Status</TableHead>
@@ -265,7 +270,7 @@ export default function StockPage() {
                          <TableCell>{p.line || "—"}</TableCell>
                         <TableCell>{p.code}</TableCell>
                         <TableCell><Badge variant="outline" className="capitalize">{p.category}</Badge></TableCell>
-                        {isManager && <TableCell>£{(p.price || 0).toFixed(2)}</TableCell>}
+                        {canPrice && <TableCell>£{(p.price || 0).toFixed(2)}</TableCell>}
                         <TableCell className={isLow ? "text-destructive-strong font-bold" : ""}>{p.quantity}</TableCell>
                         <TableCell>{p.min_stock}</TableCell>
                         <TableCell>
@@ -306,7 +311,7 @@ export default function StockPage() {
                      <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
                       <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
-                      <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>
+                      {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>}
                      </div>
                     <div className="space-y-1">
                       <Label>Category</Label>
@@ -442,7 +447,7 @@ export default function StockPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
                 <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>
+                {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>}
               </div>
               <div className="space-y-1">
                 <Label>Category</Label>
