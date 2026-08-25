@@ -28,6 +28,22 @@ import { isUserCorrectable } from "@/lib/userCorrectable";
  */
 const IGNORED_CODES = new Set(["PGRST116", "P0001"]);
 
+/**
+ * Schema-drift probes, not faults.
+ *
+ * Several hooks walk a ladder of `select()` variants, newest column first, so a
+ * database that is a few migrations behind still answers correctly — see
+ * `useQualityOptions` (`quality_options.is_gate`, `counts_against_leader`, `points`)
+ * and `useScoringFreeze` (`public.scoring_version`). The refusal that walks the ladder
+ * down one rung is the mechanism working; the screen never shows an error and nothing
+ * needs a person. Filing "column quality_options.is_gate does not exist" as an
+ * API_ERROR on every page load buries the faults that do.
+ *
+ * 42703 = undefined column, 42P01 = undefined table (Postgres, post-parse);
+ * PGRST204/PGRST205 = the same two, answered from PostgREST's schema cache.
+ */
+const SCHEMA_PROBE_CODES = new Set(["42703", "42P01", "PGRST204", "PGRST205"]);
+
 function resourceFromPath(path: string): string {
   if (path.includes("/rest/v1/rpc/")) return "rpc:" + path.split("/rest/v1/rpc/")[1];
   if (path.includes("/rest/v1/")) return path.split("/rest/v1/")[1] || "";
@@ -69,7 +85,7 @@ export function installApiErrorTelemetry(): void {
         /* non-JSON error body — fall back to status text */
       }
 
-      if (body?.code && IGNORED_CODES.has(body.code)) return res;
+      if (body?.code && (IGNORED_CODES.has(body.code) || SCHEMA_PROBE_CODES.has(body.code))) return res;
 
       // 401/403 (and Postgres 42501) are almost always RLS; everything else API.
       const isRls = res.status === 401 || res.status === 403 || body?.code === "42501";
