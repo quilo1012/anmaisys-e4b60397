@@ -85,7 +85,7 @@ export function installApiErrorTelemetry(): void {
         /* non-JSON error body — fall back to status text */
       }
 
-      if (body?.code && IGNORED_CODES.has(body.code)) return res;
+      if (body?.code && (IGNORED_CODES.has(body.code) || SCHEMA_PROBE_CODES.has(body.code))) return res;
 
       // 401/403 (and Postgres 42501) are almost always RLS; everything else API.
       const isRls = res.status === 401 || res.status === 403 || body?.code === "42501";
