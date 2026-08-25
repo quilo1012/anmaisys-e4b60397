@@ -28,7 +28,7 @@ const failing = new Set<string>();
 /** Rows a table should hand back when it does not fail. Reset per case. */
 const rows = new Map<string, unknown[]>();
 /** When set, any select naming `domain` fails the way a pre-20260817090000 base does. */
-const state = { noDomainColumn: false };
+const state = { noDomainColumn: false, noGateColumn: false };
 /** Every filter the card applied, so a test can ask HOW a row was looked up. */
 const calls: Array<{ table: string; method: string; args: unknown[] }> = [];
 
@@ -50,6 +50,15 @@ function builder(table: string) {
       return Promise.resolve({
         data: null,
         error: { code: "42703", message: `column ${table}.domain does not exist` },
+      });
+    }
+    // A base without 20260824090000. `selectOptions` walks its ladder down and the
+    // rung without `is_gate` succeeds, so the card gets options and no gates — which
+    // is the whole point: this is a settled answer, not a failed read.
+    if (state.noGateColumn && columns.includes("is_gate")) {
+      return Promise.resolve({
+        data: null,
+        error: { code: "42703", message: `column ${table}.is_gate does not exist` },
       });
     }
     return Promise.resolve({ data: rows.get(table) ?? [], error: null });
@@ -316,5 +325,49 @@ describe("LeaderScorecard, when a read fails", () => {
       screen.queryByText(/No quality action was raised against this leader/i),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("This scorecard could not be read.")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A card drawn on a database that has never heard of gates.
+ *
+ * `is_gate` arrives with 20260824090000 and the live database has not had it since
+ * 24/08. `useGateLabels` handles that correctly — the ladder in `selectOptions` drops
+ * the column and the query SUCCEEDS, so `ready` is true and the card draws. That is
+ * deliberate: gating the card on the column would have left every leader staring at
+ * "Working out which actions count…" for ever.
+ *
+ * But `ready` means "the query settled", not "the column exists", and the card read
+ * only `ready`. So it drew a score with an empty gate set and said nothing — and an
+ * empty gate set is indistinguishable from "no gate fired". A leader with a failed CCP
+ * in the period reads a number that was never capped, on a document they are judged
+ * by, with nothing on it to say the ceiling was not applied.
+ *
+ * `useGateLabels` already returns `missing` for exactly this, and QualityActionsPage
+ * already says it out loud. The card did not.
+ */
+describe("LeaderScorecard on a database without is_gate", () => {
+  beforeEach(() => {
+    failing.clear(); rows.clear(); calls.length = 0;
+    state.noDomainColumn = false; state.noGateColumn = true;
+  });
+
+  it("still draws the score — a missing column is a settled answer", async () => {
+    draw();
+    // Not stuck on the loading sentence: the ladder resolved, so the card must render.
+    expect((await screen.findAllByText(/Quality/i, {}, { timeout: 3000 })).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Working out which actions count/i)).toBeNull();
+  });
+
+  it("says no ceiling was applied", async () => {
+    draw();
+    expect(await screen.findByText(/no ceiling was applied/i, {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it("says nothing of the sort when the column is there", async () => {
+    state.noGateColumn = false;
+    draw();
+    await screen.findAllByText(/Quality/i, {}, { timeout: 3000 });
+    expect(screen.queryByText(/no ceiling was applied/i)).toBeNull();
   });
 });
