@@ -67,4 +67,10 @@ describe("what the interceptor calls a fault", () => {
     await window.fetch(REST, { method: "POST" });
     expect(logged).not.toHaveBeenCalled();
   });
+
+  it("does not file schema-probe missing columns as API errors", async () => {
+    serving({ message: "column quality_options.is_gate does not exist" }, 400);
+    await window.fetch("https://x.supabase.co/rest/v1/quality_options?select=is_gate", { method: "GET" });
+    expect(logged).not.toHaveBeenCalled();
+  });
 });

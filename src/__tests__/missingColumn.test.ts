@@ -33,6 +33,10 @@ describe("isMissingColumn", () => {
   });
 
   it("survives an error with no code at all", () => {
+    expect(isMissingColumn({ message: "column quality_options.is_gate does not exist" })).toBe(true);
+    expect(isMissingColumn({
+      message: "Could not find the 'is_gate' column of 'quality_options' in the schema cache",
+    })).toBe(true);
     expect(isMissingColumn({ message: "network error" })).toBe(false);
     expect(isMissingColumn(null)).toBe(false);
     expect(isMissingColumn(undefined)).toBe(false);
