@@ -22,6 +22,16 @@ export interface PerfReportOpenAction {
   description: string | null;
   status?: string | null;
 }
+/** One line's day, as the history table prints it. */
+export interface PerfReportDailyRow {
+  /** `yyyy-mm-dd` — the session date, not the clock time it was written at. */
+  date: string;
+  line: string;
+  shift: string | null;
+  target: number;
+  actual: number;
+  eff: number;
+}
 /** One shift's worth of the per-line table, printed under its own heading. */
 export interface PerfReportSection {
   label: string;
@@ -47,6 +57,14 @@ export interface PerfReportInput {
    * already filtered to one shift wants.
    */
   sections?: PerfReportSection[];
+  /**
+   * Every day of the period, one row per line per shift, in the order it happened.
+   *
+   * The tables above are the verdict; this is the run behind it. A month at 123%
+   * and a month that lost its first week and made it back in the last printed the
+   * same page without it.
+   */
+  dailyRows?: PerfReportDailyRow[];
   openActions: PerfReportOpenAction[];
   generatedBy: string;
 }
@@ -78,6 +96,23 @@ const fmtDate = (iso: string) => {
   catch { return iso?.slice(0, 10) ?? ""; }
 };
 
+/**
+ * `2026-08-13` → `13/08/2026  Thu`.
+ *
+ * Read off the string rather than through `new Date`, which parses a bare date as
+ * UTC midnight and hands back the day before in any negative offset. The weekday
+ * is worth the two words: a run of blank Sundays is the shift pattern, not a gap
+ * in the data.
+ */
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const fmtDay = (iso: string) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
+  if (!m) return iso ?? "";
+  const [, y, mo, d] = m;
+  const wd = WEEKDAYS[new Date(Date.UTC(+y, +mo - 1, +d)).getUTCDay()];
+  return `${d}/${mo}/${y}  ${wd}`;
+};
+
 async function loadLogoDataUrl(): Promise<string | null> {
   try {
     const res = await fetch(logoUrl);
@@ -91,7 +126,7 @@ async function loadLogoDataUrl(): Promise<string | null> {
 }
 
 export async function generatePerformanceReportPDF(input: PerfReportInput, opts?: { output?: "save" | "dataurl" | "bloburl" }) {
-  const { periodLabel, filtersLabel, lines, totalTarget, totalActual, sections, openActions, generatedBy } = input;
+  const { periodLabel, filtersLabel, lines, totalTarget, totalActual, sections, dailyRows, openActions, generatedBy } = input;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -176,7 +211,8 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
       footStyles: { fillColor: [226, 232, 240], textColor: INK, fontStyle: "bold" },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: { 0: { fontStyle: "bold" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "center" } },
-      margin: { left: margin, right: margin },
+      // `top` clears the header band that every continuation page is given below.
+      margin: { left: margin, right: margin, top: 30 },
     });
     return (doc as any).lastAutoTable.finalY as number;
   };
@@ -196,6 +232,127 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
   }
 
   y = (doc as any).lastAutoTable.finalY + 9;
+
+  /** Start a fresh page when a heading would otherwise be orphaned at the foot. */
+  const ensureSpace = (needed: number) => {
+    if (y + needed <= pageH - 16) return;
+    doc.addPage();
+    y = 32;
+  };
+
+  // ── Day by day, the whole period ──────────────────────────────────────
+  //
+  // Printed for every range, a single day included — the report should not change
+  // shape depending on how wide the filter is.
+  const daily = dailyRows ?? [];
+  if (daily.length > 0) {
+    const dayCount = new Set(daily.map((r) => r.date)).size;
+    // The shift column earns its width only when the report covers more than one.
+    const shifts = new Set(daily.map((r) => (r.shift ?? "").toUpperCase()).filter(Boolean));
+    const showShift = shifts.size > 1;
+    const dTotalTarget = daily.reduce((a, r) => a + r.target, 0);
+    const dTotalActual = daily.reduce((a, r) => a + r.actual, 0);
+    const dTotalGap = dTotalActual - dTotalTarget;
+    const dTotalPct = dTotalTarget > 0 ? (dTotalActual / dTotalTarget) * 100 : 0;
+
+    ensureSpace(24);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...INK);
+    doc.text(`Daily Production History  (${dayCount} ${dayCount === 1 ? "day" : "days"})`, margin, y);
+    doc.setTextColor(0);
+    y += 3;
+
+    // Alternating tint per DAY, not per row: the eye has to be able to find where
+    // one day ends when a day carries six lines and the next carries two.
+    const TINT: RGB = [248, 250, 252];
+    const WHITE: RGB = [255, 255, 255];
+    const SUBTOTAL: RGB = [237, 242, 248];
+    const body: any[] = [];
+    let dayIndex = -1;
+    let cursor = 0;
+    while (cursor < daily.length) {
+      const date = daily[cursor].date;
+      const group: PerfReportDailyRow[] = [];
+      while (cursor < daily.length && daily[cursor].date === date) group.push(daily[cursor++]);
+      dayIndex += 1;
+      const bg = dayIndex % 2 === 1 ? TINT : WHITE;
+      const cell = (content: string, extra: Record<string, any> = {}) => ({ content, styles: { fillColor: bg, ...extra } });
+      for (const r of group) {
+        const g = r.actual - r.target;
+        const row: any[] = [cell(fmtDay(r.date), { fontStyle: "bold" })];
+        if (showShift) row.push(cell((r.shift ?? "—").toUpperCase(), { halign: "center" }));
+        row.push(
+          cell(r.line),
+          cell(n(r.target), { halign: "right" }),
+          cell(n(r.actual), { halign: "right" }),
+          cell(signed(g), { halign: "right", textColor: gapTx(g), fontStyle: "bold" }),
+          { content: `${r.eff.toFixed(0)}%`, styles: { halign: "center", fillColor: ragBg(r.eff), textColor: ragTx(r.eff), fontStyle: "bold" } },
+        );
+        body.push(row);
+      }
+      // A day's own total, only where there is more than one row to add up.
+      if (group.length > 1) {
+        const t = group.reduce((a, r) => a + r.target, 0);
+        const a2 = group.reduce((a, r) => a + r.actual, 0);
+        const g = a2 - t;
+        const pct = t > 0 ? (a2 / t) * 100 : 0;
+        const sub = (content: string, extra: Record<string, any> = {}) => ({ content, styles: { fillColor: SUBTOTAL, fontStyle: "bold", ...extra } });
+        const row: any[] = [sub("")];
+        if (showShift) row.push(sub(""));
+        row.push(
+          sub("Day total"),
+          sub(n(t), { halign: "right" }),
+          sub(n(a2), { halign: "right" }),
+          sub(signed(g), { halign: "right", textColor: gapTx(g) }),
+          sub(`${pct.toFixed(0)}%`, { halign: "center", textColor: ragTx(pct) }),
+        );
+        body.push(row);
+      }
+    }
+
+    const head = showShift
+      ? [["Date", "Shift", "Line", "Target", "Actual", "Gap", "%"]]
+      : [["Date", "Line", "Target", "Actual", "Gap", "%"]];
+    const foot: any[][] = [[
+      { content: "TOTAL", styles: { fontStyle: "bold" } },
+      ...(showShift ? [""] : []),
+      "",
+      { content: n(dTotalTarget), styles: { halign: "right", fontStyle: "bold" } },
+      { content: n(dTotalActual), styles: { halign: "right", fontStyle: "bold" } },
+      { content: signed(dTotalGap), styles: { halign: "right", fontStyle: "bold", textColor: gapTx(dTotalGap) } },
+      { content: `${dTotalPct.toFixed(0)}%`, styles: { halign: "center", fontStyle: "bold", fillColor: ragBg(dTotalPct), textColor: ragTx(dTotalPct) } },
+    ]];
+
+    autoTable(doc, {
+      startY: y,
+      head,
+      body,
+      foot,
+      // The grand total belongs at the end of the run, not repeated at the foot of
+      // every page as if each page were the period.
+      showFoot: "lastPage",
+      styles: { fontSize: 8, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.1 },
+      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", halign: "left" },
+      footStyles: { fillColor: [226, 232, 240], textColor: INK, fontStyle: "bold" },
+      margin: { left: margin, right: margin, top: 30 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 4;
+
+    // The two grains can legitimately disagree, and a page that shows both without
+    // saying so reads as a broken report. The period tables resolve RAG against the
+    // floor's own logs once per line; a day-by-day table has to resolve it each day,
+    // so a line with RAG on some days and nothing but sessions on the others adds up
+    // differently down here. Said out loud, once, and only when it happens.
+    if (Math.round(dTotalActual) !== Math.round(totalActual) || Math.round(dTotalTarget) !== Math.round(totalTarget)) {
+      doc.setFont("helvetica", "italic"); doc.setFontSize(7); doc.setTextColor(...SUBTLE);
+      doc.text(
+        "Daily rows are resolved day by day (RAG Weekly where it exists, floor logs where it does not); the period figures above are resolved once per line, so the two totals can differ.",
+        margin, y, { maxWidth: pageW - margin * 2 },
+      );
+      doc.setFont("helvetica", "normal"); doc.setTextColor(0);
+      y += 6;
+    }
+    y += 5;
+  }
 
   // ── Quality actions (all statuses in the period) ──────────────────────
   const fmtStatus = (s: string | null | undefined) =>
@@ -223,15 +380,25 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
     alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: { 4: { halign: "center" }, 5: { halign: "center" } },
     margin: { left: margin, right: margin, top: 30 },
-    didDrawPage: (data: any) => {
-      if (data.pageNumber > 1) drawHeader();
-      doc.setDrawColor(...CARD_BORDER);
-      doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
-      doc.setFontSize(7); doc.setTextColor(130);
-      doc.text(`Applied Nutrition · Confidential · Generated ${generatedOn} by ${generatedBy}`, margin, pageH - 6);
-      doc.text(`Page ${data.pageNumber}`, pageW - margin, pageH - 6, { align: "right" });
-    },
   });
+
+  // ── Header band and footer, once every page exists ────────────────────
+  //
+  // Drawn at the end rather than from inside a table hook, because a table only
+  // numbers its OWN pages: with a history table now running onto pages of its
+  // own, the footer written from the quality-actions hook restarted at "Page 1"
+  // and the continuation pages it never touched came out with no header at all.
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    if (p > 1) drawHeader();
+    doc.setDrawColor(...CARD_BORDER);
+    doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7); doc.setTextColor(130);
+    doc.text(`Applied Nutrition · Confidential · Generated ${generatedOn} by ${generatedBy}`, margin, pageH - 6);
+    doc.text(`Page ${p} of ${pageCount}`, pageW - margin, pageH - 6, { align: "right" });
+  }
 
   const filename = `production-performance-${Date.now()}.pdf`;
   // "dataurl" feeds the in-app preview iframe — a self-contained data: URI
