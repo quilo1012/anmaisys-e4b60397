@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera } from "lucide-react";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
 import { IdentifyPartDialog } from "@/components/IdentifyPartDialog";
@@ -86,6 +86,16 @@ export default function StockPage() {
 
   const [adjustId, setAdjustId] = useState("");
   const [adjustQty, setAdjustQty] = useState("");
+  // Both were cards sitting under the table, pushing the list down on every visit for
+  // the sake of two forms that are used now and then. They are dialogs now.
+  const [addOpen, setAddOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  // Named here so the adjustment dialog can show where the count lands before anyone
+  // commits to it: "-5" on a shelf of 4 is a mistake worth catching before saving.
+  const adjustTarget = products?.find((pr) => pr.id === adjustId);
+  const adjustDelta = Number.parseInt(adjustQty, 10);
+  const adjustResult =
+    adjustTarget && Number.isFinite(adjustDelta) ? adjustTarget.quantity + adjustDelta : null;
 
   // Category management
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -124,6 +134,7 @@ export default function StockPage() {
       toast({ title: "Product added" });
       logAuditEvent("create", "product", (result as any)?.id, { name, code });
       setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice(""); setDescription(""); setMachine(""); setLocation("");
+      setAddOpen(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -149,6 +160,7 @@ export default function StockPage() {
       await logAuditEvent("adjust_stock", "product", adjustId, { adjustment: delta, new_quantity: newQty });
       queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
       setAdjustId(""); setAdjustQty("");
+      setAdjustOpen(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -405,6 +417,20 @@ export default function StockPage() {
               <Button size="sm" variant="outline" onClick={() => runExport("pdf", true)}><FileText className="mr-1 h-4 w-4" /> PDF low</Button>
               <Button size="sm" variant="outline" onClick={() => runExport("excel", false)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel list</Button>
               <Button size="sm" variant="outline" onClick={() => runExport("excel", true)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel low</Button>
+              {/* Exports describe the list; these two change it. Same row because that is
+                  where the hand already is, but set apart so six buttons do not read as
+                  six of the same kind. */}
+              {isManager && (
+                <>
+                  <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
+                  <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
+                    <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
+                  </Button>
+                  <Button size="sm" onClick={() => setAddOpen(true)}>
+                    <Plus className="mr-1 h-4 w-4" /> Add product
+                  </Button>
+                </>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -545,69 +571,6 @@ export default function StockPage() {
 
         {isManager && (
           <>
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader><CardTitle className="text-base flex items-center gap-2"><Plus className="h-4 w-4" /> Add Product</CardTitle></CardHeader>
-                <CardContent>
-                  <form onSubmit={handleAdd} className="space-y-3" autoComplete="off">
-                     <div className="space-y-1"><Label>Name <span className="text-destructive-strong">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-                     <div className="space-y-1"><Label>Line</Label><Input value={productLine} onChange={(e) => setProductLine(e.target.value)} placeholder="e.g. Line A1" /></div>
-                     <div className="space-y-1"><Label>Code <span className="text-destructive-strong">*</span></Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
-                     <div className="space-y-1"><Label>Description</Label><Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Deep groove ball bearing" /></div>
-                     <div className="grid grid-cols-2 gap-3">
-                       <div className="space-y-1"><Label>Machine</Label><Input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="e.g. Blender 3" /></div>
-                       <div className="space-y-1"><Label>Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. A1" /></div>
-                     </div>
-                     <div className="grid grid-cols-3 gap-3">
-                      <div className="space-y-1"><Label>Initial Qty</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
-                      <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} /></div>
-                      {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>}
-                     </div>
-                    <div className="space-y-1">
-                      <Label>Category</Label>
-                      <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                        <SelectContent>
-                          {categoryOptions.map((c) => (
-                            <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button type="submit" className="w-full" disabled={addProduct.isPending}>
-                      {addProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add Product
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="text-base">Manual Stock Adjustment</CardTitle></CardHeader>
-                <CardContent>
-                  <form onSubmit={handleAdjust} className="space-y-3" autoComplete="off">
-                    <div className="space-y-1">
-                      <Label>Product</Label>
-                      <Select value={adjustId} onValueChange={setAdjustId}>
-                        <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
-                        <SelectContent>
-                          {products?.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name} ({p.code}) — Current: {p.quantity}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Adjustment (+/-)</Label>
-                      <Input type="number" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} placeholder="e.g. +10 or -5" required />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={updateStock.isPending || !adjustId}>
-                      {updateStock.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Apply Adjustment
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
-
             {/* Adjustment History — last 10 manual stock adjustments */}
             <Card>
               <CardHeader>
@@ -685,6 +648,108 @@ export default function StockPage() {
             </Card>
           </>
         )}
+
+        {/* Add product — the same fields, and in the same order, as Edit Product. */}
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add product</DialogTitle>
+              <DialogDescription>
+                The model and the code are what everyone searches by. The photo is added after saving, from Edit.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAdd} autoComplete="off">
+              <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+                <div className="space-y-1"><Label>Model / Code <span className="text-destructive-strong">*</span></Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
+                <div className="space-y-1"><Label>Name <span className="text-destructive-strong">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
+                <div className="space-y-1">
+                  <Label>Description</Label>
+                  <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Deep groove ball bearing" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Category</Label>
+                    <Select value={category} onValueChange={setCategory}>
+                      <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map((c) => (
+                          <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1"><Label>Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. A1" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1"><Label>Machine</Label><Input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="e.g. Blender 3" /></div>
+                  <div className="space-y-1"><Label>Line</Label><Input value={productLine} onChange={(e) => setProductLine(e.target.value)} placeholder="e.g. Line A1" /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
+                  {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>}
+                </div>
+                <div className="space-y-1">
+                  <Label>Minimum stock</Label>
+                  <Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">The reorder point: at or below this, the part is flagged.</p>
+                </div>
+              </div>
+              <DialogFooter className="mt-4">
+                <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={addProduct.isPending}>
+                  {addProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add product
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manual stock adjustment — for a count that a plus and a minus will not fix:
+            a stocktake, a delivery, a box found at the back of the shelf. */}
+        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Stock adjustment</DialogTitle>
+              <DialogDescription>
+                For corrections a single step will not cover — a stocktake, a delivery. Every adjustment is recorded.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAdjust} autoComplete="off">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <Label>Product</Label>
+                  <Select value={adjustId} onValueChange={setAdjustId}>
+                    <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                    <SelectContent>
+                      {products?.map((pr) => (
+                        <SelectItem key={pr.id} value={pr.id}>{pr.code} — {pr.name} (have {pr.quantity})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Adjustment</Label>
+                  <Input type="number" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} placeholder="e.g. 10 to add, -5 to remove" required />
+                </div>
+                {adjustTarget && (
+                  <p className={`text-sm ${adjustResult !== null && adjustResult < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                    {adjustResult === null
+                      ? `${adjustTarget.code} currently has ${adjustTarget.quantity}.`
+                      : adjustResult < 0
+                        ? `That would leave ${adjustResult}. Stock cannot go below zero.`
+                        : `${adjustTarget.quantity} → ${adjustResult}`}
+                  </p>
+                )}
+              </div>
+              <DialogFooter className="mt-4">
+                <Button type="button" variant="outline" onClick={() => setAdjustOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={updateStock.isPending || !adjustId || adjustResult === null || adjustResult < 0}>
+                  {updateStock.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Apply adjustment
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Product Dialog */}
         <Dialog open={!!editProduct} onOpenChange={(open) => !open && setEditProduct(null)}>
