@@ -164,7 +164,7 @@ export default function StockPage() {
       return;
     }
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: canPrice ? priceNum : undefined, description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation) });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: canPrice ? priceNum : undefined, description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation), photo_url: editProduct.photo_url ?? null });
       toast({ title: "Product updated" });
       logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
