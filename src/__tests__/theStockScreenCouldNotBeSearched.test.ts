@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stockTotals, filterStock, type StockRow } from "@/lib/stockList";
+import { stockTotals, filterStock, isLowStock, isOutOfStock, stockState, type StockRow } from "@/lib/stockList";
 
 /**
  * What this exists for.
@@ -30,9 +30,22 @@ describe("stockTotals", () => {
     ]);
     expect(t.parts).toBe(4);
     expect(t.inStock).toBe(51);
-    // At the reorder point counts as reached — the same `<=` the row badge uses.
-    expect(t.low).toBe(2);
+    // At the reorder point counts as reached — `BELT1`, 3 of a minimum of 3.
+    // The empty one is NOT in here: it is counted once, under `out`.
+    expect(t.low).toBe(1);
     expect(t.out).toBe(1);
+  });
+
+  it("counts an empty part once, and not as low", () => {
+    // The warehouse list this screen replaces reads `LOW 85 · OUT 7` as two different
+    // sets of parts. Counting the empty ones in both gave 93 against their 85.
+    const empty = p({ code: "6202", quantity: 0, min_stock: 3 });
+    expect(isOutOfStock(empty)).toBe(true);
+    expect(isLowStock(empty)).toBe(false);
+    expect(stockState(empty)).toBe("out");
+    // And it must not read "In Stock" either, which two states is all a row badge had.
+    expect(stockState(p({ code: "6005", quantity: 44, min_stock: 3 }))).toBe("ok");
+    expect(stockState(p({ code: "BELT1", quantity: 3, min_stock: 3 }))).toBe("low");
   });
 
   it("says nothing rather than dividing by an empty warehouse", () => {
@@ -66,6 +79,16 @@ describe("filterStock", () => {
 
   it("keeps only what reached the reorder point when asked", () => {
     expect(filterStock(rows, { lowOnly: true }).map((r) => r.code)).toEqual(["SEAL-2"]);
+  });
+
+  it("keeps the empty ones out of the reorder list and behind their own switch", () => {
+    const withEmpty = [...rows, p({ code: "6202", category: "BEARING", quantity: 0, min_stock: 3 })];
+    // Same set the "Low stock" counter names — the switch and the figure above it
+    // cannot show different lists.
+    expect(filterStock(withEmpty, { lowOnly: true }).map((r) => r.code)).toEqual(["SEAL-2"]);
+    expect(filterStock(withEmpty, { outOnly: true }).map((r) => r.code)).toEqual(["6202"]);
+    // And "out of stock" narrows on top of the search rather than replacing it.
+    expect(filterStock(withEmpty, { outOnly: true, category: "SEAL" })).toHaveLength(0);
   });
 
   it("applies search, category and low together", () => {

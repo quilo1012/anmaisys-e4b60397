@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent, useStockAdjustmentHistory } from "@/hooks/useAuditLogs";
 import { useQueryClient } from "@tanstack/react-query";
 import { ConsoleStrip, ConsoleCell } from "@/components/ui/ConsoleStrip";
-import { stockTotals, filterStock, isLowStock } from "@/lib/stockList";
+import { stockTotals, filterStock, isLowStock, stockState } from "@/lib/stockList";
 import { exportStockPDF, exportStockExcel } from "@/lib/stockExports";
 import { format } from "date-fns";
 import { History } from "lucide-react";
@@ -320,11 +320,13 @@ export default function StockPage() {
   // and every row badge alike — see `isLowStock`.
   const rows = useMemo<Product[]>(() => products ?? [], [products]);
   const totals = useMemo(() => stockTotals(rows), [rows]);
-  const visible = useMemo(() => {
-    const base = filterStock(rows, { query: search, category: catFilter, lowOnly });
-    // "Out of stock" narrows on top of the shared filter, it does not replace it.
-    return outOnly ? base.filter((r) => (r.quantity || 0) === 0) : base;
-  }, [rows, search, catFilter, lowOnly, outOnly]);
+  // "Out of stock" narrows on top of the rest rather than replacing it, and it asks
+  // `stockList` what empty means instead of re-deciding it here — a second copy of the
+  // rule is how the counter and the list start disagreeing.
+  const visible = useMemo(
+    () => filterStock(rows, { query: search, category: catFilter, lowOnly, outOnly }),
+    [rows, search, catFilter, lowOnly, outOnly],
+  );
 
   const lowStockCount = totals.low;
 
@@ -474,7 +476,8 @@ export default function StockPage() {
                 {/* Mobile cards */}
                 <div className="md:hidden space-y-3">
                   {visible.map((p) => {
-                    const isLow = isLowStock(p);
+                    const state = stockState(p);
+                    const isLow = state !== "ok";
                     return (
                       <div key={p.id} className={`rounded-lg border p-3 space-y-2 ${isLow ? "border-destructive/50 bg-destructive/5" : "bg-card"}`}>
                         <div className="flex items-start justify-between gap-2">
@@ -483,7 +486,9 @@ export default function StockPage() {
                             <p className="text-xs text-muted-foreground font-mono">{p.code}{p.line ? ` · ${p.line}` : ""}{p.location ? ` · ${p.location}` : ""}</p>
                             {p.description && <p className="truncate text-xs text-muted-foreground">{p.description}</p>}
                           </div>
-                          {isLow ? (
+                          {state === "out" ? (
+                            <StatusBadge status="error" label="Out of Stock" />
+                          ) : state === "low" ? (
                             <StatusBadge status="warning" label="Low Stock" />
                           ) : (
                             <StatusBadge status="success" label="In Stock" />
@@ -538,7 +543,8 @@ export default function StockPage() {
                  </TableHeader>
                  <TableBody>
                    {visible.map((p) => {
-                     const isLow = isLowStock(p);
+                     const state = stockState(p);
+                     const isLow = state !== "ok";
                      const thumb = photoSrc(p) ? (
                        <img src={photoSrc(p)} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
                      ) : (
