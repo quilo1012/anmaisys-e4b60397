@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff } from "lucide-react";
+import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
+import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -34,6 +35,7 @@ export default function StockPage() {
   const updateStock = useUpdateProductStock();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const uploadPhoto = useUploadPartPhoto();
   const addCategory = useAddCategory();
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
@@ -162,7 +164,7 @@ export default function StockPage() {
       return;
     }
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: canPrice ? priceNum : undefined, description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation) });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: canPrice ? priceNum : undefined, description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation), photo_url: editProduct.photo_url ?? null });
       toast({ title: "Product updated" });
       logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
@@ -170,6 +172,21 @@ export default function StockPage() {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
+
+  const handlePhotoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !editProduct) return;
+    try {
+      const path = await uploadPhoto.mutateAsync({ productId: editProduct.id, file });
+      setEditProduct({ ...editProduct, photo_url: path });
+      toast({ title: "Photo saved" });
+      logAuditEvent("update", "product", editProduct.id, { photo: true });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    }
+  };
+
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -205,6 +222,15 @@ export default function StockPage() {
     [rows, search, catFilter, lowOnly],
   );
   const lowStockCount = totals.low;
+
+  // The bucket is private: the stored path is not an address. Sign the few paths that
+  // exist, in one request, and show the usual empty square when a signature is missing.
+  const photoPaths = useMemo(
+    () => rows.map((r) => r.photo_url).filter((v): v is string => !!v),
+    [rows],
+  );
+  const { data: photoUrls } = usePartPhotoUrls(photoPaths);
+  const photoSrc = (p: Product) => (p.photo_url ? photoUrls?.[p.photo_url] : undefined);
 
   const categoryOptions = useMemo(() => categories ?? [], [categories]);
   // Every category actually on a part, not only the ones somebody declared: an import
@@ -384,8 +410,8 @@ export default function StockPage() {
                      return (
                        <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
                         <TableCell>
-                          {p.photo_url ? (
-                            <img src={p.photo_url} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
+                          {photoSrc(p) ? (
+                            <img src={photoSrc(p)} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
                           ) : (
                             <div className="flex h-9 w-9 items-center justify-center rounded border border-dashed text-muted-foreground" aria-label="No photo">
                               <ImageOff className="h-4 w-4" />
@@ -600,6 +626,38 @@ export default function StockPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Photo: same right as Edit and Delete — `stock.manage`, nothing new. */}
+              {isManager && editProduct && (
+                <div className="space-y-1">
+                  <Label>Photo</Label>
+                  <div className="flex items-center gap-3">
+                    {photoSrc(editProduct) ? (
+                      <img src={photoSrc(editProduct)} alt="" className="h-14 w-14 rounded border object-cover" />
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed text-muted-foreground">
+                        <ImageOff className="h-5 w-5" />
+                      </div>
+                    )}
+                    <label className="inline-flex">
+                      <Button asChild variant="outline" size="sm" disabled={uploadPhoto.isPending}>
+                        <span className="cursor-pointer">
+                          {uploadPhoto.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+                          {editProduct.photo_url ? "Replace photo" : "Take / upload photo"}
+                        </span>
+                      </Button>
+                      {/* `capture` opens the camera on a phone — this is done standing
+                          in the warehouse with the part in hand. */}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        onChange={handlePhotoPick}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
