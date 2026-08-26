@@ -173,6 +173,21 @@ export default function StockPage() {
     }
   };
 
+  const handlePhotoPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !editProduct) return;
+    try {
+      const path = await uploadPhoto.mutateAsync({ productId: editProduct.id, file });
+      setEditProduct({ ...editProduct, photo_url: path });
+      toast({ title: "Photo saved" });
+      logAuditEvent("update", "product", editProduct.id, { photo: true });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    }
+  };
+
+
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
