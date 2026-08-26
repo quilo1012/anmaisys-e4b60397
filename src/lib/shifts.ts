@@ -121,8 +121,18 @@ export function londonWallToUtc(y: number, mo: number, d: number, h: number): nu
 }
 
 /**
- * When production logging closes for a shift: 18:15 for DAY, 06:15 the next
- * morning for NIGHT, Europe/London — 15 minutes after the shift ends.
+ * How long a shift stays writable after it ends.
+ *
+ * Production is written up at the end of a run, not while the machine is filling, so
+ * an operator who finishes at 17:55 is still typing at 18:05. Thirty minutes is the
+ * whole reason {@link loggingShiftOptions} exists; anything that reads a deadline
+ * must derive it from here rather than restate the number.
+ */
+export const SHIFT_GRACE_MINUTES = 30;
+
+/**
+ * When production logging closes for a shift: 18:30 for DAY, 06:30 the next
+ * morning for NIGHT, Europe/London — {@link SHIFT_GRACE_MINUTES} after the shift ends.
  *
  * Mirrors session_write_deadline() in the database, which is the authority. This
  * exists so the UI can warn before the door shuts instead of letting an operator
@@ -130,9 +140,53 @@ export function londonWallToUtc(y: number, mo: number, d: number, h: number): nu
  */
 export function shiftLoggingDeadline(sessionDate: string, shift: "DAY" | "NIGHT"): Date {
   const [y, mo, d] = sessionDate.split("-").map(Number);
-  const at = (day: number, h: number, min: number) =>
-    new Date(londonWallToUtc(y, mo, day, h) + min * 60_000);
-  return shift === "NIGHT" ? at(d + 1, 6, 15) : at(d, 18, 15);
+  const at = (day: number, h: number) =>
+    new Date(londonWallToUtc(y, mo, day, h) + SHIFT_GRACE_MINUTES * 60_000);
+  return shift === "NIGHT" ? at(d + 1, 6) : at(d, 18);
+}
+
+/** A shift as the production tables file it: the day it belongs to, and which half. */
+export interface LoggableShift {
+  sessionDate: string;
+  shiftCode: ShiftCode;
+}
+
+/**
+ * The shifts an operator may write to right now.
+ *
+ * {@link getCurrentFactoryShift} answers "what is running", and flips at 18:00 on the
+ * dot — which is right for the header, the line displays and the andon board, and
+ * wrong for the screen someone is typing into. Between 18:00 and 18:30 both answers
+ * are true at once: the day crew is writing up the run that just ended while the night
+ * crew is already logging in. Until now the logging screen asked the first question and
+ * got the wrong shift, so a quantity typed at 18:05 was silently filed under the night.
+ *
+ * So this returns both, and the caller asks the operator which one they mean. Outside
+ * the window `outgoing` is null and there is nothing to ask.
+ *
+ * The window closes exactly when {@link shiftLoggingDeadline} does. Offering a shift
+ * the database would refuse is how the Line 4 night operator met this problem the
+ * first time — seven refusals in five minutes, and a shift's output never recorded.
+ */
+export function loggingShiftOptions(now: Date = new Date()): {
+  incoming: LoggableShift;
+  outgoing: LoggableShift | null;
+  graceEndsAt: Date | null;
+} {
+  const incoming = getCurrentFactoryShift(now);
+  const startedAt = getCurrentShiftStart(now);
+  const graceEndsAt = new Date(startedAt.getTime() + SHIFT_GRACE_MINUTES * 60_000);
+
+  if (now.getTime() >= graceEndsAt.getTime()) return { incoming, outgoing: null, graceEndsAt: null };
+
+  // The shift before this one. A night is filed under the evening it began, so the day
+  // that hands over to it shares its date; the night that hands over to a day does not.
+  const [y, mo, d] = incoming.sessionDate.split("-").map(Number);
+  const outgoing: LoggableShift = incoming.shiftCode === "night"
+    ? { sessionDate: incoming.sessionDate, shiftCode: "day" }
+    : { sessionDate: new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().slice(0, 10), shiftCode: "night" };
+
+  return { incoming, outgoing, graceEndsAt };
 }
 
 /**
@@ -153,6 +207,20 @@ export function getCurrentShiftEnd(now: Date = new Date()): Date {
   if (shiftCode === "day") return new Date(londonWallToUtc(y, mo, d, 18));
   const next = new Date(Date.UTC(y, mo - 1, d + 1));
   return new Date(londonWallToUtc(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 6));
+}
+
+/**
+ * A time on the factory's clock, "HH:mm".
+ *
+ * The deadline is a London wall-clock time, and a tablet set to another zone would
+ * otherwise print an hour that nobody on the floor can act on. Every screen that shows
+ * an operator when their window shuts reads it from here rather than hard-coding the
+ * digits, so moving the deadline moves the message with it.
+ */
+export function londonHM(d: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(d);
 }
 
 export const SHIFT_LABEL: Record<ShiftCode, string> = {

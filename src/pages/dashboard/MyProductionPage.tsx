@@ -17,7 +17,9 @@ import { LineChatButton } from "@/components/LineChatButton";
 import { ShiftScrapCard } from "@/components/production/ShiftScrapCard";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
-import { getCurrentFactoryShift, shiftLoggingDeadline, SHIFT_LABEL } from "@/lib/shifts";
+import { londonHM } from "@/lib/shifts";
+import { LoggingShiftProvider, useLoggingShift } from "@/contexts/LoggingShiftContext";
+import { ShiftHandoverGate, CarriedOverShiftBanner } from "@/components/production/ShiftHandoverGate";
 import { shiftTimeToIso, runMinutes } from "@/lib/productionTime";
 import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -110,7 +112,14 @@ export default function MyProductionPage() {
   return (
     <DashboardLayout>
       <OperatorLineGuard>
-        <MyProductionContent />
+        {/* Which shift is being written to is decided once, above everything that
+            writes: the session lookup, the leader gate, the typed times and the
+            deadline warning all read the same answer. They used to each ask the
+            clock, and at a handover the clock gives two of them different shifts. */}
+        <LoggingShiftProvider>
+          <ShiftHandoverGate />
+          <MyProductionContent />
+        </LoggingShiftProvider>
       </OperatorLineGuard>
     </DashboardLayout>
   );
@@ -137,9 +146,7 @@ function MyProductionContent() {
     return () => clearTimeout(t);
   }, [line]);
 
-  const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
-  const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
-  const shiftLabel = SHIFT_LABEL[shiftCode];
+  const { sessionDate: today, shift, shiftLabel } = useLoggingShift();
 
   // Find or create production_sessions row for this line/date/shift
   const sessionQ = useQuery({
@@ -231,6 +238,10 @@ function MyProductionContent() {
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
+      {/* Above the header, because it changes the meaning of everything under it:
+          while this is showing, the screen is writing to a shift that has ended. */}
+      <CarriedOverShiftBanner />
+
       {/* Same opening as every other landing screen. This is the operator's landing
           after login, so it gets the greeting and the banner too. */}
 
@@ -317,8 +328,7 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
   const [open, setOpen] = useState(false);
 
 
-  const { sessionDate: today, shiftCode } = getCurrentFactoryShift();
-  const shift: Shift = shiftCode === "day" ? "DAY" : "NIGHT";
+  const { sessionDate: today, shift } = useLoggingShift();
 
   const normalize = (s: string | null | undefined) => (s || "").trim().toLowerCase();
 
@@ -545,8 +555,7 @@ type PlannedSku = { id: string; code: string; name: string; planned: number; don
 function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = [] }: { sessionId: string; target?: number; produced?: number; plannedSkus?: PlannedSku[] }) {
   // The shift being logged decides which day a typed time lands on, not the clock on
   // the wall behind whoever is typing.
-  const { sessionDate: logDate, shiftCode: logShiftCode } = getCurrentFactoryShift();
-  const logShift = logShiftCode === "night" ? "NIGHT" : "DAY";
+  const { sessionDate: logDate, shift: logShift, deadline } = useLoggingShift();
   const qc = useQueryClient();
   const { selectedLineName: jobLine } = useDeviceLineCtx();
   // iTouching is no longer read on this screen at all. It was the source of the
@@ -921,7 +930,10 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
             // the operator to a supervisor to "reopen the shift", which stopped being
             // true the moment the deadline started overriding the lock — unlocking a
             // closed shift changes nothing now, so that advice only wasted a call.
-            const closedAt = getCurrentFactoryShift().shiftCode === "night" ? "06:15" : "18:15";
+            // The hour of the shift being WRITTEN. Reading the clock here named the
+            // shift that had just started, so an operator refused at 18:35 was told
+            // their window shut at 06:15 the next morning.
+            const closedAt = londonHM(deadline);
             throw new Error(
               `Logging for this shift closed at ${closedAt}. Ask a manager to record it — they can still enter it for you.`,
             );
@@ -1019,11 +1031,8 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
             being recorded. It only makes the deadline visible, which is what was
             missing when the Line 4 night operator discovered it by failing. */}
         {(() => {
-          const { sessionDate: sd, shiftCode: sc } = getCurrentFactoryShift();
-          const sh: Shift = sc === "night" ? "NIGHT" : "DAY";
-          const deadline = shiftLoggingDeadline(sd, sh);
           const msLeft = deadline.getTime() - Date.now();
-          const closedAt = sh === "NIGHT" ? "06:15" : "18:15";
+          const closedAt = londonHM(deadline);
           if (msLeft <= 0) {
             return (
               <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-strong">

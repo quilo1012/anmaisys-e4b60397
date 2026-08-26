@@ -46,7 +46,7 @@ falha o teste.
 
 ## O que está no ficheiro
 
-`APPLY-ALL-IN-ORDER.sql`, blocos 09 a 18, reconstruídos **byte a byte** a partir de
+`APPLY-ALL-IN-ORDER.sql`, blocos 09 a 25, reconstruídos **byte a byte** a partir de
 `supabase/migrations/` — verificado pelo teste, não presumido.
 
 | bloco | migração | o que traz |
@@ -62,6 +62,12 @@ falha o teste.
 | 17 | `20260827113000` | `leader_self_scorecard` projecta `domain` e `safety_kind` |
 | 18 | `20260828090000` | Maintenance tem a sua própria lista, e um perigo pode custar |
 | 19 | `20260829090000` | Semeia 7 atribuições líder↔linha — sem elas o quadro semanal vem vazio |
+| 20 | `20260830090000` | o primeiro plano de uma célula nunca chegava ao Planner |
+| 21 | `20260831090000` | `stock.pricing` passa a governar alguma coisa — um preço não é o mesmo direito que uma quantidade |
+| 22 | `20260901090000` | os dois interruptores do portão de qualidade passam a poder desligar-se |
+| 23 | `20260902090000` | `production_office_admin` — a migração de 28/07 tinha ficado a meio |
+| 24 | `20260903090000` | `description`, `machine`, `location` e `photo_url` em `products` |
+| 25 | `20260904090000` | a tolerância de fim de turno passa de 15 para 30 minutos |
 
 ## A ordem não é negociável
 
