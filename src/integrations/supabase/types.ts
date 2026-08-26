@@ -4083,9 +4083,12 @@ export type Database = {
           leader_name: string | null
           line: string | null
           points: number | null
+          points_at_creation: number | null
+          points_recalculated_at: string | null
           recorded_at: string
           recorded_by: string | null
           safety_kind: Database["public"]["Enums"]["safety_kind"] | null
+          scoring_version_id: number | null
           session_id: string | null
           severity: string | null
           shift: string | null
@@ -4113,9 +4116,12 @@ export type Database = {
           leader_name?: string | null
           line?: string | null
           points?: number | null
+          points_at_creation?: number | null
+          points_recalculated_at?: string | null
           recorded_at?: string
           recorded_by?: string | null
           safety_kind?: Database["public"]["Enums"]["safety_kind"] | null
+          scoring_version_id?: number | null
           session_id?: string | null
           severity?: string | null
           shift?: string | null
@@ -4143,9 +4149,12 @@ export type Database = {
           leader_name?: string | null
           line?: string | null
           points?: number | null
+          points_at_creation?: number | null
+          points_recalculated_at?: string | null
           recorded_at?: string
           recorded_by?: string | null
           safety_kind?: Database["public"]["Enums"]["safety_kind"] | null
+          scoring_version_id?: number | null
           session_id?: string | null
           severity?: string | null
           shift?: string | null
@@ -4169,6 +4178,13 @@ export type Database = {
             columns: ["leader_id"]
             isOneToOne: false
             referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_actions_scoring_version_id_fkey"
+            columns: ["scoring_version_id"]
+            isOneToOne: false
+            referencedRelation: "scoring_version"
             referencedColumns: ["id"]
           },
           {
@@ -4314,8 +4330,10 @@ export type Database = {
       quality_options: {
         Row: {
           active: boolean
+          counts_against_leader: boolean
           created_at: string
           id: string
+          is_gate: boolean
           kind: string
           points: number
           sort: number
@@ -4323,8 +4341,10 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          counts_against_leader?: boolean
           created_at?: string
           id?: string
+          is_gate?: boolean
           kind: string
           points?: number
           sort?: number
@@ -4332,8 +4352,10 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          counts_against_leader?: boolean
           created_at?: string
           id?: string
+          is_gate?: boolean
           kind?: string
           points?: number
           sort?: number
@@ -4654,6 +4676,134 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "pvs_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scoring_version: {
+        Row: {
+          created_at: string
+          id: number
+          note: string
+          opened_by: string | null
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          note?: string
+          opened_by?: string | null
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          note?: string
+          opened_by?: string | null
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: []
+      }
+      scoring_version_excluded_department: {
+        Row: {
+          department: string
+          version_id: number
+        }
+        Insert: {
+          department: string
+          version_id: number
+        }
+        Update: {
+          department?: string
+          version_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoring_version_excluded_department_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "scoring_version"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scoring_version_excluded_label: {
+        Row: {
+          label: string
+          version_id: number
+        }
+        Insert: {
+          label: string
+          version_id: number
+        }
+        Update: {
+          label?: string
+          version_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoring_version_excluded_label_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "scoring_version"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scoring_version_label: {
+        Row: {
+          kind: string
+          label: string
+          points: number
+          version_id: number
+        }
+        Insert: {
+          kind?: string
+          label: string
+          points: number
+          version_id: number
+        }
+        Update: {
+          kind?: string
+          label?: string
+          points?: number
+          version_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoring_version_label_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "scoring_version"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scoring_version_severity: {
+        Row: {
+          points: number
+          severity: string
+          version_id: number
+        }
+        Insert: {
+          points: number
+          severity: string
+          version_id: number
+        }
+        Update: {
+          points?: number
+          severity?: string
+          version_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scoring_version_severity_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "scoring_version"
             referencedColumns: ["id"]
           },
         ]
@@ -7358,6 +7508,18 @@ export type Database = {
         Returns: Json
       }
       acknowledge_wo_alert: { Args: { _wo_id: string }; Returns: undefined }
+      action_points_at: {
+        Args: {
+          _department: string
+          _domain: string
+          _labels: string[]
+          _severity: string
+          _validation_status: string
+          _version_id: number
+        }
+        Returns: number
+      }
+      action_revoked: { Args: { _action: string }; Returns: boolean }
       add_wo_collaborator: {
         Args: { _pin: string; _wo_id: string }
         Returns: Json
@@ -7847,6 +8009,12 @@ export type Database = {
           state: string
           volume_rag: string
         }[]
+      }
+      scoring_version_at: { Args: { _on: string }; Returns: number }
+      scoring_version_open: { Args: { _note?: string }; Returns: number }
+      scoring_version_snapshot: {
+        Args: { _version_id: number }
+        Returns: undefined
       }
       session_write_deadline: {
         Args: { _session_date: string; _shift: string }
