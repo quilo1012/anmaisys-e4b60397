@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff } from "lucide-react";
+import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
+import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -205,6 +206,15 @@ export default function StockPage() {
     [rows, search, catFilter, lowOnly],
   );
   const lowStockCount = totals.low;
+
+  // The bucket is private: the stored path is not an address. Sign the few paths that
+  // exist, in one request, and show the usual empty square when a signature is missing.
+  const photoPaths = useMemo(
+    () => rows.map((r) => r.photo_url).filter((v): v is string => !!v),
+    [rows],
+  );
+  const { data: photoUrls } = usePartPhotoUrls(photoPaths);
+  const photoSrc = (p: Product) => (p.photo_url ? photoUrls?.[p.photo_url] : undefined);
 
   const categoryOptions = useMemo(() => categories ?? [], [categories]);
   // Every category actually on a part, not only the ones somebody declared: an import
