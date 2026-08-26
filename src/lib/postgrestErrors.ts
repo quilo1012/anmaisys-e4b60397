@@ -27,7 +27,12 @@ const SCHEMA_CACHE_MISS = "PGRST204";
  * has not run when their RLS policy refused them sends them to fix the wrong thing.
  */
 export function isMissingColumn(error: { code?: string; message?: string } | null | undefined): boolean {
-  return error?.code === UNDEFINED_COLUMN || error?.code === SCHEMA_CACHE_MISS;
+  if (error?.code === UNDEFINED_COLUMN || error?.code === SCHEMA_CACHE_MISS) return true;
+  // Some telemetry paths receive only Postgres/PostgREST's text. Keep this narrow:
+  // it must be a missing-column message, not just any sentence mentioning a column.
+  return /column\s+[^\n]+\s+does not exist|could not find the .* column .* in the schema cache/i.test(
+    error?.message ?? "",
+  );
 }
 
 /** Postgres: a statement named a relation that is not there. Reads get this. */

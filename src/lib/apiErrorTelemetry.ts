@@ -86,8 +86,16 @@ export function installApiErrorTelemetry(): void {
       // ladder doing its job, not a fault — see `schemaProbes`. Reads only: no ladder
       // walks down a write, so a POST naming a missing column is still a screen
       // sending the database something it should never have sent.
-      const isHandledProbe =
-        method === "GET" && body?.code === "42703" && isProbedColumn(body?.message);
+      //
+      // This is also why there is no blanket "42703 / 42P01 / missing column → drop
+      // it" above. That silences the probes AND the drift they are indistinguishable
+      // from by code alone: a column nothing falls back to, a table that never got
+      // its migration, a write naming a field that is not there. Declared, not
+      // inferred — the same doctrine as `userCorrectable`.
+      // The code is not required: PostgREST sends `42703` with the message, but a
+      // 400 that names a declared probed column is the ladder walking down whether
+      // or not the code travelled with it.
+      const isHandledProbe = method === "GET" && isProbedColumn(body?.message);
 
       const type = isRls
         ? "RLS_ERROR"

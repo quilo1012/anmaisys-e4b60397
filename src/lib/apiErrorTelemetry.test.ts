@@ -67,6 +67,15 @@ describe("what the interceptor calls a fault", () => {
     await window.fetch(REST, { method: "POST" });
     expect(logged).not.toHaveBeenCalled();
   });
+
+  // Recorded, not dropped: the probe is not a fault, but the migration really has
+  // not landed. `SCHEMA_DRIFT` is the whole point of the distinction — see the
+  // block below and `schemaProbes.ts`.
+  it("does not file schema-probe missing columns as API errors", async () => {
+    serving({ message: "column quality_options.is_gate does not exist" }, 400);
+    await window.fetch("https://x.supabase.co/rest/v1/quality_options?select=is_gate", { method: "GET" });
+    expect(logged.mock.calls[0]?.[0]).not.toBe("API_ERROR");
+  });
 });
 
 const UNDEFINED_COLUMN = (col: string) => ({
