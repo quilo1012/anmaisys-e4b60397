@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
+import { NoCeilingNotice } from "@/components/leader/NoCeilingNotice";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -223,7 +224,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
    * risks a number that is slightly wrong; this one risks a number that is wrong in the
    * direction an auditor asks about.
    */
-  const { gateLabels, ready: gatesReady } = useGateLabels();
+  const { gateLabels, ready: gatesReady, missing: gatesMissing } = useGateLabels();
 
   /**
    * Every one of the six reads feeds the score, and each `useQuery` above defaults to
@@ -288,6 +289,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
           </Button>
         </div>
       )}
+
+      {/* One sentence, one place — see NoCeilingNotice for why it exists and why it
+          is not print:hidden. */}
+      {gatesMissing && <NoCeilingNotice />}
 
       <Card className="print:border-0 print:shadow-none">
         <CardContent className="min-w-0 p-4 sm:p-6 print:p-0">

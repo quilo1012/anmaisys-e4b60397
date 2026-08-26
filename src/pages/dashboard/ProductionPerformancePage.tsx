@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
+import { aggregateLines, buildDailyHistory } from "@/lib/productionHistory";
 import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
@@ -65,62 +66,6 @@ interface SessionAgg {
   // `sku_code_text` travels with `sku_id` everywhere, because either one of them
   // can be the only place the product is named — see `lineSku.ts`.
   items: LineSkuItem[];
-}
-
-type RagRowT = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
-
-/**
- * Target and actual per line, from RAG where it exists and the floor's own sessions
- * where it does not.
- *
- * Lifted out of the component so the same arithmetic can be run over one shift's
- * rows as easily as over the period's. A report that summed both shifts printed one
- * row per line for work that happened on two, and a line that made target on days
- * and lost it on nights read as an average that happened on neither.
- */
-function aggregateLines(sessions: SessionAgg[], ragRows: RagRowT[], leaderFilter: string) {
-
-  type Agg = { line: string; target: number; ragActual: number; sessionActual: number; leader: string | null; hasSession: boolean; ragLines: Set<string> };
-  const map = new Map<string, Agg>();
-  const ragLineSet = new Set<string>();
-
-  if (leaderFilter === "__all__") {
-    for (const r of ragRows) {
-      ragLineSet.add(r.line);
-      const cur = map.get(r.line) ?? { line: r.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
-      cur.target += r.plan_qty;
-      cur.ragActual += r.actual_qty;
-      map.set(r.line, cur);
-    }
-  }
-
-  for (const s of sessions) {
-    const cur = map.get(s.line) ?? { line: s.line, target: 0, ragActual: 0, sessionActual: 0, leader: null, hasSession: false, ragLines: ragLineSet };
-    // Only add session target if this line wasn't already seeded from RAG (avoid double count).
-    if (!ragLineSet.has(s.line)) cur.target += s.target;
-    const itemsActual = s.items.reduce((a, i) => a + i.actual, 0);
-    cur.sessionActual += itemsActual;
-    cur.leader = s.leader_name ?? cur.leader;
-    cur.hasSession = true;
-    map.set(s.line, cur);
-  }
-
-  return Array.from(map.values()).map((x) => {
-    const actual = x.ragActual > 0 ? x.ragActual : x.sessionActual;
-    // A line that was planned to run but has nothing logged on the floor.
-    //
-    // This used to look for a RAG figure with no matching shift record — the way
-    // Line 1 read 96% and 99% on 29/07 with zero entries on either shift. RAG
-    // actual is now derived from the same entries, so the two can no longer
-    // disagree and that test can never fire. What still needs flagging the same
-    // day is the case it was really catching: a planned line nobody logged.
-    const notLogged = x.target > 0 && actual === 0;
-    return { line: x.line, target: x.target, actual, leader: x.leader, hasSession: x.hasSession, notLogged, eff: x.target > 0 ? (actual / x.target) * 100 : 0 };
-  })
-    // Hide empty placeholder lines: no RAG target AND no production (e.g. a session
-    // created just by assigning a leader, or an operator opening My Production).
-    .filter((x) => x.target > 0 || x.actual > 0)
-    .sort((a, b) => b.eff - a.eff);
 }
 
 export default function ProductionPerformancePage() {
@@ -410,6 +355,23 @@ export default function ProductionPerformancePage() {
   const sortedLines = useMemo(() => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)), [lines]);
 
   /**
+   * The period, day by day, for the printed report.
+   *
+   * The report used to carry the period's verdict and nothing of how it was
+   * reached: one row per line for twenty-five days of work. A month at 123% and a
+   * month that lost its first week and made it back in the last both printed the
+   * same page. This is the run behind the number, in the order it happened.
+   *
+   * Sorted by day, then by the same line order the tables above use, so a reader
+   * can follow one line down the page.
+   */
+  const dailyHistory = useMemo(
+    () => buildDailyHistory(sessions, ragRows, leaderFilter)
+      .sort((a, b) => a.date.localeCompare(b.date) || lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line) || a.shift.localeCompare(b.shift)),
+    [sessions, ragRows, leaderFilter],
+  );
+
+  /**
    * Where each line SHOULD be by now, which is only a question worth asking about
    * the shift currently running.
    *
@@ -602,6 +564,10 @@ export default function ProductionPerformancePage() {
           };
         })
         .filter((sec) => sec.lines.length > 0),
+      // The whole period, day by day, under the summary tables. Printed for every
+      // range including a single day, where it is simply that day's rows — the
+      // report should not change shape depending on how wide the filter is.
+      dailyRows: dailyHistory.map((d) => ({ date: d.date, line: d.line, shift: d.shift, leader: d.leader, target: d.target, actual: d.actual, eff: d.eff })),
       openActions: periodActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description, status: a.status })),
       generatedBy: profile?.name || "—",
     }, { output });

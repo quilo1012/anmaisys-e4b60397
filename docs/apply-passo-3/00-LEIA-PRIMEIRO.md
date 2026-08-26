@@ -1,4 +1,4 @@
-# Passo 3 — as dez migrações que o `docs/apply/` não carrega
+# Passo 3 — as onze migrações que o `docs/apply/` não carrega
 
 ## O erro que isto corrige
 
@@ -36,7 +36,7 @@ hipótese de ser cache do PostgREST — o mesmo argumento que o
 
 O `docs/apply/` existe precisamente para isto: nada neste repositório aplica uma
 migração, aplica-as uma pessoa, à mão, colando de um ficheiro. **O último bloco desse
-pacote é o 08, `20260820090000`.** Dez migrações aterraram desde então e nenhuma delas
+pacote é o 08, `20260820090000`.** Onze migrações aterraram desde então e nenhuma delas
 tinha um ficheiro para colar — a segunda é a que cria `scoring_version`.
 
 O pacote ficou dez atrás sem ninguém reparar. Por isso o
@@ -61,6 +61,7 @@ falha o teste.
 | 16 | `20260827093000` | `scoring_version_excluded_department` — um departamento pode ser de outro |
 | 17 | `20260827113000` | `leader_self_scorecard` projecta `domain` e `safety_kind` |
 | 18 | `20260828090000` | Maintenance tem a sua própria lista, e um perigo pode custar |
+| 19 | `20260829090000` | Semeia 7 atribuições líder↔linha — sem elas o quadro semanal vem vazio |
 
 ## A ordem não é negociável
 

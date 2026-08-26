@@ -35,6 +35,7 @@ import { woStatusCounts, DONE_STATUSES } from "@/lib/woStatusCounts";
 import { leaderNameKey } from "@/lib/leaderNameMatch";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
+import { NoCeilingNotice } from "@/components/leader/NoCeilingNotice";
 import { PointsPending } from "@/components/quality/PointsPending";
 import { computeLeaderScore, displayScore, rankLeadersByScore } from "@/lib/leaderScore";
 import { canPrintReport } from "@/lib/permissions";
@@ -125,7 +126,7 @@ const EmptyChart = () => (
 export default function AnalyticsPage() {
   const { role } = useAuth();
   const { excluded, ready: attributionReady } = useLeaderAttribution();
-  const { gateLabels, ready: gatesReady } = useGateLabels();
+  const { gateLabels, ready: gatesReady, missing: gatesMissing } = useGateLabels();
   const { toast } = useToast();
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
@@ -864,6 +865,9 @@ export default function AnalyticsPage() {
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
+                {/* Once above the table, not per row: every score in the column below
+                    was computed without a ceiling. See NoCeilingNotice. */}
+                {gatesMissing && <div className="mb-2"><NoCeilingNotice /></div>}
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm min-w-[720px]">
                     <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">

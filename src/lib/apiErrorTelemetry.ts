@@ -1,6 +1,6 @@
 import { logSystemError } from "@/lib/telemetry";
-import { isMissingColumn, isMissingTable } from "@/lib/postgrestErrors";
 import { isUserCorrectable } from "@/lib/userCorrectable";
+import { isProbedColumn } from "@/lib/schemaProbes";
 
 // Automatic backend-failure capture. supabase-js issues every PostgREST / RPC /
 // edge-function call through the global fetch, so wrapping fetch once lets Root
@@ -28,22 +28,6 @@ import { isUserCorrectable } from "@/lib/userCorrectable";
  * inferred — on 08/08 the same 23505 was both before lunch.
  */
 const IGNORED_CODES = new Set(["PGRST116", "P0001"]);
-
-/**
- * Schema-drift probes, not faults.
- *
- * Several hooks walk a ladder of `select()` variants, newest column first, so a
- * database that is a few migrations behind still answers correctly — see
- * `useQualityOptions` (`quality_options.is_gate`, `counts_against_leader`, `points`)
- * and `useScoringFreeze` (`public.scoring_version`). The refusal that walks the ladder
- * down one rung is the mechanism working; the screen never shows an error and nothing
- * needs a person. Filing "column quality_options.is_gate does not exist" as an
- * API_ERROR on every page load buries the faults that do.
- *
- * 42703 = undefined column, 42P01 = undefined table (Postgres, post-parse);
- * PGRST204/PGRST205 = the same two, answered from PostgREST's schema cache.
- */
-const SCHEMA_PROBE_CODES = new Set(["42703", "42P01", "PGRST204", "PGRST205"]);
 
 function resourceFromPath(path: string): string {
   if (path.includes("/rest/v1/rpc/")) return "rpc:" + path.split("/rest/v1/rpc/")[1];
@@ -87,8 +71,6 @@ export function installApiErrorTelemetry(): void {
       }
 
       if (body?.code && IGNORED_CODES.has(body.code)) return res;
-      if (body?.code && SCHEMA_PROBE_CODES.has(body.code)) return res;
-      if (isMissingColumn(body) || isMissingTable(body)) return res;
 
       // 401/403 (and Postgres 42501) are almost always RLS; everything else API.
       const isRls = res.status === 401 || res.status === 403 || body?.code === "42501";
@@ -100,11 +82,28 @@ export function installApiErrorTelemetry(): void {
       // `userCorrectable`, which is also where the reason it is not one is written
       // down. Everything unlisted stays a fault, which is the direction that catches
       // things. A denial is never somebody's typing, so RLS is decided first.
+      // A GET that names a column the code deliberately probes for is the fallback
+      // ladder doing its job, not a fault — see `schemaProbes`. Reads only: no ladder
+      // walks down a write, so a POST naming a missing column is still a screen
+      // sending the database something it should never have sent.
+      //
+      // This is also why there is no blanket "42703 / 42P01 / missing column → drop
+      // it" above. That silences the probes AND the drift they are indistinguishable
+      // from by code alone: a column nothing falls back to, a table that never got
+      // its migration, a write naming a field that is not there. Declared, not
+      // inferred — the same doctrine as `userCorrectable`.
+      // The code is not required: PostgREST sends `42703` with the message, but a
+      // 400 that names a declared probed column is the ladder walking down whether
+      // or not the code travelled with it.
+      const isHandledProbe = method === "GET" && isProbedColumn(body?.message);
+
       const type = isRls
         ? "RLS_ERROR"
-        : isUserCorrectable(message)
-          ? "USER_ERROR"
-          : "API_ERROR";
+        : isHandledProbe
+          ? "SCHEMA_DRIFT"
+          : isUserCorrectable(message)
+            ? "USER_ERROR"
+            : "API_ERROR";
 
       logSystemError(type, message, {
         metadata: {

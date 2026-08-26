@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
+import { NoCeilingNotice } from "@/components/leader/NoCeilingNotice";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -140,7 +141,7 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
   const { excluded, ready: attributionReady } = useLeaderAttribution();
   // Same refusal as the manager's copy of this card: an unloaded gate set and an empty
   // one are the same value, and the difference is a capped score reading uncapped.
-  const { gateLabels, ready: gatesReady } = useGateLabels();
+  const { gateLabels, ready: gatesReady, missing: gatesMissing } = useGateLabels();
   const result = useMemo(
     () => (cardQuery.data?.status === "ok"
       ? computeScorecard(cardQuery.data.raw, period, { weights, excludedLabels: excluded, gateLabels })
@@ -277,7 +278,13 @@ function UnlockedScorecard({ leader, pinRef, periods, onLock }: {
            correcting it is the single worst place in the app to do that. */
         <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>
       ) : result ? (
-        <LeaderScorecardBody leaderName={leader.name} period={period} result={result} />
+        <>
+          {/* The leader is reading their own score. If the ceiling could not be
+              applied, they are the person who most needs to be told before they
+              believe the number. See NoCeilingNotice. */}
+          {gatesMissing && <NoCeilingNotice />}
+          <LeaderScorecardBody leaderName={leader.name} period={period} result={result} />
+        </>
       ) : null}
 
       <p className="pb-4 text-center text-2xs text-muted-foreground">

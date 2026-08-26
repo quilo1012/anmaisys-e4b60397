@@ -33,6 +33,10 @@ const TYPE_COLOR: Record<string, string> = {
   // could fix by typing something else, on a screen that told them how — worth having
   // in the list, and worth not looking like the ones that need somebody.
   USER_ERROR: "bg-muted text-muted-foreground border-border",
+  // Also deliberately not a warning colour. The screen that logged this already
+  // rendered the right answer without the column; what is left is a migration to
+  // apply, which is a job, not an incident.
+  SCHEMA_DRIFT: "bg-muted text-muted-foreground border-border",
 };
 
 export default function RootDiagnosticsPage() {

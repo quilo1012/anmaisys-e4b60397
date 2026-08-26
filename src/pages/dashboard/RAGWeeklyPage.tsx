@@ -38,6 +38,7 @@ import { parseRagTemplateFile } from "@/lib/ragTemplateImport";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { planAfterPlannerSync } from "@/lib/ragPlanOwnership";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
 import { splitRangeByExclusions, toExclusionIntervals } from "@/lib/downtimeExclusions";
@@ -676,7 +677,10 @@ export default function RAGWeeklyPage() {
           entry_date,
           line,
           shift: shift as Shift,
-          plan_qty: v.plan || existing?.plan_qty || 0,
+          // O quadro e dono do plano; o Planner so semeia uma celula que ainda nao
+          // tem plano nenhum. Ver src/lib/ragPlanOwnership.ts para porque a direccao
+          // e esta, e nao a soma dos target_qty por cima do plan_qty.
+          plan_qty: planAfterPlannerSync(v.plan, existing?.plan_qty),
           actual_qty: v.actual || existing?.actual_qty || 0,
           upm_target: existing?.upm_target ?? 0,
           upm_actual: existing?.upm_actual ?? 0,

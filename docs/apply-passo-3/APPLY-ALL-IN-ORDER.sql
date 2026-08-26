@@ -1,6 +1,6 @@
--- PASSO 3 — as dez migracoes que o docs/apply/ nao carrega
+-- PASSO 3 — as onze migracoes que o docs/apply/ nao carrega
 --
--- O docs/apply/ termina no bloco 08, 20260820090000. Dez migracoes aterraram desde
+-- O docs/apply/ termina no bloco 08, 20260820090000. Onze migracoes aterraram desde
 -- entao e nenhuma delas tinha um ficheiro para colar. A segunda cria
 -- public.scoring_version, que e a tabela que o ecra passa a vida a dizer que nao
 -- encontra:
@@ -2149,3 +2149,457 @@ BEGIN
     PERFORM public.scoring_version_snapshot(_open);
   END IF;
 END $$;
+
+
+-- ================================================================
+-- BLOCO 19
+-- 20260829090000_seed_leader_line_assignments.sql
+-- ================================================================
+
+-- The weekly board had nothing to draw, so nobody could fill it in.
+--
+-- leader_weekly_scorecard holds zero rows. The screen was read as unused — a training
+-- problem, or people not seeing the point. It is neither. scorecard_week_board(), from
+-- 20260819090000, opens with FROM public.leader_line_assignment and joins line_leaders
+-- and lines onto it. That table has never had a row, so the RPC returns nothing for
+-- EVERY week, LeaderScorecardWeekPage renders an empty board, and there is no control
+-- anywhere in the app that adds a line to it: nothing in src/ writes
+-- leader_line_assignment. Twelve people hold the role that may fill a scorecard and not
+-- one of them was ever shown a row to fill.
+--
+-- WHERE THESE SEVEN COME FROM, and what they are worth. They are not a declaration by
+-- anyone. They were inferred from daily_allocations (is_leader) over the last weeks:
+-- for each line_leaders row, the area that person led on most days. Only the seven who
+-- appeared on exactly ONE area are here. Eleven more had a dominant area but rotated
+-- across two to five — Juliano appeared on five — and a dominant area out of five is a
+-- guess wearing a number. One, "Pedro", matches two different employees (Pedro Correia
+-- and Pedro De Assis) and cannot be resolved from data at all. Eleven of the 29 never
+-- appear on the board. All of those are deliberately absent: this seeds what is safe to
+-- assert and leaves the rest to a person.
+--
+-- Matching had to be done on the FIRST NAME. line_leaders stores first names only —
+-- "Alice", "Kaz" — because the one place that creates a leader is a free-text field in
+-- IntouchImportDialog. employees stores full names. Comparing the whole string matches
+-- two of 29, and only because those two happen to carry a surname. This is the same
+-- missing-surname trap the TimeMoto import already hit.
+--
+-- Ids are written out rather than resolved by name at apply time. A name lookup inside
+-- an INSERT is a silent no-op when the spelling drifts, and "thiago souza" is already
+-- stored lowercase where the rest are not. Each id carries its name in a comment so a
+-- reviewer can check the pair without a query. All seven were verified to resolve to
+-- exactly one active line_leaders row and one lines row.
+--
+-- Line 5 gets TWO leaders (Everton and Vagner) and that is not a mistake: the table is
+-- keyed on neither column alone and the board is one row per assignment, so a line with
+-- two leaders appears twice. valid_from/valid_to exist so this can be corrected without
+-- deleting history.
+--
+-- THIS IS DATA, NOT SCHEMA, and it is in a migration because ad-hoc DDL and DML against
+-- this database is how two wrong views got created outside the ledger this week. A pair
+-- that turns out wrong is corrected by closing it with valid_to, not by editing this
+-- file. The durable fix is a screen for managing assignments, which does not exist yet.
+
+INSERT INTO public.leader_line_assignment (leader_id, line_id, valid_from)
+SELECT v.leader_id, v.line_id, DATE '2026-08-17'
+FROM (VALUES
+  ('e7792f1a-f375-4e16-94b7-3c4cf4da4789'::uuid,  -- Lucas
+   '57756a3e-fe14-4b71-a18d-61054af9ee9a'::uuid), -- Line 1
+  ('7e7f1558-d904-4280-ad9c-84a62e7a43f0'::uuid,  -- thiago souza
+   'e4a17e5e-3923-460a-acfd-93e3b8a67e06'::uuid), -- Line 2
+  ('857877f4-f4de-45f2-9052-e450ea25a553'::uuid,  -- Rafael Tosta
+   '54c45628-40b9-40a8-84f8-ec9649e112b2'::uuid), -- Line 4
+  ('de958b79-443a-4f8e-8184-b9af13449c00'::uuid,  -- Everton
+   '113151ed-5fd9-4fc7-9fdd-a7c5a6fae5ba'::uuid), -- Line 5
+  ('a6ce2f23-012e-46cd-ae17-35dd065df13c'::uuid,  -- Vagner
+   '113151ed-5fd9-4fc7-9fdd-a7c5a6fae5ba'::uuid), -- Line 5
+  ('466ca641-0c04-4226-9ddc-2d7404d27a3a'::uuid,  -- Ailton
+   '85d20033-25ef-4b69-90fe-993f2e52ffd2'::uuid), -- Line 6
+  ('f6c3d1d7-193c-46c9-a244-09d63ebbab24'::uuid,  -- Muriel
+   'f5f8703e-a220-49d7-8c58-f0cb24d2be45'::uuid)  -- Tablet Line
+) AS v(leader_id, line_id)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.leader_line_assignment a
+   WHERE a.leader_id = v.leader_id AND a.line_id = v.line_id);
+
+DO $$
+DECLARE _n integer;
+BEGIN
+  SELECT count(*) INTO _n FROM public.leader_line_assignment;
+  RAISE NOTICE 'leader_line_assignment tem % atribuicoes. O quadro semanal passa a ter linhas.', _n;
+END $$;
+
+
+-- ================================================================
+-- BLOCO 20
+-- 20260830090000_the_first_plan_for_a_cell_never_reached_the_planner.sql
+-- ================================================================
+
+-- O primeiro plano de uma celula nunca chegava ao Planner.
+--
+-- `trg_sync_items_target_from_rag` nasceu a 27/06 como AFTER UPDATE OF plan_qty. Um
+-- plano escrito numa celula que ainda nao tem linha em rag_weekly_entries e um INSERT
+-- - `RAGWeeklyPage.commitValue` chama `onSave` quando `entryMap` nao tem a chave - por
+-- isso o gatilho nao disparava e `production_items.target_qty` ficava com o que la
+-- estivesse. Nao e um caso de canto: e exactamente a primeira vez que se planeia cada
+-- linha/turno, que e quando o numero e escrito.
+--
+-- O outro lado do mesmo defeito estava no frontend: o "Sync from Planner & Downtime"
+-- somava os target_qty e escrevia o total por cima do plan_qty. Com o gatilho a nao
+-- disparar no INSERT, o que a Sync trazia de volta era o alvo velho dos SKUs - e o
+-- quadro perdia o plano acordado. Ver src/lib/ragPlanOwnership.ts.
+--
+-- Aqui trata-se so da metade que vive na base de dados: o gatilho passa a cobrir o
+-- INSERT. A funcao nao muda de logica, ganha uma guarda - num INSERT nao ha OLD, e
+-- `NEW.plan_qty IS NOT DISTINCT FROM OLD.plan_qty` e falso mesmo quando o plano e zero
+-- ou nulo, o que poria a zero os alvos de uma sessao so por alguem ter criado a linha
+-- para escrever um comentario ou um tempo de paragem.
+
+CREATE OR REPLACE FUNCTION public.sync_items_target_from_rag()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  _session_id uuid;
+  _sum_target numeric;
+  _n int;
+  _new_plan numeric := COALESCE(NEW.plan_qty, 0);
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    -- Uma linha criada sem plano nao e uma instrucao para zerar o Planner.
+    IF _new_plan <= 0 THEN
+      RETURN NULL;
+    END IF;
+  ELSIF NEW.plan_qty IS NOT DISTINCT FROM OLD.plan_qty THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT id INTO _session_id
+    FROM public.production_sessions
+   WHERE session_date = NEW.entry_date AND line = NEW.line AND shift = NEW.shift
+   LIMIT 1;
+  IF _session_id IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT COALESCE(SUM(COALESCE(target_qty, planned_qty, 0)), 0), COUNT(*)
+    INTO _sum_target, _n
+    FROM public.production_items
+   WHERE session_id = _session_id;
+
+  IF _n = 0 THEN RETURN NULL; END IF;
+
+  IF _sum_target > 0 THEN
+    -- Scale proportionally to existing targets.
+    UPDATE public.production_items
+       SET target_qty  = ROUND(COALESCE(target_qty, planned_qty, 0) * _new_plan / _sum_target),
+           planned_qty = ROUND(COALESCE(target_qty, planned_qty, 0) * _new_plan / _sum_target),
+           updated_at  = now()
+     WHERE session_id = _session_id;
+  ELSE
+    -- Even split when no prior target exists.
+    UPDATE public.production_items
+       SET target_qty  = ROUND(_new_plan / _n),
+           planned_qty = ROUND(_new_plan / _n),
+           updated_at  = now()
+     WHERE session_id = _session_id;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_items_target_from_rag ON public.rag_weekly_entries;
+CREATE TRIGGER trg_sync_items_target_from_rag
+AFTER INSERT OR UPDATE OF plan_qty ON public.rag_weekly_entries
+FOR EACH ROW EXECUTE FUNCTION public.sync_items_target_from_rag();
+
+COMMENT ON FUNCTION public.sync_items_target_from_rag() IS
+  'Reescala production_items.target_qty quando um plano da RAG e criado ou alterado. rag_weekly_entries.plan_qty e a fonte de verdade do plano; production_items segue-a. Um INSERT sem plano nao mexe em nada.';
+
+
+-- ================================================================
+-- BLOCO 21
+-- 20260831090000_a_price_is_not_the_same_right_as_a_quantity.sql
+-- ================================================================
+
+-- `stock.pricing` is admin-only in the matrix and governs nothing anywhere.
+--
+-- The matrix says `"stock.pricing": ["admin"]` and describes it as "See and edit part
+-- unit prices and financial values." No screen asks for it and no policy mentions it.
+-- What actually decides who edits a price today is `stock.manage` in the UI — which
+-- StockPage reads to draw the whole edit dialog, price field included — and, in the
+-- database, the plain UPDATE policies on `products`: admin, manager, supervisor and
+-- maintenance_manager. Four roles where the matrix names one, and an admin turning
+-- `stock.pricing` off changes nothing for any of them.
+--
+-- A price is not the same right as a quantity. Adjusting stock after a part is used is
+-- the job most of those roles are there to do; changing what the part is worth is a
+-- financial figure, and the matrix has said so all along.
+--
+-- Row-level security cannot express this: the right depends on WHICH column moved, and
+-- a policy only ever sees the whole row. So it is a trigger, and it fires only when
+-- `price` actually changes — `IS DISTINCT FROM`, not "price was in the statement".
+-- That distinction is the whole design. `useUpdateProduct` sends every column on every
+-- save, price included, so a trigger keyed on the statement rather than on the value
+-- would refuse every ordinary product edit by a manager and teach them the app is
+-- broken. This refuses exactly one thing: a price that moved, by somebody without the
+-- right to move it.
+--
+-- The permission is read with `has_action` (20260813094905), so the switch on the
+-- Permissions page is the switch, not a second list written here that nobody can edit.
+-- That is the point: `stock.pricing` becomes true rather than being deleted.
+
+CREATE OR REPLACE FUNCTION public.enforce_product_pricing_permission()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  -- A price that did not move needs no right. An INSERT with no price, or a zero
+  -- price, is a part being catalogued rather than valued — the add form leaves the
+  -- field empty and sends nothing.
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.price IS NULL OR NEW.price = 0 THEN
+      RETURN NEW;
+    END IF;
+  ELSE
+    IF NEW.price IS NOT DISTINCT FROM OLD.price THEN
+      RETURN NEW;
+    END IF;
+  END IF;
+
+  IF NOT public.has_action(auth.uid(), 'stock.pricing', ARRAY['admin']::app_role[]) THEN
+    RAISE EXCEPTION
+      'Changing a part price needs the stock.pricing permission.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.enforce_product_pricing_permission() IS
+  'Refuses a products.price that moved when the caller lacks stock.pricing. Fires on '
+  'the value, never on the statement: useUpdateProduct sends price on every save, so '
+  'gating the statement would refuse every ordinary product edit.';
+
+DROP TRIGGER IF EXISTS trg_products_pricing_permission ON public.products;
+CREATE TRIGGER trg_products_pricing_permission
+  BEFORE INSERT OR UPDATE ON public.products
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_product_pricing_permission();
+
+
+-- ================================================================
+-- BLOCO 22
+-- 20260901090000_the_verdict_asks_the_matrix_who_may_give_it.sql
+-- ================================================================
+
+-- The two switches that already worked, and could not be turned off.
+--
+-- `enforce_quality_validation` is the audit gate: who may rule on a quality action,
+-- and who may approve its closure. It has always enforced them properly — and it has
+-- always enforced them against two role lists written into the function body:
+--
+--   _is_quality := _is_admin OR has_role(_uid,'quality_supervisor');
+--   _is_manager := _is_admin OR has_role(_uid,'manager') OR has_role(_uid,'maintenance_manager');
+--
+-- Those agree with the matrix exactly — `quality.validate` is admin + quality_supervisor,
+-- `quality.close` is admin + manager + maintenance_manager. Nothing is wrong today.
+--
+-- What is wrong is that the agreement is a coincidence maintained by hand. The
+-- Permissions page shows both switches; an admin turning `quality.validate` off for
+-- the quality_supervisor changes the menu, changes what the screen offers, and changes
+-- nothing here. The verdict still goes through. A switch that lies about the audit
+-- gate is worse than no switch, because the person who flicked it believes it.
+--
+-- So the lists are replaced by `has_action` (20260813094905), which reads
+-- `role_permission_overrides` — the switches themselves — and falls back to the
+-- baseline when nobody has overridden anything. The baselines passed below are the
+-- two lists above, unchanged, so on a database where nothing is overridden this
+-- migration changes no behaviour at all. That is the point: it makes the switches
+-- true without moving anybody's access.
+--
+-- Nothing else in the function changes. `_uid IS NULL` still lets backend paths
+-- through, a closed action still has to be reopened before its verdict moves, closure
+-- still needs a verdict first, and withdrawing a verdict still withdraws the
+-- signature. `_is_admin` is gone because `has_action` already resolves admin to true
+-- on its own — see its CASE — so keeping it would have been a third statement of the
+-- same rule.
+
+CREATE OR REPLACE FUNCTION public.enforce_quality_validation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _uid uuid := auth.uid();
+  _is_quality boolean;
+  _is_manager boolean;
+  _verdict_changed boolean := new.validation_status IS DISTINCT FROM old.validation_status;
+  _closure_changed boolean := (new.closed_at IS NULL) IS DISTINCT FROM (old.closed_at IS NULL);
+BEGIN
+  IF NOT _verdict_changed AND NOT _closure_changed THEN RETURN new; END IF;
+
+  -- Backend paths (cron, service key) have no auth.uid(); RLS keeps anon out.
+  IF _uid IS NULL THEN RETURN new; END IF;
+
+  -- The Permissions page decides, not a list written here. Baselines are the roles
+  -- this function named until 20260901090000, so an un-overridden database is
+  -- unchanged.
+  _is_quality := has_action(_uid, 'quality.validate', ARRAY['admin','quality_supervisor']::app_role[]);
+  _is_manager := has_action(_uid, 'quality.close', ARRAY['admin','manager','maintenance_manager']::app_role[]);
+
+  IF _verdict_changed THEN
+    -- A closed action is a filed record. Changing its verdict changes a leader's
+    -- score after the fact, so it takes a manager reopening it first — and that
+    -- reopening is in the history.
+    IF old.closed_at IS NOT NULL AND new.closed_at IS NOT NULL THEN
+      RAISE EXCEPTION 'This action is closed. A manager must reopen it before the verdict can change.';
+    END IF;
+
+    IF new.validation_status IN ('validated','rejected') AND NOT _is_quality THEN
+      RAISE EXCEPTION 'Only Quality or an admin can validate or reject a quality action.';
+    END IF;
+
+    IF new.validation_status = 'validated' THEN
+      -- The evidence check stood here. See 20260827090000: the upload it required was
+      -- removed from the screen, so it could only ever refuse.
+      new.validated_by := COALESCE(new.validated_by, _uid);
+      new.validated_at := COALESCE(new.validated_at, now());
+    ELSE
+      -- Withdrawing the verdict withdraws the signature with it.
+      new.validated_by := NULL;
+      new.validated_at := NULL;
+    END IF;
+  END IF;
+
+  IF _closure_changed THEN
+    IF NOT _is_manager THEN
+      RAISE EXCEPTION 'Only a manager or an admin can approve the closure of a quality action.';
+    END IF;
+    IF new.closed_at IS NOT NULL THEN
+      IF new.validation_status NOT IN ('validated','rejected') THEN
+        RAISE EXCEPTION 'Quality must validate or reject this action before it can be closed.';
+      END IF;
+      new.closed_by := COALESCE(new.closed_by, _uid);
+      new.closed_at := COALESCE(new.closed_at, now());
+    ELSE
+      new.closed_by := NULL;
+    END IF;
+  END IF;
+
+  RETURN new;
+END
+$function$;
+
+COMMENT ON FUNCTION public.enforce_quality_validation() IS
+  'The quality audit gate. Who may rule and who may close is read from the Permissions '
+  'page via has_action (quality.validate, quality.close), not from a role list held '
+  'here. Since 20260901090000; the baselines are the roles it named before, so an '
+  'un-overridden database behaves identically.';
+
+
+-- ================================================================
+-- BLOCO 23
+-- 20260902090000_the_office_admin_migration_stopped_halfway.sql
+-- ================================================================
+
+-- 20260728020000 is called `office_admin_broad_access`. It was not broad enough.
+--
+-- `production_office_admin` arrived on 28/07 with a matrix entry, a menu, and a
+-- migration granting it access. That migration covered `work_orders` and
+-- `production_targets` and stopped. Five tables it was given rights to in the matrix
+-- never heard of it: machines, line_leaders, mobile_assets, problem_descriptions and
+-- products.
+--
+-- These are not five independent oversights. They are one migration that stopped
+-- halfway, and the symptom has been the same on all five for a month: the switch on
+-- the Permissions page is on, the menu draws the screen, the person clicks Save and
+-- gets an RLS refusal. A button that fails with a Postgres error is not a finished
+-- system.
+--
+-- The write policies are replaced rather than added to. Each table had one policy per
+-- role — "Admins can manage machines", "Managers can manage machines", "Supervisors
+-- can manage machines" — which is the same hand-written second list of roles that
+-- `has_action` exists to remove, and adding a sixth policy would have grown it. One
+-- policy per table now, reading the Permissions page.
+--
+-- TWO ROLES BEYOND production_office_admin MOVE, and they are named here rather than
+-- worked around:
+--
+--   * mobile_assets gains maintenance_manager
+--   * problem_descriptions gains supervisor
+--
+-- Both hold those actions in the matrix and have been refused by the database since
+-- the tables were made. The alternative was a baseline of "whatever the old policies
+-- happened to allow, plus one role", which is a third list agreeing with neither the
+-- matrix nor the policies — exactly the defect being removed. The matrix is the
+-- baseline, or there is no point.
+--
+-- SELECT policies are untouched: who may READ these tables is a separate question and
+-- this migration does not answer it. `products` keeps its admin-only DELETE, because
+-- deleting a part is not `stock.manage` and StockPage already says so.
+
+-- machines — machines.manage
+DROP POLICY IF EXISTS "Admins can manage machines" ON public.machines;
+DROP POLICY IF EXISTS "Managers can manage machines" ON public.machines;
+DROP POLICY IF EXISTS "Supervisors can manage machines" ON public.machines;
+CREATE POLICY "machines write by matrix" ON public.machines
+  FOR ALL TO authenticated
+  USING (public.has_action(auth.uid(), 'machines.manage',
+         ARRAY['admin','manager','supervisor','production_office_admin']::app_role[]))
+  WITH CHECK (public.has_action(auth.uid(), 'machines.manage',
+         ARRAY['admin','manager','supervisor','production_office_admin']::app_role[]));
+
+-- line_leaders — leaders.manage
+DROP POLICY IF EXISTS "line_leaders_write_mgr" ON public.line_leaders;
+CREATE POLICY "line_leaders write by matrix" ON public.line_leaders
+  FOR ALL TO authenticated
+  USING (public.has_action(auth.uid(), 'leaders.manage',
+         ARRAY['admin','manager','production_office_admin']::app_role[]))
+  WITH CHECK (public.has_action(auth.uid(), 'leaders.manage',
+         ARRAY['admin','manager','production_office_admin']::app_role[]));
+
+-- mobile_assets — assets.manage (also restores maintenance_manager)
+DROP POLICY IF EXISTS "Admins manage mobile_assets" ON public.mobile_assets;
+DROP POLICY IF EXISTS "Managers manage mobile_assets" ON public.mobile_assets;
+CREATE POLICY "mobile_assets write by matrix" ON public.mobile_assets
+  FOR ALL TO authenticated
+  USING (public.has_action(auth.uid(), 'assets.manage',
+         ARRAY['admin','manager','maintenance_manager','production_office_admin']::app_role[]))
+  WITH CHECK (public.has_action(auth.uid(), 'assets.manage',
+         ARRAY['admin','manager','maintenance_manager','production_office_admin']::app_role[]));
+
+-- problem_descriptions — problems.manage (also restores supervisor)
+DROP POLICY IF EXISTS "Admins can manage problem_descriptions" ON public.problem_descriptions;
+DROP POLICY IF EXISTS "Managers can manage problem_descriptions" ON public.problem_descriptions;
+CREATE POLICY "problem_descriptions write by matrix" ON public.problem_descriptions
+  FOR ALL TO authenticated
+  USING (public.has_action(auth.uid(), 'problems.manage',
+         ARRAY['admin','manager','supervisor','production_office_admin']::app_role[]))
+  WITH CHECK (public.has_action(auth.uid(), 'problems.manage',
+         ARRAY['admin','manager','supervisor','production_office_admin']::app_role[]));
+
+-- products — stock.manage. INSERT and UPDATE only: DELETE stays admin-only, and the
+-- price column stays behind stock.pricing (20260831090000).
+DROP POLICY IF EXISTS "Admins can insert products" ON public.products;
+DROP POLICY IF EXISTS "Admins can update products" ON public.products;
+DROP POLICY IF EXISTS "Managers can insert products" ON public.products;
+DROP POLICY IF EXISTS "Managers can update products" ON public.products;
+DROP POLICY IF EXISTS "Maint mgr and supervisor insert products" ON public.products;
+DROP POLICY IF EXISTS "Maint mgr and supervisor update products" ON public.products;
+CREATE POLICY "products insert by matrix" ON public.products
+  FOR INSERT TO authenticated
+  WITH CHECK (public.has_action(auth.uid(), 'stock.manage',
+         ARRAY['admin','manager','supervisor','maintenance_manager','production_office_admin']::app_role[]));
+CREATE POLICY "products update by matrix" ON public.products
+  FOR UPDATE TO authenticated
+  USING (public.has_action(auth.uid(), 'stock.manage',
+         ARRAY['admin','manager','supervisor','maintenance_manager','production_office_admin']::app_role[]))
+  WITH CHECK (public.has_action(auth.uid(), 'stock.manage',
+         ARRAY['admin','manager','supervisor','maintenance_manager','production_office_admin']::app_role[]));
