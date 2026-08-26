@@ -95,6 +95,9 @@ export default function StockPage() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("__all__");
   const [lowOnly, setLowOnly] = useState(false);
+  // Searching by camera. Reading, not editing — open to anyone who can see this screen.
+  const [photoSearchOpen, setPhotoSearchOpen] = useState(false);
+
 
   /** A blank box means "nobody said", which is NULL — not an empty string that the
    *  search would happily match and the exports would print as a gap. */
