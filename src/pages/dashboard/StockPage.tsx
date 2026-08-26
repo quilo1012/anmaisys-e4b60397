@@ -122,15 +122,37 @@ export default function StockPage() {
    *  search would happily match and the exports would print as a gap. */
   const orNull = (v: string) => (v.trim() ? v.trim() : null);
 
+  /**
+   * What a price box means when it is empty.
+   *
+   * `20260831090000` lets a part be catalogued without being valued — the trigger
+   * allows `price IS NULL OR price = 0` precisely so the five roles that catalogue
+   * parts are not forced to invent a figure. The screen used to demand one anyway,
+   * which left the 134 imported warehouse parts, all at £0.00, impossible to edit at
+   * all: correcting a location meant first making up a price.
+   *
+   * Blank now means "not my business" and the key is dropped, the same statement
+   * `productWritePayload` makes. A typed 0 is still a real 0.
+   */
+  const priceToSend = (raw: string): number | undefined => {
+    if (!canPrice || !raw.trim()) return undefined;
+    const n = Number.parseFloat(raw);
+    return Number.isFinite(n) && n >= 0 ? n : undefined;
+  };
+  const priceIsGibberish = (raw: string) => {
+    if (!canPrice || !raw.trim()) return false;
+    const n = Number.parseFloat(raw);
+    return !Number.isFinite(n) || n < 0;
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const priceNum = parseFloat(price);
-    if (canPrice && (!Number.isFinite(priceNum) || priceNum <= 0)) {
-      toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
+    if (priceIsGibberish(price)) {
+      toast({ title: "Price is not a figure", description: "Leave it blank, or enter £0.00 or more.", variant: "destructive" });
       return;
     }
     try {
-      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: canPrice ? priceNum : undefined, description: orNull(description), machine: orNull(machine), location: orNull(location) });
+      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: priceToSend(price), description: orNull(description), machine: orNull(machine), location: orNull(location) });
       toast({ title: "Product added" });
       logAuditEvent("create", "product", (result as any)?.id, { name, code });
       setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice(""); setDescription(""); setMachine(""); setLocation("");
@@ -182,13 +204,12 @@ export default function StockPage() {
 
   const handleEdit = async () => {
     if (!editProduct) return;
-    const priceNum = parseFloat(editPrice);
-    if (canPrice && (!Number.isFinite(priceNum) || priceNum <= 0)) {
-      toast({ title: "Price is required", description: "Enter a unit price greater than £0.00.", variant: "destructive" });
+    if (priceIsGibberish(editPrice)) {
+      toast({ title: "Price is not a figure", description: "Leave it blank, or enter £0.00 or more.", variant: "destructive" });
       return;
     }
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: canPrice ? priceNum : undefined, description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation), photo_url: editProduct.photo_url ?? null });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: priceToSend(editPrice), description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation), photo_url: editProduct.photo_url ?? null });
       toast({ title: "Product updated" });
       logAuditEvent("update", "product", editProduct.id, { name: editName });
       setEditProduct(null);
@@ -686,7 +707,7 @@ export default function StockPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
-                  {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={price} onChange={(e) => setPrice(e.target.value)} /></div>}
+                  {canPrice && <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank if unknown" /></div>}
                 </div>
                 <div className="space-y-1">
                   <Label>Minimum stock</Label>
@@ -787,7 +808,7 @@ export default function StockPage() {
                </div>
                <div className="grid grid-cols-2 gap-3">
                  <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
-                 {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>}
+                 {canPrice && <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" min="0" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="Leave blank if unknown" /></div>}
                </div>
                <div className="space-y-1">
                  <Label>Minimum stock</Label>
