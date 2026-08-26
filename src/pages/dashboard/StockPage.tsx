@@ -14,6 +14,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
+import { IdentifyPartDialog } from "@/components/IdentifyPartDialog";
+
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -95,6 +97,9 @@ export default function StockPage() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("__all__");
   const [lowOnly, setLowOnly] = useState(false);
+  // Searching by camera. Reading, not editing — open to anyone who can see this screen.
+  const [photoSearchOpen, setPhotoSearchOpen] = useState(false);
+
 
   /** A blank box means "nobody said", which is NULL — not an empty string that the
    *  search would happily match and the exports would print as a gap. */
@@ -310,6 +315,10 @@ export default function StockPage() {
                   {filterCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {/* Another way to search the same list: a part in the hand, no code on it. */}
+              <Button variant="outline" onClick={() => setPhotoSearchOpen(true)}>
+                <Camera className="mr-1 h-4 w-4" /> Find by photo
+              </Button>
               <Button
                 variant={lowOnly ? "default" : "outline"}
                 onClick={() => setLowOnly((v) => !v)}
@@ -317,6 +326,7 @@ export default function StockPage() {
               >
                 <AlertTriangle className="mr-1 h-4 w-4" /> Low stock
               </Button>
+
             </div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => runExport("pdf", false)}><FileText className="mr-1 h-4 w-4" /> PDF list</Button>
@@ -667,6 +677,14 @@ export default function StockPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Photo search: picking a candidate drops its code into the same search box. */}
+        <IdentifyPartDialog
+          open={photoSearchOpen}
+          onOpenChange={setPhotoSearchOpen}
+          onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); }}
+        />
+
 
         {/* Delete Confirmation */}
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
