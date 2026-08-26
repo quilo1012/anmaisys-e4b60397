@@ -335,7 +335,7 @@ BEGIN
        SET points_at_creation = public.action_points_at(
              %s, a.severity, a.labels, a.validation_status, a.scoring_version_id)
      WHERE a.points_at_creation IS NULL AND a.scoring_version_id IS NOT NULL
-  $fmt$, CASE WHEN _has_domain THEN 'a.domain' ELSE 'NULL::text' END);
+  $fmt$, CASE WHEN _has_domain THEN 'a.domain::text' ELSE 'NULL::text' END);
 
   RAISE NOTICE 'points_at_creation preenchido em % accoes (domain presente: %).',
     (SELECT count(*) FROM public.quality_actions WHERE points_at_creation IS NOT NULL), _has_domain;
