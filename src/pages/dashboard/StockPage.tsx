@@ -617,37 +617,51 @@ export default function StockPage() {
         {/* Edit Product Dialog */}
         <Dialog open={!!editProduct} onOpenChange={(open) => !open && setEditProduct(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Edit Product</DialogTitle><DialogDescription className="sr-only">Edit product details</DialogDescription></DialogHeader>
-            <div className="space-y-3">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription>
+                Keeping the model, the quantity and the minimum stock right is what makes the reorder alerts trustworthy.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+               <div className="space-y-1"><Label>Model / Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
                <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
-               <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
-               <div className="space-y-1"><Label>Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
-               <div className="space-y-1"><Label>Description</Label><Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} /></div>
+               <div className="space-y-1">
+                 <Label>Description</Label>
+                 <Textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+               </div>
                <div className="grid grid-cols-2 gap-3">
-                 <div className="space-y-1"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
+                 <div className="space-y-1">
+                   <Label>Category</Label>
+                   <Select value={editCategory} onValueChange={setEditCategory}>
+                     <SelectTrigger><SelectValue /></SelectTrigger>
+                     <SelectContent>
+                       {categoryOptions.map((c) => (
+                         <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                 </div>
                  <div className="space-y-1"><Label>Location</Label><Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} /></div>
                </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>
-                {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>}
-              </div>
-              <div className="space-y-1">
-                <Label>Category</Label>
-                <Select value={editCategory} onValueChange={setEditCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {categoryOptions.map((c) => (
-                      <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="space-y-1"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
+                 <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
+               </div>
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
+                 {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>}
+               </div>
+               <div className="space-y-1">
+                 <Label>Minimum stock</Label>
+                 <Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} />
+                 <p className="text-2xs text-muted-foreground">The reorder point: at or below this figure the part is flagged for reordering.</p>
+               </div>
               {/* Photo: same right as Edit and Delete — `stock.manage`, nothing new. */}
               {isManager && editProduct && (
                 <div className="space-y-1">
                   <Label>Photo</Label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     {photoSrc(editProduct) ? (
                       <img src={photoSrc(editProduct)} alt="" className="h-14 w-14 rounded border object-cover" />
                     ) : (
@@ -672,10 +686,18 @@ export default function StockPage() {
                         onChange={handlePhotoPick}
                       />
                     </label>
+                    {/* Replacing was possible, clearing was not. */}
+                    {editProduct.photo_url && (
+                      <Button variant="outline" size="sm" onClick={handlePhotoRemove} disabled={removingPhoto}>
+                        {removingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageOff className="mr-2 h-4 w-4" />}
+                        Remove photo
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
             </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
               <Button onClick={handleEdit} disabled={updateProduct.isPending}>
