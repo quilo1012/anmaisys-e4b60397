@@ -199,6 +199,61 @@ export default function StockPage() {
     }
   };
 
+  /**
+   * One unit off the shelf, or one back on it, without opening a form.
+   *
+   * The most repeated gesture in a warehouse. It writes the same audit entry the
+   * adjustment form writes — `adjust_stock`, with the delta and the new figure — so
+   * the Adjustment History below tells the whole story either way. Never below zero.
+   */
+  const adjustOne = async (p: Product, delta: 1 | -1) => {
+    const newQty = p.quantity + delta;
+    if (newQty < 0) {
+      toast({ title: "Stock cannot go below 0", variant: "destructive" });
+      return;
+    }
+    setAdjustingId(p.id);
+    try {
+      await updateStock.mutateAsync({ id: p.id, quantity: newQty });
+      await logAuditEvent("adjust_stock", "product", p.id, { adjustment: delta, new_quantity: newQty });
+      queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
+      toast({ title: `${p.code}: ${p.quantity} → ${newQty}` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setAdjustingId(null);
+    }
+  };
+
+  const handlePhotoRemove = async () => {
+    if (!editProduct) return;
+    setRemovingPhoto(true);
+    try {
+      await updateProduct.mutateAsync({
+        id: editProduct.id,
+        name: editName,
+        line: editLine,
+        code: editCode,
+        quantity: parseInt(editQty) || 0,
+        min_stock: parseInt(editMinStock) || 0,
+        category: editCategory,
+        price: canPrice ? parseFloat(editPrice) : undefined,
+        description: orNull(editDescription),
+        machine: orNull(editMachine),
+        location: orNull(editLocation),
+        photo_url: null,
+      });
+      setEditProduct({ ...editProduct, photo_url: null });
+      toast({ title: "Photo removed" });
+      logAuditEvent("update", "product", editProduct.id, { photo: false });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setRemovingPhoto(false);
+    }
+  };
+
+
 
   const handleDelete = async () => {
     if (!deleteId) return;
