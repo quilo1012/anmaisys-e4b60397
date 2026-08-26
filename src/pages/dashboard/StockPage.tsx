@@ -393,7 +393,7 @@ export default function StockPage() {
                 </div>
 
                 {/* Desktop table */}
-                {/* Thirteen columns do not fit a laptop: the table scrolls inside its
+                {/* Eleven columns do not fit a laptop: the table scrolls inside its
                     own box rather than pushing the page sideways. */}
                 <div className="hidden overflow-x-auto md:block">
                 <Table>
@@ -401,7 +401,6 @@ export default function StockPage() {
                  <TableRow>
                      <TableHead className="w-14">Photo</TableHead>
                      <TableHead>Model</TableHead>
-                     <TableHead>Name</TableHead>
                      <TableHead>Category</TableHead>
                      <TableHead>Description</TableHead>
                      <TableHead>Machine</TableHead>
@@ -410,26 +409,36 @@ export default function StockPage() {
                      {canPrice && <TableHead className="text-right">Price</TableHead>}
                      <TableHead className="text-right">Qty</TableHead>
                      <TableHead className="text-right">Min</TableHead>
-                     <TableHead>Status</TableHead>
                      {isManager && <TableHead>Actions</TableHead>}
                    </TableRow>
                  </TableHeader>
                  <TableBody>
                    {visible.map((p) => {
                      const isLow = isLowStock(p);
+                     const thumb = photoSrc(p) ? (
+                       <img src={photoSrc(p)} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
+                     ) : (
+                       <div className="flex h-9 w-9 items-center justify-center rounded border border-dashed text-muted-foreground" aria-label="No photo">
+                         <ImageOff className="h-4 w-4" />
+                       </div>
+                     );
                      return (
                        <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
                         <TableCell>
-                          {photoSrc(p) ? (
-                            <img src={photoSrc(p)} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
-                          ) : (
-                            <div className="flex h-9 w-9 items-center justify-center rounded border border-dashed text-muted-foreground" aria-label="No photo">
-                              <ImageOff className="h-4 w-4" />
-                            </div>
-                          )}
+                          {/* The picture is the way to the picture: for whoever may
+                              manage stock, the cell opens the form ready for a photo. */}
+                          {isManager ? (
+                            <button
+                              type="button"
+                              onClick={() => openEdit(p)}
+                              aria-label={p.photo_url ? `Change photo of ${p.code}` : `Add photo to ${p.code}`}
+                              className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              {thumb}
+                            </button>
+                          ) : thumb}
                         </TableCell>
                         <TableCell className="font-mono font-medium">{p.code}</TableCell>
-                        <TableCell>{p.name}</TableCell>
                         <TableCell><Badge variant="outline">{p.category}</Badge></TableCell>
                         <TableCell className="max-w-[280px] truncate" title={p.description ?? undefined}>{p.description || "—"}</TableCell>
                         <TableCell>{p.machine || "—"}</TableCell>
@@ -438,16 +447,13 @@ export default function StockPage() {
                         {canPrice && <TableCell className="text-right">£{(p.price || 0).toFixed(2)}</TableCell>}
                         <TableCell className={`text-right ${isLow ? "text-destructive-strong font-bold" : ""}`}>{p.quantity}</TableCell>
                         <TableCell className="text-right">{p.min_stock}</TableCell>
-                        <TableCell>
-                          {isLow ? (
-                            <StatusBadge status="warning" label="Low Stock" />
-                          ) : (
-                            <StatusBadge status="success" label="In Stock" />
-                          )}
-                        </TableCell>
                         {isManager && (
                           <TableCell>
                             <div className="flex gap-1">
+                              {/* The gesture that repeats: one off the shelf, one back on,
+                                  logged in the audit like any other adjustment. */}
+                              <Button size="icon" variant="ghost" aria-label={`Take one ${p.code} out of stock`} disabled={p.quantity <= 0 || adjustingId === p.id} onClick={() => adjustOne(p, -1)}><Minus className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" aria-label={`Add one ${p.code} to stock`} disabled={adjustingId === p.id} onClick={() => adjustOne(p, 1)}><Plus className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" aria-label="Edit part" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                               {isAdmin && <Button size="icon" variant="ghost" aria-label="Delete part" className="text-destructive-strong" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>}
                             </div>
@@ -459,6 +465,7 @@ export default function StockPage() {
                 </TableBody>
               </Table>
               </div>
+
               </>
             )}
           </CardContent>
