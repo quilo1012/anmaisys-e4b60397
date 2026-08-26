@@ -17,6 +17,12 @@ export type ProductColumns = {
   quantity: number;
   min_stock: number;
   category: string;
+  // What the warehouse's own list knows about a part and this app did not until
+  // 20260903090000: what it is, what it goes on, where it lives, what it looks like.
+  description?: string | null;
+  machine?: string | null;
+  location?: string | null;
+  photo_url?: string | null;
 };
 
 export function productWritePayload(

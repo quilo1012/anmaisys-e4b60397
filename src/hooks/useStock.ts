@@ -1,18 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { productWritePayload } from "@/lib/productPricing";
 import { supabase } from "@/integrations/supabase/client";
+import type { StockRow } from "@/lib/stockList";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 
-export interface Product {
-  id: string;
-  name: string;
-  line: string;
-  code: string;
-  quantity: number;
-  min_stock: number;
-  category: string;
-  price: number;
+/**
+ * A part as this app holds it: the warehouse row plus when it was written.
+ *
+ * The row itself is `StockRow` in `stockList`, where the counting and the filtering
+ * live — one shape, so the screen, the four exports and the reorder banner cannot
+ * drift into three different ideas of what a part is.
+ */
+export interface Product extends StockRow {
   created_at: string;
   updated_at: string;
 }
@@ -60,7 +60,7 @@ export function useProducts() {
 export function useAddProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (product: { name: string; line?: string; code: string; quantity: number; min_stock: number; category: string; price?: number }) => {
+    mutationFn: async (product: { name: string; line?: string; code: string; quantity: number; min_stock: number; category: string; price?: number; description?: string | null; machine?: string | null; location?: string | null; photo_url?: string | null }) => {
       const { data, error } = await supabase.from("products").insert(product).select().single();
       if (error) throw error;
       return data;
@@ -83,12 +83,12 @@ export function useUpdateProductStock() {
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, name, line, code, quantity, min_stock, category, price }: { id: string; name: string; line?: string; code: string; quantity: number; min_stock: number; category: string; price?: number }) => {
+    mutationFn: async ({ id, name, line, code, quantity, min_stock, category, price, description, machine, location, photo_url }: { id: string; name: string; line?: string; code: string; quantity: number; min_stock: number; category: string; price?: number; description?: string | null; machine?: string | null; location?: string | null; photo_url?: string | null }) => {
       // `price` is omitted, not zeroed, when the caller did not send one — see
       // `productWritePayload`. NULL → 0 is a change, and 20260831090000 refuses a
       // price that moved without `stock.pricing`.
       const payload = productWritePayload(
-        { name, line: line ?? '', code, quantity, min_stock, category }, price, true,
+        { name, line: line ?? '', code, quantity, min_stock, category, description, machine, location, photo_url }, price, true,
       );
       const { error } = await supabase.from("products").update(payload).eq("id", id);
       if (error) throw error;
