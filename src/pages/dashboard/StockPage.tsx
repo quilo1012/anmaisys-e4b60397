@@ -29,6 +29,12 @@ import { exportStockPDF, exportStockExcel } from "@/lib/stockExports";
 import { format } from "date-fns";
 import { History } from "lucide-react";
 
+// The anstockcontrol form carries a single identifier per part. `products` keeps two
+// columns — `code` is the unique key, `name` is the label the work orders show — so the
+// name is built here the way the 137 imported parts were: category, then model.
+const derivedName = (category: string, code: string) =>
+  [category.trim(), code.trim()].filter(Boolean).join(" ") || code.trim();
+
 export default function StockPage() {
   const { role, profile } = useAuth();
   const { can } = useRole();
@@ -61,7 +67,6 @@ export default function StockPage() {
 
   // Edit/Delete state
   const [editProduct, setEditProduct] = useState<Product | null>(null);
-  const [editName, setEditName] = useState("");
   const [editLine, setEditLine] = useState("");
   const [editCode, setEditCode] = useState("");
   const [editQty, setEditQty] = useState("");
@@ -73,7 +78,6 @@ export default function StockPage() {
   const [editLocation, setEditLocation] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const [name, setName] = useState("");
   const [productLine, setProductLine] = useState("");
   const [code, setCode] = useState("");
   const [qty, setQty] = useState("");
@@ -152,10 +156,10 @@ export default function StockPage() {
       return;
     }
     try {
-      const result = await addProduct.mutateAsync({ name, line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: priceToSend(price), description: orNull(description), machine: orNull(machine), location: orNull(location) });
-      toast({ title: "Product added" });
-      logAuditEvent("create", "product", (result as any)?.id, { name, code });
-      setName(""); setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice(""); setDescription(""); setMachine(""); setLocation("");
+      const result = await addProduct.mutateAsync({ name: derivedName(category, code), line: productLine, code, quantity: parseInt(qty) || 0, min_stock: parseInt(minStock) || 0, category: category || "spare", price: priceToSend(price), description: orNull(description), machine: orNull(machine), location: orNull(location) });
+      toast({ title: "Part added" });
+      logAuditEvent("create", "product", (result as any)?.id, { code });
+      setProductLine(""); setCode(""); setQty(""); setMinStock(""); setCategory(""); setPrice(""); setDescription(""); setMachine(""); setLocation("");
       setAddOpen(false);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -190,7 +194,6 @@ export default function StockPage() {
 
   const openEdit = (p: Product) => {
     setEditProduct(p);
-    setEditName(p.name);
     setEditLine(p.line || "");
     setEditCode(p.code);
     setEditQty(String(p.quantity));
@@ -209,9 +212,9 @@ export default function StockPage() {
       return;
     }
     try {
-      await updateProduct.mutateAsync({ id: editProduct.id, name: editName, line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: priceToSend(editPrice), description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation), photo_url: editProduct.photo_url ?? null });
-      toast({ title: "Product updated" });
-      logAuditEvent("update", "product", editProduct.id, { name: editName });
+      await updateProduct.mutateAsync({ id: editProduct.id, name: derivedName(editCategory, editCode), line: editLine, code: editCode, quantity: parseInt(editQty) || 0, min_stock: parseInt(editMinStock) || 0, category: editCategory, price: priceToSend(editPrice), description: orNull(editDescription), machine: orNull(editMachine), location: orNull(editLocation), photo_url: editProduct.photo_url ?? null });
+      toast({ title: "Part updated" });
+      logAuditEvent("update", "product", editProduct.id, { code: editCode });
       setEditProduct(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -264,7 +267,7 @@ export default function StockPage() {
     try {
       await updateProduct.mutateAsync({
         id: editProduct.id,
-        name: editName,
+        name: derivedName(editCategory, editCode),
         line: editLine,
         code: editCode,
         quantity: parseInt(editQty) || 0,
@@ -394,7 +397,7 @@ export default function StockPage() {
         <Card>
           <CardHeader className="space-y-4">
             <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" /> Products
+              <Package className="h-5 w-5" /> Spare parts stock
               {/* What is on screen, when it is not everything. */}
               {visible.length !== rows.length && (
                 <span className="text-sm font-normal text-muted-foreground">{visible.length} of {rows.length}</span>
@@ -514,8 +517,10 @@ export default function StockPage() {
                 {/* Desktop table */}
                 {/* Eleven columns do not fit a laptop: the table scrolls inside its
                     own box rather than pushing the page sideways. */}
-                <div className="hidden overflow-x-auto md:block">
-                <Table>
+                <div className="hidden overflow-x-auto rounded-md border md:block">
+                {/* Ruled like the anstockcontrol list: a line between every column,
+                    not just between rows. */}
+                <Table className="[&_td]:border-r [&_th]:border-r [&_td:last-child]:border-r-0 [&_th:last-child]:border-r-0">
                 <TableHeader>
                  <TableRow>
                      <TableHead className="w-14">Photo</TableHead>
@@ -670,19 +675,18 @@ export default function StockPage() {
           </>
         )}
 
-        {/* Add product — the same fields, and in the same order, as Edit Product. */}
+        {/* Add part — the same fields, and in the same order, as Edit part. */}
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[680px]">
             <DialogHeader>
-              <DialogTitle>Add product</DialogTitle>
+              <DialogTitle className="uppercase tracking-wide">Add part</DialogTitle>
               <DialogDescription>
-                The model and the code are what everyone searches by. The photo is added after saving, from Edit.
+                Keep model, quantity and minimum stock accurate to get reliable alerts.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAdd} autoComplete="off">
               <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
-                <div className="space-y-1"><Label>Model / Code <span className="text-destructive-strong">*</span></Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
-                <div className="space-y-1"><Label>Name <span className="text-destructive-strong">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
+                <div className="space-y-1"><Label>Model / Name <span className="text-destructive-strong">*</span></Label><Input value={code} onChange={(e) => setCode(e.target.value)} required /></div>
                 <div className="space-y-1">
                   <Label>Description</Label>
                   <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Deep groove ball bearing" />
@@ -699,7 +703,7 @@ export default function StockPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1"><Label>Location</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. A1" /></div>
+                  <div className="space-y-1"><Label>Location (where it is used / stored)</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. A1" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Machine</Label><Input value={machine} onChange={(e) => setMachine(e.target.value)} placeholder="e.g. Blender 3" /></div>
@@ -707,18 +711,17 @@ export default function StockPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
-                  {canPrice && <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Leave blank if unknown" /></div>}
+                  {canPrice && <div className="space-y-1"><Label>Price (£)</Label><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">£</span><Input className="pl-7" type="number" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" /></div></div>}
                 </div>
                 <div className="space-y-1">
-                  <Label>Minimum stock</Label>
+                  <Label>Minimum stock (reorder point)</Label>
                   <Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">The reorder point: at or below this, the part is flagged.</p>
                 </div>
               </div>
               <DialogFooter className="mt-4">
                 <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={addProduct.isPending}>
-                  {addProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add product
+                  {addProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add part
                 </Button>
               </DialogFooter>
             </form>
@@ -772,18 +775,17 @@ export default function StockPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Product Dialog */}
+        {/* Edit part — the same fields, and in the same order, as Add part. */}
         <Dialog open={!!editProduct} onOpenChange={(open) => !open && setEditProduct(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[680px]">
             <DialogHeader>
-              <DialogTitle>Edit Product</DialogTitle>
+              <DialogTitle className="uppercase tracking-wide">Edit part</DialogTitle>
               <DialogDescription>
-                Keeping the model, the quantity and the minimum stock right is what makes the reorder alerts trustworthy.
+                Keep model, quantity and minimum stock accurate to get reliable alerts.
               </DialogDescription>
             </DialogHeader>
             <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
-               <div className="space-y-1"><Label>Model / Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
-               <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
+               <div className="space-y-1"><Label>Model / Name <span className="text-destructive-strong">*</span></Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
                <div className="space-y-1">
                  <Label>Description</Label>
                  <Textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
@@ -800,7 +802,7 @@ export default function StockPage() {
                      </SelectContent>
                    </Select>
                  </div>
-                 <div className="space-y-1"><Label>Location</Label><Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} /></div>
+                 <div className="space-y-1"><Label>Location (where it is used / stored)</Label><Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} /></div>
                </div>
                <div className="grid grid-cols-2 gap-3">
                  <div className="space-y-1"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
@@ -808,12 +810,11 @@ export default function StockPage() {
                </div>
                <div className="grid grid-cols-2 gap-3">
                  <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
-                 {canPrice && <div className="space-y-1"><Label>Price (£)</Label><Input type="number" step="0.01" min="0" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="Leave blank if unknown" /></div>}
+                 {canPrice && <div className="space-y-1"><Label>Price (£)</Label><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">£</span><Input className="pl-7" type="number" step="0.01" min="0" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="0.00" /></div></div>}
                </div>
                <div className="space-y-1">
-                 <Label>Minimum stock</Label>
+                 <Label>Minimum stock (reorder point)</Label>
                  <Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} />
-                 <p className="text-2xs text-muted-foreground">The reorder point: at or below this figure the part is flagged for reordering.</p>
                </div>
               {/* Photo: same right as Edit and Delete — `stock.manage`, nothing new. */}
               {isManager && editProduct && (
@@ -844,14 +845,20 @@ export default function StockPage() {
                         onChange={handlePhotoPick}
                       />
                     </label>
-                    {/* Replacing was possible, clearing was not. */}
-                    {editProduct.photo_url && (
-                      <Button variant="outline" size="sm" onClick={handlePhotoRemove} disabled={removingPhoto}>
-                        {removingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageOff className="mr-2 h-4 w-4" />}
-                        Remove photo
-                      </Button>
-                    )}
                   </div>
+                  {/* Replacing was possible, clearing was not. */}
+                  {editProduct.photo_url && (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-0 text-destructive-strong"
+                      onClick={handlePhotoRemove}
+                      disabled={removingPhoto}
+                    >
+                      {removingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                      Remove photo
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -859,7 +866,7 @@ export default function StockPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
               <Button onClick={handleEdit} disabled={updateProduct.isPending}>
-                {updateProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+                {updateProduct.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save changes
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -877,8 +884,8 @@ export default function StockPage() {
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete product?</AlertDialogTitle>
-              <AlertDialogDescription>This action cannot be undone. The product will be permanently removed.</AlertDialogDescription>
+              <AlertDialogTitle>Delete part?</AlertDialogTitle>
+              <AlertDialogDescription>This action cannot be undone. The part will be permanently removed.</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
