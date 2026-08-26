@@ -394,8 +394,8 @@ export default function StockPage() {
                      return (
                        <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
                         <TableCell>
-                          {p.photo_url ? (
-                            <img src={p.photo_url} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
+                          {photoSrc(p) ? (
+                            <img src={photoSrc(p)} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
                           ) : (
                             <div className="flex h-9 w-9 items-center justify-center rounded border border-dashed text-muted-foreground" aria-label="No photo">
                               <ImageOff className="h-4 w-4" />
