@@ -332,7 +332,15 @@ export default function StockPage() {
           <ConsoleCell label="Parts" value={totals.parts} />
           <ConsoleCell label="In stock" value={totals.inStock.toLocaleString("en-GB")} />
           <ConsoleCell label="Low stock" value={totals.low} tone={totals.low > 0 ? "text-warning-strong" : undefined} />
-          <ConsoleCell label="Out of stock" value={totals.out} tone={totals.out > 0 ? "text-destructive-strong" : undefined} />
+          <ConsoleCell
+            label="Out of stock"
+            value={totals.out}
+            tone={totals.out > 0 ? "text-destructive-strong" : undefined}
+            active={outOnly}
+            title={outOnly ? "Show all parts" : "Show only parts at zero"}
+            onClick={() => setOutOnly((v) => !v)}
+          />
+
         </ConsoleStrip>
 
         {lowStockCount > 0 && (
