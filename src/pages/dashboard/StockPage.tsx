@@ -678,6 +678,14 @@ export default function StockPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Photo search: picking a candidate drops its code into the same search box. */}
+        <IdentifyPartDialog
+          open={photoSearchOpen}
+          onOpenChange={setPhotoSearchOpen}
+          onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); }}
+        />
+
+
         {/* Delete Confirmation */}
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
           <AlertDialogContent>
