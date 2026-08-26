@@ -98,8 +98,14 @@ export default function StockPage() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("__all__");
   const [lowOnly, setLowOnly] = useState(false);
+  // "Seven parts at zero" is a figure somebody then wants to see the names of.
+  const [outOnly, setOutOnly] = useState(false);
   // Searching by camera. Reading, not editing — open to anyone who can see this screen.
   const [photoSearchOpen, setPhotoSearchOpen] = useState(false);
+  // Which row is mid-adjustment, so its two one-unit buttons cannot be double-tapped.
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
+
 
 
   /** A blank box means "nobody said", which is NULL — not an empty string that the
