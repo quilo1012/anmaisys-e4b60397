@@ -115,6 +115,24 @@
     --wall-line: 215 24% 22%;
     --wall-ink: 0 0% 100%;
     --wall-ink-muted: 214 18% 70%;
+
+    /* As baías.
+       A cor de uma linha de enchimento não é sinalética: não diz que a Line 3 está boa
+       ou má, diz que aquilo ali é a Line 3. Por isso não entra pelo bordo de 3 px — esse
+       mecanismo é do `railEdge` e é onde o sistema diz estado — entra por uma faixa
+       pintada no chão, à esquerda do bloco, como as baías de uma nave são marcadas.
+
+       O arco vai do ciano ao magenta (192°→327°) e pára aí de propósito: verde, âmbar e
+       vermelho são as três cores com que este sistema diz `go`, `hold` e `stop`, e uma
+       linha pintada de âmbar seria uma lâmpada acesa que ninguém mandou acender. Dez
+       passos de 15° dentro do arco chegam para as dez linhas, e duas baías vizinhas
+       distinguem-se porque a ordem da cor é a ordem da nave.
+
+       `--bay-wash` é o banho do turno da noite. O dia lê-se no fundo do cartão; a noite
+       na mesma cor da baía, muito diluída. A cor diz a linha, o tom diz a hora. */
+    --bay-s: 68%;
+    --bay-l: 42%;
+    --bay-wash: 0.07;
   }
 
   .dark {
@@ -161,6 +179,13 @@
     --warning-strong: 38 85% 64%;
     /* On a dark card the fill measures 3.71:1 as text — AA-large only. 5.96:1 here. */
     --destructive-strong: 4 82% 71%;
+
+    /* No escuro a baía sobe de valor e desce de croma, ou a faixa fica a brilhar mais
+       do que o número que está ao lado dela. O banho da noite sobe: 7% sobre um cartão
+       escuro não se vê. */
+    --bay-s: 58%;
+    --bay-l: 62%;
+    --bay-wash: 0.14;
 
     --sidebar-background: 215 30% 11%;
     --sidebar-foreground: 213 27% 95%;

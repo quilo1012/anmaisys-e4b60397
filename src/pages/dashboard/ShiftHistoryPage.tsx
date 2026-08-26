@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConsoleStrip, ConsoleCell } from "@/components/ui/ConsoleStrip";
+import { ControlPlate, ControlRow, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ import { TableCard, TableCardField } from "@/components/ResponsiveTable";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
+import { bayInk, baySpine, bayWash } from "@/lib/lineBay";
 import { format, subDays, startOfMonth, endOfMonth, addMonths, parseISO } from "date-fns";
 import { DateRangeFilter, type DateRangePreset } from "@/components/DateRangeFilter";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
@@ -37,6 +39,17 @@ function monthMMYY(d: string | null | undefined): string {
   const m = /^(\d{4})-(\d{2})/.exec(d ?? "");
   return m ? `${m[2]}/${m[1].slice(2)}` : "";
 }
+
+/**
+ * O filete entre grupos de colunas.
+ *
+ * Catorze colunas todas separadas por um filete são papel quadriculado: o filete deixa
+ * de dizer nada porque está em todo o sítio. Aqui só marca as juntas — QUANDO (data,
+ * turno) · QUEM (linha, líder, equipa) · O QUÊ (SKU, descrição, lote) · QUANTO
+ * (blender, quantidade, peso) · RELÓGIO (início, fim) · acções — e é isso que dá à
+ * folha a leitura que a torna folha e não lista.
+ */
+const RULE = "border-l border-border/70";
 
 function skuLabel(name: string | null | undefined): string {
   return String(name ?? "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
@@ -657,6 +670,48 @@ export default function ShiftHistoryPage() {
       }));
   }, [filtered, ragPlanBySession, useRagTarget]);
 
+  /**
+   * Os totais de cada faixa do mapa: o dia por fora, a baía por dentro.
+   *
+   * A folha estava ordenada por dia e depois por linha, mas não escrevia nem uma coisa
+   * nem outra: para saber onde acabava o 23/08 e começava o 22/08 era preciso ler a
+   * coluna da data fila a fila, e o total de uma linha no dia — que é a pergunta que se
+   * faz a este ecrã — não estava em parte nenhuma. O `summary` já contava por linha, mas
+   * para todo o período de uma vez, e ninguém o mostrava.
+   *
+   * O plano vem da RAG, como no resto da página, e cai para o alvo do item quando a RAG
+   * não cobre a sessão. Sem plano não há atingimento: uma percentagem contra zero é
+   * precisão inventada.
+   */
+  const bands = useMemo(() => {
+    const day = new Map<string, { qty: number; plan: number; lines: Set<string> }>();
+    const bay = new Map<string, { qty: number; plan: number; skus: number; shifts: Set<string>; noLeader: boolean }>();
+    for (const s of filtered) {
+      const qty = s.production_items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
+      const itemPlan = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
+      const plan = ragPlanBySession.get(`${s.session_date}|${s.line}|${s.shift}`) ?? itemPlan;
+
+      const d = day.get(s.session_date) ?? { qty: 0, plan: 0, lines: new Set<string>() };
+      d.qty += qty; d.plan += plan; d.lines.add(s.line);
+      day.set(s.session_date, d);
+
+      const k = `${s.session_date}|${s.line}`;
+      const b = bay.get(k) ?? { qty: 0, plan: 0, skus: 0, shifts: new Set<string>(), noLeader: false };
+      b.qty += qty; b.plan += plan; b.skus += s.production_items.length;
+      b.shifts.add(s.shift);
+      if (!s.leader_id) b.noLeader = true;
+      bay.set(k, b);
+    }
+    return { day, bay };
+  }, [filtered, ragPlanBySession]);
+
+  /** A tinta do atingimento — os mesmos três degraus da régua, um só sítio. */
+  const pctTone = (pct: number | null) =>
+    pct == null ? "text-muted-foreground"
+      : pct >= 100 ? "text-success-strong"
+      : pct >= 90 ? "text-warning-strong"
+      : "text-destructive-strong";
+
 
   const lockMut = useMutation({
     mutationFn: async ({ id, lock }: { id: string; lock: boolean }) => {
@@ -884,13 +939,17 @@ export default function ShiftHistoryPage() {
         </ConsoleStrip>
 
 
-        <Card>
-          <CardContent className="p-3 sm:p-4 grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
-            {/* The same period control as Maintenance Orders, Quality and Downtime.
-                Three raw date inputs — single, from, to — asked the reader to work out
-                which of them was in charge, and "single" quietly wrote both. */}
-            <div className="col-span-2 sm:col-span-3 md:col-span-3">
-              <Label className="text-xs">Period</Label>
+        {/* A placa de comando, na gramática da casa.
+            Eram seis campos numa grelha de cartão, cada chapa escrita à mão com um
+            `<Label className="text-xs">` — a mesma barra que a Performance e a RAG
+            têm, escrita numa terceira maneira. Aqui as chapas são gravadas pelo
+            `ControlField` e o filete separa o que se navega do que se filtra. */}
+        <ControlPlate>
+          <ControlRow>
+            {/* O mesmo controlo de período da Manutenção, da Qualidade e das Paragens.
+                Três datas cruas — única, de, até — pediam ao leitor que descobrisse
+                qual delas mandava, e a "única" escrevia as duas em silêncio. */}
+            <ControlField label="Period" className="min-w-[17rem] flex-1">
               <DateRangeFilter
                 className="w-full"
                 value={{ from: parseISO(from), to: parseISO(to) }}
@@ -905,39 +964,55 @@ export default function ShiftHistoryPage() {
                   if (r.to) setTo(format(r.to, "yyyy-MM-dd"));
                 }}
               />
-            </div>
-            <div><Label className="text-xs">Shift</Label>
+            </ControlField>
+            <ControlDivider />
+            <ControlField label="Shift" className="w-[8.5rem]">
               <Select value={fShift} onValueChange={setFShift}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="__all__">All shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
               </Select>
-            </div>
-            <div><Label className="text-xs">Filler Line</Label>
+            </ControlField>
+            <ControlField label="Filler line" className="w-[12rem]">
               <Select value={fLine} onValueChange={setFLine}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="__all__">All lines</SelectItem>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{lineLabel(l.name)}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  <SelectItem value="__all__">All lines</SelectItem>
+                  {/* O quadrado é a mesma cor da faixa da baía, três palmos abaixo.
+                      Escolher a linha no filtro e reconhecê-la no mapa passa a ser o
+                      mesmo gesto. */}
+                  {sortedLines.map((l) => (
+                    <SelectItem key={l.id} value={l.name}>
+                      <span className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: bayInk(l.name) }} aria-hidden />
+                        {lineLabel(l.name)}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
-            </div>
-            <div><Label className="text-xs">Leader</Label>
+            </ControlField>
+            <ControlField label="Leader" className="w-[11rem]">
               <Select value={fLeader} onValueChange={setFLeader}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="col-span-2 sm:col-span-3 md:col-span-5"><Label className="text-xs">SKU</Label>
+            </ControlField>
+          </ControlRow>
+          <ControlRow>
+            <ControlField label="SKU" className="min-w-[16rem] flex-1">
               <SkuCombobox skus={skus} value={fSku} onChange={setFSku} allowAll placeholder="All SKUs" />
-            </div>
-            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end gap-2">
-              <Button variant="outline" size="sm" className="flex-1" onClick={() => {
+            </ControlField>
+            <ControlDivider />
+            <div className="flex items-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => {
                 const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setDrPreset("today"); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
               }}>Today</Button>
-              <Button variant="ghost" size="sm" className="flex-1" onClick={() => {
+              <Button variant="ghost" size="sm" onClick={() => {
                 setFrom(format(subDays(new Date(), 14), "yyyy-MM-dd")); setTo(format(new Date(), "yyyy-MM-dd")); setDrPreset("custom"); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
               }}>Last 14 days</Button>
             </div>
-
-          </CardContent>
-        </Card>
+          </ControlRow>
+        </ControlPlate>
 
 
 
@@ -950,38 +1025,107 @@ export default function ShiftHistoryPage() {
                 {/* Desktop / tablet — full editable table */}
                 <div className="hidden md:block max-h-[70vh] overflow-auto">
                   <table className="w-full text-sm border-separate border-spacing-0">
-                    <thead className="sticky top-0 z-10 bg-muted text-2xs uppercase tracking-wide">
-                      <tr>
+                    {/* As chapas gravadas da folha, na mesma face dos títulos de secção.
+                        `z-20` porque a faixa do dia rola por baixo desta. */}
+                    <thead className="sticky top-0 z-20 bg-muted">
+                      <tr className="font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                        <th className="sticky left-0 z-10 w-[6px] border-b bg-muted p-0" aria-hidden />
                         <th className="text-left px-3 py-2 border-b">Date</th>
                         <th className="text-left px-3 py-2 border-b">Shift</th>
-                        <th className="text-left px-3 py-2 border-b">Line</th>
+                        <th className={cn("text-left px-3 py-2 border-b", RULE)}>Line</th>
                         <th className="text-left px-3 py-2 border-b">Leader</th>
-                        <th className="text-right px-3 py-2 border-b w-28">Team<div className="text-2xs font-normal normal-case text-muted-foreground">on the line</div></th>
-                        <th className="text-left px-3 py-2 border-b">SKU</th>
+                        <th className="text-right px-3 py-2 border-b w-28">Team<div className="mt-0.5 font-sans text-2xs font-normal normal-case tracking-normal text-muted-foreground/70">on the line</div></th>
+                        <th className={cn("text-left px-3 py-2 border-b", RULE)}>SKU</th>
                         <th className="text-left px-3 py-2 border-b max-w-[22rem]">Description</th>
                         <th className="text-left px-3 py-2 border-b">Batch code</th>
-                        <th className="text-right px-3 py-2 border-b w-20">Blender</th>
+                        <th className={cn("text-right px-3 py-2 border-b w-20", RULE)}>Blender</th>
                         <th className="text-right px-3 py-2 border-b w-36">Qty</th>
                         <th className="text-right px-3 py-2 border-b w-24">Weight (g)</th>
-                        <th className="text-left px-3 py-2 border-b">Start</th>
+                        <th className={cn("text-left px-3 py-2 border-b", RULE)}>Start</th>
                         <th className="text-left px-3 py-2 border-b">Finish</th>
-                        <th className="text-right px-3 py-2 border-b w-24">Actions</th>
+                        <th className={cn("text-right px-3 py-2 border-b w-24", RULE)}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(() => {
                         const out: React.ReactNode[] = [];
+                        let prevDate: string | null = null;
                         let prevLine: string | null = null;
-                        let zebra = 0;
                         filtered.forEach((s) => {
                           const items = s.production_items.length === 0
                             ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, batch_code: null, tickets_unit: null as "tubs" | "bags" | null }]
                             : s.production_items;
-                          if (s.line !== prevLine) {
+                          // A data-linha do dia.
+                          //
+                          // A folha vem ordenada por dia e, dentro do dia, por linha —
+                          // mas não escrevia o dia em parte nenhuma. Com catorze dias
+                          // escolhidos, saber onde acabava o 23/08 exigia ler a coluna
+                          // da data fila a fila, e o total do dia não estava no ecrã.
+                          if (s.session_date !== prevDate) {
+                            const d = bands.day.get(s.session_date);
+                            const dayPct = d && d.plan > 0 ? (d.qty / d.plan) * 100 : null;
                             out.push(
-                              <tr key={`sep-${s.id}-${s.line}`} className="bg-primary/5">
-                                <td colSpan={14} className="px-3 py-1.5 text-2xs uppercase font-semibold tracking-wider text-primary border-b border-primary/20">
-                                  {lineLabel(s.line)}
+                              <tr key={`day-${s.session_date}`}>
+                                {/* `sticky left-0` e não `justify-between`: com catorze
+                                    colunas a folha rola de lado, e um total encostado à
+                                    direita de quinze colunas está fora do ecrã em quase
+                                    toda a rolagem. A data-linha desliza com o olho. */}
+                                <td colSpan={15} className="border-y bg-foreground/[0.045] p-0">
+                                  <div className="sticky left-0 flex w-fit flex-wrap items-baseline gap-x-4 gap-y-1 px-3 py-2">
+                                    <span className="font-display text-sm font-bold uppercase tracking-[0.1em]">
+                                      {format(parseISO(s.session_date), "EEE dd MMM")}
+                                    </span>
+                                    <span className="text-2xs uppercase tracking-[0.12em] text-muted-foreground">
+                                      {d?.lines.size ?? 0} {(d?.lines.size ?? 0) === 1 ? "line" : "lines"}
+                                    </span>
+                                    <span className="h-3 w-px self-center bg-border" aria-hidden />
+                                    <span className="font-figure text-sm font-bold">{Math.round(d?.qty ?? 0).toLocaleString()}</span>
+                                    {d && d.plan > 0 && (
+                                      <span className="font-figure text-2xs text-muted-foreground">/ {Math.round(d.plan).toLocaleString()}</span>
+                                    )}
+                                    {dayPct != null && (
+                                      <span className={cn("font-figure text-sm font-bold", pctTone(dayPct))}>{dayPct.toFixed(0)}%</span>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                            prevDate = s.session_date;
+                            // Um dia novo reabre as baías. Sem isto, um dia com uma
+                            // linha só — a mesma com que o dia anterior acabou — ficava
+                            // sem placa nenhuma e as suas filas colavam-se às de cima.
+                            prevLine = null;
+                          }
+                          // A placa da baía: o quadrado da cor, o nome, e o que a linha
+                          // fez naquele dia. O total por linha já era contado pelo
+                          // `summary` desde sempre — para o período inteiro, e ninguém o
+                          // mostrava. Aqui é por dia, que é a pergunta que se faz à folha.
+                          if (s.line !== prevLine) {
+                            const b = bands.bay.get(`${s.session_date}|${s.line}`);
+                            const bayPct = b && b.plan > 0 ? (b.qty / b.plan) * 100 : null;
+                            out.push(
+                              <tr key={`bay-${s.session_date}-${s.line}`}>
+                                <td className="sticky left-0 z-10 w-[6px] min-w-[6px] p-0" style={{ backgroundColor: bayInk(s.line) }} aria-hidden />
+                                <td colSpan={14} className="border-b p-0" style={{ backgroundColor: bayWash(s.line) }}>
+                                  <div className="sticky left-[6px] flex w-fit flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-1.5">
+                                    <span className="inline-block h-2.5 w-2.5 shrink-0 self-center rounded-[2px]" style={{ backgroundColor: bayInk(s.line) }} aria-hidden />
+                                    <span className="font-display text-2xs font-bold uppercase tracking-[0.14em]">{lineLabel(s.line)}</span>
+                                    <span className="text-2xs text-muted-foreground">
+                                      {b?.skus ?? 0} SKU
+                                      {b && b.shifts.size > 0 ? ` · ${[...b.shifts].join(" + ").toLowerCase()}` : ""}
+                                    </span>
+                                    {b?.noLeader && (
+                                      <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-warning-strong">no leader</span>
+                                    )}
+                                    <span className="h-3 w-px self-center bg-border" aria-hidden />
+                                    <span className="font-figure text-2xs font-bold">{Math.round(b?.qty ?? 0).toLocaleString()}</span>
+                                    {b && b.plan > 0 && (
+                                      <span className="font-figure text-2xs text-muted-foreground">/ {Math.round(b.plan).toLocaleString()}</span>
+                                    )}
+                                    {bayPct != null && (
+                                      <span className={cn("font-figure text-2xs font-bold", pctTone(bayPct))}>{bayPct.toFixed(0)}%</span>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1000,34 +1144,62 @@ export default function ShiftHistoryPage() {
                             const effUnit: "tubs" | "bags" = noteUnit ?? (isTubHint ? "tubs" : isBagHint ? "bags" : "bags");
                             const blenders = Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y);
                             const noLeader = !s.leader_id;
-                            const rowBg = zebra % 2 === 0 ? "bg-background" : "bg-muted/20";
-                            zebra++;
+                            const isNight = s.shift !== "DAY";
+                            // O tom da fila diz a hora, e o problema ganha à hora.
+                            //
+                            // Saiu daqui o zebrado: alternar o fundo fila a fila não
+                            // codificava nada — duas filas seguidas da mesma sessão
+                            // apareciam de cores diferentes — e ocupava exactamente o
+                            // mecanismo de que o turno precisa. Agora o dia é o fundo do
+                            // cartão e a noite é a cor da própria baía, muito diluída.
+                            //
+                            // Vai por variável e não por `style` para que o `hover` do
+                            // rato ainda ganhe: um fundo em linha bate qualquer classe,
+                            // inclusive a do estado activo, e a folha ficava sem realce
+                            // de fila em metade das filas.
+                            const field = noLeader
+                              ? "hsl(var(--warning) / 0.12)"
+                              : isNight ? bayWash(s.line) : "transparent";
                             out.push(
                               <tr
                                 key={`${s.id}-${i.id ?? idx}`}
-                                className={cn(
-                                  "border-b transition-colors hover:bg-muted/40",
-                                  rowBg,
-                                  noLeader && "bg-warning/10 hover:bg-warning/20",
-                                )}
+                                className="border-b bg-[var(--bay-field)] transition-colors hover:bg-muted/50"
+                                style={{ "--bay-field": field } as React.CSSProperties}
                               >
-                                <td className="px-3 py-2 whitespace-nowrap text-xs tabular-nums">
+                                {/* A faixa pintada no chão da baía. Contínua por todo o
+                                    bloco, e meio apagada de noite: a cor diz a linha, o
+                                    tom diz o turno.
+                                    `sticky` porque uma baía marcada no chão não desaparece
+                                    quando se anda para o lado: com catorze colunas a folha
+                                    rola, e é rolada que a pergunta "que linha é esta fila"
+                                    se faz mais. */}
+                                <td className="sticky left-0 z-10 w-[6px] min-w-[6px] p-0" style={{ backgroundColor: baySpine(s.line, isNight) }} aria-hidden />
+                                <td className="px-3 py-2 whitespace-nowrap font-figure text-xs">
                                   {s.session_date ? format(new Date(s.session_date), "dd/MM") : "—"}
                                 </td>
                                 <td className="px-3 py-2">
+                                  {/* O turno é tom, não matiz: chapa clara de dia,
+                                      chapa cheia de noite. Era azul-primário contra
+                                      `purple-500` — uma cor de fora da paleta, a mesma
+                                      que o `railEdge` foi escrito para acabar — e o
+                                      violeta é agora a baía 7. */}
                                   <Badge
                                     variant="outline"
                                     className={cn(
-                                      "text-2xs font-semibold px-1.5 py-0",
+                                      "px-1.5 py-0 font-display text-2xs font-bold uppercase tracking-[0.08em]",
                                       s.shift === "DAY"
-                                        ? "border-primary/40 bg-primary/10 text-primary"
-                                        : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
+                                        ? "border-border bg-background text-foreground"
+                                        : "border-transparent bg-foreground/85 text-background",
                                     )}
                                   >
                                     {s.shift}
                                   </Badge>
                                 </td>
-                                <td className="px-3 py-2 whitespace-nowrap text-xs">
+                                {/* O eco da faixa, à altura dos olhos: com a folha
+                                    rolada de lado a faixa fica fora de vista, e a
+                                    coluna é onde a linha se confirma pelo nome. Fica
+                                    calada — quem grita é a faixa. */}
+                                <td className={cn("whitespace-nowrap px-3 py-2 font-display text-2xs font-bold uppercase tracking-[0.08em] text-muted-foreground", RULE)}>
                                   {lineLabel(s.line)}
                                 </td>
                                 <td className="px-3 py-2">
@@ -1058,7 +1230,7 @@ export default function ShiftHistoryPage() {
                                     />
                                   ) : null}
                                 </td>
-                                <td className="px-3 py-2">
+                                <td className={cn("px-3 py-2", RULE)}>
                                   <InlineSkuCell
                                     itemId={i.id}
                                     skuId={i.sku_id}
@@ -1104,7 +1276,7 @@ export default function ShiftHistoryPage() {
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 text-right text-xs tabular-nums whitespace-nowrap">
+                                <td className={cn("whitespace-nowrap px-3 py-2 text-right font-figure text-xs", RULE)}>
                                   {blenders.length ? blenders.join(", ") : <span className="text-muted-foreground">—</span>}
                                 </td>
                                 {/* Right-aligned like the header above it: a quantity
@@ -1128,16 +1300,16 @@ export default function ShiftHistoryPage() {
                                     />
                                   ) : null}
                                 </td>
-                                <td className="px-3 py-2 text-right tabular-nums text-xs text-muted-foreground">
+                                <td className="px-3 py-2 text-right font-figure text-xs text-muted-foreground">
                                   {weight ? weight.toLocaleString() : "—"}
                                 </td>
-                                <td className="px-3 py-2">
+                                <td className={cn("px-3 py-2", RULE)}>
                                   {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-3 py-2">
                                   {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
-                                <td className="px-3 py-2">
+                                <td className={cn("px-3 py-2", RULE)}>
                                   <div className="flex items-center justify-end gap-1">
                                     <UITooltip>
                                       <TooltipTrigger asChild>
@@ -1203,10 +1375,10 @@ export default function ShiftHistoryPage() {
                               <Badge
                                 variant="outline"
                                 className={cn(
-                                  "text-2xs font-semibold px-1.5 py-0",
+                                  "px-1.5 py-0 font-display text-2xs font-bold uppercase tracking-[0.08em]",
                                   s.shift === "DAY"
-                                    ? "border-primary/40 bg-primary/10 text-primary"
-                                    : "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300",
+                                    ? "border-border bg-background text-foreground"
+                                    : "border-transparent bg-foreground/85 text-background",
                                 )}
                               >
                                 {s.shift}
@@ -1228,7 +1400,17 @@ export default function ShiftHistoryPage() {
                           }
                         >
                           <TableCardField label="Date" value={s.session_date ? format(new Date(s.session_date), "dd/MM") : "—"} />
-                          <TableCardField label="Line" value={lineLabel(s.line)} />
+                          {/* O mesmo quadrado do filtro e da placa: no telefone não há
+                              faixa por onde a baía corra, mas a cor tem de ser a mesma. */}
+                          <TableCardField
+                            label="Line"
+                            value={(
+                              <span className="flex items-center gap-2">
+                                <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: bayInk(s.line) }} aria-hidden />
+                                {lineLabel(s.line)}
+                              </span>
+                            )}
+                          />
                           <TableCardField
                             label="Leader"
                             value={idx === 0 ? (
