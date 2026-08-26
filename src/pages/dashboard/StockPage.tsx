@@ -284,10 +284,12 @@ export default function StockPage() {
   // and every row badge alike — see `isLowStock`.
   const rows = useMemo<Product[]>(() => products ?? [], [products]);
   const totals = useMemo(() => stockTotals(rows), [rows]);
-  const visible = useMemo(
-    () => filterStock(rows, { query: search, category: catFilter, lowOnly }),
-    [rows, search, catFilter, lowOnly],
-  );
+  const visible = useMemo(() => {
+    const base = filterStock(rows, { query: search, category: catFilter, lowOnly });
+    // "Out of stock" narrows on top of the shared filter, it does not replace it.
+    return outOnly ? base.filter((r) => (r.quantity || 0) === 0) : base;
+  }, [rows, search, catFilter, lowOnly, outOnly]);
+
   const lowStockCount = totals.low;
 
   // The bucket is private: the stored path is not an address. Sign the few paths that
