@@ -35,6 +35,7 @@ export default function StockPage() {
   const updateStock = useUpdateProductStock();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const uploadPhoto = useUploadPartPhoto();
   const addCategory = useAddCategory();
   const deleteCategory = useDeleteCategory();
   const { toast } = useToast();
