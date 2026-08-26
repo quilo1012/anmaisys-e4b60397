@@ -44,15 +44,22 @@ export function ConsoleCell({
   hint,
   tone,
   className,
+  onClick,
+  active,
+  title,
 }: {
   label: string;
   value: React.ReactNode;
   hint?: React.ReactNode;
   tone?: string;
   className?: string;
+  /** Quando dado, a casa passa a ser um botão — a medida é também a pergunta seguinte. */
+  onClick?: () => void;
+  active?: boolean;
+  title?: string;
 }) {
-  return (
-    <div className={cn("px-5 py-3.5", className)}>
+  const body = (
+    <>
       <div className="font-display text-2xs font-bold uppercase leading-none tracking-[0.12em] text-muted-foreground">
         {label}
       </div>
@@ -60,8 +67,29 @@ export function ConsoleCell({
         {value}
       </div>
       {hint && <div className="mt-1 truncate text-2xs text-muted-foreground">{hint}</div>}
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        title={title}
+        aria-pressed={active}
+        className={cn(
+          "w-full px-5 py-3.5 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          active && "bg-accent/60",
+          className,
+        )}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return <div className={cn("px-5 py-3.5", className)}>{body}</div>;
 }
+
 
 export default ConsoleStrip;

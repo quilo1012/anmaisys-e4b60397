@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
 import { IdentifyPartDialog } from "@/components/IdentifyPartDialog";
@@ -97,8 +98,14 @@ export default function StockPage() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("__all__");
   const [lowOnly, setLowOnly] = useState(false);
+  // "Seven parts at zero" is a figure somebody then wants to see the names of.
+  const [outOnly, setOutOnly] = useState(false);
   // Searching by camera. Reading, not editing — open to anyone who can see this screen.
   const [photoSearchOpen, setPhotoSearchOpen] = useState(false);
+  // Which row is mid-adjustment, so its two one-unit buttons cannot be double-tapped.
+  const [adjustingId, setAdjustingId] = useState<string | null>(null);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
+
 
 
   /** A blank box means "nobody said", which is NULL — not an empty string that the
@@ -192,6 +199,61 @@ export default function StockPage() {
     }
   };
 
+  /**
+   * One unit off the shelf, or one back on it, without opening a form.
+   *
+   * The most repeated gesture in a warehouse. It writes the same audit entry the
+   * adjustment form writes — `adjust_stock`, with the delta and the new figure — so
+   * the Adjustment History below tells the whole story either way. Never below zero.
+   */
+  const adjustOne = async (p: Product, delta: 1 | -1) => {
+    const newQty = p.quantity + delta;
+    if (newQty < 0) {
+      toast({ title: "Stock cannot go below 0", variant: "destructive" });
+      return;
+    }
+    setAdjustingId(p.id);
+    try {
+      await updateStock.mutateAsync({ id: p.id, quantity: newQty });
+      await logAuditEvent("adjust_stock", "product", p.id, { adjustment: delta, new_quantity: newQty });
+      queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
+      toast({ title: `${p.code}: ${p.quantity} → ${newQty}` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setAdjustingId(null);
+    }
+  };
+
+  const handlePhotoRemove = async () => {
+    if (!editProduct) return;
+    setRemovingPhoto(true);
+    try {
+      await updateProduct.mutateAsync({
+        id: editProduct.id,
+        name: editName,
+        line: editLine,
+        code: editCode,
+        quantity: parseInt(editQty) || 0,
+        min_stock: parseInt(editMinStock) || 0,
+        category: editCategory,
+        price: canPrice ? parseFloat(editPrice) : undefined,
+        description: orNull(editDescription),
+        machine: orNull(editMachine),
+        location: orNull(editLocation),
+        photo_url: null,
+      });
+      setEditProduct({ ...editProduct, photo_url: null });
+      toast({ title: "Photo removed" });
+      logAuditEvent("update", "product", editProduct.id, { photo: false });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setRemovingPhoto(false);
+    }
+  };
+
+
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -222,10 +284,12 @@ export default function StockPage() {
   // and every row badge alike — see `isLowStock`.
   const rows = useMemo<Product[]>(() => products ?? [], [products]);
   const totals = useMemo(() => stockTotals(rows), [rows]);
-  const visible = useMemo(
-    () => filterStock(rows, { query: search, category: catFilter, lowOnly }),
-    [rows, search, catFilter, lowOnly],
-  );
+  const visible = useMemo(() => {
+    const base = filterStock(rows, { query: search, category: catFilter, lowOnly });
+    // "Out of stock" narrows on top of the shared filter, it does not replace it.
+    return outOnly ? base.filter((r) => (r.quantity || 0) === 0) : base;
+  }, [rows, search, catFilter, lowOnly, outOnly]);
+
   const lowStockCount = totals.low;
 
   // The bucket is private: the stored path is not an address. Sign the few paths that
@@ -268,7 +332,15 @@ export default function StockPage() {
           <ConsoleCell label="Parts" value={totals.parts} />
           <ConsoleCell label="In stock" value={totals.inStock.toLocaleString("en-GB")} />
           <ConsoleCell label="Low stock" value={totals.low} tone={totals.low > 0 ? "text-warning-strong" : undefined} />
-          <ConsoleCell label="Out of stock" value={totals.out} tone={totals.out > 0 ? "text-destructive-strong" : undefined} />
+          <ConsoleCell
+            label="Out of stock"
+            value={totals.out}
+            tone={totals.out > 0 ? "text-destructive-strong" : undefined}
+            active={outOnly}
+            title={outOnly ? "Show all parts" : "Show only parts at zero"}
+            onClick={() => setOutOnly((v) => !v)}
+          />
+
         </ConsoleStrip>
 
         {lowStockCount > 0 && (
@@ -279,7 +351,7 @@ export default function StockPage() {
                 {lowStockCount} {lowStockCount === 1 ? "part has" : "parts have"} reached the reorder point.
               </p>
               {/* The banner is also the way into the list it is about. */}
-              <Button size="sm" variant="outline" onClick={() => { setLowOnly(true); setSearch(""); setCatFilter("__all__"); }}>
+              <Button size="sm" variant="outline" onClick={() => { setLowOnly(true); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}>
                 Review now
               </Button>
             </CardContent>
@@ -345,7 +417,7 @@ export default function StockPage() {
               // it has to be on screen, or the filters look like a broken page.
               <div className="py-8 text-center text-muted-foreground">
                 <p>No part matches these filters.</p>
-                <Button variant="link" onClick={() => { setSearch(""); setCatFilter("__all__"); setLowOnly(false); }}>Clear filters</Button>
+                <Button variant="link" onClick={() => { setSearch(""); setCatFilter("__all__"); setLowOnly(false); setOutOnly(false); }}>Clear filters</Button>
               </div>
             ) : (
               <>
@@ -393,7 +465,7 @@ export default function StockPage() {
                 </div>
 
                 {/* Desktop table */}
-                {/* Thirteen columns do not fit a laptop: the table scrolls inside its
+                {/* Eleven columns do not fit a laptop: the table scrolls inside its
                     own box rather than pushing the page sideways. */}
                 <div className="hidden overflow-x-auto md:block">
                 <Table>
@@ -401,7 +473,6 @@ export default function StockPage() {
                  <TableRow>
                      <TableHead className="w-14">Photo</TableHead>
                      <TableHead>Model</TableHead>
-                     <TableHead>Name</TableHead>
                      <TableHead>Category</TableHead>
                      <TableHead>Description</TableHead>
                      <TableHead>Machine</TableHead>
@@ -410,26 +481,36 @@ export default function StockPage() {
                      {canPrice && <TableHead className="text-right">Price</TableHead>}
                      <TableHead className="text-right">Qty</TableHead>
                      <TableHead className="text-right">Min</TableHead>
-                     <TableHead>Status</TableHead>
                      {isManager && <TableHead>Actions</TableHead>}
                    </TableRow>
                  </TableHeader>
                  <TableBody>
                    {visible.map((p) => {
                      const isLow = isLowStock(p);
+                     const thumb = photoSrc(p) ? (
+                       <img src={photoSrc(p)} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
+                     ) : (
+                       <div className="flex h-9 w-9 items-center justify-center rounded border border-dashed text-muted-foreground" aria-label="No photo">
+                         <ImageOff className="h-4 w-4" />
+                       </div>
+                     );
                      return (
                        <TableRow key={p.id} className={isLow ? "bg-destructive/10" : ""}>
                         <TableCell>
-                          {photoSrc(p) ? (
-                            <img src={photoSrc(p)} alt="" className="h-9 w-9 rounded border object-cover" loading="lazy" />
-                          ) : (
-                            <div className="flex h-9 w-9 items-center justify-center rounded border border-dashed text-muted-foreground" aria-label="No photo">
-                              <ImageOff className="h-4 w-4" />
-                            </div>
-                          )}
+                          {/* The picture is the way to the picture: for whoever may
+                              manage stock, the cell opens the form ready for a photo. */}
+                          {isManager ? (
+                            <button
+                              type="button"
+                              onClick={() => openEdit(p)}
+                              aria-label={p.photo_url ? `Change photo of ${p.code}` : `Add photo to ${p.code}`}
+                              className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              {thumb}
+                            </button>
+                          ) : thumb}
                         </TableCell>
                         <TableCell className="font-mono font-medium">{p.code}</TableCell>
-                        <TableCell>{p.name}</TableCell>
                         <TableCell><Badge variant="outline">{p.category}</Badge></TableCell>
                         <TableCell className="max-w-[280px] truncate" title={p.description ?? undefined}>{p.description || "—"}</TableCell>
                         <TableCell>{p.machine || "—"}</TableCell>
@@ -438,16 +519,13 @@ export default function StockPage() {
                         {canPrice && <TableCell className="text-right">£{(p.price || 0).toFixed(2)}</TableCell>}
                         <TableCell className={`text-right ${isLow ? "text-destructive-strong font-bold" : ""}`}>{p.quantity}</TableCell>
                         <TableCell className="text-right">{p.min_stock}</TableCell>
-                        <TableCell>
-                          {isLow ? (
-                            <StatusBadge status="warning" label="Low Stock" />
-                          ) : (
-                            <StatusBadge status="success" label="In Stock" />
-                          )}
-                        </TableCell>
                         {isManager && (
                           <TableCell>
                             <div className="flex gap-1">
+                              {/* The gesture that repeats: one off the shelf, one back on,
+                                  logged in the audit like any other adjustment. */}
+                              <Button size="icon" variant="ghost" aria-label={`Take one ${p.code} out of stock`} disabled={p.quantity <= 0 || adjustingId === p.id} onClick={() => adjustOne(p, -1)}><Minus className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" aria-label={`Add one ${p.code} to stock`} disabled={adjustingId === p.id} onClick={() => adjustOne(p, 1)}><Plus className="h-4 w-4" /></Button>
                               <Button size="icon" variant="ghost" aria-label="Edit part" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
                               {isAdmin && <Button size="icon" variant="ghost" aria-label="Delete part" className="text-destructive-strong" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>}
                             </div>
@@ -459,6 +537,7 @@ export default function StockPage() {
                 </TableBody>
               </Table>
               </div>
+
               </>
             )}
           </CardContent>
@@ -610,37 +689,51 @@ export default function StockPage() {
         {/* Edit Product Dialog */}
         <Dialog open={!!editProduct} onOpenChange={(open) => !open && setEditProduct(null)}>
           <DialogContent>
-            <DialogHeader><DialogTitle>Edit Product</DialogTitle><DialogDescription className="sr-only">Edit product details</DialogDescription></DialogHeader>
-            <div className="space-y-3">
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+              <DialogDescription>
+                Keeping the model, the quantity and the minimum stock right is what makes the reorder alerts trustworthy.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+               <div className="space-y-1"><Label>Model / Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
                <div className="space-y-1"><Label>Name</Label><Input value={editName} onChange={(e) => setEditName(e.target.value)} /></div>
-               <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
-               <div className="space-y-1"><Label>Code</Label><Input value={editCode} onChange={(e) => setEditCode(e.target.value)} /></div>
-               <div className="space-y-1"><Label>Description</Label><Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} /></div>
+               <div className="space-y-1">
+                 <Label>Description</Label>
+                 <Textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+               </div>
                <div className="grid grid-cols-2 gap-3">
-                 <div className="space-y-1"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
+                 <div className="space-y-1">
+                   <Label>Category</Label>
+                   <Select value={editCategory} onValueChange={setEditCategory}>
+                     <SelectTrigger><SelectValue /></SelectTrigger>
+                     <SelectContent>
+                       {categoryOptions.map((c) => (
+                         <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                 </div>
                  <div className="space-y-1"><Label>Location</Label><Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} /></div>
                </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1"><Label>Quantity</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
-                <div className="space-y-1"><Label>Min Stock</Label><Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} /></div>
-                {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>}
-              </div>
-              <div className="space-y-1">
-                <Label>Category</Label>
-                <Select value={editCategory} onValueChange={setEditCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {categoryOptions.map((c) => (
-                      <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="space-y-1"><Label>Machine</Label><Input value={editMachine} onChange={(e) => setEditMachine(e.target.value)} /></div>
+                 <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
+               </div>
+               <div className="grid grid-cols-2 gap-3">
+                 <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
+                 {canPrice && <div className="space-y-1"><Label>Price (£) <span className="text-destructive-strong">*</span></Label><Input type="number" step="0.01" min="0.01" required value={editPrice} onChange={(e) => setEditPrice(e.target.value)} /></div>}
+               </div>
+               <div className="space-y-1">
+                 <Label>Minimum stock</Label>
+                 <Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} />
+                 <p className="text-2xs text-muted-foreground">The reorder point: at or below this figure the part is flagged for reordering.</p>
+               </div>
               {/* Photo: same right as Edit and Delete — `stock.manage`, nothing new. */}
               {isManager && editProduct && (
                 <div className="space-y-1">
                   <Label>Photo</Label>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     {photoSrc(editProduct) ? (
                       <img src={photoSrc(editProduct)} alt="" className="h-14 w-14 rounded border object-cover" />
                     ) : (
@@ -665,10 +758,18 @@ export default function StockPage() {
                         onChange={handlePhotoPick}
                       />
                     </label>
+                    {/* Replacing was possible, clearing was not. */}
+                    {editProduct.photo_url && (
+                      <Button variant="outline" size="sm" onClick={handlePhotoRemove} disabled={removingPhoto}>
+                        {removingPhoto ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageOff className="mr-2 h-4 w-4" />}
+                        Remove photo
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
             </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
               <Button onClick={handleEdit} disabled={updateProduct.isPending}>
@@ -682,7 +783,7 @@ export default function StockPage() {
         <IdentifyPartDialog
           open={photoSearchOpen}
           onOpenChange={setPhotoSearchOpen}
-          onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); }}
+          onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); setOutOnly(false); }}
         />
 
 
