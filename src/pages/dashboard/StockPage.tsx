@@ -310,6 +310,10 @@ export default function StockPage() {
                   {filterCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {/* Another way to search the same list: a part in the hand, no code on it. */}
+              <Button variant="outline" onClick={() => setPhotoSearchOpen(true)}>
+                <Camera className="mr-1 h-4 w-4" /> Find by photo
+              </Button>
               <Button
                 variant={lowOnly ? "default" : "outline"}
                 onClick={() => setLowOnly((v) => !v)}
@@ -317,6 +321,7 @@ export default function StockPage() {
               >
                 <AlertTriangle className="mr-1 h-4 w-4" /> Low stock
               </Button>
+
             </div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="outline" onClick={() => runExport("pdf", false)}><FileText className="mr-1 h-4 w-4" /> PDF list</Button>
