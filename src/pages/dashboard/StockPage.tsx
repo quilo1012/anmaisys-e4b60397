@@ -610,6 +610,38 @@ export default function StockPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Photo: same right as Edit and Delete — `stock.manage`, nothing new. */}
+              {isManager && editProduct && (
+                <div className="space-y-1">
+                  <Label>Photo</Label>
+                  <div className="flex items-center gap-3">
+                    {photoSrc(editProduct) ? (
+                      <img src={photoSrc(editProduct)} alt="" className="h-14 w-14 rounded border object-cover" />
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded border border-dashed text-muted-foreground">
+                        <ImageOff className="h-5 w-5" />
+                      </div>
+                    )}
+                    <label className="inline-flex">
+                      <Button asChild variant="outline" size="sm" disabled={uploadPhoto.isPending}>
+                        <span className="cursor-pointer">
+                          {uploadPhoto.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+                          {editProduct.photo_url ? "Replace photo" : "Take / upload photo"}
+                        </span>
+                      </Button>
+                      {/* `capture` opens the camera on a phone — this is done standing
+                          in the warehouse with the part in hand. */}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="sr-only"
+                        onChange={handlePhotoPick}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
