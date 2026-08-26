@@ -14,6 +14,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Package, Plus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera } from "lucide-react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
+import { IdentifyPartDialog } from "@/components/IdentifyPartDialog";
+
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
