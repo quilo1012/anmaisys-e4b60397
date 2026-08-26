@@ -351,7 +351,7 @@ export default function StockPage() {
                 {lowStockCount} {lowStockCount === 1 ? "part has" : "parts have"} reached the reorder point.
               </p>
               {/* The banner is also the way into the list it is about. */}
-              <Button size="sm" variant="outline" onClick={() => { setLowOnly(true); setSearch(""); setCatFilter("__all__"); }}>
+              <Button size="sm" variant="outline" onClick={() => { setLowOnly(true); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}>
                 Review now
               </Button>
             </CardContent>
@@ -417,7 +417,7 @@ export default function StockPage() {
               // it has to be on screen, or the filters look like a broken page.
               <div className="py-8 text-center text-muted-foreground">
                 <p>No part matches these filters.</p>
-                <Button variant="link" onClick={() => { setSearch(""); setCatFilter("__all__"); setLowOnly(false); }}>Clear filters</Button>
+                <Button variant="link" onClick={() => { setSearch(""); setCatFilter("__all__"); setLowOnly(false); setOutOnly(false); }}>Clear filters</Button>
               </div>
             ) : (
               <>
@@ -783,7 +783,7 @@ export default function StockPage() {
         <IdentifyPartDialog
           open={photoSearchOpen}
           onOpenChange={setPhotoSearchOpen}
-          onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); }}
+          onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); setOutOnly(false); }}
         />
 
 
