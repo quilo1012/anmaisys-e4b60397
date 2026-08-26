@@ -3701,10 +3701,14 @@ export type Database = {
           category: string
           code: string
           created_at: string
+          description: string | null
           id: string
           line: string
+          location: string | null
+          machine: string | null
           min_stock: number
           name: string
+          photo_url: string | null
           price: number
           quantity: number
           updated_at: string
@@ -3713,10 +3717,14 @@ export type Database = {
           category?: string
           code: string
           created_at?: string
+          description?: string | null
           id?: string
           line?: string
+          location?: string | null
+          machine?: string | null
           min_stock?: number
           name: string
+          photo_url?: string | null
           price?: number
           quantity?: number
           updated_at?: string
@@ -3725,10 +3733,14 @@ export type Database = {
           category?: string
           code?: string
           created_at?: string
+          description?: string | null
           id?: string
           line?: string
+          location?: string | null
+          machine?: string | null
           min_stock?: number
           name?: string
+          photo_url?: string | null
           price?: number
           quantity?: number
           updated_at?: string
