@@ -17,8 +17,7 @@ export function useLeaderScoreWeights(asOf?: string) {
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<LeaderScoreWeights> => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-        .from("leader_score_weights" as any)
+        .from("leader_score_weights")
         .select("production_pct, quality_pct, documentation_pct")
         .maybeSingle();
       if (error) throw error;
@@ -39,8 +38,7 @@ export function useLeaderScoreWeights(asOf?: string) {
        * accident.
        */
       const versioned = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-        .from("leader_scorecard_threshold" as any)
+        .from("leader_scorecard_threshold")
         .select("name, value, valid_from, valid_to")
         .in("name", ["W_Production", "W_Quality", "W_Documentation"]);
 
@@ -83,8 +81,7 @@ export function useUpdateLeaderScoreWeights() {
   return useMutation({
     mutationFn: async (w: LeaderScoreWeights) => {
       const { error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-        .from("leader_score_weights" as any)
+        .from("leader_score_weights")
         .update({ ...w, updated_at: new Date().toISOString() })
         .eq("id", true);
       if (error) throw error;

@@ -130,7 +130,7 @@ export default function WorkOrderDetail() {
     queryKey: ["work_order_logs", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("work_order_logs" as any)
+        .from("work_order_logs")
         .select("*")
         .eq("work_order_id", id!)
         .order("created_at", { ascending: true });

@@ -294,7 +294,7 @@ export default function AnalyticsPage() {
     }>({
       // `domain` is newer than the generated Postgrest types, hence the cast — see
       // `actionPoints()` for why the column has to be here at all.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
+       
       // Per page, not once: each `range` call is its own query, so each has to be able
       // to fall back on a base where `domain` has not been migrated yet — see
       // selectOptionalDomain.

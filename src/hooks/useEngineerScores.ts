@@ -29,7 +29,7 @@ export function useEngineerScores() {
       // doesn't accept arguments — then build a map locally.
       const [enginRes, profRes] = await Promise.all([
         (supabase as any).rpc("list_engineer_names"),
-        supabase.from("profiles_safe" as any).select("id, name, email").in("id", ids),
+        supabase.from("profiles_safe").select("id, name, email").in("id", ids),
       ]);
 
       const nameMap: Record<string, string> = {};

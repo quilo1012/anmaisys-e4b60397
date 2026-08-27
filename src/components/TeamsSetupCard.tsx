@@ -44,7 +44,7 @@ export function TeamsSetupCard() {
   const loadLogs = useCallback(async () => {
     setLoadingLogs(true);
     const { data, error } = await supabase
-      .from("teams_webhook_logs" as any)
+      .from("teams_webhook_logs")
       .select("id,event,title,success,status_code,attempts,error_message,created_at")
       .order("created_at", { ascending: false })
       .limit(20);

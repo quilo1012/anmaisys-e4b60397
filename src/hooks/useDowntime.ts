@@ -57,7 +57,7 @@ export function useDowntime(since?: Date) {
         { data: eventData, error: eventError },
         { data: woData, error: woError },
       ] = await Promise.all([
-        supabase.from("downtime" as any).select("*").gte("started_at", since).order("started_at", { ascending: false }),
+        supabase.from("downtime").select("*").gte("started_at", since).order("started_at", { ascending: false }),
         (supabase as any)
           .from("downtime_events")
           .select("*, work_order:work_orders!inner(wo_number, wo_type, machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
@@ -167,7 +167,7 @@ export function useCreateDowntime() {
       // source / source_event_id are client-only view-model fields, not columns —
       // strip them so the insert isn't rejected for unknown columns.
       const { source: _s, source_event_id: _se, ...row } = record;
-      const { error } = await supabase.from("downtime" as any).insert(row as any);
+      const { error } = await supabase.from("downtime").insert(row as any);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["downtime"] }),
@@ -178,7 +178,7 @@ export function useUpdateDowntime() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, source: _s, source_event_id: _se, ...updates }: Partial<DowntimeRecord> & { id: string }) => {
-      const { error } = await supabase.from("downtime" as any).update(updates as any).eq("id", id);
+      const { error } = await supabase.from("downtime").update(updates as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["downtime"] }),
@@ -189,7 +189,7 @@ export function useDeleteDowntime() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("downtime" as any).delete().eq("id", id);
+      const { error } = await supabase.from("downtime").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["downtime"] }),

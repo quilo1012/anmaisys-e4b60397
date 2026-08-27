@@ -15,8 +15,7 @@ export function useSeverityPointRows() {
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-        .from("quality_severity_points" as any)
+        .from("quality_severity_points")
         .select("severity, points");
       if (error) throw error;
       const rows = (data ?? []) as unknown as SeverityPointRow[];
@@ -50,8 +49,7 @@ export function useUpdateSeverityPoints() {
     mutationFn: async (rows: SeverityPointRow[]) => {
       for (const r of rows) {
         const { error } = await supabase
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-          .from("quality_severity_points" as any)
+          .from("quality_severity_points")
           .update({ points: r.points, updated_at: new Date().toISOString() })
           .eq("severity", r.severity);
         if (error) throw error;

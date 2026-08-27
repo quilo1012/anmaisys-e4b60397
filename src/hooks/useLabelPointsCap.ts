@@ -44,8 +44,7 @@ export function useLabelPointsCap() {
     queryFn: async () => {
       const hoje = new Date().toISOString().slice(0, 10);
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-        .from("leader_scorecard_threshold" as any)
+        .from("leader_scorecard_threshold")
         .select("value, valid_from, valid_to")
         .eq("name", "CAP_LabelPoints")
         .lte("valid_from", hoje);

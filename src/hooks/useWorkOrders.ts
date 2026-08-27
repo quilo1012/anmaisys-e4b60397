@@ -509,7 +509,7 @@ export function useFinishWorkOrder() {
         const machineName = (before as any).machine;
         const problemDesc = (before as any).description;
         const { data: machineRow } = await supabase.from("machines").select("id").eq("name", machineName).single();
-        await supabase.from("machine_events" as any).insert({
+        await supabase.from("machine_events").insert({
           machine_id: machineRow?.id || null,
           work_order_id: woId,
           problem_description: problemDesc,
@@ -817,8 +817,8 @@ export function useDeleteWorkOrder() {
       // Delete related records from tables without ON DELETE CASCADE
       await supabase.from("wo_messages").delete().eq("work_order_id", id);
       await supabase.from("checklist_responses").delete().eq("work_order_id", id);
-      await supabase.from("machine_events" as any).delete().eq("work_order_id", id);
-      await supabase.from("work_order_logs" as any).delete().eq("work_order_id", id);
+      await supabase.from("machine_events").delete().eq("work_order_id", id);
+      await supabase.from("work_order_logs").delete().eq("work_order_id", id);
       await supabase.from("wo_photos").delete().eq("work_order_id", id);
       // Now delete the WO (parts_used + downtime cascade automatically)
       const { error } = await supabase.from("work_orders").delete().eq("id", id);
