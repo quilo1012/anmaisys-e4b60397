@@ -4,61 +4,116 @@ import type * as React from "react";
  * As baías: a cor com que uma linha de enchimento se identifica.
  *
  * Numa nave, uma baía não se explica — está pintada no chão, e quem lá trabalha sabe
- * onde está antes de ler o letreiro. Um mapa de turno com onze linhas tem o mesmo
- * problema: o nome "Line 7" está escrito na fila, mas ninguém o lê, procura-o. A cor
+ * onde está antes de ler o letreiro. Um mapa de turno com sete linhas tem o mesmo
+ * problema: o nome "Line 3" está escrito na fila, mas ninguém o lê, procura-o. A cor
  * resolve a procura; o nome confirma-a.
  *
- * Três decisões, e as três são restrições e não enfeite:
+ * A cor não se inventa aqui. O quadro do Trello é o sítio onde o plano da semana é
+ * feito, e cada linha já é uma lista com uma cor: a Line 1 é verde, a Line 2 é amarela,
+ * a Line 3 é azul, a Line 4 é vermelha, a 5A e a 5B são rosa, a 6A e a 6B são lima.
+ * Quem chega ao turno já traz essas seis cores decoradas do quadro. Um arco calculado
+ * — por mais bem espaçado que fosse, e o anterior era — obrigava a mesma pessoa a
+ * decorar um segundo alfabeto de cores para dizer as mesmas seis linhas. Duas
+ * linguagens para uma coisa só é uma a mais.
  *
- * 1. O arco é ciano→magenta (192°–327°) e não a roda toda. Verde, âmbar e vermelho são
- *    as três cores com que este sistema diz `go`, `hold` e `stop` (ver `lib/rail.ts`).
- *    Uma baía pintada de âmbar seria um andon aceso que ninguém mandou acender — e o
- *    mesmo ecrã tem, duas colunas à direita, linhas realmente pintadas de âmbar por
- *    lhes faltar o líder. O arco tem de acabar antes de lá chegar.
+ * Três decisões:
  *
- * 2. A cor é POSIÇÃO, não identidade avulsa. Dez passos iguais de 15° pelo arco, na
- *    ordem em que as linhas estão numeradas: aprende-se que as primeiras são frias e as
- *    últimas quentes, e a Line 6 acha-se sem se saber de cor que cor é a Line 6. Onze
- *    matizes escolhidos um a um seriam onze coisas para decorar.
+ * 1. O MATIZ é o do quadro, ponto. Vem dos valores do Trello, não de uma aproximação
+ *    "parecida": é assim que a cor no ecrã e a cor no quadro se reconhecem como a mesma
+ *    e não como duas primas.
  *
- * 3. O que não é linha numerada — o Tablet Line, as Capsules Machine — fica nos MEIOS
- *    passos, entre as baías. São máquinas de outra família, distinguem-se umas das
- *    outras (que é um bug que este ecrã já teve uma vez, quando as dobrava todas na
- *    palavra "Tablet"), e nunca colidem exactamente com uma linha de enchimento.
+ * 2. O VALOR adapta-se ao fundo, o matiz não. O quadro do Trello é escuro e sustenta
+ *    cores claras; esta folha é branca de dia. `--bay-lum` e `--bay-sat` afundam ou
+ *    levantam a mesma cor conforme o tema, sem lhe tocar no matiz — a baía é a mesma
+ *    às seis da manhã, às seis da tarde e no modo escuro.
  *
- * A saturação e o valor não estão aqui: vêm de `--bay-s`/`--bay-l`, que viram com o
- * tema. No escuro a faixa tem de subir de valor e descer de croma, ou fica a brilhar
- * mais do que o número ao lado dela.
+ * 3. O que o quadro não tem — o Tablet Line, as Capsules Machine, uma Line 7 que
+ *    apareça — fica nas cores que o quadro não gastou: roxo, céu, laranja, cinza.
+ *    Continuam a distinguir-se umas das outras (que é um bug que este ecrã já teve,
+ *    quando dobrava três máquinas na palavra "Tablet") e nunca vestem a cor de uma das
+ *    seis linhas do quadro. O Trello tem dez cores e a nave tem seis linhas e três
+ *    máquinas: cabe. Se alguma vez entrar uma Line 7, entra nesta mesma prateleira e
+ *    há que ir ver contra que máquina foi bater.
+ *
+ * O preço desta decisão está pago de olhos abertos: o verde, o âmbar e o vermelho são
+ * também as três cores com que este sistema diz `go`, `hold` e `stop`. A baía nunca
+ * entra pelo bordo de 3 px do `railEdge`, que é onde o estado fala, e a faixa da baía é
+ * contínua enquanto um andon é pontual — mas quem pintar mais alguma coisa de amarelo
+ * nesta folha tem de contar com a Line 2.
  */
 
-const ARC_START = 192;
-const ARC_STEP = 15;
-const BAYS = 10;
+/** Uma baía: matiz, croma e valor, tal como o quadro os tem. */
+type Bay = readonly [h: number, s: number, l: number];
+
+/**
+ * As seis listas do quadro, pela ordem em que lá estão.
+ *
+ * A posição é o número da linha, por isso não há nada para decorar: a Line 4 é a quarta
+ * cor do quadro porque é a quarta lista do quadro.
+ */
+const BOARD: readonly Bay[] = [
+  [155, 57, 55],   // Line 1  — green  #4BCE97
+  [46, 90, 62],    // Line 2  — yellow #F5CD47
+  [215, 100, 67],  // Line 3  — blue   #579DFF
+  [4, 91, 69],     // Line 4  — red    #F87168
+  [323, 71, 68],   // Line 5  — pink   #E774BB  (5A e 5B, uma cor só, como no quadro)
+  [84, 53, 53],    // Line 6  — lime   #94C748  (6A e 6B, idem)
+];
+
+/** O que o quadro não gastou, para o que o quadro não tem. */
+const OFF_BOARD: readonly Bay[] = [
+  [250, 75, 75],   // purple #9F8FEF
+  [195, 65, 65],   // sky    #6CC3E0
+  [25, 99, 69],    // orange #FEA362
+  [217, 14, 58],   // grey   #8590A2
+];
 
 /** Um número estável a partir do nome — para as máquinas, que não têm lugar na fila. */
-function nameSlot(name: string): number {
+function nameSlot(name: string, mod: number): number {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return h % BAYS;
+  return h % mod;
 }
 
 /**
- * O matiz da baía de uma linha, em graus.
+ * A baía de uma linha.
  *
  * Depende só do nome — nunca do que está filtrado no ecrã. Uma cor que muda quando se
- * escolhe outro dia não identifica nada.
+ * escolhe outro dia não identifica nada. Lê o número e ignora a letra: no quadro, a 5A e
+ * a 5B são a mesma cor, porque são a mesma linha em dois lados.
  */
-export function bayHue(lineName: string | null | undefined): number {
+export function bayColor(lineName: string | null | undefined): Bay {
   const n = String(lineName ?? "").toLowerCase().trim();
   const m = n.match(/line\s*(\d+)/);
-  if (m) return ARC_START + (((parseInt(m[1], 10) - 1) % BAYS) * ARC_STEP);
-  // Meio passo: a máquina fica entre duas baías, nunca em cima de uma.
-  return ARC_START + nameSlot(n) * ARC_STEP + ARC_STEP / 2;
+  if (m) {
+    const i = parseInt(m[1], 10) - 1;
+    // Uma linha nova, para lá das seis do quadro, veste o que o quadro não gastou.
+    return i < BOARD.length ? BOARD[i] : OFF_BOARD[(i - BOARD.length) % OFF_BOARD.length];
+  }
+  return OFF_BOARD[nameSlot(n, OFF_BOARD.length)];
+}
+
+/** O matiz da baía, em graus — o do quadro. */
+export function bayHue(lineName: string | null | undefined): number {
+  return bayColor(lineName)[0];
+}
+
+/**
+ * A cor escrita, com o tema pelo meio.
+ *
+ * O matiz passa intacto; o croma e o valor passam pelos tokens. É onde o mesmo verde do
+ * quadro se afunda o suficiente para se ver sobre papel branco e se levanta o suficiente
+ * para não gritar sobre um cartão escuro.
+ */
+function paint(bay: Bay, alpha?: string): string {
+  const [h, s, l] = bay;
+  const value = `${h} calc(${s}% * var(--bay-sat)) calc(${l}% * var(--bay-lum))`;
+  return alpha ? `hsl(${value} / ${alpha})` : `hsl(${value})`;
 }
 
 /** A tinta cheia da baía: a faixa do chão, o quadrado da placa, o nome na coluna. */
 export function bayInk(lineName: string | null | undefined): string {
-  return `hsl(${bayHue(lineName)} var(--bay-s) var(--bay-l))`;
+  return paint(bayColor(lineName));
 }
 
 /**
@@ -68,7 +123,7 @@ export function bayInk(lineName: string | null | undefined): string {
  * cor, nenhum dos dois seria uma leitura — seriam duas.
  */
 export function bayWash(lineName: string | null | undefined): string {
-  return `hsl(${bayHue(lineName)} var(--bay-s) var(--bay-l) / var(--bay-wash))`;
+  return paint(bayColor(lineName), "var(--bay-wash)");
 }
 
 /** O quadrado gravado que abre a placa da baía e acompanha o nome nos filtros. */
@@ -85,7 +140,5 @@ export function baySwatchStyle(lineName: string | null | undefined): React.CSSPr
  * diferentes.
  */
 export function baySpine(lineName: string | null | undefined, dim = false): string {
-  return dim
-    ? `hsl(${bayHue(lineName)} var(--bay-s) var(--bay-l) / 0.4)`
-    : bayInk(lineName);
+  return dim ? paint(bayColor(lineName), "0.4") : bayInk(lineName);
 }
