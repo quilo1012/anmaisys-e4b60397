@@ -107,30 +107,48 @@ function OrderTable({ list, icon }: { list: WO[]; icon: React.ReactNode }) {
 
   return (
     <div className="border rounded-md">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Order No.</TableHead>
-            <TableHead>Line</TableHead>
-            <TableHead>Occurrence / Fault description</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {list.map((o) => (
-            <TableRow key={o.id}>
-              <TableCell className="font-medium flex items-center gap-2">
+      <ResponsiveTable
+        table={
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order No.</TableHead>
+                <TableHead>Line</TableHead>
+                <TableHead>Occurrence / Fault description</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {list.map((o) => (
+                <TableRow key={o.id}>
+                  <TableCell className="font-medium flex items-center gap-2">
+                    {icon} {o.wo_number || `#${o.id.slice(0, 5)}`}
+                  </TableCell>
+                  <TableCell>{o.line_at_time ?? "—"}</TableCell>
+                  <TableCell>{o.problem_description ?? "—"}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={o.status} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        }
+        cards={list.map((o) => (
+          <TableCard
+            key={o.id}
+            title={
+              <span className="font-medium flex items-center gap-2">
                 {icon} {o.wo_number || `#${o.id.slice(0, 5)}`}
-              </TableCell>
-              <TableCell>{o.line_at_time ?? "—"}</TableCell>
-              <TableCell>{o.problem_description ?? "—"}</TableCell>
-              <TableCell>
-                <StatusBadge status={o.status} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+              </span>
+            }
+            right={<StatusBadge status={o.status} />}
+          >
+            <TableCardField label="Line" value={o.line_at_time ?? "—"} />
+            <TableCardField label="Occurrence" value={o.problem_description ?? "—"} block />
+          </TableCard>
+        ))}
+      />
     </div>
   );
 }
