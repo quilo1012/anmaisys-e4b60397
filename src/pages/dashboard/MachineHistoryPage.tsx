@@ -129,7 +129,7 @@ export default function MachineHistoryPage() {
                       <TableCard
                         key={wo.id}
                         onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
-                        title={`WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`}
+                        title={<span className="font-mono">{`WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`}</span>}
                         right={<Badge className={`${getWoStatusConfig(wo.status).className} border`}>{getWoStatusConfig(wo.status).label}</Badge>}
                       >
                         <TableCardField

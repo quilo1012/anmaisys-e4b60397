@@ -106,7 +106,7 @@ function OrderTable({ list, icon }: { list: WO[]; icon: React.ReactNode }) {
   }
 
   return (
-    <div className="border rounded-md">
+    <div className="md:border md:rounded-md">
       <ResponsiveTable
         table={
           <Table>
