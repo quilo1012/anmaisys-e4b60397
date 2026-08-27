@@ -9,7 +9,8 @@ export interface WOMessage {
   user_id: string;
   user_name: string;
   message: string;
-  image_url: string | null;
+  /** Caminho no bucket privado wo-photos — nunca um URL. Assinar com getWOPhotoUrl(). */
+  image_path: string | null;
   created_at: string;
 }
 
@@ -55,13 +56,13 @@ export function useSendWOMessage() {
   const { user, profile } = useAuth();
 
   return useMutation({
-    mutationFn: async ({ workOrderId, message, imageUrl }: { workOrderId: string; message: string; imageUrl?: string }) => {
+    mutationFn: async ({ workOrderId, message, imagePath }: { workOrderId: string; message: string; imagePath?: string }) => {
       const { error } = await supabase.from("wo_messages").insert({
         work_order_id: workOrderId,
         user_id: user!.id,
         user_name: profile?.name || user!.email || "Unknown",
         message,
-        image_url: imageUrl || null,
+        image_path: imagePath || null,
       } as any);
       if (error) throw error;
     },
