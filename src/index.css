@@ -122,17 +122,20 @@
        mecanismo é do `railEdge` e é onde o sistema diz estado — entra por uma faixa
        pintada no chão, à esquerda do bloco, como as baías de uma nave são marcadas.
 
-       O arco vai do ciano ao magenta (192°→327°) e pára aí de propósito: verde, âmbar e
-       vermelho são as três cores com que este sistema diz `go`, `hold` e `stop`, e uma
-       linha pintada de âmbar seria uma lâmpada acesa que ninguém mandou acender. Dez
-       passos de 15° dentro do arco chegam para as dez linhas, e duas baías vizinhas
-       distinguem-se porque a ordem da cor é a ordem da nave.
+       O matiz vem do quadro do Trello, onde o plano da semana é feito e onde cada linha
+       já é uma lista com uma cor decorada: verde, amarelo, azul, vermelho, rosa, lima.
+       Está em `lib/lineBay.ts`, cor a cor. Aqui só se afina o que o fundo obriga.
+
+       Estes dois não são cores, são multiplicadores. O quadro do Trello é escuro e
+       aguenta cores claras; esta folha é branca de dia, e a mesma cor tem de afundar
+       (`--bay-lum: 0.86`) para se ver sobre papel. O matiz nunca é tocado: é ele que faz
+       a faixa no ecrã e a lista no quadro serem reconhecidas como a mesma coisa.
 
        `--bay-wash` é o banho do turno da noite. O dia lê-se no fundo do cartão; a noite
        na mesma cor da baía, muito diluída. A cor diz a linha, o tom diz a hora. */
-    --bay-s: 68%;
-    --bay-l: 42%;
-    --bay-wash: 0.07;
+    --bay-sat: 1;
+    --bay-lum: 0.86;
+    --bay-wash: 0.14;
   }
 
   .dark {
@@ -180,12 +183,12 @@
     /* On a dark card the fill measures 3.71:1 as text — AA-large only. 5.96:1 here. */
     --destructive-strong: 4 82% 71%;
 
-    /* No escuro a baía sobe de valor e desce de croma, ou a faixa fica a brilhar mais
-       do que o número que está ao lado dela. O banho da noite sobe: 7% sobre um cartão
-       escuro não se vê. */
-    --bay-s: 58%;
-    --bay-l: 62%;
-    --bay-wash: 0.14;
+    /* No escuro a baía volta ao valor com que está no quadro — o Trello também é escuro
+       — e desce um bocado de croma, ou a faixa fica a brilhar mais do que o número que
+       está ao lado dela. O banho da noite sobe: 14% sobre um cartão escuro não se vê. */
+    --bay-sat: 0.92;
+    --bay-lum: 1.06;
+    --bay-wash: 0.18;
 
     --sidebar-background: 215 30% 11%;
     --sidebar-foreground: 213 27% 95%;
