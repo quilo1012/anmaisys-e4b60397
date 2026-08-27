@@ -23,7 +23,10 @@ import { defaultCan, type Action, type Role } from "@/lib/permissions";
  */
 
 const MIGRATION_DIR = resolve(__dirname, "../..", "supabase/migrations");
-const DEFINES = /select by matrix/;
+// Specific to THIS migration, not to the naming convention: 20260911090000 also creates
+// a policy called "... select by matrix", and a looser pattern picked that one up instead
+// and failed all seven assertions against the wrong file.
+const DEFINES = /products select by matrix/;
 
 const migration = () => {
   const file = readdirSync(MIGRATION_DIR)
