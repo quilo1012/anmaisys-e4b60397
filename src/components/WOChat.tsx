@@ -7,6 +7,36 @@ import { useAuth } from "@/contexts/AuthContext";
 import { MessageCircle, Send, Loader2, Image as ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { compressImage, getWOPhotoUrl } from "@/hooks/useWOPhotos";
+import { toast } from "sonner";
+
+/**
+ * One signed URL per photo, asked for when the message is drawn.
+ *
+ * Signatures expire (an hour, from `getWOPhotoUrl`), so there is nothing worth storing:
+ * the path is the durable half and the URL is derived. Mirrors `SignedPhoto` in
+ * WorkOrderDetail — same bucket, same helper, same one-hour window.
+ */
+function ChatPhoto({ storagePath }: { storagePath: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    getWOPhotoUrl(storagePath).then((u) => { if (vivo) setUrl(u); });
+    return () => { vivo = false; };
+  }, [storagePath]);
+
+  // A signature that could not be obtained is not a broken image with a torn-page icon:
+  // it is worth saying, because the file may still be there and the next reload may work.
+  if (!url) return <div className="mb-1 h-20 w-28 animate-pulse rounded bg-muted-foreground/20" />;
+  return (
+    <img
+      src={url}
+      alt="Fotografia anexada à mensagem"
+      className="rounded max-h-32 mb-1 cursor-pointer"
+      onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+    />
+  );
+}
 
 export function WOChat({ workOrderId }: { workOrderId: string }) {
   const { data: messages, isLoading } = useWOMessages(workOrderId);
@@ -31,14 +61,21 @@ export function WOChat({ workOrderId }: { workOrderId: string }) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setUploading(true);
+    // The path is what gets stored. `wo-photos` is private, so a URL built now would be
+    // dead on arrival — the signature has to be asked for at read time, per message.
+    const path = `chat/${workOrderId}/${Date.now()}_${file.name}`;
     try {
-      const path = `chat/${workOrderId}/${Date.now()}_${file.name}`;
-      const { error } = await supabase.storage.from("wo-photos").upload(path, file);
+      const compressed = await compressImage(file);
+      const { error } = await supabase.storage.from("wo-photos").upload(path, compressed);
       if (error) throw error;
-      const { data: urlData } = supabase.storage.from("wo-photos").getPublicUrl(path);
-      await sendMessage.mutateAsync({ workOrderId, message: "📷 Image", imageUrl: urlData.publicUrl });
-    } catch {
-      // silently fail
+      await sendMessage.mutateAsync({ workOrderId, message: "📷 Image", imagePath: path });
+    } catch (err) {
+      // Not silent. The upload can succeed and the insert still fail, which leaves a
+      // file in the bucket and no message — it happened once in March and nobody could
+      // have known, because this block said nothing.
+      toast.error("A fotografia não foi enviada", {
+        description: (err as { message?: string })?.message ?? "Tente novamente.",
+      });
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -64,11 +101,9 @@ export function WOChat({ workOrderId }: { workOrderId: string }) {
                   <div key={msg.id} className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
                     <div className={`max-w-[80%] rounded-lg px-3 py-2 ${isOwn ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                       {!isOwn && <p className="text-2xs font-semibold opacity-70 mb-0.5">{msg.user_name}</p>}
-                      {msg.image_url && (
-                        <img src={msg.image_url} alt="Attachment" className="rounded max-h-32 mb-1 cursor-pointer" onClick={() => window.open(msg.image_url!, "_blank")} />
-                      )}
+                      {msg.image_path && <ChatPhoto storagePath={msg.image_path} />}
                       {msg.message && msg.message !== "📷 Image" && <p className="text-sm">{msg.message}</p>}
-                      {msg.message === "📷 Image" && !msg.image_url && <p className="text-sm">📷 Image</p>}
+                      {msg.message === "📷 Image" && !msg.image_path && <p className="text-sm">📷 Image</p>}
                     </div>
                     <span className="text-2xs text-muted-foreground mt-0.5">{format(new Date(msg.created_at), "HH:mm")}</span>
                   </div>

@@ -131,3 +131,61 @@ O que deixa de acontecer é o toast. `68c13c95` marca as duas queries cujo assun
 está no ramo, não em produção** — o preview corre o `main`, e o PR #417 ainda não foi
 fundido. Até lá o toast aparece na página de Quality Actions mesmo com o código correcto
 escrito.
+
+## Rodar o `CRON_SECRET` — o passo que nenhuma migração pode dar
+
+O `x-cron-secret` partilhado pelo `intouch-poll` e pelo `calculate-shift-targets` está
+escrito **em texto claro** no comando dos jobs 51 e 58, e por isso ficou copiado em
+**114 925 linhas** de `cron.job_run_details` desde 24/06. A migração `20260907090000`
+apaga 86% dessas linhas de imediato e o resto ao fim de sete dias, mas **isso não é
+rodar o segredo**: o valor esteve legível durante dois meses e tem de ser considerado
+queimado.
+
+A rotação não cabe numa migração porque metade dela vive fora da base: as funções edge
+leem `CRON_SECRET` de `Deno.env`, não do vault. Mudar um lado sem o outro devolve `401`
+a cada minuto e o `intouch-poll` deixa de acompanhar as máquinas.
+
+O vault desta base **está vazio** (`select name from vault.secrets` devolve zero linhas),
+o que explica porque é que os jobs 19, 20 e 22 estão desactivados: leem
+`vault.decrypted_secrets` e recebem `NULL`. Não copiar esses jobs como exemplo sem
+semear o vault primeiro.
+
+Ordem que não parte nada — os dois valores coexistem no passo 3:
+
+1. Gerar um segredo novo: `openssl rand -hex 32`.
+2. Guardá-lo no vault, para deixar de haver literais:
+   ```sql
+   select vault.create_secret('<novo>', 'CRON_SECRET');
+   ```
+3. Acrescentar o novo às variáveis de ambiente das funções edge **sem remover o
+   antigo** — `intouch-poll` já aceita três nomes (`CRON_SECRET`,
+   `CRON_TRIGGER_TOKEN`, `CRON_POLL_KEY`), portanto o antigo pode ficar num deles
+   enquanto a troca decorre.
+4. Reagendar os dois jobs a lerem do vault:
+   ```sql
+   select cron.unschedule('intouch-poll-60s');
+   select cron.schedule('intouch-poll-60s', '* * * * *', $$
+     select net.http_post(
+       url:='https://ybtrzqzliepknpzqdajx.supabase.co/functions/v1/intouch-poll',
+       headers:=jsonb_build_object(
+         'Content-Type','application/json',
+         'x-cron-secret',(select decrypted_secret from vault.decrypted_secrets where name='CRON_SECRET' limit 1)
+       ),
+       body:=jsonb_build_object('source','cron-60s','at',now())
+     );
+   $$);
+   ```
+   e o mesmo para `calculate-shift-targets-30min`.
+5. Confirmar que voltou a passar, antes de fechar a porta:
+   ```sql
+   select status, count(*) from cron.job_run_details
+    where jobid in (select jobid from cron.job where jobname='intouch-poll-60s')
+      and start_time > now() - interval '10 minutes'
+    group by status;
+   ```
+   Tem de ser `succeeded`. Se aparecer `failed`, o vault ficou vazio ou o nome não bate —
+   voltar ao passo 2 antes de continuar.
+6. Só então remover o segredo antigo das variáveis de ambiente.
+
+Depois disto, `select command from cron.job` não pode conter nenhum literal hexadecimal.
+É essa a verificação final.

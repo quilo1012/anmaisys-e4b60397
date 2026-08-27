@@ -2895,3 +2895,658 @@ COMMENT ON EXTENSION pg_net IS
   'autovacuum nunca correu por si — ver 20260905090000. Se as chamadas comecarem a '
   'expirar em todas as tabelas ao mesmo tempo, medir pg_relation_size(''net._http_response'') '
   'antes de procurar a query lenta: em 26/08/2026 eram 18585 paginas para 372 linhas.';
+
+
+-- ================================================================
+-- BLOCO 27
+-- 20260906090000_the_line_alias_that_was_not_a_line.sql
+-- ================================================================
+
+-- Three leaders whose scorecard has always read zero, because their line is a name
+-- nothing else uses.
+--
+-- `leader_pins.lines` is how the personal scorecard decides what belongs to a leader:
+-- `leader_self_scorecard()` reads it and filters production, RAG and quality actions by
+-- line NAME. There is no foreign key on it — it is a `text[]`, typed by hand — and four
+-- rows carry the value 'Capsules & Tablets'.
+--
+-- That string is not in `public.lines`. It is not in `production_sessions.line`, or
+-- `rag_weekly_entries.line`, or `production_downtimes.line`, or `quality_actions.line`.
+-- It is not a line. It is somebody writing down the AREA a leader covers, in a field
+-- that is matched literally against line names.
+--
+-- Measured on 26/08/2026:
+--
+--   leader    lines                                sessions  RAG  quality
+--   Gill      Capsules & Tablets                          0    0        0
+--   Liana     Capsules & Tablets                          0    0        0
+--   Muriel    Capsules & Tablets                          0    0        0
+--   JULIANO   Capsules & Tablets + Line 1..6            444  560       62   <- saved by the rest
+--
+-- The work is there. It is filed under the line names the floor actually uses:
+--
+--   production_sessions, by leader_name
+--     Tablet Line ......... 56 sessions — Alice, Gill, Juliano, Liana, Muriel
+--     Capsules Machine 1 .. 16 sessions — Fabricio, Gill, Webister
+--     Capsules Machine 2 .. 15 sessions — Fabricio, Webister
+--
+-- So this is not an empty screen because a leader did nothing. It is an empty screen
+-- because the key is a string nobody constrained, and three people have been appraised
+-- against a card that could never have shown anything.
+--
+-- WHY THESE THREE LINES AND NOT THE HISTORY. The obvious alternative is to give each
+-- leader exactly the lines they have already worked — Gill would get Tablet Line and
+-- Capsules Machine 1, Liana and Muriel only Tablet Line. That reads the past as if it
+-- were the assignment, and it would silently narrow a leader's card the first time they
+-- cover a machine they have not covered before.
+--
+-- 'Capsules & Tablets' names a group, and the group has three members: the two capsule
+-- machines and the tablet line. GEL Line is deliberately NOT one of them — it is neither
+-- capsules nor tablets, and its sessions belong to Josiel. Expanding the alias to its
+-- members keeps what the person meant and takes nothing away from anyone.
+--
+-- Corroborated independently by `leader_line_assignment`, the curated leader-to-line
+-- table written on 17/08: it maps Muriel to Tablet Line, and every other row in it
+-- matches where that leader's sessions actually are.
+--
+-- AFTER THIS, measured by simulation before it was written:
+--
+--   Gill / Liana / Muriel   0 -> 87 sessions, 0 -> 85 RAG rows, 0 -> 852 downtimes
+--   JULIANO               444 -> 531 sessions
+--   orphan values left in leader_pins.lines: 0
+
+-- =====================================================================
+-- 1. Expand the alias into the lines it stands for
+--
+-- Written against the VALUE, not against four leader ids: if the same string was typed
+-- into a fifth row tomorrow, this still means the same thing. Idempotent — running it
+-- twice is a no-op, because the alias is gone after the first pass.
+-- =====================================================================
+
+UPDATE public.leader_pins lp
+   SET lines = sub.novo,
+       updated_at = now()
+  FROM (
+    SELECT p.id,
+           (SELECT array_agg(DISTINCT v ORDER BY v)
+              FROM unnest(
+                     array_remove(p.lines, 'Capsules & Tablets')
+                     || ARRAY['Capsules Machine 1', 'Capsules Machine 2', 'Tablet Line']
+                   ) AS v) AS novo
+      FROM public.leader_pins p
+     WHERE 'Capsules & Tablets' = ANY(p.lines)
+  ) AS sub
+ WHERE lp.id = sub.id;
+
+-- The legacy singular column carries the same alias on the same four rows. Nothing
+-- reads it — `leader_self_scorecard` uses `lines`, and a row that says "Line 1" while
+-- the array says all six proves it has not been maintained — but leaving a known-bad
+-- value behind is how the next reader concludes the alias is still in use somewhere.
+UPDATE public.leader_pins
+   SET line = NULL
+ WHERE line = 'Capsules & Tablets';
+
+-- =====================================================================
+-- 2. Stop it happening again
+--
+-- The root cause is not the four rows. It is that `lines` is a free-text array matched
+-- against a catalogue nothing checks it against. A CHECK constraint cannot reach another
+-- table, so the guard is a trigger.
+--
+-- It fires on write only: existing rows are not revalidated, so this cannot fail on data
+-- already in the table. Verified before writing that the alias was the ONLY orphan value
+-- across every row of leader_pins, active or not — so after section 1 there is nothing
+-- left for this to trip over.
+--
+-- P0001 is the code the app's error handler passes through untouched, so the message
+-- below is what the person sees, rather than "Something did not load".
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.leader_pins_lines_must_exist()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _desconhecidas text[];
+BEGIN
+  IF NEW.lines IS NULL OR cardinality(NEW.lines) = 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT array_agg(DISTINCT v ORDER BY v) INTO _desconhecidas
+    FROM unnest(NEW.lines) AS v
+   WHERE NOT EXISTS (SELECT 1 FROM public.lines l WHERE l.name = v);
+
+  IF _desconhecidas IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Estas linhas nao existem no catalogo: %. Um lider so pode ser atribuido a uma linha que exista em Lines — se e uma area com varias linhas, escolha-as uma a uma.',
+      array_to_string(_desconhecidas, ', ')
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_leader_pins_lines_must_exist ON public.leader_pins;
+CREATE TRIGGER trg_leader_pins_lines_must_exist
+  BEFORE INSERT OR UPDATE OF lines ON public.leader_pins
+  FOR EACH ROW EXECUTE FUNCTION public.leader_pins_lines_must_exist();
+
+COMMENT ON FUNCTION public.leader_pins_lines_must_exist() IS
+  'Recusa uma linha que nao exista em public.lines. leader_pins.lines e comparado por NOME '
+  'contra production_sessions/rag_weekly_entries/quality_actions, por isso um nome errado nao '
+  'da erro nenhum — da um scorecard a zero. Ver 20260906090000: Gill, Liana e Muriel estiveram '
+  'assim desde sempre com o valor ''Capsules & Tablets''.';
+
+COMMENT ON COLUMN public.leader_pins.line IS
+  'LEGADA — nao usar. A fonte da verdade e leader_pins.lines (text[]), que e o que '
+  'leader_self_scorecard() le. Esta coluna chegou a dizer "Line 1" para lideres cujo array '
+  'cobre as seis linhas. Mantida so para nao partir leituras antigas; sem escritor.';
+
+
+-- ================================================================
+-- BLOCO 28
+-- 20260907090000_the_cron_log_nobody_ever_swept.sql
+-- ================================================================
+
+-- The cron log that has been growing since June, and the secret sitting in every row.
+--
+-- Sibling of 20260905090000. That one is about `net._http_response`, which is BLOATED —
+-- 53 MB of heap for 0.1 MB of data. This one is a different failure with the same cause
+-- upstream of it: `cron.job_run_details` has never been swept either, but its 94 MB is
+-- mostly real. Measured on 26/08/2026:
+--
+--   rows                          152708
+--   approximate real data          58 MB
+--   table                          94 MB
+--   older than 7 days             131679   <- 86% of it
+--   older than 30 days             86819
+--   autovacuum_count                   0   last_autovacuum: (null)
+--   n_live_tup                         0   <- the statistics are wrong here too
+--
+-- pg_cron writes one row per job run and NEVER deletes any. There are two jobs firing
+-- every minute (`intouch-poll-60s`, `intouch-status-log-60s`) plus eight more, which is
+-- roughly 1.8 MB a day, every day, since 24/06. Nothing was ever going to stop it.
+--
+-- This is not a theoretical cost. `cron.job_run_details` already holds 165 rows reading
+-- `job startup timeout` — pg_cron unable to open a connection — and the incident note in
+-- 20260905090000 records a single-row insert here taking 99 seconds while the instance
+-- was starved.
+--
+-- THE SECOND REASON, which is why this is not just housekeeping. Each row stores the
+-- command that ran, and two of the active jobs carry their `x-cron-secret` as a literal
+-- in that command rather than reading it from the vault:
+--
+--   rows in cron.job_run_details containing the secret in clear text:  114925
+--
+-- So the shared secret for `intouch-poll` and `calculate-shift-targets` is not in one
+-- place that can be tidied — it is in a hundred and fifteen thousand log rows going back
+-- to June. Seven-day retention removes 86% of those immediately and the rest within the
+-- week.
+--
+-- WHAT THIS DOES NOT DO, said plainly: it does not rotate the secret, and retention is
+-- not a substitute for rotating it. The value has been readable for two months and has
+-- to be considered compromised. Rotation needs the edge functions' `CRON_SECRET`
+-- environment variable and the job definitions changed together — one without the other
+-- returns 401 every minute — and the environment variable is not reachable from a
+-- migration. See docs/apply-passo-3/00-LEIA-PRIMEIRO.md for the procedure.
+--
+-- Nor does it reclaim the 94 MB. A plain VACUUM makes the pages reusable, which is what
+-- keeps the table from growing past today's size once 86% of the rows are gone. Handing
+-- the space back needs `VACUUM (FULL, ANALYZE) cron.job_run_details;` by hand, alongside
+-- the one 20260905090000 already asks for.
+
+-- =====================================================================
+-- 1. Delete the backlog
+--
+-- Seven days is what pg_cron's own documentation suggests and what makes the failure
+-- history still useful: the 165 startup timeouts worth investigating are from this week,
+-- not from June. Bounded by end_time so a run still in flight is never removed.
+-- =====================================================================
+
+DO $$
+DECLARE
+  _apagadas bigint;
+BEGIN
+  IF to_regclass('cron.job_run_details') IS NULL THEN
+    RAISE NOTICE 'pg_cron nao esta instalado. Nada a limpar.';
+    RETURN;
+  END IF;
+
+  DELETE FROM cron.job_run_details
+   WHERE end_time IS NOT NULL
+     AND end_time < now() - interval '7 days';
+
+  GET DIAGNOSTICS _apagadas = ROW_COUNT;
+  RAISE NOTICE 'cron.job_run_details: % execucoes com mais de 7 dias apagadas.', _apagadas;
+END $$;
+
+-- =====================================================================
+-- 2. Keep it that way
+--
+-- Hourly, at :47 — off the hour, and off :17 where 20260905090000 puts the pg_net
+-- vacuum, so the two sweeps never contend for the same minute.
+-- =====================================================================
+
+DO $$
+BEGIN
+  IF to_regclass('cron.job') IS NULL THEN
+    RAISE NOTICE 'pg_cron nao esta instalado. Sem retencao.';
+    RETURN;
+  END IF;
+
+  PERFORM cron.unschedule('purge-cron-history')
+    WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'purge-cron-history');
+
+  PERFORM cron.schedule(
+    'purge-cron-history',
+    '47 * * * *',
+    $cmd$DELETE FROM cron.job_run_details WHERE end_time IS NOT NULL AND end_time < now() - interval '7 days'$cmd$
+  );
+
+  PERFORM cron.unschedule('vacuum-cron-history')
+    WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'vacuum-cron-history');
+
+  PERFORM cron.schedule(
+    'vacuum-cron-history',
+    '52 * * * *',
+    'VACUUM (ANALYZE) cron.job_run_details'
+  );
+END $$;
+
+-- =====================================================================
+-- 3. An autovacuum policy, for the same reason as the pg_net table
+--
+-- n_live_tup reads 0 on a table with 152708 rows, so a policy expressed as a percentage
+-- of that number can never be reached. Absolute thresholds instead. As with the pg_net
+-- table, treat this as the belt and the cron above as the trousers: the hourly VACUUM is
+-- what is actually keeping the table down.
+-- =====================================================================
+
+DO $$
+BEGIN
+  EXECUTE $ddl$
+    ALTER TABLE cron.job_run_details SET (
+      autovacuum_enabled              = true,
+      autovacuum_vacuum_threshold     = 1000,
+      autovacuum_vacuum_scale_factor  = 0.0,
+      autovacuum_analyze_threshold    = 1000,
+      autovacuum_analyze_scale_factor = 0.0
+    )
+  $ddl$;
+EXCEPTION
+  WHEN undefined_table OR insufficient_privilege THEN
+    RAISE NOTICE 'cron.job_run_details nao e alteravel aqui. A retencao horaria continua a ser a unica defesa.';
+END $$;
+
+
+-- ================================================================
+-- BLOCO 29
+-- 20260908090000_a_photo_in_the_chat_was_never_going_to_load.sql
+-- ================================================================
+
+-- The photo the chat uploaded and could never show.
+--
+-- `WOChat` uploads to the `wo-photos` bucket and then calls `getPublicUrl()` on it. That
+-- bucket is PRIVATE. `getPublicUrl` does not ask the server anything — it builds a
+-- `/object/public/...` string locally — so it returns a URL that always looks fine and
+-- never serves a byte. Storing it is worse than failing: the dead link is persisted, and
+-- the `<img>` renders broken forever.
+--
+-- Every other photo in this codebase already does the right thing. `useWOPhotos` keeps a
+-- `storage_path` and signs it on read via `getWOPhotoUrl`; `usePartPhotos`,
+-- `useQualityIssue` and the DM audio all use `createSignedUrl`. WOChat is the one place
+-- that was left behind.
+--
+-- IT HAS ALREADY HAPPENED, once, and the evidence is still in the bucket:
+--
+--   storage.objects, bucket wo-photos
+--     chat/5700b746-345a-43fd-a7b7-2ff10e7ef919/1774529886689_IMG_5607.jpg
+--     161051 bytes · image/jpeg · uploaded 2026-03-26 12:58 by Daniel Quiló
+--
+--   public.wo_messages   0 rows
+--
+-- The file uploaded. The message never arrived. Between the two sits
+--
+--     } catch {
+--       // silently fail
+--     }
+--
+-- so whoever tried it watched the spinner stop and nothing appear, with no error to
+-- report and nothing to act on. That orphan has been sitting there for five months.
+--
+-- WHY RENAME RATHER THAN ADD. `wo_messages` has zero rows, so there is no data to
+-- migrate and no reader to keep working. The column is about to hold a storage path
+-- rather than a URL, and a column called `image_url` holding a path is precisely the
+-- shape of the next bug — someone will eventually feed it to an `<img src>` again. With
+-- the table empty this costs nothing, so it is renamed to what it contains.
+
+ALTER TABLE public.wo_messages RENAME COLUMN image_url TO image_path;
+
+COMMENT ON COLUMN public.wo_messages.image_path IS
+  'Caminho no bucket PRIVADO wo-photos (ex.: chat/<wo_id>/<ts>_<ficheiro>.jpg), NUNCA um URL. '
+  'O bucket e privado, por isso getPublicUrl() devolve um link morto — assinar na leitura com '
+  'getWOPhotoUrl(), como o wo_photos.storage_path faz. Ver 20260908090000.';
+
+-- The same trap, one table over, left explicit so nobody wires it up the fast way.
+--
+-- `direct_messages.image_url` has no writer at all: the DM screen only records audio, and
+-- that already signs. The column is unimplemented rather than broken, which is exactly
+-- when somebody reaches for getPublicUrl because "the other one does it".
+COMMENT ON COLUMN public.direct_messages.image_url IS
+  'SEM ESCRITOR — nada carrega imagens no chat directo (so audio, em dm-audio, que e assinado). '
+  'Se vier a ser usada: os buckets deste projecto sao TODOS privados, portanto guardar o caminho '
+  'e assinar na leitura. Nunca getPublicUrl(). Ver 20260908090000.';
+
+
+-- ================================================================
+-- BLOCO 30
+-- 20260909090000_a_stoppage_cannot_last_less_than_nothing.sql
+-- ================================================================
+
+-- A line stoppage that ended before it started, and the KPI that subtracted it.
+--
+-- Two rows in `downtime_events` have `resumed_at` BEFORE `stopped_at`. Both are stored
+-- with a negative `duration_minutes`, and `v_wo_downtime_total` sums that column
+-- straight, so each one does not merely fail to count — it takes time OFF the line's
+-- recorded downtime.
+--
+--   WO   line     stopped_at            resumed_at            duration  is_recurrence
+--   498  Line 4   13/07 11:56:09        13/07 11:46:50              -9   true
+--   918  Line 4   19/08 14:42:14        19/08 05:59:00           -523    true
+--
+-- Line 4's downtime for 19/08 is understated by eight and a half hours by a single row.
+--
+-- THE SHAPE THEY SHARE. Two out of 544 events, and not at random — both are
+-- `is_recurrence = true`, both `stopped_by_name = 'Line 4'` (the tablet account named
+-- after the line, not a person), both resumed by the same person, both on orders that
+-- ended `force_closed`. On WO 918 the inherited `resumed_at` (05:59:00) is 52 seconds
+-- EARLIER than the order's own `created_at` (05:59:52): it cannot have been typed for
+-- this stoppage, because the stoppage did not exist yet. It is the previous episode's
+-- resume, still attached when the recurrence was written.
+--
+-- WHAT THIS DOES NOT CLAIM. I did not isolate the exact statement that leaves it there.
+-- Several paths write these fields — `reopen_wo_as_recurrence`, `close_shift_downtime`,
+-- `intouch_machine_state_moves_the_order`, `sync_wo_line_status` and the screen itself —
+-- and the two I read most closely are correct: the iTouching trigger inserts a
+-- recurrence with no `resumed_at` and nulls the order's, and the shift closer only
+-- touches orders whose `line_resumed_at` IS NULL, which is exactly why WO 918 slipped
+-- past it. Naming a culprit I have not proven would be worse than saying this.
+--
+-- It does not matter for the fix. With five writers and one impossible state, the guard
+-- belongs where every writer has to pass: a constraint. That is the difference between
+-- fixing this instance and closing the shape.
+--
+-- WHY THE TWO ROWS ARE LEFT ALONE. I do not know how long those lines were actually
+-- down. WO 918 stopped at 14:42 and its order was auto-closed at 17:00, so 138 minutes
+-- is arguable; WO 498 has no closed_at at all and nothing to anchor to. Writing a
+-- plausible number into a production KPI is worse than the negative, because the
+-- negative is visibly wrong and a fabricated 138 is not. They are left for whoever knows
+-- what happened, through `correct_downtime_event()` and the Downtime corrections screen,
+-- which records the before and after in `downtime_corrections`. Until then the view
+-- floors them at zero: not counted, never subtracted.
+
+-- =====================================================================
+-- 1. Stop the next one being written
+--
+-- NOT VALID, deliberately. It applies to every INSERT and UPDATE from here on, and does
+-- NOT re-check the two rows already there — so this cannot fail to apply, and the
+-- historical rows stay visible for the correction screen instead of becoming
+-- unupdatable. Run `VALIDATE CONSTRAINT` once they have been corrected.
+-- =====================================================================
+
+ALTER TABLE public.downtime_events
+  DROP CONSTRAINT IF EXISTS downtime_events_resumed_after_stopped;
+ALTER TABLE public.downtime_events
+  ADD CONSTRAINT downtime_events_resumed_after_stopped
+  CHECK (resumed_at IS NULL OR resumed_at >= stopped_at) NOT VALID;
+
+ALTER TABLE public.downtime_events
+  DROP CONSTRAINT IF EXISTS downtime_events_duration_not_negative;
+ALTER TABLE public.downtime_events
+  ADD CONSTRAINT downtime_events_duration_not_negative
+  CHECK (duration_minutes IS NULL OR duration_minutes >= 0) NOT VALID;
+
+-- The sibling table the Downtime screen writes. Measured before adding it: zero rows
+-- violate either rule, so these are validated on the spot rather than NOT VALID.
+ALTER TABLE public.production_downtimes
+  DROP CONSTRAINT IF EXISTS production_downtimes_ended_after_started;
+ALTER TABLE public.production_downtimes
+  ADD CONSTRAINT production_downtimes_ended_after_started
+  CHECK (ended_at IS NULL OR ended_at >= started_at);
+
+ALTER TABLE public.production_downtimes
+  DROP CONSTRAINT IF EXISTS production_downtimes_duration_not_negative;
+ALTER TABLE public.production_downtimes
+  ADD CONSTRAINT production_downtimes_duration_not_negative
+  CHECK (duration_minutes IS NULL OR duration_minutes >= 0);
+
+-- =====================================================================
+-- 2. Keep an impossible row out of the arithmetic
+--
+-- The floor is per EVENT, not on the total: flooring the sum would let a bad row cancel
+-- a good one inside the same order and still report a plausible figure. At zero, a row
+-- that cannot be true contributes nothing and takes nothing away.
+--
+-- Everything else is carried over unchanged from the existing definition, including the
+-- open-stoppage clock and the planned-work exemption.
+-- =====================================================================
+
+CREATE OR REPLACE VIEW public.v_wo_downtime_total AS
+ SELECT de.work_order_id,
+    count(*)::integer AS stop_count,
+        CASE
+            WHEN COALESCE(p.planned, false) THEN 0
+            ELSE COALESCE(sum(
+              GREATEST(
+                COALESCE(de.duration_minutes,
+                         (EXTRACT(epoch FROM now() - de.stopped_at) / 60::numeric)::integer),
+                0)
+            ), 0::bigint)::integer
+        END AS total_minutes,
+    bool_or(de.resumed_at IS NULL) AS has_open_stop
+   FROM downtime_events de
+     LEFT JOIN work_orders w ON w.id = de.work_order_id
+     LEFT JOIN problem_descriptions p ON lower(p.name) = lower(w.description)
+  GROUP BY de.work_order_id, p.planned;
+
+COMMENT ON VIEW public.v_wo_downtime_total IS
+  'Minutos de paragem por ordem. Cada evento entra com piso zero: um evento impossivel '
+  '(resumed_at < stopped_at) conta 0 em vez de SUBTRAIR do total da linha — ver 20260909090000, '
+  'onde a WO 918 tirava 523 minutos ao downtime da Line 4. O piso e por evento e nao sobre a soma, '
+  'para que uma linha ma nao possa anular uma boa dentro da mesma ordem.';
+
+COMMENT ON CONSTRAINT downtime_events_resumed_after_stopped ON public.downtime_events IS
+  'NOT VALID: aplica-se a escritas novas, nao revalida as 2 linhas historicas (WO 498 e 918). '
+  'Depois de essas serem corrigidas pelo ecra de correccoes, correr '
+  'ALTER TABLE public.downtime_events VALIDATE CONSTRAINT downtime_events_resumed_after_stopped;';
+
+
+-- ================================================================
+-- BLOCO 31
+-- 20260910090000_the_permissions_screen_only_bound_six_tables.sql
+-- ================================================================
+
+-- The Permissions screen edits a matrix that 128 of 134 tables never consult.
+--
+-- `has_action(uid, action, baseline)` is the mechanism this project already has for
+-- exactly this: it reads the user's roles, applies whatever `role_permission_overrides`
+-- says — the table the Permissions screen writes — and only falls back to the baseline
+-- list when there is no override. Admin is always true.
+--
+-- Counted on 26/08/2026:
+--
+--   policies in public                                    436
+--     consulting the matrix via has_action()                7   across   6 tables
+--     carrying a hard-coded list of has_role() ORs        365   across 128 tables
+--
+--   rows in role_permission_overrides                      62
+--
+-- So sixty-two decisions were made on that screen, and the database honours the ones
+-- that happen to land on six tables. Everywhere else the screen changes what the UI
+-- draws and the database goes on deciding from a list frozen into a policy months ago.
+--
+-- IT FAILS IN BOTH DIRECTIONS, and neither says anything:
+--
+--   supervisor / stock.view = FALSE      the screen hides Stock from supervisors, and
+--                                        `supervisor_read_access` on products keeps
+--                                        letting them read all 137 parts through the API
+--
+--   co_engineer / stock.view (baseline)  the matrix grants it and the route admits them,
+--                                        and NO select policy on products names
+--                                        co_engineer — so the screen opens and shows
+--                                        nothing
+--
+-- The second shape is the one that hides best. A restrictive SELECT policy does not
+-- raise; it returns zero rows. `describeError` reacts to 401, 403 and 42501, so nothing
+-- in the app can tell "you have no access" apart from "there is nothing here" — the
+-- screen just looks like an empty table. planner on machines, downtime and problems, and
+-- supervisor on suppliers, have all been sitting in that state.
+--
+-- WHY NOT JUST ADD THE MISSING ROLES. Adding `planner` to three policies and
+-- `co_engineer` to one fixes today's four and leaves the mechanism that produced them
+-- exactly as it was: two copies of one decision, one in TypeScript and one frozen in
+-- SQL, with nothing keeping them in step. The next role added to the matrix drifts the
+-- same way, silently, and is found the same way — by somebody staring at an empty
+-- screen.
+--
+-- So the five tables behind those four symptoms are converted to read the matrix. The
+-- baselines below are copied from `MATRIX` in src/lib/permissions.ts, so the fallback and
+-- the UI now say the same thing, and an override moves both together.
+--
+-- SCOPE, said plainly: five tables of 128. This is the pattern for the rest, not the
+-- rest. The remaining 123 are listed in the audit and are a bigger, separate job — one
+-- that has to be done table by table, because each carries its own ownership clauses
+-- that a blanket conversion would drop.
+
+-- =====================================================================
+-- 1. products — the Stock catalogue
+--
+-- Five overlapping select policies replaced by one. Writes already go through
+-- has_action('stock.manage'), so this makes reads consistent with them.
+-- =====================================================================
+
+DROP POLICY IF EXISTS "Engineers and admins can view products" ON public.products;
+DROP POLICY IF EXISTS "Managers can view products" ON public.products;
+DROP POLICY IF EXISTS "Planner and warehouse view products" ON public.products;
+DROP POLICY IF EXISTS "office_admin read" ON public.products;
+DROP POLICY IF EXISTS "supervisor_read_access" ON public.products;
+
+CREATE POLICY "products select by matrix" ON public.products
+  FOR SELECT TO authenticated
+  USING (has_action(auth.uid(), 'stock.view', ARRAY['admin'::app_role, 'manager'::app_role, 'supervisor'::app_role, 'maintenance_manager'::app_role, 'planner'::app_role, 'engineer'::app_role, 'co_engineer'::app_role, 'warehouse'::app_role, 'production_office_admin'::app_role]));
+
+-- =====================================================================
+-- 2. machines
+-- =====================================================================
+
+DROP POLICY IF EXISTS "Authenticated can view machines" ON public.machines;
+DROP POLICY IF EXISTS "supervisor_read_access" ON public.machines;
+
+CREATE POLICY "machines select by matrix" ON public.machines
+  FOR SELECT TO authenticated
+  USING (has_action(auth.uid(), 'machines.view', ARRAY['admin'::app_role, 'manager'::app_role, 'supervisor'::app_role, 'maintenance_manager'::app_role, 'planner'::app_role, 'engineer'::app_role, 'co_engineer'::app_role, 'operator'::app_role, 'viewer'::app_role, 'warehouse'::app_role, 'production_office_admin'::app_role]));
+
+-- The warehouse policy was FOR ALL, so it granted UPDATE and DELETE on every machine to a
+-- role whose only machine permission in the matrix is `machines.view`. The screen never
+-- offered it; the API did. Reduced to what the name always implied.
+DROP POLICY IF EXISTS "Warehouse can manage machines" ON public.machines;
+
+-- =====================================================================
+-- 3. problem_descriptions
+-- =====================================================================
+
+DROP POLICY IF EXISTS "Authenticated can view problem_descriptions" ON public.problem_descriptions;
+DROP POLICY IF EXISTS "supervisor_read_access" ON public.problem_descriptions;
+
+CREATE POLICY "problem_descriptions select by matrix" ON public.problem_descriptions
+  FOR SELECT TO authenticated
+  USING (has_action(auth.uid(), 'problems.view', ARRAY['admin'::app_role, 'manager'::app_role, 'supervisor'::app_role, 'maintenance_manager'::app_role, 'planner'::app_role, 'engineer'::app_role, 'co_engineer'::app_role, 'operator'::app_role, 'viewer'::app_role, 'production_office_admin'::app_role]));
+
+-- =====================================================================
+-- 4. suppliers
+--
+-- FOUR ROLES LOSE READ ACCESS HERE, and each was checked before it was allowed to:
+--
+--   maintenance_manager   1 user   override suppliers.view = FALSE  — the screen already
+--   production_office_admin 0      override suppliers.view = FALSE     said no; only the
+--   supervisor (products)   0      override stock.view = FALSE         API disagreed
+--
+--   warehouse             1 user   NO override. `suppliers_select_scoped` named it; the
+--                                  matrix never granted `suppliers.view` and the route
+--                                  never admitted it. Checked what would break: the only
+--                                  reader of this table anywhere in src/ is
+--                                  SuppliersPage, which that role cannot open. So this
+--                                  removes an API-only privilege that no screen has ever
+--                                  used, rather than taking a feature away.
+--
+-- The first three are the point of the change: an override that says no is supposed to
+-- mean no, and until now it only meant "hide the menu item".
+-- =====================================================================
+
+DROP POLICY IF EXISTS "suppliers_select_scoped" ON public.suppliers;
+
+CREATE POLICY "suppliers select by matrix" ON public.suppliers
+  FOR SELECT TO authenticated
+  USING (has_action(auth.uid(), 'suppliers.view', ARRAY['admin'::app_role, 'manager'::app_role, 'supervisor'::app_role, 'maintenance_manager'::app_role, 'planner'::app_role, 'production_office_admin'::app_role]));
+
+-- =====================================================================
+-- 5. downtime_events — the one with an ownership clause to keep
+--
+-- The old policy granted four roles by name, PLUS anyone who stopped or resumed the line
+-- themselves, PLUS an operator on the order's own line. Those three are not role
+-- permissions and cannot come from the matrix: an operator sees their own line's
+-- stoppages because it is theirs, not because of a permission somebody could switch off.
+--
+-- Carried over verbatim, with only the role half replaced. A blanket conversion here
+-- would have taken every operator's own downtime away from them.
+--
+-- AND THE BASELINE IS NOT THE MATRIX HERE, which is the one deliberate departure in this
+-- file. `downtime.view` is granted to every role including operator and viewer, because
+-- it gates the Downtime SCREEN — and the route already keeps operators out of that
+-- screen. Copying it into the baseline would have handed all twelve operator accounts
+-- read access to every stoppage on every line through the API, which no screen offers
+-- and nothing asked for. Simulated before writing: operator and viewer both flipped from
+-- no-access to full-access on this table alone.
+--
+-- So the baseline is the management set — the roles the Downtime route actually admits,
+-- plus engineer and co_engineer who read stoppages from the order detail — and operators
+-- keep reaching their own through the ownership clause below, exactly as before. This is
+-- the one table in this migration where "who may open the screen" and "which rows may be
+-- read" are genuinely different questions.
+-- =====================================================================
+
+DROP POLICY IF EXISTS "Scoped downtime_events select" ON public.downtime_events;
+DROP POLICY IF EXISTS "supervisor_read_access" ON public.downtime_events;
+
+CREATE POLICY "downtime_events select by matrix or ownership" ON public.downtime_events
+  FOR SELECT TO authenticated
+  USING (
+    has_action(auth.uid(), 'downtime.view', ARRAY['admin'::app_role, 'manager'::app_role, 'supervisor'::app_role, 'maintenance_manager'::app_role, 'planner'::app_role, 'engineer'::app_role, 'co_engineer'::app_role, 'production_office_admin'::app_role])
+    OR stopped_by = auth.uid()
+    OR resumed_by = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM public.work_orders wo
+       WHERE wo.id = downtime_events.work_order_id
+         AND (
+           wo.operator_id = auth.uid()
+           OR (
+             has_role(auth.uid(), 'operator'::app_role)
+             AND EXISTS (
+               SELECT 1 FROM public.operator_line_accounts ola
+                WHERE ola.user_id = auth.uid()
+                  AND wo.line_id = ANY (ola.line_ids)
+             )
+           )
+         )
+    )
+  );
+
+COMMENT ON FUNCTION public.has_action(uuid, text, app_role[]) IS
+  'A pergunta que uma politica RLS deve fazer: le user_roles, aplica role_permission_overrides '
+  '(a tabela que o ecra de Permissoes escreve) e so depois cai para a baseline. As baselines devem '
+  'ser copia da MATRIX em src/lib/permissions.ts. Uma politica escrita com has_role() em vez desta '
+  'e uma segunda copia da decisao, que o ecra de Permissoes nao consegue mover — ver 20260910090000, '
+  'onde 365 de 436 politicas ainda estao assim.';
