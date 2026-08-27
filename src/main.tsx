@@ -13,3 +13,17 @@ installDomTranslateGuard();
 installApiErrorTelemetry();
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Register the service worker on load. It used to be registered only from
+// usePushNotifications, and only once the user accepted the push toast — so
+// anyone who dismissed that toast silently lost the ability to install the app
+// as well, since a browser will not offer installation without a registered
+// worker. The two were coupled for no reason.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+      /* installability and push both degrade gracefully; nothing to report */
+    });
+  });
+}
+

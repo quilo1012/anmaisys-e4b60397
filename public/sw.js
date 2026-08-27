@@ -78,3 +78,9 @@ self.addEventListener("notificationclick", (event) => {
     })()
   );
 });
+
+/* Chrome will not fire `beforeinstallprompt` for a service worker with no fetch
+   listener, so without this the app can never be installed to a home screen.
+   Deliberately does NOT call event.respondWith and does NOT cache: this runs a
+   factory floor, where a stale cached response is worse than no PWA at all. */
+self.addEventListener("fetch", () => {});
