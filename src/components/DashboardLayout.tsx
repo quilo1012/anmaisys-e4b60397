@@ -640,7 +640,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               {isMobile && (
                 <div className="flex items-center gap-1.5">
                   <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />
-                  <span className="text-sm font-bold text-foreground">AN System</span>
+                  <span className="hidden sm:inline text-sm font-bold text-foreground">AN System</span>
                 </div>
               )}
               {currentPageTitle && (
