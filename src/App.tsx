@@ -24,6 +24,7 @@ import { roleDashMap } from "@/lib/permissions";
 import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
 import { useSeverityPointsSync } from "@/hooks/useSeverityPoints";
 import { useLabelPointsSync, useDepartmentAttributionSync } from "@/hooks/useQualityOptions";
+import { useLabelPointsCapSync } from "@/hooks/useLabelPointsCap";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
@@ -45,6 +46,20 @@ function LabelPointsSync() {
 /** And who is charged at all: the departments that answer for their own problems. */
 function DepartmentAttributionSync() {
   useDepartmentAttributionSync();
+  return null;
+}
+
+/**
+ * The ceiling on what an action's labels may charge between them.
+ *
+ * `action_points_at()` in SQL has always applied CAP_LabelPoints; the TypeScript twin
+ * had the machinery and no caller, so `maxLabelPoints()` returned Infinity in
+ * production while the database was prepared to cap. Absent row, no ceiling, both
+ * sides agree — but the row is documented as the way to turn the ceiling on, and
+ * without this the day it lands is the day the form and the database disagree.
+ */
+function LabelPointsCapSync() {
+  useLabelPointsCapSync();
   return null;
 }
 
@@ -283,6 +298,7 @@ const App = () => (
             <SeverityPointsSync />
             <LabelPointsSync />
             <DepartmentAttributionSync />
+            <LabelPointsCapSync />
             <TelemetryInit />
             <Suspense fallback={<PageLoader />}>
               <Routes>
