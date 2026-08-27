@@ -2895,3 +2895,288 @@ COMMENT ON EXTENSION pg_net IS
   'autovacuum nunca correu por si — ver 20260905090000. Se as chamadas comecarem a '
   'expirar em todas as tabelas ao mesmo tempo, medir pg_relation_size(''net._http_response'') '
   'antes de procurar a query lenta: em 26/08/2026 eram 18585 paginas para 372 linhas.';
+
+
+-- ================================================================
+-- BLOCO 27
+-- 20260906090000_the_line_alias_that_was_not_a_line.sql
+-- ================================================================
+
+-- Three leaders whose scorecard has always read zero, because their line is a name
+-- nothing else uses.
+--
+-- `leader_pins.lines` is how the personal scorecard decides what belongs to a leader:
+-- `leader_self_scorecard()` reads it and filters production, RAG and quality actions by
+-- line NAME. There is no foreign key on it — it is a `text[]`, typed by hand — and four
+-- rows carry the value 'Capsules & Tablets'.
+--
+-- That string is not in `public.lines`. It is not in `production_sessions.line`, or
+-- `rag_weekly_entries.line`, or `production_downtimes.line`, or `quality_actions.line`.
+-- It is not a line. It is somebody writing down the AREA a leader covers, in a field
+-- that is matched literally against line names.
+--
+-- Measured on 26/08/2026:
+--
+--   leader    lines                                sessions  RAG  quality
+--   Gill      Capsules & Tablets                          0    0        0
+--   Liana     Capsules & Tablets                          0    0        0
+--   Muriel    Capsules & Tablets                          0    0        0
+--   JULIANO   Capsules & Tablets + Line 1..6            444  560       62   <- saved by the rest
+--
+-- The work is there. It is filed under the line names the floor actually uses:
+--
+--   production_sessions, by leader_name
+--     Tablet Line ......... 56 sessions — Alice, Gill, Juliano, Liana, Muriel
+--     Capsules Machine 1 .. 16 sessions — Fabricio, Gill, Webister
+--     Capsules Machine 2 .. 15 sessions — Fabricio, Webister
+--
+-- So this is not an empty screen because a leader did nothing. It is an empty screen
+-- because the key is a string nobody constrained, and three people have been appraised
+-- against a card that could never have shown anything.
+--
+-- WHY THESE THREE LINES AND NOT THE HISTORY. The obvious alternative is to give each
+-- leader exactly the lines they have already worked — Gill would get Tablet Line and
+-- Capsules Machine 1, Liana and Muriel only Tablet Line. That reads the past as if it
+-- were the assignment, and it would silently narrow a leader's card the first time they
+-- cover a machine they have not covered before.
+--
+-- 'Capsules & Tablets' names a group, and the group has three members: the two capsule
+-- machines and the tablet line. GEL Line is deliberately NOT one of them — it is neither
+-- capsules nor tablets, and its sessions belong to Josiel. Expanding the alias to its
+-- members keeps what the person meant and takes nothing away from anyone.
+--
+-- Corroborated independently by `leader_line_assignment`, the curated leader-to-line
+-- table written on 17/08: it maps Muriel to Tablet Line, and every other row in it
+-- matches where that leader's sessions actually are.
+--
+-- AFTER THIS, measured by simulation before it was written:
+--
+--   Gill / Liana / Muriel   0 -> 87 sessions, 0 -> 85 RAG rows, 0 -> 852 downtimes
+--   JULIANO               444 -> 531 sessions
+--   orphan values left in leader_pins.lines: 0
+
+-- =====================================================================
+-- 1. Expand the alias into the lines it stands for
+--
+-- Written against the VALUE, not against four leader ids: if the same string was typed
+-- into a fifth row tomorrow, this still means the same thing. Idempotent — running it
+-- twice is a no-op, because the alias is gone after the first pass.
+-- =====================================================================
+
+UPDATE public.leader_pins lp
+   SET lines = sub.novo,
+       updated_at = now()
+  FROM (
+    SELECT p.id,
+           (SELECT array_agg(DISTINCT v ORDER BY v)
+              FROM unnest(
+                     array_remove(p.lines, 'Capsules & Tablets')
+                     || ARRAY['Capsules Machine 1', 'Capsules Machine 2', 'Tablet Line']
+                   ) AS v) AS novo
+      FROM public.leader_pins p
+     WHERE 'Capsules & Tablets' = ANY(p.lines)
+  ) AS sub
+ WHERE lp.id = sub.id;
+
+-- The legacy singular column carries the same alias on the same four rows. Nothing
+-- reads it — `leader_self_scorecard` uses `lines`, and a row that says "Line 1" while
+-- the array says all six proves it has not been maintained — but leaving a known-bad
+-- value behind is how the next reader concludes the alias is still in use somewhere.
+UPDATE public.leader_pins
+   SET line = NULL
+ WHERE line = 'Capsules & Tablets';
+
+-- =====================================================================
+-- 2. Stop it happening again
+--
+-- The root cause is not the four rows. It is that `lines` is a free-text array matched
+-- against a catalogue nothing checks it against. A CHECK constraint cannot reach another
+-- table, so the guard is a trigger.
+--
+-- It fires on write only: existing rows are not revalidated, so this cannot fail on data
+-- already in the table. Verified before writing that the alias was the ONLY orphan value
+-- across every row of leader_pins, active or not — so after section 1 there is nothing
+-- left for this to trip over.
+--
+-- P0001 is the code the app's error handler passes through untouched, so the message
+-- below is what the person sees, rather than "Something did not load".
+-- =====================================================================
+
+CREATE OR REPLACE FUNCTION public.leader_pins_lines_must_exist()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _desconhecidas text[];
+BEGIN
+  IF NEW.lines IS NULL OR cardinality(NEW.lines) = 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT array_agg(DISTINCT v ORDER BY v) INTO _desconhecidas
+    FROM unnest(NEW.lines) AS v
+   WHERE NOT EXISTS (SELECT 1 FROM public.lines l WHERE l.name = v);
+
+  IF _desconhecidas IS NOT NULL THEN
+    RAISE EXCEPTION
+      'Estas linhas nao existem no catalogo: %. Um lider so pode ser atribuido a uma linha que exista em Lines — se e uma area com varias linhas, escolha-as uma a uma.',
+      array_to_string(_desconhecidas, ', ')
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_leader_pins_lines_must_exist ON public.leader_pins;
+CREATE TRIGGER trg_leader_pins_lines_must_exist
+  BEFORE INSERT OR UPDATE OF lines ON public.leader_pins
+  FOR EACH ROW EXECUTE FUNCTION public.leader_pins_lines_must_exist();
+
+COMMENT ON FUNCTION public.leader_pins_lines_must_exist() IS
+  'Recusa uma linha que nao exista em public.lines. leader_pins.lines e comparado por NOME '
+  'contra production_sessions/rag_weekly_entries/quality_actions, por isso um nome errado nao '
+  'da erro nenhum — da um scorecard a zero. Ver 20260906090000: Gill, Liana e Muriel estiveram '
+  'assim desde sempre com o valor ''Capsules & Tablets''.';
+
+COMMENT ON COLUMN public.leader_pins.line IS
+  'LEGADA — nao usar. A fonte da verdade e leader_pins.lines (text[]), que e o que '
+  'leader_self_scorecard() le. Esta coluna chegou a dizer "Line 1" para lideres cujo array '
+  'cobre as seis linhas. Mantida so para nao partir leituras antigas; sem escritor.';
+
+
+-- ================================================================
+-- BLOCO 28
+-- 20260907090000_the_cron_log_nobody_ever_swept.sql
+-- ================================================================
+
+-- The cron log that has been growing since June, and the secret sitting in every row.
+--
+-- Sibling of 20260905090000. That one is about `net._http_response`, which is BLOATED —
+-- 53 MB of heap for 0.1 MB of data. This one is a different failure with the same cause
+-- upstream of it: `cron.job_run_details` has never been swept either, but its 94 MB is
+-- mostly real. Measured on 26/08/2026:
+--
+--   rows                          152708
+--   approximate real data          58 MB
+--   table                          94 MB
+--   older than 7 days             131679   <- 86% of it
+--   older than 30 days             86819
+--   autovacuum_count                   0   last_autovacuum: (null)
+--   n_live_tup                         0   <- the statistics are wrong here too
+--
+-- pg_cron writes one row per job run and NEVER deletes any. There are two jobs firing
+-- every minute (`intouch-poll-60s`, `intouch-status-log-60s`) plus eight more, which is
+-- roughly 1.8 MB a day, every day, since 24/06. Nothing was ever going to stop it.
+--
+-- This is not a theoretical cost. `cron.job_run_details` already holds 165 rows reading
+-- `job startup timeout` — pg_cron unable to open a connection — and the incident note in
+-- 20260905090000 records a single-row insert here taking 99 seconds while the instance
+-- was starved.
+--
+-- THE SECOND REASON, which is why this is not just housekeeping. Each row stores the
+-- command that ran, and two of the active jobs carry their `x-cron-secret` as a literal
+-- in that command rather than reading it from the vault:
+--
+--   rows in cron.job_run_details containing the secret in clear text:  114925
+--
+-- So the shared secret for `intouch-poll` and `calculate-shift-targets` is not in one
+-- place that can be tidied — it is in a hundred and fifteen thousand log rows going back
+-- to June. Seven-day retention removes 86% of those immediately and the rest within the
+-- week.
+--
+-- WHAT THIS DOES NOT DO, said plainly: it does not rotate the secret, and retention is
+-- not a substitute for rotating it. The value has been readable for two months and has
+-- to be considered compromised. Rotation needs the edge functions' `CRON_SECRET`
+-- environment variable and the job definitions changed together — one without the other
+-- returns 401 every minute — and the environment variable is not reachable from a
+-- migration. See docs/apply-passo-3/00-LEIA-PRIMEIRO.md for the procedure.
+--
+-- Nor does it reclaim the 94 MB. A plain VACUUM makes the pages reusable, which is what
+-- keeps the table from growing past today's size once 86% of the rows are gone. Handing
+-- the space back needs `VACUUM (FULL, ANALYZE) cron.job_run_details;` by hand, alongside
+-- the one 20260905090000 already asks for.
+
+-- =====================================================================
+-- 1. Delete the backlog
+--
+-- Seven days is what pg_cron's own documentation suggests and what makes the failure
+-- history still useful: the 165 startup timeouts worth investigating are from this week,
+-- not from June. Bounded by end_time so a run still in flight is never removed.
+-- =====================================================================
+
+DO $$
+DECLARE
+  _apagadas bigint;
+BEGIN
+  IF to_regclass('cron.job_run_details') IS NULL THEN
+    RAISE NOTICE 'pg_cron nao esta instalado. Nada a limpar.';
+    RETURN;
+  END IF;
+
+  DELETE FROM cron.job_run_details
+   WHERE end_time IS NOT NULL
+     AND end_time < now() - interval '7 days';
+
+  GET DIAGNOSTICS _apagadas = ROW_COUNT;
+  RAISE NOTICE 'cron.job_run_details: % execucoes com mais de 7 dias apagadas.', _apagadas;
+END $$;
+
+-- =====================================================================
+-- 2. Keep it that way
+--
+-- Hourly, at :47 — off the hour, and off :17 where 20260905090000 puts the pg_net
+-- vacuum, so the two sweeps never contend for the same minute.
+-- =====================================================================
+
+DO $$
+BEGIN
+  IF to_regclass('cron.job') IS NULL THEN
+    RAISE NOTICE 'pg_cron nao esta instalado. Sem retencao.';
+    RETURN;
+  END IF;
+
+  PERFORM cron.unschedule('purge-cron-history')
+    WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'purge-cron-history');
+
+  PERFORM cron.schedule(
+    'purge-cron-history',
+    '47 * * * *',
+    $cmd$DELETE FROM cron.job_run_details WHERE end_time IS NOT NULL AND end_time < now() - interval '7 days'$cmd$
+  );
+
+  PERFORM cron.unschedule('vacuum-cron-history')
+    WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'vacuum-cron-history');
+
+  PERFORM cron.schedule(
+    'vacuum-cron-history',
+    '52 * * * *',
+    'VACUUM (ANALYZE) cron.job_run_details'
+  );
+END $$;
+
+-- =====================================================================
+-- 3. An autovacuum policy, for the same reason as the pg_net table
+--
+-- n_live_tup reads 0 on a table with 152708 rows, so a policy expressed as a percentage
+-- of that number can never be reached. Absolute thresholds instead. As with the pg_net
+-- table, treat this as the belt and the cron above as the trousers: the hourly VACUUM is
+-- what is actually keeping the table down.
+-- =====================================================================
+
+DO $$
+BEGIN
+  EXECUTE $ddl$
+    ALTER TABLE cron.job_run_details SET (
+      autovacuum_enabled              = true,
+      autovacuum_vacuum_threshold     = 1000,
+      autovacuum_vacuum_scale_factor  = 0.0,
+      autovacuum_analyze_threshold    = 1000,
+      autovacuum_analyze_scale_factor = 0.0
+    )
+  $ddl$;
+EXCEPTION
+  WHEN undefined_table OR insufficient_privilege THEN
+    RAISE NOTICE 'cron.job_run_details nao e alteravel aqui. A retencao horaria continua a ser a unica defesa.';
+END $$;
