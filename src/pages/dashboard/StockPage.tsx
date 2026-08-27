@@ -23,7 +23,6 @@ import { useRole } from "@/hooks/useRole";
 import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent, useStockAdjustmentHistory } from "@/hooks/useAuditLogs";
 import { useQueryClient } from "@tanstack/react-query";
-import { ConsoleStrip, ConsoleCell } from "@/components/ui/ConsoleStrip";
 import { stockTotals, filterStock, isLowStock, stockState } from "@/lib/stockList";
 import { exportStockPDF, exportStockExcel } from "@/lib/stockExports";
 import { format } from "date-fns";
@@ -34,6 +33,48 @@ import { History } from "lucide-react";
 // name is built here the way the 137 imported parts were: category, then model.
 const derivedName = (category: string, code: string) =>
   [category.trim(), code.trim()].filter(Boolean).join(" ") || code.trim();
+
+/**
+ * One of the four figures at the top of Stock.
+ *
+ * `alert` colours the number, not the card: a red panel reads as an error the page is
+ * in, and "93 parts are low" is not an error, it is Tuesday.
+ */
+function StockFigure({
+  label, value, icon, alert, active, onClick, title,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: React.ReactNode;
+  alert?: boolean;
+  active?: boolean;
+  onClick?: () => void;
+  title?: string;
+}) {
+  const body = (
+    <div className="flex items-start justify-between gap-3 p-5">
+      <div className="min-w-0">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className={`mt-1 text-3xl font-bold tabular-nums ${alert ? "text-destructive-strong" : ""}`}>{value}</p>
+      </div>
+      <span className={alert ? "text-destructive-strong" : "text-muted-foreground"}>{icon}</span>
+    </div>
+  );
+  if (!onClick) return <Card>{body}</Card>;
+  return (
+    <Card className={active ? "ring-2 ring-ring" : ""}>
+      <button
+        type="button"
+        onClick={onClick}
+        title={title}
+        aria-pressed={active}
+        className="w-full rounded-lg text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {body}
+      </button>
+    </Card>
+  );
+}
 
 export default function StockPage() {
   const { role, profile } = useAuth();
@@ -366,20 +407,25 @@ export default function StockPage() {
         />
 
         {/* The four figures of a warehouse, read together rather than as four cards. */}
-        <ConsoleStrip>
-          <ConsoleCell label="Parts" value={totals.parts} />
-          <ConsoleCell label="In stock" value={totals.inStock.toLocaleString("en-GB")} />
-          <ConsoleCell label="Low stock" value={totals.low} tone={totals.low > 0 ? "text-warning-strong" : undefined} />
-          <ConsoleCell
+        {/* Four cards, not one strip.
+            The warehouse app these parts came from shows four, and warehouse staff read
+            that one every day. ProductionPerformance and ShiftHistory keep the house
+            strip — this divergence is chosen, not drift. */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StockFigure label="Parts" value={totals.parts} icon={<Package className="h-5 w-5" />} />
+          <StockFigure label="In stock" value={totals.inStock.toLocaleString("en-GB")} icon={<Package className="h-5 w-5" />} />
+          <StockFigure label="Low stock" value={totals.low} icon={<AlertTriangle className="h-5 w-5" />} alert={totals.low > 0} />
+          {/* A count of zeros is a question about which ones. */}
+          <StockFigure
             label="Out of stock"
             value={totals.out}
-            tone={totals.out > 0 ? "text-destructive-strong" : undefined}
+            icon={<AlertTriangle className="h-5 w-5" />}
+            alert={totals.out > 0}
             active={outOnly}
-            title={outOnly ? "Show all parts" : "Show only parts at zero"}
             onClick={() => setOutOnly((v) => !v)}
+            title={outOnly ? "Show all parts" : "Show only parts at zero"}
           />
-
-        </ConsoleStrip>
+        </div>
 
         {lowStockCount > 0 && (
           <Card className="border-destructive">
@@ -425,16 +471,23 @@ export default function StockPage() {
                   {filterCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {/* Another way to search the same list: a part in the hand, no code on it. */}
-              <Button variant="outline" onClick={() => setPhotoSearchOpen(true)}>
-                <Camera className="mr-1 h-4 w-4" /> Find by photo
-              </Button>
               <Button
                 variant={lowOnly ? "default" : "outline"}
                 onClick={() => setLowOnly((v) => !v)}
                 aria-pressed={lowOnly}
               >
                 <AlertTriangle className="mr-1 h-4 w-4" /> Low stock
+              </Button>
+              {/* Another way to search the same list: a part in the hand, no code on it.
+                  Icon only, at the end of the row, as the warehouse app has it — the
+                  camera is the label. `aria-label` and `title` carry the words. */}
+              <Button
+                size="icon"
+                onClick={() => setPhotoSearchOpen(true)}
+                aria-label="Find a part by photo"
+                title="Find a part by photo"
+              >
+                <Camera className="h-4 w-4" />
               </Button>
 
             </div>
@@ -568,15 +621,15 @@ export default function StockPage() {
                             </button>
                           ) : thumb}
                         </TableCell>
-                        <TableCell className="font-mono font-medium">{p.code}</TableCell>
+                        <TableCell className="font-semibold">{p.code}</TableCell>
                         <TableCell><Badge variant="outline">{p.category}</Badge></TableCell>
-                        <TableCell className="max-w-[280px] truncate" title={p.description ?? undefined}>{p.description || "—"}</TableCell>
-                        <TableCell>{p.machine || "—"}</TableCell>
-                        <TableCell>{p.line || "—"}</TableCell>
-                        <TableCell>{p.location || "—"}</TableCell>
-                        {canPrice && <TableCell className="text-right">£{(p.price || 0).toFixed(2)}</TableCell>}
-                        <TableCell className={`text-right ${isLow ? "text-destructive-strong font-bold" : ""}`}>{p.quantity}</TableCell>
-                        <TableCell className="text-right">{p.min_stock}</TableCell>
+                        <TableCell className="max-w-[280px] truncate" title={p.description ?? undefined}>{p.description}</TableCell>
+                        <TableCell>{p.machine}</TableCell>
+                        <TableCell>{p.line}</TableCell>
+                        <TableCell>{p.location}</TableCell>
+                        {canPrice && <TableCell className="text-right tabular-nums text-muted-foreground">{p.price ? `£${p.price.toFixed(2)}` : "—"}</TableCell>}
+                        <TableCell className={`text-right tabular-nums font-semibold ${isLow ? "text-destructive-strong" : ""}`}>{p.quantity}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{p.min_stock}</TableCell>
                         {isManager && (
                           <TableCell>
                             <div className="flex gap-1">
