@@ -340,6 +340,35 @@ export type Database = {
         }
         Relationships: []
       }
+      backfill_20260906_leader_id: {
+        Row: {
+          backfilled_at: string
+          leader_id_before: string | null
+          leader_name_before: string | null
+          session_id: string
+        }
+        Insert: {
+          backfilled_at?: string
+          leader_id_before?: string | null
+          leader_name_before?: string | null
+          session_id: string
+        }
+        Update: {
+          backfilled_at?: string
+          leader_id_before?: string | null
+          leader_name_before?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backfill_20260906_leader_id_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: true
+            referencedRelation: "production_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       batch_dispatch: {
         Row: {
           batch_code: string
