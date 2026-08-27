@@ -45,7 +45,7 @@ export function WoTimeline({ workOrderId }: Props) {
     queryKey: ["wo_log_events", workOrderId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("work_order_logs" as any)
+        .from("work_order_logs")
         .select("id, engineer_name, action, created_at")
         .eq("work_order_id", workOrderId)
         .order("created_at", { ascending: true });

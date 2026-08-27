@@ -539,7 +539,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
       const uid = userData.user?.id;
       if (uid) {
         const { data: prof } = await supabase.from("profiles").select("name").eq("id", uid).maybeSingle();
-        await supabase.from("work_order_logs" as any).insert({
+        await supabase.from("work_order_logs").insert({
           work_order_id: woId,
           engineer_id: uid,
           engineer_name: prof?.name || "Engineer",

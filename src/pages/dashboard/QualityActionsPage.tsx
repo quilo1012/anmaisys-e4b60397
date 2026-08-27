@@ -1723,8 +1723,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
     const p = kind === "department" ? 0 : clampPoints(points);
     const row = { kind, value: v, sort: maxSort + 1, active: true, ...(p ? { points: p } : {}) };
     const { error } = await supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-      .from("quality_options" as any)
+      .from("quality_options")
       .insert(row as unknown as never);
     if (error) { reportSaveError(error); return; }
     setValue(""); setPoints(""); refresh();
@@ -1745,8 +1744,8 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
    */
   const setLabelGate = async (o: QualityOption, next: boolean) => {
     const { error } = await supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
-      .from("quality_options" as any)
+       
+      .from("quality_options")
       .update({ is_gate: next } as unknown as never)
       .eq("id", o.id);
     if (error) { reportSaveError(error); return; }
@@ -1770,8 +1769,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
     const n = clampPoints(raw);
     if (n === o.points) return;
     const { error } = await supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-      .from("quality_options" as any)
+      .from("quality_options")
       .update({ points: n } as unknown as never)
       .eq("id", o.id);
     if (error) { reportSaveError(error); return; }
@@ -1783,8 +1781,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
   };
   const toggle = async (o: QualityOption) => {
     const { error } = await supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-      .from("quality_options" as any)
+      .from("quality_options")
       .update({ active: !o.active } as unknown as never)
       .eq("id", o.id);
     if (error) { toast.error(error.message); return; }
@@ -1792,8 +1789,7 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
   };
   const remove = async (o: QualityOption) => {
     const { error } = await supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-      .from("quality_options" as any)
+      .from("quality_options")
       .delete()
       .eq("id", o.id);
     if (error) { toast.error(error.message); return; }
@@ -1813,8 +1809,8 @@ function QualityListsManager({ domain = "quality" }: { domain?: "quality" | "saf
    */
   const setDepartmentCharge = async (o: QualityOption, next: boolean) => {
     const { error } = await supabase
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
-      .from("quality_options" as any)
+       
+      .from("quality_options")
       .update({ counts_against_leader: next } as unknown as never)
       .eq("id", o.id);
     if (error) { reportSaveError(error); return; }

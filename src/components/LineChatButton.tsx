@@ -85,7 +85,7 @@ export function LineChatButton() {
     enabled: !!activeLineId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("line_chat_messages" as any)
+        .from("line_chat_messages")
         .select("*")
         .eq("line_id", activeLineId!)
         .order("created_at", { ascending: true })
@@ -186,7 +186,7 @@ export function LineChatButton() {
         targets.map(async (l) => {
           const since = seen[l.id] ?? "1970-01-01T00:00:00Z";
           const { count } = await supabase
-            .from("line_chat_messages" as any)
+            .from("line_chat_messages")
             .select("id", { count: "exact", head: true })
             .eq("line_id", l.id)
             .gt("created_at", since)
@@ -229,7 +229,7 @@ export function LineChatButton() {
     if (!body || !activeLineId || !user) return;
     setSending(true);
     const { data: inserted, error } = await supabase
-      .from("line_chat_messages" as any)
+      .from("line_chat_messages")
       .insert({
         line_id: activeLineId,
         user_id: user.id,

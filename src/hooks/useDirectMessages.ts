@@ -108,7 +108,7 @@ export function useDMThread(partnerId: string | null) {
     queryFn: async () => {
       if (!user || !partnerId) return [];
       let q = supabase
-        .from("direct_messages" as any)
+        .from("direct_messages")
         .select("*")
         .or(
           `and(sender_id.eq.${user.id},recipient_id.eq.${partnerId}),` +
@@ -169,7 +169,7 @@ export function useSendDM() {
       audioUrl?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
-      const { error } = await supabase.from("direct_messages" as any).insert({
+      const { error } = await supabase.from("direct_messages").insert({
         sender_id: user.id,
         sender_name: profile?.name || user.email || "Unknown",
         recipient_id: recipientId,
@@ -192,7 +192,7 @@ export function useMarkDMRead(partnerId: string | null) {
     mutationFn: async () => {
       if (!user || !partnerId) return;
       const { error } = await supabase
-        .from("direct_messages" as any)
+        .from("direct_messages")
         .update({ read_at: new Date().toISOString() } as any)
         .eq("recipient_id", user.id)
         .eq("sender_id", partnerId)
@@ -215,7 +215,7 @@ export function useDMUnreadBySender() {
     queryFn: async () => {
       if (!user) return {} as Record<string, number>;
       const { data, error } = await supabase
-        .from("direct_messages" as any)
+        .from("direct_messages")
         .select("sender_id")
         .eq("recipient_id", user.id)
         .is("read_at", null);
@@ -240,7 +240,7 @@ export function useDMUnreadCount() {
     queryFn: async () => {
       if (!user) return 0;
       const { count, error } = await supabase
-        .from("direct_messages" as any)
+        .from("direct_messages")
         .select("id", { count: "exact", head: true })
         .eq("recipient_id", user.id)
         .is("read_at", null);

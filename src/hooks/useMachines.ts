@@ -182,7 +182,7 @@ export function useMachineLocationLog(machineId?: string) {
     enabled: !!machineId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("machine_location_log" as any)
+        .from("machine_location_log")
         .select("*")
         .eq("machine_id", machineId!)
         .order("created_at", { ascending: false });

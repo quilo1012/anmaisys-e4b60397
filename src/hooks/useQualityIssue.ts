@@ -21,8 +21,7 @@ export function useQualityHistory(actionId?: string) {
     enabled: !!actionId,
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-        .from("quality_action_history" as any)
+        .from("quality_action_history")
         .select("*")
         .eq("action_id", actionId as string)
         .order("changed_at", { ascending: false });

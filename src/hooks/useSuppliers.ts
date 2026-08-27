@@ -40,7 +40,7 @@ export function useSuppliers() {
     queryKey: ["suppliers"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("suppliers" as any)
+        .from("suppliers")
         .select("*")
         .order("name", { ascending: true });
       if (error) throw error;
@@ -55,7 +55,7 @@ export function useSupplierMutations() {
 
   const create = useMutation({
     mutationFn: async (input: Partial<Supplier>) => {
-      const { error } = await supabase.from("suppliers" as any).insert(input as any);
+      const { error } = await supabase.from("suppliers").insert(input as any);
       if (error) throw error;
     },
     onSuccess: invalidate,
@@ -63,7 +63,7 @@ export function useSupplierMutations() {
 
   const update = useMutation({
     mutationFn: async ({ id, ...patch }: Partial<Supplier> & { id: string }) => {
-      const { error } = await supabase.from("suppliers" as any).update(patch as any).eq("id", id);
+      const { error } = await supabase.from("suppliers").update(patch as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidate,
@@ -71,7 +71,7 @@ export function useSupplierMutations() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("suppliers" as any).delete().eq("id", id);
+      const { error } = await supabase.from("suppliers").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidate,
@@ -85,7 +85,7 @@ export function usePurchaseOrders() {
     queryKey: ["purchase_orders"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("purchase_orders" as any)
+        .from("purchase_orders")
         .select("*, supplier:suppliers(name), items:purchase_order_items(*)")
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -108,14 +108,14 @@ export function usePurchaseOrderMutations() {
       items: { product_id: string | null; product_name: string; quantity: number; unit_price: number }[];
     }) => {
       const { data: po, error } = await supabase
-        .from("purchase_orders" as any)
+        .from("purchase_orders")
         .insert({ supplier_id: input.supplier_id, notes: input.notes ?? null, status: "draft" } as any)
         .select("id")
         .single();
       if (error) throw error;
       const poId = (po as any).id as string;
       if (input.items.length) {
-        const { error: itemsErr } = await supabase.from("purchase_order_items" as any).insert(
+        const { error: itemsErr } = await supabase.from("purchase_order_items").insert(
           input.items.map((it) => ({ ...it, purchase_order_id: poId })) as any,
         );
         if (itemsErr) throw itemsErr;
@@ -138,7 +138,7 @@ export function usePurchaseOrderMutations() {
       }
       const patch: Record<string, unknown> = { status };
       if (status === "sent") patch.sent_at = new Date().toISOString();
-      const { error } = await supabase.from("purchase_orders" as any).update(patch as any).eq("id", id);
+      const { error } = await supabase.from("purchase_orders").update(patch as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidate,
@@ -147,7 +147,7 @@ export function usePurchaseOrderMutations() {
 
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("purchase_orders" as any).delete().eq("id", id);
+      const { error } = await supabase.from("purchase_orders").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidate,

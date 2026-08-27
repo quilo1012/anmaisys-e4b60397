@@ -104,8 +104,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     enabled: enabled && actionIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-        .from("quality_action_history" as any)
+        .from("quality_action_history")
         .select("action_id, changed_at, new_value, field")
         .in("action_id", actionIds).eq("field", "status").eq("new_value", "complete");
       if (error) throw error;

@@ -18,8 +18,7 @@ function generateCode(): string {
   return out;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- table not in generated types yet
-const cfg = () => supabase.from("signup_config" as any);
+const cfg = () => supabase.from("signup_config");
 
 /** Admin card: manage the self-registration invite code + on/off switch. */
 export function SignupSettingsCard() {
