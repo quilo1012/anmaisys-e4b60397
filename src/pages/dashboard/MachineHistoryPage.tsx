@@ -158,24 +158,40 @@ export default function MachineHistoryPage() {
                 ) : !locationLog?.length ? (
                   <p className="text-muted-foreground text-center py-8">No location changes recorded.</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>From</TableHead>
-                        <TableHead>To</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {locationLog.map((log) => (
-                        <TableRow key={log.id}>
-                          <TableCell className="text-sm flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
-                          <TableCell>{log.from_location || "—"}</TableCell>
-                          <TableCell><Badge variant="outline" className="gap-1"><MapPin className="h-3 w-3" />{log.to_location}</Badge></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <ResponsiveTable
+                    table={
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>From</TableHead>
+                            <TableHead>To</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {locationLog.map((log) => (
+                            <TableRow key={log.id}>
+                              <TableCell className="text-sm flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
+                              <TableCell>{log.from_location || "—"}</TableCell>
+                              <TableCell><Badge variant="outline" className="gap-1"><MapPin className="h-3 w-3" />{log.to_location}</Badge></TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    }
+                    cards={locationLog.map((log) => (
+                      <TableCard
+                        key={log.id}
+                        title={<span className="text-sm flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}</span>}
+                      >
+                        <TableCardField label="From" value={log.from_location || "—"} />
+                        <TableCardField
+                          label="To"
+                          value={<Badge variant="outline" className="gap-1"><MapPin className="h-3 w-3" />{log.to_location}</Badge>}
+                        />
+                      </TableCard>
+                    ))}
+                  />
                 )}
               </CardContent>
             </Card>
