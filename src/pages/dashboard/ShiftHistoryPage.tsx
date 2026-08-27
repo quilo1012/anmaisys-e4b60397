@@ -5,8 +5,7 @@ import { shiftRank } from "@/lib/operationalShift";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConsoleStrip, ConsoleCell } from "@/components/ui/ConsoleStrip";
-import { ControlPlate, ControlRow, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
+import { ControlPlate, ControlRow, ControlField, ControlDivider, ControlReadout } from "@/components/ui/ControlPlate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, ChevronLeft, ChevronRight, CalendarDays, CalendarRange, ChevronsUpDown, Search, History } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, MoreHorizontal, ChevronsUpDown, Search, History } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
 import { InlineActualInput } from "@/components/InlineActualInput";
@@ -25,7 +25,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
 import { bayInk, baySpine, bayWash } from "@/lib/lineBay";
-import { format, subDays, startOfMonth, endOfMonth, addMonths, parseISO } from "date-fns";
+import { hasLeader } from "@/lib/sessionLeader";
+import { format, parseISO } from "date-fns";
 import { DateRangeFilter, type DateRangePreset } from "@/components/DateRangeFilter";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -442,17 +443,10 @@ export default function ShiftHistoryPage() {
   const [fLeader, setFLeader] = useState("__all__");
   const [fSku, setFSku] = useState("__all__");
 
-  // Daily = single day / custom range; Monthly = a whole month with a summary.
-  const [viewMode, setViewMode] = useState<"daily" | "monthly">("daily");
-  const [monthAnchor, setMonthAnchor] = useState<Date>(() => new Date());
-  useEffect(() => {
-    if (viewMode !== "monthly") return;
-    setFrom(format(startOfMonth(monthAnchor), "yyyy-MM-dd"));
-    setTo(format(endOfMonth(monthAnchor), "yyyy-MM-dd"));
-    // The monthly view drives the dates itself; the control must not still claim
-    // "Today" while showing a month.
-    setDrPreset("custom");
-  }, [viewMode, monthAnchor]);
+  // O período não conta como filtro: é sempre alguma coisa, e "limpar" o período não
+  // quer dizer nada. Estes quatro é que estão ligados ou desligados, e o botão que os
+  // repõe só existe quando há alguma coisa para repor.
+  const hasFilter = fShift !== "__all__" || fLine !== "__all__" || fLeader !== "__all__" || fSku !== "__all__";
 
   // Per-row delete targets the SINGLE SKU item — NOT the whole session. A trash
   // icon that sat on a SKU row but deleted the entire shift once wiped a full
@@ -699,7 +693,10 @@ export default function ShiftHistoryPage() {
       const b = bay.get(k) ?? { qty: 0, plan: 0, skus: 0, shifts: new Set<string>(), noLeader: false };
       b.qty += qty; b.plan += plan; b.skus += s.production_items.length;
       b.shifts.add(s.shift);
-      if (!s.leader_id) b.noLeader = true;
+      // Pela pergunta única, e não por `leader_id`: o tablet da nave grava o líder
+      // pelo nome e não pela ligação, e a placa acusava "sem líder" numa baía cuja
+      // fila, dois centímetros abaixo, tinha o nome dele escrito.
+      if (!hasLeader(s)) b.noLeader = true;
       bay.set(k, b);
     }
     return { day, bay };
@@ -824,47 +821,62 @@ export default function ShiftHistoryPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* O cabeçalho numa linha, e as acções por ordem de quem as usa.
+
+            Eram quatro botões com quase o mesmo peso — três `outline` e um cheio — e
+            dois deles, o `Export Template` e o `Import Production`, são tarefas de
+            arranque que se fazem uma vez e depois nunca mais. Ocupavam a linha de topo
+            todos os dias para servir um dia. Fica à vista a única acção que se repete
+            num turno, e o resto vive atrás do `⋯`.
+
+            Quem não é admin não vê menu nenhum: tem uma acção só, e um menu de um item
+            é uma gaveta com uma coisa lá dentro. */}
         <PageHeader
+          dense
           module="Production"
           title="Production Control"
-          description={
-            viewMode === "monthly"
-              ? `Monthly view · ${format(monthAnchor, "MMMM yyyy")}`
-              : from === to
-                ? `Daily view · ${from}`
-                : `${from} → ${to}`
-          }
           icon={<History className="h-5 w-5" />}
           actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            {isAdmin && (
-              <Button variant="outline" size="sm" onClick={async () => {
-                const XLSX = await import("xlsx");
-                const headers = ["Date","Assembly Number","Work Centre","Product Code","Product Description","Weight","QTY","Start Time","Finish Time","Shift"];
-                const sample = [
-                  ["25/06/2026","ASM-0001","Line 1","SKU-001","Sample Product A","0.500","1200","06:00","14:00","DAY"],
-                  ["25/06/2026","ASM-0002","Line 2","SKU-002","Sample Product B","0.750","850","18:00","02:00","NIGHT"],
-                ];
-                const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Template");
-                XLSX.writeFile(wb, `production-template-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-              }}>
-                <Download className="h-4 w-4 mr-1" />Export Template
+            isAdmin ? (
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => { setAddLine(fLine !== "__all__" ? fLine : (sortedLines[0]?.name ?? "")); setAddDate(from); setAddOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-1" />Add production
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-9 w-9" aria-label="More actions">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                      <Upload className="mr-2 h-4 w-4" />Import production
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void exportExcel()}>
+                      <Download className="mr-2 h-4 w-4" />Export to Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={async () => {
+                      const XLSX = await import("xlsx");
+                      const headers = ["Date","Assembly Number","Work Centre","Product Code","Product Description","Weight","QTY","Start Time","Finish Time","Shift"];
+                      const sample = [
+                        ["25/06/2026","ASM-0001","Line 1","SKU-001","Sample Product A","0.500","1200","06:00","14:00","DAY"],
+                        ["25/06/2026","ASM-0002","Line 2","SKU-002","Sample Product B","0.750","850","18:00","02:00","NIGHT"],
+                      ];
+                      const ws = XLSX.utils.aoa_to_sheet([headers, ...sample]);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, "Template");
+                      XLSX.writeFile(wb, `production-template-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+                    }}>
+                      <Download className="mr-2 h-4 w-4" />Download import template
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" onClick={exportExcel}>
+                <Download className="h-4 w-4 mr-1" />Export to Excel
               </Button>
-            )}
-            {isAdmin && (
-              <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                <Upload className="h-4 w-4 mr-1" />Import Production
-              </Button>
-            )}
-            {isAdmin && (
-              <Button size="sm" onClick={() => { setAddLine(fLine !== "__all__" ? fLine : (sortedLines[0]?.name ?? "")); setAddDate(from); setAddOpen(true); }}>
-                <Plus className="h-4 w-4 mr-1" />Add Production
-              </Button>
-            )}
-            <Button variant="outline" onClick={exportExcel}><Download className="h-4 w-4 mr-1" />Export Excel</Button>
-          </div>
+            )
           }
         />
 
@@ -874,92 +886,40 @@ export default function ShiftHistoryPage() {
           onImported={() => qc.invalidateQueries({ queryKey: ["shift_history"] })}
         />
 
-        {/* View toggle + month navigator */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
-            <Button
-              size="sm"
-              variant={viewMode === "daily" ? "default" : "ghost"}
-              className="gap-1.5"
-              onClick={() => { setViewMode("daily"); const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setDrPreset("today"); }}
-            >
-              <CalendarDays className="h-4 w-4" /> Daily
-            </Button>
-            <Button
-              size="sm"
-              variant={viewMode === "monthly" ? "default" : "ghost"}
-              className="gap-1.5"
-              onClick={() => setViewMode("monthly")}
-            >
-              <CalendarRange className="h-4 w-4" /> Monthly
-            </Button>
-          </div>
-          {viewMode === "monthly" && (
-            <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setMonthAnchor(addMonths(monthAnchor, -1))}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="min-w-[130px] text-center text-sm font-semibold">{format(monthAnchor, "MMMM yyyy")}</span>
-              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setMonthAnchor(addMonths(monthAnchor, 1))}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setMonthAnchor(new Date())}>This month</Button>
-            </div>
-          )}
-        </div>
+        {/* A placa de comando: o que estou a ver, e quanto deu.
 
-        {/* As quatro medidas do período, na mesma régua da Performance.
-            Eram quatro cartões, cada um com uma barra azul à esquerda. Uma barra que
-            está sempre acesa não distingue nada — e é o mecanismo com que o painel de
-            linhas diz, um clique atrás, qual é a linha que está a perder o turno.
-            Numa régua com filetes, os quatro números comparam-se; em quatro molduras,
-            cada um pedia a sua atenção. Só a atingimento leva cor: é a única das
-            quatro que pode estar boa ou má. */}
-        <ConsoleStrip>
-          <ConsoleCell label="Produced" value={Math.round(summary.actual).toLocaleString()} />
-          <ConsoleCell label="Target" value={Math.round(summary.target).toLocaleString()} />
-          <ConsoleCell
-            label="Attainment"
-            value={summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}
-            tone={
-              summary.target === 0
-                ? "text-muted-foreground"
-                : summary.pct >= 100
-                ? "text-success-strong"
-                : summary.pct >= 90
-                ? "text-warning-strong"
-                : "text-destructive-strong"
-            }
-          />
-          <ConsoleCell
-            label={viewMode === "monthly" ? "Days produced" : "Days"}
-            value={`${summary.days}`}
-            hint={`${summary.lineCount} line${summary.lineCount === 1 ? "" : "s"}`}
-          />
-        </ConsoleStrip>
+            Este ecrã perguntava o período em três sítios. Um alternador `Daily |
+            Monthly`, um navegador de mês com setas próprias, dois botões de atalho — e
+            este campo, que já sabia fazer o trabalho dos três e ainda tinha por dentro
+            o `Today`, o `Yesterday`, o `Current shift`, os `7/30/90 dias`, o `This
+            month` e o `All time`. Três manípulos no mesmo veio, e nenhum a saber dos
+            outros: escolher `Daily` reescrevia as datas, escolher no calendário não
+            mexia no alternador, e era daí que vinha a sensação de que a folha não
+            obedecia. Ficou a pergunta uma vez, com as setas que andam com o período
+            pelo seu próprio tamanho.
 
+            O `Today` fazia duas coisas numa tecla — repunha o dia E limpava turno,
+            linha, líder e SKU. A primeira é um preset e já lá está dentro; a segunda é
+            o `Clear filters`, que só aparece quando há alguma coisa para limpar.
 
-        {/* A placa de comando, na gramática da casa.
-            Eram seis campos numa grelha de cartão, cada chapa escrita à mão com um
-            `<Label className="text-xs">` — a mesma barra que a Performance e a RAG
-            têm, escrita numa terceira maneira. Aqui as chapas são gravadas pelo
-            `ControlField` e o filete separa o que se navega do que se filtra. */}
+            O marcador do lado direito era uma régua de quatro cartões uma faixa acima.
+            Uma régua serve para comparar medidas entre si; estas não se comparam umas
+            com as outras, confirmam o que os manípulos ao lado escolheram — e é ao lado
+            deles que valem alguma coisa. */}
         <ControlPlate>
           <ControlRow>
-            {/* O mesmo controlo de período da Manutenção, da Qualidade e das Paragens.
-                Três datas cruas — única, de, até — pediam ao leitor que descobrisse
-                qual delas mandava, e a "única" escrevia as duas em silêncio. */}
-            <ControlField label="Period" className="min-w-[17rem] flex-1">
+            <ControlField label="Period" className="min-w-[20rem] flex-1">
               <DateRangeFilter
                 className="w-full"
+                steppable
                 value={{ from: parseISO(from), to: parseISO(to) }}
                 preset={drPreset}
                 storageKey={OPS_RANGE_KEY}
                 onChange={(r, p) => {
                   setDrPreset(p);
                   // This page speaks yyyy-MM-dd end to end — the queries, the exports
-                  // and the month anchor all do — so the range is flattened here
-                  // rather than threaded through as Date objects.
+                  // and the grouping all do — so the range is flattened here rather
+                  // than threaded through as Date objects.
                   if (r.from) setFrom(format(r.from, "yyyy-MM-dd"));
                   if (r.to) setTo(format(r.to, "yyyy-MM-dd"));
                 }}
@@ -997,19 +957,40 @@ export default function ShiftHistoryPage() {
                 <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </ControlField>
-          </ControlRow>
-          <ControlRow>
-            <ControlField label="SKU" className="min-w-[16rem] flex-1">
+            <ControlField label="SKU" className="min-w-[14rem] flex-1">
               <SkuCombobox skus={skus} value={fSku} onChange={setFSku} allowAll placeholder="All SKUs" />
             </ControlField>
-            <ControlDivider />
-            <div className="flex items-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => {
-                const t = format(new Date(), "yyyy-MM-dd"); setFrom(t); setTo(t); setDrPreset("today"); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
-              }}>Today</Button>
-              <Button variant="ghost" size="sm" onClick={() => {
-                setFrom(format(subDays(new Date(), 14), "yyyy-MM-dd")); setTo(format(new Date(), "yyyy-MM-dd")); setDrPreset("custom"); setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__");
-              }}>Last 14 days</Button>
+            {hasFilter && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 self-end text-muted-foreground"
+                onClick={() => { setFShift("__all__"); setFLine("__all__"); setFLeader("__all__"); setFSku("__all__"); }}
+              >
+                Clear filters
+              </Button>
+            )}
+            <div className="ml-auto flex items-end gap-4">
+              <ControlDivider />
+              <ControlReadout
+                label="Produced"
+                value={Math.round(summary.actual).toLocaleString()}
+                against={summary.target > 0 ? Math.round(summary.target).toLocaleString() : undefined}
+              />
+              <ControlReadout
+                label="Attainment"
+                value={summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}
+                tone={
+                  summary.target === 0
+                    ? "text-muted-foreground"
+                    : summary.pct >= 100
+                      ? "text-success-strong"
+                      : summary.pct >= 90
+                        ? "text-warning-strong"
+                        : "text-destructive-strong"
+                }
+                hint={`${summary.days} day${summary.days === 1 ? "" : "s"} · ${summary.lineCount} line${summary.lineCount === 1 ? "" : "s"}`}
+              />
             </div>
           </ControlRow>
         </ControlPlate>
@@ -1143,7 +1124,7 @@ export default function ShiftHistoryPage() {
                             const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
                             const effUnit: "tubs" | "bags" = noteUnit ?? (isTubHint ? "tubs" : isBagHint ? "bags" : "bags");
                             const blenders = Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y);
-                            const noLeader = !s.leader_id;
+                            const noLeader = !hasLeader(s);
                             const isNight = s.shift !== "DAY";
                             // O tom da fila diz a hora, e o problema ganha à hora.
                             //
@@ -1356,7 +1337,7 @@ export default function ShiftHistoryPage() {
                       const blob = `${code} ${name}`.toLowerCase();
                       const effUnit: "tubs" | "bags" = noteUnit ?? (/tub/.test(blob) ? "tubs" : /bag|sach|pouch/.test(blob) ? "bags" : "bags");
                       const blenders = Array.from(new Set(((i as any).production_blender_entries ?? []).map((b: any) => b.blender_number as number))).sort((x: number, y: number) => x - y);
-                      const noLeader = !s.leader_id;
+                      const noLeader = !hasLeader(s);
                       return (
                         <TableCard
                           key={`m-${s.id}-${i.id ?? idx}`}

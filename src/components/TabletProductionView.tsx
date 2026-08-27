@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLeaders } from "@/hooks/useProductionPlanner";
+import { resolveLeader } from "@/lib/sessionLeader";
 import { Target, BarChart3, ShoppingCart, Lock } from "lucide-react";
 import { format } from "date-fns";
 
@@ -38,6 +40,7 @@ type WORow = {
 
 export function TabletProductionView() {
   const { user } = useAuth();
+  const { data: leaders = [] } = useLeaders();
   const qc = useQueryClient();
   const [operatorName, setOperatorName] = useState("");
   const [operatorNotes, setOperatorNotes] = useState("");
@@ -118,9 +121,17 @@ export function TabletProductionView() {
   const submitShiftMutation = useMutation({
     mutationFn: async () => {
       if (!sessionData?.id) throw new Error("No active session for this shift.");
+      const leader = resolveLeader(operatorName, leaders);
       const { error } = await (supabase as any)
         .from("production_sessions")
-        .update({ leader_name: operatorName, notes: operatorNotes })
+        // O nome escrito passa a ser ligado à `line_leaders` quando lá está.
+        //
+        // Este `update` gravava só o nome, e era daqui que saíam as 344 sessões em 563
+        // que tinham líder mas nenhuma ligação a ele: a folha da Production Control
+        // acusava-as de "sem líder" enquanto mostrava o nome na fila, e os scorecards
+        // semanais não as viam de todo. Quem não estiver na tabela continua a ficar
+        // escrito — um líder novo não desaparece por ainda não estar registado.
+        .update({ leader_id: leader.id, leader_name: leader.name, notes: operatorNotes })
         .eq("id", sessionData.id);
       if (error) throw error;
     },

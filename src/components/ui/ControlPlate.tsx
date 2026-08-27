@@ -80,4 +80,53 @@ export function ControlDivider({ className }: { className?: string }) {
   return <div className={cn("hidden h-10 w-px self-end bg-border lg:block", className)} aria-hidden />;
 }
 
+/**
+ * O marcador da placa: o que o instrumento está a marcar com os manípulos como estão.
+ *
+ * Estava numa régua de quatro cartões, uma faixa acima — `Produced`, `Target`,
+ * `Attainment`, `Days`. Uma régua compara medidas entre si, e é para isso que serve;
+ * estas quatro não se comparam umas com as outras, confirmam o que os manípulos ao
+ * lado escolheram. Postas numa moldura própria, mandavam o leitor subir e descer entre
+ * a pergunta e a resposta. No extremo da mesma placa lêem-se de uma vez: mudou-se o
+ * turno, o número ao lado mexeu.
+ *
+ * `tone` é para a única medida que pode estar boa ou má. Duas medidas coloridas ao
+ * mesmo tempo e o marcador deixa de ter uma leitura, passa a ter duas.
+ */
+export function ControlReadout({
+  label,
+  value,
+  against,
+  tone,
+  hint,
+  className,
+}: {
+  label: string;
+  value: React.ReactNode;
+  /** O planeado, contra o qual o valor se lê. Fica na mesma linha, em letra de fundo. */
+  against?: React.ReactNode;
+  tone?: string;
+  hint?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <span className="font-display text-2xs font-bold uppercase leading-none tracking-[0.12em] text-muted-foreground">
+        {label}
+      </span>
+      <div className="flex h-9 flex-col justify-center">
+        <div className="flex items-baseline gap-1.5">
+          <span className={cn("font-figure text-lg font-bold leading-none", tone ?? "text-foreground")}>
+            {value}
+          </span>
+          {against && (
+            <span className="font-figure text-xs leading-none text-muted-foreground">/ {against}</span>
+          )}
+        </div>
+        {hint && <div className="mt-1 truncate text-2xs leading-none text-muted-foreground">{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
 export default ControlPlate;
