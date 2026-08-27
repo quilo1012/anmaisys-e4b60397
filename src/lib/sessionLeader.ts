@@ -34,3 +34,46 @@ function filled(value: string | null | undefined): boolean {
 export function hasLeader(session: SessionLeaderFields): boolean {
   return filled(session.leader_id) || filled(session.leader_name);
 }
+
+/** A chave por que dois nomes são o mesmo nome: sem maiúsculas, sem espaços a mais. */
+function nameKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * O nome escrito no tablet, ligado à `line_leaders` — ou guardado como está.
+ *
+ * O `hasLeader` acima conserta a leitura de hoje; isto é o que impede a de amanhã. Sem
+ * esta resolução, cada turno grava outra sessão só com nome, e a folha volta a encher-se
+ * de linhas que o resto do sistema — os scorecards, a atribuição por linha — não vê.
+ *
+ * Três decisões, e as três são sobre não estragar o que já se sabe:
+ *
+ * 1. Perdoa as maiúsculas e os espaços. Quem escreve à pressa num tablet, de luvas,
+ *    não acerta neles — e "  gill " é o Gill.
+ *
+ * 2. Um nome que não está na tabela **fica escrito na mesma**. Deitá-lo fora por não
+ *    haver ligação trocava um problema por outro pior: a sessão passava de "tem líder,
+ *    sem ligação" para "não teve ninguém", e o turno perdia a única coisa que se sabia
+ *    dele. É também assim que um líder novo, ainda por registar, não desaparece.
+ *
+ * 3. Com dois homónimos na tabela não escolhe nenhum. Escolher à sorte põe metade dos
+ *    turnos de uma pessoa na conta da outra, e ninguém repara — que é a pior maneira de
+ *    um número estar errado.
+ *
+ * A lista que se passa é a que se quer considerar: passando só os activos, um líder que
+ * saiu deixa de ser ligado; passando todos, continua a sê-lo. O ecrã decide, não isto.
+ */
+export function resolveLeader(
+  typed: string | null | undefined,
+  roster: { id: string; name: string }[],
+): { id: string | null; name: string | null } {
+  const written = (typed ?? "").trim();
+  if (!written) return { id: null, name: null };
+
+  const key = nameKey(written);
+  const hits = roster.filter((l) => nameKey(l.name) === key);
+  if (hits.length !== 1) return { id: null, name: written };
+
+  return { id: hits[0].id, name: hits[0].name };
+}

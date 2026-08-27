@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hasLeader } from "@/lib/sessionLeader";
+import { hasLeader, resolveLeader } from "@/lib/sessionLeader";
 
 describe("hasLeader", () => {
   /**
@@ -39,5 +39,59 @@ describe("hasLeader", () => {
   it("survives a session that carries neither field", () => {
     expect(hasLeader({})).toBe(false);
     expect(hasLeader({ leader_id: undefined, leader_name: undefined })).toBe(false);
+  });
+});
+
+describe("resolveLeader", () => {
+  const roster = [
+    { id: "30c79769", name: "Gill" },
+    { id: "7e7f1558", name: "thiago souza" },
+    { id: "60d30863", name: "ROBERT" },
+  ];
+
+  /**
+   * A origem do bug, atacada onde nasce.
+   *
+   * O tablet da nave grava o nome que o operador escreve e mais nada. Enquanto for
+   * assim, cada turno cria outra sessão sem ligação à `line_leaders` — e o `hasLeader`
+   * aqui ao lado conserta a leitura de hoje mas não impede a de amanhã.
+   */
+  it("links a typed name to the roster", () => {
+    expect(resolveLeader("Gill", roster)).toEqual({ id: "30c79769", name: "Gill" });
+  });
+
+  /** Quem escreve à pressa num tablet não acerta nas maiúsculas nem nos espaços. */
+  it("forgives the case and the spacing of a name typed in a hurry", () => {
+    expect(resolveLeader("  gill ", roster)).toEqual({ id: "30c79769", name: "Gill" });
+    expect(resolveLeader("ROBERT", roster)).toEqual({ id: "60d30863", name: "ROBERT" });
+    expect(resolveLeader("thiago  souza", roster)).toEqual({ id: "7e7f1558", name: "thiago souza" });
+  });
+
+  /** A grafia que fica é a da tabela, não a do teclado: um nome, uma escrita. */
+  it("writes the name back the way the roster spells it", () => {
+    expect(resolveLeader("robert", roster).name).toBe("ROBERT");
+  });
+
+  /**
+   * Quem não está na tabela continua a ficar escrito.
+   *
+   * Deitar fora o nome por não haver ligação seria trocar um problema por outro pior:
+   * a sessão passava de "tem líder mas sem ligação" para "não teve ninguém", e o turno
+   * perdia a única coisa que se sabia dele.
+   */
+  it("keeps a name it cannot link rather than dropping it", () => {
+    expect(resolveLeader("Fulano", roster)).toEqual({ id: null, name: "Fulano" });
+    expect(resolveLeader("  Fulano  ", roster)).toEqual({ id: null, name: "Fulano" });
+  });
+
+  it("treats a blank field as nobody", () => {
+    expect(resolveLeader("", roster)).toEqual({ id: null, name: null });
+    expect(resolveLeader("   ", roster)).toEqual({ id: null, name: null });
+  });
+
+  /** Dois homónimos na tabela: escolher um deles à sorte é pior do que não escolher. */
+  it("refuses to guess between two people with the same name", () => {
+    const twins = [{ id: "a", name: "Gill" }, { id: "b", name: "gill" }];
+    expect(resolveLeader("Gill", twins)).toEqual({ id: null, name: "Gill" });
   });
 });
