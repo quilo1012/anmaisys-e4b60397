@@ -68,7 +68,10 @@ export default {
   				'field-top': 'hsl(var(--auth-field-top))',
   				brand: 'hsl(var(--auth-brand))',
   				ink: 'hsl(var(--auth-ink))',
-  				'ink-muted': 'hsl(var(--auth-ink-muted))'
+  				'ink-muted': 'hsl(var(--auth-ink-muted))',
+  				'panel-deep': 'hsl(var(--auth-panel-deep))',
+  				paper: 'hsl(var(--auth-paper))',
+  				line: 'hsl(var(--auth-line))'
   			},
   			success: {
   				DEFAULT: 'hsl(var(--success))',

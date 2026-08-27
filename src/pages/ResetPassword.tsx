@@ -4,13 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Lock, Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2, KeyRound } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
-
-const inputCls =
-  "h-11 w-full rounded-lg border border-auth-ink/15 bg-auth-ink/5 pl-10 pr-4 text-sm text-auth-ink transition-all placeholder:text-auth-ink-muted hover:border-auth-ink/15 focus:border-auth-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-auth-brand/20";
-const primaryBtn =
-  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[hsl(var(--auth-brand))] text-sm font-semibold text-white transition-colors hover:bg-[hsl(var(--auth-brand) / 0.85)] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60";
-const ghostBtn =
-  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-auth-ink/15 bg-white text-sm font-medium text-auth-ink transition-colors hover:bg-auth-ink/5";
+import {
+  authFieldIconed,
+  authFieldIconedAction,
+  authGhostBtn as ghostBtn,
+  authIcon,
+  authInlineBtn,
+  authLabel,
+  authPrimaryBtn as primaryBtn,
+} from "@/components/auth/authStyles";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -45,8 +47,9 @@ export default function ResetPassword() {
       if (error) throw error;
       setSent(true);
       toast({ title: "Recovery email sent", description: "Check your inbox for the password reset link." });
-    } catch (error: any) {
-      toast({ title: "Could not send recovery email", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : String(error);
+      toast({ title: "Could not send recovery email", description, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -64,8 +67,9 @@ export default function ResetPassword() {
       if (error) throw error;
       toast({ title: "Password updated", description: "You can now sign in with your new password." });
       setTimeout(() => navigate("/login", { replace: true }), 1500);
-    } catch (error: any) {
-      toast({ title: "Could not update password", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const description = error instanceof Error ? error.message : String(error);
+      toast({ title: "Could not update password", description, variant: "destructive" });
       setLoading(false);
     }
   };
@@ -91,9 +95,9 @@ export default function ResetPassword() {
       <AuthShell badge={recoveryBadge} title="Set new password" subtitle="Create a new password for your account.">
         <form onSubmit={handleUpdatePassword} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="new-password" className="text-sm font-medium text-auth-ink">New password</label>
+            <label htmlFor="new-password" className={authLabel}>New password</label>
             <div className="relative">
-              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
+              <Lock className={authIcon} />
               <input
                 id="new-password"
                 type={showPassword ? "text" : "password"}
@@ -104,12 +108,12 @@ export default function ResetPassword() {
                 required
                 autoComplete="new-password"
                 autoFocus
-                className={inputCls + " pr-11"}
+                className={authFieldIconedAction}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((s) => !s)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-auth-ink-muted transition-colors hover:text-auth-ink"
+                className={authInlineBtn}
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 tabIndex={-1}
               >
@@ -145,9 +149,9 @@ export default function ResetPassword() {
       ) : (
         <form onSubmit={handleSendLink} className="space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="reset-email" className="text-sm font-medium text-auth-ink">Email</label>
+            <label htmlFor="reset-email" className={authLabel}>Email</label>
             <div className="relative">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
+              <Mail className={authIcon} />
               <input
                 id="reset-email"
                 type="email"
@@ -157,7 +161,7 @@ export default function ResetPassword() {
                 required
                 autoComplete="email"
                 autoFocus
-                className={inputCls}
+                className={authFieldIconed}
               />
             </div>
           </div>

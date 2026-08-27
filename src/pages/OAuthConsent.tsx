@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { authGhostBtn, authPrimaryBtn } from "@/components/auth/authStyles";
 
 // Typed local wrapper over the beta supabase.auth.oauth namespace so this file
 // compiles even before the SDK types are updated.
@@ -116,14 +117,14 @@ export default function OAuthConsent() {
         <button
           disabled={busy}
           onClick={() => decide(true)}
-          className="flex-1 inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[hsl(var(--auth-brand))] text-sm font-semibold text-white transition-colors hover:bg-[hsl(var(--auth-brand) / 0.85)] active:scale-[0.99] disabled:pointer-events-none disabled:opacity-60"
+          className={`${authPrimaryBtn} flex-1`}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve"}
         </button>
         <button
           disabled={busy}
           onClick={() => decide(false)}
-          className="flex-1 inline-flex h-11 items-center justify-center rounded-lg border border-auth-ink/15 bg-white text-sm font-medium text-auth-ink transition-colors hover:bg-auth-ink/5 disabled:opacity-60"
+          className={`${authGhostBtn} flex-1`}
         >
           Deny
         </button>

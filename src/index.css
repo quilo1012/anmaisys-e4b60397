@@ -101,6 +101,14 @@
     --auth-brand: 207 88% 35%;
     --auth-ink: 215 40% 9%;
     --auth-ink-muted: 214 14% 42%;
+    /* O painel da marca desce um pouco abaixo do `--auth-field` para o gradiente
+       ter para onde ir sem sair do mesmo azul. O `--auth-line` e o `--auth-paper`
+       são o lado claro: o formulário deixou de ser vidro sobre azul e passou a ser
+       papel opaco, por isso precisa de um fio de contorno próprio em vez de contar
+       com o `white/70` que só lia por cima do desfoque. */
+    --auth-panel-deep: 211 46% 9%;
+    --auth-paper: 0 0% 100%;
+    --auth-line: 214 24% 88%;
 
     /* O ecrã de parede, e os de linha.
        Fixos como os de autenticação, e pela razão inversa: um ecrã pendurado sobre a
