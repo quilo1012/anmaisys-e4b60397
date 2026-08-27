@@ -776,7 +776,14 @@ export default function LineProductionScreen() {
             )
           )}
 
-          <div className="ml-auto flex items-center gap-3">
+          {/* flex-wrap, not just on the parent. The header card wraps, but this group
+              did not, so its children formed one indivisible ~1148px row: below 1440px
+              the tail of it — the clock, Sync SKUs, Kiosk and Sign out — was cut off by
+              the `overflow-x: hidden` safety net in index.css, with no scrollbar and no
+              clipped edge to hint at it. Measured on a 390px phone: 17 elements past the
+              viewport, Sign out reaching 1016px. On an 820px line tablet: 10, including
+              Sign out. See e2e/every-screen-empty.spec.ts. */}
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-3 min-w-0">
             <SyncStatusIndicator
               isSyncing={itemsQ.isFetching || ragPlanQ.isFetching || sessionQ.isFetching || updateActual.isPending}
               error={updateActual.error || itemsQ.error || ragPlanQ.error}

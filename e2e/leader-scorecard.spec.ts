@@ -163,6 +163,13 @@ async function stubSupabase(page: Page) {
 
 /** The one thing jsdom cannot check: does the page fit the width it was given. */
 async function assertNoSidewaysScroll(page: Page, where: string) {
+  // NOTE — this compares document.scrollWidth against window.innerWidth, and index.css
+  // clamps html/body/#root to 100vw with overflow-x: hidden, so scrollWidth can never
+  // exceed innerWidth and this can never fail. Proved by injecting a 900px div into a
+  // 390px viewport: scrollWidth stayed at 390. Kept because it costs nothing and would
+  // start working if the clamp were ever removed, but the check that finds real defects
+  // is assertNothingIsClipped in every-screen-empty.spec.ts, which measures element
+  // right edges instead — it found three screens this one had passed.
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,

@@ -271,8 +271,12 @@ export default function PermissionsMatrixPage() {
   return (
     <DashboardLayout>
     <div className="space-y-4">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-20 -mx-4 md:-mx-6 border-b bg-background/95 px-4 py-3 backdrop-blur md:px-6">
+      {/* Sticky header, pulled out to the edges of the page.
+          The negative margin has to match DashboardLayout's padding exactly, and it did
+          not: the layout is `p-3 sm:p-4 md:p-6` (12/16/24px) and this pulled -mx-4 (16px)
+          at every size, so on a phone it overhung by 4px each side. Invisible, because
+          index.css clips the overflow — measured at 394px in a 390px viewport. */}
+      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 border-b bg-background/95 px-3 py-3 backdrop-blur sm:px-4 md:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Inside the sticky bar, so it scrolls with the mode switch it belongs to.
               mb-0 because the bar provides the spacing here. The page-level Back is
