@@ -15,6 +15,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ResponsiveTable, TableCard, TableCardField } from "@/components/ResponsiveTable";
 import { ArrowLeft, Loader2, Wrench, TrendingDown, Heart, MapPin, Clock } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useMachineLocationLog } from "@/hooks/useMachines";
@@ -99,28 +100,50 @@ export default function MachineHistoryPage() {
                 ) : !machineWOs.length ? (
                   <p className="text-muted-foreground text-center py-8">No maintenance orders for this machine.</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>WO#</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Priority</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Created</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {machineWOs.map((wo) => (
-                        <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
-                          <TableCell className="font-mono">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>
-                          <TableCell><Badge className={`${getWoStatusConfig(wo.status).className} border`}>{getWoStatusConfig(wo.status).label}</Badge></TableCell>
-                          <TableCell><Badge className={`${PRIORITY_BADGE[(wo.priority || "").toLowerCase()] ?? "bg-muted text-muted-foreground border-border"} border capitalize`}>{wo.priority || "—"}</Badge></TableCell>
-                          <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <ResponsiveTable
+                    table={
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>WO#</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Priority</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Created</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {machineWOs.map((wo) => (
+                            <TableRow key={wo.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/dashboard/wo/${wo.id}`)}>
+                              <TableCell className="font-mono">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</TableCell>
+                              <TableCell><Badge className={`${getWoStatusConfig(wo.status).className} border`}>{getWoStatusConfig(wo.status).label}</Badge></TableCell>
+                              <TableCell><Badge className={`${PRIORITY_BADGE[(wo.priority || "").toLowerCase()] ?? "bg-muted text-muted-foreground border-border"} border capitalize`}>{wo.priority || "—"}</Badge></TableCell>
+                              <TableCell className="max-w-[200px] truncate">{wo.description}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    }
+                    cards={machineWOs.map((wo) => (
+                      <TableCard
+                        key={wo.id}
+                        onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
+                        title={`WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`}
+                        right={<Badge className={`${getWoStatusConfig(wo.status).className} border`}>{getWoStatusConfig(wo.status).label}</Badge>}
+                      >
+                        <TableCardField
+                          label="Priority"
+                          value={<Badge className={`${PRIORITY_BADGE[(wo.priority || "").toLowerCase()] ?? "bg-muted text-muted-foreground border-border"} border capitalize`}>{wo.priority || "—"}</Badge>}
+                        />
+                        <TableCardField
+                          label="Created"
+                          value={<span className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</span>}
+                        />
+                        <TableCardField label="Description" value={wo.description} block />
+                      </TableCard>
+                    ))}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -135,24 +158,40 @@ export default function MachineHistoryPage() {
                 ) : !locationLog?.length ? (
                   <p className="text-muted-foreground text-center py-8">No location changes recorded.</p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>From</TableHead>
-                        <TableHead>To</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {locationLog.map((log) => (
-                        <TableRow key={log.id}>
-                          <TableCell className="text-sm flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
-                          <TableCell>{log.from_location || "—"}</TableCell>
-                          <TableCell><Badge variant="outline" className="gap-1"><MapPin className="h-3 w-3" />{log.to_location}</Badge></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <ResponsiveTable
+                    table={
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>From</TableHead>
+                            <TableHead>To</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {locationLog.map((log) => (
+                            <TableRow key={log.id}>
+                              <TableCell className="text-sm flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
+                              <TableCell>{log.from_location || "—"}</TableCell>
+                              <TableCell><Badge variant="outline" className="gap-1"><MapPin className="h-3 w-3" />{log.to_location}</Badge></TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    }
+                    cards={locationLog.map((log) => (
+                      <TableCard
+                        key={log.id}
+                        title={<span className="text-sm flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{format(new Date(log.created_at), "dd/MM/yyyy HH:mm")}</span>}
+                      >
+                        <TableCardField label="From" value={log.from_location || "—"} />
+                        <TableCardField
+                          label="To"
+                          value={<Badge variant="outline" className="gap-1"><MapPin className="h-3 w-3" />{log.to_location}</Badge>}
+                        />
+                      </TableCard>
+                    ))}
+                  />
                 )}
               </CardContent>
             </Card>
