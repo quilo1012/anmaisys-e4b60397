@@ -1,24 +1,43 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Lock, Eye, EyeOff, Loader2, ArrowRight, Tablet, ShieldAlert, CheckCircle2, Monitor, Smartphone } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  ShieldAlert,
+  Tablet,
+} from "lucide-react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePublicTabletAccounts } from "@/hooks/useOperatorAccounts";
+import { usePublicTabletAccounts, type PublicTabletAccount } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
-import { useLines } from "@/hooks/useMachines";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
 import { AuthShell } from "@/components/auth/AuthShell";
+import {
+  authBtnBase,
+  authFieldIconed,
+  authFieldIconedAction,
+  authIcon,
+  authInlineBtn,
+  authLabel,
+  authLink,
+} from "@/components/auth/authStyles";
 import {
   clearLoginLockout,
   getLoginLockout,
   recordLoginFailure,
 } from "@/lib/loginRateLimit";
+import { resolveIdentity, suggestTablets } from "@/lib/loginIdentity";
 
-
-const MODE_KEY = "an_login_mode";
 const TABLET_KEY = "an_tablet_account_id";
 const TABLET_TS_KEY = "an_tablet_account_id_at";
 // Tablet selection auto-clears after one shift (8 hours) so a tablet left
@@ -26,7 +45,7 @@ const TABLET_TS_KEY = "an_tablet_account_id_at";
 const TABLET_SELECTION_TTL_MS = 8 * 60 * 60 * 1000;
 // Persisted credentials used to silently re-login a Tablet account whose
 // refresh-token was revoked (e.g. the same shared account refreshing on
-// another tablet). Scoped to Tablet mode only — never used for staff.
+// another tablet). Scoped to shared tablet accounts only — never used for staff.
 const TABLET_CRED_KEY = "an_tablet_cred";
 
 function getStoredTabletId(): string {
@@ -43,43 +62,26 @@ function getStoredTabletId(): string {
   return id;
 }
 
-type Mode = "staff" | "tablet";
-
-// Access environments shown as cards. They're a UX layer over the auth `mode`
-// (email/password vs tablet account); the real access a user gets is still
-// decided by their role (RBAC + RLS), never by the device they picked.
-type Env = "desktop" | "tablet" | "mobile";
-const ENV_KEY = "an_login_env";
-const ENVIRONMENTS: Array<{
-  key: Env; mode: Mode; label: string; tagline: string; profile: string;
-  icon: typeof Monitor; color: string; tint: string;
-}> = [
-  // As três cores são CATEGÓRICAS: dizem que dispositivo é, não se algo corre bem. Por
-  // isso ficam três matizes distintas e não descem dos tokens de estado — pintar o
-  // tablet de `go` verde diria "está tudo bem com o tablet", que não é uma afirmação
-  // que este ecrã faça. O que mudou foi virem todas do mesmo registo de saturação, e o
-  // desktop passar a ser o azul da marca em vez de um azul aproximado.
-  { key: "desktop", mode: "staff", label: "Desktop", tagline: "Management & Administration",
-    profile: "Admin, Manager, Supervisor, Engineering, Planning",
-    icon: Monitor, color: "hsl(var(--auth-brand))", tint: "hsl(var(--auth-brand) / 0.08)" },
-  { key: "tablet", mode: "tablet", label: "Tablet", tagline: "Line Operation",
-    profile: "Operator, Technician, Maintenance, Production",
-    icon: Tablet, color: "hsl(158 84% 28%)", tint: "hsl(158 84% 28% / 0.08)" },
-  { key: "mobile", mode: "staff", label: "Mobile", tagline: "Quick Operational Access",
-    profile: "External technician, Leader, Field",
-    icon: Smartphone, color: "hsl(266 68% 42%)", tint: "hsl(266 68% 42% / 0.08)" },
-];
-
-/** Soft role↔environment mismatch note (informational; access still follows role). */
-function envMismatch(role: string | null | undefined, env: Env): string | null {
-  const r = (role ?? "").toLowerCase();
-  if (env === "tablet" && ["admin", "manager", "supervisor"].includes(r))
-    return "⚠️ Wrong environment — Your account has Desktop access. Use the Management / Administration login.";
-  if (env === "desktop" && r === "operator")
-    return "⚠️ Insufficient permission — This account has no administrative access.";
-  return null;
-}
-
+/**
+ * Sign-in.
+ *
+ * Havia aqui três cartões de ambiente (Desktop / Tablet / Mobile) e, dentro do
+ * ambiente Tablet, mais um par de separadores (Conta partilhada / A minha conta):
+ * cinco controlos para uma decisão que é binária — ou entras com o teu email, ou
+ * entras com um tablet de linha partilhado. Pior, o ambiente escolhido não decidia
+ * nada sobre o acesso: isso sempre veio do papel (RBAC + RLS), e o aviso de
+ * incompatibilidade só aparecia *depois* de a sessão já estar aberta.
+ *
+ * Ficou um campo. O que lá escreves é que diz quem és: uma arroba é uma pessoa, um
+ * nome de tablet é um posto. O ecrã mostra o que reconheceu antes de submeteres,
+ * para o reconhecimento ser visível e não magia.
+ *
+ * Os dois caminhos de autenticação continuam a ser dois, porque são mesmo
+ * diferentes: o staff vai a `signInWithPassword`, o tablet vai à edge function
+ * `tablet-signin`, que resolve o email do lado do servidor (nunca chega ao browser)
+ * e força o papel `operator`. É por isso que um engenheiro tem de entrar pelo seu
+ * email mesmo quando está a usar um tablet — pela conta partilhada perderia o papel.
+ */
 export default function Login() {
   const navigate = useNavigate();
   // Login lands on the role's own dashboard. It used to always land on a separate
@@ -92,35 +94,42 @@ export default function Login() {
   const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
   const { toast } = useToast();
   const { session, role, loading: authLoading } = useAuth();
-  const { data: operatorAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
-  const { data: lines } = useLines();
+  const { data: tabletAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
   const { data: branding } = useLoginBranding();
 
-  // ── Mode state (Staff vs Tablet) ────────────────────────────
-  const [mode, setMode] = useState<Mode>(() => {
-    if (typeof window === "undefined") return "staff";
-    const stored = localStorage.getItem(MODE_KEY);
-    return stored === "tablet" ? "tablet" : "staff";
-  });
-  const [environment, setEnvironment] = useState<Env>(() => {
-    if (typeof window === "undefined") return "desktop";
-    const storedEnv = localStorage.getItem(ENV_KEY) as Env | null;
-    if (storedEnv === "desktop" || storedEnv === "tablet" || storedEnv === "mobile") return storedEnv;
-    return localStorage.getItem(MODE_KEY) === "tablet" ? "tablet" : "desktop";
-  });
-  const selectedEnv = ENVIRONMENTS.find((e) => e.key === environment) ?? ENVIRONMENTS[0];
-
   // ── Form state ──────────────────────────────────────────────
-  const [email, setEmail] = useState("");
-  const [tabletAccountId, setTabletAccountId] = useState<string>(() => getStoredTabletId());
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const comboRef = useRef<HTMLDivElement>(null);
+
+  const identity = useMemo(
+    () => resolveIdentity<PublicTabletAccount>(identifier, tabletAccounts),
+    [identifier, tabletAccounts],
+  );
+  const matchedTablet = identity.kind === "tablet" ? identity.tablet : null;
+  const isEmail = identity.kind === "email";
+  const unrecognised = identity.kind === "unknown";
+
+  const suggestions = useMemo(
+    () => suggestTablets(identifier, tabletAccounts),
+    [identifier, tabletAccounts],
+  );
+
+  const hasTablets = (tabletAccounts?.length ?? 0) > 0;
+
+  // A lista serve para escolher, por isso só aparece enquanto houver escolha. Com o
+  // nome já completo e nenhum outro posto parecido não sobra nada para escolher — e
+  // um painel de um item só tapava a linha que diz o que o sistema reconheceu e a
+  // etiqueta do campo seguinte. Com dois "Line 3 …" na lista, continua a valer.
+  const canChoose = suggestions.length > (matchedTablet ? 1 : 0);
 
   // ── Rate limit state ────────────────────────────────────────
-  // Identity used as the rate-limit key (email or tablet account id).
-  const rlId = mode === "tablet" ? tabletAccountId : email.trim().toLowerCase();
+  // Identity used as the rate-limit key (tablet account id or email).
+  const rlId = matchedTablet ? matchedTablet.id : (identity.kind === "email" ? identity.email : "");
   const [lockedMsLeft, setLockedMsLeft] = useState(0);
   const [remaining, setRemaining] = useState(5);
 
@@ -137,20 +146,21 @@ export default function Login() {
     return () => window.clearInterval(t);
   }, [rlId]);
 
-  // Always show the toggle. If the tablet list is still loading or temporarily
-  // empty (e.g. RLS hiccup), the TABLET tab simply shows a loading/empty state
-  // instead of silently flipping the user back to STAFF.
-  const hasOperatorAccounts = (operatorAccounts?.length ?? 0) > 0;
-
-  // Validate stored tablet selection still exists; clear if it doesn't
+  // Um tablet de chão de fábrica é um posto fixo: quem o usou no turno encontra o
+  // seu nome já escrito. A selecção guardada caduca ao fim de 8h, e some de vez se
+  // a conta tiver sido entretanto apagada.
   useEffect(() => {
-    if (!operatorAccounts) return;
-    if (tabletAccountId && !operatorAccounts.some((a) => a.id === tabletAccountId)) {
-      setTabletAccountId("");
+    if (!tabletAccounts) return;
+    const stored = getStoredTabletId();
+    if (!stored) return;
+    const acc = tabletAccounts.find((a) => a.id === stored);
+    if (!acc) {
       localStorage.removeItem(TABLET_KEY);
       localStorage.removeItem(TABLET_TS_KEY);
+      return;
     }
-  }, [operatorAccounts, tabletAccountId]);
+    setIdentifier((prev) => (prev === "" ? acc.label : prev));
+  }, [tabletAccounts]);
 
   // Redirect when authenticated
   useEffect(() => {
@@ -163,21 +173,21 @@ export default function Login() {
     }
   }, [authLoading, navigate, role, session, safeNext]);
 
-  const lineNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    lines?.forEach((l) => m.set(l.id, l.name));
-    return m;
-  }, [lines]);
-
-  const selectedAccount = operatorAccounts?.find((a) => a.id === tabletAccountId) ?? null;
-
-  // Reflect the active per-tablet / per-mode favicon in the browser tab too,
-  // not just inside the card. Restores the default on unmount.
+  // Fecha a lista ao clicar fora dela.
   useEffect(() => {
-    const url =
-      (mode === "tablet" && selectedAccount?.favicon_url) ||
-      branding?.[mode]?.url ||
-      "/favicon.png";
+    if (!listOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!comboRef.current?.contains(e.target as Node)) setListOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [listOpen]);
+
+  // Reflect the active per-tablet / per-mode favicon in the browser tab too.
+  // Restores the default on unmount.
+  const brandingKey = matchedTablet ? "tablet" : "staff";
+  useEffect(() => {
+    const url = matchedTablet?.favicon_url || branding?.[brandingKey]?.url || "/favicon.png";
     let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
     const previous = link?.href;
     if (!link) {
@@ -189,37 +199,30 @@ export default function Login() {
     return () => {
       if (link && previous) link.href = previous;
     };
-  }, [mode, selectedAccount?.favicon_url, branding]);
+  }, [brandingKey, matchedTablet?.favicon_url, branding]);
 
-  const switchMode = (next: Mode) => {
-    setMode(next);
-    try { localStorage.setItem(MODE_KEY, next); } catch { /* ignore */ }
-    // Clear password and any prior identity so switching tabs feels clean.
-    setPassword("");
-    if (next === "staff") {
-      setTabletAccountId("");
-    } else {
-      setEmail("");
-    }
-  };
-
-  // Pick an access environment: it maps to the underlying auth mode and is kept
-  // for the role↔environment note. Desktop and Mobile both use email/password.
-  const selectEnv = (env: Env) => {
-    setEnvironment(env);
-    try { localStorage.setItem(ENV_KEY, env); } catch { /* ignore */ }
-    switchMode(env === "tablet" ? "tablet" : "staff");
+  const pickTablet = (acc: PublicTabletAccount) => {
+    setIdentifier(acc.label);
+    setListOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (mode === "tablet" && !selectedAccount) {
-      toast({ title: "Select your tablet", variant: "destructive" });
+    if (!identifier.trim()) {
+      toast({ title: "Enter your email, or pick your tablet", variant: "destructive" });
       return;
     }
-    if (mode === "staff" && !email.trim()) {
-      toast({ title: "Enter your email", variant: "destructive" });
+    // Nem email nem tablet: dizer isso agora é melhor do que deixar o Supabase
+    // devolver "Unable to validate email address: invalid format".
+    if (unrecognised) {
+      toast({
+        title: "Not recognised",
+        description: hasTablets
+          ? "Use your work email, or pick your tablet from the list."
+          : "Use your work email address.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -236,7 +239,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      if (mode === "tablet" && selectedAccount) {
+      if (matchedTablet) {
         // Tablet sign-in goes through the edge function so the email is never
         // sent to the browser. The function resolves the email server-side and
         // returns only session tokens.
@@ -244,7 +247,7 @@ export default function Login() {
           access_token: string;
           refresh_token: string;
         }>("tablet-signin", {
-          account_id: selectedAccount.id,
+          account_id: matchedTablet.id,
           password,
         });
         if (error) throw error;
@@ -258,7 +261,7 @@ export default function Login() {
         if (setErr) throw setErr;
       } else {
         const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
+          email: identity.kind === "email" ? identity.email : identifier.trim().toLowerCase(),
           password,
         });
         if (error) throw error;
@@ -269,20 +272,17 @@ export default function Login() {
       setAuthed(true);
       toast({ title: "Signed in", description: "Redirecting to your dashboard…" });
 
-
-      // Persist mode + tablet selection on success
-      localStorage.setItem(MODE_KEY, mode);
-      if (mode === "tablet" && selectedAccount) {
-        localStorage.setItem(TABLET_KEY, selectedAccount.id);
+      if (matchedTablet) {
+        localStorage.setItem(TABLET_KEY, matchedTablet.id);
         localStorage.setItem(TABLET_TS_KEY, String(Date.now()));
         // Persist refresh_token (NOT the password) for silent re-login on
-        // token revocation. Only ever stored for shared Tablet operator accounts.
+        // token revocation. Only ever stored for shared tablet accounts.
         try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.refresh_token) {
+          const { data: { session: fresh } } = await supabase.auth.getSession();
+          if (fresh?.refresh_token) {
             localStorage.setItem(
               TABLET_CRED_KEY,
-              JSON.stringify({ accountId: selectedAccount.id, refresh_token: session.refresh_token }),
+              JSON.stringify({ accountId: matchedTablet.id, refresh_token: fresh.refresh_token }),
             );
           }
         } catch {
@@ -291,6 +291,8 @@ export default function Login() {
       } else {
         // Staff login should never leave tablet credentials behind.
         localStorage.removeItem(TABLET_CRED_KEY);
+        localStorage.removeItem(TABLET_KEY);
+        localStorage.removeItem(TABLET_TS_KEY);
       }
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -298,26 +300,23 @@ export default function Login() {
         const { data: roleResult } = await supabase.rpc("get_user_role", { _user_id: user.id });
         logAuditEvent("login", "user", user.id, {
           role: roleResult || "unknown",
-          mode,
+          mode: matchedTablet ? "tablet" : "staff",
         });
-        // Soft note if the role doesn't fit the chosen environment. Access still
-        // follows the role — we inform, we don't block.
-        const mismatch = envMismatch(roleResult as string, environment);
-        if (mismatch) toast({ title: mismatch, variant: "destructive" });
         if (safeNext) {
           window.location.href = safeNext;
           return;
         }
         navigate(landAfterLogin(roleResult as string), { replace: true });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Count this failure and surface remaining attempts / lockout.
       const after = recordLoginFailure(rlId);
       setLockedMsLeft(after.lockedMsLeft);
       setRemaining(after.remaining);
+      const reason = error instanceof Error ? error.message : String(error);
       const description = after.lockedMsLeft > 0
         ? `Too many attempts — locked for ${Math.ceil(after.lockedMsLeft / 1000)}s.`
-        : `${error.message}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
+        : `${reason}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
       toast({ title: "Sign-in failed", description, variant: "destructive" });
       setAuthed(false);
     } finally {
@@ -325,154 +324,144 @@ export default function Login() {
     }
   };
 
-
-  const brandIconUrl =
-    (mode === "tablet" && selectedAccount?.favicon_url) ||
-    branding?.[mode]?.url ||
-    "/favicon.png";
+  const brandIconUrl = matchedTablet?.favicon_url || branding?.[brandingKey]?.url || undefined;
 
   return (
     <AuthShell
       brandIconUrl={brandIconUrl}
-      title="Choose your access environment"
-      subtitle="Select the right device for your role."
+      maxWidthClass="max-w-lg"
+      title="Sign in"
+      subtitle={
+        hasTablets
+          ? "Use your work email, or the name of the tablet you're standing at."
+          : "Use your work email."
+      }
     >
-      {/* Environment cards — Desktop / Tablet / Mobile */}
-      <div className="mb-5 grid grid-cols-3 gap-2" role="radiogroup" aria-label="Access environment">
-        {ENVIRONMENTS.map((env) => {
-          const Icon = env.icon;
-          const active = environment === env.key;
-          return (
-            <button
-              key={env.key}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => selectEnv(env.key)}
-              title={env.profile}
-              className={`group flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all focus-visible:outline-none focus-visible:ring-2 ${
-                active ? "scale-[1.02] shadow-md" : "border-white/70 bg-white/60 hover:-translate-y-0.5 hover:shadow-sm"
-              }`}
-              style={active ? { borderColor: env.color, background: env.tint, boxShadow: `0 0 0 1px ${env.color}` } : undefined}
-            >
-              <span
-                className="flex h-10 w-10 items-center justify-center rounded-full text-white transition-transform group-hover:scale-110"
-                style={{ background: env.color }}
-              >
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="text-xs font-bold uppercase tracking-wide" style={{ color: active ? env.color : undefined }}>{env.label}</span>
-              <span className="text-2xs leading-tight text-auth-ink-muted">{env.tagline}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Selected environment context */}
-      <div className="mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs"
-        style={{ borderColor: selectedEnv.color, background: selectedEnv.tint }}>
-        <selectedEnv.icon className="mt-0.5 h-4 w-4 shrink-0" style={{ color: selectedEnv.color }} />
-        <span className="text-auth-ink">
-          <b>Selected environment: {selectedEnv.label}</b> — Expected role: {selectedEnv.profile}.
-          <span className="text-auth-ink-muted"> Enter your credentials to continue.</span>
-        </span>
-      </div>
-
       <form
         onSubmit={handleSubmit}
         className={`space-y-4 ${loading || authed ? "pointer-events-none opacity-70" : ""}`}
         autoComplete="on"
         aria-busy={loading}
       >
-        {/* In the Tablet environment, staff who own a personal account (engineers,
-            maintenance, leaders) sign in with email + password exactly like they do
-            on Desktop and Mobile. The shared tablet accounts stay the default for
-            operators — those force role `operator` server-side in tablet-signin, so
-            an engineer must NOT go through them or they'd lose their own role. */}
-        {environment === "tablet" && (
-          <div className="grid grid-cols-2 gap-1 rounded-lg bg-auth-ink/5 p-1">
-            {([
-              { m: "tablet" as Mode, label: "Shared tablet", hint: "Operators" },
-              { m: "staff" as Mode, label: "My account", hint: "Engineers & staff" },
-            ]).map((opt) => (
+        {/* ── Identidade ─────────────────────────────────────────
+            Um campo só. O que se escreve é que diz o que se é. */}
+        <div className="space-y-1.5">
+          <label htmlFor="identifier" className={authLabel}>
+            {hasTablets ? "Email or tablet" : "Email"}
+          </label>
+          <div className="relative" ref={comboRef}>
+            {matchedTablet ? (
+              <Tablet className={authIcon} />
+            ) : (
+              <Mail className={authIcon} />
+            )}
+            <input
+              id="identifier"
+              type="text"
+              value={identifier}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                if (hasTablets) setListOpen(true);
+              }}
+              onFocus={() => { if (hasTablets && !identifier) setListOpen(true); }}
+              onKeyDown={(e) => { if (e.key === "Escape") setListOpen(false); }}
+              placeholder={hasTablets ? "you@appliednutrition.com or Line 3" : "you@appliednutrition.com"}
+              required
+              autoComplete="username"
+              spellCheck={false}
+              role="combobox"
+              aria-expanded={listOpen}
+              aria-controls="tablet-list"
+              aria-autocomplete="list"
+              className={hasTablets && canChoose ? authFieldIconedAction : authFieldIconed}
+            />
+            {hasTablets && canChoose && (
               <button
-                key={opt.m}
                 type="button"
-                onClick={() => switchMode(opt.m)}
-                aria-pressed={mode === opt.m}
-                className={`rounded-md px-3 py-2 text-center transition-colors ${
-                  mode === opt.m ? "bg-white text-auth-ink shadow-sm" : "text-auth-ink-muted hover:text-auth-ink"
-                }`}
+                onClick={() => setListOpen((o) => !o)}
+                className={authInlineBtn}
+                aria-label={listOpen ? "Hide tablet list" : "Show tablet list"}
+                tabIndex={-1}
               >
-                <span className="block text-sm font-medium">{opt.label}</span>
-                <span className="block text-2xs text-auth-ink-muted">{opt.hint}</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${listOpen ? "rotate-180" : ""}`} />
               </button>
-            ))}
-          </div>
-        )}
+            )}
 
-        {mode === "tablet" ? (
-          /* ── Tablet selector ─────────────────────────── */
-          <div className="space-y-1.5">
-            <label htmlFor="tablet" className="text-sm font-medium text-auth-ink">
-              Tablet / Line
-            </label>
-            <div className="relative">
-              <Tablet className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
-              <select
-                id="tablet"
-                value={tabletAccountId}
-                onChange={(e) => setTabletAccountId(e.target.value)}
-                required
-                className="h-12 w-full appearance-none rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-auth-ink transition-all hover:border-auth-brand/40 focus:border-auth-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-auth-brand/20"
+            {listOpen && hasTablets && (accountsLoading || canChoose) && (
+              <ul
+                id="tablet-list"
+                role="listbox"
+                aria-label="Tablets"
+                className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-auth-line bg-auth-paper py-1 shadow-lg"
               >
-                <option value="" disabled>
-                  {accountsLoading ? "Loading tablets…" : hasOperatorAccounts ? "Select your tablet…" : "No tablets configured"}
-                </option>
-                {operatorAccounts?.map((acc) => {
-                  const lineNames = acc.line_ids
-                    .map((id) => lineNameMap.get(id))
-                    .filter(Boolean)
-                    .join(" · ");
+                {accountsLoading && (
+                  <li className="px-4 py-2.5 text-sm text-auth-ink-muted">Loading tablets…</li>
+                )}
+                {suggestions.map((acc) => {
+                  const active = matchedTablet?.id === acc.id;
                   return (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.label}
-                      {lineNames ? ` — ${lineNames}` : ""}
-                    </option>
+                    <li key={acc.id} role="option" aria-selected={active}>
+                      <button
+                        type="button"
+                        onClick={() => pickTablet(acc)}
+                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                          active ? "bg-auth-brand/[0.06]" : "hover:bg-auth-ink/[0.04]"
+                        }`}
+                      >
+                        <Tablet className="h-4 w-4 shrink-0 text-auth-ink-muted" />
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-auth-ink">
+                          {acc.label}
+                        </span>
+                      </button>
+                    </li>
                   );
                 })}
-              </select>
-            </div>
+              </ul>
+            )}
           </div>
-        ) : (
-          /* ── Staff email ─────────────────────────────── */
-          <div className="space-y-1.5">
-            <label htmlFor="email" className="text-sm font-medium text-auth-ink">
-              Email
-            </label>
-            <div className="relative">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@appliednutrition.com"
-                required
-                autoComplete="email"
-                className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-4 text-sm text-auth-ink transition-all placeholder:text-auth-ink-muted hover:border-auth-brand/40 focus:border-auth-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-auth-brand/20"
-              />
-            </div>
-          </div>
-        )}
+
+          {/* O que o sistema reconheceu, dito antes de submeter. */}
+          <p className="flex min-h-[1.25rem] items-center gap-1.5 font-figure text-2xs uppercase tracking-[0.08em]">
+            {matchedTablet ? (
+              <span className="flex items-center gap-1.5 text-auth-brand">
+                <Tablet className="h-3 w-3" />
+                Shared tablet · Operator access
+              </span>
+            ) : isEmail ? (
+              <span className="flex items-center gap-1.5 text-auth-ink-muted">
+                <Mail className="h-3 w-3" />
+                Work account · Access follows your role
+              </span>
+            ) : unrecognised && !canChoose ? (
+              // Só avisa quando não há mais nada a orientar. Com postos a aparecerem
+              // na lista, é a lista a resposta — dizer "não é um tablet" por baixo de
+              // oito tablets seria contradizer o que está no ecrã.
+              <span className="flex items-center gap-1.5 text-warning-strong">
+                <AlertCircle className="h-3 w-3" />
+                {hasTablets ? "Not a tablet — finish the email address" : "Enter a full email address"}
+              </span>
+            ) : null}
+          </p>
+        </div>
 
         {/* Password */}
         <div className="space-y-1.5">
-          <label htmlFor="password" className="text-sm font-medium text-auth-ink">
-            Password
-          </label>
+          <div className="flex items-baseline justify-between gap-3">
+            <label htmlFor="password" className={authLabel}>
+              Password
+            </label>
+            {!matchedTablet && (
+              <button
+                type="button"
+                onClick={() => navigate("/reset-password")}
+                className="rounded text-xs font-medium text-auth-ink-muted underline-offset-4 transition-colors hover:text-auth-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40"
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted" />
+            <Lock className={authIcon} />
             <input
               id="password"
               type={showPassword ? "text" : "password"}
@@ -482,12 +471,12 @@ export default function Login() {
               minLength={6}
               required
               autoComplete="current-password"
-              className="h-12 w-full rounded-lg border border-white/70 bg-white/75 backdrop-blur-sm pl-10 pr-11 text-sm text-auth-ink transition-all placeholder:text-auth-ink-muted hover:border-auth-brand/40 focus:border-auth-brand focus:bg-white focus:outline-none focus:ring-2 focus:ring-auth-brand/20"
+              className={authFieldIconedAction}
             />
             <button
               type="button"
               onClick={() => setShowPassword((s) => !s)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-auth-ink-muted transition-colors hover:text-auth-ink"
+              className={authInlineBtn}
               aria-label={showPassword ? "Hide password" : "Show password"}
               tabIndex={-1}
             >
@@ -501,10 +490,8 @@ export default function Login() {
           type="submit"
           disabled={loading || authed || lockedMsLeft > 0}
           aria-live="polite"
-          className={`mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white transition-all active:scale-[0.99] disabled:pointer-events-none ${
-            authed
-              ? "bg-success"
-              : "bg-[hsl(var(--auth-brand))] hover:bg-[hsl(var(--auth-brand) / 0.85)] disabled:opacity-60"
+          className={`${authBtnBase} mt-2 text-white shadow-sm ${
+            authed ? "bg-success" : "bg-auth-brand hover:bg-auth-brand/90 disabled:opacity-60"
           }`}
         >
           {lockedMsLeft > 0 ? (
@@ -521,7 +508,7 @@ export default function Login() {
             </>
           ) : (
             <>
-              Sign In <ArrowRight className="h-4 w-4" />
+              Sign in <ArrowRight className="h-4 w-4" />
             </>
           )}
         </button>
@@ -533,19 +520,19 @@ export default function Login() {
           </p>
         )}
       </form>
-      {mode === "staff" && (
-        <p className="mt-4 text-center text-sm text-auth-ink-muted">
+
+      {!matchedTablet && (
+        <p className="mt-6 text-sm text-auth-ink-muted">
           Don't have an account?{" "}
-          <button type="button" onClick={() => navigate("/signup")} className="font-semibold text-[hsl(var(--auth-brand))] hover:underline">
+          <button
+            type="button"
+            onClick={() => navigate("/signup")}
+            className={authLink}
+          >
             Create account
           </button>
         </p>
       )}
-
-      <p className="mt-5 border-t border-white/50 pt-3 text-center text-2xs leading-relaxed text-auth-ink-muted">
-        🔒 Secure connection · 🛡 Role-based access control · 📋 All actions are audited
-      </p>
     </AuthShell>
   );
 }
-
