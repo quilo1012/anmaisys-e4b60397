@@ -43,6 +43,7 @@ import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
 import { splitRangeByExclusions, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { bucketFromReason } from "@/lib/downtimeBuckets";
+import { ragBoardLines } from "@/lib/ragBoardLines";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
 function displayLineLabel(name: string): string {
@@ -50,7 +51,11 @@ function displayLineLabel(name: string): string {
   const m = s.match(/^Line\s*0*(\d+)$/i);
   if (m) return `Filler Line ${m[1]}`;
   if (/^gel machine$/i.test(s) || /^gel line$/i.test(s)) return "GEL Machine";
-  if (/^capsules?\s*&\s*tablets?$/i.test(s) || /^tablet line$/i.test(s)) return "Capsules & Tablets";
+  // A linha chama-se "Tablet Line" na base, nas Machines e na boca de quem lá trabalha.
+  // "Capsules & Tablets" era o nome antigo do quadro em Excel e mais ninguém o usava,
+  // o que punha duas etiquetas para o mesmo posto no mesmo sistema. Fica o nome real;
+  // o nome antigo continua a ser reconhecido para os lançamentos históricos.
+  if (/^capsules?\s*&\s*tablets?$/i.test(s) || /^tablet line$/i.test(s)) return "Tablet Line";
   return s;
 }
 
@@ -239,24 +244,7 @@ export default function RAGWeeklyPage() {
     queryFn: async () => {
       const { data, error } = await supabase.from("lines").select("name,active").order("name");
       if (error) throw error;
-      const EXCLUDED = ["sealer", "printer ink"];
-      return (data ?? [])
-        .filter((r: { active?: boolean | null }) => r.active !== false)
-        .map((r: { name: string }) => r.name)
-        .filter((n) => !EXCLUDED.includes(n.trim().toLowerCase()))
-        .sort((a, b) => {
-          const rank = (n: string): [number, number] => {
-            const s = n.toLowerCase();
-            const m = s.match(/line\s*0*(\d+)/);
-            if (m) return [0, Number(m[1])];
-            if (s.includes("capsule") || s.includes("tablet")) return [1, 0];
-            if (s.includes("gel")) return [2, 0];
-            return [3, 0];
-          };
-          const [ra, na] = rank(a);
-          const [rb, nb] = rank(b);
-          return ra !== rb ? ra - rb : na !== nb ? na - nb : a.localeCompare(b);
-        });
+      return ragBoardLines(data ?? []);
     },
   });
 
