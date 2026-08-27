@@ -15,6 +15,7 @@ const PRIORITY_BADGE: Record<string, string> = {
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ResponsiveTable, TableCard, TableCardField } from "@/components/ResponsiveTable";
 import { ArrowLeft, Loader2, Wrench, TrendingDown, Heart, MapPin, Clock } from "lucide-react";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useMachines, useMachineLocationLog } from "@/hooks/useMachines";
