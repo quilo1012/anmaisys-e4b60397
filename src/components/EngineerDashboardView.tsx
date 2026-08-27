@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ResponsiveTable, TableCard, TableCardField } from "@/components/ResponsiveTable";
 import { Hammer, Clock, CheckCircle2 } from "lucide-react";
 
 type WO = {
