@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
 import { bayInk, baySpine, bayWash } from "@/lib/lineBay";
+import { hasLeader } from "@/lib/sessionLeader";
 import { format, parseISO } from "date-fns";
 import { DateRangeFilter, type DateRangePreset } from "@/components/DateRangeFilter";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
@@ -692,7 +693,10 @@ export default function ShiftHistoryPage() {
       const b = bay.get(k) ?? { qty: 0, plan: 0, skus: 0, shifts: new Set<string>(), noLeader: false };
       b.qty += qty; b.plan += plan; b.skus += s.production_items.length;
       b.shifts.add(s.shift);
-      if (!s.leader_id) b.noLeader = true;
+      // Pela pergunta única, e não por `leader_id`: o tablet da nave grava o líder
+      // pelo nome e não pela ligação, e a placa acusava "sem líder" numa baía cuja
+      // fila, dois centímetros abaixo, tinha o nome dele escrito.
+      if (!hasLeader(s)) b.noLeader = true;
       bay.set(k, b);
     }
     return { day, bay };
@@ -1120,7 +1124,7 @@ export default function ShiftHistoryPage() {
                             const noteUnit = i.tickets_unit ?? (/\[unit:tubs\]/i.test(i.notes ?? "") ? "tubs" : /\[unit:bags\]/i.test(i.notes ?? "") ? "bags" : null);
                             const effUnit: "tubs" | "bags" = noteUnit ?? (isTubHint ? "tubs" : isBagHint ? "bags" : "bags");
                             const blenders = Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y);
-                            const noLeader = !s.leader_id;
+                            const noLeader = !hasLeader(s);
                             const isNight = s.shift !== "DAY";
                             // O tom da fila diz a hora, e o problema ganha à hora.
                             //
@@ -1333,7 +1337,7 @@ export default function ShiftHistoryPage() {
                       const blob = `${code} ${name}`.toLowerCase();
                       const effUnit: "tubs" | "bags" = noteUnit ?? (/tub/.test(blob) ? "tubs" : /bag|sach|pouch/.test(blob) ? "bags" : "bags");
                       const blenders = Array.from(new Set(((i as any).production_blender_entries ?? []).map((b: any) => b.blender_number as number))).sort((x: number, y: number) => x - y);
-                      const noLeader = !s.leader_id;
+                      const noLeader = !hasLeader(s);
                       return (
                         <TableCard
                           key={`m-${s.id}-${i.id ?? idx}`}
