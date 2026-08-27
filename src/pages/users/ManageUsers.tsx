@@ -261,6 +261,28 @@ export default function ManageUsers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRole]);
 
+  /**
+   * Leaders the factory records but this screen has never shown.
+   *
+   * `list_leaders` reads leader_pins, so somebody who leads sessions and has no PIN is
+   * not missing from the list — they were never on it. Five of them have led real
+   * shifts, and `leader_self_scorecard()` identifies a leader BY the PIN, so all any of
+   * them ever sees at /dashboard/leader/scorecard is the keypad.
+   */
+  const [semPin, setSemPin] = useState<{ id: string; name: string; shift: string | null; sessions: number; last_session: string | null }[]>([]);
+
+  const fetchLeadersWithoutPin = async () => {
+    const { data, error } = await supabase.rpc("leaders_without_pin" as any);
+    if (error) {
+      // Not a toast: this panel is a courtesy, and a database that has not had
+      // 20260914090000 applied yet should not put an error over the leader list.
+      console.warn("[ManageUsers] leaders_without_pin unavailable", error.message);
+      setSemPin([]);
+      return;
+    }
+    setSemPin((data ?? []) as typeof semPin);
+  };
+
   const fetchLeaders = async () => {
     if (!currentUser?.id || !currentRole) return;
     const { data, error } = await supabase.rpc("list_leaders" as any);
@@ -311,6 +333,7 @@ export default function ManageUsers() {
       setLdOpen(false);
       setLdName(""); setLdPin(""); setLdLine("");
       fetchLeaders();
+      fetchLeadersWithoutPin();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -346,6 +369,7 @@ export default function ManageUsers() {
       toast({ title: "Leader updated", description: lines.join(", ") });
       setEditLd(null);
       fetchLeaders();
+      fetchLeadersWithoutPin();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -361,6 +385,7 @@ export default function ManageUsers() {
       if (error) throw error;
       toast({ title: "Leader deleted" });
       fetchLeaders();
+      fetchLeadersWithoutPin();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -440,6 +465,7 @@ export default function ManageUsers() {
     fetchUsers();
     fetchEngineers();
     fetchLeaders();
+    fetchLeadersWithoutPin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, currentRole]);
 
@@ -939,7 +965,7 @@ export default function ManageUsers() {
               <p className="text-muted-foreground">Line Leaders authorized to unlock target displays via PIN</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={fetchLeaders} aria-label="Refresh leaders">
+              <Button variant="outline" size="icon" onClick={() => { fetchLeaders(); fetchLeadersWithoutPin(); }} aria-label="Refresh leaders">
                 <RefreshCw className="h-4 w-4" />
               </Button>
               <Dialog open={ldOpen} onOpenChange={setLdOpen}>
@@ -968,6 +994,37 @@ export default function ManageUsers() {
               </Dialog>
             </div>
           </div>
+
+          {semPin.length > 0 && (
+            <Card className="border-warning/50 bg-warning/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  {semPin.length} leader{semPin.length === 1 ? "" : "s"} without a PIN
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  The factory records these people as line leaders, but they have no PIN — so
+                  the leader scorecard only ever shows them the keypad. Create an identity for
+                  anyone here who should be able to see their own card.
+                </p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <ul className="divide-y">
+                  {semPin.map((l) => (
+                    <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <span className="font-medium">{l.name}</span>
+                      <span className="text-sm text-muted-foreground tabular-nums">
+                        {l.shift ?? "—"} ·{" "}
+                        {l.sessions > 0
+                          ? `${l.sessions} session${l.sessions === 1 ? "" : "s"}, last ${l.last_session}`
+                          : "no sessions recorded"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader><CardTitle>All Leaders</CardTitle></CardHeader>
