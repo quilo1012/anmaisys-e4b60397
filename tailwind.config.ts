@@ -12,14 +12,15 @@ export default {
   			'2xl': '1400px'
   		}
   	},
-  	screens: {
-  		'xs': '480px',
-  		'sm': '640px',
-  		'md': '768px',
-  		'lg': '1024px',
-  		'xl': '1280px',
-  		'2xl': '1536px',
-  	},
+  		screens: {
+  			'xs': '480px',
+  			'sm': '640px',
+  			'md': '768px',
+  			'lg': '1024px',
+  			'xl': '1280px',
+  			'2xl': '1536px',
+  			'coarse': { 'raw': '(pointer: coarse)' },
+  		},
   	extend: {
   		fontSize: {
   			// The app had 211 one-off text-[10px]/[11px]/[9px] sizes below text-xs.
