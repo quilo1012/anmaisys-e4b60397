@@ -682,7 +682,14 @@ const App = () => (
                 <Route
                   path="/dashboard/line-production"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "engineer", "co_engineer", "maintenance_manager", "planner"]} requiredAction="production.manage">
+                    /* engineer and co_engineer were listed here and could never get in:
+                       ProtectedRoute needs BOTH the role and the action, and the matrix
+                       does not grant them production.manage. Nor would it have helped —
+                       the RLS on production_sessions and production_items does not name
+                       them either, so the screen would have loaded and refused to save.
+                       Removed rather than granted: three places already agree that
+                       writing production is not an engineer's job. */
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="production.manage">
                       <LineProductionScreen />
                     </ProtectedRoute>
                   }
