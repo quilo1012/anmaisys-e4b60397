@@ -20,7 +20,13 @@
 export async function printElementAsDocument(
   el: HTMLElement,
   title: string,
-  opts: { landscape?: boolean } = {},
+  opts: {
+    landscape?: boolean;
+    /** Extra CSS for one document's own layout, injected last so it wins. */
+    css?: string;
+    /** Shrink the document until it fits in this many pages. Opt-in. */
+    fitPages?: number;
+  } = {},
 ): Promise<void> {
   const iframe = document.createElement("iframe");
   // Off-screen but still laid out — `display: none` would give images no chance to
@@ -112,7 +118,7 @@ export async function printElementAsDocument(
      table asks for 900px, wider than A4 portrait. */
   [class*="min-w-["] { min-width: 0 !important; }
   th, td { word-break: break-word; }
-</style></head><body></body></html>`);
+</style>${opts.css ? `<style>${opts.css}</style>` : ""}</head><body></body></html>`);
     doc.close();
 
     const clone = doc.importNode(el, true) as HTMLElement;
@@ -134,6 +140,8 @@ export async function printElementAsDocument(
     // Two frames for layout to settle after the styles apply.
     await new Promise((r) => window.requestAnimationFrame(() => r(null)));
     await new Promise((r) => window.requestAnimationFrame(() => r(null)));
+
+    if (opts.fitPages) shrinkToFit(doc, opts.fitPages, !!opts.landscape);
 
     win.focus();
     win.print();
@@ -167,6 +175,52 @@ function stampChartSizes(source: HTMLElement, clone: HTMLElement) {
       to[i].setAttribute("height", String(Math.round(r.height)));
     }
   }
+}
+
+/**
+ * Shrinks a document until it fits in `pages` sheets.
+ *
+ * A one-page order is not a formatting preference: it is signed in ink, filed, and
+ * read on a clipboard. When it runs 30mm over, the second sheet carries two
+ * signature lines and nothing else, and the pair gets separated in the file.
+ *
+ * Everything the layout can do to save that 30mm is done in CSS. This is the last
+ * resort for the orders CSS cannot save — a repair with forty timeline entries — and
+ * it stops at MIN_FIT_SCALE, because an order nobody can read at arm's length is
+ * worse than an order on two sheets.
+ *
+ * `zoom` rather than `transform: scale()`: zoom is a layout property, so the print
+ * engine paginates the shrunken layout. A transform paints smaller over a box that
+ * still measures its original height, which is how content ends up scaled AND still
+ * spilling onto page two. Browsers without `zoom` ignore it and print as before.
+ */
+const MIN_FIT_SCALE = 0.7;
+
+/** CSS defines 1in as 96px and 1mm as 1/25.4 of that, in every browser, always. */
+const PX_PER_MM = 96 / 25.4;
+
+function shrinkToFit(doc: Document, pages: number, landscape: boolean) {
+  // Not `body.scrollHeight` and not `body.getBoundingClientRect()`: both report at
+  // least the iframe's own 297mm viewport, so a short order measured as a full sheet
+  // and a long one stopped growing at one. A zero-height marker at the end of the
+  // content has no such floor.
+  const marker = doc.createElement("div");
+  marker.style.cssText = "height:0;clear:both;";
+  doc.body.appendChild(marker);
+  const contentPx = marker.getBoundingClientRect().bottom - doc.body.getBoundingClientRect().top;
+  marker.remove();
+
+  const padBottom = parseFloat(getComputedStyle(doc.body).paddingBottom) || 0;
+  const height = contentPx + padBottom;
+  // 0.98 of the sheet: the last rule must not land on the fold.
+  const budget = (landscape ? 210 : 297) * pages * PX_PER_MM * 0.98;
+  if (!(height > budget)) return;
+
+  // One pass, not a loop. `zoom` scales every used length — font sizes and mm
+  // paddings alike — so the shrunken layout is geometrically similar to this one:
+  // the lines break in the same places and the height falls by exactly the factor.
+  const scale = Math.max(MIN_FIT_SCALE, budget / height);
+  (doc.body.style as unknown as Record<string, string>).zoom = String(scale);
 }
 
 /**

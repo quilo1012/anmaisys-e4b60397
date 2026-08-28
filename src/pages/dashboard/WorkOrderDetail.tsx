@@ -9,6 +9,7 @@ import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool
 import { useWorkOrderById, useWorkOrderAccessHint } from "@/hooks/useWorkOrders";
 import { toast } from "sonner";
 import { printElementAsDocument } from "@/lib/printDocument";
+import { WO_SHEET_CSS } from "@/lib/woPrintSheet";
 import { usePartsUsedByWO } from "@/hooks/useStock";
 import { useWOPhotos, getWOPhotoUrl } from "@/hooks/useWOPhotos";
 import { useChecklistResponses, useChecklistsByProblemName } from "@/hooks/useChecklists";
@@ -43,6 +44,9 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   completed: { label: "Completed", className: "bg-success/10 text-success-strong border-success/30 dark:bg-success/15 dark:text-success-strong dark:border-success/30" },
   force_closed: { label: "Force Closed", className: "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-500/15 dark:text-gray-300 dark:border-gray-500/30" },
 };
+
+/** The order prints as one ruled sheet, and shrinks rather than take a second one. */
+const WO_SHEET_OPTS = { css: WO_SHEET_CSS, fitPages: 1 } as const;
 
 const priorityConfig: Record<string, { label: string; className: string }> = {
   low: { label: "Low", className: "bg-muted text-muted-foreground dark:bg-muted dark:text-muted-foreground dark:border-border" },
@@ -191,7 +195,7 @@ export default function WorkOrderDetail() {
     if (!el) return;
     // One tick so the cards below have laid out before the clone is taken.
     const t = window.setTimeout(() => {
-      printElementAsDocument(el, `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`)
+      printElementAsDocument(el, `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`, WO_SHEET_OPTS)
         .catch((err) => toast.error(err?.message ?? "Could not open the print dialog."));
     }, 400);
     return () => window.clearTimeout(t);
@@ -275,10 +279,10 @@ export default function WorkOrderDetail() {
       <div className="space-y-6 max-w-5xl xl:max-w-6xl mx-auto print:max-w-none print-content" id="wo-print-content">
 
         {/* ═══ PRINT-ONLY: Industrial Document Header ═══ */}
-        <div className="hidden print:block mb-4">
-          <div className="border-b-2 border-black pb-3 flex items-end justify-between gap-4">
+        <div data-wo="header" className="hidden print:block mb-4">
+          <div className="border-b-2 border-black pb-2 flex items-end justify-between gap-4">
             <div className="flex items-end gap-3">
-              <img src="/appliedlogo.jpeg" alt="Applied Nutrition" crossOrigin="anonymous" className="h-14 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
+              <img src="/appliedlogo.jpeg" alt="Applied Nutrition" crossOrigin="anonymous" className="h-10 w-auto object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
               {/* The sheet used to carry a logo and nothing else, so a print where the
                   image failed to load came out of the printer unidentifiable. */}
               <div>
@@ -291,13 +295,27 @@ export default function WorkOrderDetail() {
               <p className="text-[8pt] text-gray-600">Opened {format(new Date(wo.created_at), "dd/MM/yyyy HH:mm")}</p>
             </div>
           </div>
-          {/* Document metadata row */}
-          <div className="grid grid-cols-5 border border-black border-t-0 text-[8pt]">
-            <div className="border-r border-black px-2 py-1"><span className="font-bold">Priority:</span> {pri.label}</div>
-            <div className="border-r border-black px-2 py-1"><span className="font-bold">Status:</span> {cfg.label}</div>
-            <div className="border-r border-black px-2 py-1"><span className="font-bold">Line:</span> {(wo as any).line_at_time || "—"}</div>
-            <div className="border-r border-black px-2 py-1"><span className="font-bold">Machine:</span> {wo.machine || "—"}</div>
-            <div className="px-2 py-1"><span className="font-bold">Requester:</span> {wo.requester_name}</div>
+          {/* Document metadata row — label over value, so a 30mm column can hold a
+              name without the label eating half of it. The engineer joins the row:
+              the band that used to name them separately is now hidden on paper. */}
+          <div className={`grid ${isWarehouseWO ? "grid-cols-5" : "grid-cols-6"} border border-black border-t-0 text-[8pt]`}>
+            {[
+              { label: "Priority", value: pri.label },
+              { label: "Status", value: cfg.label },
+              ...(isWarehouseWO
+                ? [{ label: "Warehouse", value: (wo as any).warehouse_location || "—" }]
+                : [
+                    { label: "Line", value: (wo as any).line_at_time || "—" },
+                    { label: "Machine", value: wo.machine || "—" },
+                  ]),
+              { label: "Requester", value: wo.requester_name || "—" },
+              { label: "Engineer", value: wo.engineer_name || wo.engineer?.name || "—" },
+            ].map((f) => (
+              <div key={f.label} className="border-r border-black px-2 py-1 last:border-r-0">
+                <p className="text-[6pt] font-bold uppercase tracking-[0.1em] text-gray-600 leading-none">{f.label}</p>
+                <p className="mt-0.5 leading-tight">{f.value}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -311,7 +329,7 @@ export default function WorkOrderDetail() {
                   const el = document.getElementById("wo-print-content");
                   if (!el) { toast.error("Nothing to print yet — the order is still loading."); return; }
                   try {
-                    await printElementAsDocument(el, woLabel);
+                    await printElementAsDocument(el, woLabel, WO_SHEET_OPTS);
                   } catch (err: any) {
                     toast.error(err?.message ?? "Could not open the print dialog.");
                   }
@@ -456,7 +474,7 @@ export default function WorkOrderDetail() {
         <OperatorRecurrenceCard wo={wo as any} />
 
         {/* Problem — what was reported, and why the line stopped. */}
-        <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+        <Card data-wo="problem" className="print:border print:border-black print:shadow-none print:rounded-none">
           <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Problem</CardTitle></CardHeader>
           <CardContent className="print:pb-2 space-y-2">
             <p className="print:text-[9pt]">{wo.description}</p>
@@ -477,7 +495,7 @@ export default function WorkOrderDetail() {
           const { human, machine } = splitWoNotes(wo.notes);
           const written = hasMeaningfulText(human);
           return (
-            <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+            <Card data-wo="resolution" className="print:border print:border-black print:shadow-none print:rounded-none">
               <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Resolution</CardTitle></CardHeader>
               <CardContent className="space-y-2 print:pb-2">
                 {written ? (
@@ -522,14 +540,14 @@ export default function WorkOrderDetail() {
 
         {/* Personnel — "Signed By" removed (operator signature is in footer) */}
         {/* Screen shows these once, in the metadata strip above. Print keeps the boxes. */}
-        <div className="hidden print:grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
+        <div data-wo="personnel" className="hidden print:grid gap-4 md:grid-cols-3 print:grid-cols-3 print:gap-0">
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Requested By</p><p className="font-medium print:text-[9pt]">{wo.requester_name}</p></CardContent></Card>
           <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Engineer</p><p className="font-medium print:text-[9pt]">{wo.engineer_name || wo.engineer?.name || ""}</p></CardContent></Card>
           {wo.closer?.name && <Card className="print:border print:border-black print:shadow-none print:rounded-none"><CardContent className="pt-6 print:pt-1 print:pb-1"><p className="text-sm text-muted-foreground print:text-[7pt] print:font-bold">Closed By</p><p className="font-medium print:text-[9pt]">{wo.closer.name}</p></CardContent></Card>}
         </div>
 
         {/* ATTENDANCE TIMES */}
-        <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+        <Card data-wo="attendance" className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
           <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Attendance Times</CardTitle></CardHeader>
           <CardContent className="print:pt-0">
             <div className="grid grid-cols-3 gap-4 print:gap-0">
@@ -629,7 +647,7 @@ export default function WorkOrderDetail() {
             .map((c) => new Date(c.new_stopped_at).getTime())
             .filter((t) => Number.isFinite(t));
           return (
-            <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+            <Card data-wo="impact" className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
               <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Production Impact</CardTitle></CardHeader>
               <CardContent className="print:pt-0">
                 <div className="grid grid-cols-3 gap-4 print:gap-0">
@@ -670,7 +688,7 @@ export default function WorkOrderDetail() {
         })()}
 
         {/* TIMELINE — vertical, deduped (one row per real event) */}
-        <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+        <Card data-wo="timeline" className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
           <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black">Timeline</CardTitle></CardHeader>
           <CardContent>
             {(() => {
@@ -748,7 +766,7 @@ export default function WorkOrderDetail() {
 
         {/* CHECKLIST EXECUTADO — groups by type, shows completed_by + completed_at */}
         {checklistItems && checklistItems.length > 0 && (
-          <Card className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
+          <Card data-wo="checklist" className="print:border print:border-black print:shadow-none print:rounded-none print:break-inside-avoid">
             <CardHeader className="print:pb-1 print:pt-2 pb-3"><CardTitle className="text-xs uppercase tracking-wider text-muted-foreground print:text-[8pt] print:font-bold print:text-black flex items-center gap-2"><ClipboardCheck className="h-4 w-4 print:hidden" /> Checklist Executado</CardTitle></CardHeader>
             <CardContent>
               {(() => {
@@ -792,7 +810,7 @@ export default function WorkOrderDetail() {
         <DowntimeHistorySection workOrderId={wo.id} />
 
         {/* Parts Used */}
-        <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+        <Card data-wo="parts" className="print:border print:border-black print:shadow-none print:rounded-none">
           <CardHeader className="print:pb-1 print:pt-2"><CardTitle className="text-base print:text-sm print:font-bold">Parts Used</CardTitle></CardHeader>
           <CardContent>
             {partsLoading ? (
@@ -826,8 +844,9 @@ export default function WorkOrderDetail() {
           </CardContent>
         </Card>
 
-        {/* Photos */}
-        <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+        {/* Photos — kept on screen when empty (it is the drop zone), dropped from the
+            sheet: a framed box with the words "Before" and "After" in it is not a record. */}
+        <Card data-wo="photos" className={`print:border print:border-black print:shadow-none print:rounded-none${woPhotos?.length ? "" : " print:hidden"}`}>
           <CardHeader className="print:pb-1 print:pt-2">
             <CardTitle className="text-base print:text-sm print:font-bold flex items-center justify-between gap-2">
               <span className="flex items-center gap-2">
@@ -890,22 +909,32 @@ export default function WorkOrderDetail() {
         )}
 
         {/* ═══ PRINT-ONLY: Formal Signature Section ═══ */}
-        <div className="hidden print:block mt-4 pt-2 border-t-2 border-black">
-          <div className="grid grid-cols-2 gap-12">
-            <div>
-              <p className="text-[8pt] font-bold mb-1">Engineer Signature:</p>
-              <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.engineer_name || wo.engineer?.name || ""}</span></p>
-              <p className="text-[8pt] mb-4">Date: {wo.started_at ? format(new Date(wo.started_at), "dd/MM/yyyy") : ""}</p>
-              <div className="border-b-2 border-black w-full" />
-              <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
-            </div>
-            <div>
-              <p className="text-[8pt] font-bold mb-1">Operator Signature:</p>
-              <p className="text-[8pt] mb-1">Name: <span className="font-medium">{wo.requester_name || wo.operator?.name || ""}</span></p>
-              <p className="text-[8pt] mb-4">Date: {format(new Date(wo.created_at), "dd/MM/yyyy")}</p>
-              <div className="border-b-2 border-black w-full" />
-              <p className="text-[7pt] mt-1 text-gray-500">Signature</p>
-            </div>
+        <div data-wo="signature" className="hidden print:block mt-4 pt-2 border-t-2 border-black">
+          <div className="grid grid-cols-2 gap-10">
+            {[
+              {
+                role: "Engineer",
+                name: wo.engineer_name || wo.engineer?.name || "",
+                date: wo.started_at ? format(new Date(wo.started_at), "dd/MM/yyyy") : "",
+              },
+              {
+                role: "Operator",
+                name: wo.requester_name || wo.operator?.name || "",
+                date: format(new Date(wo.created_at), "dd/MM/yyyy"),
+              },
+            ].map((sig) => (
+              <div key={sig.role}>
+                <p className="text-[6pt] font-bold uppercase tracking-[0.1em]">{sig.role} signature</p>
+                {/* Name and date used to be three stacked lines with 16px under them —
+                    the band that pushed the sheet onto a second page. */}
+                <div className="mt-0.5 flex items-baseline justify-between gap-3 text-[8pt]">
+                  <span className="truncate font-medium">{sig.name || "—"}</span>
+                  <span className="shrink-0 font-mono">{sig.date}</span>
+                </div>
+                <div className="mt-5 border-b border-black w-full" />
+                <p className="text-[6pt] mt-0.5 text-gray-600">Signature</p>
+              </div>
+            ))}
           </div>
           <div className="print-doc-footer mt-3 pt-1 border-t border-gray-400 flex items-center justify-between text-[7pt] text-gray-600">
             <span>{woLabel} · {wo.machine || (wo as any).warehouse_location || "—"}</span>
