@@ -121,7 +121,7 @@ export function DowntimeHistorySection({ workOrderId }: Props) {
   if (!events || events.length === 0) return null;
 
   return (
-    <Card className="print:border print:border-black print:shadow-none print:rounded-none">
+    <Card data-wo="stops" className="print:border print:border-black print:shadow-none print:rounded-none">
       <CardHeader className="print:pb-1 print:pt-2">
         <CardTitle className="text-base print:text-sm print:font-bold flex items-center gap-2">
           <PowerOff className="h-4 w-4 print:hidden" />
