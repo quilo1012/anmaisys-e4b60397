@@ -353,7 +353,12 @@ export default function SKUProductsPage() {
           description="Upload Excel (.xlsx) with SKU (or product_code) and Description (or name); Category, TargetPerHour and Weight are optional. Legacy .csv is still accepted."
           icon={<Boxes className="h-5 w-5" />}
           actions={
-          <div className="flex gap-2">
+          /* flex-wrap: five buttons in a row that could not break. The header they sit
+             in wraps, but this group did not, so it stayed one 1052px line and the tail
+             of it — New SKU among them, the screen's primary action — was clipped by the
+             overflow-x guard in index.css. Cut on a 390px phone AND on an 820px line
+             tablet. Same shape as the header on LineProductionScreen. */
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={cleanupBatchSkus} disabled={cleaning}>
               <Eraser className="h-4 w-4 mr-1" />{cleaning ? "Cleaning..." : "Remove batch SKUs"}
             </Button>
