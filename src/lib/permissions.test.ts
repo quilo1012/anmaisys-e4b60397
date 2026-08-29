@@ -50,7 +50,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "quality.validate": ["admin", "quality_supervisor"],
   "quality.close": ["admin", "manager", "maintenance_manager"],
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
-  "pm.manage": ["admin", "manager", "maintenance_manager"],
+  "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
   "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
   "engineers.manage": ["admin", "manager", "maintenance_manager"],
   "leaders.view": ["admin", "manager", "supervisor"],
@@ -236,5 +236,19 @@ describe("scorecard actions", () => {
   it("keeps operators out of both", () => {
     expect(can("operator", "scorecard.fill")).toBe(false);
     expect(can("operator", "scorecard.approve")).toBe(false);
+  });
+});
+
+describe("preventive maintenance planning for the engineer", () => {
+  it("lets an engineer write a PM plan, not just read one", () => {
+    // O engineer ja via os planos; quem os cria e quem os corrige e ele.
+    expect(can("engineer", "pm.view")).toBe(true);
+    expect(can("engineer", "pm.manage")).toBe(true);
+    expect(can("co_engineer", "pm.manage")).toBe(true);
+  });
+
+  it("keeps the shop floor out of PM planning", () => {
+    expect(can("operator", "pm.manage")).toBe(false);
+    expect(can("viewer", "pm.manage")).toBe(false);
   });
 });
