@@ -203,7 +203,17 @@ export default function RAGWeeklyPage() {
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<
-    { file: File; fileName: string; rows: number; comments: number; lines: string[] } | null
+    {
+      file: File;
+      fileName: string;
+      rows: number;
+      comments: number;
+      lines: string[];
+      linesIgnored: { name: string; reason: string }[];
+      sheets: string[];
+      dates: string[];
+      outOfWeek: string[];
+    } | null
   >(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -211,20 +221,27 @@ export default function RAGWeeklyPage() {
     try {
       const parsed = await parseRagTemplateFile(file, lines);
       if (!parsed.rows.length && !parsed.comments.length) {
-        toast.error("No RAG data found in that file. Use a sheet from ‘Download Excel’ or the blank template.");
+        toast.error("No RAG data found in that file. Use a sheet from ‘Download Excel’, the blank template, or the factory RAG workbook.");
         return;
       }
+      const inWeek = new Set(weekDates.map((d) => format(d, "yyyy-MM-dd")));
       setImportPreview({
         file,
         fileName: file.name,
         rows: parsed.rows.length,
         comments: parsed.comments.length,
         lines: parsed.linesDetected,
+        linesIgnored: parsed.linesIgnored,
+        sheets: parsed.sheetsProcessed,
+        dates: parsed.datesDetected,
+        outOfWeek: parsed.datesDetected.filter((d) => !inWeek.has(d)),
       });
     } catch (e) {
       toast.error((e as Error).message);
     }
   };
+  
+
   
 
   const weekDates = useMemo(
