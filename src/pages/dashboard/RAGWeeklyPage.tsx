@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload, FileBarChart } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload, FileBarChart, AlertTriangle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -43,6 +43,11 @@ import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
 import { splitRangeByExclusions, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { bucketFromReason } from "@/lib/downtimeBuckets";
+
+/** "2026-08-24" → "24 Aug" (or "24 Aug 2026"). Parsed as local noon-free midnight, never UTC. */
+function formatIsoDay(isoDay: string, withYear = false): string {
+  return format(new Date(`${isoDay}T00:00:00`), withYear ? "dd MMM yyyy" : "dd MMM");
+}
 import { ragBoardLines } from "@/lib/ragBoardLines";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
@@ -1136,9 +1141,70 @@ export default function RAGWeeklyPage() {
                 {importPreview.comments > 0 && (
                   <> and <b>{importPreview.comments}</b> comment{importPreview.comments === 1 ? "" : "s"}</>
                 )}{" "}
-                across <b>{importPreview.lines.length}</b> line{importPreview.lines.length === 1 ? "" : "s"} into week{" "}
-                <b>{format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}</b>.
+                across <b>{importPreview.lines.length}</b> line{importPreview.lines.length === 1 ? "" : "s"}
+                {importPreview.dates.length > 0 && (
+                  <>
+                    , covering{" "}
+                    <b>
+                      {formatIsoDay(importPreview.dates[0])} –{" "}
+                      {formatIsoDay(importPreview.dates[importPreview.dates.length - 1], true)}
+                    </b>
+                  </>
+                )}
+                .
               </p>
+              {importPreview.sheets.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Read from {importPreview.sheets.length === 1 ? "sheet" : "sheets"}{" "}
+                  {importPreview.sheets.join(", ")}.
+                </p>
+              )}
+
+              {/* The parser knows what it could not use. Saying nothing here is how an
+                  import silently drops a whole line or a whole week. */}
+              {importPreview.linesIgnored.length > 0 && (
+                <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="space-y-1">
+                    <p className="font-medium">
+                      {importPreview.linesIgnored.length} line
+                      {importPreview.linesIgnored.length === 1 ? "" : "s"} in the file will not be imported:
+                    </p>
+                    <ul className="list-disc pl-4">
+                      {importPreview.linesIgnored.map((l) => (
+                        <li key={l.name}>
+                          <b className="break-all">{l.name}</b> — {l.reason}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-muted-foreground">
+                      Fix it in <b>Manage lines</b>, so the name matches the sheet exactly.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {importPreview.outOfWeek.length > 0 && (
+                <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="space-y-1">
+                    <p className="font-medium">
+                      {importPreview.outOfWeek.length} day
+                      {importPreview.outOfWeek.length === 1 ? "" : "s"} fall outside the week on screen
+                      ({format(weekStart, "dd MMM")} – {format(addDays(weekStart, 6), "dd MMM yyyy")}).
+                    </p>
+                    <p>
+                      {importPreview.outOfWeek.slice(0, 8).map((d) => formatIsoDay(d)).join(", ")}
+                      {importPreview.outOfWeek.length > 8 && ` +${importPreview.outOfWeek.length - 8} more`}
+                    </p>
+                    <p className="text-muted-foreground">
+                      They are imported as well — the week you are looking at does not limit what the file
+                      writes. Change the week to see them.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <p className="text-xs text-muted-foreground">
                 Existing values for those cells are overwritten; cells left blank in the sheet are ignored.
                 Auto-calculated cells (Total, Variance %, Week Total) are not imported.
