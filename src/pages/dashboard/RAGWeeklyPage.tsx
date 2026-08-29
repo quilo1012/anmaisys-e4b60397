@@ -203,7 +203,17 @@ export default function RAGWeeklyPage() {
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<
-    { file: File; fileName: string; rows: number; comments: number; lines: string[] } | null
+    {
+      file: File;
+      fileName: string;
+      rows: number;
+      comments: number;
+      lines: string[];
+      linesIgnored: { name: string; reason: string }[];
+      sheets: string[];
+      dates: string[];
+      outOfWeek: string[];
+    } | null
   >(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -211,20 +221,27 @@ export default function RAGWeeklyPage() {
     try {
       const parsed = await parseRagTemplateFile(file, lines);
       if (!parsed.rows.length && !parsed.comments.length) {
-        toast.error("No RAG data found in that file. Use a sheet from ‘Download Excel’ or the blank template.");
+        toast.error("No RAG data found in that file. Use a sheet from ‘Download Excel’, the blank template, or the factory RAG workbook.");
         return;
       }
+      const inWeek = new Set(weekDates.map((d) => format(d, "yyyy-MM-dd")));
       setImportPreview({
         file,
         fileName: file.name,
         rows: parsed.rows.length,
         comments: parsed.comments.length,
         lines: parsed.linesDetected,
+        linesIgnored: parsed.linesIgnored,
+        sheets: parsed.sheetsProcessed,
+        dates: parsed.datesDetected,
+        outOfWeek: parsed.datesDetected.filter((d) => !inWeek.has(d)),
       });
     } catch (e) {
       toast.error((e as Error).message);
     }
   };
+  
+
   
 
   const weekDates = useMemo(
@@ -535,30 +552,49 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // RAG template importer — reads back the exact filled-template layout
-  // (Plan / Actual / UPM Target / UPM Actual / Downtime / Comments) produced by
-  // the "Download Excel" button, so an edited sheet round-trips 1:1.
+  // RAG importer — reads both the filled template produced by "Download Excel"
+  // and the factory workbook ("… Production RAG Performance …"), whatever week
+  // the sheets actually cover. A blank cell never writes a 0 over a stored value.
   const importTemplateMutation = useMutation({
     mutationFn: async (file: File) => {
       const parsed = await parseRagTemplateFile(file, lines);
       if (!parsed.rows.length && !parsed.comments.length) {
         throw new Error(
-          "No RAG data found. Use a sheet from ‘Download Excel’ (or the blank template) and keep the layout intact.",
+          "No RAG data found. Use a sheet from ‘Download Excel’, the blank template, or the factory RAG workbook.",
         );
       }
 
-      // 1) Entries — keep any per-cell notes already stored.
-      const rows = parsed.rows.map((r) => ({
-        entry_date: r.entry_date,
-        line: r.line,
-        shift: r.shift,
-        plan_qty: r.plan_qty,
-        actual_qty: r.actual_qty,
-        upm_target: r.upm_target,
-        upm_actual: r.upm_actual,
-        downtime_min: r.downtime_min,
-        notes: entryMap.get(`${r.entry_date}|${r.line}|${r.shift}`)?.notes ?? null,
-      }));
+      // Existing values for every date touched by the file, so blanks are kept.
+      const dates = parsed.datesDetected;
+      const existing = new Map<string, Entry>(entryMap);
+      if (dates.length) {
+        const { data: cur } = await supabase
+          .from("rag_weekly_entries")
+          .select("*")
+          .gte("entry_date", dates[0])
+          .lte("entry_date", dates[dates.length - 1]);
+        for (const e of (cur ?? []) as Entry[]) {
+          existing.set(`${e.entry_date}|${e.line}|${e.shift}`, e);
+        }
+      }
+
+      // 1) Entries — merge over what is stored; keep any per-cell notes.
+      const rows = parsed.rows.map((r) => {
+        const prev = existing.get(`${r.entry_date}|${r.line}|${r.shift}`);
+        const keep = (v: number | undefined, old: number | null | undefined) =>
+          v !== undefined ? v : (old ?? 0);
+        return {
+          entry_date: r.entry_date,
+          line: r.line,
+          shift: r.shift,
+          plan_qty: keep(r.plan_qty, prev?.plan_qty),
+          actual_qty: keep(r.actual_qty, prev?.actual_qty),
+          upm_target: keep(r.upm_target, prev?.upm_target),
+          upm_actual: keep(r.upm_actual, prev?.upm_actual),
+          downtime_min: keep(r.downtime_min, prev?.downtime_min),
+          notes: prev?.notes ?? null,
+        };
+      });
 
       const BATCH = 500;
       let count = 0;
@@ -572,14 +608,14 @@ export default function RAGWeeklyPage() {
         count += slice.length;
       }
 
-      // 2) Comments — one per line for the week (same key the export reads).
+      // 2) Comments — kept against the day they were written for.
       let commentCount = 0;
       const commentRows = parsed.comments
         .filter((c) => c.comment.trim())
         .map((c) => ({
           line: c.line,
-          entry_date: weekStartStr,
-          week_start: weekStartStr,
+          entry_date: c.entry_date,
+          week_start: c.week_start,
           comment: c.comment.trim(),
         }));
       if (commentRows.length) {
@@ -595,6 +631,7 @@ export default function RAGWeeklyPage() {
 
       return { count, commentCount };
     },
+
     onSuccess: ({ count, commentCount }) => {
       qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
       qc.invalidateQueries({ queryKey: ["rag-comments", weekStartStr] });
