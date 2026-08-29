@@ -341,8 +341,13 @@ export async function parseRagTemplateFile(
       }
 
       // Standalone label row (our template's line banner).
+      //
+      // Only anchors count. Our exporter merges the banner across the full width of
+      // the sheet, so after the merge is propagated every column on that row carries
+      // "Line 1" — counting them all made the row look like a data row, the line name
+      // was never picked up, and the whole export re-imported as zero rows.
       const nonEmpty: number[] = [];
-      for (let c = 0; c < nCols; c++) if (at(r, c).text) nonEmpty.push(c);
+      for (let c = 0; c < nCols; c++) if (at(r, c).anchor && at(r, c).text) nonEmpty.push(c);
       if (nonEmpty.length === 1) {
         const label = at(r, nonEmpty[0]).text;
         if (!metricOf(label)) {
@@ -380,7 +385,12 @@ export async function parseRagTemplateFile(
         if (!found) {
           // Our own template parks the week's comment in the Week Total slot,
           // just past the last day block: it belongs to the Monday.
-          const last = block.groups[block.groups.length - 1];
+          //
+          // "Past the last day block", not past the last group: the template's own
+          // Week Total columns are themselves a Day/Night/Total trio and get picked
+          // up as a group with no date, which would send this one column too far.
+          const dated = block.groups.filter((g) => g.date);
+          const last = dated[dated.length - 1] ?? block.groups[block.groups.length - 1];
           const weekCol = (last.total ?? last.night) + 1;
           const cell = at(r, weekCol);
           const firstDate = block.groups.find((g) => g.date)?.date;
