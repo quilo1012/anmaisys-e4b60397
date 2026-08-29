@@ -360,6 +360,13 @@ export async function parseRagTemplateFile(
       if (!metric) continue;
 
       if (metric === "comment") {
+        const addComment = (dateStr: string, text: string) => {
+          const key = `${line}|${dateStr}`;
+          const cur = commentsByKey.get(key) ?? { line, entry_date: dateStr, texts: [] };
+          if (!cur.texts.includes(text)) cur.texts.push(text);
+          commentsByKey.set(key, cur);
+        };
+        let found = false;
         for (const g of block.groups) {
           if (!g.date) continue;
           const cell = at(r, g.day);
@@ -367,13 +374,23 @@ export async function parseRagTemplateFile(
           // would be attributed to every day it visually spans.
           if (!cell.anchor || !cell.text) continue;
           if (isHeaderText(cell.text, fallbackYear)) continue;
-          const key = `${line}|${g.date}`;
-          const cur = commentsByKey.get(key) ?? { line, entry_date: g.date, texts: [] };
-          if (!cur.texts.includes(cell.text)) cur.texts.push(cell.text);
-          commentsByKey.set(key, cur);
+          addComment(g.date, cell.text);
+          found = true;
+        }
+        if (!found) {
+          // Our own template parks the week's comment in the Week Total slot,
+          // just past the last day block: it belongs to the Monday.
+          const last = block.groups[block.groups.length - 1];
+          const weekCol = (last.total ?? last.night) + 1;
+          const cell = at(r, weekCol);
+          const firstDate = block.groups.find((g) => g.date)?.date;
+          if (cell.text && firstDate && !isHeaderText(cell.text, fallbackYear)) {
+            addComment(firstDate, cell.text);
+          }
         }
         continue;
       }
+
 
       for (const g of block.groups) {
         if (!g.date) continue;
