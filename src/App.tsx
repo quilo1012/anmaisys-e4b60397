@@ -737,7 +737,7 @@ const App = () => (
                 <Route
                   path="/dashboard/pm-intelligence"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="pm.view">
+                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"]} requiredAction="pm.view">
                       <PMIntelligencePage />
                     </ProtectedRoute>
                   }

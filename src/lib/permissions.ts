@@ -213,7 +213,10 @@ const MATRIX: Record<Action, Role[]> = {
   "reports.export": ["admin", "manager", "supervisor", "planner"],
 
   "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
-  "pm.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  // O engineer cria e corrige o proprio plano de preventiva. Ver ja via; escrever
+  // era so da gestao, e o plano nascia longe de quem conhece a maquina.
+  // A RLS de pm_schedules/pm_tasks/pm_executions tem de dizer o mesmo — nao le esta matriz.
+  "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "production_office_admin"],
 
   "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
   "engineers.manage": ["admin", "manager", "maintenance_manager"],

@@ -17,7 +17,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Wrench, Plus, AlertTriangle, Clock, CheckCircle2, ChevronDown, ChevronRight,
-  Trash2, Loader2, CalendarClock, History, Printer, Brain, Search,
+  Trash2, Loader2, CalendarClock, History, Printer, Brain, Search, List, CalendarDays,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -36,18 +36,10 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { KpiCard } from "@/components/reports/KpiCard";
 
-/* A barra vem do mecanismo, não de uma cor escolhida aqui: um plano em atraso tem de
-   ter exactamente o mesmo vermelho, e a mesma largura, que uma linha parada no painel
-   de produção. `inactive` era `border-l-muted` — quase invisível sobre o cartão. */
-const statusStyle: Record<PmStatus, { label: string; chip: string; ring: string }> = {
-  overdue: { label: "Overdue", chip: "bg-destructive/15 text-destructive-strong border-destructive/40", ring: railEdge("stop") },
-  due_soon: { label: "Due Soon", chip: "bg-warning/15 text-warning-strong border-warning/40", ring: railEdge("hold") },
-  ok: { label: "Scheduled", chip: "bg-success/15 text-success-strong border-success/40", ring: railEdge("go") },
-  inactive: { label: "Inactive", chip: "bg-muted text-muted-foreground border-border", ring: railEdge("idle") },
-};
+import { statusStyle } from "@/components/pm/pmStatusStyle";
+import { PmCalendarMonth } from "@/components/pm/PmCalendarMonth";
 
 import { useConfirm } from "@/hooks/useConfirm";
-import { railEdge } from "@/lib/rail";
 
 export default function PreventiveMaintenancePage() {
   const { can } = useRole();
@@ -67,12 +59,19 @@ export default function PreventiveMaintenancePage() {
   const [filter, setFilter] = useState<PmStatus | "all">("all");
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  // O calendario e a lista sao a mesma coleccao lida de duas maneiras: os KPIs, o
+  // filtro de estado e a pesquisa ficam por cima das duas e nao se repetem.
+  const [view, setView] = useState<"list" | "calendar">("list");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [executeFor, setExecuteFor] = useState<PmSchedule | null>(null);
 
   // Create form state
   const [form, setForm] = useState({
     machine: "", title: "", description: "", interval_days: 30, priority: "medium",
+    // Vazio deixa o trigger `pm_recompute_next_due` marcar hoje + intervalo, que era
+    // o unico comportamento possivel. Preenchido — e e o que um dia clicado no
+    // calendario faz — a base respeita a data, porque `last_done_at` vem nulo.
+    first_due: "",
   });
 
   const enriched = useMemo(() => {
@@ -104,9 +103,15 @@ export default function PreventiveMaintenancePage() {
       return;
     }
     try {
-      await createMut.mutateAsync(form as any);
+      const { first_due, ...campos } = form;
+      await createMut.mutateAsync({
+        ...campos,
+        // Meio-dia, nao meia-noite: uma preventiva marcada para o dia 10 tem de
+        // continuar no dia 10 depois de a base a devolver em UTC.
+        ...(first_due ? { next_due_at: new Date(`${first_due}T12:00:00`).toISOString() } : {}),
+      } as any);
       toast({ title: "Schedule created" });
-      setForm({ machine: "", title: "", description: "", interval_days: 30, priority: "medium" });
+      setForm({ machine: "", title: "", description: "", interval_days: 30, priority: "medium", first_due: "" });
       setCreateOpen(false);
     } catch (e: any) {
       toast({ title: "Failed", description: e.message, variant: "destructive" });
@@ -132,6 +137,18 @@ export default function PreventiveMaintenancePage() {
           icon={<Wrench className="h-5 w-5" />}
           actions={
             <>
+              {/* Uma coleccao, duas leituras. A lista responde "o que ha para fazer";
+                  o calendario responde "quando", que e a pergunta de quem planeia. */}
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                <Button variant={view === "list" ? "secondary" : "ghost"} size="sm" className="gap-1.5 h-7"
+                  aria-pressed={view === "list"} onClick={() => setView("list")}>
+                  <List className="h-3.5 w-3.5" /> List
+                </Button>
+                <Button variant={view === "calendar" ? "secondary" : "ghost"} size="sm" className="gap-1.5 h-7"
+                  aria-pressed={view === "calendar"} onClick={() => setView("calendar")}>
+                  <CalendarDays className="h-3.5 w-3.5" /> Calendar
+                </Button>
+              </div>
               <Button variant="outline" size="sm" className="gap-2" onClick={async () => {
                 const el = document.getElementById("preventive-print");
                 try {
@@ -180,6 +197,17 @@ export default function PreventiveMaintenancePage() {
                   <div>
                     <Label>Description</Label>
                     <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} />
+                  </div>
+                  <div>
+                    <Label>First due</Label>
+                    <Input
+                      type="date"
+                      value={form.first_due}
+                      onChange={(e) => setForm((f) => ({ ...f, first_due: e.target.value }))}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Leave empty to start one interval from today.
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -261,9 +289,19 @@ export default function PreventiveMaintenancePage() {
           </table>
         )}
 
-        {/* List */}
+        {/* List / Calendar */}
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+        ) : view === "calendar" ? (
+          <PmCalendarMonth
+            schedules={filtered}
+            canManage={canManage}
+            onPickDay={(d) => {
+              setForm((f) => ({ ...f, first_due: format(d, "yyyy-MM-dd") }));
+              setCreateOpen(true);
+            }}
+            onPickSchedule={(s) => { setView("list"); setExpanded({ [s.id]: true }); }}
+          />
         ) : !filtered.length ? (
           <Card><CardContent className="py-12 text-center text-muted-foreground">No schedules match this filter.</CardContent></Card>
         ) : (
