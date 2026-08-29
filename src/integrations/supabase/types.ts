@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -1910,6 +1910,7 @@ export type Database = {
           id: string
           is_active: boolean
           line: string | null
+          line_leader_id: string | null
           lines: string[]
           name: string
           pin_hash: string
@@ -1920,6 +1921,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           line?: string | null
+          line_leader_id?: string | null
           lines?: string[]
           name: string
           pin_hash: string
@@ -1930,12 +1932,21 @@ export type Database = {
           id?: string
           is_active?: boolean
           line?: string | null
+          line_leader_id?: string | null
           lines?: string[]
           name?: string
           pin_hash?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leader_pins_line_leader_id_fkey"
+            columns: ["line_leader_id"]
+            isOneToOne: false
+            referencedRelation: "line_leaders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leader_score_weights: {
         Row: {
@@ -7722,6 +7733,17 @@ export type Database = {
         Args: { _from: string; _pin: string; _shift?: string; _to: string }
         Returns: Json
       }
+      leaders_without_pin: {
+        Args: never
+        Returns: {
+          active: boolean
+          id: string
+          last_session: string
+          name: string
+          sessions: number
+          shift: string
+        }[]
+      }
       list_active_profile_names: {
         Args: never
         Returns: {
@@ -8070,6 +8092,7 @@ export type Database = {
       shift_password_is_set: { Args: { _shift_code: string }; Returns: boolean }
       snapshot_sku_products: { Args: never; Returns: Json }
       touch_device: { Args: { _token: string }; Returns: undefined }
+      touch_last_seen: { Args: never; Returns: undefined }
       unpair_device: { Args: { _device_id: string }; Returns: undefined }
       update_leader:
         | {
