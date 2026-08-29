@@ -68,7 +68,7 @@ vi.mock("@/integrations/supabase/client", () => {
   };
 });
 
-import { useAllocationMutations, useSaveMatrix } from "./useHeadcount";
+import { useAllocationMutations, useSaveMatrix, useHeadcountMatrix } from "./useHeadcount";
 
 function wrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 }, mutations: { retry: false } } });
@@ -546,5 +546,65 @@ describe("place, and the leader mark", () => {
   it("never invents a mark for somebody who had none", async () => {
     answer = standing("line-1", false);
     expect((await place({ areaId: "line-1" })).is_leader).toBe(false);
+  });
+});
+
+describe("the standards a board offers", () => {
+  /** Rows as `headcount_matrix` returns them: every kind of the board in one answer. */
+  const stored = (rows: Array<{ kind: string; employee_id: string }>) => (r: Recorded) =>
+    r.table === "headcount_matrix" && r.op === "read"
+      ? rows.map((x) => ({ ...x, area_id: null, saved_from: ON_DATE }))
+      : [];
+
+  it("gives the day board one standard per kind of day", async () => {
+    // A changeover day was one answer to two different days: Monday is Fri–Mon
+    // finishing as Mon–Thu starts, Friday is Tue–Fri finishing as Fri–Mon starts. They
+    // are not the same crews and not the same size.
+    answer = stored([]);
+    const { result } = renderHook(() => useHeadcountMatrix("Day", ON_DATE), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.matrices.length).toBeGreaterThan(0));
+    expect(result.current.matrices.map((m) => m.kind)).toEqual(["monday", "full", "friday", "weekend"]);
+  });
+
+  it("leaves the night board the two standards it always had", async () => {
+    // Nights are one crew planned by hand. Nothing about this change reaches them.
+    answer = stored([]);
+    const { result } = renderHook(() => useHeadcountMatrix("Night", ON_DATE), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.matrices.length).toBeGreaterThan(0));
+    expect(result.current.matrices.map((m) => m.kind)).toEqual(["normal", "changeover"]);
+  });
+
+  it("sorts each day standard's rows into its own standard and no other", async () => {
+    // One query fetches the whole board's matrix and the kinds are split here. A split
+    // that leaked would show Friday's crew on the Monday board, which reads as correct.
+    answer = stored([
+      { kind: "monday", employee_id: "ana" },
+      { kind: "friday", employee_id: "bruno" },
+      { kind: "friday", employee_id: "carla" },
+    ]);
+    const { result } = renderHook(() => useHeadcountMatrix("Day", ON_DATE), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.matrices.some((m) => m.rows.length > 0)).toBe(true));
+    const counts = Object.fromEntries(result.current.matrices.map((m) => [m.kind, m.rows.length]));
+    expect(counts).toEqual({ monday: 1, full: 0, friday: 2, weekend: 0 });
+  });
+});
+
+describe("useSaveMatrix on the day board", () => {
+  it("saves under the day type it was told, and clears only that one", async () => {
+    // Four standards share a board now, so a save that cleared by shift alone would
+    // empty the other three every Friday morning.
+    answer = (r: Recorded) =>
+      r.table === "daily_allocations" && r.op === "read" ? [{ employee_id: "ana", area_id: "line-1" }] : [];
+    const { result } = renderHook(() => useSaveMatrix(ON_DATE, "Day"), { wrapper: wrapper() });
+    result.current.mutate("friday");
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(recorded.find((r) => r.table === "headcount_matrix" && r.op === "upsert")?.payload).toEqual([
+      { shift: "Day", kind: "friday", employee_id: "ana", area_id: "line-1", saved_from: ON_DATE, saved_by: "supervisor" },
+    ]);
+    expect(recorded.find((r) => r.table === "headcount_matrix" && r.op === "delete")?.filters).toMatchObject({
+      shift: "Day",
+      kind: "friday",
+    });
   });
 });

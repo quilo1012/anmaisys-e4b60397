@@ -82,9 +82,9 @@ export function MatrixDialog({
             {shift} matrices
           </DialogTitle>
           <DialogDescription>
-            Two standards, because a changeover day is not a Wednesday. Each one is read by crew: the matrix holds
-            everybody the board has, and no day has everybody — what is greyed out is a crew that does not work{" "}
-            {formatDay(onDate)}, and a copy leaves them where they are.
+            One standard per kind of day, because a Monday is not a Wednesday and a Friday is neither. Each one is
+            read by crew: the matrix holds everybody the board has, and no day has everybody — what is greyed out is
+            a crew that does not work {formatDay(onDate)}, and a copy leaves them where they are.
           </DialogDescription>
         </DialogHeader>
 

@@ -62,6 +62,7 @@ import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialo
 import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
+import { matrixForDate } from "@/lib/matrixForDay";
 import { currentShift } from "@/lib/operationalShift";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 
@@ -482,6 +483,19 @@ function ShiftBoard({
   const matrix = useHeadcountMatrix(shift, onDate);
   const saveMatrix = useSaveMatrix(onDate, shift);
   const [matrixOpen, setMatrixOpen] = useState(false);
+  /**
+   * The standard this date is planned from, if the weekday names one.
+   *
+   * `undefined` on the night board, which has no day types, and on a day whose
+   * standard has never been saved. Both fall back to the last day worked — the
+   * behaviour the button had before there was a matrix for every day.
+   */
+  const todaysMatrix = useMemo(() => {
+    const kind = matrixForDate(shift, onDate);
+    return kind ? matrix.matrices.find((m) => m.kind === kind) : undefined;
+  }, [matrix.matrices, shift, onDate]);
+  /** Saved, and with somebody in it the rota actually puts here today. */
+  const canCopyTodaysMatrix = (todaysMatrix?.due.length ?? 0) > 0;
 
   /**
    * The copy that can still be taken back off this board.
@@ -638,28 +652,38 @@ function ShiftBoard({
               className="h-8 w-44 pl-8 text-xs"
             />
           </div>
-          {/* Named for what it does. "Copy from last same day" promised a matching
-              weekday, and on a board without one it could only fail — which is what it
-              did every time it was pressed on a weekend night.
+          {/* The press does the day's own standard, and says which one before it is
+              pressed. The last day worked was the right answer most mornings and the
+              wrong one on exactly the mornings that matter — a Monday behind a Sunday
+              of thirty, a Saturday behind a Friday of eighty — and choosing the
+              standard from a menu every morning was a question with one right answer,
+              asked daily, which is a question that will be answered wrong.
 
-              Split, because the last day worked is the right answer most mornings and
-              the wrong one on a Monday, where the day behind is a Sunday of thirty and
-              the board being planned is a weekday of seventy. The press does the
-              common thing; the arrow names a day instead, with its headcount beside it
-              so the choice is made before the copy rather than read off the toast
-              afterwards. */}
+              The arrow still opens all of them, because the mornings worth a menu are
+              the ones the calendar is wrong about: a bank holiday Monday worked like a
+              Saturday, a Friday run as a full shift. Each is offered with the number of
+              its people the rota puts here today, so the choice is made before the copy
+              rather than read off the toast afterwards. */}
           {canManage && (
             <div className="flex print:hidden">
               <Button
                 size="sm"
                 variant="outline"
                 className="h-8 rounded-r-none border-r-0"
-                title={`Fills this board from the last ${shift.toLowerCase()} day anybody worked. Nobody already on this day is changed.`}
-                onClick={() => runCopy({ kind: "last" })}
+                title={
+                  canCopyTodaysMatrix
+                    ? `Fills this board from the ${shift} ${todaysMatrix!.label} matrix — ${todaysMatrix!.due.length} of its ${todaysMatrix!.rows.length} people are due in on ${formatWeekday(onDate)}. Nobody already on this day is changed.`
+                    : todaysMatrix
+                      ? `The ${shift} ${todaysMatrix.label} matrix has nobody due in today, so this fills the board from the last ${shift.toLowerCase()} day anybody worked. Nobody already on this day is changed.`
+                      : `Fills this board from the last ${shift.toLowerCase()} day anybody worked. Nobody already on this day is changed.`
+                }
+                onClick={() =>
+                  runCopy(canCopyTodaysMatrix ? { kind: "matrix", matrix: todaysMatrix!.kind } : { kind: "last" })
+                }
                 disabled={copyLastLikeDay.isPending}
               >
-                <CopyPlus className="mr-2 h-4 w-4" />
-                Copy from the last day
+                {canCopyTodaysMatrix ? <Star className="mr-2 h-4 w-4" /> : <CopyPlus className="mr-2 h-4 w-4" />}
+                {canCopyTodaysMatrix ? `Copy the ${todaysMatrix!.label} matrix` : "Copy from the last day"}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -677,11 +701,13 @@ function ShiftBoard({
                   <DropdownMenuLabel className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
                     Copy this board from
                   </DropdownMenuLabel>
-                  {/* The matrix first, and apart, because it is a different kind of
-                      answer: the board as it should look, not as it looked once. The
-                      count is the people it holds who are actually due in today —
-                      every weekday is a crossover of two rotas, so the matrix's own
-                      total would be a number this day never sees. */}
+                  {/* The matrices first, and apart, because they are a different kind
+                      of answer: the board as it should look, not as it looked once. The
+                      count is the people each holds who are actually due in today —
+                      every weekday is a crossover of two rotas, so a matrix's own total
+                      would be a number this day never sees. The one the date names is
+                      marked, so forcing another is visibly a departure rather than an
+                      equal choice among four. */}
                   {matrix.matrices.map((m) => (
                     <DropdownMenuItem
                       key={m.kind}
@@ -693,6 +719,11 @@ function ShiftBoard({
                         <span className="flex items-center gap-1.5 truncate">
                           <Star className="h-3.5 w-3.5 shrink-0 text-primary" />
                           {shift} · {m.label}
+                          {m.kind === todaysMatrix?.kind && (
+                            <span className="shrink-0 text-2xs font-bold uppercase tracking-wider text-primary">
+                              this day
+                            </span>
+                          )}
                         </span>
                         <span className="block truncate pl-5 text-2xs text-muted-foreground">
                           {m.rows.length === 0
@@ -755,19 +786,32 @@ function ShiftBoard({
                 <AlertDialogHeader>
                   <AlertDialogTitle>What is this board the standard for?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {assignedCount} people, as they stand on {formatWeekday(onDate)}, become one of the two standards
-                    the {shift.toLowerCase()} board is copied from. Days already planned are not touched, and the other
-                    standard is left alone.
+                    {assignedCount} people, as they stand on {formatWeekday(onDate)}, become one of the standards the
+                    {" "}{shift.toLowerCase()} board is copied from. Days already planned are not touched, and the other
+                    standards are left alone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
+                {/* The standard this date is for comes first. A board arranged on a
+                    Friday is nearly always the Friday standard, and putting it fourth
+                    in a list of four is inviting the press that overwrites Monday
+                    with it. The other three stay, because the day a standard is saved
+                    from is not always the day it is for — a Friday run as a full shift
+                    is the best full-shift board anybody will arrange that week. */}
                 <div className="space-y-2">
-                  {matrix.matrices.map((m) => (
+                  {[...matrix.matrices]
+                    .sort((a, b) => Number(b.kind === todaysMatrix?.kind) - Number(a.kind === todaysMatrix?.kind))
+                    .map((m) => (
                     <AlertDialogAction
                       key={m.kind}
                       onClick={() => saveMatrix.mutate(m.kind)}
                       className="flex h-auto w-full flex-col items-start gap-0.5 py-2 text-left"
                     >
-                      <span className="font-bold">Save as the {m.label} matrix</span>
+                      <span className="font-bold">
+                        Save as the {m.label} matrix
+                        {m.kind === todaysMatrix?.kind && (
+                          <span className="ml-1.5 text-2xs font-normal opacity-80">— what {formatWeekday(onDate)} is</span>
+                        )}
+                      </span>
                       <span className="text-2xs font-normal opacity-80">
                         {m.hint}
                         {m.rows.length > 0 && (

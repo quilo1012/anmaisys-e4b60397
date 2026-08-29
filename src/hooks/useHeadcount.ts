@@ -7,6 +7,7 @@ import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from 
 import { dropReceipt, readReceipt, saveReceipt, type CopyReceipt } from "@/lib/copyUndo";
 import { keepsLeadership } from "@/lib/leaderMark";
 import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
+import { matrixKindsFor, type MatrixKind } from "@/lib/matrixForDay";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
 
 export type HeadcountArea = {
@@ -288,20 +289,16 @@ export type CopySource =
   | { kind: "matrix"; matrix: MatrixKind };
 
 /**
- * Which of a board's two standards.
+ * Which of a board's standards.
  *
- * Monday and Friday are the days one crew hands the factory to another — Fri–Mon
- * finishing as Mon–Thu starts, Tue–Fri finishing as Fri–Mon starts — and they are not
- * staffed like a Wednesday. Never inferred from the date: the menu shows both with the
- * number each has due in today, so the choice is made in front of somebody. A rule
- * guessing it would be a rule to get wrong the first time a rota changes.
+ * Four on the day board, one per kind of day, and the date names which — see
+ * `matrixForDay`. The menu still lists all four, because the mornings worth a menu are
+ * the ones the calendar is wrong about: a bank holiday Monday worked like a Saturday,
+ * a Friday the factory runs as a full shift.
+ *
+ * Re-exported here so the screens that already read this file keep one import.
  */
-export type MatrixKind = "normal" | "changeover";
-
-export const MATRIX_KINDS: { kind: MatrixKind; label: string; hint: string }[] = [
-  { kind: "normal", label: "standard day", hint: "the middle of the week, one crew steady on each line" },
-  { kind: "changeover", label: "changeover day", hint: "a crew finishing and a crew starting — Mondays and Fridays" },
-];
+export type { MatrixKind } from "@/lib/matrixForDay";
 
 /**
  * `headcount_matrix` in one cast rather than four.
@@ -359,7 +356,7 @@ export function useHeadcountMatrix(shift: string, onDate: string) {
 
   const matrices = useMemo<Matrix[]>(() => {
     const all = data ?? [];
-    return MATRIX_KINDS.map(({ kind, label, hint }) => {
+    return matrixKindsFor(shift).map(({ kind, label, hint }) => {
       const rows = all.filter((r) => r.kind === kind);
       return {
         kind,
@@ -428,7 +425,7 @@ export function useSaveMatrix(onDate: string, shift: string) {
       // longer has. Saying so is better than undoing the part that worked.
       if (delErr) toast.warning(`Matrix saved, but the people who left it are still on it: ${delErr.message}`);
 
-      return { count: rows.length, label: MATRIX_KINDS.find((k) => k.kind === kind)?.label ?? kind };
+      return { count: rows.length, label: matrixKindsFor(shift).find((k) => k.kind === kind)?.label ?? kind };
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["headcount-matrix", shift] });
@@ -723,7 +720,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // "Fri 08 Aug", not "2026-08-08". The label is read back in a toast and on the
       // undo strip, where an ISO date is a string somebody has to decode.
       const label = source === null
-        ? `the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix`
+        ? `the ${shift} ${matrixKindsFor(shift).find((k) => k.kind === matrixKind)?.label ?? ""} matrix`
         : dayLabel(source);
 
       const here = (hereRows.data ?? []) as Array<{ employee_id: string }>;
@@ -735,7 +732,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
       if (working.length === 0) {
         throw new Error(
           source === null
-            ? `Nobody in the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix is due in on this day`
+            ? `Nobody in the ${shift} ${matrixKindsFor(shift).find((k) => k.kind === matrixKind)?.label ?? ""} matrix is due in on this day`
             : `Nobody worked the ${shift} board on ${dayLabel(source)}`,
         );
       }
