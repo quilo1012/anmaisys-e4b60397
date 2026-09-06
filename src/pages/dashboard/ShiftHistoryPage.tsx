@@ -1140,7 +1140,8 @@ export default function ShiftHistoryPage() {
                             // de fila em metade das filas.
                             const field = noLeader
                               ? "hsl(var(--warning) / 0.12)"
-                              : isNight ? bayWash(s.line) : "transparent";
+                              : bayWash(s.line, isNight ? "full" : "soft");
+
                             out.push(
                               <tr
                                 key={`${s.id}-${i.id ?? idx}`}
