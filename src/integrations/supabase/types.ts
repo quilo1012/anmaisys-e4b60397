@@ -4798,6 +4798,7 @@ export type Database = {
           actions_imported: number
           actions_skipped: number
           actions_updated: number
+          backfill_complete: boolean
           created_at: string
           cursor_modified_after: string | null
           enabled: boolean
@@ -4806,12 +4807,14 @@ export type Database = {
           last_attempt_at: string | null
           last_error: string | null
           last_success_at: string | null
+          page_token: string | null
           updated_at: string
         }
         Insert: {
           actions_imported?: number
           actions_skipped?: number
           actions_updated?: number
+          backfill_complete?: boolean
           created_at?: string
           cursor_modified_after?: string | null
           enabled?: boolean
@@ -4820,12 +4823,14 @@ export type Database = {
           last_attempt_at?: string | null
           last_error?: string | null
           last_success_at?: string | null
+          page_token?: string | null
           updated_at?: string
         }
         Update: {
           actions_imported?: number
           actions_skipped?: number
           actions_updated?: number
+          backfill_complete?: boolean
           created_at?: string
           cursor_modified_after?: string | null
           enabled?: boolean
@@ -4834,6 +4839,7 @@ export type Database = {
           last_attempt_at?: string | null
           last_error?: string | null
           last_success_at?: string | null
+          page_token?: string | null
           updated_at?: string
         }
         Relationships: []
