@@ -4112,6 +4112,7 @@ export type Database = {
           assignee_name: string | null
           attachments: string[]
           batch: string | null
+          classification_status: string
           closed_at: string | null
           closed_by: string | null
           created_at: string
@@ -4120,10 +4121,15 @@ export type Database = {
           domain: Database["public"]["Enums"]["action_domain"]
           due_date: string | null
           error_type: string | null
+          external_asset: string | null
+          external_assignees: string[]
+          external_created_at: string | null
           external_deleted_at: string | null
           external_id: string | null
           external_priority: string | null
+          external_site: string | null
           external_status: string | null
+          external_template: string | null
           external_updated_at: string | null
           external_url: string | null
           id: string
@@ -4158,6 +4164,7 @@ export type Database = {
           assignee_name?: string | null
           attachments?: string[]
           batch?: string | null
+          classification_status?: string
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -4166,10 +4173,15 @@ export type Database = {
           domain?: Database["public"]["Enums"]["action_domain"]
           due_date?: string | null
           error_type?: string | null
+          external_asset?: string | null
+          external_assignees?: string[]
+          external_created_at?: string | null
           external_deleted_at?: string | null
           external_id?: string | null
           external_priority?: string | null
+          external_site?: string | null
           external_status?: string | null
+          external_template?: string | null
           external_updated_at?: string | null
           external_url?: string | null
           id?: string
@@ -4204,6 +4216,7 @@ export type Database = {
           assignee_name?: string | null
           attachments?: string[]
           batch?: string | null
+          classification_status?: string
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -4212,10 +4225,15 @@ export type Database = {
           domain?: Database["public"]["Enums"]["action_domain"]
           due_date?: string | null
           error_type?: string | null
+          external_asset?: string | null
+          external_assignees?: string[]
+          external_created_at?: string | null
           external_deleted_at?: string | null
           external_id?: string | null
           external_priority?: string | null
+          external_site?: string | null
           external_status?: string | null
+          external_template?: string | null
           external_updated_at?: string | null
           external_url?: string | null
           id?: string
@@ -4798,7 +4816,10 @@ export type Database = {
       }
       sc_sync_state: {
         Row: {
+          actions_found: number
+          actions_ignored: number
           actions_imported: number
+          actions_needs_review: number
           actions_skipped: number
           actions_updated: number
           backfill_complete: boolean
@@ -4807,14 +4828,20 @@ export type Database = {
           enabled: boolean
           error_count: number
           id: boolean
+          import_from: string
           last_attempt_at: string | null
           last_error: string | null
           last_success_at: string | null
           page_token: string | null
           updated_at: string
+          window_end: string | null
+          window_start: string | null
         }
         Insert: {
+          actions_found?: number
+          actions_ignored?: number
           actions_imported?: number
+          actions_needs_review?: number
           actions_skipped?: number
           actions_updated?: number
           backfill_complete?: boolean
@@ -4823,14 +4850,20 @@ export type Database = {
           enabled?: boolean
           error_count?: number
           id?: boolean
+          import_from?: string
           last_attempt_at?: string | null
           last_error?: string | null
           last_success_at?: string | null
           page_token?: string | null
           updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
         }
         Update: {
+          actions_found?: number
+          actions_ignored?: number
           actions_imported?: number
+          actions_needs_review?: number
           actions_skipped?: number
           actions_updated?: number
           backfill_complete?: boolean
@@ -4839,11 +4872,14 @@ export type Database = {
           enabled?: boolean
           error_count?: number
           id?: boolean
+          import_from?: string
           last_attempt_at?: string | null
           last_error?: string | null
           last_success_at?: string | null
           page_token?: string | null
           updated_at?: string
+          window_end?: string | null
+          window_start?: string | null
         }
         Relationships: []
       }
