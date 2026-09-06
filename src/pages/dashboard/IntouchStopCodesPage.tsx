@@ -104,7 +104,26 @@ export default function IntouchStopCodesPage() {
         onConflict: "stop_code",
       });
       if (error) throw error;
+
+      // The same stop name under a second GUID must behave the same way. The GUID
+      // and the label are left alone — only the decision is copied across.
+      const twins = twinsOf(row);
+      if (twins.length) {
+        const { error: twinError } = await supabase
+          .from("intouch_stop_code_map")
+          .update({
+            default_priority: payload.default_priority,
+            category: payload.category ?? null,
+            line_hint: payload.line_hint ?? null,
+            requires_wo: !!payload.requires_wo,
+            active: !!payload.active,
+          })
+          .in("id", twins.map((t) => t.id));
+        if (twinError) throw twinError;
+      }
+      return twins.length;
     },
+
     onSuccess: () => {
       toast.success("Saved");
       setDraft({});
