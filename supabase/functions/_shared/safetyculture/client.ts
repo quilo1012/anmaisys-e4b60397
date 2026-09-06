@@ -113,26 +113,48 @@ const str = (v: unknown): string | null => {
 };
 
 /**
- * SafetyCulture has changed the shape of an Action more than once and different
- * endpoints spell the same field differently. Read defensively: a missing field
- * becomes null, never an invented value.
+ * One row of `/tasks/v1/actions/list`.
+ *
+ * The live API nests almost everything under `task` and answers with ids where a
+ * reader wants names: `status` carries its own `key`, the assignee is whichever
+ * collaborator holds the ASSIGNEE role, and the only human-readable clue about
+ * which line an action came from is usually the inspection name ("B1/L6A").
+ * Older/leaner shapes are still tolerated so a webhook payload parses too.
  */
 export function parseAction(raw: Record<string, unknown>): ScAction | null {
-  const id =
-    str(raw.unique_id) ?? str(raw.task_id) ?? str(raw.id) ?? str(raw.action_id);
+  const t = ((raw.task as Record<string, unknown>) ?? raw) as Record<string, unknown>;
+
+  const id = str(t.task_id) ?? str(t.id) ?? str(t.action_id) ?? str(raw.id);
   if (!id) return null;
 
-  const assignees = Array.isArray(raw.assignees) ? raw.assignees : [];
+  const collaborators = (Array.isArray(t.collaborators) ? t.collaborators : []) as Record<
+    string,
+    unknown
+  >[];
+  const assignee = collaborators
+    .filter((c) => str(c.assigned_role) === "ASSIGNEE")
+    .map((c) => {
+      const u = (c.user ?? null) as Record<string, unknown> | null;
+      if (u) return [str(u.firstname), str(u.lastname)].filter(Boolean).join(" ");
+      const g = (c.group ?? null) as Record<string, unknown> | null;
+      return g ? str(g.name) : null;
+    })
+    .filter(Boolean)
+    .join(", ");
+
   const labels = [
-    ...(Array.isArray(raw.labels) ? raw.labels : []),
-    ...(Array.isArray(raw.tags) ? raw.tags : []),
-    ...(Array.isArray(raw.categories) ? raw.categories : []),
+    ...(Array.isArray(t.action_label) ? t.action_label : []),
+    ...(Array.isArray(t.labels) ? t.labels : []),
   ]
-    .map((l) => str(l))
+    .map((l) => {
+      const o = l as Record<string, unknown>;
+      return str(o?.label_name) ?? str(l);
+    })
     .filter(Boolean) as string[];
 
   const custom: Record<string, string> = {};
-  for (const f of (Array.isArray(raw.custom_fields) ? raw.custom_fields : []) as Record<
+  for (const f of (Array.isArray(raw.custom_field_and_values) ? raw.custom_field_and_values : [])
+    .concat(Array.isArray(t.custom_fields) ? (t.custom_fields as unknown[]) : []) as Record<
     string,
     unknown
   >[]) {
@@ -141,22 +163,34 @@ export function parseAction(raw: Record<string, unknown>): ScAction | null {
     if (key && val) custom[key] = val;
   }
 
+  const inspection = (t.inspection ?? null) as Record<string, unknown> | null;
+  const inspectionName = inspection ? str(inspection.inspection_name) : null;
+  if (inspectionName) custom.inspection = inspectionName;
+  const item = (t.inspection_item ?? null) as Record<string, unknown> | null;
+  const itemName = item ? str(item.inspection_item_name) : null;
+  if (itemName) custom.inspection_item = itemName;
+
+  const status = (t.status ?? null) as Record<string, unknown> | null;
+  const asset = (t.asset ?? null) as Record<string, unknown> | null;
+  const site = (t.site ?? null) as Record<string, unknown> | null;
+  const type = (raw.type ?? null) as Record<string, unknown> | null;
+
   return {
     id,
-    title: str(raw.title) ?? str(raw.name) ?? "",
-    description: str(raw.description),
-    status: str(raw.status),
-    priority: str(raw.priority),
-    created_at: str(raw.created_at) ?? str(raw.createdAt),
-    modified_at: str(raw.modified_at) ?? str(raw.updated_at),
-    due_at: str(raw.due_at) ?? str(raw.due_date),
-    assignee: assignees.map((a) => str(a)).filter(Boolean).join(", ") || null,
+    title: str(t.title) ?? str(t.name) ?? "",
+    description: str(t.description),
+    status: (status ? str(status.key) ?? str(status.label) : null) ?? str(t.status),
+    priority: str(t.priority) ?? str(t.priority_id),
+    created_at: str(t.created_at),
+    modified_at: str(t.modified_at) ?? str(t.updated_at),
+    due_at: str(t.due_at) ?? str(t.due_date),
+    assignee: assignee || null,
     labels,
-    site: str(raw.site) ?? str((raw.site_id as unknown) ?? null),
-    asset: str(raw.asset),
-    template: str(raw.template) ?? str(raw.template_id),
+    site: site ? str(site.name) : str(t.site),
+    asset: asset ? str(asset.name) ?? str(asset.code) : null,
+    template: str(t.template_name) ?? (type ? str(type.name) : null),
     custom_fields: custom,
-    deleted: raw.deleted === true || str(raw.status) === "deleted",
+    deleted: t.deleted === true,
     url: `${WEB}/${id}`,
   };
 }
@@ -194,20 +228,16 @@ export async function testConnection(): Promise<{ ok: true; actions_visible: num
  */
 export async function listActions(
   modifiedAfter: string | null,
-  maxPages = 20,
+  maxPages = 80,
 ): Promise<ScAction[]> {
   const out: ScAction[] = [];
   let pageToken: string | null = null;
 
   for (let page = 0; page < maxPages; page++) {
-    // SafetyCulture validates these as protobuf enums, so the sort field is
-    // spelled its way; the cursor is a plain timestamp filter.
-    const body: Record<string, unknown> = {
-      page_size: 100,
-      sort_field: "SORT_FIELD_MODIFIED_AT",
-      sort_direction: "SORT_DIRECTION_ASC",
-    };
-    if (modifiedAfter) body.modified_at_after = modifiedAfter;
+    // The Actions endpoint takes no "modified since" filter and ignores the sort
+    // hint, so the sweep reads the whole list and discards untouched rows here.
+    // The page token is the only reliable cursor it offers.
+    const body: Record<string, unknown> = { page_size: 100 };
     if (pageToken) body.page_token = pageToken;
 
     const payload = await call("/tasks/v1/actions/list", {
@@ -218,7 +248,9 @@ export async function listActions(
     const rows = itemsOf(payload);
     for (const r of rows) {
       const a = parseAction(r);
-      if (a) out.push(a);
+      if (!a) continue;
+      if (modifiedAfter && a.modified_at && a.modified_at <= modifiedAfter) continue;
+      out.push(a);
     }
     pageToken = nextToken(payload);
     if (!pageToken || rows.length === 0) break;
