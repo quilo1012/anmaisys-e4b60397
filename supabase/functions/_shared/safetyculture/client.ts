@@ -131,7 +131,7 @@ export function parseAction(raw: Record<string, unknown>): ScAction | null {
     string,
     unknown
   >[];
-  const assignee = collaborators
+  const assignees = collaborators
     .filter((c) => str(c.assigned_role) === "ASSIGNEE")
     .map((c) => {
       const u = (c.user ?? null) as Record<string, unknown> | null;
@@ -139,8 +139,8 @@ export function parseAction(raw: Record<string, unknown>): ScAction | null {
       const g = (c.group ?? null) as Record<string, unknown> | null;
       return g ? str(g.name) : null;
     })
-    .filter(Boolean)
-    .join(", ");
+    .filter(Boolean) as string[];
+  const assignee = assignees.join(", ");
 
   const labels = [
     ...(Array.isArray(t.action_label) ? t.action_label : []),
@@ -185,6 +185,7 @@ export function parseAction(raw: Record<string, unknown>): ScAction | null {
     modified_at: str(t.modified_at) ?? str(t.updated_at),
     due_at: str(t.due_at) ?? str(t.due_date),
     assignee: assignee || null,
+    assignees,
     labels,
     site: site ? str(site.name) : str(t.site),
     asset: asset ? str(asset.name) ?? str(asset.code) : null,

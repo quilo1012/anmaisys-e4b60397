@@ -133,7 +133,12 @@ export async function upsertAction(
     external_status: draft.external_status,
     external_priority: draft.external_priority,
     external_updated_at: draft.external_updated_at,
+    external_created_at: draft.external_created_at,
     external_deleted_at: draft.external_deleted_at,
+    external_site: draft.external_site,
+    external_asset: draft.external_asset,
+    external_template: draft.external_template,
+    external_assignees: draft.external_assignees,
     title: draft.title,
     description: draft.description,
     assignee_name: draft.assignee_name,
@@ -149,6 +154,7 @@ export async function upsertAction(
     severity: draft.severity,
     domain: draft.domain,
     needs_classification: draft.needs_classification,
+    classification_status: draft.classification_status,
     last_synced_at: draft.last_synced_at,
   };
 
@@ -268,7 +274,7 @@ export async function applyActions(
     // A manual correction is respected: once someone has classified the record,
     // a later sync does not push it back into "needs classification".
     const update = prev.validation_status && prev.validation_status !== "open"
-      ? { ...payload, needs_classification: false }
+      ? { ...payload, needs_classification: false, classification_status: "classified" }
       : payload;
 
     const { error } = await db.from("quality_actions").update(update).eq("id", prev.id);
@@ -316,7 +322,12 @@ function rowFor(draft: ReturnType<typeof buildRecord>["draft"]): Record<string, 
     external_status: draft.external_status,
     external_priority: draft.external_priority,
     external_updated_at: draft.external_updated_at,
+    external_created_at: draft.external_created_at,
     external_deleted_at: draft.external_deleted_at,
+    external_site: draft.external_site,
+    external_asset: draft.external_asset,
+    external_template: draft.external_template,
+    external_assignees: draft.external_assignees,
     title: draft.title,
     description: draft.description,
     assignee_name: draft.assignee_name,
@@ -332,6 +343,7 @@ function rowFor(draft: ReturnType<typeof buildRecord>["draft"]): Record<string, 
     severity: draft.severity,
     domain: draft.domain,
     needs_classification: draft.needs_classification,
+    classification_status: draft.classification_status,
     last_synced_at: draft.last_synced_at,
   };
 }

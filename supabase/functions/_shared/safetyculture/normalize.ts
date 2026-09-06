@@ -17,6 +17,8 @@ export interface ScAction {
   modified_at?: string | null;
   due_at?: string | null;
   assignee?: string | null;
+  /** Everyone assigned, not just the first name. */
+  assignees?: string[];
   labels?: string[];
   site?: string | null;
   asset?: string | null;
@@ -211,7 +213,12 @@ export interface RecordDraft {
   external_status: string | null;
   external_priority: string | null;
   external_updated_at: string | null;
+  external_created_at: string | null;
   external_deleted_at: string | null;
+  external_site: string | null;
+  external_asset: string | null;
+  external_template: string | null;
+  external_assignees: string[];
   title: string;
   description: string | null;
   assignee_name: string | null;
@@ -228,6 +235,7 @@ export interface RecordDraft {
   severity: string | null;
   domain: "quality";
   needs_classification: boolean;
+  classification_status: "classified" | "needs_review";
   last_synced_at: string;
 }
 
@@ -270,7 +278,15 @@ export function buildRecord(
       external_status: action.status ?? null,
       external_priority: action.priority ?? null,
       external_updated_at: action.modified_at ?? null,
+      // The two timestamps are kept apart: when it was raised, and when it last
+      // changed. `recorded_at` follows the creation date so the Quality screen
+      // reads the real date of the finding.
+      external_created_at: action.created_at ?? null,
       external_deleted_at: action.deleted ? now : null,
+      external_site: action.site ?? null,
+      external_asset: action.asset ?? null,
+      external_template: action.template ?? null,
+      external_assignees: action.assignees ?? (action.assignee ? [action.assignee] : []),
       title: action.title ?? "",
       description: action.description ?? null,
       assignee_name: action.assignee ?? null,
@@ -289,6 +305,7 @@ export function buildRecord(
       // "line_not_identified" alone is enough: a record nobody can attribute must
       // be corrected by a human rather than counted against a guessed leader.
       needs_classification: problems.length > 0,
+      classification_status: problems.length > 0 ? "needs_review" : "classified",
       last_synced_at: now,
     },
   };
