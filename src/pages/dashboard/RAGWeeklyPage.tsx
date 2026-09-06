@@ -207,9 +207,15 @@ export default function RAGWeeklyPage() {
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
+  type ImportPayload = {
+    rows: ParsedTemplateRow[];
+    comments: { line: string; comment: string; entry_date: string; week_start: string }[];
+    datesDetected: string[];
+  };
   const [importPreview, setImportPreview] = useState<
     {
-      file: File;
+      source: "file" | "sharepoint";
+      payload: ImportPayload;
       fileName: string;
       rows: number;
       comments: number;
@@ -220,6 +226,7 @@ export default function RAGWeeklyPage() {
       outOfWeek: string[];
     } | null
   >(null);
+  const [syncingSharePoint, setSyncingSharePoint] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImportFile = async (file: File) => {
@@ -231,7 +238,12 @@ export default function RAGWeeklyPage() {
       }
       const inWeek = new Set(weekDates.map((d) => format(d, "yyyy-MM-dd")));
       setImportPreview({
-        file,
+        source: "file",
+        payload: {
+          rows: parsed.rows,
+          comments: parsed.comments,
+          datesDetected: parsed.datesDetected,
+        },
         fileName: file.name,
         rows: parsed.rows.length,
         comments: parsed.comments.length,
@@ -245,6 +257,50 @@ export default function RAGWeeklyPage() {
       toast.error((e as Error).message);
     }
   };
+
+  /**
+   * Pulls the same week straight from the factory's RAG workbooks on SharePoint,
+   * through the reader service. Nothing is written until the preview is confirmed.
+   */
+  const handleSyncFromSharePoint = async () => {
+    setSyncingSharePoint(true);
+    try {
+      const { data, error } = await invokeFunction<any>("rag-sharepoint-sync", {
+        mode: "week",
+        week_start: format(weekStart, "yyyy-MM-dd"),
+      });
+      if (error) throw new Error(error.message || "Could not reach the SharePoint RAG service.");
+      if (data?.error) throw new Error(data.message || data.error);
+
+      const mapped = mapRagApiRecords((data?.records ?? []) as RagApiRecord[], lines);
+      if (!mapped.rows.length && !mapped.comments.length) {
+        toast.error("SharePoint has no RAG data for this week yet.");
+        return;
+      }
+      const inWeek = new Set(weekDates.map((d) => format(d, "yyyy-MM-dd")));
+      setImportPreview({
+        source: "sharepoint",
+        payload: {
+          rows: mapped.rows,
+          comments: mapped.comments,
+          datesDetected: mapped.datesDetected,
+        },
+        fileName: mapped.files[0] ?? "SharePoint RAG workbook",
+        rows: mapped.rows.length,
+        comments: mapped.comments.length,
+        lines: mapped.linesDetected,
+        linesIgnored: mapped.linesIgnored,
+        sheets: mapped.sheets,
+        dates: mapped.datesDetected,
+        outOfWeek: mapped.datesDetected.filter((d) => !inWeek.has(d)),
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSyncingSharePoint(false);
+    }
+  };
+
   
 
   
