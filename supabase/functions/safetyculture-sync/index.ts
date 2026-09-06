@@ -138,17 +138,16 @@ Deno.serve(async (req) => {
       .eq("id", true)
       .maybeSingle();
 
-    // Until the first full read has finished, the sweep continues from the page it
-    // reached last time. After that, every run re-walks the list and keeps only the
-    // Actions touched since the cursor — SafetyCulture offers no "modified since"
-    // filter, so this is the only way to notice a change.
-    const backfilling = full ? false : full_state?.backfill_complete !== true;
-    const cursor = full || backfilling
-      ? null
-      : (since ?? state?.cursor_modified_after ?? null);
+    // SafetyCulture has no "modified since" filter and its sort hint is not
+    // honoured, so the only reliable reconciliation is a rolling sweep: each run
+    // continues from the page the last one stopped at, and starts over once the
+    // list is exhausted. Unchanged rows cost nothing — they are matched in one
+    // query per page and skipped. Live changes arrive on the webhook; this is the
+    // backstop that catches whatever the webhook missed.
+    const cursor = full ? null : (since ?? null);
 
     const ctx = await loadContext(db);
-    let pageToken: string | null = backfilling ? (full_state?.page_token ?? null) : null;
+    let pageToken: string | null = full ? null : (full_state?.page_token ?? null);
     let read = 0;
     let newest: string | null = state?.cursor_modified_after ?? null;
     const totals = { created: 0, updated: 0, unchanged: 0, errors: 0, needs_classification: 0 };
