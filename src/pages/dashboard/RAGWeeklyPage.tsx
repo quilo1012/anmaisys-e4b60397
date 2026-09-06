@@ -616,20 +616,20 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // RAG importer — reads both the filled template produced by "Download Excel"
-  // and the factory workbook ("… Production RAG Performance …"), whatever week
-  // the sheets actually cover. A blank cell never writes a 0 over a stored value.
+  // RAG importer — takes an already-parsed payload, whether it came from an Excel
+  // file (the filled template or the factory workbook) or straight from the
+  // SharePoint reader. A blank value never writes a 0 over a stored one.
   const importTemplateMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const parsed = await parseRagTemplateFile(file, lines);
+    mutationFn: async (parsed: ImportPayload) => {
       if (!parsed.rows.length && !parsed.comments.length) {
         throw new Error(
           "No RAG data found. Use a sheet from ‘Download Excel’, the blank template, or the factory RAG workbook.",
         );
       }
 
-      // Existing values for every date touched by the file, so blanks are kept.
+      // Existing values for every date touched by the import, so blanks are kept.
       const dates = parsed.datesDetected;
+
       const existing = new Map<string, Entry>(entryMap);
       if (dates.length) {
         const { data: cur } = await supabase
