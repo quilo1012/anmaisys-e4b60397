@@ -69,7 +69,12 @@ Deno.serve(async (req) => {
     }
     const { mode } = parsed.data;
 
-    const apiKey = Deno.env.get("RAG_API_KEY");
+    // Tolerate a value pasted as "RAG_API_KEY=..." or with stray quotes/whitespace.
+    const apiKey = (Deno.env.get("RAG_API_KEY") ?? "")
+      .trim()
+      .replace(/^RAG_API_KEY\s*=\s*/i, "")
+      .replace(/^["']|["']$/g, "")
+      .trim();
     if (!apiKey) return json({ error: "RAG_API_KEY is not configured" }, 400);
 
     const { data: settings } = await admin
