@@ -34,7 +34,11 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import { Settings2 } from "lucide-react";
 import { downloadRagTemplate, exportRagFilledTemplate, type RagFill } from "@/lib/ragTemplateExport";
-import { parseRagTemplateFile } from "@/lib/ragTemplateImport";
+import { parseRagTemplateFile, type ParsedTemplateRow } from "@/lib/ragTemplateImport";
+import { mapRagApiRecords, type RagApiRecord } from "@/lib/ragApiMapping";
+import { invokeFunction } from "@/lib/invokeFunction";
+import { CloudDownload } from "lucide-react";
+import { RagApiAddressDialog } from "@/components/rag/RagApiAddressDialog";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
@@ -207,9 +211,15 @@ export default function RAGWeeklyPage() {
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
+  type ImportPayload = {
+    rows: ParsedTemplateRow[];
+    comments: { line: string; comment: string; entry_date: string; week_start: string }[];
+    datesDetected: string[];
+  };
   const [importPreview, setImportPreview] = useState<
     {
-      file: File;
+      source: "file" | "sharepoint";
+      payload: ImportPayload;
       fileName: string;
       rows: number;
       comments: number;
@@ -220,6 +230,8 @@ export default function RAGWeeklyPage() {
       outOfWeek: string[];
     } | null
   >(null);
+  const [syncingSharePoint, setSyncingSharePoint] = useState(false);
+  const [ragApiSettingsOpen, setRagApiSettingsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImportFile = async (file: File) => {
@@ -231,7 +243,12 @@ export default function RAGWeeklyPage() {
       }
       const inWeek = new Set(weekDates.map((d) => format(d, "yyyy-MM-dd")));
       setImportPreview({
-        file,
+        source: "file",
+        payload: {
+          rows: parsed.rows,
+          comments: parsed.comments,
+          datesDetected: parsed.datesDetected,
+        },
         fileName: file.name,
         rows: parsed.rows.length,
         comments: parsed.comments.length,
@@ -245,6 +262,50 @@ export default function RAGWeeklyPage() {
       toast.error((e as Error).message);
     }
   };
+
+  /**
+   * Pulls the same week straight from the factory's RAG workbooks on SharePoint,
+   * through the reader service. Nothing is written until the preview is confirmed.
+   */
+  const handleSyncFromSharePoint = async () => {
+    setSyncingSharePoint(true);
+    try {
+      const { data, error } = await invokeFunction<any>("rag-sharepoint-sync", {
+        mode: "week",
+        week_start: format(weekStart, "yyyy-MM-dd"),
+      });
+      if (error) throw new Error(error.message || "Could not reach the SharePoint RAG service.");
+      if (data?.error) throw new Error(data.message || data.error);
+
+      const mapped = mapRagApiRecords((data?.records ?? []) as RagApiRecord[], lines);
+      if (!mapped.rows.length && !mapped.comments.length) {
+        toast.error("SharePoint has no RAG data for this week yet.");
+        return;
+      }
+      const inWeek = new Set(weekDates.map((d) => format(d, "yyyy-MM-dd")));
+      setImportPreview({
+        source: "sharepoint",
+        payload: {
+          rows: mapped.rows,
+          comments: mapped.comments,
+          datesDetected: mapped.datesDetected,
+        },
+        fileName: mapped.files[0] ?? "SharePoint RAG workbook",
+        rows: mapped.rows.length,
+        comments: mapped.comments.length,
+        lines: mapped.linesDetected,
+        linesIgnored: mapped.linesIgnored,
+        sheets: mapped.sheets,
+        dates: mapped.datesDetected,
+        outOfWeek: mapped.datesDetected.filter((d) => !inWeek.has(d)),
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSyncingSharePoint(false);
+    }
+  };
+
   
 
   
@@ -557,20 +618,20 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // RAG importer — reads both the filled template produced by "Download Excel"
-  // and the factory workbook ("… Production RAG Performance …"), whatever week
-  // the sheets actually cover. A blank cell never writes a 0 over a stored value.
+  // RAG importer — takes an already-parsed payload, whether it came from an Excel
+  // file (the filled template or the factory workbook) or straight from the
+  // SharePoint reader. A blank value never writes a 0 over a stored one.
   const importTemplateMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const parsed = await parseRagTemplateFile(file, lines);
+    mutationFn: async (parsed: ImportPayload) => {
       if (!parsed.rows.length && !parsed.comments.length) {
         throw new Error(
           "No RAG data found. Use a sheet from ‘Download Excel’, the blank template, or the factory RAG workbook.",
         );
       }
 
-      // Existing values for every date touched by the file, so blanks are kept.
+      // Existing values for every date touched by the import, so blanks are kept.
       const dates = parsed.datesDetected;
+
       const existing = new Map<string, Entry>(entryMap);
       if (dates.length) {
         const { data: cur } = await supabase
@@ -827,7 +888,18 @@ export default function RAGWeeklyPage() {
                         <DropdownMenuItem onClick={() => importInputRef.current?.click()}>
                           <Upload className="h-4 w-4 mr-2" />Import Excel
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={syncingSharePoint}
+                          onSelect={(e) => { e.preventDefault(); void handleSyncFromSharePoint(); }}
+                        >
+                          <CloudDownload className="h-4 w-4 mr-2" />
+                          {syncingSharePoint ? "Reading SharePoint…" : "Sync from SharePoint"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setRagApiSettingsOpen(true)}>
+                          <Settings2 className="h-4 w-4 mr-2" />SharePoint service address
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
+
                       </>
                     )}
                     <DropdownMenuItem
@@ -1126,15 +1198,20 @@ export default function RAGWeeklyPage() {
 
       <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
 
+      <RagApiAddressDialog open={ragApiSettingsOpen} onOpenChange={setRagApiSettingsOpen} />
+
       <Dialog open={!!importPreview} onOpenChange={(o) => { if (!o) setImportPreview(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Upload className="h-4 w-4" /> Import RAG Excel
+              {importPreview?.source === "sharepoint"
+                ? <><CloudDownload className="h-4 w-4" /> Sync RAG from SharePoint</>
+                : <><Upload className="h-4 w-4" /> Import RAG Excel</>}
             </DialogTitle>
           </DialogHeader>
           {importPreview && (
             <div className="space-y-2 text-sm">
+
               <p className="font-medium break-all">{importPreview.fileName}</p>
               <p>
                 This will import <b>{importPreview.rows}</b> cell{importPreview.rows === 1 ? "" : "s"}
@@ -1206,7 +1283,7 @@ export default function RAGWeeklyPage() {
               )}
 
               <p className="text-xs text-muted-foreground">
-                Existing values for those cells are overwritten; cells left blank in the sheet are ignored.
+                Existing values for those cells are overwritten; blank values are ignored.
                 Auto-calculated cells (Total, Variance %, Week Total) are not imported.
               </p>
             </div>
@@ -1216,10 +1293,12 @@ export default function RAGWeeklyPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => importPreview && importTemplateMutation.mutate(importPreview.file)}
+              onClick={() => importPreview && importTemplateMutation.mutate(importPreview.payload)}
               disabled={importTemplateMutation.isPending}
             >
-              {importTemplateMutation.isPending ? "Importing…" : "Import"}
+              {importTemplateMutation.isPending
+                ? "Importing…"
+                : importPreview?.source === "sharepoint" ? "Sync" : "Import"}
             </Button>
           </DialogFooter>
         </DialogContent>
