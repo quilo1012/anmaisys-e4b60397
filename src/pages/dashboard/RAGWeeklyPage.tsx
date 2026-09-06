@@ -38,6 +38,7 @@ import { parseRagTemplateFile, type ParsedTemplateRow } from "@/lib/ragTemplateI
 import { mapRagApiRecords, type RagApiRecord } from "@/lib/ragApiMapping";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { CloudDownload } from "lucide-react";
+import { RagApiAddressDialog } from "@/components/rag/RagApiAddressDialog";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
@@ -230,6 +231,7 @@ export default function RAGWeeklyPage() {
     } | null
   >(null);
   const [syncingSharePoint, setSyncingSharePoint] = useState(false);
+  const [ragApiSettingsOpen, setRagApiSettingsOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleImportFile = async (file: File) => {
@@ -893,6 +895,9 @@ export default function RAGWeeklyPage() {
                           <CloudDownload className="h-4 w-4 mr-2" />
                           {syncingSharePoint ? "Reading SharePoint…" : "Sync from SharePoint"}
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setRagApiSettingsOpen(true)}>
+                          <Settings2 className="h-4 w-4 mr-2" />SharePoint service address
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
 
                       </>
@@ -1192,6 +1197,8 @@ export default function RAGWeeklyPage() {
       )}
 
       <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
+
+      <RagApiAddressDialog open={ragApiSettingsOpen} onOpenChange={setRagApiSettingsOpen} />
 
       <Dialog open={!!importPreview} onOpenChange={(o) => { if (!o) setImportPreview(null); }}>
         <DialogContent>
