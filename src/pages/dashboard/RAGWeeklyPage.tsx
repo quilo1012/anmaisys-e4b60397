@@ -1201,8 +1201,10 @@ export default function RAGWeeklyPage() {
                 ? <><CloudDownload className="h-4 w-4" /> Sync RAG from SharePoint</>
                 : <><Upload className="h-4 w-4" /> Import RAG Excel</>}
             </DialogTitle>
-
+          </DialogHeader>
+          {importPreview && (
             <div className="space-y-2 text-sm">
+
               <p className="font-medium break-all">{importPreview.fileName}</p>
               <p>
                 This will import <b>{importPreview.rows}</b> cell{importPreview.rows === 1 ? "" : "s"}
