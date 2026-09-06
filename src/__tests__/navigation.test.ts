@@ -52,10 +52,18 @@ describe("sidebar", () => {
     //
     // System is the deliberate exception: its one row IS the hub, standing in for
     // eight screens. Administration likewise holds Users alone, for managers only.
+    //
+    // Quality is the third, and it is the one that pays for the heading rather than
+    // inheriting it. Its single row used to be the fifth under Production, which read
+    // as "quality is part of the production report" — it is not: it is the exception
+    // a run raises, `quality_supervisor` lands on it and opens nothing else in that
+    // group, and its verdicts split across two actions the database enforces. Here
+    // the heading is the whole point; folding it back into Production would undo it.
+    const EXEMPT = ["System", "Administration", "Quality"];
     const counts = new Map<string, number>();
     for (const i of navItems) counts.set(i.group, (counts.get(i.group) ?? 0) + 1);
     for (const [group, n] of counts) {
-      if (group === "System" || group === "Administration") continue;
+      if (EXEMPT.includes(group)) continue;
       expect(n, `"${group}" is a heading over ${n} item — fold it into another group`).toBeGreaterThan(1);
     }
   });
@@ -92,7 +100,7 @@ describe("sidebar", () => {
     }
   });
 
-  it("keeps Production in reading order, week to shift to exception", () => {
+  it("keeps Production in reading order, week to shift to people", () => {
     // The sidebar renders items in array order, so the order IS the file order —
     // an item appended to the end of navItems lands at the bottom of its group.
     // Headcount spent a release declared among the admin screens for exactly that
@@ -103,9 +111,32 @@ describe("sidebar", () => {
       "Performance",
       "SKU Products",
       "Production Control",
-      "Quality",
       "Headcount",
     ]);
+  });
+
+  it("keeps Quality out of Production and under its own heading", () => {
+    // Moving it back one group is a one-word edit and would look like a tidy-up.
+    // It is not: Quality is the exception a run raises, not a line of its report,
+    // and `quality_supervisor` lands there and opens nothing else in that group.
+    const quality = navItems.filter((i) => i.url === "/dashboard/quality");
+    expect(quality).toHaveLength(1);
+    expect(quality[0].group).toBe("Quality");
+    expect(navItems.filter((i) => i.group === "Production").map((i) => i.title)).not.toContain("Quality");
+  });
+
+  it("keeps the two screens hidden from the menu out of it", () => {
+    // Control Center and Reports were taken off the sidebar because nobody is
+    // opening them — the wall map has no wall up, and nobody is asking the period
+    // question. Both routes still open and both pages still work, so re-adding a row
+    // is one line and would pass unnoticed. It is a product decision, not a cleanup:
+    // this fails until somebody comes back to say the screen is in use again.
+    for (const url of ["/dashboard/control-center", "/dashboard/reports"]) {
+      expect(
+        navItems.find((i) => i.url === url),
+        `${url} is back in the sidebar — it was hidden because it is not being used`,
+      ).toBeUndefined();
+    }
   });
 
   it("puts the leader scorecard behind scorecard.fill", () => {
@@ -139,7 +170,7 @@ describe("sidebar", () => {
   it("puts every item in a group the sidebar actually renders", () => {
     // Assets was folded into Maintenance — an item left behind in a group the sidebar
     // no longer renders would simply vanish from the menu.
-    const rendered = ["Overview", "Maintenance", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
+    const rendered = ["Overview", "Maintenance", "Production", "Quality", "Planning", "Reports", "Communication", "Administration", "System"];
     for (const item of navItems) {
       expect(rendered, `"${item.title}" is in group "${item.group}", which is never rendered`).toContain(item.group);
     }
