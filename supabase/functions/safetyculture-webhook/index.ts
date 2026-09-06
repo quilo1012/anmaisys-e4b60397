@@ -63,6 +63,17 @@ Deno.serve(async (req) => {
       return json({ error: "no_action_id" }, 400);
     }
 
+    // The same first-phase window the poller uses: older Actions are acknowledged
+    // and dropped rather than written.
+    const { data: state } = await db
+      .from("sc_sync_state").select("import_from").eq("id", true).maybeSingle();
+    const importFrom = (state as { import_from?: string } | null)?.import_from ??
+      "2026-09-01T00:00:00Z";
+    const raised = action.created_at ?? action.modified_at ?? null;
+    if (!raised || raised < importFrom) {
+      return json({ ok: true, ignored: 1, reason: "before import window" });
+    }
+
     const summary = await applyActions(db, [action]);
     return json({ ok: true, ...summary });
   } catch (e) {

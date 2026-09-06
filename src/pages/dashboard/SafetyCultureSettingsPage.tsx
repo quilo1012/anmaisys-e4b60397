@@ -39,6 +39,12 @@ interface SyncState {
   actions_skipped: number;
   error_count: number;
   enabled: boolean;
+  import_from: string | null;
+  actions_found: number;
+  actions_ignored: number;
+  actions_needs_review: number;
+  window_start: string | null;
+  window_end: string | null;
 }
 
 interface LogRow {
@@ -195,6 +201,25 @@ export default function SafetyCultureSettingsPage() {
                   <Fact label="Needs classification">
                     <span className="tabular-nums">{needsClass}</span>
                   </Fact>
+                  <Fact label="Importing from">
+                    {state?.import_from
+                      ? new Date(state.import_from).toLocaleDateString("en-GB", { dateStyle: "medium" })
+                      : "—"}
+                  </Fact>
+                  <Fact label="Found in window (last run)">
+                    <span className="tabular-nums">{state?.actions_found ?? 0}</span>
+                  </Fact>
+                  <Fact label="Ignored — before window">
+                    <span className="tabular-nums">{state?.actions_ignored ?? 0}</span>
+                  </Fact>
+                  <Fact label="Needs review (last run)">
+                    <span className="tabular-nums">{state?.actions_needs_review ?? 0}</span>
+                  </Fact>
+                  <Fact label="Period covered (last run)">
+                    <span className="text-xs">
+                      {when(state?.window_start)} → {when(state?.window_end)}
+                    </span>
+                  </Fact>
                 </div>
 
                 {state?.last_error && (
@@ -216,6 +241,7 @@ export default function SafetyCultureSettingsPage() {
                 )}
 
                 <p className="text-xs text-muted-foreground">
+                  Only actions raised on or after the import date above are brought in.
                   A catch-up runs automatically every hour. Actions normally arrive within seconds
                   through the webhook below.
                 </p>

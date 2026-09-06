@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
   try {
     const { data: state } = await db
       .from("sc_sync_state")
-      .select("cursor_modified_after, enabled")
+      .select("cursor_modified_after, enabled, import_from")
       .eq("id", true)
       .maybeSingle();
 
@@ -146,7 +146,14 @@ Deno.serve(async (req) => {
     // backstop that catches whatever the webhook missed.
     const cursor = full ? null : (since ?? null);
 
+    // First phase: only Actions raised on or after this instant are imported.
+    // The date is configuration, not code — it lives on `sc_sync_state`.
+    const importFrom = (state as { import_from?: string } | null)?.import_from ??
+      "2026-09-01T00:00:00Z";
+
     const ctx = await loadContext(db);
+    let found = 0;
+    let ignored = 0;
     let pageToken: string | null = full ? null : (full_state?.page_token ?? null);
     let read = 0;
     let newest: string | null = state?.cursor_modified_after ?? null;
@@ -158,9 +165,15 @@ Deno.serve(async (req) => {
     for (; page < PAGES; page++) {
       const res = await listActionsPage(pageToken);
       read += res.actions.length;
+      const inWindow = res.actions.filter((a) => {
+        const raised = a.created_at ?? a.modified_at ?? null;
+        return !!raised && raised >= importFrom;
+      });
+      ignored += res.actions.length - inWindow.length;
+      found += inWindow.length;
       const wanted = cursor
-        ? res.actions.filter((a) => !a.modified_at || a.modified_at > cursor)
-        : res.actions;
+        ? inWindow.filter((a) => !a.modified_at || a.modified_at > cursor)
+        : inWindow;
 
       const summary = await applyActions(db, wanted, ctx);
       totals.created += summary.created;
@@ -186,13 +199,18 @@ Deno.serve(async (req) => {
       actions_updated: totals.updated,
       actions_skipped: totals.unchanged,
       error_count: totals.errors,
+      actions_found: found,
+      actions_ignored: ignored,
+      actions_needs_review: totals.needs_classification,
+      window_start: importFrom,
+      window_end: new Date().toISOString(),
     });
     await log(db, "sync_finished", {
       message: `${read} action(s) read over ${page + 1} page(s)${finished ? "" : " — more to follow"}`,
       details: totals,
     });
 
-    return json({ ok: true, read, finished, ...totals });
+    return json({ ok: true, read, found, ignored, finished, ...totals });
   } catch (e) {
     const err = e as Error;
     const event = e instanceof ScAuthError
