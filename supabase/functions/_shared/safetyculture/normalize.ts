@@ -140,12 +140,15 @@ export function classify(action: ScAction, rules: ClassificationRule[]): Classif
  */
 export function resolveLine(action: ScAction, lineNames: string[]): string | null {
   const candidates = [
-    action.site,
     action.asset,
     action.custom_fields?.line,
     action.custom_fields?.Line,
+    // The inspection name is where the floor actually writes the line ("B1/L6A").
+    action.custom_fields?.inspection,
     action.title,
     action.description,
+    // The site is "Production" for the whole factory, so it is the last resort.
+    action.site,
   ].filter(Boolean) as string[];
 
   // Longest name first: "Line 10" must win over "Line 1".
