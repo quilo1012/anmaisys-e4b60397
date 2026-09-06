@@ -376,3 +376,88 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
     </div>
   );
 }
+
+/**
+ * What the rules actually decided: every imported action grouped by the line (or
+ * area) it belongs to, its leader, and the quality error it describes. Anything
+ * the rules could not settle stays visible as "to review" instead of being hidden.
+ */
+function ClassificationBreakdown({ rows }: { rows: ClassRow[] }) {
+  const pending = rows.filter((r) => r.classification_status !== "classified");
+  const groups = new Map<string, { leader: string; errors: Map<string, number>; total: number }>();
+  for (const r of rows) {
+    const key = r.line || r.department || "Not identified";
+    const g = groups.get(key) ?? { leader: r.leader_name || "—", errors: new Map(), total: 0 };
+    if (r.leader_name) g.leader = r.leader_name;
+    const err = r.error_type || "Not identified";
+    g.errors.set(err, (g.errors.get(err) ?? 0) + 1);
+    g.total += 1;
+    groups.set(key, g);
+  }
+  const ordered = [...groups.entries()].sort((a, b) => b[1].total - a[1].total);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base">Classification — line, leader and quality error</CardTitle>
+        <Badge variant={pending.length ? "destructive" : "secondary"}>
+          {rows.length - pending.length} classified · {pending.length} to review
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing imported yet.</p>
+        ) : (
+          <ResponsiveTable
+            table={
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Line / area</TableHead>
+                    <TableHead>Leader</TableHead>
+                    <TableHead>Quality errors</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ordered.map(([name, g]) => (
+                    <TableRow key={name}>
+                      <TableCell className="font-medium">{name}</TableCell>
+                      <TableCell>{g.leader}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {[...g.errors.entries()]
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([e, n]) => `${e} (${n})`)
+                          .join(" · ")}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{g.total}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            }
+            cards={
+              <div className="space-y-2">
+                {ordered.map(([name, g]) => (
+                  <div key={name} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{name}</span>
+                      <span className="text-sm tabular-nums">{g.total}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">Leader: {g.leader}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {[...g.errors.entries()]
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([e, n]) => `${e} (${n})`)
+                        .join(" · ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            }
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
