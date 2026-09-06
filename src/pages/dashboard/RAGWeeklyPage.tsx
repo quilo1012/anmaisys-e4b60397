@@ -1276,7 +1276,7 @@ export default function RAGWeeklyPage() {
               )}
 
               <p className="text-xs text-muted-foreground">
-                Existing values for those cells are overwritten; cells left blank in the sheet are ignored.
+                Existing values for those cells are overwritten; blank values are ignored.
                 Auto-calculated cells (Total, Variance %, Week Total) are not imported.
               </p>
             </div>
@@ -1286,10 +1286,12 @@ export default function RAGWeeklyPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => importPreview && importTemplateMutation.mutate(importPreview.file)}
+              onClick={() => importPreview && importTemplateMutation.mutate(importPreview.payload)}
               disabled={importTemplateMutation.isPending}
             >
-              {importTemplateMutation.isPending ? "Importing…" : "Import"}
+              {importTemplateMutation.isPending
+                ? "Importing…"
+                : importPreview?.source === "sharepoint" ? "Sync" : "Import"}
             </Button>
           </DialogFooter>
         </DialogContent>
