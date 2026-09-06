@@ -4721,6 +4721,7 @@ export type Database = {
           error_type: string | null
           id: string
           label: string | null
+          line_name: string | null
           match_field: string
           match_key: string | null
           match_mode: string
@@ -4737,6 +4738,7 @@ export type Database = {
           error_type?: string | null
           id?: string
           label?: string | null
+          line_name?: string | null
           match_field?: string
           match_key?: string | null
           match_mode?: string
@@ -4753,6 +4755,7 @@ export type Database = {
           error_type?: string | null
           id?: string
           label?: string | null
+          line_name?: string | null
           match_field?: string
           match_key?: string | null
           match_mode?: string

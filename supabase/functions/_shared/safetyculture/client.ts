@@ -228,34 +228,53 @@ export async function testConnection(): Promise<{ ok: true; actions_visible: num
  */
 export async function listActions(
   modifiedAfter: string | null,
-  maxPages = 80,
+  maxPages = 5,
 ): Promise<ScAction[]> {
   const out: ScAction[] = [];
-  let pageToken: string | null = null;
-
+  let token: string | null = null;
   for (let page = 0; page < maxPages; page++) {
-    // The Actions endpoint takes no "modified since" filter and ignores the sort
-    // hint, so the sweep reads the whole list and discards untouched rows here.
-    // The page token is the only reliable cursor it offers.
-    const body: Record<string, unknown> = { page_size: 100 };
-    if (pageToken) body.page_token = pageToken;
-
-    const payload = await call("/tasks/v1/actions/list", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-
-    const rows = itemsOf(payload);
-    for (const r of rows) {
-      const a = parseAction(r);
-      if (!a) continue;
+    const res = await listActionsPage(token);
+    for (const a of res.actions) {
       if (modifiedAfter && a.modified_at && a.modified_at <= modifiedAfter) continue;
       out.push(a);
     }
-    pageToken = nextToken(payload);
-    if (!pageToken || rows.length === 0) break;
+    token = res.nextToken;
+    if (!token) break;
   }
   return out;
+}
+
+/**
+ * One page of Actions plus the token for the next.
+ *
+ * The endpoint offers no "modified since" filter and ignores the sort hint, so
+ * the sweep has to walk the whole list — 6,000+ Actions here. Handing back a page
+ * at a time lets the caller write each one and drop it, instead of holding the
+ * entire organisation in memory and running the worker out of resources.
+ */
+export async function listActionsPage(
+  pageToken: string | null,
+): Promise<{ actions: ScAction[]; nextToken: string | null; total: number | null }> {
+  const body: Record<string, unknown> = { page_size: 100 };
+  if (pageToken) body.page_token = pageToken;
+
+  const payload = await call("/tasks/v1/actions/list", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+
+  const rows = itemsOf(payload);
+  const actions: ScAction[] = [];
+  for (const r of rows) {
+    const a = parseAction(r);
+    if (a) actions.push(a);
+  }
+  const total = Number((payload as Record<string, unknown>)?.total ?? NaN);
+  return {
+    actions,
+    nextToken: rows.length ? nextToken(payload) : null,
+    total: Number.isFinite(total) ? total : null,
+  };
 }
 
 /** A single Action, for the webhook path where only the id arrives. */
@@ -266,27 +285,4 @@ export async function getAction(id: string): Promise<ScAction | null> {
   >;
   const raw = (payload.action ?? payload.task ?? payload) as Record<string, unknown>;
   return parseAction(raw);
-}
-
-/**
- * Diagnostic: send an arbitrary list body and report what came back. Used only by
- * the admin "probe" mode while the accepted request shape is being pinned down.
- * Returns the status and a truncated body — never the credential.
- */
-export async function rawList(
-  body: Record<string, unknown> | null,
-  path = "/tasks/v1/actions/list",
-  method = "POST",
-): Promise<{ status: number; body: string }> {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token()}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(20_000),
-  });
-  return { status: res.status, body: (await res.text()).slice(0, 4000) };
 }

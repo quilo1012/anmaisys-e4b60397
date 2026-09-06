@@ -3,17 +3,21 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import {
   hasToken,
-  listActions,
+  listActionsPage,
   orgId,
   ScApiError,
   ScAuthError,
   ScRateLimit,
   ScTimeout,
-  rawList,
   testConnection,
 } from "../_shared/safetyculture/client.ts";
-import { CANDIDATES } from "./probe.ts";
-import { adminClient, applyActions, bumpState, log } from "../_shared/safetyculture/sync.ts";
+import {
+  adminClient,
+  applyActions,
+  bumpState,
+  loadContext,
+  log,
+} from "../_shared/safetyculture/sync.ts";
 
 /**
  * Pulls Actions from SafetyCulture into the Quality log.
@@ -28,7 +32,7 @@ import { adminClient, applyActions, bumpState, log } from "../_shared/safetycult
  */
 
 const BodySchema = z.object({
-  mode: z.enum(["sync", "test", "status", "probe"]).default("sync"),
+  mode: z.enum(["sync", "test", "status"]).default("sync"),
   /** Ignore the stored cursor and re-read from this instant. */
   since: z.string().datetime().optional(),
   full: z.boolean().optional(),
@@ -100,18 +104,6 @@ Deno.serve(async (req) => {
     return json({ error: "not_configured", message: "SafetyCulture API token is not set." }, 400);
   }
 
-  if (mode === "probe") {
-    const results = [];
-    for (const c of CANDIDATES) {
-      try {
-        results.push({ name: c.name, ...(await rawList(c.body, c.path, c.method)) });
-      } catch (e) {
-        results.push({ name: c.name, status: 0, body: (e as Error).message });
-      }
-    }
-    return json({ ok: true, results });
-  }
-
   if (mode === "test") {
     try {
       const res = await testConnection();
@@ -140,25 +132,67 @@ Deno.serve(async (req) => {
       return json({ ok: true, skipped: "integration disabled" });
     }
 
-    const cursor = full ? null : (since ?? state?.cursor_modified_after ?? null);
-    const actions = await listActions(cursor);
-    const summary = await applyActions(db, actions);
+    const { data: full_state } = await db
+      .from("sc_sync_state")
+      .select("page_token, backfill_complete")
+      .eq("id", true)
+      .maybeSingle();
+
+    // SafetyCulture has no "modified since" filter and its sort hint is not
+    // honoured, so the only reliable reconciliation is a rolling sweep: each run
+    // continues from the page the last one stopped at, and starts over once the
+    // list is exhausted. Unchanged rows cost nothing — they are matched in one
+    // query per page and skipped. Live changes arrive on the webhook; this is the
+    // backstop that catches whatever the webhook missed.
+    const cursor = full ? null : (since ?? null);
+
+    const ctx = await loadContext(db);
+    let pageToken: string | null = full ? null : (full_state?.page_token ?? null);
+    let read = 0;
+    let newest: string | null = state?.cursor_modified_after ?? null;
+    const totals = { created: 0, updated: 0, unchanged: 0, errors: 0, needs_classification: 0 };
+
+    // A page budget keeps one invocation inside the worker's time and memory.
+    const PAGES = 12;
+    let page = 0;
+    for (; page < PAGES; page++) {
+      const res = await listActionsPage(pageToken);
+      read += res.actions.length;
+      const wanted = cursor
+        ? res.actions.filter((a) => !a.modified_at || a.modified_at > cursor)
+        : res.actions;
+
+      const summary = await applyActions(db, wanted, ctx);
+      totals.created += summary.created;
+      totals.updated += summary.updated;
+      totals.unchanged += summary.unchanged;
+      totals.errors += summary.errors;
+      totals.needs_classification += summary.needs_classification;
+      if (summary.cursor && (!newest || summary.cursor > newest)) newest = summary.cursor;
+
+      pageToken = res.nextToken;
+      if (!pageToken) break;
+    }
+
+    const finished = !pageToken;
 
     await bumpState(db, {
       last_success_at: new Date().toISOString(),
       last_error: null,
-      cursor_modified_after: summary.cursor ?? cursor,
-      actions_imported: summary.created,
-      actions_updated: summary.updated,
-      actions_skipped: summary.unchanged,
-      error_count: summary.errors,
+      cursor_modified_after: finished ? newest : (state?.cursor_modified_after ?? null),
+      page_token: finished ? null : pageToken,
+      backfill_complete: finished ? true : (full_state?.backfill_complete ?? false),
+      actions_imported: totals.created,
+      actions_updated: totals.updated,
+      actions_skipped: totals.unchanged,
+      error_count: totals.errors,
     });
     await log(db, "sync_finished", {
-      message: `${actions.length} action(s) read`,
-      details: summary,
+      message: `${read} action(s) read over ${page + 1} page(s)${finished ? "" : " — more to follow"}`,
+      details: totals,
     });
 
-    return json({ ok: true, read: actions.length, ...summary });
+    return json({ ok: true, read, finished, ...totals });
   } catch (e) {
     const err = e as Error;
     const event = e instanceof ScAuthError
