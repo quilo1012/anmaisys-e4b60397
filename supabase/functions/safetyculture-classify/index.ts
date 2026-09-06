@@ -1,0 +1,160 @@
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3.23.8";
+import { classify, resolveLine, type ScAction } from "../_shared/safetyculture/normalize.ts";
+import { adminClient, loadContext, log } from "../_shared/safetyculture/sync.ts";
+
+/**
+ * Re-runs the classification rules over records already imported from
+ * SafetyCulture, without touching the API.
+ *
+ * Nothing is invented: a record only leaves "needs review" when the rules give it
+ * an error type and either a line with a leader, or an area (department) that is
+ * outside the production lines.
+ */
+
+const BodySchema = z.object({
+  /** "pending" (default) only revisits records still awaiting classification. */
+  scope: z.enum(["pending", "all"]).default("pending"),
+  limit: z.number().int().min(1).max(2000).default(1000),
+});
+
+const ALLOWED = ["admin", "manager", "quality_supervisor", "maintenance_manager"];
+
+function json(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function callerIsAllowed(req: Request): Promise<boolean> {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.startsWith("Bearer ")) return false;
+  const authClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
+  const { data: claims, error } = await authClient.auth.getClaims(
+    authHeader.replace("Bearer ", ""),
+  );
+  if (error || !claims?.claims?.sub) return false;
+  const userId = claims.claims.sub as string;
+  const db = adminClient();
+  const { data: roles } = await db.from("user_roles").select("role").eq("user_id", userId);
+  if ((roles ?? []).some((r: { role: string }) => ALLOWED.includes(r.role))) return true;
+  const { data: owner } = await db.rpc("is_owner", { _uid: userId });
+  return owner === true;
+}
+
+interface Row {
+  id: string;
+  external_id: string;
+  title: string | null;
+  description: string | null;
+  labels: string[] | null;
+  external_site: string | null;
+  external_asset: string | null;
+  external_template: string | null;
+  external_priority: string | null;
+  line: string | null;
+  leader_id: string | null;
+  department: string | null;
+  error_type: string | null;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (!(await callerIsAllowed(req))) return json({ error: "Not allowed" }, 403);
+
+  const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return json({ error: parsed.error.flatten().fieldErrors }, 400);
+  }
+  const { scope, limit } = parsed.data;
+
+  const db = adminClient();
+  const ctx = await loadContext(db);
+
+  let query = db
+    .from("quality_actions")
+    .select(
+      "id,external_id,title,description,labels,external_site,external_asset,external_template,external_priority,line,leader_id,department,error_type",
+    )
+    .eq("source", "safetyculture")
+    .order("external_created_at", { ascending: false })
+    .limit(limit);
+  if (scope === "pending") query = query.eq("classification_status", "needs_review");
+
+  const { data, error } = await query;
+  if (error) return json({ error: error.message }, 500);
+
+  const rows = (data ?? []) as unknown as Row[];
+  let classified = 0;
+  let stillPending = 0;
+  let updated = 0;
+
+  for (const row of rows) {
+    const action: ScAction = {
+      id: row.external_id,
+      title: row.title ?? "",
+      description: row.description,
+      labels: row.labels ?? [],
+      site: row.external_site,
+      asset: row.external_asset,
+      template: row.external_template,
+      priority: row.external_priority,
+    };
+
+    const line = resolveLine(action, ctx.lineNames, ctx.rules) ?? row.line ?? null;
+    const leader = line ? ctx.leaderFor(line) : null;
+    const cls = classify(action, ctx.rules);
+    const errorType = cls.error_type ?? row.error_type ?? null;
+    const department = cls.department ?? row.department ?? null;
+
+    const complete = Boolean(errorType) && (Boolean(line && leader) || Boolean(department));
+    if (complete) classified++;
+    else stillPending++;
+
+    const payload = {
+      line,
+      leader_id: leader?.id ?? null,
+      leader_name: leader?.name ?? null,
+      error_type: errorType,
+      department,
+      severity: cls.severity ?? undefined,
+      needs_classification: !complete,
+      classification_status: complete ? "classified" : "needs_review",
+    };
+
+    const { error: upErr } = await db.from("quality_actions").update(payload).eq("id", row.id);
+    if (upErr) {
+      await log(db, "classification_error", {
+        action_id: row.external_id,
+        action_title: row.title ?? undefined,
+        message: upErr.message,
+      });
+      continue;
+    }
+    updated++;
+  }
+
+  await log(db, "sync_finished", {
+    message: `Classification pass: ${classified} classified, ${stillPending} still to review`,
+    details: { scope, examined: rows.length },
+  });
+
+  // Keep the monitor's counters truthful after a manual pass.
+  const { count: pending } = await db
+    .from("quality_actions")
+    .select("id", { count: "exact", head: true })
+    .eq("source", "safetyculture")
+    .eq("classification_status", "needs_review");
+  await db
+    .from("sc_sync_state")
+    .update({ actions_needs_review: pending ?? 0 })
+    .eq("id", 1);
+
+  return json({ examined: rows.length, updated, classified, needs_review: stillPending });
+});
