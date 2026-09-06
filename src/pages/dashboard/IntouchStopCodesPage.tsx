@@ -62,6 +62,29 @@ export default function IntouchStopCodesPage() {
   });
   const woCount = rows.filter((r) => r.requires_wo).length;
 
+  /**
+   * iTouching genuinely holds the same stop NAME under two different GUIDs —
+   * "Metal Detected" (ids 59 and 81) and "Metal Detector Checks" (45 and 82) are
+   * both live and both have arrived in the status log. Deleting one would silence
+   * whichever half of the stops carries that GUID, so both rows stay.
+   *
+   * What was actually wrong is that the two twins could be set differently: the
+   * same stop on the floor opening an order under one GUID and not under the
+   * other, with nothing on screen saying there was a second copy at all. The list
+   * now names the duplicates, and saving one twin writes the same decision to the
+   * others so they cannot drift apart again.
+   */
+  const normLabel = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const labelCounts = new Map<string, number>();
+  for (const r of rows) {
+    const k = normLabel(r.label);
+    if (k) labelCounts.set(k, (labelCounts.get(k) ?? 0) + 1);
+  }
+  const duplicateCount = [...labelCounts.values()].filter((n) => n > 1).length;
+  const twinsOf = (row: Partial<Row>) =>
+    rows.filter((o) => o.id !== row.id && normLabel(o.label) === normLabel(row.label));
+
+
   const { data: lines = [] } = useQuery({
     queryKey: ["lines-for-stopcodes"],
     queryFn: async () => {
@@ -81,12 +104,32 @@ export default function IntouchStopCodesPage() {
         onConflict: "stop_code",
       });
       if (error) throw error;
+
+      // The same stop name under a second GUID must behave the same way. The GUID
+      // and the label are left alone — only the decision is copied across.
+      const twins = twinsOf(row);
+      if (twins.length) {
+        const { error: twinError } = await supabase
+          .from("intouch_stop_code_map")
+          .update({
+            default_priority: payload.default_priority,
+            category: payload.category ?? null,
+            line_hint: payload.line_hint ?? null,
+            requires_wo: !!payload.requires_wo,
+            active: !!payload.active,
+          })
+          .in("id", twins.map((t) => t.id));
+        if (twinError) throw twinError;
+      }
+      return twins.length;
     },
-    onSuccess: () => {
-      toast.success("Saved");
+
+    onSuccess: (twins) => {
+      toast.success(twins ? `Saved — applied to ${twins} other code with the same name` : "Saved");
       setDraft({});
       qc.invalidateQueries({ queryKey: ["intouch_stop_code_map"] });
     },
+
     onError: (e: any) => toast.error(e.message ?? "Failed to save"),
   });
 
@@ -177,7 +220,13 @@ export default function IntouchStopCodesPage() {
             <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-strong">
               {woCount} open a maintenance order
             </span>
+            {duplicateCount > 0 && (
+              <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {duplicateCount} name{duplicateCount === 1 ? "" : "s"} used by two iTouching codes
+              </span>
+            )}
           </CardTitle>
+
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -228,7 +277,13 @@ export default function IntouchStopCodesPage() {
                             <Input value={m.label}
                               onChange={(e) => patch(r.id, { label: e.target.value })} />
                           </div>
+                          {(labelCounts.get(normLabel(m.label)) ?? 0) > 1 && (
+                            <span className="mt-1 inline-block rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning-strong">
+                              iTouching has {labelCounts.get(normLabel(m.label))} codes with this name — saving keeps them identical
+                            </span>
+                          )}
                         </TableCell>
+
                         <TableCell>
                           <Select value={m.default_priority}
                             onValueChange={(v) => patch(r.id, { default_priority: v })}>
