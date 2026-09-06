@@ -124,11 +124,12 @@ export default function IntouchStopCodesPage() {
       return twins.length;
     },
 
-    onSuccess: () => {
-      toast.success("Saved");
+    onSuccess: (twins) => {
+      toast.success(twins ? `Saved — applied to ${twins} other code with the same name` : "Saved");
       setDraft({});
       qc.invalidateQueries({ queryKey: ["intouch_stop_code_map"] });
     },
+
     onError: (e: any) => toast.error(e.message ?? "Failed to save"),
   });
 
