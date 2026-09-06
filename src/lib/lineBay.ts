@@ -117,14 +117,17 @@ export function bayInk(lineName: string | null | undefined): string {
 }
 
 /**
- * O banho do turno da noite, na cor da própria baía.
+ * O banho da baía na fila.
  *
- * O dia não leva banho nenhum: lê-se no fundo do cartão. Se os dois turnos levassem
- * cor, nenhum dos dois seria uma leitura — seriam duas.
+ * A noite leva o banho cheio; o dia leva metade. Antes o dia não levava nenhum, e uma
+ * folha só de turno de dia ficava sem cor de linha em fila nenhuma — a cor só aparecia
+ * na placa. Meia força mantém a hierarquia (noite mais fundo) sem apagar a linha de dia.
  */
-export function bayWash(lineName: string | null | undefined): string {
-  return paint(bayColor(lineName), "var(--bay-wash)");
+export function bayWash(lineName: string | null | undefined, strength: "full" | "soft" = "full"): string {
+  const alpha = strength === "soft" ? "calc(var(--bay-wash) * 0.5)" : "var(--bay-wash)";
+  return paint(bayColor(lineName), alpha);
 }
+
 
 /** O quadrado gravado que abre a placa da baía e acompanha o nome nos filtros. */
 export function baySwatchStyle(lineName: string | null | undefined): React.CSSProperties {
