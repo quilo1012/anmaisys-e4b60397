@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
   await db
     .from("sc_sync_state")
     .update({ actions_needs_review: pending ?? 0 })
-    .eq("id", 1);
+    .eq("id", true);
 
   return json({ examined: rows.length, updated, classified, needs_review: stillPending });
 });
