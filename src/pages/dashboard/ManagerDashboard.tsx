@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Plus, ExternalLink, Monitor, Clock, Wrench, PowerOff, TrendingDown } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Timer, Activity, Package, AlertTriangle, BarChart3, Cog, AlertCircle, Loader2, Lock, Plus, ExternalLink, Clock, Wrench, PowerOff, TrendingDown } from "lucide-react";
 import { formatMinutes } from "@/lib/formatDuration";
 import { useWorkOrders } from "@/hooks/useWorkOrders";
 import { useTotalPartsUsedToday, useProducts } from "@/hooks/useStock";
@@ -207,9 +207,11 @@ function ManagerDashboardContent() {
               <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/work-orders?status=open")}>
                 <ExternalLink className="h-4 w-4 mr-2" /> Open WOs
               </Button>
-              <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/control-center")}>
-                <Monitor className="h-4 w-4 mr-2" /> Control Center
-              </Button>
+              {/* The Control Center button went with the sidebar row, on the same
+                  pass and for the same reason: the wall map is not being used, and
+                  taking it off the menu while leaving a button on the screen a
+                  manager lands on would have hidden nothing. The route still opens
+                  for anyone who types it. */}
               {role === "admin" && (
                 <Button variant="outline" size="sm" onClick={() => setShowChangePin(true)}>
                   <Lock className="h-4 w-4 mr-2" /> Change PIN

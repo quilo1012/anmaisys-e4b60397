@@ -83,14 +83,24 @@ export const navItems: NavItem[] = [
   // do nothing, because the page was already open.
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Overview", action: "dashboard.manager" },
   { title: "Dashboard", url: "/dashboard/warehouse", icon: LayoutDashboard, roles: ["warehouse"], group: "Overview" },
-  { title: "Control Center", shortTitle: "Control", url: "/dashboard/control-center", icon: Monitor, roles: ["admin", "manager", "maintenance_manager", "supervisor", "production_office_admin"], group: "Overview", action: "controlcenter.view" },
+  // Control Center is OFF the menu, and only off the menu. Nobody is using the wall
+  // map today — it exists for a screen on the maintenance floor that is not up — so
+  // it was costing a row in the Overview of five roles to be scrolled past.
+  //
+  // Nothing else was touched: /dashboard/control-center still opens, still asks for
+  // `controlcenter.view`, and the Manager Dashboard still has the button that goes
+  // there. Same treatment /dashboard/workforce already has. Putting it back is one
+  // line here, which is the point of hiding it this way rather than deleting it.
 
 
   // Maintenance
   { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "wo.view" },
   { title: "Service Requests", shortTitle: "Requests", url: "/dashboard/warehouse", icon: ClipboardList, roles: ["warehouse"], group: "Maintenance", action: "wo.view" },
   { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
-  { title: "PM Intelligence", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "pm.view" },
+  // `shortTitle` earned on the pass that hid Control Center: with that row gone from
+  // Overview, PM Intelligence became the production_office_admin's third bottom-bar
+  // tab, and "PM Intelligence" is fifteen characters into a slot that holds eleven.
+  { title: "PM Intelligence", shortTitle: "PM Intel", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "pm.view" },
 
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse", "production_office_admin"], group: "Maintenance", action: "machines.view" },
@@ -101,9 +111,9 @@ export const navItems: NavItem[] = [
   // array order, so it is written here rather than left to whoever appends next:
   // the reviews first (RAG Weekly, Performance — how the week and the lines went),
   // then what the lines run (SKU Products), then the shift's own record (Production
-  // Control), then the exception it raised (Quality), and last the people behind it
-  // (Headcount, the only admin-only row here). Reading down goes from the week to
-  // the shift to what went wrong, which is the order the questions are asked in.
+  // Control), and last the people behind it (Headcount, the only admin-only row
+  // here). Reading down goes from the week to the shift to the people, which is the
+  // order the questions are asked in.
   // It was previously Production Control, RAG Weekly, Performance, SKU Products,
   // Quality — with Headcount declared sixty lines below among the admin screens, so
   // it landed last with nothing near it to say why.
@@ -117,7 +127,6 @@ export const navItems: NavItem[] = [
   { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.performance.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.manage" },
-  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"], group: "Production", action: "quality.view" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and
   // Finance Close are reached from the tab bar on the board rather than from here:
   // they are one job seen from four angles, and four menu rows said they were four
@@ -129,15 +138,37 @@ export const navItems: NavItem[] = [
   // /dashboard/workforce still opens for an admin who types it.
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
 
+  // Quality has a heading of its own, under Production and not inside it.
+  //
+  // It sat as the fifth row of Production, between the shift's record and Headcount,
+  // and that placement made a claim that is not true here: that quality is one of
+  // the things a production run reports. It is the opposite — it is what a run
+  // raises when something did not go to plan, it is read by people who do not run
+  // lines, and it is the landing screen of `quality_supervisor`, a role that has no
+  // business in RAG Weekly or SKU Products at all. The verdicts also split in a way
+  // nothing else under Production does: `quality.validate` is the auditor's and
+  // `quality.close` is not, and the database enforces the split
+  // (enforce_quality_validation) rather than trusting this menu.
+  //
+  // So it is one row under its own name. That is deliberately against the rule that
+  // dissolved Assets, Reports and Communication — a heading over a single row — and
+  // the exception is written into the sidebar test beside System and Administration,
+  // not left for the next reader to discover as a failure.
+  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"], group: "Quality", action: "quality.view" },
+
   // Analytics and Messages sit in Overview rather than each holding a group of its
   // own. The argument that dissolved Assets applies harder to a group of one: a
   // heading over a single row costs a line of sidebar and a beat of reading, and
   // returns nothing. For an admin that is two fewer headings over the same 17 links.
-  // Reports first: it is the one screen that answers "how did the day/week/month go"
-  // without opening four others, and it links through to each of them on the same
-  // period. Analytics stays for the question it actually answers — digging, not
+  //
+  // Reports is OFF the menu on the same pass as Control Center, and for the same
+  // reason: it is not being opened. It answers "how did the day/week/month go" across
+  // production, downtime, maintenance and quality on one period — worth keeping, not
+  // worth a permanent row until somebody asks it. The route, the page and
+  // `useReportSummary` are all untouched, and it reads nothing of its own: every
+  // figure comes from the screen it links to, so nothing goes stale while it is
+  // hidden. Analytics stays, for the question it actually answers — digging, not
   // reporting.
-  { title: "Reports", url: "/dashboard/reports", icon: FileBarChart, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Overview", action: "reports.analytics" },
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
   { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "operator"], group: "Overview", action: "chat.dm" },
@@ -246,7 +277,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
   // Reports and Communication held one item each and are gone with them. The names
   // stay in the list so an item still carrying the old group is rendered rather than
   // silently dropped from the menu.
-  const groups = ["Overview", "Maintenance", "Production", "Planning", "Reports", "Communication", "Administration", "System"];
+  const groups = ["Overview", "Maintenance", "Production", "Quality", "Planning", "Reports", "Communication", "Administration", "System"];
   const grouped = groups.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
