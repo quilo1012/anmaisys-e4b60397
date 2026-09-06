@@ -24,7 +24,7 @@ import { TableCard, TableCardField } from "@/components/ResponsiveTable";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
-import { bayInk, baySpine, bayWash } from "@/lib/lineBay";
+import { bayInk, bayPaper, baySpine, bayWash } from "@/lib/lineBay";
 import { hasLeader } from "@/lib/sessionLeader";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
@@ -428,19 +428,61 @@ const isPlaceholderRow = (id: string | null | undefined) =>
 const hhmm = (v: string | null | undefined) => (v ? new Date(v).toTimeString().slice(0, 5) : "—");
 
 /**
+ * A descrição sem o código pautal.
+ *
+ * O nome do SKU no catálogo traz o HS CODE agarrado — "CRITICAL WHEY 2KG CARAMEL LATTE
+ * [HS CODE:2106108070]". No ecrã está truncado e ninguém dá por ele; em papel dobrava
+ * a altura de metade das filas e roubava um terço da coluna à única informação que ali
+ * se lê. É um código de alfândega: não tem nada que fazer numa folha de turno, que é
+ * lida por quem enche as linhas e não por quem exporta.
+ */
+const cleanDescription = (name: string) =>
+  name.replace(/\s*\[\s*HS\s*CODE[^\]]*\]/gi, "").replace(/\s{2,}/g, " ").trim();
+
+/** O plano ao lado do feito, na mesma língua nos três sítios em que a folha o diz. */
+function AgainstPlan({ qty, plan, pct }: { qty: number; plan: number; pct: number | null }) {
+  return (
+    <span className="whitespace-nowrap font-figure">
+      <span className="font-bold">{Math.round(qty).toLocaleString()}</span>
+      {plan > 0 && <span className="text-black/55"> / {Math.round(plan).toLocaleString()}</span>}
+      {pct != null && <span className="pl-2 font-bold">{pct.toFixed(0)}%</span>}
+    </span>
+  );
+}
+
+/**
  * A folha em papel.
  *
- * O ecrã não serve de original. Metade das colunas por que se lê um turno são campos
- * que se editam no sítio: o Líder e o SKU são `Select`, a Equipa, a Qty e as horas são
- * `input`. O `printDocument` clona o DOM e imprime o clone — e o clone não leva React
- * nenhum consigo. Um `Select` é um `button`, e a folha esconde os botões; um `input`
- * controlado tem o valor na propriedade e não no atributo, e o atributo é a única coisa
- * que um clone copia. Imprimir o que está no ecrã dava uma folha com o Líder, o SKU, a
- * Qty, o Start e o Finish em branco: as cinco colunas que interessam.
+ * ── Porque é escrita outra vez, e não clonada do ecrã ──────────────────────────────
  *
- * Por isso a folha é escrita outra vez, em texto. Mantém as faixas do dia e da baía —
- * é por elas que se acha uma linha num maço de páginas — e perde a coluna das Acções,
- * que em papel não é acção nenhuma.
+ * Metade das colunas por que se lê um turno são campos que se editam no sítio: o Líder
+ * e o SKU são `Select`, a Equipa, a Qty e as horas são `input`. O `printDocument` clona
+ * o DOM e imprime o clone — e o clone não leva React nenhum consigo. Um `Select` é um
+ * `button`, e a folha esconde os botões; um `input` controlado tem o valor na
+ * propriedade, e um clone só copia atributos. Imprimir o ecrã dava uma página com ar
+ * de estar certa e com o Líder, o SKU, a Equipa, a Qty e as horas em branco.
+ *
+ * ── Que objecto isto é ────────────────────────────────────────────────────────────
+ *
+ * Não é um relatório: é o registo do turno, lido às sete da manhã no handover e depois
+ * afixado na parede da nave. Daí as três decisões que governam o resto:
+ *
+ * 1. A COR IDENTIFICA A LINHA, e mais nada. A faixa pintada à esquerda de cada bloco é
+ *    a mesma baía que está pintada no chão da nave e no ecrã — a mesma cor da lista do
+ *    quadro do Trello. Num maço de nove páginas, é por ela que se folheia até à Line 6.
+ *    O atingimento NÃO leva cor: uma folha de parede é fotocopiada, e um verde que
+ *    fotocopia cinzento como o vermelho é pior do que não ter cor nenhuma. Diz-se por
+ *    peso e pelo plano escrito ao lado.
+ *
+ * 2. AS TRÊS VOZES DA CASA, em papel. Archivo nas chapas (o dia, a baía, os títulos de
+ *    coluna), Inter no que é nome, IBM Plex Mono em tudo o que é algarismo. Os
+ *    algarismos tabulares são o que faz uma coluna de quantidades ler-se de cima a
+ *    baixo em vez de dançar.
+ *
+ * 3. NADA PARTE A MEIO DE UMA PALAVRA. A folha do `printDocument` traz
+ *    `word-break: break-word` para as tabelas largas dos outros ecrãs, e aqui
+ *    escrevia "LEADE R", "TE AM" e "Marci o". As colunas têm largura fixa e o
+ *    cabeçalho não quebra; só a descrição é que pode passar à linha.
  */
 export function ProductionControlPrintSheet({
   sessions, bands, summary, skuMap, leaders, periodLabel, shiftLabel, filtersLabel,
@@ -458,8 +500,8 @@ export function ProductionControlPrintSheet({
   filtersLabel?: string;
 }) {
   const leaderById = new Map(leaders.map((l) => [l.id, l.name]));
-  const th = "border-b-2 border-black px-1.5 py-1 text-left font-bold uppercase";
-  const td = "border-b border-black/25 px-1.5 py-[3px] align-top";
+  const cell = "px-1.5 py-[3.5px] align-top";
+  const num = `${cell} text-right font-figure whitespace-nowrap`;
 
   const rows: React.ReactNode[] = [];
   let prevDate: string | null = null;
@@ -470,15 +512,23 @@ export function ProductionControlPrintSheet({
       const d = bands.day.get(s.session_date);
       const pct = d && d.plan > 0 ? (d.qty / d.plan) * 100 : null;
       rows.push(
-        <tr key={`p-day-${s.session_date}`}>
-          <td colSpan={13} className="border-y-2 border-black px-1.5 py-1 font-bold uppercase tracking-wide">
-            {format(parseISO(s.session_date), "EEE dd MMM yyyy")}
-            <span className="pl-4 font-normal normal-case">
-              {d?.lines.size ?? 0} {(d?.lines.size ?? 0) === 1 ? "line" : "lines"}
-            </span>
-            <span className="pl-4">{Math.round(d?.qty ?? 0).toLocaleString()}</span>
-            {d && d.plan > 0 && <span className="font-normal"> / {Math.round(d.plan).toLocaleString()}</span>}
-            {pct != null && <span className="pl-2">{pct.toFixed(0)}%</span>}
+        <tr key={`p-day-${s.session_date}`} className="pc-plate">
+          <td className="pc-rail" />
+          {/* O dia e o que o dia deu, nos dois extremos da mesma régua: a data à
+              esquerda, o total encostado à direita, na coluna onde todos os totais
+              da folha caem uns por baixo dos outros. */}
+          <td colSpan={13} className="border-t-[1.2pt] border-black px-1.5 pb-[3px] pt-[7px]">
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="font-display text-[9.5pt] font-bold uppercase leading-none tracking-[0.08em]">
+                {format(parseISO(s.session_date), "EEE dd MMM yyyy")}
+              </span>
+              <span className="flex items-baseline gap-4 text-[8pt]">
+                <span className="text-[6.5pt] text-black/55">
+                  {d?.lines.size ?? 0} {(d?.lines.size ?? 0) === 1 ? "line" : "lines"}
+                </span>
+                <AgainstPlan qty={d?.qty ?? 0} plan={d?.plan ?? 0} pct={pct} />
+              </span>
+            </div>
           </td>
         </tr>,
       );
@@ -490,31 +540,38 @@ export function ProductionControlPrintSheet({
       const b = bands.bay.get(`${s.session_date}|${s.line}`);
       const pct = b && b.plan > 0 ? (b.qty / b.plan) * 100 : null;
       rows.push(
-        <tr key={`p-bay-${s.session_date}-${s.line}`}>
-          <td colSpan={13} className="border-b border-black/40 px-1.5 py-[3px]">
-            {/* O quadrado da baía é a mesma cor do ecrã e do filtro. Vive de
-                `print-color-adjust: exact`, que a folha já liga. */}
-            <span
-              className="mr-2 inline-block h-2 w-2 rounded-[1px] align-middle"
-              style={{ backgroundColor: bayInk(s.line) }}
-              aria-hidden
-            />
-            <span className="font-bold uppercase tracking-wide">{(s.line ?? "").trim()}</span>
-            <span className="pl-3">
-              {b?.skus ?? 0} SKU{b && b.shifts.size > 0 ? ` · ${[...b.shifts].join(" + ").toLowerCase()}` : ""}
-            </span>
-            {b?.noLeader && <span className="pl-3 font-bold uppercase">no leader</span>}
-            <span className="pl-3 font-bold">{Math.round(b?.qty ?? 0).toLocaleString()}</span>
-            {b && b.plan > 0 && <span> / {Math.round(b.plan).toLocaleString()}</span>}
-            {pct != null && <span className="pl-2 font-bold">{pct.toFixed(0)}%</span>}
+        <tr key={`p-bay-${s.session_date}-${s.line}`} className="pc-plate">
+          {/* A faixa da baía começa aqui e desce por todas as filas do bloco. */}
+          <td className="pc-rail" style={{ backgroundColor: bayPaper(s.line) }} />
+          <td colSpan={13} className="border-t border-black/25 px-1.5 py-[3px]">
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="flex items-baseline gap-2.5">
+                <span className="font-display text-[8pt] font-bold uppercase tracking-[0.1em]">
+                  {(s.line ?? "").trim()}
+                </span>
+                <span className="text-[6.5pt] text-black/55">
+                  {b?.skus ?? 0} SKU{b && b.shifts.size > 0 ? ` · ${[...b.shifts].join(" + ").toLowerCase()}` : ""}
+                </span>
+                {/* O andon da folha: a única palavra que aqui se escreve por não haver
+                    algo. Vai a bold e com bordo, que é o que sobrevive à fotocópia. */}
+                {b?.noLeader && (
+                  <span className="border border-black px-1 text-[6pt] font-bold uppercase tracking-[0.08em]">
+                    no leader
+                  </span>
+                )}
+              </span>
+              <span className="text-[7.5pt]">
+                <AgainstPlan qty={b?.qty ?? 0} plan={b?.plan ?? 0} pct={pct} />
+              </span>
+            </div>
           </td>
         </tr>,
       );
       prevLine = s.line;
     }
 
-    // Uma sessão sem itens continua a ocupar uma fila: um turno que não registou
-    // nada é uma leitura, e desaparecer da folha faria dele um turno que não houve.
+    // Uma sessão sem itens continua a ocupar uma fila: um turno que não registou nada
+    // é uma leitura, e desaparecer da folha faria dele um turno que não houve.
     const items = s.production_items.length > 0 ? s.production_items : [null];
     items.forEach((i, idx) => {
       const sku = i ? skuMap.get(i.sku_id) : undefined;
@@ -524,101 +581,180 @@ export function ProductionControlPrintSheet({
         ? Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y)
         : [];
       const weight = i ? parseWeightFromSku(code, name, sku?.weight ?? null) : 0;
-      rows.push(
-        <tr key={`p-row-${s.id}-${i?.id ?? idx}`}>
-          <td className={cn(td, "whitespace-nowrap")}>{format(parseISO(s.session_date), "dd/MM")}</td>
-          <td className={cn(td, "whitespace-nowrap")}>{s.shift}</td>
-          <td className={cn(td, "whitespace-nowrap")}>{(s.line ?? "").trim()}</td>
-          {/* O líder é do turno e não de cada SKU que ele fez: escreve-se uma vez,
-              como a equipa, na primeira fila da sessão. */}
-          <td className={td}>{idx === 0 ? (s.leader_name ?? (s.leader_id ? leaderById.get(s.leader_id) ?? "" : "") ?? "—") : ""}</td>
-          <td className={cn(td, "text-right")}>{idx === 0 ? (s.staff_actual ?? "—") : ""}</td>
-          <td className={cn(td, "whitespace-nowrap font-bold")}>
+      const leaderName = s.leader_name ?? (s.leader_id ? leaderById.get(s.leader_id) ?? null : null);
+      return rows.push(
+        <tr key={`p-row-${s.id}-${i?.id ?? idx}`} className="border-t border-black/12">
+          <td className="pc-rail" style={{ backgroundColor: bayPaper(s.line) }} />
+          <td className={`${cell} font-figure whitespace-nowrap`}>{format(parseISO(s.session_date), "dd/MM")}</td>
+          <td className={`${cell} whitespace-nowrap`}>
+            {/* Turno por peso e não por cor: a noite é a chapa cheia, o dia é o papel.
+                É a mesma chapa que a fila tem no ecrã. */}
+            {s.shift === "DAY" ? (
+              <span className="font-display text-[6pt] font-bold uppercase tracking-[0.08em] text-black/55">day</span>
+            ) : (
+              <span className="border border-black px-1 font-display text-[6pt] font-bold uppercase tracking-[0.08em]">
+                night
+              </span>
+            )}
+          </td>
+          {/* O eco da faixa, à altura dos olhos: a mesma decisão que a fila tem no
+              ecrã. A cor diz a linha e a chapa confirma-a; escrever o nome outra vez a
+              cheio em cada fila era dizer três vezes a mesma coisa. Fica calado — quem
+              grita é a faixa —, mas fica, porque uma página que comece a meio de uma
+              baía não traz a chapa consigo. */}
+          <td className={`${cell} whitespace-nowrap pr-3 text-black/55`}>{(s.line ?? "").trim()}</td>
+          {/* O líder e a equipa são do turno, não de cada SKU que ele fez: escrevem-se
+              uma vez, na primeira fila da sessão, como uma célula fundida na folha que
+              este ecrã substituiu. */}
+          <td className={`${cell} whitespace-nowrap`}>{idx === 0 ? (leaderName ?? "—") : ""}</td>
+          <td className={num}>{idx === 0 ? (s.staff_actual ?? "—") : ""}</td>
+          <td className={`${cell} whitespace-nowrap font-figure font-bold`}>
             {i ? (baseSkuCode(code) || i.sku_code_text || "—") : "—"}
           </td>
-          <td className={td}>{i ? name : "—"}</td>
-          <td className={td}>
+          <td className={`${cell} pc-wrap`}>{i ? cleanDescription(name) : "—"}</td>
+          <td className={`${cell} whitespace-nowrap font-figure`}>
             {i?.batch_code || "—"}
             {i && (i.manufacture_month || i.expiry_month) && (
-              <div className="whitespace-nowrap text-[7pt]">
+              <div className="text-[6pt] text-black/55">
                 {i.manufacture_month && <span>M {monthMMYY(i.manufacture_month)}</span>}
                 {i.manufacture_month && i.expiry_month && " · "}
                 {i.expiry_month && <span>E {monthMMYY(i.expiry_month)}</span>}
               </div>
             )}
           </td>
-          <td className={cn(td, "text-right")}>{blenders.length ? blenders.join(", ") : "—"}</td>
-          <td className={cn(td, "text-right font-bold")}>{i ? Number(i.actual_qty ?? 0).toLocaleString() : "—"}</td>
-          <td className={cn(td, "text-right")}>{weight ? weight.toLocaleString() : "—"}</td>
-          <td className={cn(td, "whitespace-nowrap")}>{i ? hhmm(i.started_at) : "—"}</td>
-          <td className={cn(td, "whitespace-nowrap")}>{i ? hhmm(i.finished_at) : "—"}</td>
+          {/* Sem misturas, célula vazia. Uma coluna cheia de travessões é ruído com a
+              forma de informação. */}
+          <td className={num}>{blenders.length ? blenders.join(", ") : ""}</td>
+          <td className={`${num} font-bold`}>{i ? Number(i.actual_qty ?? 0).toLocaleString() : "—"}</td>
+          <td className={`${num} text-black/55`}>{weight ? weight.toLocaleString() : ""}</td>
+          <td className={`${cell} font-figure whitespace-nowrap`}>{i ? hhmm(i.started_at) : "—"}</td>
+          <td className={`${cell} font-figure whitespace-nowrap`}>{i ? hhmm(i.finished_at) : "—"}</td>
         </tr>,
       );
     });
   });
 
+  const th = "border-b border-black px-1.5 pb-[3px] text-left font-display text-[6pt] font-bold uppercase tracking-[0.1em] text-black/70";
+  const thNum = `${th} text-right`;
+
   return (
     <div id="production-control-print" className="hidden print:block">
+      {/* Regras próprias da folha, e não do `printDocument`, porque só valem aqui.
+          Ficam dentro do bloco para o clone as levar consigo, e todas prefixadas pelo
+          id: um `<style>` aplica-se ao documento inteiro, esteja onde estiver. */}
+      <style>{`
+        #production-control-print { color: #000; }
+        #production-control-print table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+        /* A folha do printDocument parte palavras a meio para caber as tabelas largas
+           dos outros ecrãs. Aqui as larguras são dadas, e partir "LEADER" em "LEADE R"
+           é o que fazia isto parecer um despejo de folha de cálculo. */
+        #production-control-print th, #production-control-print td { word-break: normal; overflow-wrap: normal; }
+        #production-control-print .pc-wrap { overflow-wrap: anywhere; }
+        /* A faixa da baía: 2,5 mm de cor a descer o bloco todo, encostada à margem. */
+        #production-control-print .pc-rail { width: 9px; padding: 0; border: 0; }
+        /* Uma chapa sozinha no fim da página é uma chapa sem o que ela anuncia. */
+        #production-control-print .pc-plate { break-after: avoid; break-inside: avoid; }
+        #production-control-print tr { break-inside: avoid; }
+        /* O total é a última fila da folha e não um rodapé: um tfoot repete-se em
+           todas as páginas, e o total do período aparecia ao fundo de cada uma. */
+        #production-control-print .pc-total td { border-top: 1.2pt solid #000; }
+      `}</style>
+
       <ReportPrintHeader
         title="Production Control"
         periodLabel={periodLabel}
         shift={shiftLabel}
         filtersLabel={filtersLabel}
       />
-      {/* Os mesmos dois mostradores da placa de comando. Na placa eles confirmam o
-          que os manípulos escolheram; aqui dizem o que a folha soma, que é a
-          primeira pergunta de quem a recebe impressa. */}
-      <div className="mb-2 flex flex-wrap gap-x-6 gap-y-1 text-[9pt]">
-        <span>
-          <span className="font-bold uppercase">Produced</span> {Math.round(summary.actual).toLocaleString()}
-          {summary.target > 0 && ` / ${Math.round(summary.target).toLocaleString()}`}
-        </span>
-        <span>
-          <span className="font-bold uppercase">Attainment</span>{" "}
-          {summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}
-        </span>
-        <span>
+
+      {/* O marcador da placa de comando, em papel e pela mesma gramática: a chapa
+          gravada por cima, o algarismo por baixo, o plano em letra de fundo ao lado.
+          Na placa confirma o que os manípulos escolheram; aqui é a primeira pergunta
+          de quem recebe a folha na mão. */}
+      <div className="mb-3 flex items-end gap-10">
+        <div>
+          <div className="font-display text-[6pt] font-bold uppercase leading-none tracking-[0.12em] text-black/60">
+            Produced
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5 leading-none">
+            <span className="font-figure text-[15pt] font-bold">{Math.round(summary.actual).toLocaleString()}</span>
+            {summary.target > 0 && (
+              <span className="font-figure text-[8pt] text-black/55">/ {Math.round(summary.target).toLocaleString()}</span>
+            )}
+          </div>
+        </div>
+        <div>
+          <div className="font-display text-[6pt] font-bold uppercase leading-none tracking-[0.12em] text-black/60">
+            Attainment
+          </div>
+          <div className="mt-1 leading-none">
+            <span className="font-figure text-[15pt] font-bold">
+              {summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}
+            </span>
+          </div>
+        </div>
+        <div className="pb-[2px] text-[7pt] text-black/60">
           {summary.days} day{summary.days === 1 ? "" : "s"} · {summary.lineCount} line
           {summary.lineCount === 1 ? "" : "s"}
-        </span>
+        </div>
       </div>
 
       {sessions.length === 0 ? (
-        <p className="text-[9pt]">No sessions for this period.</p>
+        <p className="text-[8pt]">No production recorded for this period.</p>
       ) : (
-        <table className="w-full border-collapse text-[8pt]">
+        <table className="text-[7.5pt] leading-[1.25]">
+          {/* Larguras dadas, e a descrição a ficar com o que sobra: sem isto o
+              navegador dá a folga à coluna do lote e parte o cabeçalho das outras. */}
+          <colgroup>
+            <col style={{ width: "9px" }} />
+            <col style={{ width: "42px" }} />
+            <col style={{ width: "44px" }} />
+            <col style={{ width: "94px" }} />
+            <col style={{ width: "84px" }} />
+            <col style={{ width: "34px" }} />
+            <col style={{ width: "76px" }} />
+            <col />
+            <col style={{ width: "76px" }} />
+            <col style={{ width: "46px" }} />
+            <col style={{ width: "62px" }} />
+            <col style={{ width: "48px" }} />
+            <col style={{ width: "40px" }} />
+            <col style={{ width: "40px" }} />
+          </colgroup>
           <thead>
             <tr>
+              <th className="pc-rail" />
               <th className={th}>Date</th>
               <th className={th}>Shift</th>
               <th className={th}>Line</th>
               <th className={th}>Leader</th>
-              <th className={cn(th, "text-right")}>Team</th>
+              <th className={thNum}>Team</th>
               <th className={th}>SKU</th>
               <th className={th}>Description</th>
               <th className={th}>Batch</th>
-              <th className={cn(th, "text-right")}>Blender</th>
-              <th className={cn(th, "text-right")}>Qty</th>
-              <th className={cn(th, "text-right")}>Weight (g)</th>
+              <th className={thNum}>Blender</th>
+              <th className={thNum}>Qty</th>
+              <th className={thNum}>Weight (g)</th>
               <th className={th}>Start</th>
               <th className={th}>Finish</th>
             </tr>
           </thead>
-          <tbody>{rows}</tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={9} className="border-t-2 border-black px-1.5 py-1 text-right font-bold uppercase">
-                Total
+          <tbody>
+            {rows}
+            <tr className="pc-total">
+              <td className="pc-rail" />
+              <td colSpan={9} className="px-1.5 pt-[6px] text-right font-display text-[7pt] font-bold uppercase tracking-[0.1em]">
+                Total for the period
               </td>
-              <td className="border-t-2 border-black px-1.5 py-1 text-right font-bold">
+              <td className="px-1.5 pt-[6px] text-right font-figure text-[9pt] font-bold whitespace-nowrap">
                 {Math.round(summary.actual).toLocaleString()}
-                {summary.target > 0 && ` / ${Math.round(summary.target).toLocaleString()}`}
               </td>
-              <td colSpan={3} className="border-t-2 border-black px-1.5 py-1 font-bold">
-                {summary.target > 0 ? `${summary.pct.toFixed(0)}%` : ""}
+              <td colSpan={3} className="px-1.5 pt-[6px] font-figure text-[7.5pt] whitespace-nowrap">
+                <span className="text-black/55">/ {Math.round(summary.target).toLocaleString()}</span>
+                {summary.target > 0 && <span className="pl-2 font-bold">{summary.pct.toFixed(0)}%</span>}
               </td>
             </tr>
-          </tfoot>
+          </tbody>
         </table>
       )}
     </div>

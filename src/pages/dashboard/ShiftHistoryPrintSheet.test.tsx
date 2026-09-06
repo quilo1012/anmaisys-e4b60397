@@ -67,7 +67,7 @@ function renderSheet() {
         ]),
       }}
       summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}
-      skuMap={new Map([["sku1", { code: "SKU-001", name: "Whey Protein 1kg" }]])}
+      skuMap={new Map([["sku1", { code: "SKU-001", name: "Whey Protein 1kg [HS CODE:2106108070]" }]])}
       leaders={[{ id: "l1", name: "Gill" }]}
       periodLabel="26/08/2026"
       shiftLabel="Day"
@@ -98,9 +98,25 @@ describe("Production Control print sheet", () => {
     expect(screen.getAllByText("Line 3").length).toBeGreaterThan(0);
     expect(screen.getByText("Production Control")).toBeTruthy();
     expect(screen.getByText("Line: Line 3")).toBeTruthy();
-    expect(screen.getByText("Total")).toBeTruthy();
+    expect(screen.getByText(/Total for the period/i)).toBeTruthy();
     // O atingimento sai do sumário e não da soma das filas — é o mesmo número da placa.
     expect(screen.getAllByText("88%").length).toBeGreaterThan(0);
+  });
+
+  it("leaves the customs code off the paper", () => {
+    renderSheet();
+    // O nome do catálogo traz o HS CODE agarrado. Em papel dobrava a altura de metade
+    // das filas para dizer uma coisa que não é lida por quem enche as linhas.
+    expect(screen.getByText("Whey Protein 1kg")).toBeTruthy();
+    expect(screen.queryByText(/HS CODE/i)).toBeNull();
+  });
+
+  it("has one total, and it is not a repeating page footer", () => {
+    const { container } = renderSheet();
+    // Um tfoot repete-se em todas as páginas impressas: o total do período aparecia ao
+    // fundo de cada uma, como se fosse o total daquela página.
+    expect(container.querySelectorAll("tfoot").length).toBe(0);
+    expect(screen.getAllByText(/Total for the period/i).length).toBe(1);
   });
 
   it("keeps a shift that logged nothing on the sheet", () => {
