@@ -648,6 +648,13 @@ export default function RAGWeeklyPage() {
           .gte("entry_date", weekStartStr)
           .lte("entry_date", weekEndStr);
         if (deleteError) throw deleteError;
+
+        const { error: commentsDeleteError } = await (supabase as any)
+          .from("rag_weekly_comments")
+          .delete()
+          .gte("entry_date", weekStartStr)
+          .lte("entry_date", weekEndStr);
+        if (commentsDeleteError) throw commentsDeleteError;
       }
 
       const existing = new Map<string, Entry>(entryMap);
