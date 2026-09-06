@@ -70,20 +70,30 @@ function EventBadge({ event }: { event: string }) {
   return <Badge variant={variant as never}>{event.replace(/_/g, " ")}</Badge>;
 }
 
+interface ClassRow {
+  line: string | null;
+  leader_name: string | null;
+  department: string | null;
+  error_type: string | null;
+  classification_status: string | null;
+}
+
 export default function SafetyCultureSettingsPage() {
   const [state, setState] = useState<SyncState | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [needsClass, setNeedsClass] = useState<number>(0);
+  const [rows, setRows] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: status }, { data: logRows }, { count }] = await Promise.all([
+    const [{ data: status }, { data: logRows }, { count }, { data: classRows }] = await Promise.all([
       invokeFunction<{ configured: boolean; organization_id: string | null; state: SyncState }>(
         "safetyculture-sync",
         { mode: "status" },
@@ -98,6 +108,11 @@ export default function SafetyCultureSettingsPage() {
         .select("id", { count: "exact", head: true })
         .eq("source", "safetyculture")
         .eq("needs_classification", true),
+      (supabase as never as typeof supabase)
+        .from("quality_actions")
+        .select("line,leader_name,department,error_type,classification_status")
+        .eq("source", "safetyculture")
+        .limit(2000),
     ]);
     if (status) {
       setConfigured(status.configured);
@@ -106,10 +121,27 @@ export default function SafetyCultureSettingsPage() {
     }
     setLogs((logRows ?? []) as unknown as LogRow[]);
     setNeedsClass(count ?? 0);
+    setRows((classRows ?? []) as unknown as ClassRow[]);
     setLoading(false);
   };
 
   useEffect(() => { void load(); }, []);
+
+  const classifyPending = async () => {
+    setClassifying(true);
+    const { data, error } = await invokeFunction<{
+      examined: number; classified: number; needs_review: number;
+    }>("safetyculture-classify", { scope: "pending" });
+    setClassifying(false);
+    if (error) toast.error(error.message ?? "Classification failed");
+    else {
+      toast.success(
+        `${data?.classified ?? 0} action(s) classified, ${data?.needs_review ?? 0} still to review.`,
+      );
+    }
+    void load();
+  };
+
 
   const test = async () => {
     setTesting(true);
@@ -159,10 +191,15 @@ export default function SafetyCultureSettingsPage() {
                 {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlugZap className="mr-2 h-4 w-4" />}
                 Test connection
               </Button>
+              <Button variant="outline" size="sm" onClick={classifyPending} disabled={classifying}>
+                {classifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardCheck className="mr-2 h-4 w-4" />}
+                Classify pending
+              </Button>
               <Button size="sm" onClick={syncNow} disabled={syncing}>
                 {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 Sync now
               </Button>
+
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -250,6 +287,10 @@ export default function SafetyCultureSettingsPage() {
           </CardContent>
         </Card>
 
+        <ClassificationBreakdown rows={rows} />
+
+
+
         <Card>
           <CardHeader><CardTitle className="text-base">Webhook address</CardTitle></CardHeader>
           <CardContent className="space-y-2">
@@ -333,5 +374,90 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-medium">{children}</div>
     </div>
+  );
+}
+
+/**
+ * What the rules actually decided: every imported action grouped by the line (or
+ * area) it belongs to, its leader, and the quality error it describes. Anything
+ * the rules could not settle stays visible as "to review" instead of being hidden.
+ */
+function ClassificationBreakdown({ rows }: { rows: ClassRow[] }) {
+  const pending = rows.filter((r) => r.classification_status !== "classified");
+  const groups = new Map<string, { leader: string; errors: Map<string, number>; total: number }>();
+  for (const r of rows) {
+    const key = r.line || r.department || "Not identified";
+    const g = groups.get(key) ?? { leader: r.leader_name || "—", errors: new Map(), total: 0 };
+    if (r.leader_name) g.leader = r.leader_name;
+    const err = r.error_type || "Not identified";
+    g.errors.set(err, (g.errors.get(err) ?? 0) + 1);
+    g.total += 1;
+    groups.set(key, g);
+  }
+  const ordered = [...groups.entries()].sort((a, b) => b[1].total - a[1].total);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base">Classification — line, leader and quality error</CardTitle>
+        <Badge variant={pending.length ? "destructive" : "secondary"}>
+          {rows.length - pending.length} classified · {pending.length} to review
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing imported yet.</p>
+        ) : (
+          <ResponsiveTable
+            table={
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Line / area</TableHead>
+                    <TableHead>Leader</TableHead>
+                    <TableHead>Quality errors</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ordered.map(([name, g]) => (
+                    <TableRow key={name}>
+                      <TableCell className="font-medium">{name}</TableCell>
+                      <TableCell>{g.leader}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {[...g.errors.entries()]
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([e, n]) => `${e} (${n})`)
+                          .join(" · ")}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{g.total}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            }
+            cards={
+              <div className="space-y-2">
+                {ordered.map(([name, g]) => (
+                  <div key={name} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{name}</span>
+                      <span className="text-sm tabular-nums">{g.total}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">Leader: {g.leader}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {[...g.errors.entries()]
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([e, n]) => `${e} (${n})`)
+                        .join(" · ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            }
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }
