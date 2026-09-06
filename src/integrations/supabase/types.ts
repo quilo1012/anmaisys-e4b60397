@@ -4109,6 +4109,7 @@ export type Database = {
         Row: {
           action_no: string | null
           action_type_id: string | null
+          assignee_name: string | null
           attachments: string[]
           batch: string | null
           closed_at: string | null
@@ -4117,11 +4118,21 @@ export type Database = {
           department: string | null
           description: string | null
           domain: Database["public"]["Enums"]["action_domain"]
+          due_date: string | null
+          error_type: string | null
+          external_deleted_at: string | null
+          external_id: string | null
+          external_priority: string | null
+          external_status: string | null
+          external_updated_at: string | null
+          external_url: string | null
           id: string
           labels: string[]
+          last_synced_at: string | null
           leader_id: string | null
           leader_name: string | null
           line: string | null
+          needs_classification: boolean
           points: number | null
           points_at_creation: number | null
           points_recalculated_at: string | null
@@ -4133,7 +4144,9 @@ export type Database = {
           severity: string | null
           shift: string | null
           sku: string | null
+          source: string
           status: string
+          title: string | null
           updated_at: string
           validated_at: string | null
           validated_by: string | null
@@ -4142,6 +4155,7 @@ export type Database = {
         Insert: {
           action_no?: string | null
           action_type_id?: string | null
+          assignee_name?: string | null
           attachments?: string[]
           batch?: string | null
           closed_at?: string | null
@@ -4150,11 +4164,21 @@ export type Database = {
           department?: string | null
           description?: string | null
           domain?: Database["public"]["Enums"]["action_domain"]
+          due_date?: string | null
+          error_type?: string | null
+          external_deleted_at?: string | null
+          external_id?: string | null
+          external_priority?: string | null
+          external_status?: string | null
+          external_updated_at?: string | null
+          external_url?: string | null
           id?: string
           labels?: string[]
+          last_synced_at?: string | null
           leader_id?: string | null
           leader_name?: string | null
           line?: string | null
+          needs_classification?: boolean
           points?: number | null
           points_at_creation?: number | null
           points_recalculated_at?: string | null
@@ -4166,7 +4190,9 @@ export type Database = {
           severity?: string | null
           shift?: string | null
           sku?: string | null
+          source?: string
           status?: string
+          title?: string | null
           updated_at?: string
           validated_at?: string | null
           validated_by?: string | null
@@ -4175,6 +4201,7 @@ export type Database = {
         Update: {
           action_no?: string | null
           action_type_id?: string | null
+          assignee_name?: string | null
           attachments?: string[]
           batch?: string | null
           closed_at?: string | null
@@ -4183,11 +4210,21 @@ export type Database = {
           department?: string | null
           description?: string | null
           domain?: Database["public"]["Enums"]["action_domain"]
+          due_date?: string | null
+          error_type?: string | null
+          external_deleted_at?: string | null
+          external_id?: string | null
+          external_priority?: string | null
+          external_status?: string | null
+          external_updated_at?: string | null
+          external_url?: string | null
           id?: string
           labels?: string[]
+          last_synced_at?: string | null
           leader_id?: string | null
           leader_name?: string | null
           line?: string | null
+          needs_classification?: boolean
           points?: number | null
           points_at_creation?: number | null
           points_recalculated_at?: string | null
@@ -4199,7 +4236,9 @@ export type Database = {
           severity?: string | null
           shift?: string | null
           sku?: string | null
+          source?: string
           status?: string
+          title?: string | null
           updated_at?: string
           validated_at?: string | null
           validated_by?: string | null
@@ -4670,6 +4709,132 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      sc_classification_rules: {
+        Row: {
+          active: boolean
+          category: string | null
+          created_at: string
+          department: string | null
+          error_type: string | null
+          id: string
+          label: string | null
+          match_field: string
+          match_key: string | null
+          match_mode: string
+          match_value: string
+          priority: number
+          severity: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          department?: string | null
+          error_type?: string | null
+          id?: string
+          label?: string | null
+          match_field?: string
+          match_key?: string | null
+          match_mode?: string
+          match_value: string
+          priority?: number
+          severity?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          created_at?: string
+          department?: string | null
+          error_type?: string | null
+          id?: string
+          label?: string | null
+          match_field?: string
+          match_key?: string | null
+          match_mode?: string
+          match_value?: string
+          priority?: number
+          severity?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sc_sync_logs: {
+        Row: {
+          action_id: string | null
+          action_title: string | null
+          created_at: string
+          details: Json | null
+          event: string
+          id: string
+          message: string | null
+        }
+        Insert: {
+          action_id?: string | null
+          action_title?: string | null
+          created_at?: string
+          details?: Json | null
+          event: string
+          id?: string
+          message?: string | null
+        }
+        Update: {
+          action_id?: string | null
+          action_title?: string | null
+          created_at?: string
+          details?: Json | null
+          event?: string
+          id?: string
+          message?: string | null
+        }
+        Relationships: []
+      }
+      sc_sync_state: {
+        Row: {
+          actions_imported: number
+          actions_skipped: number
+          actions_updated: number
+          created_at: string
+          cursor_modified_after: string | null
+          enabled: boolean
+          error_count: number
+          id: boolean
+          last_attempt_at: string | null
+          last_error: string | null
+          last_success_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          actions_imported?: number
+          actions_skipped?: number
+          actions_updated?: number
+          created_at?: string
+          cursor_modified_after?: string | null
+          enabled?: boolean
+          error_count?: number
+          id?: boolean
+          last_attempt_at?: string | null
+          last_error?: string | null
+          last_success_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actions_imported?: number
+          actions_skipped?: number
+          actions_updated?: number
+          created_at?: string
+          cursor_modified_after?: string | null
+          enabled?: boolean
+          error_count?: number
+          id?: boolean
+          last_attempt_at?: string | null
+          last_error?: string | null
+          last_success_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
