@@ -287,6 +287,10 @@ export default function SafetyCultureSettingsPage() {
           </CardContent>
         </Card>
 
+        <ClassificationBreakdown rows={rows} />
+
+
+
         <Card>
           <CardHeader><CardTitle className="text-base">Webhook address</CardTitle></CardHeader>
           <CardContent className="space-y-2">
