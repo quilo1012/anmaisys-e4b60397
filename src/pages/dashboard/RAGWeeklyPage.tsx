@@ -47,6 +47,7 @@ import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
 import { splitRangeByExclusions, toExclusionIntervals } from "@/lib/downtimeExclusions";
 import { bucketFromReason } from "@/lib/downtimeBuckets";
+import { manualDowntimeFallbackMinutes } from "@/lib/ragManualDowntime";
 
 /** "2026-08-24" → "24 Aug" (or "24 Aug 2026"). Parsed as local noon-free midnight, never UTC. */
 function formatIsoDay(isoDay: string, withYear = false): string {
@@ -473,16 +474,20 @@ export default function RAGWeeklyPage() {
     },
   });
 
-  const { cellScrapMap, cellItemTargetMap } = useMemo(() => {
+  const { cellScrapMap, cellItemTargetMap, cellSessionKeys } = useMemo(() => {
     const scrap = new Map<string, number>();
     const tgt = new Map<string, number>();
+    // Que células tiveram turno a sério. Ver src/lib/ragManualDowntime.ts: é isto que
+    // impede o total escrito à mão de aparecer numa noite que a linha não trabalhou.
+    const worked = new Set<string>();
     for (const s of weekItems) {
       const k = `${s.session_date}|${s.line}|${s.shift}`;
       const items = s.production_items ?? [];
       scrap.set(k, items.reduce((a, i) => a + Number(i.scrap_qty ?? 0), 0));
       tgt.set(k, items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0));
+      worked.add(k);
     }
-    return { cellScrapMap: scrap, cellItemTargetMap: tgt };
+    return { cellScrapMap: scrap, cellItemTargetMap: tgt, cellSessionKeys: worked };
   }, [weekItems]);
 
 
@@ -1163,6 +1168,7 @@ export default function RAGWeeklyPage() {
           autoDtBreakdown={autoDtBreakdown}
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
+          cellSessionKeys={cellSessionKeys}
           isAdmin={isAdmin}
           canEditEntries={canEditRagEntries}
           canComment={canComment}
@@ -1516,6 +1522,7 @@ function DayNightTotalSummary({
   autoDtBreakdown,
   cellScrapMap,
   cellItemTargetMap,
+  cellSessionKeys,
   isAdmin = false,
   canEditEntries = false,
   canComment = false,
@@ -1531,6 +1538,7 @@ function DayNightTotalSummary({
   autoDtBreakdown?: Map<string, ClampedStop[]>;
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
+  cellSessionKeys?: Set<string>;
   isAdmin?: boolean;
   canEditEntries?: boolean;
   canComment?: boolean;
@@ -1710,14 +1718,20 @@ function DayNightTotalSummary({
         auto += m;
       }
     }
-    // When there's no auto downtime at all, fall back to the manually entered
-    // total and attribute it to MAINT so the column still shows something.
-    if (auto === 0) {
-      const manual = Number(e?.downtime_min) || 0;
-      if (manual > 0) {
-        dtBuckets["MAINT"] = manual;
-        auto = manual;
-      }
+    // Sem downtime automático nenhum, entra o total escrito à mão — mas só se a linha
+    // tiver trabalhado o turno. Um turno que não correu não tem paragens para contar,
+    // e era daí que vinham 1:30 de "Maint Downtime (iTouching)" na noite de domingo da
+    // Line 4, numa coluna sem plano, sem actual e sem sessão. Ver src/lib/ragManualDowntime.ts.
+    const manual = manualDowntimeFallbackMinutes({
+      manualMinutes: Number(e?.downtime_min) || 0,
+      autoMinutes: auto,
+      hasSession: cellSessionKeys?.has(key) ?? false,
+      planQty: Number(e?.plan_qty) || 0,
+      actualQty: Number(e?.actual_qty) || 0,
+    });
+    if (manual > 0) {
+      dtBuckets["MAINT"] = manual;
+      auto = manual;
     }
     if (!e) return { ...empty, dt: auto, dtBuckets };
     return {
