@@ -6,6 +6,17 @@
  * held by a test instead of only by production.
  */
 
+import {
+  classifyAction,
+  londonDay,
+  type ActionClass,
+  type Attendance,
+  type CheckState,
+  type ClassificationRuleV2,
+} from "./classification.ts";
+
+export { londonDay };
+
 export interface ScAction {
   /** The stable external identifier. Never invented — it is the idempotency key. */
   id: string;
@@ -29,6 +40,11 @@ export interface ScAction {
 }
 
 export interface ClassificationRule {
+  /** Present on every stored rule; optional only so a hand-built test rule can omit it. */
+  id?: string;
+  name?: string | null;
+  /** What a match asserts about the action itself. See `classification.ts`. */
+  classification?: ActionClass | null;
   match_field:
     | "label"
     | "template"
@@ -236,6 +252,13 @@ export interface RecordDraft {
   domain: "quality";
   needs_classification: boolean;
   classification_status: "classified" | "needs_review";
+  /** The verdict, and what was actually checked to reach it. */
+  classification: ActionClass;
+  classification_checks: Record<"site" | "action_date" | "worker" | "line", CheckState>;
+  classification_reasons: string[];
+  matched_rule_ids: string[];
+  matched_rule_names: string[];
+  classified_at: string;
   last_synced_at: string;
 }
 
@@ -249,7 +272,16 @@ export function buildRecord(
   opts: {
     lineNames: string[];
     rules: ClassificationRule[];
-    leaderFor: (line: string) => { id: string; name: string } | null;
+    /**
+     * `onDate` is not optional in spirit. Who leads a line changes, and asking who
+     * leads it TODAY when classifying a finding from three weeks ago charges the
+     * finding to whoever happens to hold the line now.
+     */
+    leaderFor: (line: string, onDate?: string | null) => { id: string; name: string } | null;
+    /** Defaults to "nothing recorded", which reports rather than blocks. */
+    attendance?: (worker: string, day: string) => Attendance;
+    countsAgainstLeader?: (label: string) => boolean;
+    requireWorkerEvidence?: boolean;
     now?: string;
   },
 ): { draft: RecordDraft; problems: string[] } {
@@ -259,7 +291,10 @@ export function buildRecord(
   const line = resolveLine(action, opts.lineNames, opts.rules);
   if (!line) problems.push("line_not_identified");
 
-  const leader = line ? opts.leaderFor(line) : null;
+  // The day the finding was raised — the same day the leader lookup and the
+  // attendance lookup are asked about, so all three answers describe one moment.
+  const actionDay = londonDay(action.created_at ?? null);
+  const leader = line ? opts.leaderFor(line, actionDay) : null;
   if (line && !leader) problems.push("leader_not_found");
 
   const cls = classify(action, opts.rules);
@@ -268,6 +303,44 @@ export function buildRecord(
   if (!action.assignee) problems.push("no_assignee");
 
   const { status } = mapStatus(action.status);
+
+  const verdict = classifyAction(
+    {
+      site: action.site ?? null,
+      actionDate: action.created_at ?? null,
+      dueDate: action.due_at ?? null,
+      line,
+      leader,
+      errorType: cls.error_type,
+      department: cls.department,
+      labels: action.labels ?? [],
+      workers: action.assignees ?? (action.assignee ? [action.assignee] : []),
+      title: action.title ?? null,
+      description: action.description ?? null,
+      priority: action.priority ?? null,
+      asset: action.asset ?? null,
+      template: action.template ?? null,
+      customFields: action.custom_fields,
+    },
+    (opts.rules ?? [])
+      .filter((r): r is ClassificationRule & { id: string } => Boolean(r.id))
+      .map((r) => ({
+        id: r.id,
+        name: r.name ?? null,
+        match_field: r.match_field as ClassificationRuleV2["match_field"],
+        match_key: r.match_key ?? null,
+        match_value: r.match_value,
+        match_mode: r.match_mode,
+        classification: r.classification ?? null,
+        priority: r.priority,
+        active: r.active,
+      })),
+    {
+      attendance: opts.attendance ?? (() => "unknown"),
+      countsAgainstLeader: opts.countsAgainstLeader,
+      requireWorkerEvidence: opts.requireWorkerEvidence,
+    },
+  );
 
   return {
     problems,
@@ -306,6 +379,12 @@ export function buildRecord(
       // be corrected by a human rather than counted against a guessed leader.
       needs_classification: problems.length > 0,
       classification_status: problems.length > 0 ? "needs_review" : "classified",
+      classification: verdict.classification,
+      classification_checks: verdict.checks,
+      classification_reasons: verdict.reasons,
+      matched_rule_ids: verdict.matched_rule_ids,
+      matched_rule_names: verdict.matched_rule_names,
+      classified_at: now,
       last_synced_at: now,
     },
   };

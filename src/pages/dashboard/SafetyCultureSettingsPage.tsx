@@ -13,6 +13,10 @@ import { invokeFunction } from "@/lib/invokeFunction";
 import { supabase } from "@/integrations/supabase/client";
 import { ResponsiveTable } from "@/components/ResponsiveTable";
 import {
+  CLASS_LABEL, blockingReasons, advisoryReasons, checkMark, reasonText,
+  type ActionClass, type CheckState,
+} from "@/lib/classificationLabels";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 
@@ -76,6 +80,14 @@ interface ClassRow {
   department: string | null;
   error_type: string | null;
   classification_status: string | null;
+  external_id: string | null;
+  title: string | null;
+  recorded_at: string | null;
+  external_site: string | null;
+  classification: ActionClass | null;
+  classification_checks: Record<string, CheckState> | null;
+  classification_reasons: string[] | null;
+  matched_rule_names: string[] | null;
 }
 
 export default function SafetyCultureSettingsPage() {
@@ -110,7 +122,11 @@ export default function SafetyCultureSettingsPage() {
         .eq("needs_classification", true),
       (supabase as never as typeof supabase)
         .from("quality_actions")
-        .select("line,leader_name,department,error_type,classification_status")
+        .select(
+          "line,leader_name,department,error_type,classification_status," +
+          "external_id,title,recorded_at,external_site," +
+          "classification,classification_checks,classification_reasons,matched_rule_names",
+        )
         .eq("source", "safetyculture")
         .limit(2000),
     ]);
@@ -287,6 +303,8 @@ export default function SafetyCultureSettingsPage() {
           </CardContent>
         </Card>
 
+        <Verdicts rows={rows} />
+
         <ClassificationBreakdown rows={rows} />
 
 
@@ -382,6 +400,143 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
  * area) it belongs to, its leader, and the quality error it describes. Anything
  * the rules could not settle stays visible as "to review" instead of being hidden.
  */
+
+/**
+ * What the gates actually decided, and — for anything they refused to decide — why.
+ *
+ * The counts are the honest headline: before this existed, fifteen records raised
+ * outside Production were being shown as operational actions, and nothing on the
+ * screen said so. `Excluded` is displayed rather than hidden for the same reason a
+ * needs-review queue is displayed: a record that vanished quietly is a record nobody
+ * can question.
+ */
+const ORDER: ActionClass[] = ["line", "leader", "quality_error", "needs_review", "excluded"];
+
+const CHECK_ORDER: Array<[string, string]> = [
+  ["site", "Site"],
+  ["action_date", "Action date"],
+  ["worker", "Worker"],
+  ["line", "Line"],
+];
+
+function Verdicts({ rows }: { rows: ClassRow[] }) {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const key = r.classification ?? "unclassified";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const unclassified = counts.get("unclassified") ?? 0;
+  const open = rows.filter(
+    (r) => r.classification === "needs_review" || r.classification === "excluded",
+  );
+
+  const day = (v: string | null) =>
+    v
+      ? new Date(v).toLocaleDateString("en-GB", {
+          day: "2-digit", month: "short", year: "numeric", timeZone: "Europe/London",
+        })
+      : "—";
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base">Verdicts</CardTitle>
+        {unclassified > 0 && (
+          <Badge variant="outline">{unclassified} not yet run through the gates</Badge>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {ORDER.map((c) => (
+            <div key={c} className="rounded-md border p-3">
+              <div className="text-xs text-muted-foreground">{CLASS_LABEL[c]}</div>
+              <div className="text-2xl font-semibold tabular-nums">{counts.get(c) ?? 0}</div>
+            </div>
+          ))}
+        </div>
+
+        {open.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing is waiting on a person. Run a classification pass after changing a rule.
+          </p>
+        ) : (
+          <ResponsiveTable
+            table={
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Action #</TableHead>
+                    <TableHead>Action date</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Line</TableHead>
+                    <TableHead>Checks</TableHead>
+                    <TableHead>Why</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {open.map((r) => (
+                    <TableRow key={r.external_id ?? r.title ?? Math.random()}>
+                      <TableCell className="font-mono text-xs">
+                        {(r.external_id ?? "—").slice(0, 8)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{day(r.recorded_at)}</TableCell>
+                      <TableCell className="max-w-[22rem] truncate">{r.title ?? "—"}</TableCell>
+                      <TableCell>{r.line ?? r.department ?? "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap font-mono text-xs">
+                        {CHECK_ORDER.map(([key, label]) => (
+                          <span key={key} className="mr-2" title={label}>
+                            {label.slice(0, 4)} {checkMark(r.classification_checks?.[key])}
+                          </span>
+                        ))}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {blockingReasons(r.classification_reasons).map((x) => (
+                          <div key={x}>{reasonText(x)}</div>
+                        ))}
+                        {advisoryReasons(r.classification_reasons).map((x) => (
+                          <div key={x} className="text-muted-foreground">{reasonText(x)}</div>
+                        ))}
+                        {(r.matched_rule_names ?? []).length > 0 && (
+                          <div className="text-muted-foreground">
+                            Matched: {(r.matched_rule_names ?? []).join(", ")}
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            }
+            cards={
+              <div className="space-y-2">
+                {open.map((r) => (
+                  <div key={r.external_id ?? r.title ?? Math.random()} className="rounded-md border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{r.title ?? "—"}</span>
+                      <Badge variant="secondary">
+                        {CLASS_LABEL[(r.classification ?? "needs_review") as ActionClass]}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {day(r.recorded_at)} · {r.line ?? r.department ?? "No line"} ·{" "}
+                      {r.external_site ?? "No site"}
+                    </div>
+                    <div className="mt-1 text-xs">
+                      {blockingReasons(r.classification_reasons).map((x) => (
+                        <div key={x}>{reasonText(x)}</div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            }
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function ClassificationBreakdown({ rows }: { rows: ClassRow[] }) {
   const pending = rows.filter((r) => r.classification_status !== "classified");
   const groups = new Map<string, { leader: string; errors: Map<string, number>; total: number }>();

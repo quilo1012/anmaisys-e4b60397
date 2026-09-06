@@ -2901,6 +2901,119 @@ COMMENT ON EXTENSION pg_net IS
 -- BLOCO 27
 -- 20260906090000_the_line_alias_that_was_not_a_line.sql
 -- ================================================================
+-- BLOCO 37
+-- 20260906085832_a2c099fd-0327-4168-ba58-6b5206d823b7.sql
+-- ================================================================
+
+ALTER TABLE public.system_settings
+  ADD COLUMN IF NOT EXISTS rag_api_base_url text;
+
+
+-- ================================================================
+-- BLOCO 38
+-- 20260906090000_the_leader_the_tablet_wrote_but_never_linked.sql
+-- ================================================================
+
+-- The leader the tablet wrote down but never linked.
+--
+-- A shift leader lives in two columns on production_sessions: `leader_id`, a link to
+-- line_leaders, and `leader_name`, free text. The floor tablet only ever wrote the
+-- name — the operator types who they are and hits sync — while the Intouch import
+-- writes both. Measured on 27/08/2026:
+--
+--   production_sessions                          563 rows
+--     leader_id set                               81   (14%)
+--     leader_name only, no link                  344   (61%)   <- this migration
+--     neither                                    139   (25%)   <- genuinely nobody
+--
+-- WHAT IT COST. Production Control asked "does this session have a leader?" in three
+-- places by looking at the link, and answered the same question in the row itself by
+-- looking at the name. The same session read "Gill" in the leader column and
+-- "NO LEADER" on the bay plate two centimetres above it, and the amber no-leader
+-- andon was lit on 482 of 563 rows. A warning that is always on is not a warning.
+-- The reading was fixed in code (src/lib/sessionLeader.ts) and the tablet now
+-- resolves the name as it saves, so this backfill closes the set rather than opening
+-- a habit.
+--
+-- It also cost the leader as an entity: the weekly scorecards and the per-line
+-- assignment join on `leader_id`, so 61% of the shifts that had a leader were absent
+-- from every one of those numbers.
+--
+-- WHAT THIS DOES. Links the 344 by name, case-insensitively and with runs of
+-- whitespace collapsed — the same key `resolveLeader` uses in the app, so the two
+-- cannot drift into disagreeing. All 28 distinct names resolve to exactly one row of
+-- line_leaders; the count below is 344 of 344, with none ambiguous, and was measured
+-- before this was written.
+--
+-- WHAT IT REFUSES TO DO. A name matching two leaders is left exactly as it is:
+-- picking one at random would put half of one person's shifts on the other's account
+-- and nobody would ever notice, which is the worst way for a number to be wrong.
+-- There are none today; the guard is here so there are none tomorrow either. And
+-- sessions with no name at all are not touched — those 139 really did run without a
+-- leader recorded, and the andon should still light for them.
+--
+-- Idempotent: it only ever considers rows where leader_id is null.
+--
+-- UNDOING IT. The rows it is about to change are copied into a table first, so the
+-- undo is exact rather than a guess. It has to be exact: once leader_id is filled,
+-- "leader_id is null and leader_name is not null" no longer finds these rows, and
+-- there would be nothing left to tell them apart from the 81 that were already
+-- linked. To put them back:
+--
+--   update production_sessions s
+--      set leader_id   = b.leader_id_before,
+--          leader_name = b.leader_name_before
+--     from backfill_20260906_leader_id b
+--    where s.id = b.session_id;
+
+begin;
+
+create table if not exists backfill_20260906_leader_id (
+  session_id         uuid primary key references production_sessions(id) on delete cascade,
+  leader_id_before   uuid,
+  leader_name_before text,
+  backfilled_at      timestamptz not null default now()
+);
+
+-- Nobody reads this table from the app; it exists for a person with the SQL editor
+-- on the day something looks wrong. Locked down so it cannot become a side door.
+alter table backfill_20260906_leader_id enable row level security;
+
+insert into backfill_20260906_leader_id (session_id, leader_id_before, leader_name_before)
+select s.id, s.leader_id, s.leader_name
+  from production_sessions s
+ where s.leader_id is null
+   and s.leader_name is not null
+on conflict (session_id) do nothing;
+
+with matched as (
+  select
+    s.id                as session_id,
+    count(l.id)         as hits,
+    -- array_agg and not min(): Postgres has no min(uuid). With hits = 1 enforced
+    -- below there is exactly one row to take, so which one is not a question.
+    (array_agg(l.id))[1]   as leader_id,
+    (array_agg(l.name))[1] as leader_name
+  from production_sessions s
+  join line_leaders l
+    on lower(regexp_replace(btrim(l.name),        '\s+', ' ', 'g'))
+     = lower(regexp_replace(btrim(s.leader_name), '\s+', ' ', 'g'))
+  where s.leader_id is null
+    and s.leader_name is not null
+  group by s.id
+)
+update production_sessions s
+   set leader_id   = m.leader_id,
+       -- The roster's spelling wins, so one person is one name everywhere.
+       leader_name = m.leader_name
+  from matched m
+ where s.id = m.session_id
+   and m.hits = 1;
+
+commit;
+
+
+-- ================================================================
 
 -- Three leaders whose scorecard has always read zero, because their line is a name
 -- nothing else uses.
@@ -3049,6 +3162,379 @@ COMMENT ON COLUMN public.leader_pins.line IS
 -- ================================================================
 -- BLOCO 28
 -- 20260907090000_the_cron_log_nobody_ever_swept.sql
+-- ================================================================
+-- BLOCO 39
+-- 20260906192425_5e111a04-958b-4a14-87e9-2915c5ef1300.sql
+-- ================================================================
+
+-- 1. Columns on the existing records table -------------------------------------
+ALTER TABLE public.quality_actions
+  ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'pm',
+  ADD COLUMN IF NOT EXISTS external_id text,
+  ADD COLUMN IF NOT EXISTS external_url text,
+  ADD COLUMN IF NOT EXISTS external_status text,
+  ADD COLUMN IF NOT EXISTS external_priority text,
+  ADD COLUMN IF NOT EXISTS external_updated_at timestamptz,
+  ADD COLUMN IF NOT EXISTS external_deleted_at timestamptz,
+  ADD COLUMN IF NOT EXISTS assignee_name text,
+  ADD COLUMN IF NOT EXISTS due_date timestamptz,
+  ADD COLUMN IF NOT EXISTS title text,
+  ADD COLUMN IF NOT EXISTS error_type text,
+  ADD COLUMN IF NOT EXISTS needs_classification boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS last_synced_at timestamptz;
+
+CREATE UNIQUE INDEX IF NOT EXISTS quality_actions_external_unique
+  ON public.quality_actions (source, external_id)
+  WHERE external_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS quality_actions_needs_classification_idx
+  ON public.quality_actions (needs_classification)
+  WHERE needs_classification;
+
+-- 2. Configurable classification rules -----------------------------------------
+CREATE TABLE IF NOT EXISTS public.sc_classification_rules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- which part of the SafetyCulture action this rule looks at
+  match_field text NOT NULL DEFAULT 'label'
+    CHECK (match_field IN ('label','template','site','asset','custom_field','title','description','priority')),
+  -- optional custom-field key when match_field = 'custom_field'
+  match_key text,
+  match_value text NOT NULL,
+  match_mode text NOT NULL DEFAULT 'contains'
+    CHECK (match_mode IN ('equals','contains','regex')),
+  -- what the rule sets on the imported record
+  category text,            -- e.g. LABELS / PAPERWORK
+  error_type text,          -- e.g. Missing spec
+  department text,
+  label text,               -- one of quality_options(kind='label')
+  severity text,
+  priority integer NOT NULL DEFAULT 100,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.sc_classification_rules TO authenticated;
+GRANT ALL ON public.sc_classification_rules TO service_role;
+ALTER TABLE public.sc_classification_rules ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "sc rules readable by staff"
+  ON public.sc_classification_rules FOR SELECT TO authenticated
+  USING (
+    public.has_any_role(auth.uid(), ARRAY['admin','manager','maintenance_manager','quality_supervisor','supervisor']::app_role[])
+    OR public.is_owner(auth.uid())
+  );
+
+CREATE POLICY "sc rules editable by admin"
+  ON public.sc_classification_rules FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(),'admin'::app_role) OR public.is_owner(auth.uid()))
+  WITH CHECK (public.has_role(auth.uid(),'admin'::app_role) OR public.is_owner(auth.uid()));
+
+CREATE TRIGGER trg_sc_rules_updated BEFORE UPDATE ON public.sc_classification_rules
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- 3. Sync state -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.sc_sync_state (
+  id boolean PRIMARY KEY DEFAULT true CHECK (id),
+  cursor_modified_after timestamptz,
+  last_attempt_at timestamptz,
+  last_success_at timestamptz,
+  last_error text,
+  actions_imported integer NOT NULL DEFAULT 0,
+  actions_updated integer NOT NULL DEFAULT 0,
+  actions_skipped integer NOT NULL DEFAULT 0,
+  error_count integer NOT NULL DEFAULT 0,
+  enabled boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+INSERT INTO public.sc_sync_state (id) VALUES (true) ON CONFLICT (id) DO NOTHING;
+
+GRANT SELECT ON public.sc_sync_state TO authenticated;
+GRANT ALL ON public.sc_sync_state TO service_role;
+ALTER TABLE public.sc_sync_state ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "sc state readable by staff"
+  ON public.sc_sync_state FOR SELECT TO authenticated
+  USING (
+    public.has_any_role(auth.uid(), ARRAY['admin','manager','maintenance_manager','quality_supervisor','supervisor']::app_role[])
+    OR public.is_owner(auth.uid())
+  );
+
+CREATE TRIGGER trg_sc_state_updated BEFORE UPDATE ON public.sc_sync_state
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- 4. Integration log --------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.sc_sync_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event text NOT NULL
+    CHECK (event IN ('received','created','updated','skipped_duplicate','deleted',
+                     'auth_error','api_error','classification_error','line_leader_error',
+                     'rate_limited','timeout','sync_started','sync_finished')),
+  action_id text,
+  action_title text,
+  message text,
+  details jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS sc_sync_logs_created_idx ON public.sc_sync_logs (created_at DESC);
+
+GRANT SELECT ON public.sc_sync_logs TO authenticated;
+GRANT ALL ON public.sc_sync_logs TO service_role;
+ALTER TABLE public.sc_sync_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "sc logs readable by staff"
+  ON public.sc_sync_logs FOR SELECT TO authenticated
+  USING (
+    public.has_any_role(auth.uid(), ARRAY['admin','manager','maintenance_manager','quality_supervisor','supervisor']::app_role[])
+    OR public.is_owner(auth.uid())
+  );
+
+-- 5. Seed the initial, editable classification vocabulary --------------------------
+INSERT INTO public.sc_classification_rules (match_field, match_value, match_mode, category, error_type, label, priority)
+VALUES
+  ('label','Missing spec','contains','LABELS','Missing spec','Label',10),
+  ('label','Wrong label','contains','LABELS','Wrong label','Label',10),
+  ('label','Missing label','contains','LABELS','Missing label','Label',10),
+  ('label','Incorrect information','contains','LABELS','Incorrect information','Label',10),
+  ('label','Damaged label','contains','LABELS','Damaged label','Label',10),
+  ('label','Missing paperwork','contains','PAPERWORK','Missing paperwork','Paperwork',10),
+  ('label','Wrong paperwork','contains','PAPERWORK','Wrong paperwork','Paperwork',10),
+  ('label','Incomplete paperwork','contains','PAPERWORK','Incomplete paperwork','Paperwork',10),
+  ('title','missing spec','contains','LABELS','Missing spec','Label',50),
+  ('title','wrong label','contains','LABELS','Wrong label','Label',50),
+  ('title','missing label','contains','LABELS','Missing label','Label',50),
+  ('title','incorrect information','contains','LABELS','Incorrect information','Label',50),
+  ('title','damaged label','contains','LABELS','Damaged label','Label',50),
+  ('title','missing paperwork','contains','PAPERWORK','Missing paperwork','Paperwork',50),
+  ('title','wrong paperwork','contains','PAPERWORK','Wrong paperwork','Paperwork',50),
+  ('title','incomplete paperwork','contains','PAPERWORK','Incomplete paperwork','Paperwork',50),
+  ('title','paperwork','contains','PAPERWORK','Other','Paperwork',90),
+  ('title','label','contains','LABELS','Other','Label',95)
+ON CONFLICT DO NOTHING;
+
+
+-- ================================================================
+-- BLOCO 40
+-- 20260906195247_31631f78-262f-4f97-9ea7-626bf324a398.sql
+-- ================================================================
+
+ALTER TABLE public.sc_sync_state
+  ADD COLUMN IF NOT EXISTS page_token text,
+  ADD COLUMN IF NOT EXISTS backfill_complete boolean NOT NULL DEFAULT false;
+
+
+-- ================================================================
+-- BLOCO 41
+-- 20260906200607_29a80c21-8a99-412f-a18c-22e0052e91fe.sql
+-- ================================================================
+
+ALTER TABLE public.sc_classification_rules
+  ADD COLUMN IF NOT EXISTS line_name text;
+
+COMMENT ON COLUMN public.sc_classification_rules.line_name IS
+  'When set, a matching rule also attributes the action to this production line (must match public.lines.name).';
+
+
+-- ================================================================
+-- BLOCO 42
+-- 20260906203101_937d7927-00f5-4621-a8ad-38df9729b4e0.sql
+-- ================================================================
+
+ALTER TABLE public.quality_actions
+  ADD COLUMN IF NOT EXISTS external_created_at timestamptz,
+  ADD COLUMN IF NOT EXISTS external_site text,
+  ADD COLUMN IF NOT EXISTS external_asset text,
+  ADD COLUMN IF NOT EXISTS external_template text,
+  ADD COLUMN IF NOT EXISTS external_assignees text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS classification_status text NOT NULL DEFAULT 'needs_review';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'quality_actions_classification_status_check'
+  ) THEN
+    ALTER TABLE public.quality_actions
+      ADD CONSTRAINT quality_actions_classification_status_check
+      CHECK (classification_status IN ('classified','needs_review'));
+  END IF;
+END $$;
+
+UPDATE public.quality_actions
+   SET classification_status = CASE WHEN needs_classification THEN 'needs_review' ELSE 'classified' END
+ WHERE source = 'safetyculture';
+
+UPDATE public.quality_actions
+   SET classification_status = 'classified'
+ WHERE source IS DISTINCT FROM 'safetyculture';
+
+ALTER TABLE public.sc_sync_state
+  ADD COLUMN IF NOT EXISTS import_from timestamptz NOT NULL DEFAULT '2026-09-01T00:00:00Z',
+  ADD COLUMN IF NOT EXISTS actions_found integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS actions_ignored integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS actions_needs_review integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS window_start timestamptz,
+  ADD COLUMN IF NOT EXISTS window_end timestamptz;
+
+
+-- ================================================================
+-- BLOCO 43
+-- 20260906203957_3f671e37-e0d2-45b0-9e42-237f374b2961.sql
+-- ================================================================
+
+insert into public.sc_classification_rules
+  (match_field, match_value, match_mode, line_name, priority, active)
+values
+  ('title', '(^|[^a-z0-9])6[ab]([^a-z0-9]|$)', 'regex', 'Line 6', 8, true),
+  ('title', 'capsule ?2|caps ?2', 'regex', 'Capsules Machine 2', 8, true),
+  ('title', '\(caps\)|\(capsule\)|capsule line', 'regex', 'Capsules Machine 1', 12, true);
+
+insert into public.sc_classification_rules
+  (match_field, match_value, match_mode, department, priority, active)
+values
+  ('title', 'k53', 'contains', 'Facilities', 15, true),
+  ('title', 'warehouse', 'contains', 'Warehouse', 15, true),
+  ('title', 'goods in|good in|supplier', 'regex', 'Goods In', 15, true),
+  ('title', 'blender room|blue blender', 'regex', 'Blender Room', 15, true),
+  ('template', 'forklift|ppt checklist', 'regex', 'Logistics', 18, true),
+  ('template', 'emergency lighting', 'contains', 'Facilities', 18, true);
+
+insert into public.sc_classification_rules
+  (match_field, match_value, match_mode, category, error_type, priority, active)
+values
+  ('title', 'not recorded', 'contains', 'DOCUMENTATION', 'Check not recorded', 40, true),
+  ('title', 'missing the last check|missing filling checks|missing fillers check|missing checks', 'regex', 'DOCUMENTATION', 'Missing check on spec', 40, true),
+  ('title', 'missing informations on checklist|missing information on checklist', 'regex', 'DOCUMENTATION', 'Incomplete checklist', 40, true),
+  ('title', 'missing finishing time|missing pallet out time|missing date on the signature|missing sign', 'regex', 'DOCUMENTATION', 'Missing signature or time', 40, true),
+  ('title', 'incorrectly completed allergen', 'contains', 'DOCUMENTATION', 'Incorrect allergen information', 40, true),
+  ('title', 'wrong batch code', 'contains', 'LABELS', 'Wrong batch code', 40, true),
+  ('title', 'wrong stickers|wrong sticker', 'regex', 'LABELS', 'Wrong label', 40, true),
+  ('title', 'discrepancy between the scoop|scoop size', 'regex', 'LABELS', 'Spec discrepancy', 40, true),
+  ('title', 'metal found|piece of metal|on the magnet|on magnet', 'regex', 'FOREIGN BODY', 'Metal on magnet', 40, true),
+  ('title', 'black residue|rust|corrosion|steel cable', 'regex', 'FOREIGN BODY', 'Contamination risk', 42, true),
+  ('title', 'construction waste|wood waste', 'regex', 'HYGIENE', 'Waste not removed', 42, true),
+  ('title', 'underweight|net weight|nominal weight|incorrect collagen bag weight', 'regex', 'WEIGHT', 'Weight out of specification', 40, true),
+  ('title', 'wrong qty', 'contains', 'SUPPLIER', 'Wrong quantity delivered', 40, true),
+  ('title', 'dirty|wet pallet|deep cleaning|moisture|pest control|loose curtain', 'regex', 'HYGIENE', 'GMP breach', 44, true),
+  ('title', 'doors not locked', 'contains', 'EQUIPMENT', 'CCP equipment not secured', 40, true),
+  ('title', 'leakage', 'contains', 'EQUIPMENT', 'Product leakage', 42, true),
+  ('title', 'broken|isn''t working|not working|emergency light|flashing strobe|loose roof panel|repair ', 'regex', 'EQUIPMENT', 'Equipment defect', 46, true),
+  ('title', 'toolbox|screwdriver|knife|metal cup', 'regex', 'TOOL CONTROL', 'Tool missing from control', 44, true),
+  ('title', 'improperly stored', 'contains', 'STORAGE', 'Improper storage', 40, true),
+  ('title', 'placed on hold|production hold|sample bags|in hold', 'regex', 'PRODUCT CONTROL', 'Product placed on hold', 46, true);
+
+
+-- ================================================================
+-- BLOCO 44
+-- 20260906221500_an_action_belongs_to_a_line_only_if_someone_was_there.sql
+-- ================================================================
+
+-- The Quality screen was stating things nobody had checked.
+--
+-- "Line 4 — Rafael Tosta — 06/09/2026" reads as a settled fact, and three separate
+-- claims are folded into it: that the finding was raised inside Production, that the
+-- 6th is the day it was RAISED rather than the day it falls due, and that Rafael was
+-- on Line 4 that day. The importer verified none of the three.
+--
+-- The first is measurable right now: of the forty-nine records imported from
+-- SafetyCulture, fifteen came from somewhere other than Production — nine of them from
+-- site "External" — and every one of them was counted as an operational action.
+--
+-- These columns give a record somewhere to say what was checked and what was found, so
+-- the screen can stop presenting an inference as an observation. The verdict itself is
+-- computed in `_shared/safetyculture/classification.ts` and written by the classify
+-- function; the only thing decided in SQL is the one-off backfill at the bottom, which
+-- closes the site hole immediately rather than waiting for a deploy.
+
+-- ── The verdict, and the evidence behind it ────────────────────────────────────────
+ALTER TABLE public.quality_actions
+  ADD COLUMN IF NOT EXISTS classification text
+    CHECK (classification IS NULL OR classification IN
+      ('line','leader','quality_error','needs_review','excluded')),
+  ADD COLUMN IF NOT EXISTS classification_checks jsonb,
+  ADD COLUMN IF NOT EXISTS classification_reasons text[],
+  ADD COLUMN IF NOT EXISTS matched_rule_ids uuid[],
+  ADD COLUMN IF NOT EXISTS matched_rule_names text[],
+  ADD COLUMN IF NOT EXISTS classified_at timestamptz;
+
+COMMENT ON COLUMN public.quality_actions.classification IS
+  'What the record is, once the gates have run: line, leader, quality_error, '
+  'needs_review, or excluded (raised outside Production). NULL means it has not been '
+  'classified yet — not that it passed.';
+
+COMMENT ON COLUMN public.quality_actions.classification_checks IS
+  'One state per gate: {"site","action_date","worker","line"} each ok | failed | '
+  'unknown. `unknown` is deliberately not `failed`: employee_attendance is sparse, so '
+  '"no row for that day" and "a row saying absent" are different statements and only '
+  'the second one blocks.';
+
+COMMENT ON COLUMN public.quality_actions.matched_rule_names IS
+  'Denormalised on purpose. A rule can be renamed or deleted after it classified a '
+  'record, and the drawer still has to be able to say what decided this row.';
+
+-- The operational screen reads by class and date, and only ever for imported rows.
+CREATE INDEX IF NOT EXISTS quality_actions_classification_idx
+  ON public.quality_actions (classification, recorded_at DESC)
+  WHERE source = 'safetyculture';
+
+-- ── Rules gain a name and a verdict of their own ───────────────────────────────────
+-- Until now a rule could say which line or which error type an action was about, but
+-- not what the action IS. Without that there is nothing for two rules to disagree
+-- about, and a conflict that cannot be expressed cannot be caught.
+ALTER TABLE public.sc_classification_rules
+  ADD COLUMN IF NOT EXISTS name text,
+  ADD COLUMN IF NOT EXISTS classification text
+    CHECK (classification IS NULL OR classification IN ('line','leader','quality_error'));
+
+COMMENT ON COLUMN public.sc_classification_rules.classification IS
+  'What a match asserts. NULL means the rule only tags (line, error type, department) '
+  'and leaves the verdict to the default reading. Two matching rules that name '
+  'DIFFERENT classes are a conflict: the record goes to review rather than the higher '
+  'priority silently winning, because priority is an ordering, not an arbitrator.';
+
+-- Every rule needs something to show in "Matched Rule". The existing sixty-three were
+-- written before the column existed, so they are named after what they already do.
+UPDATE public.sc_classification_rules
+SET name = COALESCE(
+  NULLIF(error_type, ''),
+  NULLIF(department, ''),
+  NULLIF(line_name, ''),
+  match_field || ' ~ ' || left(match_value, 40)
+)
+WHERE name IS NULL OR name = '';
+
+-- ── The one thing that is safe to decide here ──────────────────────────────────────
+-- Site is a plain string comparison with no evidence to weigh, so the backfill cannot
+-- drift from the TypeScript. Everything else is left NULL for the classify pass.
+--
+-- Note the two cases are NOT the same. A record raised at another site is excluded; a
+-- record with no site at all is sent to a human, because dropping a row from the
+-- operational view on the strength of an ABSENT field hides it from everybody.
+UPDATE public.quality_actions
+SET classification = 'excluded',
+    classification_checks = jsonb_build_object(
+      'site','failed','action_date','unknown','worker','unknown','line','unknown'),
+    classification_reasons = ARRAY['site_not_production'],
+    classified_at = now()
+WHERE source = 'safetyculture'
+  AND classification IS NULL
+  AND external_site IS NOT NULL
+  AND btrim(lower(external_site)) <> 'production';
+
+UPDATE public.quality_actions
+SET classification = 'needs_review',
+    classification_checks = jsonb_build_object(
+      'site','unknown','action_date','unknown','worker','unknown','line','unknown'),
+    classification_reasons = ARRAY['site_missing'],
+    classified_at = now()
+WHERE source = 'safetyculture'
+  AND classification IS NULL
+  AND (external_site IS NULL OR btrim(external_site) = '');
+
+
 -- ================================================================
 
 -- The cron log that has been growing since June, and the secret sitting in every row.

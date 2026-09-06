@@ -8,6 +8,7 @@
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { buildRecord, type ClassificationRule, type ScAction } from "./normalize.ts";
+import type { Attendance } from "./classification.ts";
 
 export function adminClient(): SupabaseClient {
   return createClient(
@@ -50,52 +51,185 @@ export async function log(
 export interface Context {
   lineNames: string[];
   rules: ClassificationRule[];
-  leaderFor: (line: string) => { id: string; name: string } | null;
+  /** Who held the line ON THAT DAY. Omitting the date falls back to today. */
+  leaderFor: (line: string, onDate?: string | null) => { id: string; name: string } | null;
+  /** present | absent | unknown — never a boolean. See `classification.ts`. */
+  attendance: (worker: string, day: string) => Attendance;
+  countsAgainstLeader: (label: string) => boolean;
+  requireWorkerEvidence: boolean;
 }
 
-/** Lines and leaders come from the database, never from a list in the code. */
+/**
+ * A name written by a person, reduced to something two spellings of it share.
+ *
+ * Deliberately the same rule as `src/lib/leaderNameMatch` — case-folded and
+ * whitespace-collapsed, nothing cleverer. It cannot be imported (that file is bundled
+ * for the browser), so it is repeated here and nowhere else.
+ */
+function foldName(v: unknown): string {
+  return String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * PostgREST caps a select at a thousand rows and says nothing about it. A silently
+ * truncated attendance table reads as "nobody was recorded", which is exactly the
+ * answer this module must not give by accident.
+ */
+/** Just enough of the PostgREST builder for the two calls made below. */
+interface PagedQuery {
+  gte(column: string, value: string): PagedQuery;
+  range(
+    from: number,
+    to: number,
+  ): PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+}
+
+async function fetchAll(
+  db: SupabaseClient,
+  table: string,
+  columns: string,
+  apply: (q: PagedQuery) => PagedQuery = (q) => q,
+): Promise<Record<string, unknown>[]> {
+  const page = 1000;
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += page) {
+    const query = apply(db.from(table).select(columns) as unknown as PagedQuery);
+    const { data, error } = await query.range(from, from + page - 1);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as Record<string, unknown>[];
+    out.push(...rows);
+    if (rows.length < page) return out;
+  }
+}
+
+/**
+ * Lines, leaders, rules, attendance and label attribution — all from the database,
+ * never from a list in the code.
+ *
+ * Loaded once per sync and answered in memory, because the alternative is a query per
+ * action per question and the organisation holds thousands of actions.
+ */
 export async function loadContext(db: SupabaseClient): Promise<Context> {
-  const [{ data: lines }, { data: leaders }, { data: assignments }, { data: rules }] =
-    await Promise.all([
-      db.from("lines").select("id,name,active").eq("active", true),
-      db.from("line_leaders").select("id,name,line,active").eq("active", true),
-      db.from("leader_line_assignment").select("leader_id,line_id,valid_from,valid_to"),
-      db.from("sc_classification_rules").select("*").eq("active", true),
-    ]);
+  const since = new Date(Date.now() - 180 * 86_400_000).toISOString().slice(0, 10);
+
+  const [
+    { data: lines },
+    { data: leaders },
+    { data: assignments },
+    { data: rules },
+    { data: attribution },
+    employees,
+    attendanceRows,
+  ] = await Promise.all([
+    db.from("lines").select("id,name,active").eq("active", true),
+    db.from("line_leaders").select("id,name,line,active").eq("active", true),
+    db.from("leader_line_assignment").select("leader_id,line_id,valid_from,valid_to"),
+    db.from("sc_classification_rules").select("*").eq("active", true),
+    db.from("quality_label_attribution").select("label,counts_against_leader"),
+    fetchAll(db, "employees", "id,full_name"),
+    // Six months is as far back as a re-classification pass is ever asked to reach,
+    // and it keeps the map small enough to hold.
+    fetchAll(db, "employee_attendance", "employee_id,on_date,status", (q) =>
+      q.gte("on_date", since)),
+  ]);
 
   const lineById = new Map((lines ?? []).map((l) => [l.id as string, l.name as string]));
   const leaderById = new Map(
     (leaders ?? []).map((l) => [l.id as string, l.name as string]),
   );
 
-  // Current assignments win; the leader recorded on `line_leaders` is the fallback.
-  const today = new Date().toISOString().slice(0, 10);
-  const byLine = new Map<string, { id: string; name: string }>();
+  // The leader recorded on `line_leaders` is the standing answer; a dated assignment
+  // overrides it for the window it covers.
+  const standing = new Map<string, { id: string; name: string }>();
   for (const l of leaders ?? []) {
     const line = String((l as { line?: string }).line ?? "").trim();
-    if (line && !byLine.has(line.toLowerCase())) {
-      byLine.set(line.toLowerCase(), { id: l.id as string, name: l.name as string });
+    if (line && !standing.has(line.toLowerCase())) {
+      standing.set(line.toLowerCase(), { id: l.id as string, name: l.name as string });
     }
   }
-  for (const a of assignments ?? []) {
-    const from = (a as { valid_from?: string }).valid_from ?? null;
-    const to = (a as { valid_to?: string }).valid_to ?? null;
-    if (from && from > today) continue;
-    if (to && to < today) continue;
-    const lineName = lineById.get((a as { line_id: string }).line_id);
-    const leaderName = leaderById.get((a as { leader_id: string }).leader_id);
-    if (lineName && leaderName) {
-      byLine.set(lineName.toLowerCase(), {
-        id: (a as { leader_id: string }).leader_id,
-        name: leaderName,
-      });
-    }
+
+  const windows = (assignments ?? [])
+    .map((a) => ({
+      line: (lineById.get((a as { line_id: string }).line_id) ?? "").toLowerCase(),
+      id: (a as { leader_id: string }).leader_id,
+      name: leaderById.get((a as { leader_id: string }).leader_id) ?? "",
+      from: (a as { valid_from?: string }).valid_from ?? null,
+      to: (a as { valid_to?: string }).valid_to ?? null,
+    }))
+    .filter((w) => w.line && w.name);
+
+  /**
+   * Who held the line on a given day.
+   *
+   * Asking who holds it TODAY — which is what this did before — charges a finding
+   * from three weeks ago to whoever happens to hold the line now. `valid_to` is NULL
+   * for "still covering it", so an open window has no upper bound rather than a
+   * sentinel date that would eventually be compared as a real one.
+   */
+  const leaderFor = (line: string, onDate?: string | null) => {
+    const key = line.trim().toLowerCase();
+    const day = onDate ?? new Date().toISOString().slice(0, 10);
+    const held = windows.find(
+      (w) => w.line === key && (!w.from || w.from <= day) && (!w.to || w.to >= day),
+    );
+    if (held) return { id: held.id, name: held.name };
+    return standing.get(key) ?? null;
+  };
+
+  const employeeByName = new Map<string, string>();
+  for (const e of employees) {
+    const key = foldName((e as { full_name?: string }).full_name);
+    // A name two people answer to cannot identify either of them, so it identifies
+    // nobody — the lookup returns "unknown" rather than picking one.
+    if (!key) continue;
+    employeeByName.set(key, employeeByName.has(key) ? "" : (e.id as string));
   }
+
+  const PRESENT = new Set(["present", "training"]);
+  const AWAY = new Set(["absent", "sick", "holiday"]);
+  const byEmployeeDay = new Map<string, string>();
+  for (const r of attendanceRows) {
+    byEmployeeDay.set(
+      `${r.employee_id as string}|${String(r.on_date).slice(0, 10)}`,
+      String(r.status ?? ""),
+    );
+  }
+
+  /**
+   * Three answers, and the third one is the common one.
+   *
+   * A SafetyCulture assignee is often a mailbox ("Quality Control", "Supervisors")
+   * that no employee row will ever match, and `employee_attendance` has gaps of whole
+   * days. Both of those are "unknown", which reports; only a recorded absence is
+   * "absent", which blocks.
+   */
+  const attendance = (worker: string, day: string): Attendance => {
+    const id = employeeByName.get(foldName(worker));
+    if (!id) return "unknown";
+    const status = byEmployeeDay.get(`${id}|${day}`);
+    if (!status) return "unknown";
+    if (PRESENT.has(status)) return "present";
+    if (AWAY.has(status)) return "absent";
+    return "unknown";
+  };
+
+  // Anything not listed counts, which is what the table's own comment says: a new
+  // label has to be excluded on purpose so nothing quietly stops counting.
+  const excluded = new Set(
+    (attribution ?? [])
+      .filter((r) => (r as { counts_against_leader?: boolean }).counts_against_leader === false)
+      .map((r) => foldName((r as { label?: string }).label)),
+  );
 
   return {
     lineNames: (lines ?? []).map((l) => l.name as string).filter(Boolean),
     rules: (rules ?? []) as unknown as ClassificationRule[],
-    leaderFor: (line: string) => byLine.get(line.trim().toLowerCase()) ?? null,
+    leaderFor,
+    attendance,
+    countsAgainstLeader: (label: string) => !excluded.has(foldName(label)),
+    // Off while `employee_attendance` is filled in only some days: switching it on
+    // today would send every action of the last three days to review.
+    requireWorkerEvidence: false,
   };
 }
 
@@ -155,6 +289,12 @@ export async function upsertAction(
     domain: draft.domain,
     needs_classification: draft.needs_classification,
     classification_status: draft.classification_status,
+    classification: draft.classification,
+    classification_checks: draft.classification_checks,
+    classification_reasons: draft.classification_reasons,
+    matched_rule_ids: draft.matched_rule_ids,
+    matched_rule_names: draft.matched_rule_names,
+    classified_at: draft.classified_at,
     last_synced_at: draft.last_synced_at,
   };
 
@@ -344,6 +484,12 @@ function rowFor(draft: ReturnType<typeof buildRecord>["draft"]): Record<string, 
     domain: draft.domain,
     needs_classification: draft.needs_classification,
     classification_status: draft.classification_status,
+    classification: draft.classification,
+    classification_checks: draft.classification_checks,
+    classification_reasons: draft.classification_reasons,
+    matched_rule_ids: draft.matched_rule_ids,
+    matched_rule_names: draft.matched_rule_names,
+    classified_at: draft.classified_at,
     last_synced_at: draft.last_synced_at,
   };
 }
