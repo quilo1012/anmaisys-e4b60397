@@ -220,7 +220,13 @@ export default function IntouchStopCodesPage() {
             <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-strong">
               {woCount} open a maintenance order
             </span>
+            {duplicateCount > 0 && (
+              <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                {duplicateCount} name{duplicateCount === 1 ? "" : "s"} used by two iTouching codes
+              </span>
+            )}
           </CardTitle>
+
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
