@@ -191,10 +191,15 @@ export default function SafetyCultureSettingsPage() {
                 {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlugZap className="mr-2 h-4 w-4" />}
                 Test connection
               </Button>
+              <Button variant="outline" size="sm" onClick={classifyPending} disabled={classifying}>
+                {classifying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardCheck className="mr-2 h-4 w-4" />}
+                Classify pending
+              </Button>
               <Button size="sm" onClick={syncNow} disabled={syncing}>
                 {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 Sync now
               </Button>
+
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
