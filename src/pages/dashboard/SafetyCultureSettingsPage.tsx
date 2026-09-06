@@ -70,20 +70,30 @@ function EventBadge({ event }: { event: string }) {
   return <Badge variant={variant as never}>{event.replace(/_/g, " ")}</Badge>;
 }
 
+interface ClassRow {
+  line: string | null;
+  leader_name: string | null;
+  department: string | null;
+  error_type: string | null;
+  classification_status: string | null;
+}
+
 export default function SafetyCultureSettingsPage() {
   const [state, setState] = useState<SyncState | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [needsClass, setNeedsClass] = useState<number>(0);
+  const [rows, setRows] = useState<ClassRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [classifying, setClassifying] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: status }, { data: logRows }, { count }] = await Promise.all([
+    const [{ data: status }, { data: logRows }, { count }, { data: classRows }] = await Promise.all([
       invokeFunction<{ configured: boolean; organization_id: string | null; state: SyncState }>(
         "safetyculture-sync",
         { mode: "status" },
@@ -98,6 +108,11 @@ export default function SafetyCultureSettingsPage() {
         .select("id", { count: "exact", head: true })
         .eq("source", "safetyculture")
         .eq("needs_classification", true),
+      (supabase as never as typeof supabase)
+        .from("quality_actions")
+        .select("line,leader_name,department,error_type,classification_status")
+        .eq("source", "safetyculture")
+        .limit(2000),
     ]);
     if (status) {
       setConfigured(status.configured);
@@ -106,10 +121,27 @@ export default function SafetyCultureSettingsPage() {
     }
     setLogs((logRows ?? []) as unknown as LogRow[]);
     setNeedsClass(count ?? 0);
+    setRows((classRows ?? []) as unknown as ClassRow[]);
     setLoading(false);
   };
 
   useEffect(() => { void load(); }, []);
+
+  const classifyPending = async () => {
+    setClassifying(true);
+    const { data, error } = await invokeFunction<{
+      examined: number; classified: number; needs_review: number;
+    }>("safetyculture-classify", { scope: "pending" });
+    setClassifying(false);
+    if (error) toast.error(error.message ?? "Classification failed");
+    else {
+      toast.success(
+        `${data?.classified ?? 0} action(s) classified, ${data?.needs_review ?? 0} still to review.`,
+      );
+    }
+    void load();
+  };
+
 
   const test = async () => {
     setTesting(true);
