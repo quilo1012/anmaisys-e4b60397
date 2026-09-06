@@ -129,6 +129,7 @@ const RAGWeeklyPage = lazyWithReload(() => import("./pages/dashboard/RAGWeeklyPa
 const LeaderScorecardWeekPage = lazyWithReload(() => import("./pages/dashboard/LeaderScorecardWeekPage"));
 const LeaderScorecardDetailPage = lazyWithReload(() => import("./pages/dashboard/LeaderScorecardDetailPage"));
 const IntouchSettingsPage = lazyWithReload(() => import("./pages/dashboard/IntouchSettingsPage"));
+const SafetyCultureSettingsPage = lazyWithReload(() => import("./pages/dashboard/SafetyCultureSettingsPage"));
 const LineProductionScreen = lazyWithReload(() => import("./pages/dashboard/LineProductionScreen"));
 const LineDisplayScreen = lazyWithReload(() => import("./pages/dashboard/LineDisplayScreen"));
 const LineHubScreen = lazyWithReload(() => import("./pages/dashboard/LineHubScreen"));
@@ -710,6 +711,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin"]} requiredAction="intouch.manage">
                       <IntouchSettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/safetyculture-settings"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="system.settings">
+                      <SafetyCultureSettingsPage />
                     </ProtectedRoute>
                   }
                 />

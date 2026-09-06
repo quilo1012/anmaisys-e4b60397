@@ -1,0 +1,292 @@
+/**
+ * The SafetyCulture side of the integration: authentication, paging, retries, and
+ * the shape-tolerant reading of an Action.
+ *
+ * The token is read from the environment inside this module and never returned,
+ * logged or echoed. Callers get data or an error, never the credential.
+ */
+
+import type { ScAction } from "./normalize.ts";
+
+const BASE = "https://api.safetyculture.io";
+const WEB = "https://app.safetyculture.com/tasks/actions";
+
+export class ScAuthError extends Error {}
+export class ScRateLimit extends Error {
+  constructor(public retryAfterMs: number) {
+    super("SafetyCulture rate limit");
+  }
+}
+export class ScApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+export class ScTimeout extends Error {}
+
+function token(): string {
+  const t = (Deno.env.get("SAFETYCULTURE_API_TOKEN") ?? "")
+    .trim()
+    .replace(/^SAFETYCULTURE_API_TOKEN\s*=\s*/i, "")
+    .replace(/^["']|["']$/g, "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+  if (!t) throw new ScAuthError("SAFETYCULTURE_API_TOKEN is not configured");
+  return t;
+}
+
+export function orgId(): string {
+  return (Deno.env.get("SAFETYCULTURE_ORGANIZATION_ID") ?? "").trim();
+}
+
+export function hasToken(): boolean {
+  return !!(Deno.env.get("SAFETYCULTURE_API_TOKEN") ?? "").trim();
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** One HTTP call, with a timeout, one rate-limit wait and one retry on 5xx. */
+async function call(
+  path: string,
+  init: RequestInit = {},
+  attempt = 0,
+): Promise<unknown> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: {
+        ...(init.headers ?? {}),
+        Authorization: `Bearer ${token()}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(25_000),
+    });
+  } catch (e) {
+    if ((e as Error).name === "TimeoutError" || (e as Error).name === "AbortError") {
+      if (attempt < 1) {
+        await sleep(1_500);
+        return call(path, init, attempt + 1);
+      }
+      throw new ScTimeout("SafetyCulture did not answer in time");
+    }
+    throw e;
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    throw new ScAuthError(`SafetyCulture rejected the credentials (${res.status})`);
+  }
+  if (res.status === 429) {
+    const wait = Number(res.headers.get("Retry-After") ?? 5) * 1000;
+    if (attempt < 2) {
+      await sleep(Math.min(wait || 5_000, 30_000));
+      return call(path, init, attempt + 1);
+    }
+    throw new ScRateLimit(wait || 5_000);
+  }
+  if (res.status >= 500 && attempt < 1) {
+    await sleep(2_000);
+    return call(path, init, attempt + 1);
+  }
+  if (!res.ok) {
+    const body = await res.text();
+    throw new ScApiError(res.status, `SafetyCulture replied ${res.status}: ${body.slice(0, 300)}`);
+  }
+  return await res.json();
+}
+
+const str = (v: unknown): string | null => {
+  if (v == null) return null;
+  if (typeof v === "string") return v.trim() || null;
+  if (typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return (
+      (typeof o.label === "string" && o.label) ||
+      (typeof o.name === "string" && o.name) ||
+      (typeof o.key === "string" && o.key) ||
+      (typeof o.value === "string" && o.value) ||
+      null
+    );
+  }
+  return String(v);
+};
+
+/**
+ * One row of `/tasks/v1/actions/list`.
+ *
+ * The live API nests almost everything under `task` and answers with ids where a
+ * reader wants names: `status` carries its own `key`, the assignee is whichever
+ * collaborator holds the ASSIGNEE role, and the only human-readable clue about
+ * which line an action came from is usually the inspection name ("B1/L6A").
+ * Older/leaner shapes are still tolerated so a webhook payload parses too.
+ */
+export function parseAction(raw: Record<string, unknown>): ScAction | null {
+  const t = ((raw.task as Record<string, unknown>) ?? raw) as Record<string, unknown>;
+
+  const id = str(t.task_id) ?? str(t.id) ?? str(t.action_id) ?? str(raw.id);
+  if (!id) return null;
+
+  const collaborators = (Array.isArray(t.collaborators) ? t.collaborators : []) as Record<
+    string,
+    unknown
+  >[];
+  const assignee = collaborators
+    .filter((c) => str(c.assigned_role) === "ASSIGNEE")
+    .map((c) => {
+      const u = (c.user ?? null) as Record<string, unknown> | null;
+      if (u) return [str(u.firstname), str(u.lastname)].filter(Boolean).join(" ");
+      const g = (c.group ?? null) as Record<string, unknown> | null;
+      return g ? str(g.name) : null;
+    })
+    .filter(Boolean)
+    .join(", ");
+
+  const labels = [
+    ...(Array.isArray(t.action_label) ? t.action_label : []),
+    ...(Array.isArray(t.labels) ? t.labels : []),
+  ]
+    .map((l) => {
+      const o = l as Record<string, unknown>;
+      return str(o?.label_name) ?? str(l);
+    })
+    .filter(Boolean) as string[];
+
+  const custom: Record<string, string> = {};
+  for (const f of (Array.isArray(raw.custom_field_and_values) ? raw.custom_field_and_values : [])
+    .concat(Array.isArray(t.custom_fields) ? (t.custom_fields as unknown[]) : []) as Record<
+    string,
+    unknown
+  >[]) {
+    const key = str(f.name) ?? str(f.key) ?? str(f.field_id);
+    const val = str(f.value) ?? str(f.text) ?? str(f.display_value);
+    if (key && val) custom[key] = val;
+  }
+
+  const inspection = (t.inspection ?? null) as Record<string, unknown> | null;
+  const inspectionName = inspection ? str(inspection.inspection_name) : null;
+  if (inspectionName) custom.inspection = inspectionName;
+  const item = (t.inspection_item ?? null) as Record<string, unknown> | null;
+  const itemName = item ? str(item.inspection_item_name) : null;
+  if (itemName) custom.inspection_item = itemName;
+
+  const status = (t.status ?? null) as Record<string, unknown> | null;
+  const asset = (t.asset ?? null) as Record<string, unknown> | null;
+  const site = (t.site ?? null) as Record<string, unknown> | null;
+  const type = (raw.type ?? null) as Record<string, unknown> | null;
+
+  return {
+    id,
+    title: str(t.title) ?? str(t.name) ?? "",
+    description: str(t.description),
+    status: (status ? str(status.key) ?? str(status.label) : null) ?? str(t.status),
+    priority: str(t.priority) ?? str(t.priority_id),
+    created_at: str(t.created_at),
+    modified_at: str(t.modified_at) ?? str(t.updated_at),
+    due_at: str(t.due_at) ?? str(t.due_date),
+    assignee: assignee || null,
+    labels,
+    site: site ? str(site.name) : str(t.site),
+    asset: asset ? str(asset.name) ?? str(asset.code) : null,
+    template: str(t.template_name) ?? (type ? str(type.name) : null),
+    custom_fields: custom,
+    deleted: t.deleted === true,
+    url: `${WEB}/${id}`,
+  };
+}
+
+function itemsOf(payload: unknown): Record<string, unknown>[] {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  for (const key of ["actions", "items", "tasks", "data", "results"]) {
+    const v = p[key];
+    if (Array.isArray(v)) return v as Record<string, unknown>[];
+  }
+  return Array.isArray(payload) ? (payload as Record<string, unknown>[]) : [];
+}
+
+function nextToken(payload: unknown): string | null {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  return (
+    (typeof p.next_page_token === "string" && p.next_page_token) ||
+    (typeof p.nextPageToken === "string" && p.nextPageToken) ||
+    null
+  );
+}
+
+/** Authentication probe for the admin screen. Returns nothing secret. */
+export async function testConnection(): Promise<{ ok: true; actions_visible: number }> {
+  const payload = await call("/tasks/v1/actions/list", {
+    method: "POST",
+    body: JSON.stringify({ page_size: 1 }),
+  });
+  return { ok: true, actions_visible: itemsOf(payload).length };
+}
+
+/**
+ * Every Action modified since `modifiedAfter`, oldest first, following the page
+ * token until SafetyCulture stops handing one out.
+ */
+export async function listActions(
+  modifiedAfter: string | null,
+  maxPages = 80,
+): Promise<ScAction[]> {
+  const out: ScAction[] = [];
+  let pageToken: string | null = null;
+
+  for (let page = 0; page < maxPages; page++) {
+    // The Actions endpoint takes no "modified since" filter and ignores the sort
+    // hint, so the sweep reads the whole list and discards untouched rows here.
+    // The page token is the only reliable cursor it offers.
+    const body: Record<string, unknown> = { page_size: 100 };
+    if (pageToken) body.page_token = pageToken;
+
+    const payload = await call("/tasks/v1/actions/list", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+    const rows = itemsOf(payload);
+    for (const r of rows) {
+      const a = parseAction(r);
+      if (!a) continue;
+      if (modifiedAfter && a.modified_at && a.modified_at <= modifiedAfter) continue;
+      out.push(a);
+    }
+    pageToken = nextToken(payload);
+    if (!pageToken || rows.length === 0) break;
+  }
+  return out;
+}
+
+/** A single Action, for the webhook path where only the id arrives. */
+export async function getAction(id: string): Promise<ScAction | null> {
+  const payload = (await call(`/tasks/v1/actions/${encodeURIComponent(id)}`)) as Record<
+    string,
+    unknown
+  >;
+  const raw = (payload.action ?? payload.task ?? payload) as Record<string, unknown>;
+  return parseAction(raw);
+}
+
+/**
+ * Diagnostic: send an arbitrary list body and report what came back. Used only by
+ * the admin "probe" mode while the accepted request shape is being pinned down.
+ * Returns the status and a truncated body — never the credential.
+ */
+export async function rawList(
+  body: Record<string, unknown> | null,
+  path = "/tasks/v1/actions/list",
+  method = "POST",
+): Promise<{ status: number; body: string }> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(20_000),
+  });
+  return { status: res.status, body: (await res.text()).slice(0, 4000) };
+}

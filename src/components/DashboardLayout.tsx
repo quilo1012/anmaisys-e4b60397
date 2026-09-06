@@ -431,6 +431,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",
+  "/dashboard/safetyculture-settings": "SafetyCulture",
   "/dashboard/intouch-machines": "iTouching Machines",
   "/dashboard/intouch-stop-codes": "iTouching Stop Codes",
 };
