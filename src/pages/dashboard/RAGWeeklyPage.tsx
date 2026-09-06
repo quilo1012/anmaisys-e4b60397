@@ -1197,10 +1197,11 @@ export default function RAGWeeklyPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Upload className="h-4 w-4" /> Import RAG Excel
+              {importPreview?.source === "sharepoint"
+                ? <><CloudDownload className="h-4 w-4" /> Sync RAG from SharePoint</>
+                : <><Upload className="h-4 w-4" /> Import RAG Excel</>}
             </DialogTitle>
-          </DialogHeader>
-          {importPreview && (
+
             <div className="space-y-2 text-sm">
               <p className="font-medium break-all">{importPreview.fileName}</p>
               <p>
