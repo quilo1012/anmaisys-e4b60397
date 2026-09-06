@@ -216,6 +216,10 @@ export default function RAGWeeklyPage() {
     comments: { line: string; comment: string; entry_date: string; week_start: string }[];
     datesDetected: string[];
   };
+  type ImportRequest = {
+    source: "file" | "sharepoint";
+    payload: ImportPayload;
+  };
   const [importPreview, setImportPreview] = useState<
     {
       source: "file" | "sharepoint";
@@ -618,22 +622,36 @@ export default function RAGWeeklyPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // RAG importer — takes an already-parsed payload, whether it came from an Excel
-  // file (the filled template or the factory workbook) or straight from the
-  // SharePoint reader. A blank value never writes a 0 over a stored one.
+  // Excel imports merge non-blank cells. SharePoint is authoritative for the
+  // selected week, so its sync first removes stale rows and rebuilds the week
+  // strictly from records whose API date falls between Monday and Sunday.
   const importTemplateMutation = useMutation({
-    mutationFn: async (parsed: ImportPayload) => {
+    mutationFn: async ({ payload: parsed, source }: ImportRequest) => {
       if (!parsed.rows.length && !parsed.comments.length) {
         throw new Error(
           "No RAG data found. Use a sheet from ‘Download Excel’, the blank template, or the factory RAG workbook.",
         );
       }
 
-      // Existing values for every date touched by the import, so blanks are kept.
-      const dates = parsed.datesDetected;
+      const isSharePoint = source === "sharepoint";
+      const rowsForImport = isSharePoint
+        ? parsed.rows.filter((row) => row.entry_date >= weekStartStr && row.entry_date <= weekEndStr)
+        : parsed.rows;
+      const dates = isSharePoint
+        ? [weekStartStr, weekEndStr]
+        : parsed.datesDetected;
+
+      if (isSharePoint) {
+        const { error: deleteError } = await supabase
+          .from("rag_weekly_entries")
+          .delete()
+          .gte("entry_date", weekStartStr)
+          .lte("entry_date", weekEndStr);
+        if (deleteError) throw deleteError;
+      }
 
       const existing = new Map<string, Entry>(entryMap);
-      if (dates.length) {
+      if (!isSharePoint && dates.length) {
         const { data: cur } = await supabase
           .from("rag_weekly_entries")
           .select("*")
@@ -644,11 +662,13 @@ export default function RAGWeeklyPage() {
         }
       }
 
-      // 1) Entries — merge over what is stored; keep any per-cell notes.
-      const rows = parsed.rows.map((r) => {
+      // 1) Entries — only Excel merges blanks over stored values. SharePoint rows
+      // are rebuilt after the selected week was cleared, so stale Sunday/WTD
+      // values cannot survive a new sync.
+      const rows = rowsForImport.map((r) => {
         const prev = existing.get(`${r.entry_date}|${r.line}|${r.shift}`);
         const keep = (v: number | undefined, old: number | null | undefined) =>
-          v !== undefined ? v : (old ?? 0);
+          v !== undefined ? v : (isSharePoint ? 0 : (old ?? 0));
         return {
           entry_date: r.entry_date,
           line: r.line,
@@ -703,7 +723,7 @@ export default function RAGWeeklyPage() {
       qc.invalidateQueries({ queryKey: ["rag-comments", weekStartStr] });
       qc.invalidateQueries({ queryKey: ["rag-comments"] });
       toast.success(
-        `Imported ${count} cell${count === 1 ? "" : "s"}` +
+        `${importPreview?.source === "sharepoint" ? "Synced" : "Imported"} ${count} cell${count === 1 ? "" : "s"}` +
           (commentCount ? ` and ${commentCount} comment${commentCount === 1 ? "" : "s"}` : ""),
       );
       setImportPreview(null);
@@ -1276,7 +1296,9 @@ export default function RAGWeeklyPage() {
               )}
 
               <p className="text-xs text-muted-foreground">
-                Existing values for those cells are overwritten; blank values are ignored.
+                {importPreview.source === "sharepoint"
+                  ? "The selected week is replaced with records matched strictly by the API date. Missing values clear stale data."
+                  : "Existing values for those cells are overwritten; blank values are ignored."}
                 Auto-calculated cells (Total, Variance %, Week Total) are not imported.
               </p>
             </div>
@@ -1286,7 +1308,10 @@ export default function RAGWeeklyPage() {
               Cancel
             </Button>
             <Button
-              onClick={() => importPreview && importTemplateMutation.mutate(importPreview.payload)}
+              onClick={() => importPreview && importTemplateMutation.mutate({
+                source: importPreview.source,
+                payload: importPreview.payload,
+              })}
               disabled={importTemplateMutation.isPending}
             >
               {importTemplateMutation.isPending

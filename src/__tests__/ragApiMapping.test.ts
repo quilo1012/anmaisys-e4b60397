@@ -112,4 +112,35 @@ describe("mapRagApiRecords", () => {
     expect(files).toEqual(["August Production RAG Performance v1.xlsx"]);
     expect(datesDetected).toEqual(["2026-08-24", "2026-08-25"]);
   });
+
+  it("maps every weekday by its API date, regardless of array order", () => {
+    const sunday = rec({
+      date: "2026-09-13",
+      metrics: {
+        plan: { day: null, night: null, total: 0, yield_percent: 0.98 },
+        actual: { day: null, night: null, total: 0 },
+        downtime: { day: null, night: null, total: 0 },
+      },
+    });
+    const monday = rec({ date: "2026-09-07" });
+
+    const { rows, datesDetected } = mapRagApiRecords([sunday, monday], LINES);
+
+    expect(rows.filter((row) => row.entry_date === "2026-09-13")).toEqual([]);
+    expect(rows.filter((row) => row.entry_date === "2026-09-07")).toHaveLength(2);
+    expect(datesDetected).toEqual(["2026-09-07"]);
+  });
+
+  it("never turns a day total or progressive total into a shift value", () => {
+    const { rows } = mapRagApiRecords([rec({
+      date: "2026-09-13",
+      metrics: {
+        plan: { day: null, night: null, total: 4526 },
+        actual: { day: null, night: null, total: 0 },
+        downtime: { day: null, night: null, total: 0 },
+      },
+    })], LINES);
+
+    expect(rows).toEqual([]);
+  });
 });
