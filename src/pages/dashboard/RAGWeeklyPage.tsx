@@ -34,7 +34,10 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import { Settings2 } from "lucide-react";
 import { downloadRagTemplate, exportRagFilledTemplate, type RagFill } from "@/lib/ragTemplateExport";
-import { parseRagTemplateFile } from "@/lib/ragTemplateImport";
+import { parseRagTemplateFile, type ParsedTemplateRow } from "@/lib/ragTemplateImport";
+import { mapRagApiRecords, type RagApiRecord } from "@/lib/ragApiMapping";
+import { invokeFunction } from "@/lib/invokeFunction";
+import { CloudDownload } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
