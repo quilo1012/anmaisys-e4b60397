@@ -62,6 +62,29 @@ export default function IntouchStopCodesPage() {
   });
   const woCount = rows.filter((r) => r.requires_wo).length;
 
+  /**
+   * iTouching genuinely holds the same stop NAME under two different GUIDs —
+   * "Metal Detected" (ids 59 and 81) and "Metal Detector Checks" (45 and 82) are
+   * both live and both have arrived in the status log. Deleting one would silence
+   * whichever half of the stops carries that GUID, so both rows stay.
+   *
+   * What was actually wrong is that the two twins could be set differently: the
+   * same stop on the floor opening an order under one GUID and not under the
+   * other, with nothing on screen saying there was a second copy at all. The list
+   * now names the duplicates, and saving one twin writes the same decision to the
+   * others so they cannot drift apart again.
+   */
+  const normLabel = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const labelCounts = new Map<string, number>();
+  for (const r of rows) {
+    const k = normLabel(r.label);
+    if (k) labelCounts.set(k, (labelCounts.get(k) ?? 0) + 1);
+  }
+  const duplicateCount = [...labelCounts.values()].filter((n) => n > 1).length;
+  const twinsOf = (row: Partial<Row>) =>
+    rows.filter((o) => o.id !== row.id && normLabel(o.label) === normLabel(row.label));
+
+
   const { data: lines = [] } = useQuery({
     queryKey: ["lines-for-stopcodes"],
     queryFn: async () => {
