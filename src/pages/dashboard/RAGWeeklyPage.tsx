@@ -886,7 +886,15 @@ export default function RAGWeeklyPage() {
                         <DropdownMenuItem onClick={() => importInputRef.current?.click()}>
                           <Upload className="h-4 w-4 mr-2" />Import Excel
                         </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={syncingSharePoint}
+                          onSelect={(e) => { e.preventDefault(); void handleSyncFromSharePoint(); }}
+                        >
+                          <CloudDownload className="h-4 w-4 mr-2" />
+                          {syncingSharePoint ? "Reading SharePoint…" : "Sync from SharePoint"}
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
+
                       </>
                     )}
                     <DropdownMenuItem
