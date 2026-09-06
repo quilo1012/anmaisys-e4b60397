@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, MoreHorizontal, ChevronsUpDown, Search, History } from "lucide-react";
+import { Check, Download, Lock, Unlock, Trash2, Upload, Plus, MoreHorizontal, ChevronsUpDown, Search, History, Printer } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip as UITooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { ImportProductionDialog } from "@/components/ImportProductionDialog";
@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { baseSkuCode } from "@/lib/skuDisplay";
 import { bayInk, baySpine, bayWash } from "@/lib/lineBay";
 import { hasLeader } from "@/lib/sessionLeader";
+import { printElementAsDocument } from "@/lib/printDocument";
+import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { format, parseISO } from "date-fns";
 import { DateRangeFilter, type DateRangePreset } from "@/components/DateRangeFilter";
 import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
@@ -422,6 +424,207 @@ interface SessionRow {
 const isPlaceholderRow = (id: string | null | undefined) =>
   typeof id === "string" && id.endsWith("-empty");
 
+/** As horas como o ecrã as escreve — a folha e a fila têm de dizer o mesmo minuto. */
+const hhmm = (v: string | null | undefined) => (v ? new Date(v).toTimeString().slice(0, 5) : "—");
+
+/**
+ * A folha em papel.
+ *
+ * O ecrã não serve de original. Metade das colunas por que se lê um turno são campos
+ * que se editam no sítio: o Líder e o SKU são `Select`, a Equipa, a Qty e as horas são
+ * `input`. O `printDocument` clona o DOM e imprime o clone — e o clone não leva React
+ * nenhum consigo. Um `Select` é um `button`, e a folha esconde os botões; um `input`
+ * controlado tem o valor na propriedade e não no atributo, e o atributo é a única coisa
+ * que um clone copia. Imprimir o que está no ecrã dava uma folha com o Líder, o SKU, a
+ * Qty, o Start e o Finish em branco: as cinco colunas que interessam.
+ *
+ * Por isso a folha é escrita outra vez, em texto. Mantém as faixas do dia e da baía —
+ * é por elas que se acha uma linha num maço de páginas — e perde a coluna das Acções,
+ * que em papel não é acção nenhuma.
+ */
+export function ProductionControlPrintSheet({
+  sessions, bands, summary, skuMap, leaders, periodLabel, shiftLabel, filtersLabel,
+}: {
+  sessions: SessionRow[];
+  bands: {
+    day: Map<string, { qty: number; plan: number; lines: Set<string> }>;
+    bay: Map<string, { qty: number; plan: number; skus: number; shifts: Set<string>; noLeader: boolean }>;
+  };
+  summary: { target: number; actual: number; days: number; lineCount: number; pct: number };
+  skuMap: Map<string, { code: string; name: string; weight?: number | null }>;
+  leaders: { id: string; name: string }[];
+  periodLabel: string;
+  shiftLabel: string;
+  filtersLabel?: string;
+}) {
+  const leaderById = new Map(leaders.map((l) => [l.id, l.name]));
+  const th = "border-b-2 border-black px-1.5 py-1 text-left font-bold uppercase";
+  const td = "border-b border-black/25 px-1.5 py-[3px] align-top";
+
+  const rows: React.ReactNode[] = [];
+  let prevDate: string | null = null;
+  let prevLine: string | null = null;
+
+  sessions.forEach((s) => {
+    if (s.session_date !== prevDate) {
+      const d = bands.day.get(s.session_date);
+      const pct = d && d.plan > 0 ? (d.qty / d.plan) * 100 : null;
+      rows.push(
+        <tr key={`p-day-${s.session_date}`}>
+          <td colSpan={13} className="border-y-2 border-black px-1.5 py-1 font-bold uppercase tracking-wide">
+            {format(parseISO(s.session_date), "EEE dd MMM yyyy")}
+            <span className="pl-4 font-normal normal-case">
+              {d?.lines.size ?? 0} {(d?.lines.size ?? 0) === 1 ? "line" : "lines"}
+            </span>
+            <span className="pl-4">{Math.round(d?.qty ?? 0).toLocaleString()}</span>
+            {d && d.plan > 0 && <span className="font-normal"> / {Math.round(d.plan).toLocaleString()}</span>}
+            {pct != null && <span className="pl-2">{pct.toFixed(0)}%</span>}
+          </td>
+        </tr>,
+      );
+      prevDate = s.session_date;
+      prevLine = null;
+    }
+
+    if (s.line !== prevLine) {
+      const b = bands.bay.get(`${s.session_date}|${s.line}`);
+      const pct = b && b.plan > 0 ? (b.qty / b.plan) * 100 : null;
+      rows.push(
+        <tr key={`p-bay-${s.session_date}-${s.line}`}>
+          <td colSpan={13} className="border-b border-black/40 px-1.5 py-[3px]">
+            {/* O quadrado da baía é a mesma cor do ecrã e do filtro. Vive de
+                `print-color-adjust: exact`, que a folha já liga. */}
+            <span
+              className="mr-2 inline-block h-2 w-2 rounded-[1px] align-middle"
+              style={{ backgroundColor: bayInk(s.line) }}
+              aria-hidden
+            />
+            <span className="font-bold uppercase tracking-wide">{(s.line ?? "").trim()}</span>
+            <span className="pl-3">
+              {b?.skus ?? 0} SKU{b && b.shifts.size > 0 ? ` · ${[...b.shifts].join(" + ").toLowerCase()}` : ""}
+            </span>
+            {b?.noLeader && <span className="pl-3 font-bold uppercase">no leader</span>}
+            <span className="pl-3 font-bold">{Math.round(b?.qty ?? 0).toLocaleString()}</span>
+            {b && b.plan > 0 && <span> / {Math.round(b.plan).toLocaleString()}</span>}
+            {pct != null && <span className="pl-2 font-bold">{pct.toFixed(0)}%</span>}
+          </td>
+        </tr>,
+      );
+      prevLine = s.line;
+    }
+
+    // Uma sessão sem itens continua a ocupar uma fila: um turno que não registou
+    // nada é uma leitura, e desaparecer da folha faria dele um turno que não houve.
+    const items = s.production_items.length > 0 ? s.production_items : [null];
+    items.forEach((i, idx) => {
+      const sku = i ? skuMap.get(i.sku_id) : undefined;
+      const code = sku?.code ?? "";
+      const name = sku?.name ?? (i?.sku_id ? "Unknown" : "—");
+      const blenders = i
+        ? Array.from(new Set((i.production_blender_entries ?? []).map((b) => b.blender_number))).sort((x, y) => x - y)
+        : [];
+      const weight = i ? parseWeightFromSku(code, name, sku?.weight ?? null) : 0;
+      rows.push(
+        <tr key={`p-row-${s.id}-${i?.id ?? idx}`}>
+          <td className={cn(td, "whitespace-nowrap")}>{format(parseISO(s.session_date), "dd/MM")}</td>
+          <td className={cn(td, "whitespace-nowrap")}>{s.shift}</td>
+          <td className={cn(td, "whitespace-nowrap")}>{(s.line ?? "").trim()}</td>
+          {/* O líder é do turno e não de cada SKU que ele fez: escreve-se uma vez,
+              como a equipa, na primeira fila da sessão. */}
+          <td className={td}>{idx === 0 ? (s.leader_name ?? (s.leader_id ? leaderById.get(s.leader_id) ?? "" : "") ?? "—") : ""}</td>
+          <td className={cn(td, "text-right")}>{idx === 0 ? (s.staff_actual ?? "—") : ""}</td>
+          <td className={cn(td, "whitespace-nowrap font-bold")}>
+            {i ? (baseSkuCode(code) || i.sku_code_text || "—") : "—"}
+          </td>
+          <td className={td}>{i ? name : "—"}</td>
+          <td className={td}>
+            {i?.batch_code || "—"}
+            {i && (i.manufacture_month || i.expiry_month) && (
+              <div className="whitespace-nowrap text-[7pt]">
+                {i.manufacture_month && <span>M {monthMMYY(i.manufacture_month)}</span>}
+                {i.manufacture_month && i.expiry_month && " · "}
+                {i.expiry_month && <span>E {monthMMYY(i.expiry_month)}</span>}
+              </div>
+            )}
+          </td>
+          <td className={cn(td, "text-right")}>{blenders.length ? blenders.join(", ") : "—"}</td>
+          <td className={cn(td, "text-right font-bold")}>{i ? Number(i.actual_qty ?? 0).toLocaleString() : "—"}</td>
+          <td className={cn(td, "text-right")}>{weight ? weight.toLocaleString() : "—"}</td>
+          <td className={cn(td, "whitespace-nowrap")}>{i ? hhmm(i.started_at) : "—"}</td>
+          <td className={cn(td, "whitespace-nowrap")}>{i ? hhmm(i.finished_at) : "—"}</td>
+        </tr>,
+      );
+    });
+  });
+
+  return (
+    <div id="production-control-print" className="hidden print:block">
+      <ReportPrintHeader
+        title="Production Control"
+        periodLabel={periodLabel}
+        shift={shiftLabel}
+        filtersLabel={filtersLabel}
+      />
+      {/* Os mesmos dois mostradores da placa de comando. Na placa eles confirmam o
+          que os manípulos escolheram; aqui dizem o que a folha soma, que é a
+          primeira pergunta de quem a recebe impressa. */}
+      <div className="mb-2 flex flex-wrap gap-x-6 gap-y-1 text-[9pt]">
+        <span>
+          <span className="font-bold uppercase">Produced</span> {Math.round(summary.actual).toLocaleString()}
+          {summary.target > 0 && ` / ${Math.round(summary.target).toLocaleString()}`}
+        </span>
+        <span>
+          <span className="font-bold uppercase">Attainment</span>{" "}
+          {summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}
+        </span>
+        <span>
+          {summary.days} day{summary.days === 1 ? "" : "s"} · {summary.lineCount} line
+          {summary.lineCount === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {sessions.length === 0 ? (
+        <p className="text-[9pt]">No sessions for this period.</p>
+      ) : (
+        <table className="w-full border-collapse text-[8pt]">
+          <thead>
+            <tr>
+              <th className={th}>Date</th>
+              <th className={th}>Shift</th>
+              <th className={th}>Line</th>
+              <th className={th}>Leader</th>
+              <th className={cn(th, "text-right")}>Team</th>
+              <th className={th}>SKU</th>
+              <th className={th}>Description</th>
+              <th className={th}>Batch</th>
+              <th className={cn(th, "text-right")}>Blender</th>
+              <th className={cn(th, "text-right")}>Qty</th>
+              <th className={cn(th, "text-right")}>Weight (g)</th>
+              <th className={th}>Start</th>
+              <th className={th}>Finish</th>
+            </tr>
+          </thead>
+          <tbody>{rows}</tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={9} className="border-t-2 border-black px-1.5 py-1 text-right font-bold uppercase">
+                Total
+              </td>
+              <td className="border-t-2 border-black px-1.5 py-1 text-right font-bold">
+                {Math.round(summary.actual).toLocaleString()}
+                {summary.target > 0 && ` / ${Math.round(summary.target).toLocaleString()}`}
+              </td>
+              <td colSpan={3} className="border-t-2 border-black px-1.5 py-1 font-bold">
+                {summary.target > 0 ? `${summary.pct.toFixed(0)}%` : ""}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export default function ShiftHistoryPage() {
   const qc = useQueryClient();
   const { role } = useAuth();
@@ -457,6 +660,11 @@ export default function ShiftHistoryPage() {
   const [editUnit, setEditUnit] = useState<"tubs" | "bags">("tubs");
   const [editSkuId, setEditSkuId] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
+
+  // A folha de impressão só existe enquanto se imprime: são as mesmas centenas de
+  // filas do ecrã escritas uma segunda vez, e mantê-las montadas fazia cada tecla
+  // dos filtros pagar duas folhas em vez de uma.
+  const [printing, setPrinting] = useState(false);
 
   // Add a production entry by hand — the alternative to importing an Excel.
   const [addOpen, setAddOpen] = useState(false);
@@ -747,6 +955,37 @@ export default function ShiftHistoryPage() {
   });
 
 
+  // O período e os filtros como se escrevem no cabeçalho da folha — impressa, ela
+  // sai da sala, e uma folha que não diz o que exclui lê-se como se fosse tudo.
+  const periodLabel = from === to
+    ? format(parseISO(from), "dd/MM/yyyy")
+    : `${format(parseISO(from), "dd/MM/yyyy")} — ${format(parseISO(to), "dd/MM/yyyy")}`;
+  const shiftLabel = fShift === "__all__" ? "All shifts" : fShift === "DAY" ? "Day" : "Night";
+  const filtersLabel = [
+    fLine !== "__all__" ? `Line: ${lineLabel(fLine)}` : null,
+    fLeader !== "__all__" ? `Leader: ${fLeader}` : null,
+    fSku !== "__all__" ? `SKU: ${skuMap.get(fSku)?.code ?? fSku}` : null,
+  ].filter(Boolean).join(" · ") || undefined;
+
+  const printSheet = async () => {
+    // Monta a folha, deixa o browser pintá-la, e só então a clona: o
+    // `printElementAsDocument` lê o DOM, e um elemento que ainda não foi renderizado
+    // não tem DOM nenhum para ler.
+    setPrinting(true);
+    await new Promise((r) => window.setTimeout(r, 120));
+    try {
+      const el = document.getElementById("production-control-print");
+      if (!el) throw new Error("The print sheet was not ready.");
+      // Landscape: são treze colunas, e no papel uma tabela não rola — o que passa
+      // da margem perde-se, e o que se perderia era o lado das horas.
+      await printElementAsDocument(el, "Production Control", { landscape: true });
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Could not open the print dialog.");
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const exportExcel = () => {
     // Mirrors the Production Control spreadsheet layout so the export pastes straight
     // in. The 5th column is intentionally unnamed there (it holds the description).
@@ -829,8 +1068,13 @@ export default function ShiftHistoryPage() {
             todos os dias para servir um dia. Fica à vista a única acção que se repete
             num turno, e o resto vive atrás do `⋯`.
 
-            Quem não é admin não vê menu nenhum: tem uma acção só, e um menu de um item
-            é uma gaveta com uma coisa lá dentro. */}
+            Quem não é admin não vê menu nenhum: tem as suas duas acções à vista, e um
+            menu de um item é uma gaveta com uma coisa lá dentro.
+
+            O `Print` fica à vista para os dois papéis e no mesmo sítio — antes do `⋯`
+            para quem o tem, ao lado do `Export` para quem não o tem. A folha do dia
+            imprime-se a cada turno, para a nave e para a reunião da manhã; escondê-la
+            atrás do menu punha uma tarefa diária ao lado das que se fazem uma vez. */}
         <PageHeader
           dense
           module="Production"
@@ -841,6 +1085,9 @@ export default function ShiftHistoryPage() {
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={() => { setAddLine(fLine !== "__all__" ? fLine : (sortedLines[0]?.name ?? "")); setAddDate(from); setAddOpen(true); }}>
                   <Plus className="h-4 w-4 mr-1" />Add production
+                </Button>
+                <Button variant="outline" size="sm" onClick={printSheet} disabled={printing || filtered.length === 0}>
+                  <Printer className="h-4 w-4 mr-1" />Print
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -873,9 +1120,14 @@ export default function ShiftHistoryPage() {
                 </DropdownMenu>
               </div>
             ) : (
-              <Button variant="outline" size="sm" onClick={exportExcel}>
-                <Download className="h-4 w-4 mr-1" />Export to Excel
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={printSheet} disabled={printing || filtered.length === 0}>
+                  <Printer className="h-4 w-4 mr-1" />Print
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportExcel}>
+                  <Download className="h-4 w-4 mr-1" />Export to Excel
+                </Button>
+              </div>
             )
           }
         />
@@ -996,6 +1248,19 @@ export default function ShiftHistoryPage() {
         </ControlPlate>
 
 
+
+        {printing && (
+          <ProductionControlPrintSheet
+            sessions={filtered}
+            bands={bands}
+            summary={summary}
+            skuMap={skuMap}
+            leaders={leaders}
+            periodLabel={periodLabel}
+            shiftLabel={shiftLabel}
+            filtersLabel={filtersLabel}
+          />
+        )}
 
         <Card>
           <CardContent className="p-0">
