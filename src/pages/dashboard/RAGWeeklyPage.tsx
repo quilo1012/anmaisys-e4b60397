@@ -730,7 +730,7 @@ export default function RAGWeeklyPage() {
       qc.invalidateQueries({ queryKey: ["rag-comments", weekStartStr] });
       qc.invalidateQueries({ queryKey: ["rag-comments"] });
       toast.success(
-        `Imported ${count} cell${count === 1 ? "" : "s"}` +
+        `${importPreview?.source === "sharepoint" ? "Synced" : "Imported"} ${count} cell${count === 1 ? "" : "s"}` +
           (commentCount ? ` and ${commentCount} comment${commentCount === 1 ? "" : "s"}` : ""),
       );
       setImportPreview(null);
@@ -1303,7 +1303,9 @@ export default function RAGWeeklyPage() {
               )}
 
               <p className="text-xs text-muted-foreground">
-                Existing values for those cells are overwritten; blank values are ignored.
+                {importPreview.source === "sharepoint"
+                  ? "The selected week is replaced with records matched strictly by the API date. Missing values clear stale data."
+                  : "Existing values for those cells are overwritten; blank values are ignored."}
                 Auto-calculated cells (Total, Variance %, Week Total) are not imported.
               </p>
             </div>
