@@ -5289,6 +5289,7 @@ export type Database = {
           id: string
           intouch_auto_wo_enabled: boolean
           intouch_sync_enabled: boolean
+          rag_api_base_url: string | null
           updated_at: string
         }
         Insert: {
@@ -5297,6 +5298,7 @@ export type Database = {
           id?: string
           intouch_auto_wo_enabled?: boolean
           intouch_sync_enabled?: boolean
+          rag_api_base_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -5305,6 +5307,7 @@ export type Database = {
           id?: string
           intouch_auto_wo_enabled?: boolean
           intouch_sync_enabled?: boolean
+          rag_api_base_url?: string | null
           updated_at?: string
         }
         Relationships: []
