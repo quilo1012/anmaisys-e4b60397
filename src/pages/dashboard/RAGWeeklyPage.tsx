@@ -888,13 +888,6 @@ export default function RAGWeeklyPage() {
                         <DropdownMenuItem onClick={() => importInputRef.current?.click()}>
                           <Upload className="h-4 w-4 mr-2" />Import Excel
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={syncingSharePoint}
-                          onSelect={(e) => { e.preventDefault(); void handleSyncFromSharePoint(); }}
-                        >
-                          <CloudDownload className="h-4 w-4 mr-2" />
-                          {syncingSharePoint ? "Reading SharePoint…" : "Sync from SharePoint"}
-                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setRagApiSettingsOpen(true)}>
                           <Settings2 className="h-4 w-4 mr-2" />SharePoint service address
                         </DropdownMenuItem>
@@ -1096,9 +1089,9 @@ export default function RAGWeeklyPage() {
                 />
 
                 <Button size="sm" variant="outline" className="h-8" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>This week</Button>
-                <Button size="sm" variant="default" className="h-8" onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-                  {syncMutation.isPending ? "Syncing..." : "Sync from system"}
+                <Button size="sm" variant="default" className="h-8" onClick={() => void handleSyncFromSharePoint()} disabled={syncingSharePoint}>
+                  <CloudDownload className={`h-3.5 w-3.5 mr-1 ${syncingSharePoint ? "animate-pulse" : ""}`} />
+                  {syncingSharePoint ? "Reading SharePoint…" : "Sync from SharePoint"}
                 </Button>
                 {canEditRagEntries && (
                   <div className="flex h-8 items-center gap-1 rounded-md border bg-muted/30 px-1.5">
