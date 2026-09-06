@@ -47,7 +47,7 @@ export async function log(
   });
 }
 
-interface Context {
+export interface Context {
   lineNames: string[];
   rules: ClassificationRule[];
   leaderFor: (line: string) => { id: string; name: string } | null;
@@ -202,12 +202,22 @@ export interface SyncSummary {
   cursor: string | null;
 }
 
-/** Applies a batch and moves the cursor only as far as it actually got. */
+/**
+ * Applies one page in a handful of queries instead of one per Action.
+ *
+ * The organisation holds thousands of Actions, and a round trip per row — a
+ * lookup, a write and a log line each — is what exhausted the worker on the
+ * first full read. Here the page is looked up in one query, the new rows are
+ * inserted in one statement, and only genuinely changed rows are written
+ * individually. Per-Action logging is reserved for failures; the successes are
+ * counted, not narrated.
+ */
 export async function applyActions(
   db: SupabaseClient,
   actions: ScAction[],
+  context?: Context,
 ): Promise<SyncSummary> {
-  const ctx = await loadContext(db);
+  const ctx = context ?? (await loadContext(db));
   const summary: SyncSummary = {
     created: 0,
     updated: 0,
@@ -216,39 +226,114 @@ export async function applyActions(
     needs_classification: 0,
     cursor: null,
   };
+  if (!actions.length) return summary;
 
-  for (const action of actions) {
-    await log(db, "received", { action_id: action.id, action_title: action.title });
-    try {
-      const res = await upsertAction(db, action, ctx);
-      if (res.outcome === "created") summary.created++;
-      else if (res.outcome === "updated") summary.updated++;
-      else summary.unchanged++;
+  const drafts = actions.map((a) => ({ action: a, ...buildRecord(a, ctx) }));
 
-      if (res.problems.length) {
-        summary.needs_classification++;
-        const kind = res.problems.some((p) => p.includes("line") || p.includes("leader"))
-          ? "line_leader_error"
-          : "classification_error";
-        await log(db, kind, {
-          action_id: action.id,
-          action_title: action.title,
-          message: res.problems.join(", "),
-        });
-      }
-      if (action.modified_at && (!summary.cursor || action.modified_at > summary.cursor)) {
-        summary.cursor = action.modified_at;
-      }
-    } catch (e) {
+  const { data: existingRows, error: findErr } = await db
+    .from("quality_actions")
+    .select("id, external_id, external_updated_at, validation_status")
+    .eq("source", "safetyculture")
+    .in("external_id", actions.map((a) => a.id));
+  if (findErr) throw findErr;
+
+  const existing = new Map(
+    (existingRows ?? []).map((r) => [r.external_id as string, r]),
+  );
+
+  const toInsert: Record<string, unknown>[] = [];
+
+  for (const { action, draft, problems } of drafts) {
+    if (problems.length) summary.needs_classification++;
+    if (action.modified_at && (!summary.cursor || action.modified_at > summary.cursor)) {
+      summary.cursor = action.modified_at;
+    }
+
+    const payload = rowFor(draft);
+    const prev = existing.get(action.id);
+
+    if (!prev) {
+      toInsert.push(payload);
+      continue;
+    }
+    if (
+      prev.external_updated_at &&
+      draft.external_updated_at &&
+      prev.external_updated_at === draft.external_updated_at
+    ) {
+      summary.unchanged++;
+      continue;
+    }
+
+    // A manual correction is respected: once someone has classified the record,
+    // a later sync does not push it back into "needs classification".
+    const update = prev.validation_status && prev.validation_status !== "open"
+      ? { ...payload, needs_classification: false }
+      : payload;
+
+    const { error } = await db.from("quality_actions").update(update).eq("id", prev.id);
+    if (error) {
       summary.errors++;
       await log(db, "api_error", {
         action_id: action.id,
         action_title: action.title,
-        message: (e as Error).message,
+        message: error.message,
       });
+      continue;
+    }
+    summary.updated++;
+  }
+
+  if (toInsert.length) {
+    const { error } = await db.from("quality_actions").insert(toInsert);
+    if (error) {
+      // One bad row must not lose the other ninety-nine: fall back to row by row.
+      for (const row of toInsert) {
+        const { error: e2 } = await db.from("quality_actions").insert(row);
+        if (e2) {
+          summary.errors++;
+          await log(db, "api_error", {
+            action_id: String(row.external_id ?? ""),
+            action_title: String(row.title ?? ""),
+            message: e2.message,
+          });
+        } else summary.created++;
+      }
+    } else {
+      summary.created += toInsert.length;
     }
   }
+
   return summary;
+}
+
+/** The columns an imported record owns. Everything else belongs to the PM System. */
+function rowFor(draft: ReturnType<typeof buildRecord>["draft"]): Record<string, unknown> {
+  return {
+    source: draft.source,
+    external_id: draft.external_id,
+    external_url: draft.external_url,
+    external_status: draft.external_status,
+    external_priority: draft.external_priority,
+    external_updated_at: draft.external_updated_at,
+    external_deleted_at: draft.external_deleted_at,
+    title: draft.title,
+    description: draft.description,
+    assignee_name: draft.assignee_name,
+    due_date: draft.due_date,
+    recorded_at: draft.recorded_at,
+    status: draft.status,
+    line: draft.line,
+    leader_id: draft.leader_id,
+    leader_name: draft.leader_name,
+    error_type: draft.error_type,
+    department: draft.department,
+    labels: draft.labels,
+    severity: draft.severity,
+    domain: draft.domain,
+    needs_classification: draft.needs_classification,
+    last_synced_at: draft.last_synced_at,
+  };
 }
 
 export async function bumpState(

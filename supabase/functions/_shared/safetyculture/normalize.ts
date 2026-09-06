@@ -44,6 +44,8 @@ export interface ClassificationRule {
   department?: string | null;
   label?: string | null;
   severity?: string | null;
+  /** When set, a match also attributes the action to this production line. */
+  line_name?: string | null;
   priority: number;
   active?: boolean;
 }
@@ -120,7 +122,8 @@ export function classify(action: ScAction, rules: ClassificationRule[]): Classif
 
   for (const rule of ordered) {
     if (!haystacks(action, rule).some((h) => hit(h, rule))) continue;
-    out.matched = true;
+    // A rule that only names a line has not classified the error.
+    if (rule.category || rule.error_type) out.matched = true;
     out.category ??= rule.category ?? null;
     out.error_type ??= rule.error_type ?? null;
     out.department ??= rule.department ?? null;
@@ -138,7 +141,24 @@ export function classify(action: ScAction, rules: ClassificationRule[]): Classif
  * inside a word. Structured fields (site, asset, custom field) are read before the
  * title, which is the least reliable source.
  */
-export function resolveLine(action: ScAction, lineNames: string[]): string | null {
+export function resolveLine(
+  action: ScAction,
+  lineNames: string[],
+  rules: ClassificationRule[] = [],
+): string | null {
+  // The floor writes "L4" or "Caps 1", not "Line 4". Those shorthands live in the
+  // rules table so a new one can be added without a deploy, and they are read
+  // before the full line names.
+  const aliasRules = rules
+    .filter((r) => r.active !== false && r.line_name)
+    .sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100));
+  for (const rule of aliasRules) {
+    if (haystacks(action, rule).some((h) => hit(h, rule))) {
+      const name = lineNames.find((n) => norm(n) === norm(rule.line_name));
+      if (name) return name;
+    }
+  }
+
   const candidates = [
     action.asset,
     action.custom_fields?.line,
@@ -228,7 +248,7 @@ export function buildRecord(
   const now = opts.now ?? new Date().toISOString();
   const problems: string[] = [];
 
-  const line = resolveLine(action, opts.lineNames);
+  const line = resolveLine(action, opts.lineNames, opts.rules);
   if (!line) problems.push("line_not_identified");
 
   const leader = line ? opts.leaderFor(line) : null;

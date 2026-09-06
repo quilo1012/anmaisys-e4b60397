@@ -56,8 +56,28 @@ Deno.test("a line is only matched on a token boundary", () => {
 });
 
 Deno.test("structured fields are read before the title", () => {
-  const a = action({ site: "B2", title: "Missing spec check - C1" });
+  // An explicit line field wins over anything written in the title.
+  const a = action({
+    custom_fields: { line: "B2" },
+    title: "Missing spec check - C1",
+  });
   assertEquals(resolveLine(a, LINES), "B2");
+
+  // The site, though, is where the work happened and not always the line, so a
+  // line named in the title is trusted ahead of it.
+  const b = action({ site: "B2", title: "Missing spec check - C1" });
+  assertEquals(resolveLine(b, LINES), "C1");
+});
+
+Deno.test("a rule can name the line a shorthand refers to", () => {
+  const rules = [{
+    match_field: "title" as const,
+    match_value: "(^|[^a-z0-9])L4([^0-9]|$)",
+    match_mode: "regex" as const,
+    line_name: "C1",
+    priority: 10,
+  }];
+  assertEquals(resolveLine(action({ title: "Missing checks (L4)" }), LINES, rules), "C1");
 });
 
 Deno.test("a structured label beats the title rule and nothing is guessed", () => {
