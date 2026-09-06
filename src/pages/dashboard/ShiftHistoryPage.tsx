@@ -1140,7 +1140,8 @@ export default function ShiftHistoryPage() {
                             // de fila em metade das filas.
                             const field = noLeader
                               ? "hsl(var(--warning) / 0.12)"
-                              : isNight ? bayWash(s.line) : "transparent";
+                              : bayWash(s.line, isNight ? "full" : "soft");
+
                             out.push(
                               <tr
                                 key={`${s.id}-${i.id ?? idx}`}
@@ -1180,9 +1181,10 @@ export default function ShiftHistoryPage() {
                                     rolada de lado a faixa fica fora de vista, e a
                                     coluna é onde a linha se confirma pelo nome. Fica
                                     calada — quem grita é a faixa. */}
-                                <td className={cn("whitespace-nowrap px-3 py-2 font-display text-2xs font-bold uppercase tracking-[0.08em] text-muted-foreground", RULE)}>
+                                <td className={cn("whitespace-nowrap px-3 py-2 font-display text-2xs font-bold uppercase tracking-[0.08em]", RULE)} style={{ color: bayInk(s.line) }}>
                                   {lineLabel(s.line)}
                                 </td>
+
                                 <td className="px-3 py-2">
                                   {idx === 0 ? (
                                     <InlineLeaderCell
