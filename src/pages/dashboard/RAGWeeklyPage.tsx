@@ -279,8 +279,20 @@ export default function RAGWeeklyPage() {
         mode: "week",
         week_start: format(weekStart, "yyyy-MM-dd"),
       });
-      if (error) throw new Error(error.message || "Could not reach the SharePoint RAG service.");
+      const payload = (error as any)?.details ?? data;
+      const kind = payload?.error;
+      if (kind === "unreachable" || kind === "not_configured") {
+        toast.error("The SharePoint reader is offline", {
+          description:
+            "Its address changed or the reader is not running. Open the service address settings, paste the new address and test the connection.",
+          action: { label: "Open settings", onClick: () => setRagApiSettingsOpen(true) },
+          duration: 10000,
+        });
+        return;
+      }
+      if (error) throw new Error(payload?.message || error.message || "Could not reach the SharePoint RAG service.");
       if (data?.error) throw new Error(data.message || data.error);
+
 
       const mapped = mapRagApiRecords((data?.records ?? []) as RagApiRecord[], lines);
       if (!mapped.rows.length && !mapped.comments.length) {
