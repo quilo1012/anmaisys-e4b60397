@@ -687,7 +687,11 @@ export default function RAGWeeklyPage() {
           upm_actual: keep(r.upm_actual, prev?.upm_actual),
           downtime_min: keep(r.downtime_min, prev?.downtime_min),
           notes: prev?.notes ?? null,
+          // SharePoint is the master source: mark the row so the workbook's
+          // Actual is kept as-is instead of being overwritten by floor logging.
+          actual_source: isSharePoint ? "sharepoint" : "manual",
         };
+
       });
 
       // SharePoint is authoritative only for the lines it actually returned for
