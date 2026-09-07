@@ -273,11 +273,16 @@ export function buildRecord(
     lineNames: string[];
     rules: ClassificationRule[];
     /**
-     * `onDate` is not optional in spirit. Who leads a line changes, and asking who
-     * leads it TODAY when classifying a finding from three weeks ago charges the
-     * finding to whoever happens to hold the line now.
+     * `at` is not optional in spirit. Who runs a line changes by the shift, and
+     * asking who runs it TODAY when classifying a finding from three weeks ago
+     * charges the finding to whoever happens to hold the line now.
      */
-    leaderFor: (line: string, onDate?: string | null) => { id: string; name: string } | null;
+    leaderFor: (line: string, at?: string | null) => { id: string; name: string } | null;
+    /** The same answer with its provenance. Falls back to `leaderFor` when absent. */
+    leaderAt?: (line: string, at?: string | null) => {
+      leader: { id: string; name: string } | null;
+      source: "session" | "session_unsigned" | "assignment" | "none";
+    };
     /** Defaults to "nothing recorded", which reports rather than blocks. */
     attendance?: (worker: string, day: string) => Attendance;
     countsAgainstLeader?: (label: string) => boolean;
@@ -291,10 +296,15 @@ export function buildRecord(
   const line = resolveLine(action, opts.lineNames, opts.rules);
   if (!line) problems.push("line_not_identified");
 
-  // The day the finding was raised — the same day the leader lookup and the
-  // attendance lookup are asked about, so all three answers describe one moment.
+  // The moment the finding was raised. The leader is asked about the INSTANT (the
+  // night shift that owns an action at 02:23 opened the previous afternoon) and
+  // attendance about the DAY, so both answers describe the same finding.
   const actionDay = londonDay(action.created_at ?? null);
-  const leader = line ? opts.leaderFor(line, actionDay) : null;
+  const at = action.created_at ?? null;
+  const lookup = line
+    ? (opts.leaderAt?.(line, at) ?? { leader: opts.leaderFor(line, at), source: "assignment" as const })
+    : { leader: null, source: "none" as const };
+  const leader = lookup.leader;
   if (line && !leader) problems.push("leader_not_found");
 
   const cls = classify(action, opts.rules);
@@ -311,6 +321,7 @@ export function buildRecord(
       dueDate: action.due_at ?? null,
       line,
       leader,
+      leaderSource: lookup.source,
       errorType: cls.error_type,
       department: cls.department,
       labels: action.labels ?? [],

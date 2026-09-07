@@ -2,7 +2,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
 import { classify, resolveLine, type ScAction } from "../_shared/safetyculture/normalize.ts";
-import { classifyAction, londonDay } from "../_shared/safetyculture/classification.ts";
+import { classifyAction } from "../_shared/safetyculture/classification.ts";
 import { adminClient, loadContext, log } from "../_shared/safetyculture/sync.ts";
 
 /**
@@ -118,11 +118,13 @@ Deno.serve(async (req) => {
       due_at: row.due_date,
     };
 
-    // The day it was RAISED. Everything else — who led the line, who was on the floor
-    // — is asked about that day and no other.
-    const actionDay = londonDay(row.external_created_at);
     const line = resolveLine(action, ctx.lineNames, ctx.rules) ?? row.line ?? null;
-    const leader = line ? ctx.leaderFor(line, actionDay) : null;
+    // Asked about the instant, not the day: the shift that owns an action raised at
+    // 02:23 opened the previous afternoon.
+    const lookup = line
+      ? ctx.leaderAt(line, row.external_created_at)
+      : { leader: null, source: "none" as const };
+    const leader = lookup.leader;
     const cls = classify(action, ctx.rules);
     const errorType = cls.error_type ?? row.error_type ?? null;
     const department = cls.department ?? row.department ?? null;
@@ -138,6 +140,7 @@ Deno.serve(async (req) => {
         dueDate: row.due_date,
         line,
         leader,
+        leaderSource: lookup.source,
         errorType,
         department,
         labels: row.labels ?? [],

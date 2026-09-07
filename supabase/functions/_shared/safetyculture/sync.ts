@@ -7,8 +7,9 @@
  */
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { buildRecord, type ClassificationRule, type ScAction } from "./normalize.ts";
+import { buildRecord, londonDay, type ClassificationRule, type ScAction } from "./normalize.ts";
 import type { Attendance } from "./classification.ts";
+import { sessionInCharge, type ProductionSession } from "./leaderOnDuty.ts";
 
 export function adminClient(): SupabaseClient {
   return createClient(
@@ -48,11 +49,25 @@ export async function log(
   });
 }
 
+export type LeaderSource = "session" | "session_unsigned" | "assignment" | "none";
+
+export interface LeaderLookup {
+  leader: { id: string; name: string } | null;
+  source: LeaderSource;
+}
+
 export interface Context {
   lineNames: string[];
   rules: ClassificationRule[];
-  /** Who held the line ON THAT DAY. Omitting the date falls back to today. */
-  leaderFor: (line: string, onDate?: string | null) => { id: string; name: string } | null;
+  /**
+   * Who was running the line AT THAT MOMENT, and where the answer came from.
+   *
+   * `at` is an instant, not a day: nights start at 17:00 and run past midnight, so
+   * the shift that owns an action raised at 02:23 opened the previous afternoon.
+   */
+  leaderAt: (line: string, at?: string | null) => LeaderLookup;
+  /** The same answer without its provenance, for callers that only need the name. */
+  leaderFor: (line: string, at?: string | null) => { id: string; name: string } | null;
   /** present | absent | unknown — never a boolean. See `classification.ts`. */
   attendance: (worker: string, day: string) => Attendance;
   countsAgainstLeader: (label: string) => boolean;
@@ -120,6 +135,7 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
     { data: attribution },
     employees,
     attendanceRows,
+    sessionRows,
   ] = await Promise.all([
     db.from("lines").select("id,name,active").eq("active", true),
     db.from("line_leaders").select("id,name,line,active").eq("active", true),
@@ -131,7 +147,13 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
     // and it keeps the map small enough to hold.
     fetchAll(db, "employee_attendance", "employee_id,on_date,status", (q) =>
       q.gte("on_date", since)),
+    // Who actually opened each line, each shift. The answer `leader_line_assignment`
+    // could never give.
+    fetchAll(db, "production_sessions", "line,session_date,shift,leader_name,started_at", (q) =>
+      q.gte("session_date", since)),
   ]);
+
+  const sessions = sessionRows as unknown as ProductionSession[];
 
   const lineById = new Map((lines ?? []).map((l) => [l.id as string, l.name as string]));
   const leaderById = new Map(
@@ -158,23 +180,50 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
     }))
     .filter((w) => w.line && w.name);
 
+  // A session records the leader by NAME only — `production_sessions.leader_id` is
+  // null on every row in the table — so the name has to be resolved back to a leader.
+  // Same rule as everywhere else here: fold the name, and accept it only when exactly
+  // one leader answers to it.
+  const leaderIdByName = new Map<string, string>();
+  for (const l of leaders ?? []) {
+    const key = foldName((l as { name?: string }).name);
+    if (!key) continue;
+    leaderIdByName.set(key, leaderIdByName.has(key) ? "" : (l.id as string));
+  }
+
   /**
-   * Who held the line on a given day.
+   * Who was running the line when the finding was raised.
    *
-   * Asking who holds it TODAY — which is what this did before — charges a finding
-   * from three weeks ago to whoever happens to hold the line now. `valid_to` is NULL
-   * for "still covering it", so an open window has no upper bound rather than a
-   * sentinel date that would eventually be compared as a real one.
+   * The open session comes first and the standing assignment is only a fallback,
+   * because the standing assignment is what was getting this wrong: seven rows, all
+   * open ended, so every action on a line came out in one name regardless of the day
+   * or the shift — fourteen of twenty-two records, measured on 07/09/2026.
+   *
+   * A session that was opened and left unsigned deliberately does NOT fall through to
+   * the assignment. Falling through is the bug.
    */
-  const leaderFor = (line: string, onDate?: string | null) => {
+  const leaderAt = (line: string, at?: string | null): LeaderLookup => {
+    const session = sessionInCharge(line, at ?? null, sessions);
+    if (session) {
+      const name = String(session.leader_name ?? "").trim();
+      if (!name) return { leader: null, source: "session_unsigned" };
+      const id = leaderIdByName.get(foldName(name));
+      // A name no leader row answers to is still the truth about who ran the line.
+      return { leader: { id: id || "", name }, source: "session" };
+    }
+
     const key = line.trim().toLowerCase();
-    const day = onDate ?? new Date().toISOString().slice(0, 10);
+    const day = londonDay(at ?? null) ?? new Date().toISOString().slice(0, 10);
     const held = windows.find(
       (w) => w.line === key && (!w.from || w.from <= day) && (!w.to || w.to >= day),
     );
-    if (held) return { id: held.id, name: held.name };
-    return standing.get(key) ?? null;
+    if (held) return { leader: { id: held.id, name: held.name }, source: "assignment" };
+    const standingLeader = standing.get(key);
+    if (standingLeader) return { leader: standingLeader, source: "assignment" };
+    return { leader: null, source: "none" };
   };
+
+  const leaderFor = (line: string, at?: string | null) => leaderAt(line, at).leader;
 
   const employeeByName = new Map<string, string>();
   for (const e of employees) {
@@ -224,6 +273,7 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
   return {
     lineNames: (lines ?? []).map((l) => l.name as string).filter(Boolean),
     rules: (rules ?? []) as unknown as ClassificationRule[],
+    leaderAt,
     leaderFor,
     attendance,
     countsAgainstLeader: (label: string) => !excluded.has(foldName(label)),

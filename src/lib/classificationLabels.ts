@@ -35,6 +35,7 @@ export const REASON_TEXT: Record<string, string> = {
   worker_attendance_unknown: "Nobody recorded whether the assignees were on the floor that day.",
   worker_not_named: "No assignee on the record.",
   leader_not_found_for_line: "No leader held that line on that day.",
+  leader_session_unsigned: "The shift was opened on that line but nobody signed for it.",
   line_not_identified: "No line and no department could be identified.",
   rule_conflict: "Two rules disagree about what this is.",
 };

@@ -160,6 +160,20 @@ describe("the worker check has three answers, not two", () => {
 });
 
 describe("a line needs a leader who held it on the day", () => {
+  it("says so when the shift was opened but nobody signed it", () => {
+    // Different from "no leader": somebody opened Line 4 that morning and left the
+    // name blank. Falling back to the standing assignment here is exactly how the
+    // wrong name got onto fourteen records, so it stays unresolved and says why.
+    const out = classifyAction(
+      input({ leader: null, leaderSource: "session_unsigned" }),
+      NO_RULES,
+      { attendance: everyonePresent },
+    );
+    expect(out.classification).toBe("needs_review");
+    expect(out.reasons).toContain("leader_session_unsigned");
+    expect(out.reasons).not.toContain("leader_not_found_for_line");
+  });
+
   it("sends a line with nobody accountable to review", () => {
     const out = classifyAction(input({ leader: null }), NO_RULES, {
       attendance: everyonePresent,
