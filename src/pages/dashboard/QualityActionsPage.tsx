@@ -48,6 +48,7 @@ import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByL
 import { ActionScore } from "@/components/quality/ActionScore";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
+import { priorityDisplay, priorityRank, priorityWeight } from "@/lib/scPriority";
 import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
 
 /**
@@ -69,6 +70,10 @@ interface QualityAction {
   closed_at: string | null; closed_by: string | null;
   sku: string | null; batch: string | null;
   domain?: string | null; safety_kind?: string | null;
+  source?: string | null;
+  /** The readable name. Null while the UUID SafetyCulture sent is still unmapped. */
+  external_priority?: string | null;
+  external_priority_id?: string | null;
 }
 
 // Resolve a SKU code from a production_items row without relying on a PostgREST
@@ -169,6 +174,7 @@ export function QualityActionsView() {
   const [filterLeader, setFilterLeader] = useState("__all__");
   const [filterDept, setFilterDept] = useState("__all__");
   const [filterSeverity, setFilterSeverity] = useState("__all__");
+  const [filterPriority, setFilterPriority] = useState("__all__");
   // "__pending__" is not a stored value — it is the question people actually ask of
   // this board: what is still waiting on Quality? Open and Under investigation both
   // answer it, and neither is findable by picking a single status.
@@ -290,12 +296,13 @@ export function QualityActionsView() {
       (filterLeader === "__all__" || a.leader_name === filterLeader) &&
       (filterDept === "__all__" || a.department === filterDept) &&
       (filterSeverity === "__all__" || (a.severity ?? "") === filterSeverity) &&
+      (filterPriority === "__all__" || priorityDisplay(a) === filterPriority) &&
       (filterShift === "__all__" || a.shift === filterShift) &&
       (filterValidation === "__all__" ||
         (filterValidation === "__pending__"
           ? !["validated", "rejected"].includes(a.validation_status ?? "open")
           : (a.validation_status ?? "open") === filterValidation))),
-    [actions, domainFilter, filterLine, filterLeader, filterDept, filterSeverity, filterShift, filterValidation]
+    [actions, domainFilter, filterLine, filterLeader, filterDept, filterSeverity, filterPriority, filterShift, filterValidation]
   );
 
   /**
@@ -347,7 +354,8 @@ export function QualityActionsView() {
   const showKindColumn = domainFilter !== "quality";
   // When, #, Line, Leader, Dept, Labels, Notes — seven fixed columns since Validation
   // and Severity came off. Wrong here and the "No actions" row stops spanning the table.
-  const logColSpan = 7 + (showPointsColumn ? 1 : 0) + (showKindColumn ? 1 : 0) + (canManage ? 1 : 0);
+  // When, #, Priority, Line, Leader, Dept, Labels, Notes.
+  const logColSpan = 8 + (showPointsColumn ? 1 : 0) + (showKindColumn ? 1 : 0) + (canManage ? 1 : 0);
 
 
   const kpis = useMemo(() => {
@@ -394,7 +402,15 @@ export function QualityActionsView() {
   // Filters, counted so the bar can offer a way out of them. The date range is not
   // counted: there is always one, and a "clear" that silently widened the period
   // would change every figure on the screen without being asked to.
-  const activeFilters = [filterSeverity, filterValidation, filterLine, filterDept, filterLeader, filterShift]
+  // Only the priorities that have actually arrived, most urgent first. Offering a
+  // fixed High/Medium/Low list would invite filtering on one no record can carry.
+  const priorityOptions = useMemo(
+    () => [...new Set(actions.map(priorityDisplay).filter(Boolean) as string[])]
+      .sort((a, b) => priorityRank(a) - priorityRank(b) || a.localeCompare(b)),
+    [actions],
+  );
+
+  const activeFilters = [filterSeverity, filterPriority, filterValidation, filterLine, filterDept, filterLeader, filterShift]
     .filter((v) => v !== "__all__").length;
   const clearFilters = () => {
     setFilterSeverity("__all__"); setFilterValidation("__all__"); setFilterLine("__all__");
@@ -975,7 +991,7 @@ export function QualityActionsView() {
               </Button>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
             {/* Period first, and spanning two columns at the narrow widths: it carries a
                 date range rather than one word, and squeezing it to a half column is
                 where "22/05/2026 – 19/08/2026" becomes an ellipsis. */}
@@ -985,6 +1001,16 @@ export function QualityActionsView() {
             <Select value={filterSeverity} onValueChange={setFilterSeverity}>
               <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+            </Select>
+            {/* SafetyCulture's own priority, not a grade this system worked out. It
+                only lists what has actually arrived, so an organisation that uses two
+                priorities never sees a third offered. */}
+            <Select value={filterPriority} onValueChange={setFilterPriority}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All priorities</SelectItem>
+                {priorityOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              </SelectContent>
             </Select>
             <Select value={filterValidation} onValueChange={setFilterValidation}>
               <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
@@ -1163,6 +1189,12 @@ export function QualityActionsView() {
                       is a decision Quality makes in the dialog rather than something
                       scanned across a page of 49 rows. */}
                   <TableHead>When</TableHead><TableHead>#</TableHead>
+                  {/* What SafetyCulture said, not a grade worked out here. It reads as
+                      weight rather than another coloured chip: colour on this table is
+                      already spoken for by severity and by the label vocabularies, and
+                      priority now FEEDS severity — a second colour scale would paint
+                      one fact twice, in two competing languages. */}
+                  <TableHead>Priority</TableHead>
                   {/* A safety row is never worth a number of points — see actionPoints().
                       The Safety tab shows Kind instead of a Points column that would only
                       ever read 0; the All tab keeps both, with Points reading "—" on
@@ -1183,6 +1215,22 @@ export function QualityActionsView() {
                     <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailId(a.id)}>
                       <TableCell className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</TableCell>
                       <TableCell className="font-figure text-xs">{a.action_no ?? "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {(() => {
+                          const p = priorityDisplay(a);
+                          if (!p) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <span
+                              className={cn("text-xs", priorityWeight(p))}
+                              title={p === "Not mapped"
+                                ? "SafetyCulture sent a priority this system has no name for. Name it in Settings → SafetyCulture."
+                                : `Priority in SafetyCulture: ${p}`}
+                            >
+                              {p}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       {/* What this action actually costs, not what its severity is worth.
                           The two differ once a label is priced, and the column that adds
                           up to the totals above must be the one people read.
