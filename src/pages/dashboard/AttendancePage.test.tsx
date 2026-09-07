@@ -20,6 +20,11 @@ const EMPLOYEES = [
   { id: "e3", full_name: "Ana Silva", department: "Production", active: true },
 ];
 
+/** Um dia já importado, para o ecrã ter tabela — é a tabela que se imprime. */
+const DAYS = [
+  { employee_id: "e2", on_date: "2026-07-13", worked_minutes: 750, balance_minutes: 30, absence_name: null },
+];
+
 const upsert = vi.fn(async () => ({ error: null }));
 
 vi.mock("@/components/DashboardLayout", () => ({
@@ -37,7 +42,7 @@ vi.mock("@/hooks/useWorkforce", () => ({ useEmployees: () => ({ data: EMPLOYEES 
 
 vi.mock("@/integrations/supabase/client", () => {
   const table = (name: string) => {
-    const rows = name === "employees" ? EMPLOYEES : [];
+    const rows = name === "employees" ? EMPLOYEES : name === "attendance_days" ? DAYS : [];
     const result = { data: rows, error: null };
     const chain: Record<string, unknown> = {
       select: () => chain,
@@ -161,5 +166,25 @@ describe("importing a TimeMoto sheet that names one person by their first name",
     await waitFor(() => expect(screen.getByText("1 of 1 people matched")).toBeInTheDocument());
     expect(screen.getByText("Chosen by hand, remembered from the last import")).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toHaveTextContent("Daniel Quilo");
+  });
+});
+
+/**
+ * A folha de horas sai em papel e passa de uma página.
+ *
+ * O cabeçalho da tabela é a única coisa que um browser repete em cada página, por isso
+ * é lá que a folha tem de dizer o que é. Sem esta linha, a página dois eram vinte e um
+ * nomes e seis números, sem título e sem período — nada por onde a arquivar nem com que
+ * a conferir. O que este teste fecha é a metade que se pode apagar sem dar erro: o
+ * markup. A outra metade vive no `@media print` do index.css.
+ */
+describe("a folha impressa", () => {
+  it("diz o nome e o período numa linha que se repete em cada página", async () => {
+    renderPage();
+
+    const caption = await screen.findByText(/^Time & Attendance · \d{2}\/\d{2}\/\d{4} → \d{2}\/\d{2}\/\d{4}$/);
+    // Dentro do `<thead>`, que é o que faz dela uma linha repetida e não um título.
+    expect(caption.closest("thead")).not.toBeNull();
+    expect(caption.closest("tr")).toHaveClass("print-caption-row");
   });
 });

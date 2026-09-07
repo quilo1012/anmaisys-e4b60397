@@ -342,8 +342,14 @@ select:-webkit-autofill {
     left: -9999px !important;
   }
 
-  /* Hide buttons except those explicitly kept */
-  button:not(.print-keep) {
+  /* Hide buttons except those explicitly kept.
+     Two selectors for one rule, because `.print-content [class*="flex"]` below puts
+     the display back: every Button carries `inline-flex`, and two class selectors beat
+     one class plus one element. The Print button printed itself onto the paper — on
+     the Time & Attendance sheet, next to Import TimeMoto, both with their grey grounds
+     on. The scoped selector outranks the flex rule and wins the page back. */
+  button:not(.print-keep),
+  .print-content button:not(.print-keep) {
     display: none !important;
   }
 
@@ -511,6 +517,61 @@ select:-webkit-autofill {
   .print-content table,
   .print-content tr {
     page-break-inside: avoid;
+  }
+
+  /* ─── A table that runs over more than one sheet ─── */
+
+  /* The header group is the only thing a browser repeats on every page, so it is the
+     only place a document can say what it is. Page two of the attendance sheet was
+     twenty-one names, six numbers and nothing else: no title, no period, nothing to
+     file it under or check it against. This row carries both, on every page.
+
+     Its top padding is also the top margin of every page after the first. `@page` is
+     set to `margin: 0` here so the browser has nowhere to print its own header and
+     footer, and the spacing comes back as padding on the body — which the flow lays
+     down once, at the start. Page two therefore began at the very edge of the paper,
+     inside the strip no office printer can reach. Padding on a repeating row is laid
+     down again on each page, which is what makes it a page margin rather than a
+     one-off gap. */
+  .print-content tr.print-caption-row {
+    display: table-row !important;
+  }
+
+  .print-content th.print-caption {
+    border: 0 !important;
+    background: transparent !important;
+    padding: 8mm 0 2.5mm !important;
+    font-size: 8.5pt !important;
+    font-weight: 400 !important;
+    /* Under the title band, not beside it: on page one this line sits below a band
+       that already says the same, and it reads as a caption rather than a second
+       title. On page two it is all there is. */
+    color: #444 !important;
+    text-align: left;
+  }
+
+  /* The same margin at the foot. A table footer group repeats on every page too, so an
+     empty row of it holds the last line of each page clear of the bottom edge — where
+     the last row of page one was printing its border into the unprintable strip. */
+  .print-content tfoot.print-edge {
+    display: table-footer-group !important;
+  }
+
+  .print-content tfoot.print-edge td {
+    border: 0 !important;
+    padding: 0 !important;
+    height: 8mm;
+  }
+
+  /* A register, not a report: many short rows read down a column, where the cost of a
+     roomy line is another sheet of paper. The default 3px cell padding gives a 27px
+     row, which put a thirty-five person fortnight on three pages — and the payroll is
+     a hundred and seventy-six. Two pixels and a tighter line hold the same rows in two
+     pages, at the same 8pt. Opt-in, because a report of a dozen rows wants the room. */
+  .print-content.print-dense th,
+  .print-content.print-dense td {
+    padding: 2px 6px !important;
+    line-height: 1.25 !important;
   }
 
   /* Print-only watermark */

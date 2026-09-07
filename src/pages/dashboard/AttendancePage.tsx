@@ -286,7 +286,7 @@ export default function AttendancePage() {
           do not come out on paper. `print-landscape` turns the sheet: seven columns of
           names, hours and reasons is wider than portrait can hold without splitting a
           person's row across two pages. */}
-      <div className="space-y-4 print-content print-landscape">
+      <div className="space-y-4 print-content print-landscape print-dense">
         <BackButton className="no-print" />
         <div className="no-print"><WorkforceTabs /></div>
 
@@ -376,6 +376,16 @@ export default function AttendancePage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
+                    {/* Paper only, and the reason is pagination: a browser repeats the
+                        header group on every page and nothing else, so this is the one
+                        line that can tell page two of a payroll sheet whose hours these
+                        are and which fortnight they cover. It also holds each page clear
+                        of the paper's edge — see `.print-caption` in index.css. */}
+                    <TableRow className="hidden print-caption-row hover:bg-transparent">
+                      <TableHead colSpan={7} className="print-caption">
+                        Time &amp; Attendance · {fmtDate(from)} → {fmtDate(to)}
+                      </TableHead>
+                    </TableRow>
                     {/* A banded row over the column names, because the six figures under
                         it answer two questions that must not be added: how LONG somebody
                         was here, and how many DAYS they were or were not. Somebody who
@@ -442,6 +452,11 @@ export default function AttendancePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  {/* An empty repeating foot, for the same reason the caption above has
+                      a top padding: it keeps the last row of every page off the edge. */}
+                  <tfoot className="hidden print-edge">
+                    <tr><td colSpan={7} /></tr>
+                  </tfoot>
                 </Table>
               </div>
             )}
