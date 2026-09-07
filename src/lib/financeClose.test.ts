@@ -164,37 +164,57 @@ describe("closeTotals across people", () => {
   });
 });
 
-describe("the bank runs on between periods", () => {
-  // Settling every period to zero was the earlier instruction and is not the one in
-  // force. Both were built; this is the difference between them.
-  it("works a carried shortfall off one for one before paying anything", () => {
-    // Sixteen hours down when the period opened, twelve up inside it. Four still owed,
-    // not twelve to pay — which is what settling each period to zero would have said.
+describe("each period settles on its own", () => {
+  // Carrying the bank into what is PAID was the earlier instruction and is not the one
+  // in force. Both readings have been built; this is the difference between them.
+  //
+  // Nothing ever cleared the bank — `overtime_entries` has never been keyed for a single
+  // period — so `opening + period` re-paid every earlier period inside this one. On the
+  // August 2026 close the Weekend crew read 1195.55 h of overtime against the 515.23 h
+  // the period itself accrued, June's and July's hours arriving a second time.
+  it("pays the period's own balance, not the bank stacked on top of it", () => {
+    // Josimar Inocente's August close: 144.27 h banked from June and July, 12.70 h
+    // earned in August. Twelve hours and forty-two minutes to pay, not a hundred and
+    // fifty-seven.
+    const r = buildClose([person({
+      openingBalanceMin: Math.round(144.27 * 60), clockedBalanceMin: 12.7 * 60,
+    })], PERIOD.from, PERIOD.to)[0];
+    expect(r.clockedOtHours).toBe(12.7);
+    expect(r.overtimeHours).toBe(12.7);
+  });
+
+  it("does not deduct a carried shortfall from this period's overtime", () => {
+    // Sixteen hours down when the period opened, twelve up inside it. The bank reading
+    // paid nothing here; the period settles, so the twelve are earned and the earlier
+    // shortfall belongs to the period it happened in.
     const r = buildClose([person({ openingBalanceMin: -16 * 60, clockedBalanceMin: 12 * 60 })], PERIOD.from, PERIOD.to)[0];
     expect(r.clockedOtHours).toBe(12);
-    expect(r.closingHours).toBe(-4);
+    expect(r.overtimeHours).toBe(12);
+    expect(r.owedHours).toBe(0);
+  });
+
+  it("deducts only what this period itself ended short", () => {
+    const r = buildClose([person({ openingBalanceMin: 20 * 60, clockedBalanceMin: -5 * 60 })], PERIOD.from, PERIOD.to)[0];
     expect(r.overtimeHours).toBe(0);
-    expect(r.owedHours).toBe(4);
+    expect(r.owedHours).toBe(5);
   });
 
-  it("pays what is left once the bank is back above zero", () => {
-    const r = buildClose([person({ openingBalanceMin: -4 * 60, clockedBalanceMin: 10 * 60 })], PERIOD.from, PERIOD.to)[0];
-    expect(r.closingHours).toBe(6);
-    expect(r.overtimeHours).toBe(6);
+  it("still reports the bank, which is the history and not the pay", () => {
+    // Opening and closing stay on the row. They are how somebody sees that a person
+    // paid five hours this period is still fifty down since June — a fact worth
+    // reading, and not a deduction.
+    const r = buildClose([person({ openingBalanceMin: -16 * 60, clockedBalanceMin: 12 * 60 })], PERIOD.from, PERIOD.to)[0];
+    expect(r.openingHours).toBe(-16);
+    expect(r.closingHours).toBe(-4);
   });
 
-  it("carries a surplus forward instead of losing it", () => {
-    const r = buildClose([person({ openingBalanceMin: 5 * 60, clockedBalanceMin: 3 * 60 })], PERIOD.from, PERIOD.to)[0];
-    expect(r.closingHours).toBe(8);
-  });
-
-  it("measures the payroll claim against the bank, not the period alone", () => {
-    // Somebody twelve hours up inside a period but still four down overall has earned
-    // nothing yet; a claim of twelve is twelve unsupported hours.
+  it("measures the payroll claim against the period, not against the bank", () => {
+    // Twelve hours earned in the period and twelve keyed by the office agree. Measured
+    // against a bank still four hours down, the same pair read as a twelve-hour gap.
     const r = buildClose([person({
       openingBalanceMin: -16 * 60, clockedBalanceMin: 12 * 60, payrollOtHours: 12,
     })], PERIOD.from, PERIOD.to)[0];
-    expect(r.deltaHours).toBe(12);
+    expect(r.deltaHours).toBe(0);
   });
 
   it("treats a missing history as zero without calling it settled", () => {
