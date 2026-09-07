@@ -4604,6 +4604,7 @@ export type Database = {
       rag_weekly_entries: {
         Row: {
           actual_qty: number
+          actual_source: string
           actual_updated_by: string | null
           created_at: string
           created_by: string | null
@@ -4620,6 +4621,7 @@ export type Database = {
         }
         Insert: {
           actual_qty?: number
+          actual_source?: string
           actual_updated_by?: string | null
           created_at?: string
           created_by?: string | null
@@ -4636,6 +4638,7 @@ export type Database = {
         }
         Update: {
           actual_qty?: number
+          actual_source?: string
           actual_updated_by?: string | null
           created_at?: string
           created_by?: string | null
