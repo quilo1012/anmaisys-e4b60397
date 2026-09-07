@@ -117,6 +117,49 @@ export function bayInk(lineName: string | null | undefined): string {
 }
 
 /**
+ * A mesma baía, mas em papel.
+ *
+ * `bayInk` escreve a cor com os multiplicadores do tema por dentro
+ * (`calc(57% * var(--bay-sat))`), porque no ecrã a mesma cor tem de servir o papel
+ * branco de dia e o cartão escuro de noite. Uma folha impressa não tem tema: é sempre
+ * branca. Aqui os multiplicadores do tema claro ficam resolvidos no sítio — a cor que
+ * sai da impressora é exactamente a que está no ecrã, sem depender de uma variável que
+ * o documento de impressão pode não ter herdado.
+ *
+ * Também é o que permite ver a folha antes de a mandar imprimir: um `hsl()` com
+ * `calc()` e `var()` lá dentro é deitado fora por qualquer renderizador que não seja um
+ * browser a sério, e a faixa da baía desaparecia da prova sem dizer porquê.
+ */
+export function bayPaper(lineName: string | null | undefined): string {
+  const [h, sat, lum] = bayColor(lineName);
+  // Os valores do tema claro, os mesmos que o :root declara: --bay-sat 1, --bay-lum .86.
+  return hslHex(h, sat, lum * 0.86);
+}
+
+/**
+ * HSL para hexadecimal.
+ *
+ * A cor sai daqui já resolvida, e não como `hsl(...)`, porque é o único formato que
+ * ninguém interpreta mal: os motores de impressão antigos, o `print-color-adjust` e —
+ * o que apanhou esta faixa duas vezes — os renderizadores com que se VÊ a folha antes
+ * de a imprimir. O jsdom deita fora a sintaxe moderna `hsl(155 57% 47%)` sem dizer
+ * nada, e converte a antiga `hsl(155, 57%, 47%)` num cinzento errado. Seis dígitos não
+ * dão essa margem a ninguém.
+ */
+function hslHex(h: number, s: number, l: number): string {
+  const sN = s / 100;
+  const lN = l / 100;
+  const c = (1 - Math.abs(2 * lN - 1)) * sN;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = lN - c / 2;
+  const [r, g, b] =
+    h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+      : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  const hex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+/**
  * O banho da baía na fila.
  *
  * A noite leva o banho cheio; o dia leva metade. Antes o dia não levava nenhum, e uma
