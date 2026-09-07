@@ -658,15 +658,6 @@ export default function RAGWeeklyPage() {
         ? [weekStartStr, weekEndStr]
         : parsed.datesDetected;
 
-      if (isSharePoint) {
-        const { error: deleteError } = await supabase
-          .from("rag_weekly_entries")
-          .delete()
-          .gte("entry_date", weekStartStr)
-          .lte("entry_date", weekEndStr);
-        if (deleteError) throw deleteError;
-      }
-
       const existing = new Map<string, Entry>(entryMap);
       if (!isSharePoint && dates.length) {
         const { data: cur } = await supabase
@@ -698,6 +689,21 @@ export default function RAGWeeklyPage() {
           notes: prev?.notes ?? null,
         };
       });
+
+      // SharePoint is authoritative only for the lines it actually returned for
+      // this week. Clearing is scoped to those lines (and only once we have
+      // replacement rows) so hand-typed data for other lines survives.
+      if (isSharePoint && rows.length) {
+        const syncedLines = Array.from(new Set(rows.map((r) => r.line)));
+        const { error: deleteError } = await supabase
+          .from("rag_weekly_entries")
+          .delete()
+          .gte("entry_date", weekStartStr)
+          .lte("entry_date", weekEndStr)
+          .in("line", syncedLines);
+        if (deleteError) throw deleteError;
+      }
+
 
       const BATCH = 500;
       let count = 0;
