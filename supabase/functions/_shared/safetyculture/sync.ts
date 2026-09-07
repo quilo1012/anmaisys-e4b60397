@@ -57,6 +57,8 @@ export interface Context {
   attendance: (worker: string, day: string) => Attendance;
   countsAgainstLeader: (label: string) => boolean;
   requireWorkerEvidence: boolean;
+  /** What a SafetyCulture priority UUID means. Empty until somebody maps them. */
+  priorityOf: (id: string) => { name: string; severity: string | null } | null;
 }
 
 /**
@@ -118,6 +120,7 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
     { data: assignments },
     { data: rules },
     { data: attribution },
+    { data: priorities },
     employees,
     attendanceRows,
   ] = await Promise.all([
@@ -126,6 +129,7 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
     db.from("leader_line_assignment").select("leader_id,line_id,valid_from,valid_to"),
     db.from("sc_classification_rules").select("*").eq("active", true),
     db.from("quality_label_attribution").select("label,counts_against_leader"),
+    db.from("sc_priorities").select("priority_id,name,severity"),
     fetchAll(db, "employees", "id,full_name"),
     // Six months is as far back as a re-classification pass is ever asked to reach,
     // and it keeps the map small enough to hold.
@@ -227,6 +231,12 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
     leaderFor,
     attendance,
     countsAgainstLeader: (label: string) => !excluded.has(foldName(label)),
+    priorityOf: (id: string) => {
+      const row = (priorities ?? []).find(
+        (p) => (p as { priority_id?: string }).priority_id === id,
+      ) as { name?: string; severity?: string | null } | undefined;
+      return row?.name ? { name: row.name, severity: row.severity ?? null } : null;
+    },
     // Off while `employee_attendance` is filled in only some days: switching it on
     // today would send every action of the last three days to review.
     requireWorkerEvidence: false,
@@ -266,6 +276,8 @@ export async function upsertAction(
     external_url: draft.external_url,
     external_status: draft.external_status,
     external_priority: draft.external_priority,
+    external_priority_id: draft.external_priority_id,
+    action_no: draft.action_no,
     external_updated_at: draft.external_updated_at,
     external_created_at: draft.external_created_at,
     external_deleted_at: draft.external_deleted_at,
@@ -461,6 +473,8 @@ function rowFor(draft: ReturnType<typeof buildRecord>["draft"]): Record<string, 
     external_url: draft.external_url,
     external_status: draft.external_status,
     external_priority: draft.external_priority,
+    external_priority_id: draft.external_priority_id,
+    action_no: draft.action_no,
     external_updated_at: draft.external_updated_at,
     external_created_at: draft.external_created_at,
     external_deleted_at: draft.external_deleted_at,

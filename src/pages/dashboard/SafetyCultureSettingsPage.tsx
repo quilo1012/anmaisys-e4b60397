@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { supabase } from "@/integrations/supabase/client";
 import { ResponsiveTable } from "@/components/ResponsiveTable";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QUALITY_SEVERITIES } from "@/lib/qualityConstants";
 import {
   CLASS_LABEL, blockingReasons, advisoryReasons, checkMark, reasonText,
   type ActionClass, type CheckState,
@@ -88,6 +90,14 @@ interface ClassRow {
   classification_checks: Record<string, CheckState> | null;
   classification_reasons: string[] | null;
   matched_rule_names: string[] | null;
+  external_priority_id: string | null;
+}
+
+interface PriorityRow {
+  priority_id: string;
+  name: string;
+  severity: string | null;
+  rank: number;
 }
 
 export default function SafetyCultureSettingsPage() {
@@ -97,6 +107,7 @@ export default function SafetyCultureSettingsPage() {
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [needsClass, setNeedsClass] = useState<number>(0);
   const [rows, setRows] = useState<ClassRow[]>([]);
+  const [priorities, setPriorities] = useState<PriorityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -105,7 +116,7 @@ export default function SafetyCultureSettingsPage() {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: status }, { data: logRows }, { count }, { data: classRows }] = await Promise.all([
+    const [{ data: status }, { data: logRows }, { count }, { data: classRows }, { data: prioRows }] = await Promise.all([
       invokeFunction<{ configured: boolean; organization_id: string | null; state: SyncState }>(
         "safetyculture-sync",
         { mode: "status" },
@@ -125,10 +136,18 @@ export default function SafetyCultureSettingsPage() {
         .select(
           "line,leader_name,department,error_type,classification_status," +
           "external_id,title,recorded_at,external_site," +
-          "classification,classification_checks,classification_reasons,matched_rule_names",
+          "classification,classification_checks,classification_reasons,matched_rule_names," +
+          "external_priority_id",
         )
         .eq("source", "safetyculture")
         .limit(2000),
+      // `sc_priorities` is newer than the generated type file, so this one query is
+      // untyped. The shape is fixed by the migration and asserted by scPriority.test.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("sc_priorities")
+        .select("priority_id,name,severity,rank")
+        .order("rank"),
     ]);
     if (status) {
       setConfigured(status.configured);
@@ -138,6 +157,7 @@ export default function SafetyCultureSettingsPage() {
     setLogs((logRows ?? []) as unknown as LogRow[]);
     setNeedsClass(count ?? 0);
     setRows((classRows ?? []) as unknown as ClassRow[]);
+    setPriorities((prioRows ?? []) as unknown as PriorityRow[]);
     setLoading(false);
   };
 
@@ -303,6 +323,8 @@ export default function SafetyCultureSettingsPage() {
           </CardContent>
         </Card>
 
+        <Priorities rows={rows} priorities={priorities} onSaved={load} />
+
         <Verdicts rows={rows} />
 
         <ClassificationBreakdown rows={rows} />
@@ -400,6 +422,129 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
  * area) it belongs to, its leader, and the quality error it describes. Anything
  * the rules could not settle stays visible as "to review" instead of being hidden.
  */
+
+
+/**
+ * What SafetyCulture's priorities are called.
+ *
+ * SafetyCulture sends a priority as a UUID and no name — there is no endpoint that
+ * lists them — so the names live here, recorded once. Until a UUID is named, the
+ * Quality screen shows "Not mapped" rather than printing the id, and this is where
+ * that gets closed.
+ *
+ * The severity is not decoration: it is what the action is scored on. `action_points_at`
+ * grades critical 5, high 4, medium 3, low 2, so naming a priority and grading it is
+ * one decision, made in one place.
+ */
+function Priorities({
+  rows, priorities, onSaved,
+}: { rows: ClassRow[]; priorities: PriorityRow[]; onSaved: () => void }) {
+  const [draft, setDraft] = useState<Record<string, { name: string; severity: string }>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    if (r.external_priority_id) {
+      counts.set(r.external_priority_id, (counts.get(r.external_priority_id) ?? 0) + 1);
+    }
+  }
+  const known = new Map(priorities.map((p) => [p.priority_id, p]));
+  // Unnamed first: they are the only rows here that need anything doing.
+  const ids = [...counts.keys()].sort((a, b) => {
+    const na = known.has(a) ? 1 : 0;
+    const nb = known.has(b) ? 1 : 0;
+    return na - nb || (counts.get(b) ?? 0) - (counts.get(a) ?? 0);
+  });
+  for (const p of priorities) if (!counts.has(p.priority_id)) ids.push(p.priority_id);
+
+  const save = async (id: string) => {
+    const d = draft[id] ?? { name: known.get(id)?.name ?? "", severity: known.get(id)?.severity ?? "" };
+    if (!d.name.trim()) { toast.error("Give the priority a name"); return; }
+    setSaving(id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("sc_priorities")
+      .upsert({
+        priority_id: id,
+        name: d.name.trim(),
+        severity: d.severity || null,
+        rank: known.get(id)?.rank ?? 100,
+      }, { onConflict: "priority_id" });
+    setSaving(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Saved ${d.name.trim()}`);
+    onSaved();
+  };
+
+  if (!ids.length) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base">Priorities</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            No priorities have arrived yet. They appear here after the first sync, ready to name.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const unnamed = ids.filter((id) => !known.has(id)).length;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base">Priorities</CardTitle>
+        {unnamed > 0 && <Badge variant="destructive">{unnamed} still to name</Badge>}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          SafetyCulture sends a priority as an id and no name. Name each one here, and say
+          what it grades as — that grade is what the action scores.
+        </p>
+        <div className="space-y-2">
+          {ids.map((id) => {
+            const k = known.get(id);
+            const d = draft[id] ?? { name: k?.name ?? "", severity: k?.severity ?? "" };
+            const used = counts.get(id) ?? 0;
+            return (
+              <div key={id} className="flex flex-wrap items-center gap-2 rounded-md border p-3">
+                <code className="font-mono text-xs text-muted-foreground" title={id}>
+                  {id.slice(0, 8)}
+                </code>
+                <span className="text-xs text-muted-foreground">
+                  {used} action{used === 1 ? "" : "s"}
+                </span>
+                <Input
+                  className="h-9 w-36"
+                  placeholder="Name"
+                  value={d.name}
+                  onChange={(e) => setDraft({ ...draft, [id]: { ...d, name: e.target.value } })}
+                />
+                <Select
+                  value={d.severity || "__none__"}
+                  onValueChange={(v) =>
+                    setDraft({ ...draft, [id]: { ...d, severity: v === "__none__" ? "" : v } })}
+                >
+                  <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Grades as" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Does not grade</SelectItem>
+                    {QUALITY_SEVERITIES.map((sv) => (
+                      <SelectItem key={sv.value} value={sv.value}>{sv.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={() => void save(id)} disabled={saving === id}>
+                  {saving === id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 /**
  * What the gates actually decided, and — for anything they refused to decide — why.
