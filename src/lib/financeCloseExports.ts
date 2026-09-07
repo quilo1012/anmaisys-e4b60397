@@ -10,11 +10,12 @@
  *
  * Both read `CLOSE_COLUMNS`, so neither can drift from the screen or from each other.
  *
- * THE WARNING TRAVELS WITH THE PDF. It is not decoration: the balance runs on between
- * periods, and Payroll OT and Overtime are two disagreeing sources that must never be
- * added. Printed without that paragraph, the sheet is eighteen columns of numbers with
- * no statement of which of them somebody is owed — which is how two hundred hours went
- * unreconciled in the first place.
+ * THE WARNING TRAVELS WITH THE PDF. It is not decoration: overtime is the period's own
+ * balance and the hour bank beside it is history rather than pay, and Payroll OT and
+ * Overtime are two disagreeing sources that must never be added. Printed without that
+ * paragraph, the sheet is eighteen columns of numbers with no statement of which of them
+ * somebody is owed — which is how two hundred hours went unreconciled in the first
+ * place.
  */
 
 import jsPDF from "jspdf";
@@ -80,11 +81,12 @@ export function closeSubtitle(
  */
 export function closeWarningText(totals: CloseTotals): string {
   const base =
-    "Hours are not settled week by week and the balance runs on between periods — it is an "
-    + "hour bank. A shortfall is worked off against later hours one for one, and only what "
-    + "stands above zero at the close is overtime. Payroll OT is what the office keyed in; the "
-    + "two are never added together, and Δ is the disagreement to settle before anybody is "
-    + "paid. A dash means that side reported nothing, which is not zero.";
+    "Overtime is what THIS pay period ended above zero and Hours deducted is what it "
+    + "ended below — each period settles on its own. Opening and closing are the hour "
+    + "bank, printed so the running history is readable; they are not added to what is "
+    + "paid. Payroll OT is what the office keyed in; the two are never added together, "
+    + "and Δ is the disagreement to settle before anybody is paid. A dash means that "
+    + "side reported nothing, which is not zero.";
   if (totals.payrollEmpty) {
     return `${base} No payroll overtime has been keyed for this period at all, so there is `
       + "nothing to compare and the gap cannot be read as agreement.";
@@ -249,7 +251,7 @@ function styleRow(ws: any, row: number, cols: number, s: any) {
  *
  * Summary first, because it is what finance reads before deciding whether to open the
  * rest. The warning goes on it too — a workbook is forwarded far more often than a
- * printout, and the sentence about the hour bank is the one thing a recipient needs
+ * printout, and the sentence about what is paid is the one thing a recipient needs
  * that the columns do not say.
  */
 export function buildCloseWorkbook(input: CloseExportInput) {

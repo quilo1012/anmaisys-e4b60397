@@ -19,16 +19,27 @@
  * week is paying back the first, and they are level. Overtime is only what is left
  * over once the shortfall is covered.
  *
- * THE BALANCE RUNS ON BETWEEN PERIODS. It is an hour bank: what somebody is up or
- * down by at the end of one period opens the next. A shortfall is worked off against
- * later hours one for one, and only what is left above zero at the close is overtime.
+ * THE PERIOD IS WHAT IS PAID. Overtime is the part of THIS period's balance above
+ * zero, and hours deducted are the part of it below. What somebody carried in from
+ * before does not add to either.
  *
- * This file said the opposite until 07/08, and both readings have been built. Settling
- * every period to zero was the earlier instruction and it is not the one in force;
- * carrying the balance is. The difference matters most to somebody who is behind —
- * settled, their shortfall is deducted from that period's pay and gone; banked, they
- * work it off. Reverting between the two is not a refactor, so the version in force is
- * named here rather than left to be inferred from the code.
+ * This file said the opposite until 06/09, and both readings have been built. Carrying
+ * the bank into the payment was the earlier instruction and it is not the one in force;
+ * settling each period on its own is. Reverting between the two is not a refactor, so
+ * the version in force is named here rather than left to be inferred from the code.
+ *
+ * What broke it was that NOTHING EVER CLEARED THE BANK. `overtime_entries` has never
+ * been keyed for a single period, so no close ever settled one, and `opening + period`
+ * simply re-paid every earlier period inside the current one. On the August 2026 close
+ * the Weekend crew read 1195.55 h of overtime against the 515.23 h the period itself
+ * accrued: June's and July's hours arriving a second time, on the document somebody is
+ * paid from. A bank only works if being paid empties it, and there is no record here
+ * that anybody was.
+ *
+ * The bank is still COUNTED and still SHOWN — opening, period and closing sit side by
+ * side on every row. It is the history, which is worth reading: somebody paid five
+ * hours this period may still be fifty down since June. It is no longer arithmetic on
+ * the pay.
  *
  * Periods are not all four weeks. 07/09 to 11/10 is thirty-five days, and any rule
  * that assumes twenty-eight will drift a week from that date on.
@@ -123,14 +134,16 @@ export interface ClosePerson extends ClosePersonInput {
   clockedOtHours: number | null;
   /** The bank as it stood when the period opened. */
   openingHours: number;
-  /** opening + period: the bank as it stands at the close, and what carries forward. */
-  closingHours: number | null;
   /**
-   * The part of the CLOSING balance above zero — hours paid as overtime once every
-   * earlier shortfall has been worked off, one for one.
+   * opening + period: the bank as it stands at the close, and what carries forward.
+   *
+   * History, not pay. Nothing is settled against it — see the note at the top of the
+   * file about the period the Weekend crew was paid June's hours in twice.
    */
+  closingHours: number | null;
+  /** The part of THIS PERIOD's balance above zero — the hours paid as overtime. */
   overtimeHours: number | null;
-  /** The part below zero, as a positive number: hours still owed back. */
+  /** The part of this period's balance below zero, as a positive number: hours deducted. */
   owedHours: number | null;
   /** payroll − overtime earned. Positive means payroll is claiming more than the clocks support. */
   deltaHours: number | null;
@@ -159,20 +172,25 @@ export function buildClose(rows: ClosePersonInput[], from: string, to: string): 
       const clockedOtHours = r.clockedBalanceMin == null ? null : round2(r.clockedBalanceMin / 60);
       const openingHours = round2((r.openingBalanceMin ?? 0) / 60);
 
-      // The bank at the close. A shortfall brought in is worked off one for one before
-      // anything counts as overtime — sixteen hours down and twelve up is four hours
-      // still owed, not twelve to pay.
+      // The bank at the close. Reported, never paid from: it is the running history,
+      // and adding it to what is owed for THIS period pays June's hours again in
+      // August because nothing ever emptied it.
       const closingHours = clockedOtHours == null ? null : round2(openingHours + clockedOtHours);
-      const overtimeHours = closingHours == null ? null : Math.max(0, closingHours);
-      const owedHours = closingHours == null ? null : Math.max(0, round2(-closingHours));
+
+      // What the period earned, and what the period ended short. Both off the period's
+      // own balance — sixteen hours down before it opened and twelve up inside it is
+      // twelve hours to pay, and the shortfall stays with the period it happened in.
+      const overtimeHours = clockedOtHours == null ? null : Math.max(0, clockedOtHours);
+      const owedHours = clockedOtHours == null ? null : Math.max(0, round2(-clockedOtHours));
 
       // A missing figure is not a zero. If one side never reported, there is no gap
       // to state — saying "0" would read as "the two agree", which is the one thing
       // it does not mean.
       //
-      // Compared against overtime earned, not against the balance. Somebody sitting
-      // at minus four has earned nothing, and measuring a payroll claim against −4
-      // would report a four-hour agreement that does not exist.
+      // Compared against overtime earned in the period, not against the balance and
+      // not against the bank. Somebody sitting at minus four has earned nothing, and
+      // measuring a payroll claim against −4 would report a four-hour agreement that
+      // does not exist.
       const deltaHours =
         overtimeHours == null || r.payrollOtHours == null
           ? null
@@ -305,7 +323,7 @@ export interface CloseTotals {
   people: number;
   /** Signed hours accrued in the period. Can be negative; not overtime. */
   clockedOtHours: number;
-  /** Hours paid as overtime, after each person's own shortfall is covered. */
+  /** Hours paid as overtime: everybody's period balance above zero, summed. */
   overtimeHours: number;
   /** Hours deducted from pay, across everybody who ended the period behind. */
   owedHours: number;
@@ -335,7 +353,8 @@ export function closeTotals(rows: ClosePerson[]): CloseTotals {
     people: rows.length,
     clockedOtHours: sum((r) => r.clockedOtHours),
     // Summed per person, never netted across people. One person's shortfall does not
-    // cancel another's overtime — they are paid separately and owe separately.
+    // cancel another's overtime — they are paid separately and owe separately. And
+    // per PERIOD, never against the bank: see the note at the top of this file.
     overtimeHours: sum((r) => r.overtimeHours),
     partDayHours: sum((r) => r.partDayHours),
     overtimeShifts: rows.reduce((n, r) => n + Math.max(0, r.shiftBalance ?? 0), 0),

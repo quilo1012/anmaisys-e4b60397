@@ -123,9 +123,10 @@ export default function FinanceClosePage() {
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
         }).then((data: any[]) => ({ data, error: null })),
-        // Everything before the period: the hour bank as it stood when it opened. The
-        // balance runs on, so a shortfall from September is still owed in October and
-        // is worked off against those hours one for one.
+        // Everything before the period: the hour bank as it stood when it opened.
+        // REPORTED, NOT PAID FROM. Nothing ever settles this bank — no period has ever
+        // had a payroll figure keyed — so adding it to the period's balance paid June's
+        // overtime again in August. It stays on the row as the running history.
         fetchAllRows<any>({
           range: (a, b) => db.from("attendance_days")
             .select("employee_id, balance_minutes")
@@ -550,7 +551,7 @@ export default function FinanceClosePage() {
             value={totals.overtimeHours.toFixed(2)}
             unit="h"
             tone="earned"
-            hint="After each person's own shortfall is covered"
+            hint="What this period ended above zero"
           />
           <Figure
             label="Hours deducted"
@@ -596,11 +597,10 @@ export default function FinanceClosePage() {
         <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" />
           <span>
-            Hours are not settled week by week, and the balance <b>runs on between periods</b> — it is
-            an hour bank. What somebody is up or down by at the close opens the next period, a
-            shortfall is worked off against later hours one for one, and only what stands above zero
-            at the close is overtime. Somebody 16 h down who works 12 h over is still 4 h short, not
-            12 h to pay.
+            <b>Each period settles on its own.</b> Overtime is what this period ended above zero
+            and hours deducted is what it ended below. <b>Opening</b> and <b>closing</b> are the hour
+            bank — the running history, printed so a person paid 5 h this period can still be seen
+            50 h down since June — and they are <b>not</b> added to what is paid.
             <b>Payroll OT</b> is what the office keyed in; the two are never added together, and the
             <b>Δ</b> is the disagreement to settle before anybody is paid. A dash means that side
             reported nothing, which is not zero.
