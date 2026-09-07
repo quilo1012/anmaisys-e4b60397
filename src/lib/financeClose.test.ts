@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, closeCrews, filterByCrew, NO_CREW,
-  closeDepartments, filterClose, departmentLabel, NO_DEPARTMENT,
+  closeDepartments, filterClose, departmentLabel, NO_DEPARTMENT, countDaysAway,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 
@@ -408,5 +408,70 @@ describe("closeDepartments", () => {
     const per = closeDepartments(rows)
       .map((d) => filterClose(rows, { crew: "all", department: d }).length);
     expect(per.reduce((a, b) => a + b, 0)).toBe(rows.length);
+  });
+});
+
+describe("countDaysAway", () => {
+  // The clocks and the hand-marked board both record the same day, and the close read
+  // both and added them. Across the records on file that is 1072 days counted twice as
+  // present and 145 counted twice as an absence, over eighty-two people — on the
+  // document somebody is paid from.
+  const clock = (on_date: string, o: { worked_minutes?: number; absence_name?: string } = {}) =>
+    ({ employee_id: "e1", on_date, worked_minutes: o.worked_minutes ?? 0, absence_name: o.absence_name ?? null });
+  const mark = (on_date: string, status: string) => ({ employee_id: "e1", on_date, status });
+
+  it("counts a day the clocks recorded", () => {
+    const c = countDaysAway([clock("2026-09-08", { worked_minutes: 660 })], [])!.get("e1")!;
+    expect(c.daysPresent).toBe(1);
+  });
+
+  it("counts a day only the hand-marked board recorded", () => {
+    // `attendance_days` is empty until a TimeMoto import runs, so for most of the
+    // factory the marks are the only record there is.
+    const c = countDaysAway([], [mark("2026-09-08", "present")])!.get("e1")!;
+    expect(c.daysPresent).toBe(1);
+  });
+
+  it("counts a day both of them recorded ONCE", () => {
+    const c = countDaysAway(
+      [clock("2026-09-08", { worked_minutes: 660 })], [mark("2026-09-08", "present")],
+    )!.get("e1")!;
+    expect(c.daysPresent).toBe(1);
+  });
+
+  it("counts an absence both of them recorded once", () => {
+    const c = countDaysAway(
+      [clock("2026-09-08", { absence_name: "Sick" })], [mark("2026-09-08", "sick")],
+    )!.get("e1")!;
+    expect(c.absences).toEqual({ Sick: 1 });
+    expect(c.daysPresent).toBe(0);
+  });
+
+  it("lets the clocks settle a day the two disagree about", () => {
+    // Thirty-two days are marked present by hand and absent by the clocks. The clocks
+    // are the measurement; the mark is somebody's recollection. One of them has to win
+    // and it cannot be both, which is what adding them said.
+    const c = countDaysAway(
+      [clock("2026-09-08", { absence_name: "Unpaid Leave" })], [mark("2026-09-08", "present")],
+    )!.get("e1")!;
+    expect(c.absences).toEqual({ "Unpaid Leave": 1 });
+    expect(c.daysPresent).toBe(0);
+  });
+
+  it("keeps a day the clocks recorded as neither present nor away out of both", () => {
+    // Zero minutes and no absence name is a row that says nothing happened, not a day
+    // somebody stood on a line.
+    const c = countDaysAway([clock("2026-09-08")], [])!.get("e1")!;
+    expect(c.daysPresent).toBe(0);
+    expect(c.absences).toEqual({});
+  });
+
+  it("keeps people apart", () => {
+    const counted = countDaysAway(
+      [{ employee_id: "a", on_date: "2026-09-08", worked_minutes: 660, absence_name: null }],
+      [{ employee_id: "b", on_date: "2026-09-08", status: "present" }],
+    );
+    expect(counted.get("a")!.daysPresent).toBe(1);
+    expect(counted.get("b")!.daysPresent).toBe(1);
   });
 });

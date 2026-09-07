@@ -6,7 +6,8 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import {
-  buildShiftBalances, shiftTotals, shortfallIsReliable, type ShiftBalanceInput,
+  buildShiftBalances, shiftTotals, shortfallIsReliable, plannedBoardDates,
+  periodElapsedTo, type ShiftBalanceInput,
 } from "@/lib/shiftBalance";
 
 /**
@@ -45,7 +46,10 @@ export function HeadcountOvertimePanel() {
       const period = periods?.[0];
       const from: string = period?.start_date
         ?? new Date(Date.now() - 27 * 86_400_000).toISOString().slice(0, 10);
-      const to: string = period?.end_date ?? today;
+      // The part of the period that has actually run. A period covering today is still
+      // running by definition, and counting the days nobody has worked yet as shifts
+      // due made every person on the payroll read short by the rest of the period.
+      const to: string = periodElapsedTo(period?.end_date ?? today, today);
 
       const [emp, allocs] = await Promise.all([
         db.from("employees")
@@ -57,7 +61,9 @@ export function HeadcountOvertimePanel() {
         // also six, off the list — a wrong answer that looked like an answer.
         fetchAllRows<any>({
           range: (a, b) => db.from("daily_allocations")
-            .select("employee_id, status, area_id, shift")
+            // `on_date`, because which DAYS a board was drawn for is the question, and
+            // the rows cannot answer it without carrying the day they belong to.
+            .select("employee_id, on_date, status, area_id, shift")
             .gte("on_date", from).lte("on_date", to)
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
@@ -73,11 +79,15 @@ export function HeadcountOvertimePanel() {
         (e) => [e.id, (e.department ?? "").trim() || "Not set"],
       ));
 
-      // Which boards anybody actually filled in. The night board has never been
-      // planned, so everybody on it reads as a full period short — forty-eight
-      // invented deficits burying the two or three that are real.
-      const boardsPlanned = new Set<string>();
-      for (const a of allocs as any[]) if (a.shift) boardsPlanned.add(a.shift);
+      // WHICH DAYS each board was drawn for, not merely whether it ever was. This was
+      // a set of board names, and one drawn day made the whole period count: on 07/09
+      // the Night board had been drawn once and the crew read nineteen shifts short
+      // apiece. Finance Close was moved onto the per-day rule and this was left behind,
+      // so the two screens reported different deficits for the same crew.
+      //
+      // A holiday does not draw a board either — it is keyed weeks before the day
+      // exists. `plannedBoardDates` is the one definition of both rules.
+      const plannedByBoard = plannedBoardDates(allocs as any[]);
 
       const counts = new Map<string, { present: number; holiday: number; sick: number; unpaid: number }>();
       const byDept = new Map<string, number>();
@@ -104,7 +114,8 @@ export function HeadcountOvertimePanel() {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
           patternName: e.shift_patterns?.name ?? null,
           patternDays: e.shift_patterns?.days ?? null,
-          boardPlanned: boardsPlanned.has(e.shift_group === "Night" ? "Night" : "Day"),
+          plannedDates: plannedByBoard.get(e.shift_group === "Night" ? "Night" : "Day")
+            ?? new Set<string>(),
           ...c,
         };
       });
