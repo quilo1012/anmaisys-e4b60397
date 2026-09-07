@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   expectedShifts, buildShiftBalances, shiftTotals, shortfallIsReliable,
+  plannedBoardDates, periodElapsedTo,
   type ShiftBalanceInput,
 } from "@/lib/shiftBalance";
 
@@ -10,7 +11,9 @@ const TO = "2026-08-04";
 const person = (over: Partial<ShiftBalanceInput> = {}): ShiftBalanceInput => ({
   employeeId: "e1", name: "Ana Silva", department: "Production",
   patternName: "Mon–Thu days", patternDays: [1, 2, 3, 4],
-  present: 0, holiday: 0, sick: 0, unpaid: 0, boardPlanned: true, ...over,
+  // Null, not an empty set: these cases are about the rota, and null is "the caller
+  // does not know which days were drawn", under which every rostered day counts.
+  present: 0, holiday: 0, sick: 0, unpaid: 0, plannedDates: null, ...over,
 });
 
 describe("expectedShifts", () => {
@@ -127,7 +130,7 @@ describe("shortfallIsReliable", () => {
 describe("a board nobody planned", () => {
   // The night board has never been filled in. All forty-eight of its people read as a
   // full period short, which buries the two or three shortfalls that are real.
-  const night = (o = {}) => person({ boardPlanned: false, present: 0, ...o });
+  const night = (o = {}) => person({ plannedDates: new Set<string>(), present: 0, ...o });
 
   it("does not count them as short", () => {
     const t = shiftTotals(buildShiftBalances([night()], FROM, TO));
@@ -150,7 +153,105 @@ describe("a board nobody planned", () => {
     expect(t.onUnplannedBoard).toBe(0);
   });
 
-  it("never calls a shortfall on an unplanned board reliable", () => {
-    expect(shortfallIsReliable(buildShiftBalances([night()], FROM, TO)[0])).toBe(false);
+  it("gives them no shortfall to have to judge in the first place", () => {
+    // Per day, an unplanned board owes nothing, so there is no deficit to call
+    // unreliable. It used to owe the whole period and be excluded afterwards; now the
+    // days it was never drawn for are simply not days anybody could have missed.
+    const [r] = buildShiftBalances([night()], FROM, TO);
+    expect(r.expected).toBe(0);
+    expect(r.balance).toBe(0);
+    expect(shortfallIsReliable(r)).toBe(true);
+  });
+
+  it("still refuses to believe a shortfall charged to a board nobody drew", () => {
+    // `present` above zero on a board with no drawn days is a contradiction the import
+    // can produce; the guard stays for it.
+    const r = { ...buildShiftBalances([night()], FROM, TO)[0], balance: -4 };
+    expect(shortfallIsReliable(r)).toBe(false);
+  });
+});
+
+describe("plannedBoardDates", () => {
+  // 07/09–11/10/2026, the period this was written against. The Night board was drawn
+  // once, on the day the period opened; every other date it holds is a holiday somebody
+  // booked on 14/08, weeks before those days existed.
+  const alloc = (on_date: string, shift: string | null, status: string) =>
+    ({ on_date, shift, status });
+
+  it("counts a date the board was actually drawn for", () => {
+    const planned = plannedBoardDates([
+      alloc("2026-09-07", "Night", "assigned"),
+      alloc("2026-09-07", "Night", "overtime"),
+    ]);
+    expect([...(planned.get("Night") ?? [])]).toEqual(["2026-09-07"]);
+  });
+
+  it("does not let a holiday booked in advance plan a board", () => {
+    // THE BUG. A holiday is keyed weeks ahead, so on 07/09 the Night board carried
+    // leave for sixteen future dates and not one of them was a day anybody could have
+    // failed to turn up. Counted, the night crew read 787 shifts due against 36 worked
+    // — 751 shifts short on a period that had run for one day.
+    const planned = plannedBoardDates([
+      alloc("2026-09-07", "Night", "assigned"),
+      alloc("2026-09-14", "Night", "holiday"),
+      alloc("2026-10-05", "Night", "holiday"),
+    ]);
+    expect([...(planned.get("Night") ?? [])]).toEqual(["2026-09-07"]);
+  });
+
+  it("still counts a day marked sick or unpaid", () => {
+    // Those are marked on the day, against a board somebody had drawn. Only holiday is
+    // booked before the day exists.
+    const planned = plannedBoardDates([
+      alloc("2026-09-08", "Night", "sick"),
+      alloc("2026-09-09", "Night", "unpaid"),
+    ]);
+    expect([...(planned.get("Night") ?? [])].sort()).toEqual(["2026-09-08", "2026-09-09"]);
+  });
+
+  it("keeps the boards apart", () => {
+    const planned = plannedBoardDates([
+      alloc("2026-09-07", "Night", "assigned"),
+      alloc("2026-09-08", "Day", "assigned"),
+    ]);
+    expect([...(planned.get("Night") ?? [])]).toEqual(["2026-09-07"]);
+    expect([...(planned.get("Day") ?? [])]).toEqual(["2026-09-08"]);
+    expect(planned.has("Weekend")).toBe(false);
+  });
+
+  it("ignores a row with no board on it", () => {
+    expect(plannedBoardDates([alloc("2026-09-07", null, "assigned")]).size).toBe(0);
+  });
+});
+
+describe("periodElapsedTo", () => {
+  it("stops a running period at today", () => {
+    // The close opens on the period covering today. 07/09–11/10 is thirty-five days and
+    // on 07/09 thirty-four of them have not happened; counting shifts due for them makes
+    // everybody short by the rest of the period.
+    expect(periodElapsedTo("2026-10-11", "2026-09-07")).toBe("2026-09-07");
+  });
+
+  it("leaves a period that has already closed alone", () => {
+    expect(periodElapsedTo("2026-08-09", "2026-09-07")).toBe("2026-08-09");
+  });
+
+  it("leaves the last day of the period whole", () => {
+    expect(periodElapsedTo("2026-10-11", "2026-10-11")).toBe("2026-10-11");
+  });
+});
+
+describe("a period that has only partly run", () => {
+  it("charges only the rostered days that have happened", () => {
+    // Mon–Thu across 07/09–11/10 is twenty shifts, four of which had happened by 10/09.
+    const to = periodElapsedTo("2026-10-11", "2026-09-10");
+    expect(expectedShifts([1, 2, 3, 4], "2026-09-07", to)).toBe(4);
+  });
+
+  it("says nothing at all about a period that has not started", () => {
+    // The picker lists periods out to 2028. Zero shifts due would read as "owes
+    // nothing"; null reads as "not yet a question", which is what it is.
+    const to = periodElapsedTo("2028-06-18", "2026-09-07");
+    expect(expectedShifts([1, 2, 3, 4], "2028-05-22", to)).toBeNull();
   });
 });

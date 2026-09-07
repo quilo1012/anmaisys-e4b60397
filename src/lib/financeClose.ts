@@ -402,3 +402,62 @@ export const CLOSE_HEADERS = [
   "Payroll OT (h)", "Delta (h)",
   "Days present", "Sick", "Holiday", "Unpaid", "Other absence", "Part day (h)",
 ];
+
+/** Days present and days away, per employee. */
+export interface DaysCounted {
+  daysPresent: number;
+  /** Day counts by absence reason, however the source spelled it. */
+  absences: Record<string, number>;
+}
+
+/**
+ * The two records of who was here, counted once each rather than added together.
+ *
+ * `attendance_days` is what the clocks measured and `employee_attendance` is what
+ * somebody marked by hand. They are not two halves of the record - they are two
+ * accounts of the SAME day, and the close read both and summed them. On the rows on
+ * file that is 1072 days counted twice as present and 145 counted twice as an absence,
+ * across eighty-two people, on the document finance pays from.
+ *
+ * Neither can simply be dropped. The clocks reach back only as far as the last TimeMoto
+ * import and cover a quarter of the factory; the marks are the only record for
+ * everybody else. So the day is the key: the clocks answer for a day they recorded, and
+ * the mark answers for a day they did not.
+ *
+ * WHERE THE TWO DISAGREE THE CLOCKS WIN - thirty-two days are marked present by hand
+ * and carry an absence from the clocks. A measurement and a recollection cannot both be
+ * counted, which is exactly what adding them did; one of them has to be the answer, and
+ * it is not the recollection.
+ */
+export function countDaysAway(
+  clocked: ReadonlyArray<{
+    employee_id: string; on_date: string;
+    worked_minutes: number | null; absence_name: string | null;
+  }>,
+  manual: ReadonlyArray<{ employee_id: string; on_date: string; status: string | null }>,
+): Map<string, DaysCounted> {
+  const counted = new Map<string, DaysCounted>();
+  const of = (id: string) => {
+    let c = counted.get(id);
+    if (!c) counted.set(id, (c = { daysPresent: 0, absences: {} }));
+    return c;
+  };
+
+  const clockedDays = new Set<string>();
+  for (const d of clocked) {
+    clockedDays.add(`${d.employee_id} ${d.on_date}`);
+    const c = of(d.employee_id);
+    if (d.absence_name) c.absences[d.absence_name] = (c.absences[d.absence_name] ?? 0) + 1;
+    else if ((d.worked_minutes ?? 0) > 0) c.daysPresent += 1;
+  }
+
+  for (const a of manual) {
+    if (!a.status) continue;
+    if (clockedDays.has(`${a.employee_id} ${a.on_date}`)) continue;
+    const c = of(a.employee_id);
+    if (a.status === "present") c.daysPresent += 1;
+    else c.absences[a.status] = (c.absences[a.status] ?? 0) + 1;
+  }
+
+  return counted;
+}

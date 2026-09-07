@@ -279,8 +279,20 @@ export default function RAGWeeklyPage() {
         mode: "week",
         week_start: format(weekStart, "yyyy-MM-dd"),
       });
-      if (error) throw new Error(error.message || "Could not reach the SharePoint RAG service.");
+      const payload = (error as any)?.details ?? data;
+      const kind = payload?.error;
+      if (kind === "unreachable" || kind === "not_configured") {
+        toast.error("The SharePoint reader is offline", {
+          description:
+            "Its address changed or the reader is not running. Open the service address settings, paste the new address and test the connection.",
+          action: { label: "Open settings", onClick: () => setRagApiSettingsOpen(true) },
+          duration: 10000,
+        });
+        return;
+      }
+      if (error) throw new Error(payload?.message || error.message || "Could not reach the SharePoint RAG service.");
       if (data?.error) throw new Error(data.message || data.error);
+
 
       const mapped = mapRagApiRecords((data?.records ?? []) as RagApiRecord[], lines);
       if (!mapped.rows.length && !mapped.comments.length) {
@@ -646,15 +658,6 @@ export default function RAGWeeklyPage() {
         ? [weekStartStr, weekEndStr]
         : parsed.datesDetected;
 
-      if (isSharePoint) {
-        const { error: deleteError } = await supabase
-          .from("rag_weekly_entries")
-          .delete()
-          .gte("entry_date", weekStartStr)
-          .lte("entry_date", weekEndStr);
-        if (deleteError) throw deleteError;
-      }
-
       const existing = new Map<string, Entry>(entryMap);
       if (!isSharePoint && dates.length) {
         const { data: cur } = await supabase
@@ -684,8 +687,27 @@ export default function RAGWeeklyPage() {
           upm_actual: keep(r.upm_actual, prev?.upm_actual),
           downtime_min: keep(r.downtime_min, prev?.downtime_min),
           notes: prev?.notes ?? null,
+          // SharePoint is the master source: mark the row so the workbook's
+          // Actual is kept as-is instead of being overwritten by floor logging.
+          actual_source: isSharePoint ? "sharepoint" : "manual",
         };
+
       });
+
+      // SharePoint is authoritative only for the lines it actually returned for
+      // this week. Clearing is scoped to those lines (and only once we have
+      // replacement rows) so hand-typed data for other lines survives.
+      if (isSharePoint && rows.length) {
+        const syncedLines = Array.from(new Set(rows.map((r) => r.line)));
+        const { error: deleteError } = await supabase
+          .from("rag_weekly_entries")
+          .delete()
+          .gte("entry_date", weekStartStr)
+          .lte("entry_date", weekEndStr)
+          .in("line", syncedLines);
+        if (deleteError) throw deleteError;
+      }
+
 
       const BATCH = 500;
       let count = 0;

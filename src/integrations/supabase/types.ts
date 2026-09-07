@@ -4112,7 +4112,11 @@ export type Database = {
           assignee_name: string | null
           attachments: string[]
           batch: string | null
+          classification: string | null
+          classification_checks: Json | null
+          classification_reasons: string[] | null
           classification_status: string
+          classified_at: string | null
           closed_at: string | null
           closed_by: string | null
           created_at: string
@@ -4127,6 +4131,7 @@ export type Database = {
           external_deleted_at: string | null
           external_id: string | null
           external_priority: string | null
+          external_priority_id: string | null
           external_site: string | null
           external_status: string | null
           external_template: string | null
@@ -4138,6 +4143,8 @@ export type Database = {
           leader_id: string | null
           leader_name: string | null
           line: string | null
+          matched_rule_ids: string[] | null
+          matched_rule_names: string[] | null
           needs_classification: boolean
           points: number | null
           points_at_creation: number | null
@@ -4164,7 +4171,11 @@ export type Database = {
           assignee_name?: string | null
           attachments?: string[]
           batch?: string | null
+          classification?: string | null
+          classification_checks?: Json | null
+          classification_reasons?: string[] | null
           classification_status?: string
+          classified_at?: string | null
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -4179,6 +4190,7 @@ export type Database = {
           external_deleted_at?: string | null
           external_id?: string | null
           external_priority?: string | null
+          external_priority_id?: string | null
           external_site?: string | null
           external_status?: string | null
           external_template?: string | null
@@ -4190,6 +4202,8 @@ export type Database = {
           leader_id?: string | null
           leader_name?: string | null
           line?: string | null
+          matched_rule_ids?: string[] | null
+          matched_rule_names?: string[] | null
           needs_classification?: boolean
           points?: number | null
           points_at_creation?: number | null
@@ -4216,7 +4230,11 @@ export type Database = {
           assignee_name?: string | null
           attachments?: string[]
           batch?: string | null
+          classification?: string | null
+          classification_checks?: Json | null
+          classification_reasons?: string[] | null
           classification_status?: string
+          classified_at?: string | null
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
@@ -4231,6 +4249,7 @@ export type Database = {
           external_deleted_at?: string | null
           external_id?: string | null
           external_priority?: string | null
+          external_priority_id?: string | null
           external_site?: string | null
           external_status?: string | null
           external_template?: string | null
@@ -4242,6 +4261,8 @@ export type Database = {
           leader_id?: string | null
           leader_name?: string | null
           line?: string | null
+          matched_rule_ids?: string[] | null
+          matched_rule_names?: string[] | null
           needs_classification?: boolean
           points?: number | null
           points_at_creation?: number | null
@@ -4583,6 +4604,7 @@ export type Database = {
       rag_weekly_entries: {
         Row: {
           actual_qty: number
+          actual_source: string
           actual_updated_by: string | null
           created_at: string
           created_by: string | null
@@ -4599,6 +4621,7 @@ export type Database = {
         }
         Insert: {
           actual_qty?: number
+          actual_source?: string
           actual_updated_by?: string | null
           created_at?: string
           created_by?: string | null
@@ -4615,6 +4638,7 @@ export type Database = {
         }
         Update: {
           actual_qty?: number
+          actual_source?: string
           actual_updated_by?: string | null
           created_at?: string
           created_by?: string | null
@@ -4734,6 +4758,7 @@ export type Database = {
         Row: {
           active: boolean
           category: string | null
+          classification: string | null
           created_at: string
           department: string | null
           error_type: string | null
@@ -4744,6 +4769,7 @@ export type Database = {
           match_key: string | null
           match_mode: string
           match_value: string
+          name: string | null
           priority: number
           severity: string | null
           updated_at: string
@@ -4751,6 +4777,7 @@ export type Database = {
         Insert: {
           active?: boolean
           category?: string | null
+          classification?: string | null
           created_at?: string
           department?: string | null
           error_type?: string | null
@@ -4761,6 +4788,7 @@ export type Database = {
           match_key?: string | null
           match_mode?: string
           match_value: string
+          name?: string | null
           priority?: number
           severity?: string | null
           updated_at?: string
@@ -4768,6 +4796,7 @@ export type Database = {
         Update: {
           active?: boolean
           category?: string | null
+          classification?: string | null
           created_at?: string
           department?: string | null
           error_type?: string | null
@@ -4778,7 +4807,38 @@ export type Database = {
           match_key?: string | null
           match_mode?: string
           match_value?: string
+          name?: string | null
           priority?: number
+          severity?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sc_priorities: {
+        Row: {
+          created_at: string
+          name: string
+          note: string | null
+          priority_id: string
+          rank: number
+          severity: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          name: string
+          note?: string | null
+          priority_id: string
+          rank?: number
+          severity?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          note?: string | null
+          priority_id?: string
+          rank?: number
           severity?: string | null
           updated_at?: string
         }

@@ -25,9 +25,10 @@ import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
   closeCrews, filterByCrew, crewLabel, NO_CREW,
-  closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT,
+  closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT, countDaysAway,
   type ClosePersonInput,
 } from "@/lib/financeClose";
+import { plannedBoardDates, periodElapsedTo } from "@/lib/shiftBalance";
 import { partDay } from "@/lib/partDay";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { Figure, FigureRow } from "@/components/ui/Figure";
@@ -78,7 +79,23 @@ export default function FinanceClosePage() {
   const { data: otEntries } = useOvertimeEntries(period?.id ?? null);
 
   const from = period?.start_date ?? "";
-  const to = period?.end_date ?? "";
+  const periodEnd = period?.end_date ?? "";
+
+  /**
+   * The close counts the days that have HAPPENED, not the days the period contains.
+   *
+   * The screen opens on the period covering today, which is by definition still
+   * running. Counting the rest of it as shifts due charges everybody with the days
+   * nobody has worked yet: on 07/09, the first day of 07/09-11/10, the night crew read
+   * 787 shifts due against 36 worked - 751 shifts short on a period one day old.
+   *
+   * A no-op on a period that has closed, so the document finance is handed at the end
+   * is unchanged. It only bites on the period being watched while it runs, which is the
+   * only one this screen ever opens on.
+   */
+  const today = new Date().toISOString().slice(0, 10);
+  const to = periodEnd ? periodElapsedTo(periodEnd, today) : "";
+  const stillRunning = !!periodEnd && to !== periodEnd;
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["finance-close", from, to, period?.id],
@@ -95,7 +112,10 @@ export default function FinanceClosePage() {
         // last.
         fetchAllRows<any>({
           range: (a, b) => db.from("attendance_days")
-            .select("employee_id, worked_minutes, balance_minutes, absence_name")
+            // `on_date`, because the hand-marked board records the SAME days and the
+            // two used to be added. Without the date there is no way to tell a day
+            // both recorded from two days one of them did.
+            .select("employee_id, on_date, worked_minutes, balance_minutes, absence_name")
             .gte("on_date", from).lte("on_date", to)
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
@@ -145,12 +165,11 @@ export default function FinanceClosePage() {
       // the night crew from excluded to a full period short. The Day board is empty on
       // 31/07 and holds two names on 06/08 — two Fridays and Thursdays that would read
       // as everybody failing to turn up.
-      const plannedByShift = new Map<string, Set<string>>();
-      for (const a of (board.data ?? []) as any[]) {
-        if (!a.shift) continue;
-        if (!plannedByShift.has(a.shift)) plannedByShift.set(a.shift, new Set());
-        plannedByShift.get(a.shift)!.add(a.on_date);
-      }
+      // And not every row on a date plans it. A HOLIDAY IS BOOKED BEFORE THE DAY
+      // EXISTS: on 07/09 the Night board held one drawn day and sixteen dates of leave
+      // keyed on 14/08, three weeks earlier. Counted as planned, those sixteen dates
+      // charged forty-eight people with shifts they could not yet have failed to work.
+      const plannedByShift = plannedBoardDates((board.data ?? []) as any[]);
 
       const byId = new Map<string, ClosePersonInput>();
       for (const e of (emp.data ?? []) as any[]) {
@@ -216,24 +235,26 @@ export default function FinanceClosePage() {
       for (const d of (clocked.data ?? []) as any[]) {
         const p = byId.get(d.employee_id); if (!p) continue;
         p.clockedBalanceMin = (p.clockedBalanceMin ?? 0) + (d.balance_minutes ?? 0);
-        if (d.absence_name) p.absences[d.absence_name] = (p.absences[d.absence_name] ?? 0) + 1;
-        else if ((d.worked_minutes ?? 0) > 0) p.daysPresent += 1;
+      }
+
+      // The days themselves are counted once, across BOTH records of them.
+      //
+      // The clocks and the hand-marked board describe the same day, and this read each
+      // in a loop of its own and added them: 1072 days counted twice as present and 145
+      // twice as an absence, over eighty-two people. `countDaysAway` keys on the day, so
+      // the clocks answer for a day they recorded and the mark answers for a day they
+      // did not.
+      for (const [id, c] of countDaysAway(
+        (clocked.data ?? []) as any[], (manual.data ?? []) as any[],
+      )) {
+        const p = byId.get(id); if (!p) continue;
+        p.daysPresent = c.daysPresent;
+        p.absences = c.absences;
       }
 
       for (const o of (payroll.data ?? []) as any[]) {
         const p = byId.get(o.employee_id); if (!p) continue;
         p.payrollOtHours = (p.payrollOtHours ?? 0) + Number(o.hours ?? 0);
-      }
-
-      // The hand-marked day statuses, which are the only absence record until a
-      // TimeMoto import runs.
-      for (const a of (manual.data ?? []) as any[]) {
-        const p = byId.get(a.employee_id); if (!p) continue;
-        if (a.status && a.status !== "present") {
-          p.absences[a.status] = (p.absences[a.status] ?? 0) + 1;
-        } else if (a.status === "present") {
-          p.daysPresent += 1;
-        }
       }
 
       // Only people with something to report in the period.
@@ -327,10 +348,23 @@ export default function FinanceClosePage() {
   const fileBase = `finance-close-${period?.name?.replace(/\s+/g, "-").toLowerCase() ?? from}${
     scope ? `-${scope.replace(/\W+/g, "-").toLowerCase()}` : ""}`;
 
+  /**
+   * The period's own dates, and separately the part of it that has run.
+   *
+   * The clamped end shown as the period's end would say the period is shorter than it
+   * is; the period's end alone would say the figures cover days nobody has worked yet.
+   * Both are stated, because the second is why the shift counts look low.
+   */
+  const headerDescription = period
+    ? `${period.name} · ${from} → ${periodEnd}`
+      + `${stillRunning ? ` · counted to ${to}` : ""}`
+      + `${scope ? ` · ${scope} only` : ""}`
+    : "No pay period set";
+
   /** Everything the PDF and the workbook need, built once for both. */
   const exportInput = (): CloseExportInput => ({
     periodName: period?.name ?? "No period",
-    from, to, scope,
+    from, to: periodEnd, countedTo: to, scope,
     rows: shown,
     totals,
     byCrew: byShift.map((t) => ({ crew: crewLabel(t.shift), totals: t })),
@@ -376,9 +410,7 @@ export default function FinanceClosePage() {
 
         <ModuleHeader
           title="Finance Close"
-          description={period
-            ? `${period.name} · ${from} → ${to}${scope ? ` · ${scope} only` : ""}`
-            : "No pay period set"}
+          description={headerDescription}
         >
           {/* In the header rather than under it: choosing the period and the shift is
               choosing what the whole page is about, and both were sitting below the

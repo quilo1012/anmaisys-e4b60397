@@ -198,3 +198,25 @@ describe("the workbook", () => {
     expect(wb.SheetNames).toContain("People");
   });
 });
+
+describe("a period still running", () => {
+  it("prints the period's own dates and says where the counting stopped", () => {
+    // The screen opens on the period covering today. Printing 07/09 as the period's end
+    // would say the period is one day long; printing 11/10 alone would say the figures
+    // cover twenty-six days nobody has worked yet. The sheet has to say both.
+    const s = closeSubtitle({
+      periodName: "September 2026", from: "2026-09-07", to: "2026-10-11",
+      countedTo: "2026-09-07", scope: "",
+    });
+    expect(s).toContain("2026-09-07 → 2026-10-11");
+    expect(s).toContain("counted to 2026-09-07");
+  });
+
+  it("says nothing extra once the period has closed", () => {
+    const s = closeSubtitle({
+      periodName: "August 2026", from: "2026-08-10", to: "2026-09-06",
+      countedTo: "2026-09-06", scope: "",
+    });
+    expect(s).not.toContain("counted to");
+  });
+});

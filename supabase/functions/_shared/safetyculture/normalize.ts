@@ -20,10 +20,15 @@ export { londonDay };
 export interface ScAction {
   /** The stable external identifier. Never invented — it is the idempotency key. */
   id: string;
+  /** The number a person reads off the SafetyCulture screen ("A-1042"). */
+  unique_id?: string | null;
   title: string;
   description?: string | null;
   status?: string | null;
+  /** The readable name, when SafetyCulture sends one. Usually it does not. */
   priority?: string | null;
+  /** What SafetyCulture actually sends: a UUID with no name attached. */
+  priority_id?: string | null;
   created_at?: string | null;
   modified_at?: string | null;
   due_at?: string | null;
@@ -227,7 +232,11 @@ export interface RecordDraft {
   external_id: string;
   external_url: string;
   external_status: string | null;
+  /** The readable name — null until the UUID has been mapped. Never the UUID. */
   external_priority: string | null;
+  external_priority_id: string | null;
+  /** The SafetyCulture action number, shown as "#". */
+  action_no: string | null;
   external_updated_at: string | null;
   external_created_at: string | null;
   external_deleted_at: string | null;
@@ -287,6 +296,11 @@ export function buildRecord(
     attendance?: (worker: string, day: string) => Attendance;
     countsAgainstLeader?: (label: string) => boolean;
     requireWorkerEvidence?: boolean;
+    /**
+     * What a priority UUID means. Read from `sc_priorities`, because the API sends
+     * no name and there is no endpoint that lists them.
+     */
+    priorityOf?: (id: string) => { name: string; severity: string | null } | null;
     now?: string;
   },
 ): { draft: RecordDraft; problems: string[] } {
@@ -313,6 +327,26 @@ export function buildRecord(
   if (!action.assignee) problems.push("no_assignee");
 
   const { status } = mapStatus(action.status);
+
+  const prio = action.priority_id ? (opts.priorityOf?.(action.priority_id) ?? null) : null;
+  if (action.priority_id && !prio) problems.push("priority_not_mapped");
+
+  /**
+   * Every label the action carried, plus whatever a rule added.
+   *
+   * The rule's label used to REPLACE these, which is why forty-seven of forty-nine
+   * records arrived with no labels at all and one arrived labelled "Label" — the
+   * name of the rule that matched it. `action_points_at` charges by label, so an
+   * action with no labels and no severity scores 1 whatever it describes.
+   */
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  for (const l of [...(action.labels ?? []), cls.label].filter(Boolean) as string[]) {
+    const key = l.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    labels.push(l.trim());
+  }
 
   const verdict = classifyAction(
     {
@@ -360,7 +394,11 @@ export function buildRecord(
       external_id: action.id,
       external_url: actionUrl(action),
       external_status: action.status ?? null,
-      external_priority: action.priority ?? null,
+      // The name if one is known, never the id: a UUID on screen is not a priority,
+      // it is a gap for somebody to close on the settings screen.
+      external_priority: action.priority ?? prio?.name ?? null,
+      external_priority_id: action.priority_id ?? null,
+      action_no: action.unique_id ?? null,
       external_updated_at: action.modified_at ?? null,
       // The two timestamps are kept apart: when it was raised, and when it last
       // changed. `recorded_at` follows the creation date so the Quality screen
@@ -383,8 +421,10 @@ export function buildRecord(
       category: cls.category,
       error_type: cls.error_type,
       department: cls.department,
-      labels: cls.label ? [cls.label] : [],
-      severity: cls.severity,
+      labels,
+      // A rule graded this kind of finding on purpose; the priority is a default that
+      // came off the template. The deliberate one wins.
+      severity: cls.severity ?? prio?.severity ?? null,
       domain: "quality",
       // "line_not_identified" alone is enough: a record nobody can attribute must
       // be corrected by a human rather than counted against a guessed leader.
