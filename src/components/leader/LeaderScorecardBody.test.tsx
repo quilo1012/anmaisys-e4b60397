@@ -9,7 +9,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
+import type { LSAction, ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { rpc: () => Promise.resolve({ data: [], error: null }) },
@@ -483,5 +483,52 @@ describe("the Documentation section agrees with the panel above it", () => {
   it("still reads 100% compliant when nothing was raised at all", () => {
     renderBody();
     expect(screen.getByText(/100% compliant/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * A synced action has to arrive on the card saying what it was.
+ *
+ * Half the quality log comes from SafetyCulture, and none of those rows carries an
+ * action number or a description — the sentence is in `title`, the classification in
+ * `error_type`. The card asked for neither and printed `action_no || id.slice(0, 8)`
+ * beside `description`, so a leader's five actions came out as five UUID fragments
+ * over five empty lines. Nothing about the score was wrong; the evidence for it was
+ * simply unreadable, on the sheet that gets printed and signed.
+ */
+describe("LeaderScorecardBody, naming an action", () => {
+  const withActions = (over: Partial<LSAction>[]) =>
+    makeResult({
+      actions: over.map((a, i) => ({
+        id: `1111111${i}-2222-3333-4444-55555555555${i}`,
+        status: "todo", severity: "high", recorded_at: "2026-08-12T09:00:00Z",
+        labels: [], department: null, line: "Line 6", action_no: null, description: null,
+        shift: "DAY", validation_status: "open", validated_at: null, validated_by: null,
+        attachments: null, closed_at: null, domain: "quality",
+        ...a,
+      })) as LSAction[],
+      quality: { ...makeResult().quality, total: over.length, open: over.length, sev: { critical: 0, high: over.length, medium: 0, low: 0 } },
+    });
+
+  it("prints the title of an action that has no number and no description", () => {
+    renderBody(withActions([{ title: "Excessive Powder Leakage hopper (L6)", error_type: "Product leakage" }]));
+    expect(screen.getByText("Excessive Powder Leakage hopper (L6)")).toBeInTheDocument();
+  });
+
+  it("does not print a UUID fragment where the action number goes", () => {
+    renderBody(withActions([{ title: "Excessive Powder Leakage hopper (L6)" }]));
+    expect(screen.queryByText(/^1111111\d$/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the action number when the log has one", () => {
+    renderBody(withActions([{ action_no: "QA-0042", description: "GMP Non-Compliance" }]));
+    expect(screen.getByText("QA-0042")).toBeInTheDocument();
+    expect(screen.getByText("GMP Non-Compliance")).toBeInTheDocument();
+  });
+
+  it("falls back to the classification, and only then to the id", () => {
+    renderBody(withActions([{ error_type: "Product leakage" }, {}]));
+    expect(screen.getByText("Product leakage")).toBeInTheDocument();
+    expect(screen.getByText("#11111111")).toBeInTheDocument();
   });
 });

@@ -65,7 +65,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
       // the function the field this query never asked for. See
       // theCeilingCannotSeeTheInjury.test.ts.
       const COLUMNS =
-        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain, safety_kind, points_at_creation, scoring_version_id";
+        "id, status, severity, recorded_at, labels, department, line, action_no, description, title, error_type, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain, safety_kind, points_at_creation, scoring_version_id";
       const run = (columns: string) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
         let qy = (supabase as any).from("quality_actions")

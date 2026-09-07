@@ -12,7 +12,7 @@ import {
 } from "@/lib/qualityConstants";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { displayScore, GATE_CAP } from "@/lib/leaderScore";
-import type { ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
+import { actionText, type ScorecardPeriod, type ScorecardResult } from "@/lib/leaderScorecard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Link } from "react-router-dom";
 
@@ -465,8 +465,13 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
                  leader lost points; the evidence, the history and the name of whoever
                  validated it all live on the other end, and a figure nobody can audit
                  back to its record is the thing this module exists to stop being. */
-              <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || a.description || "action"}>
-                <span className="font-mono">{a.action_no || a.id.slice(0, 8)}</span>
+              <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || actionText(a)}>
+                {/* Only when there is one. This printed `a.action_no || a.id.slice(0, 8)`,
+                    and no synced action has a number — so the column that should name the
+                    action showed eight characters of a UUID instead, in a row whose only
+                    other text was blank. The name now leads; the number, where the log
+                    keeps one, still opens the row. */}
+                {a.action_no && <span className="font-mono">{a.action_no}</span>}
                 <span className="text-muted-foreground">{format(new Date(a.recorded_at), "dd/MM")}</span>
                 {a.line && <span className="text-muted-foreground">{a.line}</span>}
                 {a.severity && (
@@ -482,7 +487,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
                     closed {format(new Date(a.closed_at), "dd/MM")}
                   </Badge>
                 )}
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{a.description}</span>
+                <span className="min-w-0 flex-1 truncate" title={actionText(a)}>{actionText(a)}</span>
               </RowShell>
             ))}
           </div>
@@ -607,7 +612,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
                       </Badge>
                     )}
                   </div>
-                  {a.description && <p className="mt-1">{a.description}</p>}
+                  <p className="mt-1">{actionText(a)}</p>
                   <p className="mt-1 text-2xs text-muted-foreground">
                     {[
                       a.line, a.shift,

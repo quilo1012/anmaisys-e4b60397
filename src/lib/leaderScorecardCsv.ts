@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { displayScore } from "@/lib/leaderScore";
-import type { ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
+import { actionText, type ScorecardPeriod, type ScorecardResult } from "@/lib/leaderScorecard";
 
 /**
  * The card as a spreadsheet, for whoever has to keep a copy of it.
@@ -46,7 +46,7 @@ export function scorecardRows(
       nameOf(a.validated_by),
       String(a.attachments?.length ?? 0),
       `-${docs.penaltyPct}%`,
-      (a.description ?? "").replace(/"/g, "'"),
+      actionText(a).replace(/"/g, "'"),
     ]),
     [],
     ["Critical", String(q.sev.critical)], ["High", String(q.sev.high)], ["Medium", String(q.sev.medium)], ["Low", String(q.sev.low)],

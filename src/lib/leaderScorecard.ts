@@ -23,6 +23,21 @@ export interface LSAction {
   id: string; status: string; severity: string | null; recorded_at: string;
   labels: string[] | null; department: string | null; line: string | null;
   action_no: string | null; description: string | null; shift: string | null;
+  /**
+   * What the action says, when it came from SafetyCulture.
+   *
+   * Half this log is synced, and a synced row carries neither an action number nor a
+   * description — what it says is in `title` ("Excessive Powder Leakage hopper (L6)")
+   * and what kind of failure it is, in `error_type`. Neither column was in any select
+   * this card makes, so every synced action printed as eight characters of its own
+   * UUID above an empty line: five actions named on the page a leader signs, and not
+   * one of them saying what happened. See {@link actionText}.
+   *
+   * Optional for the same reason `domain` is — a row raised in this system has no
+   * title, and a base predating the sync has no column.
+   */
+  title?: string | null;
+  error_type?: string | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
   attachments: string[] | null; closed_at: string | null;
   /** 'quality' | 'safety' | undefined (rows recorded before the column existed) —
@@ -48,6 +63,22 @@ export interface LSAction {
    *  run, or a select forgot to ask — and `actionPoints` falls back to today's scale.
    *  See frozenPointsInSelects.test.ts for why the second case needs guarding. */
   points_at_creation?: number | null;
+}
+
+/**
+ * What to call an action on screen, in a CSV, or in a print sheet.
+ *
+ * The two halves of this log describe themselves in different columns: an action
+ * raised here writes a `description`, one synced from SafetyCulture writes a `title`
+ * and an `error_type`. Asking for only one of them is how the scorecard came to list
+ * actions it could not name.
+ *
+ * Ordered by how much each tells the reader, ending at the id — which says nothing
+ * about the failure but still leads back to the record, and so beats a blank line.
+ */
+export function actionText(a: Pick<LSAction, "id" | "description"> & { title?: string | null; error_type?: string | null }): string {
+  const said = [a.title, a.description, a.error_type].find((v) => (v ?? "").trim() !== "");
+  return said ? said.trim() : `#${a.id.slice(0, 8)}`;
 }
 
 export interface LSWorkOrder {
