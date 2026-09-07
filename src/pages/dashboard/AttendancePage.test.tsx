@@ -20,6 +20,11 @@ const EMPLOYEES = [
   { id: "e3", full_name: "Ana Silva", department: "Production", active: true },
 ];
 
+/** Um dia já importado, para o ecrã ter tabela — é a tabela que se imprime. */
+const DAYS = [
+  { employee_id: "e2", on_date: "2026-07-13", worked_minutes: 750, balance_minutes: 30, absence_name: null },
+];
+
 const upsert = vi.fn(async () => ({ error: null }));
 
 vi.mock("@/components/DashboardLayout", () => ({
@@ -37,7 +42,7 @@ vi.mock("@/hooks/useWorkforce", () => ({ useEmployees: () => ({ data: EMPLOYEES 
 
 vi.mock("@/integrations/supabase/client", () => {
   const table = (name: string) => {
-    const rows = name === "employees" ? EMPLOYEES : [];
+    const rows = name === "employees" ? EMPLOYEES : name === "attendance_days" ? DAYS : [];
     const result = { data: rows, error: null };
     const chain: Record<string, unknown> = {
       select: () => chain,
@@ -161,5 +166,78 @@ describe("importing a TimeMoto sheet that names one person by their first name",
     await waitFor(() => expect(screen.getByText("1 of 1 people matched")).toBeInTheDocument());
     expect(screen.getByText("Chosen by hand, remembered from the last import")).toBeInTheDocument();
     expect(screen.getByRole("combobox")).toHaveTextContent("Daniel Quilo");
+  });
+});
+
+/**
+ * A folha de horas sai em papel e passa de uma página.
+ *
+ * O cabeçalho da tabela é a única coisa que um browser repete em cada página, por isso
+ * é lá que a folha tem de dizer o que é. Sem esta linha, a página dois eram vinte e um
+ * nomes e seis números, sem título e sem período — nada por onde a arquivar nem com que
+ * a conferir. O que este teste fecha é a metade que se pode apagar sem dar erro: o
+ * markup. A outra metade vive no `@media print` do index.css.
+ */
+describe("a folha impressa", () => {
+  it("diz o nome e o período numa linha que se repete em cada página", async () => {
+    renderPage();
+
+    const caption = await screen.findByText(/^Time & Attendance · \d{2}\/\d{2}\/\d{4} → \d{2}\/\d{2}\/\d{4}$/);
+    // Dentro do `<thead>`, que é o que faz dela uma linha repetida e não um título.
+    expect(caption.closest("thead")).not.toBeNull();
+    expect(caption.closest("tr")).toHaveClass("print-caption-row");
+  });
+});
+
+/**
+ * Dois registos debaixo de uma banda só.
+ *
+ * A banda dizia sempre "Hours clocked, from TimeMoto · <período do TimeMoto>", mesmo
+ * com as marcas do quadro abertas — que são outro registo, de outro período (a tabela
+ * do quadro abre no mês de calendário e tem as suas próprias datas). No ecrã é uma
+ * contradição; em papel é pior, porque os seletores de data não saem e a banda fica a
+ * ser a única data da folha. A mesma razão manda a nota do rodapé, que fala de importar
+ * ficheiros do TimeMoto, ficar do lado das horas.
+ */
+/** Radix muda de separador no pointerdown, que o jsdom não tem — mouseDown chega lá. */
+function openTab(name: string) {
+  const tab = screen.getByRole("tab", { name });
+  fireEvent.mouseDown(tab);
+  fireEvent.click(tab);
+}
+
+describe("os dois separadores", () => {
+  it("a banda diz qual dos dois registos está aberto", async () => {
+    renderPage();
+    await screen.findByText(/Hours clocked, from TimeMoto/);
+
+    openTab("Board marks");
+
+    await waitFor(() =>
+      expect(screen.queryByText(/Hours clocked, from TimeMoto/)).not.toBeInTheDocument());
+    expect(screen.getByText(/headcount board/i)).toBeInTheDocument();
+  });
+
+  it("cada folha leva o papel de que precisa", async () => {
+    const { container } = renderPage();
+    const sheet = container.querySelector(".print-content")!;
+    // As horas deitam o papel: sete colunas de larguras fixas não cabem em retrato.
+    await waitFor(() => expect(sheet).toHaveClass("print-landscape"));
+
+    openTab("Board marks");
+
+    // As marcas são um nome e seis contagens curtas — em retrato cabem, e em paisagem
+    // sobrava meia folha em branco e a última página trazia uma linha só.
+    await waitFor(() => expect(sheet).not.toHaveClass("print-landscape"));
+  });
+
+  it("a nota sobre importar fica no separador das horas", async () => {
+    renderPage();
+    expect(await screen.findByText(/Importing the same period twice/)).toBeInTheDocument();
+
+    openTab("Board marks");
+
+    await waitFor(() =>
+      expect(screen.queryByText(/Importing the same period twice/)).not.toBeInTheDocument());
   });
 });

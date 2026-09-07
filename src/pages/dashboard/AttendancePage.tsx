@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, Upload, Loader2, AlertTriangle, CalendarClock, Printer } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { useEmployees } from "@/hooks/useWorkforce";
@@ -106,6 +107,17 @@ export default function AttendancePage() {
       return data ?? null;
     },
   });
+
+  /**
+   * Qual dos dois registos está aberto.
+   *
+   * Controlado, e não `defaultValue`, porque a banda no topo tem de dizer qual deles é
+   * que está a ser lido: são dois registos de dias diferentes — o do TimeMoto corre no
+   * período de pagamento, o do quadro no mês de calendário — e uma banda só. Em papel
+   * isto deixa de ser uma imprecisão e passa a ser a única data da folha, porque os
+   * seletores não são impressos.
+   */
+  const [tab, setTab] = useState("clocks");
 
   const [preview, setPreview] = useState<TimeMotoParse | null>(null);
   /**
@@ -283,10 +295,19 @@ export default function AttendancePage() {
       >
       {/* `print-content` is what the global print sheet hangs its rules off; without it
           the table keeps its screen scroll container and the right-hand columns simply
-          do not come out on paper. `print-landscape` turns the sheet: seven columns of
-          names, hours and reasons is wider than portrait can hold without splitting a
-          person's row across two pages. */}
-      <div className="space-y-4 print-content print-landscape">
+          do not come out on paper.
+
+          A folha por separador, porque não são a mesma tabela: as horas levam sete
+          colunas com larguras fixas — nomes, horas, saldos e o motivo da falta — que
+          não cabem em retrato sem se partirem, e por isso viram o papel. As marcas do
+          quadro são um nome e seis contagens curtas; deitadas ficavam com o nome numa
+          ponta e os números na outra, e a última página trazia uma linha só. */}
+      <div
+        className={cn(
+          "space-y-4 print-content print-dense",
+          tab === "clocks" && "print-landscape",
+        )}
+      >
         <BackButton className="no-print" />
         <div className="no-print"><WorkforceTabs /></div>
 
@@ -295,7 +316,13 @@ export default function AttendancePage() {
           // The period, on the band, because the band is the only part of this screen
           // that survives onto paper — and a sheet of hours with no dates on it is a
           // sheet nobody can file or check.
-          description={`Hours clocked, from TimeMoto · ${fmtDate(from)} → ${fmtDate(to)}`}
+          description={
+            tab === "clocks"
+              ? `Hours clocked, from TimeMoto · ${fmtDate(from)} → ${fmtDate(to)}`
+              // Sem datas: as do quadro são as da tabela, e é a tabela que as leva para
+              // o papel, em cada página.
+              : "Days marked on the headcount board"
+          }
           // Every `<header>` is hidden in print. This one carries the title and the
           // period, which is what makes the printout a document rather than a grid.
           className="print-keep"
@@ -324,7 +351,7 @@ export default function AttendancePage() {
             saw; the board marks are what a supervisor wrote down. Merging them would
             hide which one a number came from, and right now the clocks are empty
             while the board is not. */}
-        <Tabs defaultValue="clocks" className="space-y-4">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           {/* The tab strip is a control, and on paper a control is a row of grey boxes
               saying which one you could have pressed. Which record this IS gets said in
               the band above instead. */}
@@ -376,6 +403,16 @@ export default function AttendancePage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
+                    {/* Paper only, and the reason is pagination: a browser repeats the
+                        header group on every page and nothing else, so this is the one
+                        line that can tell page two of a payroll sheet whose hours these
+                        are and which fortnight they cover. It also holds each page clear
+                        of the paper's edge — see `.print-caption` in index.css. */}
+                    <TableRow className="hidden print-caption-row hover:bg-transparent">
+                      <TableHead colSpan={7} className="print-caption">
+                        Time &amp; Attendance · {fmtDate(from)} → {fmtDate(to)}
+                      </TableHead>
+                    </TableRow>
                     {/* A banded row over the column names, because the six figures under
                         it answer two questions that must not be added: how LONG somebody
                         was here, and how many DAYS they were or were not. Somebody who
@@ -442,11 +479,26 @@ export default function AttendancePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  {/* An empty repeating foot, for the same reason the caption above has
+                      a top padding: it keeps the last row of every page off the edge. */}
+                  <tfoot className="hidden print-edge">
+                    <tr><td colSpan={7} /></tr>
+                  </tfoot>
                 </Table>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Do lado das horas, e não da página: fala do que este separador é e de como
+            se importa para ele. Na folha das marcas do quadro dizia a uma sala que
+            aquilo eram horas picadas, que é precisamente o contrário. */}
+        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
+          <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          The headcount board says who was meant to be on a line; this says who actually
+          clocked on. Importing the same period twice updates those days rather than
+          duplicating them.
+        </p>
           </TabsContent>
 
           <TabsContent value="marks">
@@ -567,12 +619,6 @@ export default function AttendancePage() {
           </DialogContent>
         </Dialog>
 
-        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-          <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          The headcount board says who was meant to be on a line; this says who actually
-          clocked on. Importing the same period twice updates those days rather than
-          duplicating them.
-        </p>
       </div>
       </AdminPinGate>
     </DashboardLayout>
