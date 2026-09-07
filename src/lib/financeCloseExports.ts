@@ -35,7 +35,17 @@ export interface CloseExportInput {
   /** The pay period's name, e.g. "August 2026". */
   periodName: string;
   from: string;
+  /** The period's own last day, whether or not it has been reached. */
   to: string;
+  /**
+   * The last day the figures actually cover.
+   *
+   * The screen opens on the period covering today, so the sheet is printed mid-period
+   * more often than at the close. Equal to `to` once the period has run; earlier while
+   * it is still running, and the difference is the reason the shift counts look low.
+   * Omitted by a caller that has no running period to describe.
+   */
+  countedTo?: string;
   /** The active filter, e.g. "Production · Weekend". Empty when nothing is filtered. */
   scope: string;
   rows: ClosePerson[];
@@ -48,9 +58,17 @@ export interface CloseExportInput {
 }
 
 /** The subtitle both formats carry: which period, and which slice of it. */
-export function closeSubtitle(i: Pick<CloseExportInput, "periodName" | "from" | "to" | "scope">) {
-  return [`${i.periodName} · ${i.from} → ${i.to}`, i.scope || "Every crew, every department"]
-    .join("  ·  ");
+export function closeSubtitle(
+  i: Pick<CloseExportInput, "periodName" | "from" | "to" | "scope" | "countedTo">,
+) {
+  // The period's dates always, and where the counting stopped only when that is not
+  // the period's end. A printed sheet cannot be hovered over to find out why the shift
+  // counts are a fifth of the rota, so it says so on the line under the title.
+  const running = i.countedTo && i.countedTo !== i.to;
+  return [
+    `${i.periodName} · ${i.from} → ${i.to}${running ? ` · counted to ${i.countedTo}` : ""}`,
+    i.scope || "Every crew, every department",
+  ].join("  ·  ");
 }
 
 /**

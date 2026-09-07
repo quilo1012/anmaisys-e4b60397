@@ -31,15 +31,30 @@ export interface ShiftBalanceInput {
   sick: number;
   unpaid: number;
   /**
-   * Whether the board this person belongs to was planned at all in the period.
+   * The days somebody drew the board this person belongs to — see `plannedBoardDates`.
    *
-   * The night board has never been filled in, so all forty-eight of its people read as
-   * a full period short. Counted with everybody else that is forty-eight invented
-   * deficits burying the two or three that are real — a warning nobody can act on
-   * teaches people to skip the warnings.
+   * NOT A BOOLEAN, and it was one: "was this board planned at all in the period". One
+   * planned day made the whole period count, so the thirty names on the Night board on
+   * 07/08 turned all forty-eight of that crew from excluded into a full period short.
+   * Finance Close was moved off the boolean and this was left on it, and the two
+   * screens then reported different deficits for the same crew over the same period.
+   *
+   * Null means the caller does not know, and every rostered day counts — right when
+   * the board is complete and only then. An empty set means the board was never drawn,
+   * so nothing was due and no deficit can be invented.
    */
-  boardPlanned: boolean;
+  plannedDates: ReadonlySet<string> | null;
 }
+
+/**
+ * Whether the board was ever drawn for this person's crew.
+ *
+ * A gap in the record rather than an absence, and the totals count it as one. Null is
+ * "not known", which is treated as planned: the caller who does not pass the dates is
+ * asking for every rostered day to count.
+ */
+const boardWasPlanned = (r: { plannedDates: ReadonlySet<string> | null }) =>
+  r.plannedDates == null || r.plannedDates.size > 0;
 
 export interface ShiftBalance extends ShiftBalanceInput {
   /** Shifts the rota called for across the period. Null when no rota is on file. */
@@ -102,7 +117,9 @@ export function buildShiftBalances(
 ): ShiftBalance[] {
   return rows
     .map((r) => {
-      const expected = expectedShifts(r.patternDays, from, to);
+      // Per day, not per period. Without the dates every rostered day counted, and a
+      // board drawn once charged a whole period of shifts to everybody on it.
+      const expected = expectedShifts(r.patternDays, from, to, r.plannedDates);
       // Never below zero: more holiday than shifts due means the rota changed
       // mid-period, not that they owe negative work.
       const needed = expected == null ? null : Math.max(0, expected - r.holiday);
@@ -135,19 +152,19 @@ export function shiftTotals(rows: ShiftBalance[]): ShiftTotals {
     overtimeShifts: withBalance.reduce((n, r) => n + Math.max(0, r.balance ?? 0), 0),
     // A board nobody filled in produces a shortfall for everybody on it. That is a
     // fact about the board, so it is counted as one and kept out of the deficit.
-    inDeficit: withBalance.filter((r) => r.boardPlanned && (r.balance ?? 0) < 0).length,
+    inDeficit: withBalance.filter((r) => boardWasPlanned(r) && (r.balance ?? 0) < 0).length,
     deficitShifts: withBalance.reduce(
-      (n, r) => n + (r.boardPlanned ? Math.max(0, -(r.balance ?? 0)) : 0), 0,
+      (n, r) => n + (boardWasPlanned(r) ? Math.max(0, -(r.balance ?? 0)) : 0), 0,
     ),
     // Nobody works a three-week period without appearing once. A person with a rota
     // and an empty board was not matched by the import — their name is one of the
     // Pedros or Sergios the spreadsheet writes without a surname — and reading their
     // deficit as absence would accuse somebody who came in every day.
     noBoardRecord: rows.filter(
-      (r) => r.boardPlanned && r.patternDays?.length
+      (r) => boardWasPlanned(r) && r.patternDays?.length
         && r.present + r.holiday + r.sick + r.unpaid === 0,
     ).length,
-    onUnplannedBoard: rows.filter((r) => !r.boardPlanned).length,
+    onUnplannedBoard: rows.filter((r) => !boardWasPlanned(r)).length,
     noPattern: rows.filter((r) => !r.patternDays?.length).length,
   };
 }
@@ -164,7 +181,60 @@ export function shiftTotals(rows: ShiftBalance[]): ShiftTotals {
 export function shortfallIsReliable(r: ShiftBalance): boolean {
   if ((r.balance ?? 0) >= 0) return true;
   // Nothing on an unplanned board can be believed either way.
-  if (!r.boardPlanned) return false;
+  if (!boardWasPlanned(r)) return false;
   const marked = r.present + r.holiday + r.sick + r.unpaid;
   return marked > 0 && marked >= (r.needed ?? 0) * 0.5;
+}
+
+/**
+ * The dates each board was actually drawn for.
+ *
+ * `expectedShifts` reads this to answer "was this a day somebody could have failed to
+ * turn up", and the answer has to come from the board being DRAWN — not merely from
+ * the board holding a row.
+ *
+ * A HOLIDAY IS BOOKED BEFORE THE DAY EXISTS. On 07/09/2026, the first day of the
+ * 07/09–11/10 period, the Night board held one drawn day and sixteen dates of leave
+ * keyed on 14/08 — three weeks before the period opened. Counting those as planned
+ * charged forty-eight people with seventeen shifts due against one worked, and the
+ * close reported 751 shifts short on a period that had run for a single day.
+ *
+ * Every other status is marked against a day somebody had already drawn: `assigned`
+ * and `overtime` place a person on a line, and `sick` and `unpaid` are keyed on the
+ * day itself. Only holiday arrives ahead of the board, so only holiday is excluded.
+ *
+ * A day whose whole crew is on booked leave therefore reads as unplanned rather than
+ * as a day everybody missed — nothing due, nothing worked, no deficit invented.
+ */
+export function plannedBoardDates(
+  rows: ReadonlyArray<{ on_date: string; shift: string | null; status: string | null }>,
+): Map<string, Set<string>> {
+  const byBoard = new Map<string, Set<string>>();
+  for (const r of rows) {
+    if (!r.shift || r.status === "holiday") continue;
+    let dates = byBoard.get(r.shift);
+    if (!dates) byBoard.set(r.shift, (dates = new Set<string>()));
+    dates.add(r.on_date);
+  }
+  return byBoard;
+}
+
+/**
+ * The last day of a pay period that has actually happened.
+ *
+ * The close opens on the period covering today, which is by definition still running.
+ * 07/09–11/10 is thirty-five days and on the seventh only one of them had been worked;
+ * counting the other thirty-four as shifts due makes every single person on the payroll
+ * read short by the remainder of the period, every time the screen is opened.
+ *
+ * Clamping the window is a no-op on a period that has closed, so the document finance
+ * is handed at the end of the period is unchanged. It only bites on the one being
+ * watched while it runs, which is the only one anybody ever looks at early.
+ *
+ * A period that has not started yet comes back inverted — `to` before `from` — and
+ * `expectedShifts` answers null to that rather than zero. "Not yet a question" is what
+ * a future period is; "owes nothing" is what zero would say.
+ */
+export function periodElapsedTo(to: string, today: string): string {
+  return to < today ? to : today;
 }
