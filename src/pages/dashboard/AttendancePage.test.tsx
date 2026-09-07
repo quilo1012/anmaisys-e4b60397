@@ -188,3 +188,56 @@ describe("a folha impressa", () => {
     expect(caption.closest("tr")).toHaveClass("print-caption-row");
   });
 });
+
+/**
+ * Dois registos debaixo de uma banda só.
+ *
+ * A banda dizia sempre "Hours clocked, from TimeMoto · <período do TimeMoto>", mesmo
+ * com as marcas do quadro abertas — que são outro registo, de outro período (a tabela
+ * do quadro abre no mês de calendário e tem as suas próprias datas). No ecrã é uma
+ * contradição; em papel é pior, porque os seletores de data não saem e a banda fica a
+ * ser a única data da folha. A mesma razão manda a nota do rodapé, que fala de importar
+ * ficheiros do TimeMoto, ficar do lado das horas.
+ */
+/** Radix muda de separador no pointerdown, que o jsdom não tem — mouseDown chega lá. */
+function openTab(name: string) {
+  const tab = screen.getByRole("tab", { name });
+  fireEvent.mouseDown(tab);
+  fireEvent.click(tab);
+}
+
+describe("os dois separadores", () => {
+  it("a banda diz qual dos dois registos está aberto", async () => {
+    renderPage();
+    await screen.findByText(/Hours clocked, from TimeMoto/);
+
+    openTab("Board marks");
+
+    await waitFor(() =>
+      expect(screen.queryByText(/Hours clocked, from TimeMoto/)).not.toBeInTheDocument());
+    expect(screen.getByText(/headcount board/i)).toBeInTheDocument();
+  });
+
+  it("cada folha leva o papel de que precisa", async () => {
+    const { container } = renderPage();
+    const sheet = container.querySelector(".print-content")!;
+    // As horas deitam o papel: sete colunas de larguras fixas não cabem em retrato.
+    await waitFor(() => expect(sheet).toHaveClass("print-landscape"));
+
+    openTab("Board marks");
+
+    // As marcas são um nome e seis contagens curtas — em retrato cabem, e em paisagem
+    // sobrava meia folha em branco e a última página trazia uma linha só.
+    await waitFor(() => expect(sheet).not.toHaveClass("print-landscape"));
+  });
+
+  it("a nota sobre importar fica no separador das horas", async () => {
+    renderPage();
+    expect(await screen.findByText(/Importing the same period twice/)).toBeInTheDocument();
+
+    openTab("Board marks");
+
+    await waitFor(() =>
+      expect(screen.queryByText(/Importing the same period twice/)).not.toBeInTheDocument());
+  });
+});

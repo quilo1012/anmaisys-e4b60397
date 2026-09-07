@@ -550,9 +550,10 @@ select:-webkit-autofill {
     text-align: left;
   }
 
-  /* The same margin at the foot. A table footer group repeats on every page too, so an
-     empty row of it holds the last line of each page clear of the bottom edge — where
-     the last row of page one was printing its border into the unprintable strip. */
+  /* The same margin at the foot, and smaller: at the top it holds a line of text out
+     of the strip no printer can reach, at the bottom there is only a border to save. A
+     table footer group repeats on every page too, so an empty row of it is that
+     margin — where the last row of page one was printing its border off the paper. */
   .print-content tfoot.print-edge {
     display: table-footer-group !important;
   }
@@ -560,7 +561,7 @@ select:-webkit-autofill {
   .print-content tfoot.print-edge td {
     border: 0 !important;
     padding: 0 !important;
-    height: 8mm;
+    height: 5mm;
   }
 
   /* A register, not a report: many short rows read down a column, where the cost of a

@@ -24,6 +24,9 @@ const STATUS_LABEL: Record<Status, string> = {
   unpaid: "Unpaid",
 };
 
+/** `13/07/2026`. A fábrica lê as datas ao contrário, e esta folha lê-se lá. */
+const fmtDay = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
+
 /** First and last day of the month a date falls in, as the opening range. */
 function monthBounds(d: Date): { from: string; to: string } {
   const y = d.getFullYear();
@@ -98,7 +101,7 @@ export function MonthlySummary({ employees }: Props) {
 
   return (
     <div className="space-y-4">
-      <Card className="break-inside-avoid">
+      <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
@@ -149,6 +152,17 @@ export function MonthlySummary({ employees }: Props) {
           ) : (
             <Table>
               <TableHeader>
+                {/* Papel apenas. O período desta tabela é dela — abre no mês de
+                    calendário e escolhe-se nos dois seletores acima, que não saem no
+                    papel — e a banda do ecrã fala do período do TimeMoto, que é outro.
+                    Sem esta linha a folha saía sem data nenhuma, por baixo de uma data
+                    errada. Vai no `<thead>` porque é o único grupo que o browser repete
+                    em cada página; ver `.print-caption` no index.css. */}
+                <TableRow className="hidden print-caption-row hover:bg-transparent">
+                  <TableHead colSpan={STATUSES.length + 2} className="print-caption">
+                    Board marks · {fmtDay(from)} → {fmtDay(to)}
+                  </TableHead>
+                </TableRow>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   {STATUSES.map((s) => (
@@ -180,6 +194,12 @@ export function MonthlySummary({ employees }: Props) {
                   </TableRow>
                 ))}
               </TableBody>
+              {/* Um rodapé vazio que também se repete, pela mesma razão que a legenda
+                  acima leva padding: segura a última linha de cada página longe do
+                  bordo do papel. */}
+              <tfoot className="hidden print-edge">
+                <tr><td colSpan={STATUSES.length + 2} /></tr>
+              </tfoot>
             </Table>
           )}
         </CardContent>
