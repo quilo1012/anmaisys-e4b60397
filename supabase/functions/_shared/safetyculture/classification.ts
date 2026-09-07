@@ -63,6 +63,12 @@ export interface ClassificationInput {
   dueDate: string | null;
   line: string | null;
   leader: { id: string; name: string } | null;
+  /**
+   * Where the leader came from, so an unresolved one can say which kind of gap it is.
+   * "session_unsigned" — the shift was opened and left unnamed — is not the same
+   * problem as nobody being assigned to the line at all.
+   */
+  leaderSource?: "session" | "session_unsigned" | "assignment" | "none";
   errorType: string | null;
   department: string | null;
   labels: string[];
@@ -263,6 +269,10 @@ export function classifyAction(
   if (input.line) {
     if (input.leader) {
       checks.line = "ok";
+    } else if (input.leaderSource === "session_unsigned") {
+      // Somebody opened the line and left the name blank. Reaching for the standing
+      // assignment here is how the wrong leader reached fourteen records.
+      reasons.push("leader_session_unsigned");
     } else {
       // A line with nobody accountable on that day cannot be charged to anyone.
       reasons.push("leader_not_found_for_line");
@@ -306,6 +316,7 @@ export function classifyAction(
     checks.worker === "failed" ||
     (opts.requireWorkerEvidence === true && checks.worker !== "ok") ||
     reasons.includes("leader_not_found_for_line") ||
+    reasons.includes("leader_session_unsigned") ||
     reasons.includes("line_not_identified") ||
     conflict !== null;
 
