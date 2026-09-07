@@ -33,6 +33,9 @@ import { partDay } from "@/lib/partDay";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { Figure, FigureRow } from "@/components/ui/Figure";
 
+/** `10/08/2026`. A fábrica lê as datas ao contrário, e esta folha lê-se lá. */
+const fmtDate = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
+
 /**
  * The pay period handed to finance: overtime and time off, per person.
  *
@@ -356,8 +359,8 @@ export default function FinanceClosePage() {
    * Both are stated, because the second is why the shift counts look low.
    */
   const headerDescription = period
-    ? `${period.name} · ${from} → ${periodEnd}`
-      + `${stillRunning ? ` · counted to ${to}` : ""}`
+    ? `${period.name} · ${fmtDate(from)} → ${fmtDate(periodEnd)}`
+      + `${stillRunning ? ` · counted to ${fmtDate(to)}` : ""}`
       + `${scope ? ` · ${scope} only` : ""}`
     : "No pay period set";
 
@@ -404,13 +407,26 @@ export default function FinanceClosePage() {
         title="Finance Close"
         description="Overtime and time off per person, for the pay period. Enter the admin PIN to open."
       >
-      <div className="space-y-4">
+      {/* `print-content` é o que a folha de impressão global tem por gancho, e este ecrã
+          nunca lha deu: sem ela nada em `@media print` toca nesta tabela, que sai com a
+          largura do ecrã — 1506px numa folha A4 retrato de 794px. Present, Sick,
+          Holiday, Unpaid e Part day eram impressas para fora do papel, sem um corte,
+          uma barra ou um aviso que o dissesse.
+          `print-landscape` porque as larguras destas dezoito colunas somam 264mm: não
+          cabem em pé de maneira nenhuma. `print-dense` porque são duzentas e uma
+          pessoas, e o padding de ecrã por fila custa folhas. */}
+      <div className="space-y-4 print-content print-landscape print-dense">
         <BackButton className="print:hidden" />
         <WorkforceTabs />
 
         <ModuleHeader
           title="Finance Close"
           description={headerDescription}
+          // Todo o `<header>` é escondido na impressão, e este carrega o nome do
+          // documento, o período, as datas e o filtro que o produziu. Sem `print-keep`
+          // a folha começava na tabela dos turnos: uma folha de pagamento sem data
+          // nenhuma, que ninguém pode arquivar nem conferir.
+          className="print-keep"
         >
           {/* In the header rather than under it: choosing the period and the shift is
               choosing what the whole page is about, and both were sitting below the
@@ -617,6 +633,22 @@ export default function FinanceClosePage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
+                    {/* Papel apenas. Duzentas e uma pessoas são onze folhas, e o
+                        `<thead>` é o único grupo que o browser repete em cada uma
+                        delas: esta é a única linha que pode dizer à folha sete de que
+                        fecho, de que período e de que filtro é que estas horas são. A
+                        banda do título só sai na primeira.
+                        O padding de topo dela é também a margem de topo das folhas
+                        dois em diante — o `@page` corre a `margin: 0` e o espaço vem do
+                        padding do body, que o fluxo assenta uma única vez. Ver
+                        `.print-caption` no index.css. */}
+                    <TableRow className="hidden print-caption-row hover:bg-transparent">
+                      <TableHead colSpan={CLOSE_COLUMNS.length} className="print-caption">
+                        Finance Close · {period?.name ?? "No period"} · {fmtDate(from)} → {fmtDate(periodEnd)}
+                        {stillRunning ? ` · counted to ${fmtDate(to)}` : ""}
+                        {scope ? ` · ${scope} only` : ""}
+                      </TableHead>
+                    </TableRow>
                     {/* A banded row above the column names, because this row carries
                         two answers that must never be added: the board says whether
                         somebody turned up, the clocks say how long they stayed.
@@ -729,6 +761,12 @@ export default function FinanceClosePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  {/* Um rodapé vazio que também se repete, pela mesma razão que a
+                      legenda acima leva padding: segura a última fila de cada folha
+                      longe do bordo, onde nenhuma impressora de escritório chega. */}
+                  <tfoot className="hidden print-edge">
+                    <tr><td colSpan={CLOSE_COLUMNS.length} /></tr>
+                  </tfoot>
                 </Table>
               </div>
             )}
