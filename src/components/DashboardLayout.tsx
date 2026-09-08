@@ -623,7 +623,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   // Every toggle request (header button, rail, Ctrl/Cmd+B) advances the cycle
   // Expanded -> Rail -> Hidden -> Expanded, so there is a single source of truth.
+  // The last visible state is remembered so the floating "show menu" button can
+  // restore it instead of always jumping straight back to the full menu.
+  const lastVisibleSidebarState = useRef<Exclude<SidebarUiState, "hidden">>(
+    sidebarUiState === "hidden" ? "expanded" : sidebarUiState,
+  );
   const applySidebarState = (next: SidebarUiState) => {
+    if (next !== "hidden") lastVisibleSidebarState.current = next;
     setSidebarUiState(next);
     const open = next === "expanded";
     setSidebarOpen(open);
