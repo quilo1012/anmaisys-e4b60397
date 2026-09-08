@@ -448,19 +448,28 @@ function EngineerDashboardContent() {
     };
   }, [allCompleted]);
 
-  // Report: WhatsApp-ready summary of today's maintenance with downtimes > 15 min
-  const todayStart = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
+  // Report: summary for the running shift window (06:00–18:00 or 18:00–06:00),
+  // listing only downtimes longer than 15 minutes.
+  const shiftWindow = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    if (now.getHours() >= 6 && now.getHours() < 18) {
+      start.setHours(6, 0, 0, 0);
+    } else {
+      start.setHours(18, 0, 0, 0);
+      if (now.getHours() < 6) start.setDate(start.getDate() - 1);
+    }
+    const end = new Date(start.getTime() + 12 * 60 * 60 * 1000);
+    const label = start.getHours() === 6 ? "06:00-18:00" : "18:00-06:00";
+    return { start, end, label };
   }, []);
 
   const reportWOs = useMemo(() => {
     return (engineerHistory || []).filter((wo: any) => {
       const t = new Date(wo.finished_at || wo.completed_at || wo.closed_at || wo.created_at);
-      return t >= todayStart;
+      return t >= shiftWindow.start && t < shiftWindow.end;
     });
-  }, [engineerHistory, todayStart]);
+  }, [engineerHistory, shiftWindow]);
 
   const reportWOIds = useMemo(() => reportWOs.map((wo) => wo.id), [reportWOs]);
 
@@ -487,12 +496,20 @@ function EngineerDashboardContent() {
 
   const generateReport = (): string => {
     const events = reportDowntimeEvents || [];
-    if (reportWOs.length === 0) return "Maintenance:\nNo completed maintenance orders today.";
     const clean = (text: any) => String(text ?? "—").replace(/\s+/g, " ").trim();
-    const lines: string[] = ["Maintenance:"];
+    const header = `Maintenance (${shiftWindow.label}):`;
+    const lines: string[] = [header];
     reportWOs.forEach((wo) => {
-      const woEvents = events.filter((e: any) => e.work_order_id === wo.id);
-      const qualifying = woEvents.filter((e: any) => eventDurationMinutes(e) > 15);
+      const qualifying = events
+        .filter((e: any) => e.work_order_id === wo.id)
+        // The stop itself must belong to this shift window.
+        .filter((e: any) => {
+          const t = new Date(e.stopped_at);
+          return t >= shiftWindow.start && t < shiftWindow.end;
+        })
+        .filter((e: any) => eventDurationMinutes(e) > 15);
+      // No downtime over 15 minutes in this window: leave the order out.
+      if (qualifying.length === 0) return;
       const rawLine = wo.line_at_time || "—";
       const line = typeof rawLine === "string" ? rawLine.replace(/^line\s+/i, "") : rawLine;
       const resolution = wo.resolution_notes || wo.description || "—";
@@ -502,27 +519,29 @@ function EngineerDashboardContent() {
           const reason = clean(e.stopped_reason || "No reason");
           return `${min}m - ${reason}`;
         })
-        .join("; ") || "—";
+        .join("; ");
       lines.push(`Line ${line}: ${clean(resolution)}`);
       lines.push(`Downtime: ${downtimeText}`);
     });
+    if (lines.length === 1) return `${header}\nNo downtime over 15 minutes in this shift.`;
     return lines.join("\n");
   };
 
   const handleReport = () => {
     const text = generateReport();
-    const today = new Date().toISOString().slice(0, 10);
+    const stamp = `${shiftWindow.start.toISOString().slice(0, 10)}_${shiftWindow.label.replace(/:/g, "")}`;
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `maintenance_report_${today}.txt`;
+    a.download = `maintenance_report_${stamp}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast({ title: "Report downloaded", description: `Saved as maintenance_report_${today}.txt` });
+    toast({ title: "Report downloaded", description: `Shift ${shiftWindow.label}` });
   };
+
 
   const lineFilterParam = searchParams.get("line");
   const dateFilterParam = searchParams.get("date");
