@@ -33,6 +33,7 @@ import { LineStatusBanner } from "@/components/LineStatusBanner";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { useToast } from "@/hooks/use-toast";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
@@ -347,6 +348,7 @@ function EngineerDashboardContent() {
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
+  const [polishing, setPolishing] = useState(false);
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
   const [rejectDialogWO, setRejectDialogWO] = useState<{ id: string; number: number | null; description: string | null } | null>(null);
 
@@ -1201,13 +1203,30 @@ function EngineerDashboardContent() {
                 maxLength={1000}
                 autoFocus
               />
-              <p className="text-xs text-muted-foreground text-right">{resolutionNotes.length}/1000</p>
+              <div className="flex items-center justify-between gap-2">
+                {/* Write in any language — the report is stored in English either way. */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReviewEnglish}
+                  disabled={!resolutionNotes.trim() || polishing}
+                >
+                  {polishing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Check English
+                </Button>
+                <p className="text-xs text-muted-foreground text-right">{resolutionNotes.length}/1000</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Write in your own language if you prefer — the report is saved in English and any
+                spelling is corrected automatically when you finish.
+              </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); }}>Cancel</Button>
-            <Button onClick={handleFinishConfirm} disabled={!resolutionNotes.trim() || finishWO.isPending}>
-              {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button onClick={handleFinishConfirm} disabled={!resolutionNotes.trim() || finishWO.isPending || polishing}>
+              {(finishWO.isPending || polishing) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
             </Button>
           </DialogFooter>
