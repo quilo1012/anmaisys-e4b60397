@@ -21,7 +21,17 @@ describe("parseQualityImport", () => {
     expect(p.domain).toBe("quality");
     expect(p.safety_kind).toBeNull();
     expect("status" in p).toBe(false);
-    expect(p.validation_status).toBe("open");
+    expect("validation_status" in p).toBe(false);
+  });
+
+  it("never imports a Validation verdict — warns and lets the DB default apply", () => {
+    const r = parseQualityImport([row({ Validation: "Validated" })], leaders);
+    expect(r.valid).toBe(1);
+    expect("validation_status" in r.rows[0].payload!).toBe(false);
+    expect(r.rows[0].warnings[0]).toBe('Validation "Validated" ignored — Quality rules on this in the app');
+    // blank / Open / Awaiting verdict stay silent
+    const quiet = parseQualityImport([row({ Validation: "" }), row({ Validation: "Open" }), row({ Validation: "Awaiting verdict" })], leaders);
+    expect(quiet.rows.every((x) => x.warnings.length === 0)).toBe(true);
   });
 
   it("rejects an unknown severity and an unreadable date instead of guessing", () => {

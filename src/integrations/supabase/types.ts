@@ -1751,6 +1751,7 @@ export type Database = {
           label: string
           line_hint: string | null
           priority: string | null
+          raises_warehouse_wo: boolean
           requires_wo: boolean
           stop_code: string
           updated_at: string
@@ -1766,6 +1767,7 @@ export type Database = {
           label: string
           line_hint?: string | null
           priority?: string | null
+          raises_warehouse_wo?: boolean
           requires_wo?: boolean
           stop_code: string
           updated_at?: string
@@ -1781,6 +1783,7 @@ export type Database = {
           label?: string
           line_hint?: string | null
           priority?: string | null
+          raises_warehouse_wo?: boolean
           requires_wo?: boolean
           stop_code?: string
           updated_at?: string
