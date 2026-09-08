@@ -1,0 +1,21 @@
+-- The Settings screen could never save the SharePoint RAG address.
+--
+-- 20260729180000 dropped the table-level UPDATE grant on system_settings and
+-- re-granted it column by column, so that admin_pin could not be routed around
+-- the PIN check. Its own comment left the standing instruction:
+--
+--     "When a column is added to system_settings, GRANT it here too."
+--
+-- 20260906085832 added rag_api_base_url and did not come back here. The column
+-- has been unwritable ever since — every Save in RagApiAddressDialog dies with
+-- 42501, "permission denied for table system_settings", for an admin as much as
+-- for anyone else. It is a GRANT, not a policy: "Admins can manage
+-- system_settings" already allowed the row, and PostgreSQL refuses one step
+-- earlier, on the column. That is why the screen showed a permission error that
+-- no amount of reading the policies explained, and why the address that IS in
+-- production on 07/09 got there by hand-run SQL rather than through the screen.
+--
+-- Only the address column. admin_pin stays out of reach of a direct UPDATE, and
+-- intouch_sync_enabled still goes through set_intouch_sync_enabled(), which is
+-- the whole point of the column-by-column shape.
+GRANT UPDATE (rag_api_base_url) ON public.system_settings TO authenticated;

@@ -102,8 +102,24 @@ Deno.serve(async (req) => {
       return await res.json();
     };
 
-    if (mode === "health") return json({ ok: true, base, health: await call("/health") });
-    if (mode === "weeks") return json({ ok: true, base, ...(await call("/weeks")) });
+    // A dead tunnel is the ordinary state of this service, not an internal fault: the
+    // reader gets a new trycloudflare address every time it restarts. The week path
+    // below already answers 502 with the address and what to do about it. These two
+    // used to let the fetch throw straight into the catch-all, so "Test connection"
+    // against a tunnel that had moved reported 500 and a raw network string — the one
+    // screen whose entire job is to tell you the address is wrong.
+    if (mode === "health" || mode === "weeks") {
+      try {
+        const payload = await call(mode === "health" ? "/health" : "/weeks");
+        return json(mode === "health" ? { ok: true, base, health: payload } : { ok: true, base, ...payload });
+      } catch (e) {
+        return json({
+          error: "unreachable",
+          message: `Could not reach the SharePoint RAG service at ${base}. The address may have changed — update it in Settings.`,
+          details: (e as Error).message,
+        }, 502);
+      }
+    }
 
     const weekStart = parsed.data.week_start;
     if (!weekStart) return json({ error: "week_start is required" }, 400);
