@@ -164,10 +164,28 @@ export function StockScanOutDialog({
     setEntries([]); setFlash(null);
     knownQty.current = {}; lastReadAt.current = 0; lastCode.current = "";
 
-    const scanner = new Html5Qrcode("stock-scan-out-reader", { verbose: false });
-    scannerRef.current = scanner;
-    // Give the dialog a frame to mount the container before the camera attaches.
-    const timer = setTimeout(() => {
+    // The dialog mounts its content in a portal; the container element only exists a
+    // frame or two later. Constructing the reader before it is there throws, so wait
+    // for the node itself rather than for a guessed delay.
+    let timer: ReturnType<typeof setTimeout>;
+    let tries = 0;
+    const attach = () => {
+      if (cancelled) return;
+      const el = document.getElementById("stock-scan-out-reader");
+      if (!el) {
+        if (tries++ > 60) { setStarting(false); setCameraError("Could not open the camera view"); return; }
+        timer = setTimeout(attach, 50);
+        return;
+      }
+      let scanner: Html5Qrcode;
+      try {
+        scanner = new Html5Qrcode("stock-scan-out-reader", { verbose: false });
+      } catch (err: unknown) {
+        setStarting(false);
+        setCameraError((err as Error)?.message || "Could not open the camera view");
+        return;
+      }
+      scannerRef.current = scanner;
       scanner
         .start(
           { facingMode: "environment" },
@@ -181,7 +199,8 @@ export function StockScanOutDialog({
           setStarting(false);
           setCameraError((err as Error)?.message || String(err) || "Camera unavailable");
         });
-    }, 50);
+    };
+    timer = setTimeout(attach, 0);
 
     return () => {
       cancelled = true;
