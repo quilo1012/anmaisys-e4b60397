@@ -302,10 +302,22 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
 
   return (
     <>
-      {grouped.map((group) => {
+      {grouped.map((group, groupIndex) => {
         const isOpen = !compact || iconCollapsed || openGroup === group.label;
         return (
-          <SidebarGroup key={group.label} className="px-2">
+          <SidebarGroup key={group.label} className={cn("px-2", iconCollapsed && "px-0")}>
+            {/* In the rail the group headings disappear with the labels, which leaves
+                ~17 undifferentiated icons in one column. These 3-letter markers keep
+                the section structure legible at 3rem wide, so the rail can still be
+                used to reach each section's page rather than being a wall of icons. */}
+            {iconCollapsed && groupIndex > 0 && (
+              <div className="flex flex-col items-center gap-0.5 pt-1.5 pb-0.5" aria-hidden="true">
+                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-sidebar-foreground/40">
+                  {group.label.slice(0, 3)}
+                </span>
+                <div className="w-6 border-t border-sidebar-border/60" />
+              </div>
+            )}
             {compact && !iconCollapsed && (
               <button
                 type="button"
