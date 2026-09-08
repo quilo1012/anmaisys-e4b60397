@@ -25,6 +25,13 @@ type Row = {
   category: string | null;
   line_hint: string | null;
   requires_wo: boolean;
+  /**
+   * Chama o ARMAZÉM, não a manutenção. São duas perguntas diferentes sobre a
+   * mesma paragem e uma não implica a outra: "Warehouse/Awaiting Packaging" tem
+   * esta ligada e o `requires_wo` desligado, porque a linha está à espera de
+   * caixas e não avariou nada.
+   */
+  raises_warehouse_wo: boolean;
   active: boolean;
 };
 
@@ -116,6 +123,7 @@ export default function IntouchStopCodesPage() {
             category: payload.category ?? null,
             line_hint: payload.line_hint ?? null,
             requires_wo: !!payload.requires_wo,
+            raises_warehouse_wo: !!payload.raises_warehouse_wo,
             active: !!payload.active,
           })
           .in("id", twins.map((t) => t.id));
@@ -152,7 +160,7 @@ export default function IntouchStopCodesPage() {
 
   const [newRow, setNewRow] = useState<Partial<Row>>({
     stop_code: "", label: "", default_priority: "medium",
-    category: "Other", line_hint: null, requires_wo: false, active: true,
+    category: "Other", line_hint: null, requires_wo: false, raises_warehouse_wo: false, active: true,
   });
 
   return (
@@ -191,7 +199,7 @@ export default function IntouchStopCodesPage() {
               {lines.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button onClick={() => upsert.mutate(newRow, { onSuccess: () => setNewRow({ stop_code: "", label: "", default_priority: "medium", category: "Other", line_hint: null, requires_wo: false, active: true }) })} disabled={upsert.isPending}>
+          <Button onClick={() => upsert.mutate(newRow, { onSuccess: () => setNewRow({ stop_code: "", label: "", default_priority: "medium", category: "Other", line_hint: null, requires_wo: false, raises_warehouse_wo: false, active: true }) })} disabled={upsert.isPending}>
             <Plus className="w-4 h-4 mr-1" /> Add
           </Button>
           <div className="md:col-span-7 flex items-center gap-4 text-sm">
@@ -201,6 +209,13 @@ export default function IntouchStopCodesPage() {
               <Switch checked={newRow.requires_wo ?? false}
                 onCheckedChange={(v) => setNewRow({ ...newRow, requires_wo: v })} />
               Creates Maintenance Order
+            </label>
+            <label className="flex items-center gap-2">
+              {/* A outra equipa. Uma paragem pode chamar o armazém sem nunca
+                  chamar a manutenção — e é esse o caso que trouxe isto aqui. */}
+              <Switch checked={newRow.raises_warehouse_wo ?? false}
+                onCheckedChange={(v) => setNewRow({ ...newRow, raises_warehouse_wo: v })} />
+              Creates Warehouse Order
             </label>
             <label className="flex items-center gap-2">
               <Switch checked={newRow.active ?? true}
@@ -251,6 +266,7 @@ export default function IntouchStopCodesPage() {
                     <TableHead className="w-36">Category</TableHead>
                     <TableHead className="w-40">Line hint</TableHead>
                     <TableHead className="w-24 text-center">WO</TableHead>
+                    <TableHead className="w-28 text-center">Warehouse</TableHead>
                     <TableHead className="w-24 text-center">Active</TableHead>
                     <TableHead className="w-32"></TableHead>
                   </TableRow>
@@ -313,6 +329,10 @@ export default function IntouchStopCodesPage() {
                         <TableCell className="text-center">
                           <Switch checked={m.requires_wo}
                             onCheckedChange={(v) => patch(r.id, { requires_wo: v })} />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Switch checked={m.raises_warehouse_wo}
+                            onCheckedChange={(v) => patch(r.id, { raises_warehouse_wo: v })} />
                         </TableCell>
                         <TableCell className="text-center">
                           <Switch checked={m.active}
