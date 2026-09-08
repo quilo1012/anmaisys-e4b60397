@@ -56,6 +56,9 @@ export default function LeaderScorecardDetailPage() {
           module="Production · Leader scorecard"
           title={leader ?? "Leader scorecard"}
           description={leader ? periodLabel(from, to, shift) : "This link carries no leader name."}
+          /* The card fills this itself, and only when it has something to offer: an
+             unreadable period has no page to print and no rows to export. */
+          actions={leader ? <div id={SCORECARD_ACTIONS_SLOT_ID} /> : undefined}
         />
         {leader ? (
           <LeaderScorecard leaderName={leader} from={from} to={to} shift={shift} />

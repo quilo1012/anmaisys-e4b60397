@@ -1,4 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+
+/** Where a page may offer to host this card's Print / Export buttons. */
+export const SCORECARD_ACTIONS_SLOT_ID = "leader-scorecard-actions-slot";
 import { useQuery } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
