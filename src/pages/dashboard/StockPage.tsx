@@ -520,12 +520,18 @@ export default function StockPage() {
               <Button size="sm" variant="outline" onClick={() => runExport("pdf", true)}><FileText className="mr-1 h-4 w-4" /> PDF low</Button>
               <Button size="sm" variant="outline" onClick={() => runExport("excel", false)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel list</Button>
               <Button size="sm" variant="outline" onClick={() => runExport("excel", true)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel low</Button>
+              <Button size="sm" variant="outline" onClick={printAllLabels} disabled={printingLabels}>
+                {printingLabels ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <QrCode className="mr-1 h-4 w-4" />} QR labels
+              </Button>
               {/* Exports describe the list; these two change it. Same row because that is
                   where the hand already is, but set apart so six buttons do not read as
                   six of the same kind. */}
               {isManager && (
                 <>
                   <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
+                  <Button size="sm" variant="outline" onClick={() => setScanOutOpen(true)}>
+                    <ScanLine className="mr-1 h-4 w-4" /> Scan out
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
                     <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
                   </Button>
