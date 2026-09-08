@@ -64,7 +64,7 @@ function RowShell({ href, label, children }: {
   label: string;
   children: React.ReactNode;
 }) {
-  const shared = "flex min-w-0 flex-wrap items-center gap-2 px-2 py-1.5 text-xs";
+  const shared = "flex min-w-0 items-start gap-3 px-3 py-2.5 text-xs";
   if (!href) return <div className={shared}>{children}</div>;
   return (
     <Link
@@ -307,14 +307,14 @@ function ActionsBlock({ actions, filed, actionHref }: {
         </div>
         <div className="divide-y">
           {shown.map((a, i) => (
-            <>
+            <Fragment key={a.id}>
               {i === dividerAfter && (
-                <div key="sc-actions-divider" className="bg-muted/40 px-3 py-1 text-2xs uppercase tracking-wide text-muted-foreground">
+                <div className="bg-muted/40 px-3 py-1 text-2xs uppercase tracking-wide text-muted-foreground">
                   Closed in this period
                 </div>
               )}
               {row(a)}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>
@@ -384,7 +384,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
   }, [profileNames]);
 
   return (
-    <div id={SCORECARD_PRINT_ID} className="space-y-4 print-content [&>div]:break-inside-avoid">
+    <div id={SCORECARD_PRINT_ID} className="space-y-5 print-content [&>div]:break-inside-avoid">
       <ReportPrintHeader
         title={`Leader Scorecard — ${leaderName ?? ""}`}
         periodLabel={periodLabelOf(period)}
@@ -598,70 +598,51 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
 
       {/* Every action in the period, whatever its state. A closed action is still part
           of the leader's history — filing it away must not remove it from the record
-          anyone reviews. */}
+          anyone reviews.
+
+          A row is a link where the reader may follow it. The score says a leader lost
+          points; the evidence, the history and the name of whoever validated it all
+          live on the other end, and a figure nobody can audit back to its record is the
+          thing this module exists to stop being. */}
       {actions.length > 0 && (
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-            Actions in this period ({actions.length})
-            {q.filed > 0 && <span className="ml-1 font-normal normal-case">· {q.filed} closed, still listed</span>}
-          </div>
-          <div className="max-h-56 overflow-y-auto rounded-md border divide-y print:max-h-none print:overflow-visible">
-            {actions.slice().reverse().map((a) => (
-              /* A row is a link where the reader may follow it. The score says a
-                 leader lost points; the evidence, the history and the name of whoever
-                 validated it all live on the other end, and a figure nobody can audit
-                 back to its record is the thing this module exists to stop being. */
-              <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || a.description || "action"}>
-                <span className="font-mono">{a.action_no || a.id.slice(0, 8)}</span>
-                <span className="text-muted-foreground">{format(new Date(a.recorded_at), "dd/MM")}</span>
-                {a.line && <span className="text-muted-foreground">{a.line}</span>}
-                {a.severity && (
-                  <Badge variant="outline" className={cn("text-2xs", severityMeta(a.severity)?.badge)}>
-                    {severityMeta(a.severity)?.label}
-                  </Badge>
-                )}
-                <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
-                  {validationMeta(a.validation_status).label}
-                </Badge>
-                {a.closed_at && (
-                  <Badge variant="outline" className="text-2xs bg-success/15 text-success-strong border-success/40">
-                    closed {format(new Date(a.closed_at), "dd/MM")}
-                  </Badge>
-                )}
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{a.description}</span>
-              </RowShell>
-            ))}
-          </div>
+        <ActionsBlock actions={actions} filed={q.filed} actionHref={actionHref} />
+      )}
+
+      {/* The two quality asides, side by side where there is room. Stacked full-width
+          they left a desktop reading as two half-empty bands; print stays one column,
+          which is the layout the signed page has always had. */}
+      {(q.trend.length > 0 || q.topLabels.length > 0) && (
+        <div className="grid gap-5 lg:grid-cols-2 print:block print:space-y-4">
+          {/* Hidden in print when there is a single day: a line chart with one dot says
+              nothing a table above it has not already said, and it costs a third of the page. */}
+          {q.trend.length > 0 && (
+            <Card className={q.trend.length < 2 ? "print:hidden" : undefined}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Actions over time</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={q.trend} margin={{ top: 4, right: 12, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="day" fontSize={11} tickLine={false} />
+                    <YAxis allowDecimals={false} fontSize={11} tickLine={false} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                    <Line type="monotone" dataKey="count" name="Actions" stroke="hsl(0 72% 51%)" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {q.topLabels.length > 0 && (
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Top labels</div>
+              <div className="flex flex-wrap gap-1.5">
+                {q.topLabels.map((l) => <Badge key={l.label} variant="secondary" className="text-2xs">{l.label} · {l.count}</Badge>)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Hidden in print when there is a single day: a line chart with one dot says
-          nothing a table above it has not already said, and it costs a third of the page. */}
-      {q.trend.length > 0 && (
-        <Card className={q.trend.length < 2 ? "print:hidden" : undefined}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Actions over time</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={q.trend} margin={{ top: 4, right: 12, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="day" fontSize={11} tickLine={false} />
-                <YAxis allowDecimals={false} fontSize={11} tickLine={false} />
-                <Tooltip contentStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="count" name="Actions" stroke="hsl(0 72% 51%)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {q.topLabels.length > 0 && (
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Top labels</div>
-          <div className="flex flex-wrap gap-1.5">
-            {q.topLabels.map((l) => <Badge key={l.label} variant="secondary" className="text-2xs">{l.label} · {l.count}</Badge>)}
-          </div>
-        </div>
-      )}
 
       {/* Health & Safety. Counted here, scored nowhere — see SafetyBand. */}
       {safety.total > 0 && <SafetyBand safety={safety} />}
@@ -790,7 +771,9 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {/* Three tiles, three columns. A four-column grid left a hole beside
+                "Maintenance called" that read as a figure that had failed to load. */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Figure
                 label="Attainment"
                 value={p.attainment == null ? "n/a" : `${p.attainment}%`}
