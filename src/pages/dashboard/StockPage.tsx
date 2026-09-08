@@ -466,9 +466,15 @@ export default function StockPage() {
               {isManager && (
                 <>
                   <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
-                  <Button size="sm" onClick={() => setScanOutOpen(true)}>
-                    <ScanLine className="mr-1 h-4 w-4" /> Scan QR (take out)
+                  <Button
+                    size="icon"
+                    onClick={() => setScanOutOpen(true)}
+                    aria-label="Scan QR (take out)"
+                    title="Scan QR (take out)"
+                  >
+                    <QrCode className="h-5 w-5" />
                   </Button>
+
                   <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
                     <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
                   </Button>
