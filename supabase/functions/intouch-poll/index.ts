@@ -6,6 +6,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { readStop, HEALTHY_STATUS } from "./stopReading.ts";
 import { pickRunningJob } from "./liveJob.ts";
 import { checkMachineLine } from "./mappingIntegrity.ts";
+import { decideWarehouseStop, warehouseStopMinutes } from "./warehouseStop.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -219,6 +220,76 @@ async function notifyEngineersNewWO(opts: {
   } catch (_) { /* best-effort */ }
 }
 
+/**
+ * Quem é que está a pedir isto.
+ *
+ * "iTouching" não é o requerente de nada: o requerente é a pessoa que está com a
+ * linha parada à frente. Preferir o líder ATRIBUÍDO à sessão em curso
+ * (`production_sessions.leader_name`), depois o líder registado da linha, e só
+ * depois "<Linha> Leader" — a razão por que a sessão vem primeiro está em
+ * `leader_line_assignment`, que tem linhas sem fim e mente.
+ *
+ * Estava escrito uma vez, dentro do ciclo, para as ordens de manutenção. A ordem
+ * de armazém faz a mesma pergunta e merece a mesma resposta, e duas cópias disto
+ * eram duas respostas diferentes à espera de divergirem.
+ */
+async function resolveRequesterName(lineId: string | null): Promise<string> {
+  if (!lineId) return "iTouching";
+  try {
+    const { data: ln0 } = await admin.from("lines").select("name").eq("id", lineId).maybeSingle();
+    const lineName: string | null = ln0?.name ?? null;
+    if (!lineName) return "iTouching";
+    const { date: sd, shift: sh } = currentShiftLondon();
+    const { data: sess } = await admin.from("production_sessions")
+      .select("leader_name").ilike("line", lineName).eq("shift", sh).eq("session_date", sd)
+      .not("leader_name", "is", null).limit(1).maybeSingle();
+    if (sess?.leader_name) return `${sess.leader_name} (${lineName})`;
+    const { data: leader } = await admin.from("line_leaders")
+      .select("name").ilike("line", lineName).in("shift", [sh, "BOTH"]).eq("active", true)
+      .limit(1).maybeSingle();
+    return leader?.name ? `${leader.name} (${lineName})` : `${lineName} Leader`;
+  } catch {
+    return "iTouching";
+  }
+}
+
+/**
+ * O mesmo aviso, para a outra equipa.
+ *
+ * Gémea da de cima e deliberadamente separada dela: um aviso de armazém não pode
+ * cair na lista dos engenheiros, e o dia em que uma das duas mudar de forma a
+ * outra não tem de mudar com ela. Só o papel `warehouse` — não os admins, que já
+ * vêem tudo, e não a manutenção, que não tem nada a fazer a uma espera de
+ * embalagem.
+ */
+async function notifyWarehouseNewWO(opts: {
+  woId: string;
+  woNumber: number;
+  machine: string | null;
+  line: string | null;
+  description: string;
+  priority: string;
+}) {
+  try {
+    const { data: whRoles } = await admin
+      .from("user_roles").select("user_id").eq("role", "warehouse");
+    const userIds = (whRoles ?? []).map((r: any) => r.user_id);
+    if (!userIds.length) return;
+    const title = `📦 WO #${opts.woNumber} — ${opts.line ?? opts.machine ?? "Line"} a aguardar embalagem`;
+    const body = `${opts.description}${opts.machine ? `\nMachine: ${opts.machine}` : ""}\nAuto-created from iTouching`;
+    await admin.from("notifications").insert(
+      userIds.map((uid: string) => ({
+        user_id: uid,
+        wo_id: opts.woId,
+        title,
+        body,
+        priority: opts.priority === "critical" ? "high" : opts.priority,
+        action_url: `/dashboard/wo/${opts.woId}`,
+      })),
+    );
+  } catch (_) { /* best-effort */ }
+}
+
 
 
 
@@ -401,7 +472,7 @@ Deno.serve(async (req) => {
     // when the current poll surfaces an unknown UUID.
     const { data: codeMap } = await admin
       .from("intouch_stop_code_map")
-      .select("stop_code, label, default_priority, requires_wo, active");
+      .select("stop_code, label, default_priority, requires_wo, active, raises_warehouse_wo");
 
     // The third time this file learns the same lesson, and the last map still
     // getting it wrong.
@@ -722,6 +793,142 @@ Deno.serve(async (req) => {
         }
       }
 
+      // ── A espera do armazém abre a sua própria ordem ────────────────────────
+      //
+      // Corre ANTES do bloco de downtime de produção logo abaixo, e tem de ser
+      // aqui: aquele bloco faz `continue` para todos os códigos que não pedem
+      // manutenção — que é exactamente o caso deste — e nada a seguir a ele
+      // chegaria a ver esta paragem.
+      //
+      // Não substitui a medição. A paragem continua a ir para
+      // `production_downtimes` como sempre foi; isto é uma ordem por cima dela,
+      // do tipo `warehouse_service`, que por desenho nunca abre
+      // `downtime_events` e nunca conta como avaria. Os mesmos minutos não são
+      // cobrados duas vezes.
+      //
+      // A decisão de abrir e fechar está em `warehouseStop.ts`, com teste: é uma
+      // comparação de GUID que corre uma vez por minuto por máquina, e falhá-la
+      // por causa de maiúsculas abriria e fecharia uma ordem por minuto durante
+      // toda a espera sem que nada no ecrã dissesse porquê.
+      if (autoWoEnabled) {
+        try {
+          const { data: openWhRows } = await admin
+            .from("work_orders")
+            .select("id, wo_number, intouch_downtime_code, created_at, description")
+            .eq("intouch_machine_id", s.MachineID)
+            .eq("wo_type", "warehouse_service")
+            .in("status", ["open", "received", "arrived", "in_progress"])
+            .order("created_at", { ascending: false })
+            .limit(1);
+          const openWh = (openWhRows ?? [])[0] ?? null;
+
+          const decision = decideWarehouseStop({
+            isDown,
+            codeKey,
+            raisesWarehouseWo: mapped_code?.raises_warehouse_wo === true,
+            openWo: openWh
+              ? {
+                id: openWh.id,
+                woNumber: openWh.wo_number,
+                code: openWh.intouch_downtime_code ?? "",
+                openedAt: openWh.created_at,
+              }
+              : null,
+          });
+
+          // Fechar primeiro. A linha voltou a andar, ou passou a esperar por
+          // outra coisa: a ordem já não mede nada, e o que ela mediu fica escrito
+          // nas notas em minutos, que é a pergunta que o armazém faz.
+          if (decision.close) {
+            const mins = warehouseStopMinutes(decision.close.openedAt, now);
+            const { error: closeErr } = await admin
+              .from("work_orders")
+              .update({
+                status: "closed",
+                finished_at: now,
+                closed_at: now,
+                notes: `${openWh?.description ?? "Espera do armazém"} — resolvido.\n`
+                     + `Espera: ${mins} min\n`
+                     + `Fechado automaticamente pelo iTouching: ${new Date(now).toLocaleString("en-GB", { timeZone: "Europe/London" })}`,
+              })
+              .eq("id", decision.close.woId);
+            if (closeErr) {
+              results.errors.push(`warehouse wo close ${m.intouch_machine_name}: ${closeErr.message}`);
+            } else {
+              results.opened_wos.push({
+                machine: m.machine_name ?? m.intouch_machine_name ?? "?",
+                wo: `${decision.close.woNumber} warehouse wait closed after ${mins} min`,
+              });
+            }
+          }
+
+          // Abrir. Sem `line_id` não se abre: a ordem sem linha não diz ao
+          // armazém para onde ir, e o ecrã dele lista-se por linha.
+          if (decision.open && !m.line_id) {
+            results.skipped.push(`${m.intouch_machine_name} (${codeName} → warehouse, mas sem linha mapeada)`);
+          } else if (decision.open) {
+            const { data: ln } = await admin.from("lines").select("name").eq("id", m.line_id).maybeSingle();
+            const lineName = ln?.name ?? null;
+            const machineLbl = m.machine_name ?? m.intouch_machine_name ?? null;
+            // O nome do mapa, nunca o GUID. Uma ordem chamada
+            // "5dd6a44d-9f0a-…" não diz a ninguém que a linha está à espera de
+            // embalagem — foi assim que WO-639 e WO-640 chegaram ao quadro da
+            // manutenção com o GUID no título.
+            const whLabel = mapped_code?.label || codeName;
+            const { data: whWo, error: whErr } = await admin
+              .from("work_orders")
+              .insert({
+                requester_name: await resolveRequesterName(m.line_id),
+                machine: machineLbl,
+                line_id: m.line_id,
+                wo_type: "warehouse_service",
+                description: whLabel,
+                priority: mapped_code?.default_priority ?? "medium",
+                status: "open",
+                intouch_machine_id: s.MachineID,
+                intouch_downtime_code: s.DowntimeCode,
+                // `line_stopped` fica de fora de propósito, e não por descuido: a
+                // linha ESTÁ parada, mas quem a conta é `production_downtimes`, e
+                // ligá-lo aqui poria a mesma paragem no relógio de uma ordem
+                // também. Ficaria contada duas vezes, e o bloco de retoma acima
+                // — que procura ordens com `line_stopped = true` — passaria a
+                // mexer nesta.
+                line_stopped: false,
+                notes: `${whLabel} detectado automaticamente pelo iTouching.\n`
+                     + `Machine: ${m.intouch_machine_name}\n`
+                     + `Detected: ${new Date(now).toLocaleString("en-GB", { timeZone: "Europe/London" })}`,
+              })
+              .select("id, wo_number")
+              .maybeSingle();
+            if (whErr || !whWo) {
+              // `maybeSingle` e não `single`, pela mesma razão que abaixo: um
+              // trigger que recusa a linha devolve NULL, e "Cannot coerce the
+              // result to a single JSON object" não diz a ninguém o que falhou.
+              results.errors.push(
+                `warehouse wo ${m.intouch_machine_name}: ${whErr?.message ?? `ordem recusada para ${codeName}`}`,
+              );
+            } else {
+              results.opened_wos.push({
+                machine: machineLbl ?? "?",
+                wo: `${whWo.wo_number} (warehouse)`,
+              });
+              await notifyWarehouseNewWO({
+                woId: whWo.id,
+                woNumber: whWo.wo_number,
+                machine: machineLbl,
+                line: lineName,
+                description: whLabel,
+                priority: mapped_code?.default_priority ?? "medium",
+              });
+            }
+          }
+        } catch (e) {
+          // Nunca ao ponto de parar o poll: uma ordem de armazém que falha não
+          // pode custar a leitura de estado das outras nove máquinas.
+          results.errors.push(`warehouse stop ${m.intouch_machine_name}: ${(e as Error).message}`);
+        }
+      }
+
       // Resume (healthy) → close any open production downtime
       if (!isDown && wasTrackingProd) {
         try { await closeProdDowntime(now); } catch (e) { results.errors.push(`prod-dt close ${m.intouch_machine_name}: ${(e as Error).message}`); }
@@ -846,10 +1053,16 @@ Deno.serve(async (req) => {
       // two problems, two repairs, two orders. Taking only the most recent order and
       // rewriting its stop code merged them into one, and whichever fault was fixed
       // second inherited the first one's history.
+      // `neq wo_type warehouse_service`: a ordem de armazém aberta na mesma
+      // máquina não é "outro problema em curso". Sem este filtro ela entrava em
+      // `otherActiveWOs`, punha `anotherProblemInProgress` a true e passava a
+      // decidir, sozinha, que uma paragem de manutenção já sem baseline abria
+      // ordem — uma espera por caixas a mudar quando a manutenção é chamada.
       let { data: activeWOs } = await admin
         .from("work_orders")
         .select("id, wo_number, intouch_downtime_code, notes")
         .eq("intouch_machine_id", s.MachineID)
+        .neq("wo_type", "warehouse_service")
         .in("status", activeStatuses)
         .order("created_at", { ascending: false });
 
@@ -858,6 +1071,7 @@ Deno.serve(async (req) => {
           .from("work_orders")
           .select("id, wo_number, intouch_downtime_code, notes")
           .in("machine", machineNames)
+          .neq("wo_type", "warehouse_service")
           .in("status", activeStatuses)
           .gte("created_at", recentCutoff)
           .order("created_at", { ascending: false });
@@ -979,28 +1193,9 @@ Deno.serve(async (req) => {
       }
 
 
-      // Requester = the line's shift leader, not "iTouching". Prefer the leader
-      // ASSIGNED to the current session (production_sessions.leader_name); fall
-      // back to the registered line leader, then to "<Line> Leader".
-      let requesterName = "iTouching";
-      try {
-        const { data: ln0 } = await admin.from("lines").select("name").eq("id", m.line_id).maybeSingle();
-        const lineName: string | null = ln0?.name ?? null;
-        if (lineName) {
-          const { date: sd, shift: sh } = currentShiftLondon();
-          const { data: sess } = await admin.from("production_sessions")
-            .select("leader_name").ilike("line", lineName).eq("shift", sh).eq("session_date", sd)
-            .not("leader_name", "is", null).limit(1).maybeSingle();
-          if (sess?.leader_name) {
-            requesterName = `${sess.leader_name} (${lineName})`;
-          } else {
-            const { data: leader } = await admin.from("line_leaders")
-              .select("name").ilike("line", lineName).in("shift", [sh, "BOTH"]).eq("active", true)
-              .limit(1).maybeSingle();
-            requesterName = leader?.name ? `${leader.name} (${lineName})` : `${lineName} Leader`;
-          }
-        }
-      } catch { /* keep the iTouching fallback */ }
+      // Requester = the line's shift leader, not "iTouching". A regra e as suas
+      // preferências estão em `resolveRequesterName`.
+      const requesterName = await resolveRequesterName(m.line_id);
 
       const { data: wo, error: woErr } = await admin
         .from("work_orders")

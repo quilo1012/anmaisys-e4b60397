@@ -19,6 +19,7 @@ import { ComboboxInput } from "@/components/ComboboxInput";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { WAREHOUSE_LOCATIONS } from "@/lib/warehouseLocations";
+import { formatWarehouseWait } from "@/lib/warehouseWait";
 import { cn } from "@/lib/utils";
 
 const WAREHOUSE_LOCATIONS_LC = new Set(WAREHOUSE_LOCATIONS.map((l) => l.toLowerCase()));
@@ -314,6 +315,10 @@ export default function WarehouseDashboard() {
                       <TableHead>Description</TableHead>
                       <TableHead>Requested by</TableHead>
                       <TableHead>Status</TableHead>
+                      {/* A pergunta que traz o armazém a este ecrã. "Created
+                          10:14" obriga cada pessoa a fazer a subtracção de
+                          cabeça, com sete linhas à espera ao mesmo tempo. */}
+                      <TableHead>Wait</TableHead>
                       <TableHead>Created</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -333,6 +338,12 @@ export default function WarehouseDashboard() {
                         <TableCell>{wo.requester_name}</TableCell>
                         <TableCell>
                           <StatusBadge status={wo.status} showIcon />
+                        </TableCell>
+                        <TableCell className={cn(
+                          "whitespace-nowrap tabular-nums",
+                          isCompleted(wo.status) ? "text-muted-foreground" : "font-medium",
+                        )}>
+                          {formatWarehouseWait(wo)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(wo.created_at).toLocaleString()}
