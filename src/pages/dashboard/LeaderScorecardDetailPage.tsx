@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { BackButton } from "@/components/BackButton";
 import { EmptyState } from "@/components/EmptyState";
 import { Medal } from "lucide-react";
-import { LeaderScorecard } from "@/components/LeaderScorecard";
+import { LeaderScorecard, SCORECARD_ACTIONS_SLOT_ID } from "@/components/LeaderScorecard";
 import { parseScorecardParams } from "@/lib/scorecardRoute";
 
 /**
