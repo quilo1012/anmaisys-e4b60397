@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     );
     if (claimsErr || !claimsData?.claims?.sub) return json({ error: "unauthorized" }, 401);
 
-    const { text } = await req.json().catch(() => ({ text: "" }));
+    const { text, mode } = await req.json().catch(() => ({ text: "", mode: undefined }));
     if (!text || typeof text !== "string") {
       return json({ error: "text is required" }, 400);
     }
@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
           {
             role: "system",
             content:
-              "You are a translator. Translate the user's message to natural English. Return ONLY the translation, no quotes or notes. If the text is already English, return it unchanged.",
+              mode === "polish"
+                ? "You clean up maintenance reports written by factory engineers. Translate the text to natural, professional English if it is in another language. If it is already English, keep the meaning exactly but fix spelling, grammar and punctuation. Never invent facts, never add or remove information, keep it short and technical. Return ONLY the corrected English text, with no quotes, notes or explanations."
+                : "You are a translator. Translate the user's message to natural English. Return ONLY the translation, no quotes or notes. If the text is already English, return it unchanged.",
           },
           { role: "user", content: text },
         ],
