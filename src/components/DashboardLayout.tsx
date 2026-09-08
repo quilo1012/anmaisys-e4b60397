@@ -481,6 +481,38 @@ const routeTitles: Record<string, string> = {
   "/dashboard/intouch-stop-codes": "iTouching Stop Codes",
 };
 
+// The header's menu control names the three sidebar states instead of hiding them
+// behind one unlabelled toggle: the icon shows where the menu IS, and the label says
+// where one press takes it. Uses useSidebar().toggleSidebar so the Ctrl/Cmd+B
+// shortcut, this button and the mobile sheet all go through the same cycle.
+function SidebarStateControl({ uiState }: { uiState: SidebarUiState }) {
+  const { toggleSidebar } = useSidebar();
+  const Icon = uiState === "expanded" ? PanelLeft : uiState === "rail" ? PanelLeftClose : PanelLeftOpen;
+  const label =
+    uiState === "expanded"
+      ? "Collapse menu to icons (Ctrl+B)"
+      : uiState === "rail"
+        ? "Hide menu (Ctrl+B)"
+        : "Show full menu (Ctrl+B)";
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          title={label}
+          aria-label={label}
+          className="shrink-0 h-11 w-11"
+        >
+          <Icon className="h-5 w-5" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
   const { dark, toggle: toggleDark } = useDarkMode();
