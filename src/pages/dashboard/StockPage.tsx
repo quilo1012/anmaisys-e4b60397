@@ -12,10 +12,13 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal } from "lucide-react";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, ScanLine, QrCode, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
 import { IdentifyPartDialog } from "@/components/IdentifyPartDialog";
+import { StockScanOutDialog } from "@/components/StockScanOutDialog";
+import { exportStockQrLabelsPDF, exportSingleQrLabelPDF, qrPayload } from "@/lib/stockQrLabels";
 
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
