@@ -72,7 +72,7 @@ function RowShell({ href, label, children }: {
       aria-label={`Open ${label} in Quality`}
       className={cn(
         shared,
-        "no-underline transition-colors hover:bg-muted/60 focus-visible:outline-none",
+        "no-underline transition-colors hover:bg-muted/50 focus-visible:outline-none",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hover:bg-transparent",
       )}
     >
