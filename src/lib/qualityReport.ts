@@ -6,7 +6,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import logoUrl from "@/assets/appliedlogo.jpeg";
-import { severityMeta, validationMeta } from "@/lib/qualityConstants";
+import { severityMeta, validationMeta, actionHeadline } from "@/lib/qualityConstants";
 import { leaderTracking, pointsLabel } from "@/lib/leaderTracking";
 
 export interface QualityReportAction {
@@ -24,6 +24,8 @@ export interface QualityReportAction {
   sku: string | null;
   batch: string | null;
   labels: string[] | null;
+  /** What the sync calls the finding. NULL on every action typed by hand. */
+  title?: string | null;
   description: string | null;
   /** Quality's verdict — a rejected action costs the leader nothing. */
   validation_status?: string | null;
@@ -116,7 +118,10 @@ const filled = (v: string | null | undefined) => (v ?? "").trim() !== "";
 /** Long enough to read, cut on a word so the last word is not sliced in half. */
 const NOTE_MAX = 140;
 function noteText(a: QualityReportAction) {
-  const t = (a.description ?? "").trim().replace(/\s+/g, " ");
+  // The headline, not `description` alone. 52 of the 66 SafetyCulture rows carry no
+  // description at all, so this column printed blank for them in a PDF that goes to a
+  // review — the same hole the log had on screen. See actionHeadline().
+  const t = (actionHeadline(a) ?? "").replace(/\s+/g, " ");
   if (t.length <= NOTE_MAX) return t;
   const cut = t.slice(0, NOTE_MAX);
   const space = cut.lastIndexOf(" ");
@@ -376,7 +381,7 @@ export function generateQualityReportExcel(input: QualityReportInput) {
       a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "",
       ...(catalog.length ? [productCell(r + 2, a.sku)] : []),
       a.batch ?? "",
-      (a.labels ?? []).join("; "), a.description ?? "",
+      (a.labels ?? []).join("; "), actionHeadline(a) ?? "",
     ]);
   });
   const wsAct = XLSX.utils.aoa_to_sheet(rows);

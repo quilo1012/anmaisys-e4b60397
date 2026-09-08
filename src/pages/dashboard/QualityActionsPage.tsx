@@ -32,7 +32,7 @@ import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
 import { isMissingColumn } from "@/lib/postgrestErrors";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_KIND_GROUPS, isHarmKind, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, pointsBreakdown, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed, labelBadge, labelKindOf } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, QUALITY_SEVERITIES, SAFETY_KINDS, SAFETY_KIND_GROUPS, isHarmKind, SAFETY_LABELS, labelsForDomain, statusMeta, severityMeta, safetyKindMeta, actionPoints, pointsBreakdown, sumActionPoints, severityPoints, severityPointsMap, labelPoints, logFormCharge, chargeSummary, excludedLabelNote, VALIDATION_STATES, validationMeta, isClosed, labelBadge, labelKindOf, actionHeadline, actionDetail } from "@/lib/qualityConstants";
 import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useScoringFreeze } from "@/hooks/useScoringFreeze";
 import { useGateLabels, useLabelKinds } from "@/hooks/useQualityOptions";
@@ -67,6 +67,8 @@ interface ActionType { id: string; code: string; label: string; points: number; 
 interface QualityAction {
   id: string; action_no: string | null; action_type_id: string; line: string | null; shift: string | null;
   leader_id?: string | null; leader_name: string | null; department: string | null; status: string; labels: string[] | null;
+  /** What the sync calls the finding. NULL on every action typed by hand. */
+  title?: string | null;
   description: string | null; recorded_at: string; points: number | null;
   severity: string | null; attachments: string[] | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
@@ -706,9 +708,13 @@ export function QualityActionsView() {
             the same volume; what a supervisor does on this screen is log an action,
             so that one is the only filled button and everything else files under the
             two menus beside it. */}
+        {/* The eyebrow reads Quality, not Production. The sidebar deliberately gives
+            Quality a heading of its own rather than a row under Production — see
+            DashboardLayout — and this line was the one place still telling the reader
+            they were somewhere they are not. */}
         <PageHeader
           className="mb-0"
-          module="Production"
+          module="Quality"
           title="Quality"
           description="Log quality actions, track them to completion, and score them by severity."
           icon={<ShieldCheck className="h-5 w-5" />}
@@ -1065,7 +1071,7 @@ export function QualityActionsView() {
             </div>
             <Select value={filterSeverity} onValueChange={setFilterSeverity}>
               <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="__all__">All severity</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__all__">All severities</SelectItem>{QUALITY_SEVERITIES.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
             </Select>
             {/* SafetyCulture's own priority, not a grade this system worked out. It
                 only lists what has actually arrived, so an organisation that uses two
@@ -1087,7 +1093,7 @@ export function QualityActionsView() {
             </Select>
             <Select value={filterLine} onValueChange={setFilterLine}>
               <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="__all__">All Lines</SelectItem>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
+              <SelectContent><SelectItem value="__all__">All lines</SelectItem>{lineOptions.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={filterDept} onValueChange={setFilterDept}>
               <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
@@ -1099,7 +1105,7 @@ export function QualityActionsView() {
             </Select>
             <Select value={filterShift} onValueChange={setFilterShift}>
               <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="__all__">All Shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="__all__">All shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
             </Select>
           </div>
         </div>
@@ -1240,7 +1246,7 @@ export function QualityActionsView() {
                         )}
                       </div>
                     </div>
-                    {a.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{a.description}</p>}
+                    {actionHeadline(a) && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{actionHeadline(a)}</p>}
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
                       <span className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</span>
                       {a.line && <span className="truncate">· {a.line}{a.leader_name ? ` · ${a.leader_name}` : ""}</span>}
@@ -1272,6 +1278,12 @@ export function QualityActionsView() {
                       is a decision Quality makes in the dialog rather than something
                       scanned across a page of 49 rows. */}
                   <TableHead>When</TableHead><TableHead>#</TableHead>
+                  {/* What was found. The one column that says what the row IS, and the
+                      table ran without it: `title` is written on all 66 SafetyCulture
+                      rows and none of the 69 typed by hand, `description` the other way
+                      round, and the table drew only the second — so two thirds of the
+                      log read as a line of dashes. See actionHeadline(). */}
+                  <TableHead className="min-w-[220px]">Action</TableHead>
                   {/* What SafetyCulture said, not a grade worked out here. It reads as
                       weight rather than another coloured chip: colour on this table is
                       already spoken for by severity and by the label vocabularies, and
@@ -1285,7 +1297,7 @@ export function QualityActionsView() {
                   {showPointsColumn && <TableHead className="text-right">Points</TableHead>}
                   {showKindColumn && <TableHead>Kind</TableHead>}
                   <TableHead>Line</TableHead><TableHead>Leader</TableHead>
-                  <TableHead>Dept</TableHead><TableHead>Labels</TableHead><TableHead>Notes</TableHead>
+                  <TableHead>Dept</TableHead><TableHead>Labels</TableHead>
                   {canManage && <TableHead className="w-10 text-right">Delete</TableHead>}
                 </TableRow></TableHeader>
                 <TableBody>
@@ -1298,6 +1310,11 @@ export function QualityActionsView() {
                     <TableRow key={a.id} className="cursor-pointer" onClick={() => setDetailId(a.id)}>
                       <TableCell className="whitespace-nowrap">{format(new Date(a.recorded_at), "dd/MM HH:mm")}</TableCell>
                       <TableCell className="font-figure text-xs">{a.action_no ?? "—"}</TableCell>
+                      <TableCell className="max-w-sm">
+                        {actionHeadline(a)
+                          ? <span className="line-clamp-2 text-xs">{actionHeadline(a)}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {(() => {
                           const p = priorityDisplay(a);
@@ -1364,7 +1381,6 @@ export function QualityActionsView() {
                           ))}
                         </div>
                       </TableCell>
-                      <TableCell className="max-w-xs truncate">{a.description ?? "—"}</TableCell>
                       {canManage && (
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <RowDeleteButton actionNo={a.action_no} onConfirm={() => deleteAction.mutate(a.id)} />
@@ -1475,9 +1491,16 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         {action && (
           <>
+            {/* The header keyed off `action_no`, which is NULL on all 66 SafetyCulture
+                rows, so every one of them opened a dialog titled "Issue" — and nothing
+                below said what had been found either. The number, where there is one,
+                stays as the quiet prefix it is; the finding is the heading. */}
             <DialogHeader>
-              <DialogTitle className="flex flex-wrap items-center gap-2">
-                <span className="font-figure text-sm">{action.action_no ?? "Issue"}</span>
+              <DialogTitle className="flex flex-wrap items-baseline gap-2">
+                {action.action_no && (
+                  <span className="font-figure text-xs font-normal text-muted-foreground">{action.action_no}</span>
+                )}
+                <span className="text-base">{actionHeadline(action) ?? "Issue"}</span>
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
@@ -1489,6 +1512,9 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
                 ready={attributionReady}
                 failed={attributionFailed}
               />
+              {actionDetail(action) && (
+                <p className="whitespace-pre-line text-sm text-muted-foreground">{actionDetail(action)}</p>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div><Label>{action.domain === "safety" ? "Kind" : "Severity"}</Label>
                   {action.domain === "safety" ? (
