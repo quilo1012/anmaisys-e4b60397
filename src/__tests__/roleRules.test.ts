@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { ALL_ACTIONS, can, setPermissionOverrides, type Action } from "@/lib/permissions";
+import { ALL_ACTIONS, can, setIsOwner, setPermissionOverrides, type Action } from "@/lib/permissions";
 import { deriveRoleRules } from "@/lib/roleRules";
 
 /**
@@ -7,7 +7,7 @@ import { deriveRoleRules } from "@/lib/roleRules";
  * derivation, not the markup: can + cannot are exact complements over ALL_ACTIONS, and
  * an override moves an action from one list to the other without anybody editing text.
  */
-afterEach(() => setPermissionOverrides({}));
+afterEach(() => { setPermissionOverrides({}); setIsOwner(false); });
 
 describe("role rules derivation", () => {
   it("splits ALL_ACTIONS into exact complements", () => {
@@ -36,5 +36,23 @@ describe("role rules derivation", () => {
     const r = deriveRoleRules("viewer");
     const system = r.groups.find((g) => g.key === "system");
     expect(system?.noAccessAtAll).toBe(true);
+  });
+});
+
+describe("the page describes the role, not the reader", () => {
+  it("does not let the owner bypass leak into the derivation", () => {
+    const asAnyone = deriveRoleRules("operator");
+
+    setIsOwner(true);
+    const asOwner = deriveRoleRules("operator");
+    for (const action of ["wo.force", "wo.delete", "stock.pricing"] as Action[]) {
+      expect(asOwner.allowed).not.toContain(action);
+      expect(asOwner.denied).toContain(action);
+    }
+    expect(asOwner.allowed.length).toBeLessThan(ALL_ACTIONS.length / 2);
+
+    setIsOwner(false);
+    expect(deriveRoleRules("operator")).toEqual(asAnyone);
+    expect(asOwner).toEqual(asAnyone);
   });
 });
