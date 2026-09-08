@@ -22,6 +22,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Download, List, BarChart3, Tags, Trash2, Upload, Clock, X, Loader2, ClipboardCheck, Printer, Pencil, ShieldCheck, MoreHorizontal, SlidersHorizontal, Scale, AlertTriangle, Repeat } from "lucide-react";
 import { QualityImportDialog } from "@/components/QualityImportDialog";
+import { QualityTemplateImportDialog } from "@/components/QualityTemplateImportDialog";
+import { ComboboxInput } from "@/components/ComboboxInput";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -164,6 +166,7 @@ export function QualityActionsView() {
   const isMobile = useIsMobile();
   const [listsOpen, setListsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [templateImportOpen, setTemplateImportOpen] = useState(false);
   const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("30d"));
   const [drPreset, setDrPreset] = useState<DateRangePreset>("30d");
   // Quality is the default tab: everything logged before this column existed is
@@ -277,6 +280,29 @@ export function QualityActionsView() {
       return (data ?? []).filter((x) => x.id && x.name && x.name.trim()) as { id: string; name: string }[];
     },
   });
+  // Active SKU catalogue: names the code on the form and feeds the Excel SKUs sheet.
+  // `.range(0, 4999)` is NOT optional — PostgREST caps at 1000 rows by default and
+  // there are 1266 active SKUs; a truncated catalogue fails silently, code by code.
+  const { data: skuCatalog = [] } = useQuery({
+    queryKey: ["sku_products_catalog"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sku_products")
+        .select("code, name")
+        .eq("active", true)
+        .order("code")
+        .range(0, 4999);
+      if (error) throw error;
+      return (data ?? []) as { code: string; name: string }[];
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+  const skuCodes = useMemo(() => skuCatalog.map((p) => p.code), [skuCatalog]);
+  const skuByCode = useMemo(
+    () => new Map(skuCatalog.map((p) => [p.code.trim().toUpperCase(), p.name])),
+    [skuCatalog],
+  );
+  const skuName = skuByCode.get(form.sku.trim().toUpperCase());
   const { data: actions = [] } = useQuery({
     queryKey: ["quality_actions", from, to],
     queryFn: async () => {
@@ -613,6 +639,8 @@ export function QualityActionsView() {
     })),
     periodLabel,
     generatedBy: profile?.name || "—",
+    // The PDF shares this object and ignores the field.
+    skuCatalog,
   });
   const printPDF = () => { generateQualityReportPDF(reportInput()).catch(() => toast.error("Could not generate PDF")); };
   const fullExcel = () => { try { generateQualityReportExcel(reportInput()); } catch { toast.error("Could not generate Excel"); } };
@@ -699,6 +727,9 @@ export function QualityActionsView() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setImportOpen(true)}>
                       <Upload className="h-4 w-4 mr-2" />Import actions
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTemplateImportOpen(true)}>
+                      <Upload className="h-4 w-4 mr-2" />Import filled report (Excel)
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setListsOpen(true)}>
                       <Tags className="h-4 w-4 mr-2" />Lists &amp; scoring
@@ -835,7 +866,19 @@ export function QualityActionsView() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>SKU</Label>
-                      <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="auto from production" />
+                      <ComboboxInput
+                        value={form.sku}
+                        onChange={(v) => setForm({ ...form, sku: v })}
+                        suggestions={skuCodes}
+                        hint={(c) => skuByCode.get(c.trim().toUpperCase())}
+                        placeholder="auto from production"
+                      />
+                      {/* Warns, never blocks: samples and products newer than the catalogue must still be recordable. */}
+                      {form.sku.trim() && (
+                        skuName
+                          ? <p className="mt-1 text-2xs text-muted-foreground">{skuName}</p>
+                          : <p className="mt-1 text-2xs text-amber-600">Not in the catalogue — will still be saved</p>
+                      )}
                     </div>
                     <div><Label>Batch code</Label>
                       <Input value={form.batch} onChange={(e) => setForm({ ...form, batch: e.target.value })} placeholder="auto from production" />
@@ -1329,6 +1372,14 @@ export function QualityActionsView() {
             open={importOpen}
             onOpenChange={setImportOpen}
             types={types}
+            onImported={() => qc.invalidateQueries({ queryKey: ["quality_actions"] })}
+          />
+        )}
+        {canManage && (
+          <QualityTemplateImportDialog
+            open={templateImportOpen}
+            onOpenChange={setTemplateImportOpen}
+            leaders={leaders}
             onImported={() => qc.invalidateQueries({ queryKey: ["quality_actions"] })}
           />
         )}

@@ -206,3 +206,46 @@ describe("qualityDetailTable — a column has to earn its width", () => {
     expect(head).toEqual(["Date", "Validation", "Line", "Shift", "Leader", "Dept", "SKU", "Batch", "Notes"]);
   });
 });
+
+describe("generateQualityReportExcel — SKU catalogue", () => {
+  const catalog = [
+    { code: "abebr500 ", name: "ABE Blue Razz 500g" },
+    { code: "PERUCRE500", name: "Peru Creatine 500g" },
+    { code: "ZZZ", name: "Zed" },
+  ];
+  const rows: QualityReportAction[] = [
+    { ...base, recorded_at: "2026-08-01", leader_name: "Marcio", domain: "quality", sku: " abebr500" },
+    { ...base, recorded_at: "2026-08-01", leader_name: "Marcio", domain: "quality", sku: "NOPE" },
+    { ...base, recorded_at: "2026-08-01", leader_name: "Marcio", domain: "quality", sku: null },
+  ];
+
+  it("writes no SKUs sheet and no Product column without a catalogue — the existing workbook", () => {
+    capturedBooks.length = 0;
+    generateQualityReportExcel({ actions: rows, periodLabel: "p", generatedBy: "t" });
+    const wb: any = capturedBooks[0];
+    expect(wb.SheetNames).not.toContain("SKUs");
+    expect(summaryGrid(wb.Sheets["Actions"])[0]).not.toContain("Product");
+  });
+
+  it("writes one header plus one row per catalogue entry, normalised and sorted", () => {
+    capturedBooks.length = 0;
+    generateQualityReportExcel({ actions: rows, periodLabel: "p", generatedBy: "t", skuCatalog: catalog });
+    const wb: any = capturedBooks[0];
+    const grid = summaryGrid(wb.Sheets["SKUs"]);
+    expect(grid.length).toBe(1 + catalog.length);
+    expect(grid[0]).toEqual(["Code", "Product"]);
+    expect(grid[1]).toEqual(["ABEBR500", "ABE Blue Razz 500g"]);
+  });
+
+  it("adds Product right after SKU with a cached name (or the not-found marker) and a VLOOKUP formula", () => {
+    capturedBooks.length = 0;
+    generateQualityReportExcel({ actions: rows, periodLabel: "p", generatedBy: "t", skuCatalog: catalog });
+    const ws: any = capturedBooks[0] && (capturedBooks[0] as any).Sheets["Actions"];
+    const header = summaryGrid(ws)[0];
+    expect(header.indexOf("Product")).toBe(header.indexOf("SKU") + 1);
+    expect(ws["J2"].v).toBe("ABE Blue Razz 500g");
+    expect(ws["J2"].f).toContain("VLOOKUP(TRIM(UPPER(I2)),SKUs!$A$2:$B$4,2,FALSE)");
+    expect(ws["J3"].v).toBe("### CODIGO NAO ENCONTRADO ###");
+    expect(ws["J4"].v).toBe("");
+  });
+});

@@ -38,7 +38,16 @@ export interface QualityReportInput {
   actions: QualityReportAction[];
   periodLabel: string;
   generatedBy: string;
+  /**
+   * Active SKU catalogue. OPTIONAL on purpose: without it the workbook comes out
+   * exactly as it does today (no SKUs sheet, no Product column), which is what
+   * `src/lib/qualityReport.test.ts` calls in 4 places without passing it.
+   */
+  skuCatalog?: { code: string; name: string }[];
 }
+
+/** Sentinel written when a SKU is not in the catalogue — the same text the formula produces. */
+export const SKU_NOT_FOUND = "### CODIGO NAO ENCONTRADO ###";
 
 const fmtDate = (iso: string) => {
   try { return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }); }
@@ -335,19 +344,54 @@ export function generateQualityReportExcel(input: QualityReportInput) {
   wsSum["!cols"] = [{ wch: 22 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsSum, "Summary");
 
+  // SKU catalogue, normalised (TRIM + UPPER) so the VLOOKUP below — whose left-hand
+  // side is normalised the same way — matches a hand-typed " abebr ".
+  const catalog = (input.skuCatalog ?? [])
+    .map((p) => ({ code: (p.code ?? "").trim().toUpperCase(), name: p.name }))
+    .filter((p) => p.code)
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const nameByCode = new Map(catalog.map((p) => [p.code, p.name]));
+  const lastCatalogRow = catalog.length + 1; // +1 for the SKUs header row
+
+  const productCell = (excelRow: number, sku: string | null) => {
+    const key = (sku ?? "").trim().toUpperCase();
+    return {
+      t: "s",
+      // Cached value: readers that do not evaluate formulas (Numbers, a parser,
+      // a Google Sheets import) still show the name instead of a blank cell.
+      v: key ? (nameByCode.get(key) ?? SKU_NOT_FOUND) : "",
+      // Formula: when someone types a code into the sheet by hand, the column answers.
+      f: `IF(TRIM(I${excelRow})="","",IFERROR(VLOOKUP(TRIM(UPPER(I${excelRow})),SKUs!$A$2:$B$${lastCatalogRow},2,FALSE),"${SKU_NOT_FOUND}"))`,
+    };
+  };
+
   // Actions sheet
-  const header = ["Date", "Action #", "Validation", "Severity", "Line", "Shift", "Leader", "Department", "SKU", "Batch", "Labels", "Notes"];
+  const header = ["Date", "Action #", "Validation", "Severity", "Line", "Shift", "Leader", "Department", "SKU",
+    ...(catalog.length ? ["Product"] : []),
+    "Batch", "Labels", "Notes"];
   const rows: any[][] = [header.map((h) => ({ v: h, s: HEAD_STYLE }))];
-  for (const a of actions) {
+  actions.forEach((a, r) => {
     rows.push([
       fmtDate(a.recorded_at), a.action_no ?? "", validationMeta(a.validation_status).label, sevLabel(a.severity),
-      a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "", a.batch ?? "",
+      a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "",
+      ...(catalog.length ? [productCell(r + 2, a.sku)] : []),
+      a.batch ?? "",
       (a.labels ?? []).join("; "), a.description ?? "",
     ]);
-  }
+  });
   const wsAct = XLSX.utils.aoa_to_sheet(rows);
-  wsAct["!cols"] = header.map((h) => ({ wch: h === "Notes" ? 45 : h === "Department" ? 18 : 14 }));
+  wsAct["!cols"] = header.map((h) => ({ wch: h === "Notes" ? 45 : h === "Product" ? 40 : h === "Department" ? 18 : 14 }));
   XLSX.utils.book_append_sheet(wb, wsAct, "Actions");
+
+  // SKUs sheet — only when a catalogue was given, so callers without one get the
+  // workbook they always got.
+  if (catalog.length) {
+    const skuRows: any[][] = [[{ v: "Code", s: HEAD_STYLE }, { v: "Product", s: HEAD_STYLE }]];
+    for (const p of catalog) skuRows.push([p.code, p.name]);
+    const wsSku = XLSX.utils.aoa_to_sheet(skuRows);
+    wsSku["!cols"] = [{ wch: 16 }, { wch: 52 }];
+    XLSX.utils.book_append_sheet(wb, wsSku, "SKUs");
+  }
 
   XLSX.writeFile(wb, `quality-report-${Date.now()}.xlsx`);
 }
