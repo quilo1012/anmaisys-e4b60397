@@ -645,6 +645,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     applySidebarState(next);
   };
 
+  const showMenuLabel = `Show menu — back to ${lastVisibleSidebarState.current === "rail" ? "icons" : "full menu"} (Ctrl/Cmd + B)`;
+
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider
@@ -721,7 +723,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
-              <SidebarTrigger aria-label="Toggle menu" className="shrink-0 h-11 w-11" />
+              <SidebarStateControl uiState={sidebarUiState} />
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
