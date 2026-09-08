@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Factory, FileWarning, HardHat } from "lucide-react";
@@ -172,6 +172,152 @@ function SafetyBand({ safety }: { safety: ScorecardResult["safety"] }) {
         card instead — a ceiling only ever lowers a score, so no amount of production buys one back.
         {safety.rejected > 0 && ` ${safety.rejected} occurrence${safety.rejected === 1 ? " was" : "s were"} rejected by Quality and ${safety.rejected === 1 ? "is" : "are"} not counted here.`}
       </p>
+    </section>
+  );
+}
+
+/**
+ * Every action in the period, as a record a person can read.
+ *
+ * This was one cramped flex row per action, with the description last and `truncate`d
+ * — so in real data a row said a mono hash, a date, "Line 6" and "Open", and nothing
+ * at all about what the action WAS. The description is now the primary line and
+ * everything else is metadata under it: the reader's first question is what happened,
+ * not which reference number it was filed under.
+ *
+ * A missing severity renders "Unrated" rather than nothing, because a severity nobody
+ * set is a fact about the record, and a row that simply omits the badge reads as a row
+ * that was rated and rated low.
+ */
+function ActionsBlock({ actions, filed, actionHref }: {
+  actions: ScorecardResult["actions"];
+  filed: number;
+  actionHref?: (action: ScorecardResult["actions"][number]) => string;
+}) {
+  const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
+
+  // Open first, then newest first inside each group: the rows that still need somebody
+  // are the rows a leader opens this card to find.
+  const sorted = useMemo(() => {
+    const byDate = (a: ScorecardResult["actions"][number], b: ScorecardResult["actions"][number]) =>
+      new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime();
+    const open = actions.filter((a) => !a.closed_at).sort(byDate);
+    const closed = actions.filter((a) => a.closed_at).sort(byDate);
+    return { open, closed, all: [...open, ...closed] };
+  }, [actions]);
+
+  // The filter changes what is DRAWN and never what is counted — the heading, the
+  // "still listed" note and every figure on the card stay on the full set.
+  const shown = filter === "open" ? sorted.open : filter === "closed" ? sorted.closed : sorted.all;
+  const dividerAfter = filter === "all" && sorted.open.length > 0 && sorted.closed.length > 0
+    ? sorted.open.length
+    : -1;
+
+  const row = (a: ScorecardResult["actions"][number]) => {
+    const labels = (a.labels ?? []).filter(Boolean) as string[];
+    const text = (a.description ?? "").trim();
+    const primary = text || labels.join(" · ");
+    const sev = a.severity ? severityMeta(a.severity) : null;
+    const validation = validationMeta(a.validation_status);
+    // Only a verdict that means something. "Open" beside the state badge below would be
+    // the same word twice, and a row three badges wide stops being readable.
+    const showValidation = a.validation_status === "validated" || a.validation_status === "rejected";
+    const meta = [
+      a.action_no || `#${a.id.slice(0, 8)}`,
+      format(new Date(a.recorded_at), "dd/MM"),
+      a.line || null,
+      a.shift || null,
+    ];
+
+    return (
+      <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || text || "action"}>
+        <div className="min-w-0 flex-1">
+          {primary ? (
+            <p className="line-clamp-2 text-sm font-medium text-foreground" title={primary}>{primary}</p>
+          ) : (
+            <p className="text-sm italic text-muted-foreground">No description recorded</p>
+          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
+            <span className="font-mono">{meta[0]}</span>
+            {meta.slice(1).filter(Boolean).map((m) => <span key={m as string}>{m}</span>)}
+            {labels.slice(0, 3).map((l) => (
+              <Badge key={l} variant="secondary" className="text-2xs font-normal">{l}</Badge>
+            ))}
+            {labels.length > 3 && <span>+{labels.length - 3}</span>}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+          <Badge
+            variant="outline"
+            className={cn("text-2xs", sev ? sev.badge : "text-muted-foreground")}
+          >
+            {sev ? sev.label : "Unrated"}
+          </Badge>
+          {showValidation && (
+            <Badge variant="outline" className={cn("text-2xs", validation.badge)}>{validation.label}</Badge>
+          )}
+          {a.closed_at ? (
+            <Badge variant="outline" className="whitespace-nowrap border-success/40 bg-success/15 text-2xs text-success-strong">
+              Closed {format(new Date(a.closed_at), "dd/MM")}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-warning/40 bg-warning/10 text-2xs text-warning-strong">
+              Open
+            </Badge>
+          )}
+        </div>
+      </RowShell>
+    );
+  };
+
+  return (
+    <section aria-labelledby="sc-actions">
+      <SectionHead
+        id="sc-actions"
+        icon={AlertTriangle}
+        aside={filed > 0 ? `· ${filed} closed, still listed` : undefined}
+      >
+        Actions in this period ({actions.length})
+      </SectionHead>
+
+      {actions.length > 6 && (
+        <div className="mb-2 flex gap-1 print:hidden" role="group" aria-label="Filter actions">
+          {([["all", `All ${actions.length}`], ["open", `Open ${sorted.open.length}`], ["closed", `Closed ${sorted.closed.length}`]] as const).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setFilter(v)}
+              aria-pressed={filter === v}
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-2xs font-medium transition-colors",
+                filter === v ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="max-h-[26rem] overflow-y-auto rounded-md border print:max-h-none print:overflow-visible">
+        <div className="hidden border-b bg-muted/30 px-3 py-1.5 text-2xs uppercase tracking-wide text-muted-foreground sm:flex print:hidden">
+          <span className="flex-1">Action</span>
+          <span>Status</span>
+        </div>
+        <div className="divide-y">
+          {shown.map((a, i) => (
+            <>
+              {i === dividerAfter && (
+                <div key="sc-actions-divider" className="bg-muted/40 px-3 py-1 text-2xs uppercase tracking-wide text-muted-foreground">
+                  Closed in this period
+                </div>
+              )}
+              {row(a)}
+            </>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
