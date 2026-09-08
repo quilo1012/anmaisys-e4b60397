@@ -22,5 +22,19 @@ jobs:
     - name: Instalar Dependencias
       run: bun install --frozen-lockfile
 
+    # O `vite build` do preview do Lovable nao verifica tipos: transpila e segue.
+    # Um identificador que nao existe — um componente usado sem o import, que e o
+    # que o agente escreve quando parte uma edicao em dois commits — passa a build
+    # inteira e so rebenta no browser de quem abrir o ecra. O `tsc --noEmit` apanha-o
+    # antes (TS2304), e e por isso que corre aqui e nao so na maquina de quem lembrar.
+    - name: Verificar os Tipos
+      run: bun run typecheck
+
     - name: Executar os Testes
       run: bun run test
+
+    # No Lovable o merge e o deploy, portanto uma build partida nao tem onde ser
+    # descoberta a nao ser em producao. Corre por ultimo: os testes dizem mais
+    # depressa o que esta errado.
+    - name: Compilar
+      run: bun run build
