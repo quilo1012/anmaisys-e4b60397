@@ -15,7 +15,6 @@ type SafetyKindEnum = Database["public"]["Enums"]["safety_kind"];
 
 export type QualityImportPayload = Omit<ReturnType<typeof buildQualityActionPayload>, "safety_kind"> & {
   safety_kind: SafetyKindEnum | null;
-  validation_status?: string;
 };
 
 export interface QualityImportRow {
@@ -54,13 +53,20 @@ export function severityFromLabel(s: string): { value: string | null; error?: st
   return hit ? { value: hit.value } : { value: null, error: `Unknown severity "${s}"` };
 }
 
-/** "Awaiting verdict" / "Open" → "open". Unknown → "open" with a warning. */
-export function validationFromLabel(s: string): { value: string; warning?: string } {
+/**
+ * Preview-only: imports never write `validation_status` (Quality rules on it in the
+ * app), but the sheet's Validation column is still read so the user sees it in the
+ * preview and gets warned when a verdict will be dropped.
+ */
+export function validationFromLabel(s: string): { value: string; label: string; warning?: string } {
+  const raw = String(s ?? "").trim();
   const k = fold(s);
-  if (!k) return { value: "open" };
-  if (k === "awaiting verdict") return { value: "open" };
+  if (!k) return { value: "open", label: "" };
+  if (k === "awaiting verdict") return { value: "open", label: raw };
   const hit = VALIDATION_STATES.find((x) => fold(x.label) === k || x.value === k);
-  return hit ? { value: hit.value } : { value: "open", warning: `Unknown validation "${s}" — set to Open` };
+  return hit
+    ? { value: hit.value, label: raw }
+    : { value: "open", label: raw, warning: `Unknown validation "${raw}"` };
 }
 
 /** dd/mm/yyyy (what the export writes), ISO, or anything Date parses. */
@@ -91,8 +97,12 @@ export function parseQualityImport(
     const dateStr = cell(r, ["date", "data"]);
     const sev = severityFromLabel(cell(r, ["severity", "severidade"]));
     if (sev.error) errors.push(sev.error);
+    // Validation verdicts are never imported — Quality rules on them in the app.
     const val = validationFromLabel(cell(r, ["validation", "validação", "validacao"]));
     if (val.warning) warnings.push(val.warning);
+    else if (val.value !== "open") {
+      warnings.push(`Validation "${val.label}" ignored — Quality rules on this in the app`);
+    }
 
     const kindStr = cell(r, ["kind", "safety kind", "tipo"]);
     let domain: "quality" | "safety" = "quality";
@@ -147,7 +157,6 @@ export function parseQualityImport(
           ...buildQualityActionPayload(form, matched, recordedAt),
           // Validated above against SAFETY_KINDS, which mirrors the DB enum.
           safety_kind: (domain === "safety" ? safety_kind : null) as SafetyKindEnum | null,
-          validation_status: val.value,
         }
       : null;
     rows.push({ rowNo, form, payload, errors, warnings });

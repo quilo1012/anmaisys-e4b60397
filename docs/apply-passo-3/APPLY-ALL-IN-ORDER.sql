@@ -4088,6 +4088,15 @@ WITH CHECK (
 
 
 -- ================================================================
+-- BLOCO 49b
+-- 20260908150429_08337551-2ed5-4584-ae29-1e6e22dd2d9c.sql
+-- ================================================================
+
+ALTER TABLE public.work_orders ADD COLUMN IF NOT EXISTS resolution_notes text;
+COMMENT ON COLUMN public.work_orders.resolution_notes IS 'Engineer resolution notes captured when finishing a work order, stored in English after optional AI polish.';
+
+
+-- ================================================================
 -- BLOCO 30
 -- 20260909090000_a_stoppage_cannot_last_less_than_nothing.sql
 -- ================================================================

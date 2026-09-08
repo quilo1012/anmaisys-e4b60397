@@ -497,8 +497,7 @@ function EngineerDashboardContent() {
   const generateReport = (): string => {
     const events = reportDowntimeEvents || [];
     const clean = (text: any) => String(text ?? "—").replace(/\s+/g, " ").trim();
-    const header = `Maintenance (${shiftWindow.label}):`;
-    const lines: string[] = [header];
+    const lines: string[] = ["Maintenance:"];
     reportWOs.forEach((wo) => {
       const qualifying = events
         .filter((e: any) => e.work_order_id === wo.id)
@@ -523,7 +522,8 @@ function EngineerDashboardContent() {
       lines.push(`Line ${line}: ${clean(resolution)}`);
       lines.push(`Downtime: ${downtimeText}`);
     });
-    // If no WO had downtime above 15 minutes, the report stays blank except for the header.
+    // Nothing qualified under the >15-minute rule: say so on the next line.
+    if (lines.length === 1) lines.push("- No issues today.");
     return lines.join("\n");
   };
 
