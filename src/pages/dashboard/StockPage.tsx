@@ -453,13 +453,26 @@ export default function StockPage() {
 
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => runExport("pdf", false)}><FileText className="mr-1 h-4 w-4" /> PDF list</Button>
-              <Button size="sm" variant="outline" onClick={() => runExport("pdf", true)}><FileText className="mr-1 h-4 w-4" /> PDF low</Button>
-              <Button size="sm" variant="outline" onClick={() => runExport("excel", false)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel list</Button>
-              <Button size="sm" variant="outline" onClick={() => runExport("excel", true)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel low</Button>
-              <Button size="sm" variant="outline" onClick={printAllLabels} disabled={printingLabels}>
-                {printingLabels ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <QrCode className="mr-1 h-4 w-4" />} QR labels
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" disabled={printingLabels}>
+                    {printingLabels ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}
+                    Generate
+                    <ChevronDown className="ml-1 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-52 bg-popover">
+                  <DropdownMenuItem onSelect={() => runExport("pdf", false)}><FileText className="mr-2 h-4 w-4" /> PDF list</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("pdf", true)}><FileText className="mr-2 h-4 w-4" /> PDF low</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("excel", false)}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel list</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("excel", true)}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel low</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => { void printAllLabels(); }} disabled={printingLabels}>
+                    <QrCode className="mr-2 h-4 w-4" /> QR labels
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {/* Exports describe the list; these two change it. Same row because that is
                   where the hand already is, but set apart so six buttons do not read as
                   six of the same kind. */}
