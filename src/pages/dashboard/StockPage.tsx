@@ -163,6 +163,10 @@ export default function StockPage() {
   // Which row is mid-adjustment, so its two one-unit buttons cannot be double-tapped.
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [removingPhoto, setRemovingPhoto] = useState(false);
+  // Taking parts out by scanning their shelf labels. Same right as the −1 button.
+  const [scanOutOpen, setScanOutOpen] = useState(false);
+  const [printingLabels, setPrintingLabels] = useState(false);
+
 
 
 
