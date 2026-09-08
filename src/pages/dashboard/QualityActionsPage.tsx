@@ -441,6 +441,7 @@ export function QualityActionsView() {
   const clearFilters = () => {
     setFilterSeverity("__all__"); setFilterValidation("__all__"); setFilterLine("__all__");
     setFilterDept("__all__"); setFilterLeader("__all__"); setFilterShift("__all__");
+    setFilterPriority("__all__");
   };
 
   // Computed here, not inside the card, because whether there is a pattern to show
