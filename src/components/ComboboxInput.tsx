@@ -20,9 +20,14 @@ interface ComboboxInputProps {
    * enquanto lhe dava outra.
    */
   showAllOnFocus?: boolean;
+  /** Dimmed second line under each suggestion. E.g. the product name. */
+  hint?: (suggestion: string) => string | undefined;
 }
 
-export function ComboboxInput({ value, onChange, suggestions, placeholder, className, showAllOnFocus = false }: ComboboxInputProps) {
+/** shadcn's Command is not virtualised; a 1266-code catalogue must not open in full. */
+const MAX_SUGGESTIONS = 50;
+
+export function ComboboxInput({ value, onChange, suggestions, placeholder, className, showAllOnFocus = false, hint }: ComboboxInputProps) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -31,11 +36,11 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
     setInputValue(value);
   }, [value]);
 
-  const filtered = inputValue.length > 0
+  const filtered = (inputValue.length > 0
     ? suggestions.filter(
         (s) => s.toLowerCase().includes(inputValue.toLowerCase()) && s.toLowerCase() !== inputValue.toLowerCase()
       )
-    : showAllOnFocus ? suggestions : [];
+    : showAllOnFocus ? suggestions : []).slice(0, MAX_SUGGESTIONS);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
@@ -70,11 +75,17 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
           <CommandList>
             <CommandEmpty>No suggestions</CommandEmpty>
             <CommandGroup>
-              {filtered.map((s) => (
-                <CommandItem key={s} value={s} onSelect={() => handleSelect(s)} className="cursor-pointer">
-                  {s}
-                </CommandItem>
-              ))}
+              {filtered.map((s) => {
+                const h = hint?.(s);
+                return (
+                  <CommandItem key={s} value={s} onSelect={() => handleSelect(s)} className="cursor-pointer">
+                    <span className="flex flex-col">
+                      <span>{s}</span>
+                      {h && <span className="text-2xs text-muted-foreground">{h}</span>}
+                    </span>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>
