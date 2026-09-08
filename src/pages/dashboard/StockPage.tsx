@@ -290,22 +290,39 @@ export default function StockPage() {
    * adjustment form writes — `adjust_stock`, with the delta and the new figure — so
    * the Adjustment History below tells the whole story either way. Never below zero.
    */
-  const adjustOne = async (p: Product, delta: 1 | -1) => {
+  const writeOneUnit = async (p: Product, delta: 1 | -1): Promise<number> => {
     const newQty = p.quantity + delta;
-    if (newQty < 0) {
+    if (newQty < 0) throw new Error("Stock cannot go below 0");
+    await updateStock.mutateAsync({ id: p.id, quantity: newQty });
+    await logAuditEvent("adjust_stock", "product", p.id, { adjustment: delta, new_quantity: newQty });
+    queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
+    return newQty;
+  };
+
+  const adjustOne = async (p: Product, delta: 1 | -1) => {
+    if (p.quantity + delta < 0) {
       toast({ title: "Stock cannot go below 0", variant: "destructive" });
       return;
     }
     setAdjustingId(p.id);
     try {
-      await updateStock.mutateAsync({ id: p.id, quantity: newQty });
-      await logAuditEvent("adjust_stock", "product", p.id, { adjustment: delta, new_quantity: newQty });
-      queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
+      const newQty = await writeOneUnit(p, delta);
       toast({ title: `${p.code}: ${p.quantity} → ${newQty}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAdjustingId(null);
+    }
+  };
+
+  const printAllLabels = async () => {
+    setPrintingLabels(true);
+    try {
+      await exportStockQrLabelsPDF(rows);
+    } catch (err: any) {
+      toast({ title: "Could not build the labels PDF", description: err.message, variant: "destructive" });
+    } finally {
+      setPrintingLabels(false);
     }
   };
 
