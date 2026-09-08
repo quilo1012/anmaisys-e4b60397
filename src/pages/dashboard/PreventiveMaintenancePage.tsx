@@ -31,6 +31,7 @@ import {
   pmStatus, type PmSchedule, type PmStatus,
 } from "@/hooks/usePreventiveMaintenance";
 import { useMachines } from "@/hooks/useMachines";
+import { ComboboxInput } from "@/components/ComboboxInput";
 import { useRole } from "@/hooks/useRole";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -98,7 +99,8 @@ export default function PreventiveMaintenancePage() {
   }, [enriched, filter, search]);
 
   const submitCreate = async () => {
-    if (!form.machine || !form.title || !form.interval_days) {
+    const machine = form.machine.trim();
+    if (!machine || !form.title || !form.interval_days) {
       toast({ title: "Missing fields", description: "Machine, title and interval are required.", variant: "destructive" });
       return;
     }
@@ -106,6 +108,7 @@ export default function PreventiveMaintenancePage() {
       const { first_due, ...campos } = form;
       await createMut.mutateAsync({
         ...campos,
+        machine,
         // Meio-dia, nao meia-noite: uma preventiva marcada para o dia 10 tem de
         // continuar no dia 10 depois de a base a devolver em UTC.
         ...(first_due ? { next_due_at: new Date(`${first_due}T12:00:00`).toISOString() } : {}),
@@ -181,14 +184,17 @@ export default function PreventiveMaintenancePage() {
                 <div className="space-y-3">
                   <div>
                     <Label>Machine</Label>
-                    <Select value={form.machine} onValueChange={(v) => setForm((f) => ({ ...f, machine: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select machine" /></SelectTrigger>
-                      <SelectContent>
-                        {(machines || []).map((m: any) => (
-                          <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {/* Escrever, nao so escolher. `pm_schedules.machine` e texto livre e o
+                        PM Intelligence ja la escreve nomes fora do registo; era este Select
+                        que deixava sem plano tudo o que nao pertence a uma linha — um
+                        compressor, um empilhador — e por isso nunca foi registado. */}
+                    <ComboboxInput
+                      value={form.machine}
+                      onChange={(v) => setForm((f) => ({ ...f, machine: v }))}
+                      suggestions={(machines || []).map((m: any) => m.name)}
+                      placeholder="Select or type a machine name"
+                      showAllOnFocus
+                    />
                   </div>
                   <div>
                     <Label>Title</Label>
