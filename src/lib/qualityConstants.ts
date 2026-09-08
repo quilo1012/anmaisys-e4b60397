@@ -1183,3 +1183,31 @@ export function labelBadge(kind: string | null | undefined): string {
       return "bg-muted text-muted-foreground border-border";
   }
 }
+
+/**
+ * What a quality action is, in one line.
+ *
+ * Two import sources identify themselves through different columns and the log only
+ * ever rendered one of them. Measured on 08/09/2026:
+ *
+ *   source=pm            69 rows   0 with `title`   67 with `description`   20 with `action_no`
+ *   source=safetyculture 66 rows  66 with `title`   14 with `description`    0 with `action_no`
+ *
+ * So the table drew a `#` column that was empty for every SafetyCulture row, a Notes
+ * column that was empty for 52 of them, and no column at all for the one field that
+ * says what was found. A supervisor read a page of dashes and had to open each row —
+ * where the dialog then titled itself "Issue", because that too keyed off `action_no`.
+ *
+ * `title` first because only the sync writes it and it is written to be read; then
+ * `description`, which is where a hand-typed action puts the same thing.
+ */
+export function actionHeadline(a: { title?: string | null; description?: string | null }): string | null {
+  return (a.title ?? "").trim() || (a.description ?? "").trim() || null;
+}
+
+/** The longer note, only when it is not already the headline. */
+export function actionDetail(a: { title?: string | null; description?: string | null }): string | null {
+  const detail = (a.description ?? "").trim();
+  if (!detail) return null;
+  return detail === actionHeadline(a) ? null : detail;
+}
