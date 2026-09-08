@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, ScanLine, QrCode, Printer } from "lucide-react";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, QrCode, Printer } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
@@ -466,9 +466,15 @@ export default function StockPage() {
               {isManager && (
                 <>
                   <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
-                  <Button size="sm" onClick={() => setScanOutOpen(true)}>
-                    <ScanLine className="mr-1 h-4 w-4" /> Scan QR (take out)
+                  <Button
+                    size="icon"
+                    onClick={() => setScanOutOpen(true)}
+                    aria-label="Scan QR (take out)"
+                    title="Scan QR (take out)"
+                  >
+                    <QrCode className="h-5 w-5" />
                   </Button>
+
                   <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
                     <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
                   </Button>
