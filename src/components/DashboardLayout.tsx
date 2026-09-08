@@ -350,12 +350,18 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                             to={item.url}
                             end
                             className={cn(
-                              "transition-colors",
+                              "relative transition-colors",
                               active
                                 ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium ring-1 ring-sidebar-border/60 shadow-sm"
                                 : "text-sidebar-foreground/75 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
                             )}
                           >
+                            {active && (
+                              <span
+                                className="hidden group-data-[collapsible=icon]:block absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary"
+                                aria-hidden="true"
+                              />
+                            )}
                             <item.icon className="h-4 w-4 shrink-0 group-data-[collapsible=icon]:h-[18px] group-data-[collapsible=icon]:w-[18px]" />
                             <span className="text-sm group-data-[collapsible=icon]:hidden">{item.title}</span>
                             {item.title === "Permissions" && permissionOverrideCount > 0 && (
