@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, MessageSquare } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { Lock } from "lucide-react";
@@ -297,7 +297,7 @@ function EngineerDashboardContent() {
       // Engineer accounts are shared (workshop@/maintenance@) and the real engineer
       // identity lives in the `engineers` table via PIN. So we show the full
       // recent history of finished/closed WOs regardless of which PIN signed them.
-      const cols = "id, wo_number, line_at_time, machine, description, status, requester_name, engineer_name, engineer_id, collaborator_ids, created_at, finished_at, closed_at, completed_at, started_at";
+      const cols = "id, wo_number, line_at_time, machine, description, status, requester_name, engineer_name, engineer_id, collaborator_ids, created_at, finished_at, closed_at, completed_at, started_at, resolution_notes";
       const { data, error } = await supabase
         .from("work_orders")
         .select(cols)
@@ -447,6 +447,86 @@ function EngineerDashboardContent() {
       avgMTTR: mttrCount ? Math.round(totalMTTR / mttrCount) : 0,
     };
   }, [allCompleted]);
+
+  // Report: WhatsApp-ready summary of today's maintenance with downtimes > 15 min
+  const todayStart = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const reportWOs = useMemo(() => {
+    return (engineerHistory || []).filter((wo: any) => {
+      const t = new Date(wo.finished_at || wo.completed_at || wo.closed_at || wo.created_at);
+      return t >= todayStart;
+    });
+  }, [engineerHistory, todayStart]);
+
+  const reportWOIds = useMemo(() => reportWOs.map((wo) => wo.id), [reportWOs]);
+
+  const { data: reportDowntimeEvents } = useQuery({
+    queryKey: ["downtime_events", "report", reportWOIds],
+    enabled: reportWOIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("downtime_events")
+        .select("id, work_order_id, duration_minutes, stopped_at, resumed_at, stopped_reason")
+        .in("work_order_id", reportWOIds)
+        .order("stopped_at", { ascending: true });
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+
+  const eventDurationMinutes = (e: any): number => {
+    if (typeof e.duration_minutes === "number" && !isNaN(e.duration_minutes)) return e.duration_minutes;
+    const stop = new Date(e.stopped_at);
+    const resume = e.resumed_at ? new Date(e.resumed_at) : new Date();
+    return Math.max(0, differenceInMinutes(resume, stop));
+  };
+
+  const generateReport = (): string => {
+    const events = reportDowntimeEvents || [];
+    if (reportWOs.length === 0) return "Maintenance:\nNo completed maintenance orders today.";
+    const clean = (text: any) => String(text ?? "—").replace(/\s+/g, " ").trim();
+    const lines: string[] = ["Maintenance:"];
+    reportWOs.forEach((wo) => {
+      const woEvents = events.filter((e: any) => e.work_order_id === wo.id);
+      const qualifying = woEvents.filter((e: any) => eventDurationMinutes(e) > 15);
+      const rawLine = wo.line_at_time || "—";
+      const line = typeof rawLine === "string" ? rawLine.replace(/^line\s+/i, "") : rawLine;
+      const resolution = wo.resolution_notes || wo.description || "—";
+      const downtimeText = qualifying
+        .map((e: any) => {
+          const min = eventDurationMinutes(e);
+          const reason = clean(e.stopped_reason || "No reason");
+          return `${min}m - ${reason}`;
+        })
+        .join("; ") || "—";
+      lines.push(`Line ${line}: ${clean(resolution)}`);
+      lines.push(`Downtime: ${downtimeText}`);
+    });
+    return lines.join("\n");
+  };
+
+  const handleReport = async () => {
+    const text = generateReport();
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      toast({ title: "Report copied", description: "Paste it into WhatsApp." });
+    } catch (err: any) {
+      toast({ title: "Could not copy report", description: err.message || "Unknown error", variant: "destructive" });
+    }
+  };
 
   const lineFilterParam = searchParams.get("line");
   const dateFilterParam = searchParams.get("date");
@@ -910,6 +990,9 @@ function EngineerDashboardContent() {
             <EngineerAlertLineFilter />
             <Button variant={focusMode ? "default" : "outline"} size="sm" onClick={() => setFocusMode(!focusMode)} className="gap-1">
               <Focus className="h-4 w-4" /> {focusMode ? "Focus ON" : "Focus"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleReport} className="gap-1">
+              <MessageSquare className="h-4 w-4" /> Report
             </Button>
             <Button variant="outline" size="sm" onClick={() => setChangePinOpen(true)} className="gap-1">
               <Lock className="h-4 w-4" /> Change PIN
