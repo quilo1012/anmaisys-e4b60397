@@ -950,7 +950,25 @@ export default function StockPage() {
                   )}
                 </div>
               )}
+              {/* The shelf label: the code as a QR, printable on its own. */}
+              {editProduct && (
+                <div className="space-y-1">
+                  <Label>QR label</Label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="rounded border bg-white p-1.5">
+                      <QRCodeSVG value={qrPayload(editProduct.code)} size={72} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-mono text-xs text-muted-foreground">{editProduct.code}</p>
+                      <Button variant="outline" size="sm" onClick={() => exportSingleQrLabelPDF(editProduct)}>
+                        <Printer className="mr-2 h-4 w-4" /> Print label
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
