@@ -81,7 +81,7 @@ export default function PermissionsMatrixPage() {
     const init: Record<string, boolean> = {};
     const initDev: Record<string, boolean> = {};
     for (const r of ALL_ROLES) for (const a of ALL_ACTIONS) {
-      init[keyOf(r, a)] = can(r, a);
+      init[keyOf(r, a)] = roleHolds(r, a);
       for (const d of DEVICES) initDev[dkey(d, r, a)] = !isDeviceHidden(r, a, d); // true = visible on that device
     }
     setDraft(init);
@@ -152,7 +152,7 @@ export default function PermissionsMatrixPage() {
     setDraft((prev) => ({ ...prev, [k]: defaultCan(r, a) }));
     setDirty((prev) => {
       const next = new Set(prev);
-      if (isPermissionOverridden(r, a) || can(r, a) !== defaultCan(r, a)) next.add(k);
+      if (isPermissionOverridden(r, a) || roleHolds(r, a) !== defaultCan(r, a)) next.add(k);
       else next.delete(k);
       return next;
     });
@@ -167,7 +167,7 @@ export default function PermissionsMatrixPage() {
     return Array.from(dirty).map((k) => {
       const [r, a] = k.split(":") as [Role, Action];
       const next = draft[k];
-      const prev = can(r, a);
+      const prev = roleHolds(r, a);
       const isReset = next === defaultCan(r, a);
       return { key: k, role: r, action: a, from: prev, to: next, isReset };
     });
@@ -244,7 +244,7 @@ export default function PermissionsMatrixPage() {
 
   const discard = () => {
     const init: Record<string, boolean> = {};
-    for (const r of ALL_ROLES) for (const a of ALL_ACTIONS) init[keyOf(r, a)] = can(r, a);
+    for (const r of ALL_ROLES) for (const a of ALL_ACTIONS) init[keyOf(r, a)] = roleHolds(r, a);
     setDraft(init);
     setDirty(new Set());
   };
@@ -470,7 +470,7 @@ export default function PermissionsMatrixPage() {
                             </td>
                             {rolesToShow.map((r) => {
                               const k = keyOf(r, a);
-                              const allowed = draft[k] ?? can(r, a);
+                              const allowed = draft[k] ?? roleHolds(r, a);
                               if (mode !== "access") {
                                 const dk = dkey(mode, r, a);
                                 const visible = deviceDraft[dk] ?? !isDeviceHidden(r, a, mode);

@@ -11,7 +11,7 @@ import {
   ACTION_DESCRIPTIONS,
   ACTION_GROUPS,
   ALL_ACTIONS,
-  can,
+  roleHolds,
   isDeviceHidden,
   isPermissionOverridden,
   type Action,
@@ -65,13 +65,13 @@ export function deriveRoleRules(role: Role): RoleRules {
     const allowed: RuleEntry[] = [];
     const denied: RuleEntry[] = [];
     for (const action of g.actions) {
-      (can(role, action) ? allowed : denied).push(entry(role, action));
+      (roleHolds(role, action) ? allowed : denied).push(entry(role, action));
     }
     return { key: g.key, label: g.label, allowed, denied, noAccessAtAll: allowed.length === 0 };
   });
 
-  const allowed = ALL_ACTIONS.filter((a) => can(role, a));
-  const denied = ALL_ACTIONS.filter((a) => !can(role, a));
+  const allowed = ALL_ACTIONS.filter((a) => roleHolds(role, a));
+  const denied = ALL_ACTIONS.filter((a) => !roleHolds(role, a));
 
   return {
     role,
@@ -84,5 +84,5 @@ export function deriveRoleRules(role: Role): RoleRules {
 
 /** How many actions a role holds — used for the role list counts. */
 export function countAllowed(role: Role): number {
-  return ALL_ACTIONS.reduce((n, a) => n + (can(role, a) ? 1 : 0), 0);
+  return ALL_ACTIONS.reduce((n, a) => n + (roleHolds(role, a) ? 1 : 0), 0);
 }

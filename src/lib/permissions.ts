@@ -331,6 +331,19 @@ export function isOwnerSession(): boolean {
   return IS_OWNER;
 }
 
+/**
+ * What a ROLE holds — the matrix plus any override, and deliberately NOT the owner
+ * bypass in `can()`. `can()` answers "may this session do this", which for the app
+ * owner is always yes; that is the right answer for a button and the wrong one for a
+ * page describing what a role is allowed to do. Read this from anything that
+ * DESCRIBES permissions rather than enforcing them.
+ */
+export function roleHolds(role: Role, action: Action): boolean {
+  const key = `${role}:${action}`;
+  if (key in OVERRIDES) return OVERRIDES[key];
+  return MATRIX[action]?.includes(role) ?? false;
+}
+
 /** Returns true if the given role can perform the action. Null role → false. */
 export function can(role: Role | null | undefined, action: Action): boolean {
   // A válvula de segurança, e o único passe livre que resta. Vem antes do teste de
