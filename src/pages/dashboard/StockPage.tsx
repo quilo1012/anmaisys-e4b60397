@@ -12,10 +12,13 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal } from "lucide-react";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, ScanLine, QrCode, Printer } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useProducts, useAddProduct, useUpdateProductStock, useUpdateProduct, useDeleteProduct, type Product } from "@/hooks/useStock";
 import { usePartPhotoUrls, useUploadPartPhoto } from "@/hooks/usePartPhotos";
 import { IdentifyPartDialog } from "@/components/IdentifyPartDialog";
+import { StockScanOutDialog } from "@/components/StockScanOutDialog";
+import { exportStockQrLabelsPDF, exportSingleQrLabelPDF, qrPayload } from "@/lib/stockQrLabels";
 
 import { useCategories, useAddCategory, useDeleteCategory } from "@/hooks/useCategories";
 import { useAuth } from "@/contexts/AuthContext";
@@ -160,6 +163,10 @@ export default function StockPage() {
   // Which row is mid-adjustment, so its two one-unit buttons cannot be double-tapped.
   const [adjustingId, setAdjustingId] = useState<string | null>(null);
   const [removingPhoto, setRemovingPhoto] = useState(false);
+  // Taking parts out by scanning their shelf labels. Same right as the −1 button.
+  const [scanOutOpen, setScanOutOpen] = useState(false);
+  const [printingLabels, setPrintingLabels] = useState(false);
+
 
 
 
@@ -283,22 +290,39 @@ export default function StockPage() {
    * adjustment form writes — `adjust_stock`, with the delta and the new figure — so
    * the Adjustment History below tells the whole story either way. Never below zero.
    */
-  const adjustOne = async (p: Product, delta: 1 | -1) => {
+  const writeOneUnit = async (p: Product, delta: 1 | -1): Promise<number> => {
     const newQty = p.quantity + delta;
-    if (newQty < 0) {
+    if (newQty < 0) throw new Error("Stock cannot go below 0");
+    await updateStock.mutateAsync({ id: p.id, quantity: newQty });
+    await logAuditEvent("adjust_stock", "product", p.id, { adjustment: delta, new_quantity: newQty });
+    queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
+    return newQty;
+  };
+
+  const adjustOne = async (p: Product, delta: 1 | -1) => {
+    if (p.quantity + delta < 0) {
       toast({ title: "Stock cannot go below 0", variant: "destructive" });
       return;
     }
     setAdjustingId(p.id);
     try {
-      await updateStock.mutateAsync({ id: p.id, quantity: newQty });
-      await logAuditEvent("adjust_stock", "product", p.id, { adjustment: delta, new_quantity: newQty });
-      queryClient.invalidateQueries({ queryKey: ["stock_adjustment_history"] });
+      const newQty = await writeOneUnit(p, delta);
       toast({ title: `${p.code}: ${p.quantity} → ${newQty}` });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
       setAdjustingId(null);
+    }
+  };
+
+  const printAllLabels = async () => {
+    setPrintingLabels(true);
+    try {
+      await exportStockQrLabelsPDF(rows);
+    } catch (err: any) {
+      toast({ title: "Could not build the labels PDF", description: err.message, variant: "destructive" });
+    } finally {
+      setPrintingLabels(false);
     }
   };
 
@@ -496,12 +520,18 @@ export default function StockPage() {
               <Button size="sm" variant="outline" onClick={() => runExport("pdf", true)}><FileText className="mr-1 h-4 w-4" /> PDF low</Button>
               <Button size="sm" variant="outline" onClick={() => runExport("excel", false)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel list</Button>
               <Button size="sm" variant="outline" onClick={() => runExport("excel", true)}><FileSpreadsheet className="mr-1 h-4 w-4" /> Excel low</Button>
+              <Button size="sm" variant="outline" onClick={printAllLabels} disabled={printingLabels}>
+                {printingLabels ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <QrCode className="mr-1 h-4 w-4" />} QR labels
+              </Button>
               {/* Exports describe the list; these two change it. Same row because that is
                   where the hand already is, but set apart so six buttons do not read as
                   six of the same kind. */}
               {isManager && (
                 <>
                   <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
+                  <Button size="sm" variant="outline" onClick={() => setScanOutOpen(true)}>
+                    <ScanLine className="mr-1 h-4 w-4" /> Scan out
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
                     <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
                   </Button>
@@ -920,7 +950,25 @@ export default function StockPage() {
                   )}
                 </div>
               )}
+              {/* The shelf label: the code as a QR, printable on its own. */}
+              {editProduct && (
+                <div className="space-y-1">
+                  <Label>QR label</Label>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="rounded border bg-white p-1.5">
+                      <QRCodeSVG value={qrPayload(editProduct.code)} size={72} />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-mono text-xs text-muted-foreground">{editProduct.code}</p>
+                      <Button variant="outline" size="sm" onClick={() => exportSingleQrLabelPDF(editProduct)}>
+                        <Printer className="mr-2 h-4 w-4" /> Print label
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditProduct(null)}>Cancel</Button>
@@ -937,6 +985,17 @@ export default function StockPage() {
           onOpenChange={setPhotoSearchOpen}
           onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); setOutOnly(false); }}
         />
+
+        {/* Scan out: each QR read is the same one-unit withdrawal as the −1 button. */}
+        {isManager && (
+          <StockScanOutDialog
+            open={scanOutOpen}
+            onOpenChange={setScanOutOpen}
+            products={products ?? []}
+            onAdjust={writeOneUnit}
+          />
+        )}
+
 
 
         {/* Delete Confirmation */}
