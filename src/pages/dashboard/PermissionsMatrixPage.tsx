@@ -22,7 +22,7 @@ import { toast } from "@/hooks/use-toast";
 import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  can,
+  roleHolds,
   defaultCan,
   isPermissionOverridden,
   setPermissionOverrides,
