@@ -584,11 +584,46 @@ function EngineerDashboardContent() {
     setSignDialogWO(woId);
   };
 
+  /**
+   * The report has to read as English for everyone downstream, but the engineer on the
+   * floor writes in whatever language is fastest for him. The AI turns it into English
+   * (and tidies the grammar when it is already English) before it is stored. If the AI
+   * is unreachable, the engineer's own words are saved rather than losing the report.
+   */
+  const polishToEnglish = async (text: string): Promise<string> => {
+    try {
+      const { data, error } = await invokeFunction<{ translated?: string }>("translate-message", {
+        text,
+        mode: "polish",
+      });
+      if (error) return text;
+      const out = (data?.translated ?? "").trim();
+      return out || text;
+    } catch {
+      return text;
+    }
+  };
+
+  const handleReviewEnglish = async () => {
+    const text = resolutionNotes.trim();
+    if (!text) return;
+    setPolishing(true);
+    const fixed = await polishToEnglish(text);
+    setPolishing(false);
+    setResolutionNotes(fixed);
+    if (fixed === text) toast({ title: "Report already reads well in English" });
+    else toast({ title: "Report rewritten in English" });
+  };
+
   const handleFinishConfirm = async () => {
     if (!signDialogWO) return;
     const woId = signDialogWO;
-    const notes = resolutionNotes.trim();
-    if (!notes) return;
+    const raw = resolutionNotes.trim();
+    if (!raw) return;
+    setPolishing(true);
+    const notes = await polishToEnglish(raw);
+    setPolishing(false);
+
     const engineer: EngineerIdentity = currentEngineer
       ?? { id: user!.id, name: profile?.name || user!.email || "Engineer" };
     setSignDialogWO(null);
