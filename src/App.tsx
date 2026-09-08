@@ -97,6 +97,7 @@ const WorkOrderDetail = lazyWithReload(() => import("./pages/dashboard/WorkOrder
 const StockPage = lazyWithReload(() => import("./pages/dashboard/StockPage"));
 const AuditLogsPage = lazyWithReload(() => import("./pages/dashboard/AuditLogsPage"));
 const SystemHubPage = lazyWithReload(() => import("./pages/dashboard/SystemHubPage"));
+const RoleRulesPage = lazyWithReload(() => import("./pages/dashboard/RoleRulesPage"));
 const ReportsPage = lazyWithReload(() => import("./pages/dashboard/ReportsPage"));
 const AttendancePage = lazyWithReload(() => import("./pages/dashboard/AttendancePage"));
 const FinanceClosePage = lazyWithReload(() => import("./pages/dashboard/FinanceClosePage"));
@@ -555,6 +556,14 @@ const App = () => (
                   element={
                     <ProtectedRoute allowedRoles={["admin"]} requiredAction="users.manage">
                       <ManageUsers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/roles"
+                  element={
+                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="users.view">
+                      <RoleRulesPage />
                     </ProtectedRoute>
                   }
                 />

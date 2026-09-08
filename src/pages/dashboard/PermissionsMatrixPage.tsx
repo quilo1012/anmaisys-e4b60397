@@ -291,6 +291,12 @@ export default function PermissionsMatrixPage() {
             }
             icon={<ShieldCheck className="h-5 w-5" />}
           />
+          <a
+            href="/dashboard/roles"
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            See these rules in plain language
+          </a>
           <div className="flex flex-wrap items-center gap-2">
             {/* Mode switch: Access · Tablet · Mobile visibility */}
             <div className="inline-flex rounded-md border p-0.5">

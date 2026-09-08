@@ -32,7 +32,7 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, type Action } from "@/lib/permissions";
+import { can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -410,24 +410,6 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
 
 
 
-const roleTitle: Record<string, string> = {
-  admin: "Admin",
-  manager: "Manager",
-  supervisor: "Supervisor",
-  maintenance_manager: "Maintenance Manager",
-  planner: "Planner",
-  engineer: "Engineer",
-  co_engineer: "Co-Engineer",
-  operator: "Operator",
-  viewer: "Viewer",
-  warehouse: "Warehouse Admin",
-  // These two were missing, so `roleTitle[role]` came back undefined and the badge
-  // rendered empty — with `aria-label="Current role: undefined"` read out to anybody
-  // using a screen reader. Two of the twelve roles had no name anywhere on screen.
-  quality_supervisor: "Quality Supervisor",
-  production_office_admin: "Production Office",
-};
-
 const roleBadgeClass: Record<string, string> = {
   admin: "bg-destructive/15 text-destructive-strong border-destructive/30",
   manager: "bg-purple-500/15 text-purple-600 border-purple-500/30",
@@ -443,7 +425,9 @@ const roleBadgeClass: Record<string, string> = {
   production_office_admin: "bg-primary/15 text-primary border-primary/30",
 };
 
-const routeTitles: Record<string, string> = {
+// Exported so other screens can name a route the way the header does, instead of
+// writing the same list out again.
+export const routeTitles: Record<string, string> = {
   "/dashboard/operator": "Operator Panel",
   "/dashboard/operator/my-production": "My Production",
   "/dashboard/leader/scorecard": "My Scorecard",
@@ -471,6 +455,7 @@ const routeTitles: Record<string, string> = {
   "/dashboard/messages": "Messages",
   "/users/manage": "Users",
   "/dashboard/permissions": "Permissions",
+  "/dashboard/roles": "Role rules",
   "/dashboard/people": "Employee",
   "/dashboard/headcount": "Production Headcount",
   "/dashboard/audit-logs": "Audit Logs",

@@ -382,6 +382,48 @@ export function canOnDevice(role: Role | null | undefined, action: Action, isMob
 export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
 export const ALL_ROLES: Role[] = [...ALL, "warehouse", "quality_supervisor", "production_office_admin"];
 
+/**
+ * The display name of each role, in one place.
+ *
+ * It used to live inside DashboardLayout, which meant any other screen naming a role
+ * either imported a layout component or wrote the twelve names out again.
+ */
+export const roleTitle: Record<Role, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  supervisor: "Supervisor",
+  maintenance_manager: "Maintenance Manager",
+  planner: "Planner",
+  engineer: "Engineer",
+  co_engineer: "Co-Engineer",
+  operator: "Operator",
+  viewer: "Viewer",
+  warehouse: "Warehouse Admin",
+  quality_supervisor: "Quality Supervisor",
+  production_office_admin: "Production Office",
+};
+
+/**
+ * One plain sentence per role, for a person on the factory floor. This is the only
+ * hand-written text about a role anywhere: everything else on the Role rules page is
+ * derived from the live matrix, so it cannot fall out of date.
+ */
+export const ROLE_SUMMARY: Record<Role, string> = {
+  admin: "Runs the system: every screen, every setting, and the things nobody else may touch.",
+  manager: "Runs the factory day: sees every board, approves work, and manages the people and their accounts.",
+  supervisor: "Runs a shift on the floor: production, quality and maintenance orders for the lines under them.",
+  maintenance_manager: "Runs maintenance: the engineers, the preventive plan, the parts and the stoppage record.",
+  planner: "Plans the work: the schedule, the SKUs, the targets and the reports that come out of them.",
+  engineer: "Fixes machines: takes maintenance orders, records what was done and keeps the preventive plan.",
+  co_engineer: "Works alongside the engineer on maintenance orders, with the same tools on the floor.",
+  operator: "Runs a line: logs production, raises maintenance calls, sees their own targets.",
+  viewer: "Looks, never touches: read-only access to the main boards.",
+  warehouse: "Runs the store: parts in and out, and the service requests that come from the floor.",
+  quality_supervisor: "Owns quality: raises and rules on quality actions, and signs off the leader scorecards.",
+  production_office_admin: "The production office: keeps the boards, the plan and the paperwork behind the lines up to date.",
+};
+
+
 /** Returns true if the role can perform ANY of the listed actions. */
 export function canAny(role: Role | null | undefined, actions: Action[]): boolean {
   return actions.some((a) => can(role, a));

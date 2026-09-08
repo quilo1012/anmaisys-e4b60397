@@ -38,6 +38,11 @@ export const SYSTEM_TOOLS: Tool[] = [
     url: "/users/manage", icon: Users, action: "users.manage", category: "People",
   },
   {
+    title: "Role rules",
+    description: "What each profile may and may not do, in plain language. Read-only, generated from the live matrix.",
+    url: "/dashboard/roles", icon: Shield, action: "users.view", category: "People",
+  },
+  {
     title: "iTouching Sync",
     description: "The connection to the line monitors: whether it is polling and what it last saw.",
     url: "/dashboard/intouch-settings", icon: Radar, action: "intouch.manage", category: "iTouching",
