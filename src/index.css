@@ -575,6 +575,195 @@ select:-webkit-autofill {
     line-height: 1.25 !important;
   }
 
+  /* ─── O fecho, como documento e não como painel ────────────────────────────
+     Duzentas e uma pessoas, dezoito colunas, treze folhas que alguém confere ao
+     balcão e arquiva. O que saía era o ECRÃ em papel: oito caixas arredondadas,
+     um aviso em fundo âmbar, cabeçalhos com fundo cinzento — e o registo, que é
+     a razão da folha, só a começar na página dois.
+
+     Estas regras aplicam-se só a `.close-sheet`, para não mexer na folha das
+     horas nem na do quadro, que são documentos de outra forma. */
+
+  /* AS LARGURAS QUE JÁ EXISTIAM E QUE ESTA FOLHA NUNCA LEU.
+     `CLOSE_COLUMNS` traz um `mm` por coluna, escrito para o PDF; o navegador
+     distribuía as dezoito por igual e o nome ficava com 17,7mm dos 34 que lhe
+     cabiam — "Elias Carvalho Alves" partido em três linhas enquanto a coluna do
+     Δ sobrava. Uma geometria, três saídas. */
+  .close-sheet table.close-register {
+    table-layout: fixed !important;
+  }
+
+  .close-sheet col[data-mm] {
+    width: calc(var(--mm) * 1mm);
+  }
+
+  /* Traços, não fundos. Duas espessuras e mais nenhuma: uma sob a banda do
+     título e outra sob os nomes das colunas; o resto é fio de cabelo. Um fundo
+     cinzento atrás de dezoito colunas é ruído — e toner. E a fila às riscas é a
+     segunda maneira de dizer o que a grelha já diz: com dezoito colunas o olho
+     segue a régua, não a sombra. */
+  .close-sheet tr {
+    background: transparent !important;
+  }
+
+  .close-sheet th,
+  .close-sheet td {
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 0.4pt solid #B7BCC4 !important;
+  }
+
+  /* AS COLUNAS SÓ VALEM SE O CABEÇALHO COUBER NELAS.
+     `.print-content td, th` traz `overflow-wrap: break-word`, escrito para uma
+     descrição de avaria que não pode ser cortada. Sobre um cabeçalho de tabela
+     parte a palavra a meio: saía "Worke/d", "Openin/g bank", "Prese/nt" — e o Δ
+     partia "12.5/8", que num documento de pagamento é pior do que feio. Aqui as
+     palavras quebram no espaço ou não quebram. */
+  .print-content.close-sheet table.close-register th,
+  .print-content.close-sheet table.close-register td {
+    overflow-wrap: normal !important;
+    word-break: keep-all !important;
+    hyphens: none !important;
+    padding: 1.4mm 1.2mm !important;
+  }
+
+  .print-content.close-sheet table.close-register thead th {
+    font-size: 6.5pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .print-content.close-sheet table.close-register tbody td {
+    font-size: 7pt !important;
+    line-height: 1.2 !important;
+  }
+
+  /* O nome respira: é por ele que se procura uma pessoa nas nove folhas. */
+  .print-content.close-sheet table.close-register tbody td:first-child {
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+  }
+
+  .close-sheet thead tr:last-child th {
+    border-bottom: 1pt solid #2B2F36 !important;
+  }
+
+  /* A régua que separa as bandas continua a ser vertical, porque é ela que diz
+     onde uma pergunta acaba e outra começa. */
+  .close-sheet th.border-l,
+  .close-sheet td.border-l {
+    border-left: 0.4pt solid #B7BCC4 !important;
+  }
+
+  /* Os cartões desaparecem: em papel a moldura de um cartão é uma linha vertical
+     que a paginação corta a meio, e a tabela já tem grelha própria. */
+  .close-sheet .rounded-lg,
+  .close-sheet .rounded-xl,
+  .close-sheet .rounded-md {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* A banda do título é a testeira do documento. */
+  .close-sheet header.print-keep {
+    border-bottom: 1pt solid #2B2F36 !important;
+    padding-bottom: 2mm !important;
+    margin-bottom: 3mm !important;
+  }
+
+  /* A legenda de continuação: em cada folha, o que é isto e de que período.
+     Sem a caixa de 8mm que a versão anterior usava como margem — a margem passa
+     a vir do `padding-top` do `<thead>` inteiro, e a legenda fica uma linha de
+     texto em vez de um bloco. */
+  .close-sheet th.print-caption {
+    padding: 6mm 0 2mm !important;
+    font-size: 7.5pt !important;
+    letter-spacing: 0.01em;
+    color: #6B7078 !important;
+    border-bottom: 0 !important;
+  }
+
+  /* As placas sobre os grupos de colunas. Caps, porque é a convenção de um
+     registo de folha de pagamento e não decoração: dizem que SHIFTS e HOURS são
+     duas respostas que ninguém pode somar. Mas leves — eram negrito sobre fundo
+     cinzento, que é o peso de um título para o papel de uma etiqueta. */
+  .close-sheet th.close-band {
+    font-weight: 500 !important;
+    /* Seis pontos, porque uma banda de uma coluna só ("Hours · from the board",
+       14mm) a 6,5 dava quatro linhas e empurrava o cabeçalho todo para 29mm. */
+    font-size: 6pt !important;
+    letter-spacing: 0.06em;
+    color: #6B7078 !important;
+    padding-bottom: 1mm !important;
+    border-bottom: 0 !important;
+  }
+
+  /* O resumo: a mesma grelha, em cima, com o total do rodapé por baixo de uma
+     régua. Substitui as oito caixas. */
+  .close-sheet .close-summary {
+    table-layout: fixed !important;
+  }
+
+  /* A tripulação não precisa de um terço da folha. Com largura automática o nome
+     tomava a folga toda e deixava "People" a meio caminho do nada; fixa, os
+     números do resumo caem por cima dos números do registo. */
+  .close-sheet .close-summary th:first-child,
+  .close-sheet .close-summary td:first-child {
+    width: 52mm;
+  }
+
+  .close-sheet .close-summary th,
+  .close-sheet .close-summary td {
+    padding: 1.5mm 2mm !important;
+    font-size: 7.5pt !important;
+  }
+
+  .close-sheet .close-total td {
+    border-top: 1pt solid #2B2F36 !important;
+    border-bottom: 0 !important;
+    font-weight: 600 !important;
+  }
+
+  /* O rodapé corrente. Repete-se em cada folha porque um `tfoot` se repete, e é
+     o que segura a última fila longe do bordo que a impressora não alcança. */
+  .close-sheet tfoot.print-edge td {
+    border: 0 !important;
+    padding: 2mm 0 0 !important;
+    height: auto;
+    font-size: 6.5pt !important;
+    color: #6B7078 !important;
+    text-align: left;
+  }
+
+  /* As notas e a assinatura, no fim, onde as notas de um documento vivem. */
+  .close-sheet .close-notes {
+    display: block !important;
+    break-inside: avoid;
+    margin-top: 4mm !important;
+    padding-top: 2mm !important;
+    border-top: 0.4pt solid #B7BCC4 !important;
+    font-size: 7pt !important;
+    line-height: 1.45 !important;
+    color: #2B2F36 !important;
+    /* Uma medida de leitura. A largura da folha deitada dá cento e sessenta
+       caracteres por linha, que ninguém lê duas vezes. */
+    max-width: 150mm;
+  }
+
+  .close-sheet .close-signoff {
+    display: flex !important;
+    gap: 10mm;
+    margin-top: 5mm !important;
+    font-size: 7pt !important;
+    color: #6B7078 !important;
+  }
+
+  .close-sheet .close-signoff > * {
+    flex: 1;
+    max-width: 62mm;
+    border-top: 0.4pt solid #2B2F36 !important;
+    padding-top: 1.2mm;
+  }
+
   /* Print-only watermark */
   .print-watermark {
     display: flex !important;

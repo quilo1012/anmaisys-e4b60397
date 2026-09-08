@@ -416,7 +416,7 @@ export default function FinanceClosePage() {
           `print-landscape` porque as larguras destas dezoito colunas somam 264mm: não
           cabem em pé de maneira nenhuma. `print-dense` porque são duzentas e uma
           pessoas, e o padding de ecrã por fila custa folhas. */}
-      <div className="space-y-4 print-content print-landscape print-dense">
+      <div className="space-y-4 print-content print-landscape print-dense close-sheet">
         <BackButton className="print:hidden" />
         <WorkforceTabs />
 
@@ -504,10 +504,69 @@ export default function FinanceClosePage() {
           </DropdownMenu>
         </ModuleHeader>
 
+        {/* O resumo do papel: uma tabela, no lugar de oito caixas.
+            Em papel as oito caixas ocupavam 55mm e partiam-se em 6 + 2, com as duas
+            últimas esticadas de lado a lado — e empurravam o registo, que é a razão da
+            folha, para a segunda página. Isto diz o mesmo em 26mm, na mesma grelha da
+            tabela de baixo, e acaba onde um resumo tem de acabar: numa régua e no
+            total da fábrica inteira. */}
+        <table className="hidden print:table close-summary w-full">
+          <thead>
+            <tr>
+              <th className="text-left">{department === "all" ? "Crew" : departmentLabel(department)}</th>
+              <th className="text-right">People</th>
+              <th className="border-l text-right">Shifts over</th>
+              <th className="text-right">Shifts short</th>
+              <th className="border-l text-right">Overtime</th>
+              <th className="text-right">Deducted</th>
+              <th className="text-right">Payroll OT</th>
+              <th className="text-right">Δ</th>
+              <th className="border-l text-right">Part day</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Uma tripulação só faria a fila e o total dizerem a mesma coisa. */}
+            {byShift.length > 1 && byShift.map((t) => (
+              <tr key={t.shift}>
+                <td>{crewLabel(t.shift)}</td>
+                <td className="text-right font-figure">{t.people}</td>
+                <td className="border-l text-right font-figure">{t.overtimeShifts || "—"}</td>
+                <td className="text-right font-figure">{t.deficitShifts || "—"}</td>
+                <td className="border-l text-right font-figure">{t.overtimeHours.toFixed(2)}</td>
+                <td className="text-right font-figure">{t.owedHours ? t.owedHours.toFixed(2) : "—"}</td>
+                <td className="text-right font-figure">{t.payrollOtHours.toFixed(2)}</td>
+                <td className="text-right font-figure">
+                  {t.payrollEmpty ? "—" : t.deltaHours.toFixed(2)}
+                </td>
+                <td className="border-l text-right font-figure">
+                  {t.partDayHours ? t.partDayHours.toFixed(2) : "—"}
+                </td>
+              </tr>
+            ))}
+            {/* O total do que está à frente do leitor. Se a folha foi filtrada, é o
+                total do filtro — o que o cabeçalho já diz. */}
+            <tr className="close-total">
+              <td>{scope || "Whole factory"}</td>
+              <td className="text-right font-figure">{totals.people}</td>
+              <td className="border-l text-right font-figure">{totals.overtimeShifts || "—"}</td>
+              <td className="text-right font-figure">{totals.deficitShifts || "—"}</td>
+              <td className="border-l text-right font-figure">{totals.overtimeHours.toFixed(2)}</td>
+              <td className="text-right font-figure">{totals.owedHours ? totals.owedHours.toFixed(2) : "—"}</td>
+              <td className="text-right font-figure">{totals.payrollOtHours.toFixed(2)}</td>
+              <td className="text-right font-figure">
+                {totals.payrollEmpty ? "—" : totals.deltaHours.toFixed(2)}
+              </td>
+              <td className="border-l text-right font-figure">
+                {totals.partDayHours ? totals.partDayHours.toFixed(2) : "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
         {/* The split, whatever the filter says. A close read as one number hid that the
             night crew's overtime behaves nothing like the day crews'. */}
         {byShift.length > 1 && (
-          <Card>
+          <Card className="print:hidden">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -544,6 +603,8 @@ export default function FinanceClosePage() {
 
         {/* Overtime paid leads: it is the figure somebody is about to pay, and it was
             sitting second in a row of six identical boxes with "People" first. */}
+        {/* Ecrã apenas: no papel isto é a tabela de resumo acima. */}
+        <div className="print:hidden">
         <FigureRow>
           <Figure
             lead
@@ -591,10 +652,11 @@ export default function FinanceClosePage() {
           />
           <Figure label="People" value={String(totals.people)} />
         </FigureRow>
+        </div>
 
         {/* Said before the table, not in a footnote: somebody is about to pay from
             this, and the two columns are not two halves of a total. */}
-        <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
+        <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs print:hidden">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" />
           <span>
             <b>Each period settles on its own.</b> Overtime is what this period ended above zero
@@ -631,7 +693,19 @@ export default function FinanceClosePage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="close-register">
+                  {/* As larguras do PDF, aplicadas à folha do navegador. Só contam em
+                      `@media print`, onde a tabela passa a `table-layout: fixed`; no
+                      ecrã o `--mm` não é lido por regra nenhuma. */}
+                  <colgroup>
+                    {CLOSE_COLUMNS.map((c) => (
+                      <col
+                        key={c.key}
+                        data-mm=""
+                        style={{ "--mm": c.mm } as React.CSSProperties}
+                      />
+                    ))}
+                  </colgroup>
                   <TableHeader>
                     {/* Papel apenas. Duzentas e uma pessoas são onze folhas, e o
                         `<thead>` é o único grupo que o browser repete em cada uma
@@ -668,7 +742,7 @@ export default function FinanceClosePage() {
                           key={b.band}
                           colSpan={b.span}
                           className={b.label
-                            ? "border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
+                            ? "close-band border-l text-center text-2xs font-bold uppercase tracking-widest text-muted-foreground"
                             : undefined}
                         >
                           {b.label}
@@ -764,14 +838,66 @@ export default function FinanceClosePage() {
                   {/* Um rodapé vazio que também se repete, pela mesma razão que a
                       legenda acima leva padding: segura a última fila de cada folha
                       longe do bordo, onde nenhuma impressora de escritório chega. */}
+                  {/* Um rodapé que se repete — um `tfoot` repete-se em cada folha, como
+                      o `thead` — e que faz duas coisas: segura a última fila longe do
+                      bordo que a impressora não alcança, e assina a folha. Treze folhas
+                      soltas em cima de uma secretária não têm outra maneira de dizer de
+                      que documento vieram. */}
                   <tfoot className="hidden print-edge">
-                    <tr><td colSpan={CLOSE_COLUMNS.length} /></tr>
+                    <tr>
+                      <td colSpan={CLOSE_COLUMNS.length}>
+                        Finance Close · {period?.name ?? "No period"} · {shown.length} people
+                        {scope ? ` · ${scope}` : ""} · printed {fmtDate(today)}
+                      </td>
+                    </tr>
                   </tfoot>
                 </Table>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* As notas, no fim, que é onde as notas de um documento vivem.
+            No ecrã isto é um aviso acima da tabela, porque quem lê o ecrã pode estar a
+            ver só as figuras do topo. Em papel o leitor tem a folha toda na mão: a nota
+            antes do registo era um bloco âmbar de seis linhas a empurrar o registo para
+            a folha seguinte, e depois de o ler ninguém volta lá. */}
+        <div className="hidden close-notes">
+          <p>
+            <b>Each period settles on its own.</b> Overtime is what this period ended above zero
+            and hours deducted is what it ended below. <b>Opening</b> and <b>closing</b> are the
+            hour bank — the running history, printed so a person paid 5 h this period can still
+            be seen 50 h down since June — and they are not added to what is paid.
+            <b> Payroll OT</b> is what the office keyed in; the two are never added together, and
+            the <b>Δ</b> is the disagreement to settle before anybody is paid. A dash means that
+            side reported nothing, which is not zero.
+          </p>
+          <p className="mt-1.5">
+            <b>Shifts</b> come from the headcount board and <b>hours</b> from the clocks: somebody
+            who works every shift and goes home at two is level under shifts and short under
+            hours. <b>Part day</b> is hours, where every column beside it is days.
+            {totals.payrollEmpty && (
+              <> <b>No payroll overtime has been keyed for this period at all</b>, so there is
+                nothing to compare and the gap cannot be read as agreement.</>
+            )}
+            {!totals.payrollEmpty && totals.unreconciled > 0 && (
+              <> <b>{totals.unreconciled}</b> {totals.unreconciled === 1 ? "person has" : "people have"} a
+                figure on one side only.</>
+            )}
+            {totals.onUnplannedBoard > 0 && (
+              <> <b>{totals.onUnplannedBoard}</b> {totals.onUnplannedBoard === 1 ? "person has" : "people have"} a
+                rota but no board in this period, so their shifts cannot be measured and read as
+                a clean zero.</>
+            )}
+          </p>
+          {/* Duas linhas, porque esta folha muda de mãos: quem a tirou e quem a
+              conferiu antes de alguém ser pago. */}
+          <div className="close-signoff">
+            <div>Prepared by</div>
+            <div>Checked by</div>
+            <div>Date</div>
+          </div>
+        </div>
 
         {/* Where the Payroll OT column above is filled in. */}
         <div className="space-y-2 print:hidden">

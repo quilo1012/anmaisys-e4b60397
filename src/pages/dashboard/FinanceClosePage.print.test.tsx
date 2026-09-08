@@ -235,5 +235,43 @@ describe("a folha de papel do Finance Close", () => {
     const foot = container.querySelector("tfoot.print-edge td");
     expect(foot).not.toBeNull();
     expect(foot!.getAttribute("colspan")).toBe(String(CLOSE_COLUMNS.length));
+    // O rodapé assina a folha: treze folhas soltas numa secretária não têm outra
+    // maneira de dizer de que documento vieram.
+    expect(foot!.textContent).toContain("Finance Close");
+    expect(foot!.textContent).toContain("August 2026");
+  });
+
+  it("dá às colunas as larguras que o PDF já tinha", async () => {
+    const container = await renderClose();
+    // Sem isto o navegador reparte as dezoito por igual: o nome ficava com 17,7mm
+    // dos 34 que lhe cabiam e partia-se em três linhas, enquanto o Δ sobrava.
+    const cols = container.querySelectorAll("table.close-register col[data-mm]");
+    expect(cols.length).toBe(CLOSE_COLUMNS.length);
+    expect((cols[0] as HTMLElement).style.getPropertyValue("--mm"))
+      .toBe(String(CLOSE_COLUMNS[0].mm));
+  });
+
+  it("troca as oito caixas por um resumo com o total da fábrica", async () => {
+    const container = await renderClose();
+    const summary = container.querySelector("table.close-summary");
+    expect(summary).not.toBeNull();
+    // Em papel as caixas ocupavam 55mm e empurravam o registo para a folha dois.
+    const total = summary!.querySelector("tr.close-total");
+    expect(total).not.toBeNull();
+    expect(total!.textContent).toContain("Whole factory");
+    expect(total!.textContent).toContain("201");
+  });
+
+  it("põe as notas no fim e tira o aviso de ecrã do papel", async () => {
+    const container = await renderClose();
+    const notes = container.querySelector(".close-notes");
+    expect(notes).not.toBeNull();
+    expect(notes!.textContent).toContain("Each period settles on its own");
+    // A mesma nota no ecrã fica acima da tabela — e fora do papel, ou sairia duas
+    // vezes.
+    const screenNote = container.querySelector("p.border-warning\\/30");
+    expect(screenNote?.className).toContain("print:hidden");
+    // Assinada, porque a folha muda de mãos antes de alguém ser pago.
+    expect(container.querySelector(".close-signoff")?.textContent).toContain("Checked by");
   });
 });
