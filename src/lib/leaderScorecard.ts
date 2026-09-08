@@ -5,6 +5,7 @@ import {
 } from "@/lib/qualityConstants";
 import { computeLeaderScore, DEFAULT_WEIGHTS, type LeaderScoreResult, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { getShift, shiftSessionDate } from "@/lib/shifts";
+import { belongsToProduction } from "@/lib/actionVerdict";
 
 /**
  * Everything a leader scorecard is made of, worked out in one place.
@@ -43,6 +44,17 @@ export interface LSAction {
    * which case the base holds no safety rows to gate on either.
    */
   safety_kind?: string | null;
+  /**
+   * The sync's verdict — `line`, `leader`, `needs_review`, `quality_error`, `excluded`.
+   *
+   * Undefined means one of two things and they are treated alike: the action was typed
+   * by hand on the Quality screen (in which case it has no verdict and never will), or
+   * a select forgot to ask. `belongsToProduction` reads both as "keep it", which is
+   * right for the first and is why `leader_self_scorecard` had to be widened to project
+   * this column — see 20260908170000. Without it the tablet counted the 22 findings
+   * raised outside Production that the manager's card had stopped counting.
+   */
+  classification?: string | null;
   /** What the action was worth under the scale of its own day, from 20260822090000.
    *  Undefined means the same as a missing `domain` does — either the migration has not
    *  run, or a select forgot to ask — and `actionPoints` falls back to today's scale.
@@ -110,6 +122,11 @@ const norm = (v: string | null | undefined) => String(v ?? "").trim().toLowerCas
  */
 export function actionsInPeriod(actions: LSAction[], period: ScorecardPeriod): LSAction[] {
   return actions.filter((a) => {
+    // The verdict first, and here rather than in either query, for the same reason the
+    // shift-date rule is here: the tablet's rows come from a database function and the
+    // manager's from a PostgREST select, and the one thing a scorecard may never do is
+    // give two numbers for the same person and period. See actionVerdict.ts.
+    if (!belongsToProduction(a)) return false;
     if (period.shift !== "all" && (a.shift ?? "").toUpperCase() !== period.shift) return false;
     const day = shiftSessionDate(a.recorded_at, a.shift);
     return day >= period.from && day <= period.to;

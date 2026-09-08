@@ -7,15 +7,25 @@
  * noise; leaving it blank would hide a gap somebody can actually close.
  */
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** What a row shows in the Priority column. `null` means the column reads "—". */
 export function priorityDisplay(action: {
   external_priority?: string | null;
   external_priority_id?: string | null;
 }): string | null {
   const name = (action.external_priority ?? "").trim();
-  if (name) return name;
+  // A UUID sitting in the NAME column is not a name.
+  //
+  // This function's whole contract is that a UUID never reaches the screen, and it
+  // was reading `external_priority` as trustworthy to keep it. It is not: a sync
+  // build older than the one that split the two columns writes the id into both, and
+  // sixty-six rows in the log printed `16ba4717-adc9-4d48-bf7c-044cfe0d2727` where
+  // the word "Low" belonged. Checking the shape costs one regex and makes the
+  // promise hold whatever wrote the row.
+  if (name && !UUID.test(name)) return name;
   // SafetyCulture sent a priority; nobody has said what it is called yet.
-  return action.external_priority_id ? "Not mapped" : null;
+  return (name || action.external_priority_id) ? "Not mapped" : null;
 }
 
 const ORDER = ["high", "medium", "low"];

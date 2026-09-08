@@ -57,6 +57,12 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
       // the optional columns. `domain` is newer than the generated Postgrest types,
       // hence the cast — see `actionPoints()` for why the column has to be here at all.
       //
+      // `classification` is here so `actionsInPeriod` can drop what Production is not
+      // answerable for — the findings raised in Facilities and Goods In, and Quality's
+      // own errors. Missing from this list, every row arrives with the verdict
+      // undefined, `belongsToProduction` keeps all of them, and this card counts 22
+      // actions the Quality screen no longer shows.
+      //
       // `safety_kind` is here for the H&S ceiling, and it was missing for ten days.
       // `computeLeaderScore` gates on `domain === 'safety' && safety_kind in
       // GATING_KINDS`; without the column every row arrived with it undefined, the
@@ -65,7 +71,7 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
       // the function the field this query never asked for. See
       // theCeilingCannotSeeTheInjury.test.ts.
       const COLUMNS =
-        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain, safety_kind, points_at_creation, scoring_version_id";
+        "id, status, severity, recorded_at, labels, department, line, action_no, description, shift, validation_status, validated_at, validated_by, attachments, closed_at, domain, safety_kind, points_at_creation, scoring_version_id, classification";
       const run = (columns: string) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- column newer than the generated types
         let qy = (supabase as any).from("quality_actions")

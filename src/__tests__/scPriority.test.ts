@@ -24,6 +24,18 @@ describe("priorityDisplay", () => {
       .toBe("Not mapped");
   });
 
+  it("refuses a UUID sitting in the name column", () => {
+    // What sixty-six rows of the live log actually held: a sync build older than the
+    // one that split id from name wrote the id into both columns, and the screen
+    // printed it. The name column is not trustworthy on its own.
+    const uuid = "16ba4717-adc9-4d48-bf7c-044cfe0d2727";
+    expect(priorityDisplay({ external_priority: uuid, external_priority_id: uuid })).toBe("Not mapped");
+    // And when only the name column was written, which is the shape the older build
+    // left on rows created before `external_priority_id` existed.
+    expect(priorityDisplay({ external_priority: uuid, external_priority_id: null })).toBe("Not mapped");
+    expect(priorityDisplay({ external_priority: uuid.toUpperCase(), external_priority_id: null })).toBe("Not mapped");
+  });
+
   it("shows nothing when SafetyCulture sent no priority at all", () => {
     expect(priorityDisplay({})).toBeNull();
     expect(priorityDisplay({ external_priority: null, external_priority_id: null })).toBeNull();

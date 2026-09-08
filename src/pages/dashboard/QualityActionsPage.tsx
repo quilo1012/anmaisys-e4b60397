@@ -50,6 +50,7 @@ import { QualityTrackingByLeader } from "@/components/quality/QualityTrackingByL
 import { ActionScore } from "@/components/quality/ActionScore";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
+import { onlyProduction, setAside } from "@/lib/actionVerdict";
 import { priorityDisplay, priorityRank, priorityWeight } from "@/lib/scPriority";
 import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
 
@@ -73,6 +74,8 @@ interface QualityAction {
   sku: string | null; batch: string | null;
   domain?: string | null; safety_kind?: string | null;
   source?: string | null;
+  /** The sync's verdict: line | leader | quality_error | needs_review | excluded. NULL on rows typed by hand. */
+  classification?: string | null;
   /** The readable name. Null while the UUID SafetyCulture sent is still unmapped. */
   external_priority?: string | null;
   external_priority_id?: string | null;
@@ -303,7 +306,7 @@ export function QualityActionsView() {
     [skuCatalog],
   );
   const skuName = skuByCode.get(form.sku.trim().toUpperCase());
-  const { data: actions = [] } = useQuery({
+  const { data: allActions = [] } = useQuery({
     queryKey: ["quality_actions", from, to],
     queryFn: async () => {
       const window = shiftDateFetchRange(from, to);
@@ -315,6 +318,24 @@ export function QualityActionsView() {
       });
     },
   });
+
+  /**
+   * The verdict, applied once — and this is the only place it is applied.
+   *
+   * `classifyAction` already decided, per action, whether it is Production's at all,
+   * and wrote the answer to `quality_actions.classification`. The SafetyCulture
+   * settings screen has been printing that tally all along; this screen was not
+   * reading it, so it counted findings raised in Facilities and Goods In alongside
+   * the line's own and then reported a different total from the screen next door.
+   *
+   * Everything below — `filtered`, `kpis`, `qualityOnly`, the leader table, the
+   * recurring-issues card — is derived from `actions`, so gating here and nowhere
+   * else is what stops the four of them drifting apart again.
+   */
+  const actions = useMemo(() => onlyProduction(allActions), [allActions]);
+  // Counted off the unfiltered set, because the whole point is to say what is NOT
+  // on screen. See the note under Total actions.
+  const aside = useMemo(() => setAside(allActions), [allActions]);
 
   const filtered = useMemo(() =>
     filterByDomain(actions, domainFilter).filter((a) =>
@@ -1148,6 +1169,24 @@ export function QualityActionsView() {
           />
           )}
         </div>
+
+        {/* Where the difference between this screen and the SafetyCulture tally went.
+            Both read the same table over the same period; this one now answers only
+            for what Production can be asked about, and the other reports the whole
+            import. Twenty-two findings between two totals is precisely the sort of
+            gap that gets rediscovered as a bug, so it is stated rather than dropped. */}
+        {aside.total > 0 && domainFilter !== "safety" && (
+          <p className="-mt-1 text-2xs text-muted-foreground">
+            <span className="font-figure font-semibold text-foreground">{aside.total}</span>
+            {" "}action{aside.total === 1 ? "" : "s"} set aside and not counted above
+            {aside.excluded > 0 && ` · ${aside.excluded} raised outside Production`}
+            {aside.qualityError > 0 && ` · ${aside.qualityError} quality error${aside.qualityError === 1 ? "" : "s"}`}
+            {" · "}
+            <a href="/dashboard/safetyculture-settings" className="underline underline-offset-2 hover:text-foreground">
+              see the verdicts
+            </a>
+          </p>
+        )}
 
         {/* The two readings of the same period, side by side on a wide screen: who
             carries the weight, and what keeps coming back. Stacked, the tracking table
