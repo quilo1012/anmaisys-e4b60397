@@ -1,4 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+
+/** Where a page may offer to host this card's Print / Export buttons. */
+export const SCORECARD_ACTIONS_SLOT_ID = "leader-scorecard-actions-slot";
 import { useQuery } from "@tanstack/react-query";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
@@ -264,30 +268,47 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
     return (id: string | null) => (id ? m.get(id) ?? "—" : "—");
   }, [profileNames]);
 
+  /**
+   * Print and Export belong to the page header, when there is one.
+   *
+   * They used to float in a right-aligned strip of their own between the title and the
+   * card, so the top of the page read as a heading and then two loose buttons. The
+   * detail page renders an empty slot beside its title and this portals into it; where
+   * there is no slot — the dialog, the leader's own copy — the strip stays exactly
+   * where it was.
+   */
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setSlot(document.getElementById(SCORECARD_ACTIONS_SLOT_ID));
+  }, []);
+
+  const toolbar = (
+    <div className="flex flex-wrap justify-end gap-2 print:hidden">
+      <Button size="sm" variant="outline" onClick={async () => {
+        const el = document.getElementById(SCORECARD_PRINT_ID);
+        try {
+          if (el) await printElementAsDocument(el, `Leader Scorecard — ${leaderName ?? ""}`);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Could not open the print dialog.");
+        }
+      }}><Printer className="mr-1 h-4 w-4" />Print</Button>
+      <Button size="sm" variant="outline" onClick={() => downloadScorecardCsv(leaderName, period, result, nameOf)}>
+        <Download className="mr-1 h-4 w-4" />Export
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      {/* The toolbar sits above the card, and the card carries the figures. The name
-          and the period are the page's header now — printing them again here made the
-          reader check twice whether they were looking at two different things.
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+      {/* The card carries the figures. The name and the period are the page's header
+          now — printing them again here made the reader check twice whether they were
+          looking at two different things.
 
           Hidden rather than disabled when a read failed: a printed or exported card
           outlives the screen it came from, and a CSV of a failed read carries none of
           the warning below with it. There is nothing here to take away yet. */}
-      {!readFailed && (
-        <div className="flex flex-wrap justify-end gap-2 print:hidden">
-          <Button size="sm" variant="outline" onClick={async () => {
-            const el = document.getElementById(SCORECARD_PRINT_ID);
-            try {
-              if (el) await printElementAsDocument(el, `Leader Scorecard — ${leaderName ?? ""}`);
-            } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Could not open the print dialog.");
-            }
-          }}><Printer className="mr-1 h-4 w-4" />Print</Button>
-          <Button size="sm" variant="outline" onClick={() => downloadScorecardCsv(leaderName, period, result, nameOf)}>
-            <Download className="mr-1 h-4 w-4" />Export
-          </Button>
-        </div>
-      )}
+      {!readFailed && (slot ? createPortal(toolbar, slot) : toolbar)}
+
 
       {/* One sentence, one place — see NoCeilingNotice for why it exists and why it
           is not print:hidden. */}

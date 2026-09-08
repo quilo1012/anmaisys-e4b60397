@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Factory, FileWarning, HardHat } from "lucide-react";
@@ -64,7 +64,7 @@ function RowShell({ href, label, children }: {
   label: string;
   children: React.ReactNode;
 }) {
-  const shared = "flex min-w-0 flex-wrap items-center gap-2 px-2 py-1.5 text-xs";
+  const shared = "flex min-w-0 items-start gap-3 px-3 py-2.5 text-xs";
   if (!href) return <div className={shared}>{children}</div>;
   return (
     <Link
@@ -176,6 +176,152 @@ function SafetyBand({ safety }: { safety: ScorecardResult["safety"] }) {
   );
 }
 
+/**
+ * Every action in the period, as a record a person can read.
+ *
+ * This was one cramped flex row per action, with the description last and `truncate`d
+ * — so in real data a row said a mono hash, a date, "Line 6" and "Open", and nothing
+ * at all about what the action WAS. The description is now the primary line and
+ * everything else is metadata under it: the reader's first question is what happened,
+ * not which reference number it was filed under.
+ *
+ * A missing severity renders "Unrated" rather than nothing, because a severity nobody
+ * set is a fact about the record, and a row that simply omits the badge reads as a row
+ * that was rated and rated low.
+ */
+function ActionsBlock({ actions, filed, actionHref }: {
+  actions: ScorecardResult["actions"];
+  filed: number;
+  actionHref?: (action: ScorecardResult["actions"][number]) => string;
+}) {
+  const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
+
+  // Open first, then newest first inside each group: the rows that still need somebody
+  // are the rows a leader opens this card to find.
+  const sorted = useMemo(() => {
+    const byDate = (a: ScorecardResult["actions"][number], b: ScorecardResult["actions"][number]) =>
+      new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime();
+    const open = actions.filter((a) => !a.closed_at).sort(byDate);
+    const closed = actions.filter((a) => a.closed_at).sort(byDate);
+    return { open, closed, all: [...open, ...closed] };
+  }, [actions]);
+
+  // The filter changes what is DRAWN and never what is counted — the heading, the
+  // "still listed" note and every figure on the card stay on the full set.
+  const shown = filter === "open" ? sorted.open : filter === "closed" ? sorted.closed : sorted.all;
+  const dividerAfter = filter === "all" && sorted.open.length > 0 && sorted.closed.length > 0
+    ? sorted.open.length
+    : -1;
+
+  const row = (a: ScorecardResult["actions"][number]) => {
+    const labels = (a.labels ?? []).filter(Boolean) as string[];
+    const text = (a.description ?? "").trim();
+    const primary = text || labels.join(" · ");
+    const sev = a.severity ? severityMeta(a.severity) : null;
+    const validation = validationMeta(a.validation_status);
+    // Only a verdict that means something. "Open" beside the state badge below would be
+    // the same word twice, and a row three badges wide stops being readable.
+    const showValidation = a.validation_status === "validated" || a.validation_status === "rejected";
+    const meta = [
+      a.action_no || `#${a.id.slice(0, 8)}`,
+      format(new Date(a.recorded_at), "dd/MM"),
+      a.line || null,
+      a.shift || null,
+    ];
+
+    return (
+      <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || text || "action"}>
+        <div className="min-w-0 flex-1">
+          {primary ? (
+            <p className="line-clamp-2 text-sm font-medium text-foreground" title={primary}>{primary}</p>
+          ) : (
+            <p className="text-sm italic text-muted-foreground">No description recorded</p>
+          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
+            <span className="font-mono">{meta[0]}</span>
+            {meta.slice(1).filter(Boolean).map((m) => <span key={m as string}>{m}</span>)}
+            {labels.slice(0, 3).map((l) => (
+              <Badge key={l} variant="secondary" className="text-2xs font-normal">{l}</Badge>
+            ))}
+            {labels.length > 3 && <span>+{labels.length - 3}</span>}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+          <Badge
+            variant="outline"
+            className={cn("text-2xs", sev ? sev.badge : "text-muted-foreground")}
+          >
+            {sev ? sev.label : "Unrated"}
+          </Badge>
+          {showValidation && (
+            <Badge variant="outline" className={cn("text-2xs", validation.badge)}>{validation.label}</Badge>
+          )}
+          {a.closed_at ? (
+            <Badge variant="outline" className="whitespace-nowrap border-success/40 bg-success/15 text-2xs text-success-strong">
+              Closed {format(new Date(a.closed_at), "dd/MM")}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="border-warning/40 bg-warning/10 text-2xs text-warning-strong">
+              Open
+            </Badge>
+          )}
+        </div>
+      </RowShell>
+    );
+  };
+
+  return (
+    <section aria-labelledby="sc-actions">
+      <SectionHead
+        id="sc-actions"
+        icon={AlertTriangle}
+        aside={filed > 0 ? `· ${filed} closed, still listed` : undefined}
+      >
+        Actions in this period ({actions.length})
+      </SectionHead>
+
+      {actions.length > 6 && (
+        <div className="mb-2 flex gap-1 print:hidden" role="group" aria-label="Filter actions">
+          {([["all", `All ${actions.length}`], ["open", `Open ${sorted.open.length}`], ["closed", `Closed ${sorted.closed.length}`]] as const).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setFilter(v)}
+              aria-pressed={filter === v}
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-2xs font-medium transition-colors",
+                filter === v ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="max-h-[26rem] overflow-y-auto rounded-md border print:max-h-none print:overflow-visible">
+        <div className="hidden border-b bg-muted/30 px-3 py-1.5 text-2xs uppercase tracking-wide text-muted-foreground sm:flex print:hidden">
+          <span className="flex-1">Action</span>
+          <span>Status</span>
+        </div>
+        <div className="divide-y">
+          {shown.map((a, i) => (
+            <Fragment key={a.id}>
+              {i === dividerAfter && (
+                <div className="bg-muted/40 px-3 py-1 text-2xs uppercase tracking-wide text-muted-foreground">
+                  Closed in this period
+                </div>
+              )}
+              {row(a)}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function LeaderScorecardBody({ leaderName, period, result, actionHref }: {
   leaderName: string | null;
   period: ScorecardPeriod;
@@ -238,7 +384,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
   }, [profileNames]);
 
   return (
-    <div id={SCORECARD_PRINT_ID} className="space-y-4 print-content [&>div]:break-inside-avoid">
+    <div id={SCORECARD_PRINT_ID} className="space-y-5 print-content [&>div]:break-inside-avoid">
       <ReportPrintHeader
         title={`Leader Scorecard — ${leaderName ?? ""}`}
         periodLabel={periodLabelOf(period)}
@@ -452,70 +598,51 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
 
       {/* Every action in the period, whatever its state. A closed action is still part
           of the leader's history — filing it away must not remove it from the record
-          anyone reviews. */}
+          anyone reviews.
+
+          A row is a link where the reader may follow it. The score says a leader lost
+          points; the evidence, the history and the name of whoever validated it all
+          live on the other end, and a figure nobody can audit back to its record is the
+          thing this module exists to stop being. */}
       {actions.length > 0 && (
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">
-            Actions in this period ({actions.length})
-            {q.filed > 0 && <span className="ml-1 font-normal normal-case">· {q.filed} closed, still listed</span>}
-          </div>
-          <div className="max-h-56 overflow-y-auto rounded-md border divide-y print:max-h-none print:overflow-visible">
-            {actions.slice().reverse().map((a) => (
-              /* A row is a link where the reader may follow it. The score says a
-                 leader lost points; the evidence, the history and the name of whoever
-                 validated it all live on the other end, and a figure nobody can audit
-                 back to its record is the thing this module exists to stop being. */
-              <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || a.description || "action"}>
-                <span className="font-mono">{a.action_no || a.id.slice(0, 8)}</span>
-                <span className="text-muted-foreground">{format(new Date(a.recorded_at), "dd/MM")}</span>
-                {a.line && <span className="text-muted-foreground">{a.line}</span>}
-                {a.severity && (
-                  <Badge variant="outline" className={cn("text-2xs", severityMeta(a.severity)?.badge)}>
-                    {severityMeta(a.severity)?.label}
-                  </Badge>
-                )}
-                <Badge variant="outline" className={cn("text-2xs", validationMeta(a.validation_status).badge)}>
-                  {validationMeta(a.validation_status).label}
-                </Badge>
-                {a.closed_at && (
-                  <Badge variant="outline" className="text-2xs bg-success/15 text-success-strong border-success/40">
-                    closed {format(new Date(a.closed_at), "dd/MM")}
-                  </Badge>
-                )}
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{a.description}</span>
-              </RowShell>
-            ))}
-          </div>
+        <ActionsBlock actions={actions} filed={q.filed} actionHref={actionHref} />
+      )}
+
+      {/* The two quality asides, side by side where there is room. Stacked full-width
+          they left a desktop reading as two half-empty bands; print stays one column,
+          which is the layout the signed page has always had. */}
+      {(q.trend.length > 0 || q.topLabels.length > 0) && (
+        <div className="grid gap-5 lg:grid-cols-2 print:block print:space-y-4">
+          {/* Hidden in print when there is a single day: a line chart with one dot says
+              nothing a table above it has not already said, and it costs a third of the page. */}
+          {q.trend.length > 0 && (
+            <Card className={q.trend.length < 2 ? "print:hidden" : undefined}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Actions over time</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={180}>
+                  <LineChart data={q.trend} margin={{ top: 4, right: 12, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="day" fontSize={11} tickLine={false} />
+                    <YAxis allowDecimals={false} fontSize={11} tickLine={false} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                    <Line type="monotone" dataKey="count" name="Actions" stroke="hsl(0 72% 51%)" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {q.topLabels.length > 0 && (
+            <div>
+              <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Top labels</div>
+              <div className="flex flex-wrap gap-1.5">
+                {q.topLabels.map((l) => <Badge key={l.label} variant="secondary" className="text-2xs">{l.label} · {l.count}</Badge>)}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Hidden in print when there is a single day: a line chart with one dot says
-          nothing a table above it has not already said, and it costs a third of the page. */}
-      {q.trend.length > 0 && (
-        <Card className={q.trend.length < 2 ? "print:hidden" : undefined}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Actions over time</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={q.trend} margin={{ top: 4, right: 12, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="day" fontSize={11} tickLine={false} />
-                <YAxis allowDecimals={false} fontSize={11} tickLine={false} />
-                <Tooltip contentStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="count" name="Actions" stroke="hsl(0 72% 51%)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {q.topLabels.length > 0 && (
-        <div>
-          <div className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Top labels</div>
-          <div className="flex flex-wrap gap-1.5">
-            {q.topLabels.map((l) => <Badge key={l.label} variant="secondary" className="text-2xs">{l.label} · {l.count}</Badge>)}
-          </div>
-        </div>
-      )}
 
       {/* Health & Safety. Counted here, scored nowhere — see SafetyBand. */}
       {safety.total > 0 && <SafetyBand safety={safety} />}
@@ -644,7 +771,9 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {/* Three tiles, three columns. A four-column grid left a hole beside
+                "Maintenance called" that read as a figure that had failed to load. */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <Figure
                 label="Attainment"
                 value={p.attainment == null ? "n/a" : `${p.attainment}%`}
