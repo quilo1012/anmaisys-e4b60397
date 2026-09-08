@@ -10,9 +10,19 @@ interface ComboboxInputProps {
   suggestions: string[];
   placeholder?: string;
   className?: string;
+  /**
+   * Abrir a lista inteira quando o campo esta vazio e recebe o foco.
+   *
+   * Por omissao o componente so sugere depois da primeira letra, que e o que serve
+   * um campo onde o utilizador ja sabe o que quer escrever (uma localizacao de
+   * armazem). Onde este campo substitui um Select, nao serve: quem clica num campo
+   * vazio contava com a lista toda, e sem isto a alteracao tirava-lhe uma coisa
+   * enquanto lhe dava outra.
+   */
+  showAllOnFocus?: boolean;
 }
 
-export function ComboboxInput({ value, onChange, suggestions, placeholder, className }: ComboboxInputProps) {
+export function ComboboxInput({ value, onChange, suggestions, placeholder, className, showAllOnFocus = false }: ComboboxInputProps) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -25,7 +35,7 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
     ? suggestions.filter(
         (s) => s.toLowerCase().includes(inputValue.toLowerCase()) && s.toLowerCase() !== inputValue.toLowerCase()
       )
-    : [];
+    : showAllOnFocus ? suggestions : [];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
@@ -48,7 +58,7 @@ export function ComboboxInput({ value, onChange, suggestions, placeholder, class
           ref={inputRef}
           value={inputValue}
           onChange={handleInputChange}
-          onFocus={() => { if (inputValue.length > 0 && filtered.length > 0) setOpen(true); }}
+          onFocus={() => { if ((showAllOnFocus || inputValue.length > 0) && filtered.length > 0) setOpen(true); }}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder={placeholder}
           className={cn(className)}

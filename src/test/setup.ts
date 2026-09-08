@@ -34,3 +34,11 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => {},
   }),
 });
+
+// cmdk desliza o item destacado para dentro da lista quando ela abre, e jsdom nao
+// implementa scrollIntoView. O erro nao vem do teste que abre a lista — vem depois,
+// do commit do React, e aparece como "Unhandled Error" a estragar a corrida toda.
+// Um no-op chega: jsdom nao faz layout, portanto nao ha nada para deslizar.
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
