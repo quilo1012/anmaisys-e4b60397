@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -654,16 +654,21 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       >
         <div className="flex h-screen w-full overflow-hidden">
           {sidebarUiState === "hidden" && !isMobile && (
-            <Button
-              size="icon"
-              variant="secondary"
-              aria-label="Show menu"
-              title="Show menu (Ctrl/Cmd + B)"
-              className="fixed left-3 top-3 z-50 h-10 w-10 shadow-lg print:hidden"
-              onClick={() => applySidebarState("expanded")}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  aria-label={showMenuLabel}
+                  title={showMenuLabel}
+                  className="fixed left-3 top-3 z-50 h-10 w-10 shadow-lg print:hidden"
+                  onClick={() => applySidebarState(lastVisibleSidebarState.current)}
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{showMenuLabel}</TooltipContent>
+            </Tooltip>
           )}
           <Sidebar collapsible={sidebarUiState === "hidden" ? "offcanvas" : "icon"} className="border-r border-sidebar-border print:hidden">
 
