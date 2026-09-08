@@ -37,47 +37,6 @@ import { History } from "lucide-react";
 const derivedName = (category: string, code: string) =>
   [category.trim(), code.trim()].filter(Boolean).join(" ") || code.trim();
 
-/**
- * One of the four figures at the top of Stock.
- *
- * `alert` colours the number, not the card: a red panel reads as an error the page is
- * in, and "93 parts are low" is not an error, it is Tuesday.
- */
-function StockFigure({
-  label, value, icon, alert, active, onClick, title,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon: React.ReactNode;
-  alert?: boolean;
-  active?: boolean;
-  onClick?: () => void;
-  title?: string;
-}) {
-  const body = (
-    <div className="flex items-start justify-between gap-3 p-5">
-      <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={`mt-1 text-3xl font-bold tabular-nums ${alert ? "text-destructive-strong" : ""}`}>{value}</p>
-      </div>
-      <span className={alert ? "text-destructive-strong" : "text-muted-foreground"}>{icon}</span>
-    </div>
-  );
-  if (!onClick) return <Card>{body}</Card>;
-  return (
-    <Card className={active ? "ring-2 ring-ring" : ""}>
-      <button
-        type="button"
-        onClick={onClick}
-        title={title}
-        aria-pressed={active}
-        className="w-full rounded-lg text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        {body}
-      </button>
-    </Card>
-  );
-}
 
 export default function StockPage() {
   const { role, profile } = useAuth();
@@ -428,43 +387,21 @@ export default function StockPage() {
           title="Stock"
           description="View and manage inventory"
           icon={<Package className="h-5 w-5" />}
+          badge={lowStockCount > 0 ? (
+            /* The four summary cards gave way to this one badge, so the parts list
+               starts above the fold on a phone. It still opens the low-stock list. */
+            <button
+              type="button"
+              onClick={() => { setLowOnly((v) => !v); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}
+              title={lowOnly ? "Show all parts" : `${lowStockCount} low — show only those`}
+              aria-pressed={lowOnly}
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${lowOnly ? "bg-destructive text-destructive-foreground" : "bg-destructive/15 text-destructive-strong hover:bg-destructive/25"}`}
+            >
+              <AlertTriangle className="h-3 w-3" />
+              {lowStockCount}
+            </button>
+          ) : undefined}
         />
-
-        {/* The four figures of a warehouse, read together rather than as four cards. */}
-        {/* Four cards, not one strip.
-            The warehouse app these parts came from shows four, and warehouse staff read
-            that one every day. ProductionPerformance and ShiftHistory keep the house
-            strip — this divergence is chosen, not drift. */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StockFigure label="Parts" value={totals.parts} icon={<Package className="h-5 w-5" />} />
-          <StockFigure label="In stock" value={totals.inStock.toLocaleString("en-GB")} icon={<Package className="h-5 w-5" />} />
-          <StockFigure label="Low stock" value={totals.low} icon={<AlertTriangle className="h-5 w-5" />} alert={totals.low > 0} />
-          {/* A count of zeros is a question about which ones. */}
-          <StockFigure
-            label="Out of stock"
-            value={totals.out}
-            icon={<AlertTriangle className="h-5 w-5" />}
-            alert={totals.out > 0}
-            active={outOnly}
-            onClick={() => setOutOnly((v) => !v)}
-            title={outOnly ? "Show all parts" : "Show only parts at zero"}
-          />
-        </div>
-
-        {lowStockCount > 0 && (
-          <Card className="border-destructive">
-            <CardContent className="pt-6 flex flex-wrap items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive-strong" />
-              <p className="text-destructive-strong font-medium">
-                {lowStockCount} {lowStockCount === 1 ? "part has" : "parts have"} reached the reorder point.
-              </p>
-              {/* The banner is also the way into the list it is about. */}
-              <Button size="sm" variant="outline" onClick={() => { setLowOnly(true); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}>
-                Review now
-              </Button>
-            </CardContent>
-          </Card>
-        )}
 
         <Card>
           <CardHeader className="space-y-4">
