@@ -968,6 +968,17 @@ export default function StockPage() {
           onPick={(code) => { setSearch(code); setCatFilter("__all__"); setLowOnly(false); setOutOnly(false); }}
         />
 
+        {/* Scan out: each QR read is the same one-unit withdrawal as the −1 button. */}
+        {isManager && (
+          <StockScanOutDialog
+            open={scanOutOpen}
+            onOpenChange={setScanOutOpen}
+            products={products ?? []}
+            onAdjust={writeOneUnit}
+          />
+        )}
+
+
 
         {/* Delete Confirmation */}
         <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
