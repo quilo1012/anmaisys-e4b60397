@@ -523,7 +523,7 @@ function EngineerDashboardContent() {
       lines.push(`Line ${line}: ${clean(resolution)}`);
       lines.push(`Downtime: ${downtimeText}`);
     });
-    if (lines.length === 1) return `${header}\nNo downtime over 15 minutes in this shift.`;
+    // If no WO had downtime above 15 minutes, the report stays blank except for the header.
     return lines.join("\n");
   };
 
