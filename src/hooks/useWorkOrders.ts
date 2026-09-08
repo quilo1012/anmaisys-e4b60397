@@ -499,6 +499,7 @@ export function useFinishWorkOrder() {
           finished_at: new Date().toISOString(),
           signed_by_name: signedByName,
           ...(resolutionBlock ? { notes: mergedNotes } : {}),
+          ...(trimmedNotes ? { resolution_notes: trimmedNotes } : {}),
         } as any)
         .eq("id", woId);
       if (error) throw error;
