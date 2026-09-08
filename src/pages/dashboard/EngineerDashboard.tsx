@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, MessageSquare } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, FileText } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { Lock } from "lucide-react";
@@ -509,23 +509,19 @@ function EngineerDashboardContent() {
     return lines.join("\n");
   };
 
-  const handleReport = async () => {
+  const handleReport = () => {
     const text = generateReport();
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-      }
-      toast({ title: "Report copied", description: "Paste it into WhatsApp." });
-    } catch (err: any) {
-      toast({ title: "Could not copy report", description: err.message || "Unknown error", variant: "destructive" });
-    }
+    const today = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `maintenance_report_${today}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: "Report downloaded", description: `Saved as maintenance_report_${today}.txt` });
   };
 
   const lineFilterParam = searchParams.get("line");
@@ -992,7 +988,7 @@ function EngineerDashboardContent() {
               <Focus className="h-4 w-4" /> {focusMode ? "Focus ON" : "Focus"}
             </Button>
             <Button variant="outline" size="sm" onClick={handleReport} className="gap-1">
-              <MessageSquare className="h-4 w-4" /> Report
+              <FileText className="h-4 w-4" /> Report
             </Button>
             <Button variant="outline" size="sm" onClick={() => setChangePinOpen(true)} className="gap-1">
               <Lock className="h-4 w-4" /> Change PIN
