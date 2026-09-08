@@ -6953,6 +6953,7 @@ export type Database = {
           rejection_reason: string | null
           reopen_count: number
           requester_name: string
+          resolution_notes: string | null
           signed_by_name: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["wo_status"]
@@ -7010,6 +7011,7 @@ export type Database = {
           rejection_reason?: string | null
           reopen_count?: number
           requester_name: string
+          resolution_notes?: string | null
           signed_by_name?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]
@@ -7067,6 +7069,7 @@ export type Database = {
           rejection_reason?: string | null
           reopen_count?: number
           requester_name?: string
+          resolution_notes?: string | null
           signed_by_name?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["wo_status"]

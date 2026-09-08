@@ -1,0 +1,2 @@
+ALTER TABLE public.work_orders ADD COLUMN IF NOT EXISTS resolution_notes text;
+COMMENT ON COLUMN public.work_orders.resolution_notes IS 'Engineer resolution notes captured when finishing a work order, stored in English after optional AI polish.';
