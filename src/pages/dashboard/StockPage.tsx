@@ -449,7 +449,7 @@ export default function StockPage() {
               </div>
             </CardTitle>
             <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 overflow-x-auto">
-              <div className="relative w-[140px] sm:w-[160px] md:w-[180px] lg:w-[220px] shrink-0">
+              <div className="relative w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] shrink-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
@@ -460,7 +460,7 @@ export default function StockPage() {
                 />
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
-                <SelectTrigger className="w-[130px] md:w-[160px] shrink-0" aria-label="Filter by category">
+                <SelectTrigger className="w-[130px] md:w-[150px] shrink-0" aria-label="Filter by category">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
