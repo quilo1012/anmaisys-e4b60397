@@ -32,7 +32,10 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card shadow-[0_-1px_8px_rgba(0,0,0,0.06)] md:hidden print:hidden"
+      // lg:hidden, not md:hidden: `useIsMobile()` calls anything under 1024px mobile,
+      // and a bar that vanished at 768px left factory tablets padding the page for a
+      // bar that was not on screen.
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card shadow-[0_-1px_8px_rgba(0,0,0,0.06)] lg:hidden print:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Primary"
     >
