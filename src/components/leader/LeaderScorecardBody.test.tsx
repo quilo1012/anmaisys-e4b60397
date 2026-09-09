@@ -485,3 +485,59 @@ describe("the Documentation section agrees with the panel above it", () => {
     expect(screen.getByText(/100% compliant/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * Half the quality log describes itself in a different column. All 66 safetyculture
+ * rows carry `title` and none of the 69 `pm` rows do, so a card reading only
+ * `description` says "No description recorded" about 54 of the 135 actions in the
+ * base. Only 2 hold neither, and those are the rows the sentence is for.
+ *
+ * `title` leads because on the 14 rows carrying both it is the fault — "Black Residue
+ * on Scoops (L1)" — while `description` is the product and batch that it happened to.
+ */
+describe("an action that was written into the title", () => {
+  const base = {
+    id: "t1", status: "todo", severity: null, recorded_at: "2026-09-02T10:00:00Z",
+    labels: [], department: null, line: "Line 3", action_no: "QA-77",
+    description: null, shift: "DAY", validation_status: null,
+    validated_at: null, validated_by: null, attachments: null, closed_at: null,
+  };
+
+  const withActions = (over: Record<string, unknown>) =>
+    makeResult({ actions: [{ ...base, ...over }] } as never);
+
+  it("reads the title when there is no description", () => {
+    renderBody(withActions({ title: "Black Residue on Scoops (L1)" }));
+    expect(screen.getByText("Black Residue on Scoops (L1)")).toBeInTheDocument();
+    expect(screen.queryByText(/no description recorded/i)).not.toBeInTheDocument();
+  });
+
+  it("prefers the title over the batch code the description holds", () => {
+    renderBody(withActions({
+      title: "Missing closing time (L1)",
+      description: "Basix Oats Coconut 3Kg / T26244 / 09-2026 09-2028",
+    }));
+    expect(screen.getByText("Missing closing time (L1)")).toBeInTheDocument();
+    expect(screen.queryByText(/T26244/)).not.toBeInTheDocument();
+  });
+
+  it("still reads the description on a row typed on the Quality screen", () => {
+    renderBody(withActions({ description: "Seal replaced on the filler" }));
+    expect(screen.getByText("Seal replaced on the filler")).toBeInTheDocument();
+  });
+
+  it("falls through to the error type when neither carries text", () => {
+    renderBody(withActions({ title: "   ", error_type: "Contamination risk" }));
+    expect(screen.getByText("Contamination risk")).toBeInTheDocument();
+  });
+
+  it("falls through to the labels when there is no error type either", () => {
+    renderBody(withActions({ title: null, labels: ["Paperwork", "CCP"] }));
+    expect(screen.getByText("Paperwork · CCP")).toBeInTheDocument();
+  });
+
+  it("keeps saying nothing was recorded when the row genuinely holds nothing", () => {
+    renderBody(withActions({ title: null }));
+    expect(screen.getByText(/no description recorded/i)).toBeInTheDocument();
+  });
+});

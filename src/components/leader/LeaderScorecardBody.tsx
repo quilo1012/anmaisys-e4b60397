@@ -215,7 +215,12 @@ function ActionsBlock({ actions, filed, actionHref }: {
 
   const row = (a: ScorecardResult["actions"][number]) => {
     const labels = (a.labels ?? []).filter(Boolean) as string[];
-    const text = (a.description ?? "").trim();
+    // `title` first, then `description`, then `error_type`, then the labels — the
+    // order the rest of the app already falls through. `title` leads because on the
+    // rows that carry both it is the fault and `description` is the product code.
+    // Only 2 of 135 actions hold none of them, and those are the rows the "nothing
+    // recorded" line is actually for.
+    const text = (a.title ?? "").trim() || (a.description ?? "").trim() || (a.error_type ?? "").trim();
     const primary = text || labels.join(" · ");
     const sev = a.severity ? severityMeta(a.severity) : null;
     const validation = validationMeta(a.validation_status);
