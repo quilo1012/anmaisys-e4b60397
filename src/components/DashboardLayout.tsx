@@ -758,10 +758,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <NotificationPanel />
                 <PushOnboarding />
                 {/* Language toggle removed by request — app stays in English. */}
-                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
+                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className={cn("shrink-0", isMobile && "h-9 w-9")}>
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {role && (
+                {!isMobile && role && (
                   <span
                     className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
                     aria-label={`Current role: ${roleTitle[role]}`}
@@ -769,7 +769,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     {roleTitle[role]}
                   </span>
                 )}
-                <LiveClock />
+                {!isMobile && <LiveClock />}
               </div>
             </header>
             {!isOnline && (
@@ -777,11 +777,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 ⚠️ You are offline — changes won't save until you're back online
               </div>
             )}
-            <div className={cn("flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0", isMobile && "pb-24")}>
+            <div
+              ref={contentRef}
+              className={cn(
+                "flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0",
+                "pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-6",
+              )}
+            >
               <div className="min-w-0 w-full">{children}</div>
             </div>
 
-            {isMobile && <MobileTabBar tabs={filteredItems.slice(0, 3)} />}
+            <MobileTabBar tabs={mobileTabs} />
           </main>
         </div>
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
