@@ -29,6 +29,7 @@ const PERIOD: ScorecardPeriod = { from: "2026-08-01", to: "2026-08-13", shift: "
 function makeResult(over: Partial<ScorecardResult> = {}): ScorecardResult {
   return {
     actions: [],
+    charges: {},
     woRequests: [],
     woStopped: 0,
     quality: {
@@ -650,5 +651,113 @@ describe("a row that has only its labels to be named by", () => {
   it("still carries the labels on a row that has a headline of its own", () => {
     renderBody(makeResult({ actions: [{ ...base, title: "Unsealed Tubes (L4)", labels: ["GMP"] }] } as never));
     expect(screen.getByText(/GMP/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * What an action cost, and what it did not.
+ *
+ * The card exists to explain a number a person is appraised on, and the list of the
+ * actions behind that number was silent about the arithmetic. 112 of the 135 actions
+ * in the base carry no grade, and an ungraded action with no priced label charges
+ * zero — so "no points deducted" and "nobody ever assessed this" printed identically.
+ */
+describe("what each action charged", () => {
+  const base = {
+    id: "c1", status: "todo", severity: "high", recorded_at: "2026-09-02T10:00:00Z",
+    labels: [], department: null, line: "Line 6", action_no: "AC-1",
+    description: null, title: "Excessive Powder Leakage hopper (L6)", shift: "DAY",
+    validation_status: "open", validated_at: null, validated_by: null,
+    attachments: null, closed_at: null, domain: "quality",
+  };
+  const withCharge = (charge: Record<string, unknown>, over: Record<string, unknown> = {}) =>
+    makeResult({
+      actions: [{ ...base, ...over }],
+      charges: { c1: { charged: 0, worth: 0, counted: true, reason: "counted", ...charge } },
+    } as never);
+
+  it("prints the points the action charged", () => {
+    renderBody(withCharge({ charged: 4, worth: 4 }));
+    const list = screen.getByRole("region", { name: /actions in this period/i });
+    expect(within(list).getByText(/^4$/)).toBeInTheDocument();
+  });
+
+  it("says WHY a row cost nothing instead of printing a zero", () => {
+    // A near miss priced at zero and an action worth four points that was voided are
+    // not the same fact, and neither is "this leader was charged 0".
+    renderBody(withCharge({ charged: 0, worth: 4, counted: false, reason: "rejected" }));
+    expect(screen.getByText("voided")).toBeInTheDocument();
+  });
+
+  it("never calls a safety occurrence unattributable", () => {
+    // Zero pricing exists so reporting a hazard cannot cost the reporter. "Not
+    // attributable" turns that into an argument about blame.
+    renderBody(withCharge({ charged: 0, worth: 0, counted: false, reason: "safety" }, { domain: "safety" }));
+    expect(screen.getByText("not scored")).toBeInTheDocument();
+    expect(screen.queryByText(/not theirs/i)).not.toBeInTheDocument();
+  });
+
+  it("says once, in words, that a period deducted nothing because nothing was graded", () => {
+    renderBody(withCharge({ charged: 0, worth: 0, counted: true, reason: "counted" }, { severity: null }));
+    expect(screen.getByText(/charged nothing/i)).toBeInTheDocument();
+    expect(screen.getByText(/no grade and no priced label/i)).toBeInTheDocument();
+  });
+
+  it("puts the total charged beside the heading", () => {
+    renderBody(withCharge({ charged: 4, worth: 4 }));
+    expect(screen.getByText(/4 points charged/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * Who may grade from the card.
+ *
+ * The leader's own copy is opened on a line tablet that is signed in as the LINE, not
+ * as a person. A grade written there would be unattributable — and the one field it
+ * changes is the field that decides the score of whoever is holding the tablet.
+ */
+describe("grading from the card", () => {
+  const base = {
+    id: "g1", status: "todo", severity: null, recorded_at: "2026-09-02T10:00:00Z",
+    labels: [], department: null, line: "Line 6", action_no: "AC-1",
+    description: null, title: "Table broken (L6/maintenance)", shift: "DAY",
+    validation_status: "open", validated_at: null, validated_by: null,
+    attachments: null, closed_at: null, domain: "quality",
+  };
+  const result = (over: Record<string, unknown> = {}) => makeResult({
+    actions: [{ ...base, ...over }],
+    charges: { g1: { charged: 0, worth: 0, counted: true, reason: "counted" } },
+  } as never);
+
+  const renderWith = (onGrade?: () => Promise<void>, over: Record<string, unknown> = {}) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <LeaderScorecardBody leaderName="Ailton" period={PERIOD} result={result(over)} onGrade={onGrade} />
+      </QueryClientProvider>,
+    );
+  };
+
+  it("offers no grade control on a copy that was given no way to save one", () => {
+    renderWith(undefined);
+    expect(screen.queryByLabelText(/^grade /i)).not.toBeInTheDocument();
+  });
+
+  it("offers one where the session may write it", () => {
+    renderWith(async () => undefined);
+    expect(screen.getByLabelText(/^grade AC-1$/i)).toBeInTheDocument();
+  });
+
+  it("does not offer to grade a safety occurrence", () => {
+    // It scores 0 however it is graded — the picker would be a control with no effect.
+    renderWith(async () => undefined, { domain: "safety", safety_kind: "near_miss" });
+    expect(screen.queryByLabelText(/^grade /i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the grade readable as text for the printed page", () => {
+    // A signed sheet is paper. A dropdown prints as an empty box.
+    renderWith(async () => undefined);
+    const printed = screen.getByText("Unrated");
+    expect(printed.className).toMatch(/print:block/);
   });
 });

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 /** Where a page may offer to host this card's Print / Export buttons. */
 export const SCORECARD_ACTIONS_SLOT_ID = "leader-scorecard-actions-slot";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRole } from "@/hooks/useRole";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
 import { NoCeilingNotice } from "@/components/leader/NoCeilingNotice";
@@ -97,6 +98,60 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
       return (data ?? []) as unknown as LSAction[];
     },
   });
+
+  /**
+   * Grading an action from the card, for a session that is allowed to.
+   *
+   * The gap this closes is not cosmetic. 112 of the 135 actions in the base carry no
+   * severity, and an ungraded action with no priced label charges zero — so a card can
+   * read "no points deducted" over a period that simply was never assessed. Fixing one
+   * meant leaving the card, finding the row in the Quality log and coming back, and so
+   * it did not get fixed.
+   *
+   * `severity` and nothing else is written. The price is NOT computed here and is not
+   * sent: `trg_quality_action_freeze_points_upd` fires on exactly this column and
+   * re-takes `points_at_creation` through `action_points_at`, at the row's OWN
+   * `scoring_version_id`. So a grade set today re-prices the action against the ruler
+   * that was in force when it was raised, which is the whole point of freezing it, and
+   * a component cannot quietly invent a number the database did not agree to.
+   *
+   * `.select("id")` is the guard, and it is load-bearing. The UI gate is the permission
+   * MATRIX (`quality.manage`) and the RLS policy on `quality_actions` names ROLES —
+   * admin, manager, supervisor, quality_supervisor. The two can disagree, and when they
+   * do PostgREST answers an UPDATE that matched no row with a success and an empty
+   * body. Without this the control would appear, click, say nothing, and change
+   * nothing. Only `id` is asked for, so a column-level grant cannot turn the RETURNING
+   * into a second failure.
+   */
+  const { can } = useRole();
+  const canGrade = can("quality.manage");
+  const qc = useQueryClient();
+  const gradeAction = useMutation({
+    mutationFn: async ({ id, severity }: { id: string; severity: string | null }) => {
+      const { data, error } = await supabase
+        .from("quality_actions").update({ severity } as never).eq("id", id).select("id");
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("This action was not updated — your role cannot change quality actions.");
+      }
+    },
+    onSuccess: () => {
+      // Every figure on this card is derived from the actions, so the whole card is
+      // refetched rather than one query patched: a charge that moved and a score that
+      // did not would be the exact disagreement this module exists to prevent.
+      for (const k of ["ls_actions", "ls_hist", "ls_prod", "ls_items", "ls_rag", "ls_wos"]) {
+        qc.invalidateQueries({ queryKey: [k] });
+      }
+      toast.success("Grade saved");
+    },
+    onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not save the grade"),
+  });
+  const grade = useCallback(
+    async (a: LSAction, severity: string | null) => {
+      await gradeAction.mutateAsync({ id: a.id, severity }).catch(() => undefined);
+    },
+    [gradeAction],
+  );
 
   const actionIds = useMemo(() => actions.map((a) => a.id), [actions]);
   const { data: completes = [], isError: eCompletes } = useQuery({
@@ -352,6 +407,10 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
                 /* Only this copy of the card links out. The leader's own copy renders
                    the same rows without a destination — see LeaderScorecardBody. */
                 actionHref={(a) => `/dashboard/quality?action=${encodeURIComponent(a.id)}`}
+                /* And only this copy can grade. Passed as undefined rather than as a
+                   disabled control: a picker nobody may use is a promise the session
+                   cannot keep, and the reader would not know why it refused. */
+                onGrade={canGrade ? grade : undefined}
               />
             : <p className="py-16 text-center text-sm text-muted-foreground">Working out which actions count…</p>}
         </CardContent>
