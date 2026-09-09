@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -32,8 +32,9 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action } from "@/lib/permissions";
+import { dashboardPathFor, type Role, can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { cn } from "@/lib/utils";
@@ -441,7 +442,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/operator": "Operator Panel",
   "/dashboard/operator/my-production": "My Production",
   "/dashboard/leader/scorecard": "My Scorecard",
-  "/dashboard/engineer": "Dashboard",
+  "/dashboard/engineer": "Engineer Console",
   "/dashboard/manager": "Dashboard",
   "/dashboard/work-orders": "Maintenance Orders",
   "/dashboard/downtime": "Downtime",
@@ -616,6 +617,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   );
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
+  // The window never scrolls — this div does. The mobile header collapses its own
+  // height while scrolling down so the 44px goes back to the content.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const headerHidden = useHideOnScroll(contentRef, { enabled: isMobile });
+
+  // The bottom bar already has Home; rendering the role's dashboard row again next
+  // to it wasted a tab and pushed a real screen out.
+  const homePath = dashboardPathFor(role as Role | null);
+  const mobileTabs = filteredItems.filter((i) => i.url.split("?")[0] !== homePath).slice(0, 3);
+
   // Every toggle request (header button, Ctrl/Cmd+B) advances the cycle
   // Expanded -> Rail -> Hidden -> Expanded, so there is a single source of truth.
   //
@@ -704,17 +715,26 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
-              <SidebarStateControl uiState={sidebarUiState} />
+            <header
+              className={cn(
+                "border-b bg-card flex items-center print:hidden",
+                isMobile
+                  ? cn(
+                      "sticky top-0 z-30 h-11 px-2 gap-1 flex-nowrap overflow-hidden transition-[height] duration-200 motion-reduce:transition-none",
+                      headerHidden && "h-0 border-b-0",
+                    )
+                  : "min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3",
+              )}
+            >
+              {!isMobile && <SidebarStateControl uiState={sidebarUiState} />}
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
               <BackButton />
-              {isMobile && (
-                <div className="flex items-center gap-1.5">
-                  <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />
-                  <span className="hidden sm:inline text-sm font-bold text-foreground">AN System</span>
-                </div>
+              {isMobile && currentPageTitle && (
+                <span className="truncate text-sm font-semibold text-foreground" aria-current="page">
+                  {currentPageTitle}
+                </span>
               )}
               {currentPageTitle && (
                 <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
@@ -749,10 +769,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <NotificationPanel />
                 <PushOnboarding />
                 {/* Language toggle removed by request — app stays in English. */}
-                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
+                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className={cn("shrink-0", isMobile && "h-9 w-9")}>
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {role && (
+                {!isMobile && role && (
                   <span
                     className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
                     aria-label={`Current role: ${roleTitle[role]}`}
@@ -760,7 +780,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     {roleTitle[role]}
                   </span>
                 )}
-                <LiveClock />
+                {!isMobile && <LiveClock />}
               </div>
             </header>
             {!isOnline && (
@@ -768,11 +788,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 ⚠️ You are offline — changes won't save until you're back online
               </div>
             )}
-            <div className={cn("flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0", isMobile && "pb-24")}>
+            <div
+              ref={contentRef}
+              className={cn(
+                "flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0",
+                "pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-6",
+              )}
+            >
               <div className="min-w-0 w-full">{children}</div>
             </div>
 
-            {isMobile && <MobileTabBar tabs={filteredItems.slice(0, 3)} />}
+            <MobileTabBar tabs={mobileTabs} />
           </main>
         </div>
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>

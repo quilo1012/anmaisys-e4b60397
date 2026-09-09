@@ -12,8 +12,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, FileText } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, FileText, MoreVertical, ChevronRight } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { Lock } from "lucide-react";
 import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork, LineStillStoppedError } from "@/hooks/useWorkOrders";
@@ -38,7 +39,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
-import { EngineerNavCards } from "@/components/DashboardNavCards";
 import { EngineerAlertLineFilter } from "@/components/EngineerAlertLineFilter";
 import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
@@ -1007,13 +1007,58 @@ function EngineerDashboardContent() {
           </Alert>
         )}
         {activeWOs && activeWOs.filter(wo => wo.status === "open").length > 0 && (
-          <Alert variant="destructive" className="border-destructive bg-destructive/10 animate-pulse">
-            <AlertTriangle className="h-5 w-5" />
-            <AlertTitle className="text-lg font-bold">⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Maintenance Order(s) Waiting!</AlertTitle>
-            <AlertDescription>There are unassigned maintenance orders that need attention.</AlertDescription>
-          </Alert>
+          isMobile ? (
+            <button
+              type="button"
+              onClick={() => document.getElementById("my-tasks")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="flex w-full items-center gap-2 rounded-md border-l-4 border-destructive bg-destructive/10 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-destructive/20"
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full bg-destructive animate-pulse" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-destructive-strong">
+                {activeWOs.filter(wo => wo.status === "open").length} open orders waiting
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-destructive-strong" />
+            </button>
+          ) : (
+            <Alert variant="destructive" className="border-destructive bg-destructive/10 animate-pulse">
+              <AlertTriangle className="h-5 w-5" />
+              <AlertTitle className="text-lg font-bold">⚠️ {activeWOs.filter(wo => wo.status === "open").length} Open Maintenance Order(s) Waiting!</AlertTitle>
+              <AlertDescription>There are unassigned maintenance orders that need attention.</AlertDescription>
+            </Alert>
+          )
         )}
 
+        {isMobile ? (
+          <div className="flex h-10 items-center gap-2">
+            <EngineerAlertLineFilter />
+            <Button
+              variant={focusMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => setFocusMode(!focusMode)}
+              aria-label={focusMode ? "Focus mode on" : "Focus mode off"}
+              aria-pressed={focusMode}
+            >
+              <Focus className="h-4 w-4" />
+            </Button>
+            <div className="ml-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" aria-label="More actions">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleReport}>
+                    <FileText className="mr-2 h-4 w-4" /> Report
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setChangePinOpen(true)}>
+                    <Lock className="mr-2 h-4 w-4" /> Change PIN
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        ) : (
         <PageHeader
           title="Engineer Console"
           description="Open, in-progress and recently finished work"
@@ -1033,6 +1078,7 @@ function EngineerDashboardContent() {
           </div>
           }
         />
+        )}
 
         {(() => {
           const activeCount = activeWOs?.length ?? 0;
@@ -1043,40 +1089,60 @@ function EngineerDashboardContent() {
             return t >= start;
           }).length;
           return (
-            <div className="grid gap-3 grid-cols-1 xs:grid-cols-3">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Active</CardTitle>
-                  <div className="h-9 w-9 rounded-lg bg-warning/15 flex items-center justify-center">
+            <div className="grid gap-2 md:gap-3 grid-cols-3">
+              <button
+                type="button"
+                onClick={() => document.getElementById("my-tasks")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="overflow-hidden rounded-lg border bg-card p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted/60"
+              >
+                <div className="-mx-2.5 -mt-2.5 mb-2 h-[3px] bg-warning" aria-hidden="true" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-2xl font-figure font-bold tabular-nums leading-none">{activeCount}</div>
+                    <div className="mt-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground truncate">
+                      <span className="md:hidden">Active</span>
+                      <span className="hidden md:inline">Active</span>
+                    </div>
+                  </div>
+                  <div className="hidden md:flex h-9 w-9 shrink-0 rounded-lg bg-warning/15 items-center justify-center">
                     <Activity className="h-5 w-5 text-warning-strong" />
                   </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="text-3xl font-bold tabular-nums">{activeCount}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Completed Today</CardTitle>
-                  <div className="h-9 w-9 rounded-lg bg-success/15 flex items-center justify-center">
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => document.getElementById("history")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="overflow-hidden rounded-lg border bg-card p-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:bg-muted/60"
+              >
+                <div className="-mx-2.5 -mt-2.5 mb-2 h-[3px] bg-success" aria-hidden="true" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-2xl font-figure font-bold tabular-nums leading-none">{completedToday}</div>
+                    <div className="mt-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground truncate">
+                      <span className="md:hidden">Done today</span>
+                      <span className="hidden md:inline">Completed Today</span>
+                    </div>
+                  </div>
+                  <div className="hidden md:flex h-9 w-9 shrink-0 rounded-lg bg-success/15 items-center justify-center">
                     <CheckCircle className="h-5 w-5 text-success-strong" />
                   </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="text-3xl font-bold tabular-nums">{completedToday}</div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4">
-                  <CardTitle className="text-xs md:text-sm font-medium text-muted-foreground">Avg MTTR</CardTitle>
-                  <div className="h-9 w-9 rounded-lg bg-purple-500/15 flex items-center justify-center">
-                    <Timer className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                </div>
+              </button>
+              <div className="overflow-hidden rounded-lg border bg-card p-2.5 text-left">
+                <div className="-mx-2.5 -mt-2.5 mb-2 h-[3px] bg-primary" aria-hidden="true" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-2xl font-figure font-bold tabular-nums leading-none">{kpis.avgMTTR}m</div>
+                    <div className="mt-1 text-2xs font-medium uppercase tracking-wide text-muted-foreground truncate">
+                      <span className="md:hidden">MTTR</span>
+                      <span className="hidden md:inline">Avg MTTR</span>
+                    </div>
                   </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <div className="text-3xl font-bold tabular-nums">{kpis.avgMTTR}m</div>
-                </CardContent>
-              </Card>
+                  <div className="hidden md:flex h-9 w-9 shrink-0 rounded-lg bg-primary/15 items-center justify-center">
+                    <Timer className="h-5 w-5 text-primary" />
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })()}
@@ -1250,7 +1316,30 @@ function EngineerDashboardContent() {
                 return <p className="text-muted-foreground text-center py-6">No completed maintenance orders yet.</p>;
               }
               return (
-                <div className="w-full overflow-x-auto -mx-3 md:mx-0 px-3 md:px-0">
+                <>
+                <div className="md:hidden divide-y">
+                  {myHistory.map((wo: any) => (
+                    <button
+                      key={wo.id}
+                      type="button"
+                      onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
+                      className={cn(
+                        "flex w-full items-start gap-2 border-l-4 py-2 pl-2 pr-1 text-left active:bg-muted/60",
+                        wo.status === "completed" || wo.status === "closed" ? "border-success" : wo.status === "open" ? "border-destructive" : "border-warning",
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-figure">WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}</span>
+                          <span className="truncate text-muted-foreground">{wo.line_at_time || "—"}</span>
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">{wo.description || wo.machine || "—"}</div>
+                      </div>
+                      <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+                <div className="hidden md:block w-full overflow-x-auto">
                   <table className="min-w-[720px] w-full text-sm">
                     <thead>
                       <tr className="border-b">
@@ -1286,6 +1375,7 @@ function EngineerDashboardContent() {
                     </tbody>
                   </table>
                 </div>
+                </>
               );
             })()}
           </CardContent>
