@@ -599,6 +599,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     (sum, role) => sum + ALL_ACTIONS.filter((action) => isPermissionOverridden(role, action)).length,
     0,
   );
+  // The phone's bottom bar already opens the role's dashboard under "Home"; the first
+  // filtered item is that same route for every role, so it was spending one of five
+  // tabs on a second door into the room the person is standing in.
+  const homePath = dashboardPathFor(role as Role | null);
+  const mobileTabs = filteredItems.filter((item) => item.url.split("?")[0] !== homePath).slice(0, 3);
   const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
   const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
