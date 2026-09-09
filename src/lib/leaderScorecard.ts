@@ -24,6 +24,20 @@ export interface LSAction {
   id: string; status: string; severity: string | null; recorded_at: string;
   labels: string[] | null; department: string | null; line: string | null;
   action_no: string | null; description: string | null; shift: string | null;
+  /**
+   * What SafetyCulture wrote, and on those rows it is the FAULT: "Black Residue on
+   * Scoops (L1)", "Missing closing time (L1)". All 66 safetyculture rows carry it and
+   * none of the 69 `pm` rows do, so a card reading only `description` tells 54 of 135
+   * actions that nothing was recorded about them.
+   *
+   * It is also why `title` comes FIRST and not second. On the 14 rows holding both,
+   * `description` is the product and batch — "Basix Oats Coconut 3Kg / T26244 / 09-2026"
+   * — which says nothing about what went wrong. See the fallback in
+   * LeaderScorecardBody's `row`.
+   */
+  title?: string | null;
+  /** The third rung: 54 safetyculture rows carry a classification and nothing else. */
+  error_type?: string | null;
   validation_status: string | null; validated_at: string | null; validated_by: string | null;
   attachments: string[] | null; closed_at: string | null;
   /** 'quality' | 'safety' | undefined (rows recorded before the column existed) —
