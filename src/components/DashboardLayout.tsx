@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, Menu, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -616,15 +616,21 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   );
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
-  // Every toggle request (header button, rail, Ctrl/Cmd+B) advances the cycle
+  // Every toggle request (header button, Ctrl/Cmd+B) advances the cycle
   // Expanded -> Rail -> Hidden -> Expanded, so there is a single source of truth.
-  // The last visible state is remembered so the floating "show menu" button can
-  // restore it instead of always jumping straight back to the full menu.
-  const lastVisibleSidebarState = useRef<Exclude<SidebarUiState, "hidden">>(
-    sidebarUiState === "hidden" ? "expanded" : sidebarUiState,
-  );
+  //
+  // There is exactly ONE control for this, and it is the one in the header. A
+  // second, floating "show menu" button used to appear over the top-left corner
+  // while the menu was hidden — at `fixed left-3 top-3`, which is 12,12 40x40,
+  // on top of the header's own button at 16,6 44x44. With `z-50` it won and the
+  // header button, the only one that says "Show full menu", could not be pressed
+  // at all: every press in that corner landed on the floating one, which restored
+  // the *last visible* state — the rail, always, because the cycle passes through
+  // it on the way to hidden. So the menu flipped icons <-> hidden for ever and the
+  // full menu only came back from the keyboard. Measured in e2e/sidebar-states.spec.ts;
+  // jsdom passes it either way, because it does no layout and cannot see two
+  // buttons stacked in one corner.
   const applySidebarState = (next: SidebarUiState) => {
-    if (next !== "hidden") lastVisibleSidebarState.current = next;
     setSidebarUiState(next);
     const open = next === "expanded";
     setSidebarOpen(open);
@@ -640,8 +646,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     applySidebarState(next);
   };
 
-  const showMenuLabel = `Show menu — back to ${lastVisibleSidebarState.current === "rail" ? "icons" : "full menu"} (Ctrl/Cmd + B)`;
-
   return (
     <TooltipProvider delayDuration={0}>
       <SidebarProvider
@@ -650,23 +654,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}
       >
         <div className="flex h-screen w-full overflow-hidden">
-          {sidebarUiState === "hidden" && !isMobile && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  aria-label={showMenuLabel}
-                  title={showMenuLabel}
-                  className="fixed left-3 top-3 z-50 h-10 w-10 shadow-lg print:hidden"
-                  onClick={() => applySidebarState(lastVisibleSidebarState.current)}
-                >
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">{showMenuLabel}</TooltipContent>
-            </Tooltip>
-          )}
           <Sidebar collapsible={sidebarUiState === "hidden" ? "offcanvas" : "icon"} className="border-r border-sidebar-border print:hidden">
 
             <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
