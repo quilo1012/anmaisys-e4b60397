@@ -40,8 +40,18 @@ const BodySchema = z.object({
 
 const ALLOWED = ["admin", "manager", "quality_supervisor", "maintenance_manager"];
 
+/**
+ * Stamp of the build that is actually running. Returned in every response so a
+ * deploy can be confirmed from the outside, without reading the logs.
+ */
+const SYNC_BUILD = "73651e47+";
+
 function json(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
+  const body =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? { ...(payload as Record<string, unknown>), build: SYNC_BUILD }
+      : payload;
+  return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
