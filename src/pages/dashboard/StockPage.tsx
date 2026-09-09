@@ -406,7 +406,7 @@ export default function StockPage() {
                     {lowStockCount}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">
+                <TooltipContent side="top">
                   <p>LOW STOCK</p>
                 </TooltipContent>
               </Tooltip>
@@ -426,25 +426,41 @@ export default function StockPage() {
               </div>
               {/* Visual search helpers sit on the title row, right-aligned. */}
               <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setPhotoSearchOpen(true)}
-                  aria-label="Find a part by photo"
-                  title="Find a part by photo"
-                >
-                  <Camera className="h-4 w-4" />
-                </Button>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setPhotoSearchOpen(true)}
+                        aria-label="Find a part by photo"
+                      >
+                        <Camera className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">
+                      <p>Find a part by photo</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {isManager && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setScanOutOpen(true)}
-                    aria-label="Scan QR (take out)"
-                    title="Scan QR (take out)"
-                  >
-                    <QrCode className="h-4 w-4" />
-                  </Button>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setScanOutOpen(true)}
+                          aria-label="Scan QR (take out)"
+                        >
+                          <QrCode className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>Scan QR (take out)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
             </CardTitle>
