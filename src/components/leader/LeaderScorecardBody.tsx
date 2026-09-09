@@ -304,9 +304,26 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
     // repeat the line above it.
     const detail = actionHeadline(a) ? actionDetail(a) : null;
 
-    // One line of type, not text with pills in it. `action_no` is null on 115 of 135
-    // rows and the row used to open with eight characters of the uuid in its place — a
-    // reference that identifies the record in no screen, no export and no conversation.
+    /**
+     * The reference, first and in one place.
+     *
+     * It used to be last, at the end of a dotted list, on the rows that had one at all
+     * — and before that it was eight characters of the row's uuid, a reference that
+     * identifies the record in no screen, no export and no conversation. A reference
+     * read out loud on the floor has to sit where the eye already is.
+     *
+     * `action_no` is NULL on 115 of the 135 rows and the two absences are different
+     * facts. An action typed on the Quality screen may simply never have been given a
+     * number. A SafetyCulture action always HAS one — `unique_id`, "A-1042" — and this
+     * database does not hold it yet: the importer learned to read the field on 07/09
+     * (see safetycultureFieldsArriveWhole.test.ts) and all 66 imported rows are still
+     * NULL, including the 36 SafetyCulture has changed since. So the slot names the
+     * system the number lives in rather than staying blank, and it fills itself with
+     * the real number the day the import brings one — nothing here changes for that.
+     */
+    const ref = a.action_no ?? (a.source === "safetyculture" ? "SafetyCulture" : null);
+
+    // One line of type, not text with pills in it.
     //
     // The labels drop out when they were what NAMED the row: "Bag Inside blender" as
     // the headline and "Bag Inside blender" again two lines below it is the same fact
@@ -318,7 +335,6 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
       a.shift === "DAY" ? "Day" : a.shift === "NIGHT" ? "Night" : a.shift,
       ...(namedByLabels ? [] : labels.slice(0, 3)),
       !namedByLabels && labels.length > 3 ? `+${labels.length - 3}` : null,
-      a.action_no,
     ].filter(Boolean);
 
     return (
@@ -336,8 +352,19 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
               {detail}
             </p>
           )}
-          {meta.length > 0 && (
-            <p className="mt-1 text-2xs leading-snug text-muted-foreground">{meta.join(" · ")}</p>
+          {(ref || meta.length > 0) && (
+            <p className="mt-1 text-2xs leading-snug text-muted-foreground">
+              {ref && (
+                <>
+                  {/* A number is set as a figure and in the body ink, because it is read
+                      back and typed in somewhere else. The name of the system it lives
+                      in is not a reference and must not dress as one. */}
+                  <span className={cn(a.action_no ? "font-figure text-foreground" : "italic")}>{ref}</span>
+                  {meta.length > 0 && " · "}
+                </>
+              )}
+              {meta.join(" · ")}
+            </p>
           )}
         </RowText>
 

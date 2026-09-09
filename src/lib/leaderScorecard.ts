@@ -26,6 +26,17 @@ export interface LSAction {
   labels: string[] | null; department: string | null; line: string | null;
   action_no: string | null; description: string | null; shift: string | null;
   /**
+   * Which system raised it: 'pm' for the 69 typed on the Quality screen, 'safetyculture'
+   * for the 66 the sync brings in.
+   *
+   * Here so a row with no reference can say WHERE its reference lives instead of
+   * printing nothing. 115 of the 135 actions carry no `action_no` today, and the two
+   * reasons are different: a hand-typed action may simply never have been given one,
+   * while a SafetyCulture action always has one — `unique_id`, "A-1042" — that this
+   * database does not hold yet.
+   */
+  source?: string | null;
+  /**
    * What SafetyCulture wrote, and on those rows it is the FAULT: "Black Residue on
    * Scoops (L1)", "Missing closing time (L1)". All 66 safetyculture rows carry it and
    * none of the 69 `pm` rows do, so a card reading only `description` tells 54 of 135
