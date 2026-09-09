@@ -32,7 +32,7 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card shadow-[0_-1px_8px_rgba(0,0,0,0.06)] md:hidden print:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card shadow-[0_-1px_8px_rgba(0,0,0,0.06)] lg:hidden print:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Primary"
     >
