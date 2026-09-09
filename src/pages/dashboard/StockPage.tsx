@@ -448,8 +448,8 @@ export default function StockPage() {
                 )}
               </div>
             </CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-full min-w-0 sm:w-auto sm:min-w-[180px] sm:max-w-[260px] md:max-w-[320px] lg:max-w-[360px]">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 overflow-x-auto">
+              <div className="relative w-[140px] sm:w-[160px] md:w-[180px] lg:w-[220px] shrink-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
@@ -460,7 +460,7 @@ export default function StockPage() {
                 />
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
-                <SelectTrigger className="w-[140px]" aria-label="Filter by category">
+                <SelectTrigger className="w-[130px] shrink-0" aria-label="Filter by category">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -471,6 +471,7 @@ export default function StockPage() {
               <Button
                 variant={lowOnly ? "default" : "outline"}
                 size="sm"
+                className="shrink-0"
                 onClick={() => setLowOnly((v) => !v)}
                 aria-pressed={lowOnly}
               >
@@ -478,7 +479,7 @@ export default function StockPage() {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={printingLabels}>
+                  <Button size="sm" variant="outline" disabled={printingLabels} className="shrink-0">
                     {printingLabels ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}
                     Generate
                     <ChevronDown className="ml-1 h-4 w-4" />
@@ -501,11 +502,11 @@ export default function StockPage() {
                   six of the same kind. */}
               {isManager && (
                 <>
-                  <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
-                  <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
+                  <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block shrink-0" />
+                  <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)} className="shrink-0">
                     <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
                   </Button>
-                  <Button size="sm" onClick={() => setAddOpen(true)}>
+                  <Button size="sm" onClick={() => setAddOpen(true)} className="shrink-0">
                     <Plus className="mr-1 h-4 w-4" /> Add product
                   </Button>
                 </>
