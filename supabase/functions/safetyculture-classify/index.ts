@@ -1,7 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
-import { classify, resolveLine, type ScAction } from "../_shared/safetyculture/normalize.ts";
+import { classify, mergeLabels, resolveLine, type ScAction } from "../_shared/safetyculture/normalize.ts";
 import { classifyAction } from "../_shared/safetyculture/classification.ts";
 import { adminClient, loadContext, log } from "../_shared/safetyculture/sync.ts";
 
@@ -183,6 +183,25 @@ Deno.serve(async (req) => {
       leader_name: leader?.name ?? null,
       error_type: errorType,
       department,
+      /**
+       * The label the rules already knew, which this pass used to throw away.
+       *
+       * `classify()` above returns `cls.label` and every other field of it was being
+       * written; the labels were not. So a rule written today could correct an old
+       * record's error type and never its label, and the four DOCUMENTATION rules
+       * created on 06/09 never reached the nine actions raised between the 2nd and the
+       * 4th. Those actions stayed out of the Documentation pillar, which then reported
+       * "no validated paperwork error" and handed their leaders full marks.
+       *
+       * `mergeLabels` is the same function `buildRecord` uses, so the import and the
+       * re-run cannot drift again — and it only ADDS, so a re-run can never take a
+       * label off an action and move it quietly off somebody's account.
+       *
+       * The verdict above is deliberately still computed on `row.labels`, exactly as
+       * `buildRecord` computes it on `action.labels`: the two must agree about what the
+       * record looked like when it was judged.
+       */
+      labels: mergeLabels(row.labels, cls.label),
       severity: cls.severity ?? undefined,
       classification: verdict.classification,
       classification_checks: verdict.checks,

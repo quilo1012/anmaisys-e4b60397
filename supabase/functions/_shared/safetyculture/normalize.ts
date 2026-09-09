@@ -130,6 +130,48 @@ function hit(value: string, rule: ClassificationRule): boolean {
  * rule matches at all, `matched` is false and the caller flags the record for
  * manual classification.
  */
+/**
+ * Every label the action carried, plus whatever a rule added.
+ *
+ * The rule's label used to REPLACE these, which is why forty-seven of forty-nine
+ * records arrived with no labels at all and one arrived labelled "Label" — the name of
+ * the rule that matched it. `action_points_at` charges by label, so an action with no
+ * labels and no severity scores 1 whatever it describes.
+ *
+ * Lifted out of `buildRecord` because the import was not the only path that needs it,
+ * and being the only path that HAD it was its own defect. `safetyculture-classify`
+ * re-runs these same rules over records already in the table, calls this same
+ * `classify()`, gets the same `cls.label` — and its update payload carried
+ * `error_type`, `department` and `severity` and no labels at all.
+ *
+ * So a rule written after an action was imported could never reach it. Nine actions
+ * raised between 02 and 04 September sat unlabelled because the four DOCUMENTATION
+ * rules that name them were created on the 6th; re-running the classifier changed their
+ * error type and left them unlabelled, and the Documentation pillar went on handing
+ * those leaders full marks for a judgement nobody had made.
+ *
+ * ONLY ADDS. A label already on the action survives, whatever the rules now say.
+ * `standsAgainstLeader` reads labels for attribution, so removing one here would move
+ * an action off somebody's account with nothing on the card to say it happened — the
+ * silent lever `countsAgainstLeader` was rewritten to avoid.
+ */
+export function mergeLabels(
+  existing: string[] | null | undefined,
+  ruleLabel: string | null | undefined,
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const l of [...(existing ?? []), ruleLabel]) {
+    if (!l) continue;
+    const trimmed = l.trim();
+    const key = trimmed.toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 export function classify(action: ScAction, rules: ClassificationRule[]): Classification {
   const out: Classification = {
     category: null,
@@ -331,22 +373,7 @@ export function buildRecord(
   const prio = action.priority_id ? (opts.priorityOf?.(action.priority_id) ?? null) : null;
   if (action.priority_id && !prio) problems.push("priority_not_mapped");
 
-  /**
-   * Every label the action carried, plus whatever a rule added.
-   *
-   * The rule's label used to REPLACE these, which is why forty-seven of forty-nine
-   * records arrived with no labels at all and one arrived labelled "Label" — the
-   * name of the rule that matched it. `action_points_at` charges by label, so an
-   * action with no labels and no severity scores 1 whatever it describes.
-   */
-  const labels: string[] = [];
-  const seen = new Set<string>();
-  for (const l of [...(action.labels ?? []), cls.label].filter(Boolean) as string[]) {
-    const key = l.trim().toLowerCase();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    labels.push(l.trim());
-  }
+  const labels = mergeLabels(action.labels, cls.label);
 
   const verdict = classifyAction(
     {
