@@ -704,17 +704,26 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
-              <SidebarStateControl uiState={sidebarUiState} />
+            <header
+              className={cn(
+                "border-b bg-card flex items-center print:hidden",
+                isMobile
+                  ? cn(
+                      "sticky top-0 z-30 h-11 px-2 gap-1 flex-nowrap overflow-hidden transition-[height] duration-200 motion-reduce:transition-none",
+                      headerHidden && "h-0 border-b-0",
+                    )
+                  : "min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3",
+              )}
+            >
+              {!isMobile && <SidebarStateControl uiState={sidebarUiState} />}
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
               <BackButton />
-              {isMobile && (
-                <div className="flex items-center gap-1.5">
-                  <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />
-                  <span className="hidden sm:inline text-sm font-bold text-foreground">AN System</span>
-                </div>
+              {isMobile && currentPageTitle && (
+                <span className="truncate text-sm font-semibold text-foreground" aria-current="page">
+                  {currentPageTitle}
+                </span>
               )}
               {currentPageTitle && (
                 <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
