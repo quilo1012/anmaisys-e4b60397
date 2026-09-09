@@ -416,7 +416,7 @@ export default function StockPage() {
 
         <Card>
           <CardHeader className="space-y-3 p-3 sm:p-6">
-            <CardTitle className="flex items-center justify-between gap-2 text-base md:text-lg">
+            <CardTitle className="flex items-center justify-between gap-2 text-sm md:text-lg">
               <div className="flex items-center gap-2 min-w-0">
                 <Package className="h-5 w-5 shrink-0" /> Spare parts stock
                 {/* What is on screen, when it is not everything. */}
@@ -486,7 +486,7 @@ export default function StockPage() {
                 )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button className="shrink-0" size="sm" variant="outline" aria-label="Stock actions">
+                    <Button className="h-8 gap-1 px-2 text-xs" size="sm" variant="outline" aria-label="Stock actions">
                       <MoreVertical className="h-4 w-4" />
                       Actions
                     </Button>
