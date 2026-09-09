@@ -111,13 +111,14 @@ describe("the actions-over-time chart", () => {
 });
 
 describe("computeScorecard", () => {
-  it("an empty card scores on quality and documentation, and not on production", () => {
+  it("an empty card scores on quality alone — nothing was planned and nothing was judged", () => {
     const r = computeScorecard(EMPTY_RAW, period(), { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES });
     expect(r.quality.total).toBe(0);
     expect(r.production.attainment).toBeNull();
     expect(r.score.production.value).toBeNull();
     expect(r.score.quality.value).toBe(100);
-    expect(r.score.documentation.value).toBe(100);
+    // No action carries the Paperwork label, so documentation was never judged.
+    expect(r.score.documentation.value).toBeNull();
   });
 
   it("attainment counts one RAG plan per line-shift-day, not one per session row", () => {

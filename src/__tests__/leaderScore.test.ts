@@ -123,7 +123,9 @@ describe("displayScore", () => {
     // it read as a clean period with an action open on the board.
     const actions = [{ severity: "low", validation_status: "open" }];
     const r = computeLeaderScore({ actual: 100, target: 100, avgOEE: null, actions, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() });
-    expect(r.final).toBeCloseTo(99.7, 1);
+    // Documentation is unscored here — nothing carries the Paperwork label — so the
+    // quality deduction is shared across production and quality alone.
+    expect(r.final).toBeCloseTo(99.53, 1);
     expect(displayScore(r.final)).toBe(99);
   });
 
@@ -245,5 +247,36 @@ describe("what a verdict on pending paperwork actually does", () => {
     // verdict is not a penalty.
     expect(displayScore(twoPaperwork("validated").final)!)
       .toBeGreaterThanOrEqual(displayScore(twoPaperwork("open").final)!);
+  });
+});
+
+/**
+ * A block that judged nothing must not publish a compliance figure.
+ *
+ * `documentationScore(0)` returned 100 both when the paperwork was checked and found
+ * right and when nothing was ever labelled Paperwork — and paid out a full quarter of
+ * the final score for the difference.
+ */
+describe("documentation scores only when something was judged", () => {
+  const base = { actual: 100, target: 100, avgOEE: null, excludedLabels: NOTHING_EXCLUDED, gateLabels: new Set<string>() };
+
+  it("is unscored when no action in the period carries the label", () => {
+    const r = computeLeaderScore({ ...base, actions: [{ severity: "low", labels: ["Line stop"], validation_status: "validated" }] }, DEFAULT_WEIGHTS);
+    expect(r.documentation.value).toBeNull();
+    expect(r.documentation.basis).toMatch(/carries the Paperwork label/i);
+    expect(r.applied.documentation_pct).toBe(0);
+    expect(r.applied.production_pct + r.applied.quality_pct).toBe(100);
+  });
+
+  it("a rejected paperwork action is a verdict, and 100 there is earned", () => {
+    const r = computeLeaderScore({ ...base, actions: [{ severity: "low", labels: ["Paperwork"], validation_status: "rejected" }] }, DEFAULT_WEIGHTS);
+    expect(r.documentation.value).toBe(100);
+    expect(r.applied.documentation_pct).toBe(25);
+  });
+
+  it("a validated paperwork error scores exactly as it did", () => {
+    const r = computeLeaderScore({ ...base, actions: [{ severity: "low", labels: ["Paperwork"], validation_status: "validated" }] }, DEFAULT_WEIGHTS);
+    expect(r.documentation.value).toBe(95);
+    expect(r.applied.documentation_pct).toBe(25);
   });
 });
