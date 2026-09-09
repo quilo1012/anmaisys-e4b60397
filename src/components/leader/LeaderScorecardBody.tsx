@@ -9,6 +9,7 @@ import { Figure } from "@/components/ui/Figure";
 import {
   QUALITY_SEVERITIES, severityMeta, DOCUMENTATION_LABEL,
   validationMeta, SAFETY_KINDS, SAFETY_KIND_GROUPS,
+  statusMeta, isFinished, actionHeadline, actionDetail,
 } from "@/lib/qualityConstants";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { displayScore, GATE_CAP } from "@/lib/leaderScore";
@@ -59,19 +60,22 @@ const fmt = (n: number) => n.toLocaleString("en-GB");
  * `print:no-underline` because a printed card is handed to the leader on paper, where
  * an underline promises a destination the page cannot offer.
  */
-function RowShell({ href, label, children }: {
+function RowShell({ href, label, className, children }: {
   href?: string;
   label: string;
+  /** The row's own edge — the status rule, which is the same whether it links or not. */
+  className?: string;
   children: React.ReactNode;
 }) {
   const shared = "flex min-w-0 items-start gap-3 px-3 py-2.5 text-xs";
-  if (!href) return <div className={shared}>{children}</div>;
+  if (!href) return <div className={cn(shared, className)}>{children}</div>;
   return (
     <Link
       to={href}
       aria-label={`Open ${label} in Quality`}
       className={cn(
         shared,
+        className,
         "no-underline transition-colors hover:bg-muted/50 focus-visible:outline-none",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hover:bg-transparent",
       )}
@@ -177,99 +181,136 @@ function SafetyBand({ safety }: { safety: ScorecardResult["safety"] }) {
 }
 
 /**
- * Every action in the period, as a record a person can read.
+ * Every action in the period, as a ledger a person can scan.
  *
- * This was one cramped flex row per action, with the description last and `truncate`d
- * — so in real data a row said a mono hash, a date, "Line 6" and "Open", and nothing
- * at all about what the action WAS. The description is now the primary line and
- * everything else is metadata under it: the reader's first question is what happened,
- * not which reference number it was filed under.
+ * Two things were wrong with it at once, and they compounded.
  *
- * A missing severity renders "Unrated" rather than nothing, because a severity nobody
- * set is a fact about the record, and a row that simply omits the badge reads as a row
- * that was rated and rated low.
+ * It read its state off `closed_at`. That column is NULL on all 135 rows in the base
+ * and no path in this repo writes it, so the badge said "Open" on every row — the 37
+ * at `status = 'complete'` included — directly under a Quality block printing "% closed
+ * 43%" off `status`. The filter offered "Closed 0", the divider between the groups
+ * never drew, and the sort put everything in one pile. One card, two sources of truth,
+ * and the one a reader scans was the dead one. See `isFinished`.
+ *
+ * And it said everything in chips: severity, verdict and state stacked at the right of
+ * each row, three pills of different widths, ragged down forty rows with no column to
+ * read. A badge is a good way to say one thing on a row and a bad way to say the same
+ * thing on all of them.
+ *
+ * So the state is now a colour on the row's left edge and a word in a fixed right-hand
+ * column — legible as a position before it is read as text — and the metadata is one
+ * dim line of type rather than text with pills embedded in it. What is left of the
+ * furniture marks what actually varies.
  */
-function ActionsBlock({ actions, filed, actionHref }: {
+function ActionsBlock({ actions, actionHref }: {
   actions: ScorecardResult["actions"];
-  filed: number;
   actionHref?: (action: ScorecardResult["actions"][number]) => string;
 }) {
-  const [filter, setFilter] = useState<"all" | "open" | "closed">("all");
+  const [filter, setFilter] = useState<"all" | "open" | "complete">("all");
 
-  // Open first, then newest first inside each group: the rows that still need somebody
-  // are the rows a leader opens this card to find.
+  // Unfinished first, then newest first inside each group: the rows that still need
+  // somebody are the rows a leader opens this card to find.
   const sorted = useMemo(() => {
     const byDate = (a: ScorecardResult["actions"][number], b: ScorecardResult["actions"][number]) =>
       new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime();
-    const open = actions.filter((a) => !a.closed_at).sort(byDate);
-    const closed = actions.filter((a) => a.closed_at).sort(byDate);
-    return { open, closed, all: [...open, ...closed] };
+    const open = actions.filter((a) => !isFinished(a)).sort(byDate);
+    const complete = actions.filter(isFinished).sort(byDate);
+    return { open, complete, all: [...open, ...complete] };
   }, [actions]);
 
-  // The filter changes what is DRAWN and never what is counted — the heading, the
-  // "still listed" note and every figure on the card stay on the full set.
-  const shown = filter === "open" ? sorted.open : filter === "closed" ? sorted.closed : sorted.all;
-  const dividerAfter = filter === "all" && sorted.open.length > 0 && sorted.closed.length > 0
+  // How many rows were never graded. Said once, here, instead of an "Unrated" pill on
+  // each of them: 112 of the 135 actions in the base carry no severity, so the badge
+  // was a column of identical chips that told a reader nothing except that it was
+  // there. The fact still has to be on the card — a severity nobody set is a fact about
+  // the record, and a row that simply omits it reads as a row graded low.
+  const ungraded = actions.filter((a) => !a.severity).length;
+
+  // The filter changes what is DRAWN and never what is counted — the heading, the note
+  // beside it and every figure on the card stay on the full set.
+  const shown = filter === "open" ? sorted.open : filter === "complete" ? sorted.complete : sorted.all;
+  const dividerAfter = filter === "all" && sorted.open.length > 0 && sorted.complete.length > 0
     ? sorted.open.length
     : -1;
 
   const row = (a: ScorecardResult["actions"][number]) => {
-    const labels = (a.labels ?? []).filter(Boolean) as string[];
-    // `title` first, then `description`, then `error_type`, then the labels — the
-    // order the rest of the app already falls through. `title` leads because on the
-    // rows that carry both it is the fault and `description` is the product code.
-    // Only 2 of 135 actions hold none of them, and those are the rows the "nothing
-    // recorded" line is actually for.
-    const text = (a.title ?? "").trim() || (a.description ?? "").trim() || (a.error_type ?? "").trim();
-    const primary = text || labels.join(" · ");
+    const st = statusMeta(a.status);
     const sev = a.severity ? severityMeta(a.severity) : null;
     const validation = validationMeta(a.validation_status);
-    // Only a verdict that means something. "Open" beside the state badge below would be
-    // the same word twice, and a row three badges wide stops being readable.
+    // Only a verdict that means something. "Open" beside the state word would be the
+    // same idea twice in one column, in two vocabularies.
     const showValidation = a.validation_status === "validated" || a.validation_status === "rejected";
+
+    const labels = (a.labels ?? []).filter(Boolean) as string[];
+    // `title`, then `description` — the order `actionHeadline` sets for the whole app,
+    // borrowed rather than restated so this card cannot drift from the Quality log it
+    // links to. The two rungs below it are this card's own: `error_type` carries 54
+    // safetyculture rows that hold nothing else, and the labels are the last thing a
+    // row can be named by. Only 2 of 135 reach past all four.
+    const primary = actionHeadline(a) ?? ((a.error_type ?? "").trim() || labels.join(" · "));
+    // The batch the fault happened to, on the 14 rows that carry both — "Basix Oats
+    // Coconut 3Kg / T26244 / 09-2026". `actionDetail` returns null when it would only
+    // repeat the line above it.
+    const detail = actionHeadline(a) ? actionDetail(a) : null;
+
+    // One line of type, not text with pills in it. `action_no` is null on 115 of 135
+    // rows and the row used to open with eight characters of the uuid in its place — a
+    // reference that identifies the record in no screen, no export and no conversation.
+    //
+    // The labels drop out when they were what NAMED the row: "Bag Inside blender" as
+    // the headline and "Bag Inside blender" again two lines below it is the same fact
+    // twice, and the second one reads as a second fact.
+    const namedByLabels = primary === labels.join(" · ");
     const meta = [
-      a.action_no || `#${a.id.slice(0, 8)}`,
       format(new Date(a.recorded_at), "dd/MM"),
-      a.line || null,
-      a.shift || null,
-    ];
+      a.line,
+      a.shift === "DAY" ? "Day" : a.shift === "NIGHT" ? "Night" : a.shift,
+      ...(namedByLabels ? [] : labels.slice(0, 3)),
+      !namedByLabels && labels.length > 3 ? `+${labels.length - 3}` : null,
+      a.action_no,
+    ].filter(Boolean);
 
     return (
-      <RowShell key={a.id} href={actionHref?.(a)} label={a.action_no || text || "action"}>
-        <div className="min-w-0 flex-1">
+      <RowShell
+        key={a.id}
+        href={actionHref?.(a)}
+        label={a.action_no || primary || "action"}
+        className={cn("border-l-2", st.rule)}
+      >
+        <div className="min-w-0 grow basis-0">
           {primary ? (
-            <p className="line-clamp-2 text-sm font-medium text-foreground" title={primary}>{primary}</p>
+            <p className="line-clamp-2 text-sm font-medium text-foreground print:line-clamp-none" title={primary}>
+              {primary}
+            </p>
           ) : (
             <p className="text-sm italic text-muted-foreground">No description recorded</p>
           )}
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-2xs text-muted-foreground">
-            <span className="font-mono">{meta[0]}</span>
-            {meta.slice(1).filter(Boolean).map((m) => <span key={m as string}>{m}</span>)}
-            {labels.slice(0, 3).map((l) => (
-              <Badge key={l} variant="secondary" className="text-2xs font-normal">{l}</Badge>
-            ))}
-            {labels.length > 3 && <span>+{labels.length - 3}</span>}
-          </div>
+          {detail && (
+            <p className="mt-0.5 truncate text-2xs text-muted-foreground print:whitespace-normal" title={detail}>
+              {detail}
+            </p>
+          )}
+          {meta.length > 0 && (
+            <p className="mt-1 text-2xs leading-snug text-muted-foreground">{meta.join(" · ")}</p>
+          )}
         </div>
 
-        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-          <Badge
-            variant="outline"
-            className={cn("text-2xs", sev ? sev.badge : "text-muted-foreground")}
-          >
+        {/* Fixed width, right-aligned: a column, so state can be read down the list
+            rather than found on each row.
+
+            Sentence case, and deliberately NOT the card's tracked-uppercase label
+            idiom. That treatment belongs to the section headings, and fourteen rows of
+            "TO DO" set in it put heading-weight type on every line of the list —
+            shouting the one word that is the same on most rows. Colour is enough to
+            find it; the word only has to say which. */}
+        <div className="w-20 shrink-0 text-right sm:w-24">
+          <p className={cn("text-2xs font-semibold", st.ink)}>{st.label}</p>
+          <p className={cn("mt-0.5 text-2xs", sev ? "text-muted-foreground" : "italic text-muted-foreground/60")}>
             {sev ? sev.label : "Unrated"}
-          </Badge>
+          </p>
           {showValidation && (
-            <Badge variant="outline" className={cn("text-2xs", validation.badge)}>{validation.label}</Badge>
-          )}
-          {a.closed_at ? (
-            <Badge variant="outline" className="whitespace-nowrap border-success/40 bg-success/15 text-2xs text-success-strong">
-              Closed {format(new Date(a.closed_at), "dd/MM")}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="border-warning/40 bg-warning/10 text-2xs text-warning-strong">
-              Open
-            </Badge>
+            <p className={cn("mt-0.5 text-2xs", a.validation_status === "rejected" ? "text-muted-foreground" : "text-foreground")}>
+              {validation.label}
+            </p>
           )}
         </div>
       </RowShell>
@@ -281,14 +322,14 @@ function ActionsBlock({ actions, filed, actionHref }: {
       <SectionHead
         id="sc-actions"
         icon={AlertTriangle}
-        aside={filed > 0 ? `· ${filed} closed, still listed` : undefined}
+        aside={ungraded > 0 ? `· ${ungraded} carry no severity` : undefined}
       >
         Actions in this period ({actions.length})
       </SectionHead>
 
       {actions.length > 6 && (
         <div className="mb-2 flex gap-1 print:hidden" role="group" aria-label="Filter actions">
-          {([["all", `All ${actions.length}`], ["open", `Open ${sorted.open.length}`], ["closed", `Closed ${sorted.closed.length}`]] as const).map(([v, label]) => (
+          {([["all", `All ${actions.length}`], ["open", `Open ${sorted.open.length}`], ["complete", `Complete ${sorted.complete.length}`]] as const).map(([v, label]) => (
             <button
               key={v}
               type="button"
@@ -306,16 +347,18 @@ function ActionsBlock({ actions, filed, actionHref }: {
       )}
 
       <div className="max-h-[26rem] overflow-y-auto rounded-md border print:max-h-none print:overflow-visible">
+        {/* The header names the two columns the rows are actually built on. It said
+            "Action / Status" over rows that had no column at all. */}
         <div className="hidden border-b bg-muted/30 px-3 py-1.5 text-2xs uppercase tracking-wide text-muted-foreground sm:flex print:hidden">
-          <span className="flex-1">Action</span>
-          <span>Status</span>
+          <span className="grow basis-0">Action</span>
+          <span className="w-24 shrink-0 text-right">State</span>
         </div>
         <div className="divide-y">
           {shown.map((a, i) => (
             <Fragment key={a.id}>
               {i === dividerAfter && (
                 <div className="bg-muted/40 px-3 py-1 text-2xs uppercase tracking-wide text-muted-foreground">
-                  Closed in this period
+                  Completed in this period
                 </div>
               )}
               {row(a)}
@@ -326,6 +369,7 @@ function ActionsBlock({ actions, filed, actionHref }: {
     </section>
   );
 }
+
 
 export function LeaderScorecardBody({ leaderName, period, result, actionHref }: {
   leaderName: string | null;
@@ -610,7 +654,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
           live on the other end, and a figure nobody can audit back to its record is the
           thing this module exists to stop being. */}
       {actions.length > 0 && (
-        <ActionsBlock actions={actions} filed={q.filed} actionHref={actionHref} />
+        <ActionsBlock actions={actions} actionHref={actionHref} />
       )}
 
       {/* The two quality asides, side by side where there is room. Stacked full-width

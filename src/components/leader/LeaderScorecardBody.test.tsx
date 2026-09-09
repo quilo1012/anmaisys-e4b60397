@@ -512,13 +512,22 @@ describe("an action that was written into the title", () => {
     expect(screen.queryByText(/no description recorded/i)).not.toBeInTheDocument();
   });
 
-  it("prefers the title over the batch code the description holds", () => {
+  it("names the row by the title and files the batch code under it", () => {
+    // This asserted the batch code was nowhere on the page, which was the right idea
+    // said too strongly. What must not happen is the row being NAMED by a product code;
+    // the batch itself is the evidence that makes the fault checkable, and the Quality
+    // dialog has always shown it for that reason. It is the subordinate line here, in
+    // the muted size, never the headline.
     renderBody(withActions({
       title: "Missing closing time (L1)",
       description: "Basix Oats Coconut 3Kg / T26244 / 09-2026 09-2028",
     }));
-    expect(screen.getByText("Missing closing time (L1)")).toBeInTheDocument();
-    expect(screen.queryByText(/T26244/)).not.toBeInTheDocument();
+    const headline = screen.getByText("Missing closing time (L1)");
+    expect(headline).toBeInTheDocument();
+    expect(headline.className).toMatch(/text-sm/);
+    const detail = screen.getByText(/T26244/);
+    expect(detail.className).toMatch(/text-2xs/);
+    expect(detail.className).toMatch(/muted/);
   });
 
   it("still reads the description on a row typed on the Quality screen", () => {
@@ -539,5 +548,107 @@ describe("an action that was written into the title", () => {
   it("keeps saying nothing was recorded when the row genuinely holds nothing", () => {
     renderBody(withActions({ title: null }));
     expect(screen.getByText(/no description recorded/i)).toBeInTheDocument();
+  });
+});
+
+/**
+ * What state a row reports, and where it reads it from.
+ *
+ * The list keyed every state decision off `closed_at` — the Open/Complete badge, the
+ * two filter chips, the divider between the groups and the sort. That column is NULL
+ * on all 135 rows in the base and no code path in this repo writes it, so the answer
+ * was the same on every row: 37 actions at `status = 'complete'` were each badged
+ * "Open", directly under a Quality block that had just printed "% closed 43% · 3 of 7
+ * completed" from `status`. One card, two sources, and the one a reader scans was the
+ * dead one.
+ *
+ * `status` is the column the Quality screen writes and the score already counts, and
+ * it holds three states rather than two — see QUALITY_STATUSES.
+ */
+describe("the state a row reports", () => {
+  const base = {
+    id: "s1", status: "todo", severity: null, recorded_at: "2026-09-02T10:00:00Z",
+    labels: [], department: null, line: "Line 4", action_no: null,
+    description: null, title: "Wrong batch code (L4)", shift: "DAY",
+    validation_status: "open", validated_at: null, validated_by: null,
+    attachments: null, closed_at: null,
+  };
+  const withActions = (...over: Array<Record<string, unknown>>) =>
+    makeResult({ actions: over.map((o, i) => ({ ...base, id: `s${i}`, ...o })) } as never);
+
+  it("reads Complete off the status, on a row no one ever stamped closed", () => {
+    renderBody(withActions({ status: "complete", closed_at: null }));
+    const list = screen.getByRole("region", { name: /actions in this period/i });
+    expect(within(list).getByText(/^complete$/i)).toBeInTheDocument();
+    expect(within(list).queryByText(/^open$/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps In progress apart from To do rather than calling both Open", () => {
+    renderBody(withActions({ status: "in_progress" }, { status: "todo" }));
+    const list = screen.getByRole("region", { name: /actions in this period/i });
+    expect(within(list).getByText(/^in progress$/i)).toBeInTheDocument();
+    expect(within(list).getByText(/^to do$/i)).toBeInTheDocument();
+  });
+
+  it("counts the filter chips off the status too", () => {
+    // Seven rows so the chips render at all, four of them finished.
+    renderBody(withActions(
+      ...Array.from({ length: 4 }, () => ({ status: "complete" })),
+      ...Array.from({ length: 3 }, () => ({ status: "todo" })),
+    ));
+    expect(screen.getByRole("button", { name: /^complete 4$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^open 3$/i })).toBeInTheDocument();
+  });
+
+  it("does not print a uuid where the action was never given a number", () => {
+    // `action_no` is null on 115 of the 135 rows, so the row led its own metadata with
+    // eight characters of a uuid — a reference that identifies the record in no screen,
+    // no export and no conversation.
+    renderBody(withActions({ id: "3f2a91bc-0000-4000-8000-000000000000", action_no: null }));
+    const list = screen.getByRole("region", { name: /actions in this period/i });
+    expect(within(list).queryByText(/3f2a91bc/)).not.toBeInTheDocument();
+  });
+
+  it("still prints the number on the rows that have one", () => {
+    renderBody(withActions({ action_no: "AC-6189" }));
+    expect(screen.getByText(/AC-6189/)).toBeInTheDocument();
+  });
+
+  it("carries the batch the fault happened to, under the fault", () => {
+    // The 14 rows holding both: `title` is what went wrong and `description` is the
+    // product and batch it went wrong on. The list showed one and dropped the other,
+    // so a leader could read the fault and not which run it came off.
+    renderBody(withActions({
+      title: "Missing closing time (L1)",
+      description: "Basix Oats Coconut 3Kg / T26244 / 09-2026",
+    }));
+    expect(screen.getByText("Missing closing time (L1)")).toBeInTheDocument();
+    expect(screen.getByText(/T26244/)).toBeInTheDocument();
+  });
+
+  it("does not repeat the headline underneath itself", () => {
+    renderBody(withActions({ title: null, description: "Unsealed Tubes (L4)\n" }));
+    expect(screen.getAllByText("Unsealed Tubes (L4)")).toHaveLength(1);
+  });
+});
+
+describe("a row that has only its labels to be named by", () => {
+  const base = {
+    id: "L1", status: "complete", severity: "medium", recorded_at: "2026-07-25T10:00:00Z",
+    labels: ["Bag Inside blender"], department: null, line: "Line 4", action_no: "AC-6171",
+    description: null, title: null, shift: "DAY", validation_status: "open",
+    validated_at: null, validated_by: null, attachments: null, closed_at: null,
+  };
+
+  it("does not print the label again as its own metadata", () => {
+    // "Bag Inside blender" as the headline and "Bag Inside blender" again on the line
+    // below it is one fact rendered twice — and the second reads as a second fact.
+    renderBody(makeResult({ actions: [base] } as never));
+    expect(screen.getAllByText(/Bag Inside blender/)).toHaveLength(1);
+  });
+
+  it("still carries the labels on a row that has a headline of its own", () => {
+    renderBody(makeResult({ actions: [{ ...base, title: "Unsealed Tubes (L4)", labels: ["GMP"] }] } as never));
+    expect(screen.getByText(/GMP/)).toBeInTheDocument();
   });
 });

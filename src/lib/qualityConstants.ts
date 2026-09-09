@@ -21,15 +21,40 @@ export interface QualityStatus {
   label: string;
   /** Tailwind classes for a badge. */
   badge: string;
+  /**
+   * The same three states written as ink and as an edge, for a list that reads as a
+   * document rather than as a wall of chips.
+   *
+   * A badge is a good way to say one thing on a row and a bad way to say the same
+   * thing on forty: the Leader Scorecard's action list stacks severity, verdict and
+   * state, and forty rows of three pills each have no column to scan down. `ink` sets
+   * the word, `rule` colours the row's left edge — so the state is legible as a
+   * position and a colour before a word is read, and the badge is spent on something
+   * that varies instead.
+   */
+  ink: string;
+  rule: string;
   /** Chart colour. */
   color: string;
 }
 
 export const QUALITY_STATUSES: QualityStatus[] = [
-  { value: "todo", label: "To do", badge: "bg-warning/15 text-warning-strong border-warning/40", color: "hsl(38 92% 50%)" },
-  { value: "in_progress", label: "In progress", badge: "bg-primary/15 text-primary border-primary/40", color: "hsl(217 91% 60%)" },
-  { value: "complete", label: "Complete", badge: "bg-success/15 text-success-strong border-success/40", color: "hsl(142 76% 36%)" },
+  { value: "todo", label: "To do", badge: "bg-warning/15 text-warning-strong border-warning/40", ink: "text-warning-strong", rule: "border-l-warning/70", color: "hsl(38 92% 50%)" },
+  { value: "in_progress", label: "In progress", badge: "bg-primary/15 text-primary border-primary/40", ink: "text-primary", rule: "border-l-primary/70", color: "hsl(217 91% 60%)" },
+  { value: "complete", label: "Complete", badge: "bg-success/15 text-success-strong border-success/40", ink: "text-success-strong", rule: "border-l-success/70", color: "hsl(142 76% 36%)" },
 ];
+
+/**
+ * Whether an action is finished, read off the column somebody actually writes.
+ *
+ * Not `isClosed`. `closed_at` is NULL on all 135 rows in the base and no path in this
+ * repo sets it, so a list keyed off it reports every row open forever — including the
+ * 37 sitting at `status = 'complete'`. `status` is what the Quality screen writes,
+ * what `summariseQuality` counts as `completed`, and what the score is built from.
+ */
+export function isFinished(a: { status?: string | null }): boolean {
+  return a.status === "complete";
+}
 
 export function statusMeta(value: string | null | undefined): QualityStatus {
   return QUALITY_STATUSES.find((s) => s.value === value) ?? QUALITY_STATUSES[0];
