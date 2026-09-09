@@ -725,7 +725,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 isMobile && headerHidden && "-translate-y-full",
               )}
             >
-              {!isMobile && <SidebarStateControl uiState={sidebarUiState} />}
+              {/* Gone on a phone — the bottom bar's Menu tab is the way to the menu, and
+                  44px of header has no room for a second door to it. A tablet keeps it:
+                  its sidebar rail is real estate worth cycling. */}
+              {isMobile ? (
+                <span className="hidden md:contents">
+                  <SidebarStateControl uiState={sidebarUiState} />
+                </span>
+              ) : (
+                <SidebarStateControl uiState={sidebarUiState} />
+              )}
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
