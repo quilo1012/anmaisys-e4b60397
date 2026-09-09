@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -32,8 +32,9 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action } from "@/lib/permissions";
+import { can, canForDevice, dashboardPathFor, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action, type Role } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { cn } from "@/lib/utils";
