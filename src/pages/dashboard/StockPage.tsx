@@ -416,7 +416,7 @@ export default function StockPage() {
 
         <Card>
           <CardHeader className="space-y-3 p-3 sm:p-6">
-            <CardTitle className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center justify-between gap-2 text-base md:text-lg">
               <div className="flex items-center gap-2 min-w-0">
                 <Package className="h-5 w-5 shrink-0" /> Spare parts stock
                 {/* What is on screen, when it is not everything. */}
@@ -463,51 +463,64 @@ export default function StockPage() {
                   </TooltipProvider>
                 )}
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button className="shrink-0 md:hidden" size="sm" variant="outline" aria-label="Stock actions">
-                    <MoreVertical className="h-4 w-4" />
-                    Actions
+              <div className="flex items-center gap-1 shrink-0 md:hidden">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={() => setPhotoSearchOpen(true)}
+                  aria-label="Find a part by photo"
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+                {isManager && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={() => setScanOutOpen(true)}
+                    aria-label="Scan QR (take out)"
+                  >
+                    <QrCode className="h-4 w-4" />
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 bg-popover">
-                  <DropdownMenuItem onSelect={() => setPhotoSearchOpen(true)}>
-                    <Camera className="mr-2 h-4 w-4" /> Find by photo
-                  </DropdownMenuItem>
-                  {isManager && (
-                    <DropdownMenuItem onSelect={() => setScanOutOpen(true)}>
-                      <QrCode className="mr-2 h-4 w-4" /> Scan QR (take out)
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="shrink-0" size="sm" variant="outline" aria-label="Stock actions">
+                      <MoreVertical className="h-4 w-4" />
+                      Actions
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 bg-popover">
+                    <DropdownMenuItem onSelect={() => runExport("pdf", false)}>
+                      <FileText className="mr-2 h-4 w-4" /> PDF list
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => runExport("pdf", false)}>
-                    <FileText className="mr-2 h-4 w-4" /> PDF list
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => runExport("pdf", true)}>
-                    <FileText className="mr-2 h-4 w-4" /> PDF low stock
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => runExport("excel", false)}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel list
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => runExport("excel", true)}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel low stock
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => { void printAllLabels(); }} disabled={printingLabels}>
-                    {printingLabels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />} QR labels
-                  </DropdownMenuItem>
-                  {isManager && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={() => setAdjustOpen(true)}>
-                        <SlidersHorizontal className="mr-2 h-4 w-4" /> Stock adjustment
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setAddOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" /> Add product
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuItem onSelect={() => runExport("pdf", true)}>
+                      <FileText className="mr-2 h-4 w-4" /> PDF low stock
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => runExport("excel", false)}>
+                      <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel list
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => runExport("excel", true)}>
+                      <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel low stock
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { void printAllLabels(); }} disabled={printingLabels}>
+                      {printingLabels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />} QR labels
+                    </DropdownMenuItem>
+                    {isManager && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setAdjustOpen(true)}>
+                          <SlidersHorizontal className="mr-2 h-4 w-4" /> Stock adjustment
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setAddOpen(true)}>
+                          <Plus className="mr-2 h-4 w-4" /> Add product
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardTitle>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 md:hidden">
               <div className="relative col-span-2">
