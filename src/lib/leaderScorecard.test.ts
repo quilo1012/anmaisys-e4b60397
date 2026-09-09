@@ -348,3 +348,78 @@ describe("the quality summary and the safety band do not count the same row", ()
     expect(result().actions).toHaveLength(5);
   });
 });
+
+/**
+ * What each action charged, keyed by id.
+ *
+ * The card had no way to say this. It printed a total the leader is appraised on and a
+ * list of the actions behind it, and nothing joined the two — so an action worth four
+ * points and an action that cost nothing looked exactly alike, and 62 of 66 actions in
+ * the base cost nothing. The map has to be built from the SAME three predicates that
+ * `qualityScore` uses to pick `standing`, or the column under the score is a second
+ * implementation of the score.
+ */
+describe("charges", () => {
+  const ctx = { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES };
+  const run = (actions: LSAction[]) =>
+    computeScorecard({ ...EMPTY_RAW, actions }, period(), ctx).charges;
+
+  it("charges a graded action what its grade is worth", () => {
+    const c = run([action({ id: "a1", severity: "high", points_at_creation: null })]);
+    expect(c.a1.counted).toBe(true);
+    expect(c.a1.charged).toBe(c.a1.worth);
+    expect(c.a1.charged).toBeGreaterThan(0);
+  });
+
+  it("charges nothing for an ungraded, unlabelled action and says so as a number", () => {
+    // The case that covers most of the base: no grade, no priced label. It counts
+    // against the leader and costs zero, which is a different fact from not counting.
+    const c = run([action({ id: "a1", severity: null, labels: [], points_at_creation: null })]);
+    expect(c.a1).toEqual({ charged: 0, worth: 0, counted: true, reason: "counted" });
+  });
+
+  it("honours the frozen figure over the live grade", () => {
+    // `points_at_creation` is the record. A zero frozen on a row that was never graded
+    // still reads zero after somebody grades it in a component's local state — only a
+    // write to the row, which re-fires the freeze trigger, changes this.
+    const c = run([action({ id: "a1", severity: "critical", points_at_creation: 0 })]);
+    expect(c.a1.worth).toBe(0);
+  });
+
+  it("says a safety occurrence did not count, and does not call it unattributable", () => {
+    const c = run([action({ id: "a1", domain: "safety", safety_kind: "near_miss", severity: "high" })]);
+    expect(c.a1.counted).toBe(false);
+    expect(c.a1.reason).toBe("safety");
+    expect(c.a1.charged).toBe(0);
+  });
+
+  it("says a rejected action was voided", () => {
+    const c = run([action({ id: "a1", severity: "high", validation_status: "rejected" })]);
+    expect(c.a1.counted).toBe(false);
+    expect(c.a1.reason).toBe("rejected");
+  });
+
+  it("says a validated paperwork error moved to the documentation demerit", () => {
+    // It is not free — it is charged in the other pillar, and a card that says only
+    // "0" here invites the reader to conclude it cost nothing at all.
+    const c = run([action({
+      id: "a1", severity: "high", labels: ["Paperwork"], validation_status: "validated",
+    })]);
+    expect(c.a1.counted).toBe(false);
+    expect(c.a1.reason).toBe("documentation");
+  });
+
+  it("adds up to the same points the quality pillar deducted", () => {
+    // The invariant the map exists for: a column that does not sum to the pillar under
+    // it is a second arithmetic, and this repo has paid for one of those three times.
+    const actions = [
+      action({ id: "a1", severity: "high", points_at_creation: null }),
+      action({ id: "a2", severity: "low", points_at_creation: null }),
+      action({ id: "a3", domain: "safety", safety_kind: "near_miss", points_at_creation: null }),
+      action({ id: "a4", severity: "medium", validation_status: "rejected", points_at_creation: null }),
+    ];
+    const r = computeScorecard({ ...EMPTY_RAW, actions }, period(), ctx);
+    const summed = Object.values(r.charges).reduce((n, c) => n + c.charged, 0);
+    expect(r.score.quality.basis).toContain(String(summed));
+  });
+});

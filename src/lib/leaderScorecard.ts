@@ -2,6 +2,7 @@ import { format } from "date-fns";
 import {
   DOCUMENTATION_LABEL, documentationPenaltyPct,
   documentationScore, isValidatedPaperwork,
+  actionPoints, standsAgainstLeader, type ScorableAction,
 } from "@/lib/qualityConstants";
 import { computeLeaderScore, DEFAULT_WEIGHTS, type LeaderScoreResult, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { getShift, shiftSessionDate } from "@/lib/shifts";
@@ -258,9 +259,61 @@ export interface ProductionSummary {
   plannedWithoutOutput: number;
 }
 
+/**
+ * Why an action charged what it charged.
+ *
+ * `counted` is the whole point: an action can be worth four points on the ruler and
+ * cost this leader nothing, and the two facts look identical on a card that prints
+ * only the first. `reason` names which of the four rules took it out, in the same
+ * vocabulary `qualityScore` uses to explain its own basis line.
+ */
+export type ChargeReason = "counted" | "safety" | "rejected" | "not_theirs" | "documentation";
+
+export interface ActionCharge {
+  /** What it added to the quality pillar. Zero whenever `counted` is false. */
+  charged: number;
+  /** What it is worth on the ruler, whether or not it counted. */
+  worth: number;
+  counted: boolean;
+  reason: ChargeReason;
+}
+
+/**
+ * What each action cost this card, worked out HERE and never in a component.
+ *
+ * The rule is the one this module exists for: two fetch paths, one arithmetic. A
+ * points column computed in the card would be a second implementation of
+ * `qualityScore`'s sum, free to drift from the pillar it sits under — and the
+ * attribution rule has already been forgotten in three separate places. So the same
+ * three predicates that build `standing` inside `qualityScore` build this map, and a
+ * column can only ever print what the score actually charged.
+ */
+function chargesOf(actions: LSAction[], excludedLabels: Set<string>): Record<string, ActionCharge> {
+  const out: Record<string, ActionCharge> = {};
+  for (const a of actions) {
+    const worth = actionPoints(a as unknown as ScorableAction, excludedLabels);
+    const stands = standsAgainstLeader(a, excludedLabels);
+    const paperwork = isValidatedPaperwork(a);
+    const counted = stands && !paperwork;
+    // Ordered the way `qualityScore` reads them: the safety rule fires on the first
+    // line, before a label or a department has been looked at, and a near miss called
+    // "not attributable" tells a leader that reporting a hazard is an argument about
+    // blame — which is the behaviour the zero pricing exists to prevent.
+    const reason: ChargeReason = counted ? "counted"
+      : a.domain === "safety" ? "safety"
+      : a.validation_status === "rejected" ? "rejected"
+      : paperwork ? "documentation"
+      : "not_theirs";
+    out[a.id] = { charged: counted ? worth : 0, worth, counted, reason };
+  }
+  return out;
+}
+
 export interface ScorecardResult {
   /** The actions the period actually holds, newest last. */
   actions: LSAction[];
+  /** What each action charged, keyed by action id — see {@link chargesOf}. */
+  charges: Record<string, ActionCharge>;
   woRequests: LSWorkOrder[];
   woStopped: number;
   quality: QualitySummary;
@@ -472,6 +525,7 @@ export function computeScorecard(
 
   return {
     actions, woRequests,
+    charges: chargesOf(actions, excludedLabels),
     woStopped: woRequests.filter((w) => w.line_stopped).length,
     quality, docs, safety, production,
     score: computeLeaderScore(

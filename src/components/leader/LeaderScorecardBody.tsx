@@ -1,4 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Factory, FileWarning, HardHat } from "lucide-react";
@@ -9,11 +11,11 @@ import { Figure } from "@/components/ui/Figure";
 import {
   QUALITY_SEVERITIES, severityMeta, DOCUMENTATION_LABEL,
   validationMeta, SAFETY_KINDS, SAFETY_KIND_GROUPS,
-  statusMeta, isFinished, actionHeadline, actionDetail,
+  statusMeta, isFinished, actionHeadline, actionDetail, severityPoints,
 } from "@/lib/qualityConstants";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { displayScore, GATE_CAP } from "@/lib/leaderScore";
-import type { ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
+import type { ActionCharge, ChargeReason, ScorecardPeriod, ScorecardResult } from "@/lib/leaderScorecard";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Link } from "react-router-dom";
 
@@ -60,23 +62,20 @@ const fmt = (n: number) => n.toLocaleString("en-GB");
  * `print:no-underline` because a printed card is handed to the leader on paper, where
  * an underline promises a destination the page cannot offer.
  */
-function RowShell({ href, label, className, children }: {
+function RowText({ href, label, children }: {
   href?: string;
   label: string;
-  /** The row's own edge — the status rule, which is the same whether it links or not. */
-  className?: string;
   children: React.ReactNode;
 }) {
-  const shared = "flex min-w-0 items-start gap-3 px-3 py-2.5 text-xs";
-  if (!href) return <div className={cn(shared, className)}>{children}</div>;
+  const shared = "min-w-0 grow basis-0 rounded-sm";
+  if (!href) return <div className={shared}>{children}</div>;
   return (
     <Link
       to={href}
       aria-label={`Open ${label} in Quality`}
       className={cn(
         shared,
-        className,
-        "no-underline transition-colors hover:bg-muted/50 focus-visible:outline-none",
+        "block no-underline transition-colors hover:bg-muted/50 focus-visible:outline-none",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hover:bg-transparent",
       )}
     >
@@ -181,32 +180,68 @@ function SafetyBand({ safety }: { safety: ScorecardResult["safety"] }) {
 }
 
 /**
+ * What a row cost, when it cost nothing, and why.
+ *
+ * Zero and "did not count" are different facts and a column printing only a number
+ * says the same thing about both. `qualityScore` already distinguishes them in its
+ * basis line; these are the same four rules in one word each, so a leader reading the
+ * list and a leader reading the score are told the same story.
+ */
+const NOT_COUNTED: Record<Exclude<ChargeReason, "counted">, string> = {
+  // Never "not attributable". A near miss is priced at zero so that reporting a hazard
+  // can never cost the person who reported it — calling it unattributable turns that
+  // into an argument about blame, which is the behaviour the pricing exists to prevent.
+  safety: "not scored",
+  rejected: "voided",
+  not_theirs: "not theirs",
+  // Not free — charged in the other pillar, at the rate the panel above prints.
+  documentation: "on docs",
+};
+
+/**
  * Every action in the period, as a ledger a person can scan.
  *
- * Two things were wrong with it at once, and they compounded.
+ * Three things were wrong with it, and they compounded.
  *
  * It read its state off `closed_at`. That column is NULL on all 135 rows in the base
- * and no path in this repo writes it, so the badge said "Open" on every row — the 37
- * at `status = 'complete'` included — directly under a Quality block printing "% closed
- * 43%" off `status`. The filter offered "Closed 0", the divider between the groups
- * never drew, and the sort put everything in one pile. One card, two sources of truth,
- * and the one a reader scans was the dead one. See `isFinished`.
+ * and no path in this repo writes it, so the answer was the same on every row — the 37
+ * at `status = 'complete'` were each badged "Open", under a Quality block printing
+ * "% closed" off `status`. See `isFinished`.
  *
- * And it said everything in chips: severity, verdict and state stacked at the right of
- * each row, three pills of different widths, ragged down forty rows with no column to
- * read. A badge is a good way to say one thing on a row and a bad way to say the same
- * thing on all of them.
+ * It said everything in chips: severity, verdict and state stacked at the right of each
+ * row, three pills of different widths, ragged down forty rows with no column to read.
+ * A badge is a good way to say one thing on a row and a bad way to say the same thing
+ * on all of them.
  *
- * So the state is now a colour on the row's left edge and a word in a fixed right-hand
- * column — legible as a position before it is read as text — and the metadata is one
- * dim line of type rather than text with pills embedded in it. What is left of the
- * furniture marks what actually varies.
+ * And it never said what any of it COST. The card exists to explain a number a person
+ * is appraised on, and the list of the actions behind that number was silent about the
+ * arithmetic: an action worth four points and an action worth nothing looked identical,
+ * on a base where 112 of 135 carry no grade at all and therefore charge zero. The
+ * figures come from `result.charges` — built in `computeScorecard` from the same three
+ * predicates `qualityScore` uses — and never from a sum taken here.
+ *
+ * So the state is a colour on the left edge and a word in a fixed column; the charge is
+ * a figure in a column of its own; and the metadata is one dim line of type. The
+ * furniture that is left marks what actually varies.
  */
-function ActionsBlock({ actions, actionHref }: {
+function ActionsBlock({ actions, charges, actionHref, onGrade }: {
   actions: ScorecardResult["actions"];
+  charges: ScorecardResult["charges"];
   actionHref?: (action: ScorecardResult["actions"][number]) => string;
+  /**
+   * Grade an action from here, when the reader is allowed to.
+   *
+   * Optional, and absent on purpose for the leader's own copy — the same asymmetry
+   * `actionHref` carries, for a stronger reason. The line tablet is signed in as the
+   * LINE, not as a person: a grade written from it would be unattributable, and the
+   * one field it would change is the field that decides the score of the person
+   * holding the tablet. The manager's copy passes this only when the session holds
+   * `quality.manage`.
+   */
+  onGrade?: (action: ScorecardResult["actions"][number], severity: string | null) => Promise<void>;
 }) {
   const [filter, setFilter] = useState<"all" | "open" | "complete">("all");
+  const [saving, setSaving] = useState<string | null>(null);
 
   // Unfinished first, then newest first inside each group: the rows that still need
   // somebody are the rows a leader opens this card to find.
@@ -218,12 +253,25 @@ function ActionsBlock({ actions, actionHref }: {
     return { open, complete, all: [...open, ...complete] };
   }, [actions]);
 
-  // How many rows were never graded. Said once, here, instead of an "Unrated" pill on
-  // each of them: 112 of the 135 actions in the base carry no severity, so the badge
-  // was a column of identical chips that told a reader nothing except that it was
-  // there. The fact still has to be on the card — a severity nobody set is a fact about
-  // the record, and a row that simply omits it reads as a row graded low.
-  const ungraded = actions.filter((a) => !a.severity).length;
+  /**
+   * The two sentences the list owes the reader, said once each.
+   *
+   * "112 of 135 actions carry no severity" was true for months and appeared nowhere:
+   * the card deducted zero and looked exactly like a card that had deducted zero
+   * because the leader had done nothing wrong. An "Unrated" pill on each row was the
+   * old answer and it was noise — the same chip on five rows out of five tells a
+   * reader only that the chip exists.
+   */
+  const totals = useMemo(() => {
+    let charged = 0, ungraded = 0, free = 0;
+    for (const a of actions) {
+      const c = charges[a.id];
+      charged += c?.charged ?? 0;
+      if (!a.severity) ungraded += 1;
+      if (c && c.counted && c.charged === 0) free += 1;
+    }
+    return { charged, ungraded, free };
+  }, [actions, charges]);
 
   // The filter changes what is DRAWN and never what is counted — the heading, the note
   // beside it and every figure on the card stay on the full set.
@@ -236,9 +284,13 @@ function ActionsBlock({ actions, actionHref }: {
     const st = statusMeta(a.status);
     const sev = a.severity ? severityMeta(a.severity) : null;
     const validation = validationMeta(a.validation_status);
+    const charge: ActionCharge = charges[a.id] ?? { charged: 0, worth: 0, counted: true, reason: "counted" };
     // Only a verdict that means something. "Open" beside the state word would be the
     // same idea twice in one column, in two vocabularies.
     const showValidation = a.validation_status === "validated" || a.validation_status === "rejected";
+    // A safety occurrence is classified, not graded — it scores zero however it is
+    // graded — so the grade picker has nothing to offer it. See actionPoints().
+    const gradable = onGrade && a.domain !== "safety";
 
     const labels = (a.labels ?? []).filter(Boolean) as string[];
     // `title`, then `description` — the order `actionHeadline` sets for the whole app,
@@ -270,13 +322,8 @@ function ActionsBlock({ actions, actionHref }: {
     ].filter(Boolean);
 
     return (
-      <RowShell
-        key={a.id}
-        href={actionHref?.(a)}
-        label={a.action_no || primary || "action"}
-        className={cn("border-l-2", st.rule)}
-      >
-        <div className="min-w-0 grow basis-0">
+      <div key={a.id} className={cn("flex min-w-0 items-start gap-3 px-3 py-2.5 text-xs border-l-2", st.rule)}>
+        <RowText href={actionHref?.(a)} label={a.action_no || primary || "action"}>
           {primary ? (
             <p className="line-clamp-2 text-sm font-medium text-foreground print:line-clamp-none" title={primary}>
               {primary}
@@ -292,7 +339,7 @@ function ActionsBlock({ actions, actionHref }: {
           {meta.length > 0 && (
             <p className="mt-1 text-2xs leading-snug text-muted-foreground">{meta.join(" · ")}</p>
           )}
-        </div>
+        </RowText>
 
         {/* Fixed width, right-aligned: a column, so state can be read down the list
             rather than found on each row.
@@ -300,20 +347,92 @@ function ActionsBlock({ actions, actionHref }: {
             Sentence case, and deliberately NOT the card's tracked-uppercase label
             idiom. That treatment belongs to the section headings, and fourteen rows of
             "TO DO" set in it put heading-weight type on every line of the list —
-            shouting the one word that is the same on most rows. Colour is enough to
-            find it; the word only has to say which. */}
-        <div className="w-20 shrink-0 text-right sm:w-24">
+            shouting the one word that is the same on most rows. */}
+        <div className="w-24 shrink-0 text-right sm:w-28">
           <p className={cn("text-2xs font-semibold", st.ink)}>{st.label}</p>
-          <p className={cn("mt-0.5 text-2xs", sev ? "text-muted-foreground" : "italic text-muted-foreground/60")}>
+
+          {gradable ? (
+            /* The one field that turns a zero into a real charge, editable where the
+               reader is allowed. 112 of 135 actions carry no grade, and until now
+               fixing that meant leaving the card, finding the row in the Quality log
+               and coming back — so it did not get fixed. The write goes to `severity`
+               and to nothing else; `trg_quality_action_freeze_points_upd` re-takes
+               `points_at_creation` at the row's own scoring version, which is why the
+               charge beside it moves on the next read and why this cannot quietly
+               re-price an older period. */
+            <Select
+              value={a.severity ?? "none"}
+              disabled={saving === a.id}
+              onValueChange={async (v) => {
+                setSaving(a.id);
+                try { await onGrade!(a, v === "none" ? null : v); } finally { setSaving(null); }
+              }}
+            >
+              <SelectTrigger
+                aria-label={`Grade ${a.action_no || primary || "this action"}`}
+                className={cn(
+                  "mt-1 h-6 justify-end gap-1 border-none bg-transparent px-1 py-0 text-2xs shadow-none",
+                  "hover:bg-muted focus:ring-1 print:hidden",
+                  sev ? "text-muted-foreground" : "italic text-muted-foreground/60",
+                )}
+              >
+                {saving === a.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  /* The word is written out rather than left to `SelectValue`'s
+                     placeholder, which renders nothing at all until Radix has mounted
+                     — so the trigger read as a bare chevron with no clue what it did. */
+                  <SelectValue>{sev ? sev.label : "Grade"}</SelectValue>
+                )}
+              </SelectTrigger>
+              <SelectContent align="end">
+                {/* Ungraded is a real answer and stays reachable — an action priced only
+                    by its labels needs no grade. The same option the Quality form offers. */}
+                <SelectItem value="none">Not graded</SelectItem>
+                {QUALITY_SEVERITIES.map((sv) => (
+                  <SelectItem key={sv.value} value={sv.value}>
+                    {sv.label} · {severityPoints(sv.value)}p
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+
+          {/* Always present, and on paper it is the only spelling — a printed card is
+              handed over and signed, where a dropdown is a control nobody can use. */}
+          <p className={cn(
+            "text-2xs", gradable && "hidden print:block",
+            sev ? "text-muted-foreground" : "italic text-muted-foreground/60",
+          )}>
             {sev ? sev.label : "Unrated"}
           </p>
+
           {showValidation && (
             <p className={cn("mt-0.5 text-2xs", a.validation_status === "rejected" ? "text-muted-foreground" : "text-foreground")}>
               {validation.label}
             </p>
           )}
         </div>
-      </RowShell>
+
+        {/* What it cost. The column the card existed without. */}
+        <div className="w-14 shrink-0 text-right">
+          {charge.counted ? (
+            <p className={cn(
+              "font-figure text-sm leading-none",
+              charge.charged > 0 ? "font-semibold text-foreground" : "text-muted-foreground/60",
+            )}>
+              {charge.charged}<span className="text-2xs font-normal">p</span>
+            </p>
+          ) : (
+            <>
+              <p className="font-figure text-sm leading-none text-muted-foreground/50">—</p>
+              <p className="mt-0.5 text-2xs leading-tight text-muted-foreground">
+                {NOT_COUNTED[charge.reason as Exclude<ChargeReason, "counted">]}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
     );
   };
 
@@ -322,10 +441,22 @@ function ActionsBlock({ actions, actionHref }: {
       <SectionHead
         id="sc-actions"
         icon={AlertTriangle}
-        aside={ungraded > 0 ? `· ${ungraded} carry no severity` : undefined}
+        aside={`· ${totals.charged} point${totals.charged === 1 ? "" : "s"} charged`}
       >
         Actions in this period ({actions.length})
       </SectionHead>
+
+      {/* The sentence the card owed and never said. A period can deduct nothing because
+          the leader did nothing wrong, or because nobody graded any of it, and the two
+          were indistinguishable on the page — 112 of the 135 actions in the base carry
+          no grade. Said once, in words, rather than as a pill repeated on every row. */}
+      {totals.free > 0 && (
+        <p className="mb-2 text-2xs leading-snug text-muted-foreground">
+          {totals.free} of {actions.length} action{actions.length === 1 ? "" : "s"} charged nothing
+          {totals.ungraded > 0 && ` — ${totals.ungraded} carr${totals.ungraded === 1 ? "ies" : "y"} no grade and no priced label`}.
+          {onGrade && " Grading one here re-prices it against this period's ruler."}
+        </p>
+      )}
 
       {actions.length > 6 && (
         <div className="mb-2 flex gap-1 print:hidden" role="group" aria-label="Filter actions">
@@ -347,11 +478,12 @@ function ActionsBlock({ actions, actionHref }: {
       )}
 
       <div className="max-h-[26rem] overflow-y-auto rounded-md border print:max-h-none print:overflow-visible">
-        {/* The header names the two columns the rows are actually built on. It said
+        {/* The header names the three columns the rows are actually built on. It said
             "Action / Status" over rows that had no column at all. */}
         <div className="hidden border-b bg-muted/30 px-3 py-1.5 text-2xs uppercase tracking-wide text-muted-foreground sm:flex print:hidden">
           <span className="grow basis-0">Action</span>
-          <span className="w-24 shrink-0 text-right">State</span>
+          <span className="w-24 shrink-0 text-right sm:w-28">{onGrade ? "State · grade" : "State"}</span>
+          <span className="w-14 shrink-0 pl-3 text-right">Charge</span>
         </div>
         <div className="divide-y">
           {shown.map((a, i) => (
@@ -371,7 +503,7 @@ function ActionsBlock({ actions, actionHref }: {
 }
 
 
-export function LeaderScorecardBody({ leaderName, period, result, actionHref }: {
+export function LeaderScorecardBody({ leaderName, period, result, actionHref, onGrade }: {
   leaderName: string | null;
   period: ScorecardPeriod;
   result: ScorecardResult;
@@ -384,6 +516,15 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
    * passes one; the tablet gets the same rows as plain text.
    */
   actionHref?: (action: ScorecardResult["actions"][number]) => string;
+  /**
+   * Grade an action from the list, when the session may.
+   *
+   * Absent on the leader's own copy for the same reason `actionHref` is, only more
+   * so: the tablet is signed in as the line rather than as a person, so a grade
+   * written there is unattributable — and the field it changes is the one that
+   * decides the score of whoever is holding it.
+   */
+  onGrade?: (action: ScorecardResult["actions"][number], severity: string | null) => Promise<void>;
 }) {
   const { quality: q, docs, safety, production: p, score, actions, woRequests, woStopped } = result;
 
@@ -654,7 +795,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref }: 
           live on the other end, and a figure nobody can audit back to its record is the
           thing this module exists to stop being. */}
       {actions.length > 0 && (
-        <ActionsBlock actions={actions} actionHref={actionHref} />
+        <ActionsBlock actions={actions} charges={result.charges} actionHref={actionHref} onGrade={onGrade} />
       )}
 
       {/* The two quality asides, side by side where there is room. Stacked full-width
