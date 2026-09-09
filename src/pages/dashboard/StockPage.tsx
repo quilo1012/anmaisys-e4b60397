@@ -393,16 +393,24 @@ export default function StockPage() {
           badge={lowStockCount > 0 ? (
             /* The four summary cards gave way to this one badge, so the parts list
                starts above the fold on a phone. It still opens the low-stock list. */
-            <button
-              type="button"
-              onClick={() => { setLowOnly((v) => !v); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}
-              title={lowOnly ? "Show all parts" : `${lowStockCount} low — show only those`}
-              aria-pressed={lowOnly}
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${lowOnly ? "bg-destructive text-destructive-foreground" : "bg-destructive/15 text-destructive-strong hover:bg-destructive/25"}`}
-            >
-              <AlertTriangle className="h-3 w-3" />
-              {lowStockCount}
-            </button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => { setLowOnly((v) => !v); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}
+                    aria-pressed={lowOnly}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${lowOnly ? "bg-destructive text-destructive-foreground" : "bg-destructive/15 text-destructive-strong hover:bg-destructive/25"}`}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    {lowStockCount}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>LOW STOCK</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           ) : undefined}
         />
 
