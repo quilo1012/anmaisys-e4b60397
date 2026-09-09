@@ -151,7 +151,16 @@ const MATRIX: Record<Action, Role[]> = {
   "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
   "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
   "production.target.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
-  "production.performance.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
+  // quality_supervisor added 08/09/2026. The two accounts holding it fill in and
+  // approve the leader scorecard (scorecard.fill / scorecard.approve), and a
+  // leader's card is opened from Production Performance — scorecardPath() is built
+  // there and nowhere else. Without this action they held the verdict and could not
+  // open the page it is written on: the board only by typing its URL, and the card
+  // behind it refused outright. Fixed here rather than by loosening the route,
+  // because the route gates SOLELY on this action (allowedRoles is ignored when
+  // requiredAction is set) and because re-gating the card on scorecard.fill would
+  // have taken it from maintenance_manager, who opens it today.
+  "production.performance.view": ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
   // Packaging module: everyone who could open it before (production.view = ALL)
   // PLUS warehouse and quality_supervisor, for whom the PVS module is built.
 

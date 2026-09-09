@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { navItems } from "@/components/DashboardLayout";
 import { SYSTEM_TOOLS } from "@/pages/dashboard/SystemHubPage";
-import { can, ALL_ROLES, type Role } from "@/lib/permissions";
+import { can, roleHolds, ALL_ACTIONS, ALL_ROLES, type Action, type Role } from "@/lib/permissions";
 
 /**
  * The sidebar's shape, asserted rather than assumed.
@@ -205,4 +205,136 @@ describe("sidebar", () => {
       }
     }
   });
+});
+
+/**
+ * The other direction: a permission granted with no way in.
+ *
+ * The test above ("gates every item that names an action on that action") closes one
+ * half of the gap — nobody is shown a link the matrix will refuse. Nothing closed the
+ * other half, and that is the half that hurts: the matrix grants a screen, no sidebar
+ * row offers it, and the person holding the right never learns they hold it. An empty
+ * menu raises no error, so this failed silently for as long as it has existed.
+ *
+ * What it caught when it was written (08/09/2026): the two `quality_supervisor`
+ * accounts hold `scorecard.fill` and `scorecard.approve` and had exactly one row in
+ * their whole sidebar — Quality. The board they are meant to fill in was reachable
+ * only by typing its URL, and the leader's card behind it refused them outright.
+ *
+ * Measured against the real user table rather than the enum, because the enum is not
+ * the factory. Of the twelve roles, six have nobody in them at all — a rule written
+ * for `supervisor` or `production_office_admin` protects no one and proves nothing,
+ * and one comment in App.tsx already justifies a guard by "the supervisors who use it
+ * today", of whom there are none.
+ */
+const ROLES_WITH_PEOPLE: Role[] = [
+  "operator",           // 13
+  "admin",              // 10
+  "engineer",           //  2
+  "quality_supervisor", //  2
+  "maintenance_manager",//  1
+  "warehouse",          //  1
+];
+
+/**
+ * Granted, with no row, on purpose. Every entry needs a reason that says which of the
+ * four kinds it is, because "no row" means four different things and only the last is
+ * a defect:
+ *
+ *   - NO SCREEN: the matrix grants an action this app has no route for.
+ *   - IN THE HUB: the screen lives behind the System hub, by the argument written
+ *     into the navItems list — setup is not daily work.
+ *   - OFF THE MENU: the route exists and was deliberately left out, with the reason
+ *     recorded beside the item it was removed from.
+ *   - REACHED FROM ANOTHER SCREEN: there is a way in, it is just not a menu row.
+ *   - OPEN GAP: a real hole, named rather than papered over.
+ *
+ * An entry here is a decision on the record. A missing entry is a test failure.
+ */
+const NO_MENU_ROW: Partial<Record<Action, string>> = {
+  "production.view": "NO SCREEN — a capability behind production sessions, not a page.",
+  "planner.view": "NO SCREEN — the planner is a separate application.",
+  "smarttarget.view": "NO SCREEN — no route in this app.",
+  "engineers.view": "NO SCREEN — no route of its own; engineers are managed from the hub.",
+  "leaders.view": "NO SCREEN — no route of its own; leaders are managed from the hub.",
+  "notifications.view": "REACHED FROM ANOTHER SCREEN — the bell in the header, not a row.",
+  "users.view": "IN THE HUB — Roles & Permissions, SystemHubPage.",
+  "audit.view": "IN THE HUB — Audit Logs, SystemHubPage.",
+  "intouch.view": "IN THE HUB — the three iTouching screens, SystemHubPage.",
+  "workforce.view": "OFF THE MENU — seventeen people have no shift pattern, so the board would read as a rota when it is still an import. Reason recorded on the Headcount item.",
+  "controlcenter.view": "OFF THE MENU — not being opened; route untouched.",
+  "suppliers.view": "OFF THE MENU — part of Reports, taken off on the same pass.",
+  "reliability.view": "OFF THE MENU — /dashboard/reliability; the Downtime & Reliability row goes to /dashboard/downtime.",
+  "production.target.view": "REACHED FROM ANOTHER SCREEN — My Production is the operator's own screen; every other role reads targets on Performance and Production Control.",
+  "sku.view": "REACHED FROM ANOTHER SCREEN — the SKU Products row gates on sku.manage, which is the narrower right.",
+  "production.performance.view": "REACHED FROM ANOTHER SCREEN for the operator — a button on My Production. Every other role holding it has the Performance row.",
+  "wo.view": "OPEN GAP for the engineer — the engineer dashboard is the way to a WO today, and giving engineers the full Maintenance Orders row is a decision nobody has taken.",
+  "downtime.view": "OPEN GAP for the engineer — holds it, reaches downtime through the WO it belongs to.",
+  "machines.view": "OPEN GAP for the engineer — holds it, no row.",
+  "problems.view": "OPEN GAP for the engineer — holds it, no row.",
+  // Not a ".view" action, and checked anyway: it names a screen in everything but
+  // the word, and this list is where the answer to "why is there no row?" lives.
+  "scorecard.fill": "REACHED FROM ANOTHER SCREEN — a leader's card is opened from Performance, on the leader the page is already filtered to. Every role holding scorecard.fill holds production.performance.view and has that row.",
+};
+
+describe("sidebar reachability", () => {
+  // Every action that names a screen somebody navigates TO. ".view" is that set
+  // by convention, plus scorecard.fill, which is a screen in everything but its
+  // name — see the note on it in NO_MENU_ROW.
+  // roleHolds, not can: this asks what a ROLE is allowed, and can() answers yes to
+  // everything for an owner session, which would make the sweep pass by accident.
+  const NAVIGABLE_ACTIONS: Action[] = [
+    ...ALL_ACTIONS.filter((a) => a.endsWith(".view")),
+    "scorecard.fill",
+  ];
+
+  it("gives every granted view action a row, or a reason there is none", () => {
+    for (const role of ROLES_WITH_PEOPLE) {
+      for (const action of NAVIGABLE_ACTIONS) {
+        if (!roleHolds(role, action)) continue;
+        const hasRow = navItems.some(
+          (i) => i.action === action && (i.roles as string[]).includes(role),
+        );
+        if (hasRow) continue;
+        expect(
+          NO_MENU_ROW[action],
+          `a ${role} holds "${action}" and has no sidebar row for it — add the row, or add the action to NO_MENU_ROW with the reason`,
+        ).toBeDefined();
+      }
+    }
+  });
+
+  it("leaves the leader scorecard reachable by the roles that fill it", () => {
+    // The scorecard has no row of its own, deliberately — a row would open it on
+    // nobody in particular. That makes the Performance row the whole way in, so
+    // "who can fill a scorecard" and "who has the Performance row" have to be the
+    // same question. They were not: quality_supervisor held scorecard.approve and
+    // had one row in the entire sidebar.
+    const performance = navItems.find((i) => i.url === "/dashboard/production-performance");
+    expect(performance, "the Performance row is gone — the scorecard has no way in").toBeDefined();
+    for (const role of ROLES_WITH_PEOPLE) {
+      if (!roleHolds(role, "scorecard.fill")) continue;
+      expect(
+        (performance!.roles as string[]).includes(role),
+        `a ${role} fills in a leader scorecard but cannot open the screen it is reached from`,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps no stale excuse in NO_MENU_ROW", () => {
+    // An excuse that no longer excuses anything is worse than none: it reads as a
+    // decision when it is a leftover, and the next reader trusts it.
+    for (const [action, reason] of Object.entries(NO_MENU_ROW)) {
+      const stillNeeded = ROLES_WITH_PEOPLE.some(
+        (role) =>
+          roleHolds(role, action as Action) &&
+          !navItems.some((i) => i.action === action && (i.roles as string[]).includes(role)),
+      );
+      expect(
+        stillNeeded,
+        `"${action}" is excused ("${reason}") but every role that holds it now has a row — delete the entry`,
+      ).toBe(true);
+    }
+  });
+
 });

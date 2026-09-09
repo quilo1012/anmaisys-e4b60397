@@ -101,7 +101,9 @@ export const navItems: NavItem[] = [
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse", "production_office_admin"], group: "Maintenance", action: "machines.view" },
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "problems.view" },
-  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"], group: "Maintenance", action: "stock.view" },
+  // warehouse was the one role holding stock.view without a row for it — the
+  // people who keep the parts could not open the parts screen from the menu.
+  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse", "production_office_admin"], group: "Maintenance", action: "stock.view" },
 
   // Production. The order is the group's argument, and the sidebar renders these in
   // array order, so it is written here rather than left to whoever appends next:
@@ -120,9 +122,15 @@ export const navItems: NavItem[] = [
   // Performance carried Gauge as well, so two adjacent rows opened with the same
   // icon and the icon column stopped telling the two apart. RAG Weekly keeps the
   // dial — it IS a red/amber/green reading; Performance is a trend against target.
-  { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.performance.view" },
+  // maintenance_manager holds production.performance.view and production.manage
+  // and had a row for neither: eight rows, none of them the week or the shift.
+  //
+  // quality_supervisor is here for the scorecard, not for the trend. This row is
+  // the only way to a leader's card, and the two people who approve the week had
+  // one row in the whole sidebar — Quality.
+  { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.performance.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "sku.manage" },
-  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "production.manage" },
+  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and
   // Finance Close are reached from the tab bar on the board rather than from here:
   // they are one job seen from four angles, and four menu rows said they were four
@@ -150,7 +158,9 @@ export const navItems: NavItem[] = [
   // dissolved Assets, Reports and Communication — a heading over a single row — and
   // the exception is written into the sidebar test beside System and Administration,
   // not left for the next reader to discover as a failure.
-  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"], group: "Quality", action: "quality.view" },
+  // engineer and co_engineer hold quality.view. The row listed neither, so the
+  // screen opened only for somebody who typed the URL.
+  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer", "production_office_admin"], group: "Quality", action: "quality.view" },
 
   // Analytics and Messages sit in Overview rather than each holding a group of its
   // own. The argument that dissolved Assets applies harder to a group of one: a
