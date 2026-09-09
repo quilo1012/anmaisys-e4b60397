@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
@@ -32,9 +32,8 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { can, canForDevice, dashboardPathFor, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action, type Role } from "@/lib/permissions";
+import { can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { cn } from "@/lib/utils";
@@ -588,9 +587,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   const isMobile = useIsMobile();
-  // The window never scrolls — this div does — so the header watches it directly.
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const headerHidden = useHideOnScroll(scrollRef, { enabled: isMobile });
   const device = useDeviceType();
   const filteredItems = navItems.filter(
     (item) =>
@@ -603,11 +599,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     (sum, role) => sum + ALL_ACTIONS.filter((action) => isPermissionOverridden(role, action)).length,
     0,
   );
-  // The phone's bottom bar already opens the role's dashboard under "Home"; the first
-  // filtered item is that same route for every role, so it was spending one of five
-  // tabs on a second door into the room the person is standing in.
-  const homePath = dashboardPathFor(role as Role | null);
-  const mobileTabs = filteredItems.filter((item) => item.url.split("?")[0] !== homePath).slice(0, 3);
   const showStoppedBadge = stoppedLinesCount > 0 && (effectiveRole === "engineer" || effectiveRole === "manager" || effectiveRole === "maintenance_manager" || effectiveRole === "admin");
   const stoppedTarget = effectiveRole === "engineer" ? "/dashboard/engineer" : "/dashboard/work-orders";
 
@@ -713,38 +704,19 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-            {/* On a phone the header is 44px, sticky, and slides out of the way while
-                the page is pushed up. It carries only Back, the page name and the
-                things that change on their own — the menu is the bottom bar's job. */}
-            <header
-              className={cn(
-                "border-b bg-card flex items-center print:hidden",
-                isMobile
-                  ? "sticky top-0 z-30 h-11 flex-nowrap px-2 gap-1 transition-transform duration-200 motion-reduce:transition-none"
-                  : "min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3",
-                isMobile && headerHidden && "-translate-y-full",
-              )}
-            >
-              {/* Gone on a phone — the bottom bar's Menu tab is the way to the menu, and
-                  44px of header has no room for a second door to it. A tablet keeps it:
-                  its sidebar rail is real estate worth cycling. */}
-              {isMobile ? (
-                <span className="hidden md:contents">
-                  <SidebarStateControl uiState={sidebarUiState} />
-                </span>
-              ) : (
-                <SidebarStateControl uiState={sidebarUiState} />
-              )}
+            <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
+              <SidebarStateControl uiState={sidebarUiState} />
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
               <BackButton />
-              {isMobile && currentPageTitle && (
-                <span className="truncate text-sm font-semibold text-foreground" aria-current="page">
-                  {currentPageTitle}
-                </span>
+              {isMobile && (
+                <div className="flex items-center gap-1.5">
+                  <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />
+                  <span className="hidden sm:inline text-sm font-bold text-foreground">AN System</span>
+                </div>
               )}
-              {!isMobile && currentPageTitle && (
+              {currentPageTitle && (
                 <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
                   <span className="text-muted-foreground">Home</span>
                   <span className="text-muted-foreground/60">/</span>
@@ -758,7 +730,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   <OnlineEngineersPanel />
                 </div>
               )}
-              <div className={cn("ml-auto flex items-center min-w-0 shrink-0", isMobile ? "gap-0.5 [&_button]:h-9 [&_button]:w-9" : "gap-1 sm:gap-2")}>
+              <div className="ml-auto flex items-center gap-1 sm:gap-2 min-w-0">
                 {showStoppedBadge && (
                   <Button
                     variant="ghost"
@@ -780,7 +752,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {!isMobile && role && (
+                {role && (
                   <span
                     className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
                     aria-label={`Current role: ${roleTitle[role]}`}
@@ -788,7 +760,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     {roleTitle[role]}
                   </span>
                 )}
-                {!isMobile && <LiveClock />}
+                <LiveClock />
               </div>
             </header>
             {!isOnline && (
@@ -796,19 +768,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 ⚠️ You are offline — changes won't save until you're back online
               </div>
             )}
-            <div
-              ref={scrollRef}
-              className={cn(
-                "flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0",
-                // Same condition as the bottom bar (under 1024px), so the two cannot
-                // drift apart and leave padding for a bar that is not there.
-                "pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-6",
-              )}
-            >
+            <div className={cn("flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0", isMobile && "pb-24")}>
               <div className="min-w-0 w-full">{children}</div>
             </div>
 
-            {isMobile && <MobileTabBar tabs={mobileTabs} />}
+            {isMobile && <MobileTabBar tabs={filteredItems.slice(0, 3)} />}
           </main>
         </div>
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>

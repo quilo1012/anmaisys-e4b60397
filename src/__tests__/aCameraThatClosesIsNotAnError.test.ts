@@ -25,7 +25,7 @@ import { join } from "path";
  * the screen says so itself.
  */
 
-const insert = vi.fn((_row: unknown) => Promise.resolve({}));
+const insert = vi.fn<(r: unknown) => Promise<Record<string, unknown>>>(() => Promise.resolve({}));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: () => ({ insert: (r: unknown) => insert(r) }) },
 }));

@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/ui/PageHeader";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -392,41 +393,74 @@ export default function StockPage() {
           badge={lowStockCount > 0 ? (
             /* The four summary cards gave way to this one badge, so the parts list
                starts above the fold on a phone. It still opens the low-stock list. */
-            <button
-              type="button"
-              onClick={() => { setLowOnly((v) => !v); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}
-              title={lowOnly ? "Show all parts" : `${lowStockCount} low — show only those`}
-              aria-pressed={lowOnly}
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${lowOnly ? "bg-destructive text-destructive-foreground" : "bg-destructive/15 text-destructive-strong hover:bg-destructive/25"}`}
-            >
-              <AlertTriangle className="h-3 w-3" />
-              {lowStockCount}
-            </button>
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => { setLowOnly((v) => !v); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}
+                    aria-pressed={lowOnly}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${lowOnly ? "bg-destructive text-destructive-foreground" : "bg-destructive/15 text-destructive-strong hover:bg-destructive/25"}`}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    {lowStockCount}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>LOW STOCK</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           ) : undefined}
         />
 
         <Card>
           <CardHeader className="space-y-4">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" /> Spare parts stock
-              {/* What is on screen, when it is not everything. */}
-              {visible.length !== rows.length && (
-                <span className="text-sm font-normal text-muted-foreground">{visible.length} of {rows.length}</span>
-              )}
+            <CardTitle className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Package className="h-5 w-5 shrink-0" /> Spare parts stock
+                {/* What is on screen, when it is not everything. */}
+                {visible.length !== rows.length && (
+                  <span className="text-sm font-normal text-muted-foreground hidden sm:inline">{visible.length} of {rows.length}</span>
+                )}
+              </div>
+              {/* Visual search helpers sit on the title row, right-aligned. */}
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setPhotoSearchOpen(true)}
+                  aria-label="Find a part by photo"
+                  title="Find a part by photo"
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+                {isManager && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setScanOutOpen(true)}
+                    aria-label="Scan QR (take out)"
+                    title="Scan QR (take out)"
+                  >
+                    <QrCode className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </CardTitle>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[240px] flex-1">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 overflow-x-auto">
+              <div className="relative w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] shrink-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Search by model, description, machine, line or location"
+                  placeholder="Search parts"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label="Search parts"
                 />
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
-                <SelectTrigger className="w-[180px]" aria-label="Filter by category">
+                <SelectTrigger className="w-[130px] md:w-[150px] shrink-0" aria-label="Filter by category">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -436,28 +470,16 @@ export default function StockPage() {
               </Select>
               <Button
                 variant={lowOnly ? "default" : "outline"}
+                size="sm"
+                className="shrink-0"
                 onClick={() => setLowOnly((v) => !v)}
                 aria-pressed={lowOnly}
               >
                 <AlertTriangle className="mr-1 h-4 w-4" /> Low stock
               </Button>
-              {/* Another way to search the same list: a part in the hand, no code on it.
-                  Icon only, at the end of the row, as the warehouse app has it — the
-                  camera is the label. `aria-label` and `title` carry the words. */}
-              <Button
-                size="icon"
-                onClick={() => setPhotoSearchOpen(true)}
-                aria-label="Find a part by photo"
-                title="Find a part by photo"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
-
-            </div>
-            <div className="flex flex-wrap gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" disabled={printingLabels}>
+                  <Button size="sm" variant="outline" disabled={printingLabels} className="shrink-0">
                     {printingLabels ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileText className="mr-1 h-4 w-4" />}
                     Generate
                     <ChevronDown className="ml-1 h-4 w-4" />
@@ -480,20 +502,11 @@ export default function StockPage() {
                   six of the same kind. */}
               {isManager && (
                 <>
-                  <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
-                  <Button
-                    size="icon"
-                    onClick={() => setScanOutOpen(true)}
-                    aria-label="Scan QR (take out)"
-                    title="Scan QR (take out)"
-                  >
-                    <QrCode className="h-5 w-5" />
-                  </Button>
-
-                  <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
+                  <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block shrink-0" />
+                  <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)} className="shrink-0">
                     <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
                   </Button>
-                  <Button size="sm" onClick={() => setAddOpen(true)}>
+                  <Button size="sm" onClick={() => setAddOpen(true)} className="shrink-0">
                     <Plus className="mr-1 h-4 w-4" /> Add product
                   </Button>
                 </>
