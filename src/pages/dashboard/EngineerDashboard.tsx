@@ -88,6 +88,23 @@ function WaitTimer({ createdAt }: { createdAt: string }) {
 
 const PRIORITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
+/**
+ * Este ecra e o do engenheiro, e uma ordem de armazem nao e trabalho dele.
+ *
+ * "Warehouse/Awaiting Packaging" e a linha parada a espera de caixas: abre uma
+ * ordem `warehouse_service` para o armazem ver o tempo que a linha espera por
+ * ele, e nao chama a manutencao nenhuma. Sem este filtro a ordem entrava no
+ * contador "Open Maintenance Order(s) Waiting!" e o engenheiro ficava com um
+ * trabalho na lista que nao lhe pertence e que nao consegue fechar.
+ *
+ * A RLS ja nao lha entrega — ver a policy `Warehouse orders belong to the
+ * warehouse` — e isto e a segunda camada: o dia em que alguem alargar a policy,
+ * o ecra continua a saber de quem e cada ordem. `preventive` fica de fora deste
+ * filtro de proposito: trabalho planeado e trabalho de manutencao.
+ */
+const isMaintenanceWO = (wo: unknown): boolean =>
+  (((wo as { wo_type?: string | null } | null)?.wo_type ?? "production") !== "warehouse_service");
+
 function PriorityBadge({ priority }: { priority?: string | null }) {
   if (!priority || (priority !== "critical" && priority !== "high")) return null;
   const isCritical = priority === "critical";
@@ -548,7 +565,8 @@ function EngineerDashboardContent() {
 
   const activeWOs = useMemo(() => {
     const all = workOrders?.filter(
-      (wo) => wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status)
+      (wo) => isMaintenanceWO(wo)
+        && (wo.status === "open" || ["received", "arrived", "in_progress"].includes(wo.status))
     ) || [];
     const filtered = all.filter((wo) => {
       if (lineFilterParam) {
@@ -1020,6 +1038,7 @@ function EngineerDashboardContent() {
           const activeCount = activeWOs?.length ?? 0;
           const start = new Date(); start.setHours(0, 0, 0, 0);
           const completedToday = (allCompleted ?? []).filter((w: any) => {
+            if (!isMaintenanceWO(w)) return false;
             const t = new Date(w.finished_at || w.completed_at || w.closed_at || w.created_at);
             return t >= start;
           }).length;
