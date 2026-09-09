@@ -13,7 +13,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, QrCode, Printer, ChevronDown } from "lucide-react";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, QrCode, Printer, ChevronDown, MoreVertical } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { QRCodeSVG } from "qrcode.react";
@@ -415,7 +415,7 @@ export default function StockPage() {
         />
 
         <Card>
-          <CardHeader className="space-y-4">
+          <CardHeader className="space-y-3 p-3 sm:p-6">
             <CardTitle className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <Package className="h-5 w-5 shrink-0" /> Spare parts stock
@@ -425,7 +425,7 @@ export default function StockPage() {
                 )}
               </div>
               {/* Visual search helpers sit on the title row, right-aligned. */}
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="hidden items-center gap-1 shrink-0 md:flex">
                 <TooltipProvider delayDuration={0}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -463,9 +463,84 @@ export default function StockPage() {
                   </TooltipProvider>
                 )}
               </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button className="shrink-0 md:hidden" size="sm" variant="outline" aria-label="Stock actions">
+                    <MoreVertical className="h-4 w-4" />
+                    Actions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-popover">
+                  <DropdownMenuItem onSelect={() => setPhotoSearchOpen(true)}>
+                    <Camera className="mr-2 h-4 w-4" /> Find by photo
+                  </DropdownMenuItem>
+                  {isManager && (
+                    <DropdownMenuItem onSelect={() => setScanOutOpen(true)}>
+                      <QrCode className="mr-2 h-4 w-4" /> Scan QR (take out)
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => runExport("pdf", false)}>
+                    <FileText className="mr-2 h-4 w-4" /> PDF list
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("pdf", true)}>
+                    <FileText className="mr-2 h-4 w-4" /> PDF low stock
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("excel", false)}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel list
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("excel", true)}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel low stock
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => { void printAllLabels(); }} disabled={printingLabels}>
+                    {printingLabels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />} QR labels
+                  </DropdownMenuItem>
+                  {isManager && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={() => setAdjustOpen(true)}>
+                        <SlidersHorizontal className="mr-2 h-4 w-4" /> Stock adjustment
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setAddOpen(true)}>
+                        <Plus className="mr-2 h-4 w-4" /> Add product
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </CardTitle>
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 overflow-x-auto">
-              <div className="relative w-[140px] sm:w-[160px] md:w-[180px] lg:w-[200px] shrink-0">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 md:hidden">
+              <div className="relative col-span-2">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search parts"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Search parts"
+                />
+              </div>
+              <Select value={catFilter} onValueChange={setCatFilter}>
+                <SelectTrigger className="min-w-0" aria-label="Filter by category">
+                  <SelectValue placeholder="All categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">All categories</SelectItem>
+                  {filterCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button
+                variant={lowOnly ? "default" : "outline"}
+                size="sm"
+                className="shrink-0"
+                onClick={() => setLowOnly((v) => !v)}
+                aria-pressed={lowOnly}
+              >
+                <AlertTriangle className="mr-1 h-4 w-4" /> Low stock
+              </Button>
+            </div>
+            <div className="hidden flex-nowrap items-center gap-2 overflow-x-auto md:flex">
+              <div className="relative w-[180px] lg:w-[200px] shrink-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
@@ -529,7 +604,7 @@ export default function StockPage() {
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-3 pt-0 sm:p-6 sm:pt-0">
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : !rows.length ? (
