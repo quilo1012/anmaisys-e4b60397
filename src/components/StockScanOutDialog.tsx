@@ -67,6 +67,10 @@ export function StockScanOutDialog({
   const [cooldownLeft, setCooldownLeft] = useState(0);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  // The <video> html5-qrcode appends to the reader container. Held because the
+  // library's own handlers on it have to be detached before the camera is closed,
+  // and by then React has already taken the container out of the document.
+  const surfaceRef = useRef<HTMLVideoElement | null>(null);
   const lastReadAt = useRef(0);
   const lastCode = useRef("");
   const busyRef = useRef(false);
@@ -193,7 +197,10 @@ export function StockScanOutDialog({
           (text) => { void handleRead(text); },
           () => { /* no code in frame — normal */ },
         )
-        .then(() => { if (!cancelled) setStarting(false); })
+        .then(() => {
+          surfaceRef.current = el.querySelector("video");
+          if (!cancelled) setStarting(false);
+        })
         .catch((err: unknown) => {
           if (cancelled) return;
           setStarting(false);
@@ -205,6 +212,17 @@ export function StockScanOutDialog({
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      // html5-qrcode sets `onabort` and `onerror` on the video it creates, and both
+      // THROW a bare string (camera/core-impl.js). Closing the camera pulls the tracks
+      // off the MediaStream while the video is still pointed at it, so the browser
+      // fires `abort` on the way out — and that throw, from a DOM event handler, lands
+      // in window.onerror. The scanner shut down exactly as asked and the telemetry log
+      // fills with "RenderedCameraImpl video surface onabort() called". Detach them
+      // first: nothing reads them, and a camera that genuinely fails still reports
+      // through the start() rejection above.
+      const surface = surfaceRef.current;
+      surfaceRef.current = null;
+      if (surface) { surface.onabort = null; surface.onerror = null; }
       const s = scannerRef.current;
       scannerRef.current = null;
       if (s) {

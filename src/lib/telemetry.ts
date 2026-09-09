@@ -77,12 +77,34 @@ export function logSystemError(
   }
 }
 
+/**
+ * Messages that mean nothing was wrong, so they never become a fault.
+ *
+ * `ResizeObserver loop` is the browser telling itself it re-laid-out twice.
+ *
+ * The two `RenderedCameraImpl` lines come from html5-qrcode, which sets `onabort`
+ * and `onerror` on the <video> it creates and THROWS a bare string from each
+ * (camera/core-impl.js). Nothing catches those, so they arrive here as uncaught
+ * errors. Closing the scanner is the usual trigger — StockScanOutDialog detaches
+ * the handlers before it stops the camera for exactly that reason — but a tablet
+ * that backgrounds the page or loses the camera to another app fires `abort` with
+ * the scanner still live and the handler still attached. The string carries no
+ * detail in any of those cases; a camera that genuinely fails to start is reported
+ * by the screen itself, off the start() rejection.
+ */
+function isKnownNoise(message: string): boolean {
+  return (
+    /ResizeObserver loop/i.test(message) ||
+    /RenderedCameraImpl video surface on(abort|error)\(\) called/i.test(message)
+  );
+}
+
 /** Register global handlers for uncaught JS errors + unhandled promise rejections. */
 export function installTelemetryHandlers() {
   if (typeof window === "undefined") return;
   window.addEventListener("error", (e) => {
     const m = e.message || (e.error as Error | undefined)?.message || "";
-    if (!m || /ResizeObserver loop/i.test(m)) return; // ignore known browser noise
+    if (!m || isKnownNoise(m)) return;
     logSystemError("JS_ERROR", m, {
       stack: (e.error as Error | undefined)?.stack,
       metadata: { filename: e.filename, lineno: e.lineno, colno: e.colno },
