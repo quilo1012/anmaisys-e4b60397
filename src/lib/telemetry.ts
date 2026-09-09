@@ -47,6 +47,7 @@ export function logSystemError(
     if (inFlight) return;
     const msg = (message || "").toString().slice(0, 2000);
     if (!msg) return;
+    if (isMidEditReload(msg, opts?.stack, opts?.metadata?.filename)) return;
     const route = typeof window !== "undefined" ? window.location.pathname : null;
     const key = `${errorType}|${msg}|${route}`;
     const now = Date.now();
@@ -75,6 +76,41 @@ export function logSystemError(
   } catch {
     inFlight = false;
   }
+}
+
+/**
+ * The dev server was halfway through rewriting the module this came out of.
+ *
+ * Lovable's preview IS a Vite dev server, and an AI edit lands on a file as a run
+ * of separate writes. HMR ships every one of them to whatever browser is sitting
+ * on that route, so for a few seconds the body of the file uses a name its import
+ * line has not got yet — or, when a feature is being taken back out, still uses
+ * one the body has already lost. Nothing is wrong with the file; the next write is
+ * seconds away and fixes it.
+ *
+ * One 20-minute edit on 09/09 that added a hide-on-scroll header to
+ * DashboardLayout.tsx and then removed it again wrote eight of these into the log
+ * for two people who had the app open — `headerHidden`, `scrollRef`,
+ * `dashboardPathFor`, `contentRef`, `useRef` — and three of them arrived through
+ * the ErrorBoundary as REACT_CRASH, which is what puts the red badge on Root
+ * Diagnostics. The commit that ended the edit (97ea4ff7) contains none of those
+ * names.
+ *
+ * The tell is the URL and not the message: `?t=<epoch>` is Vite's cache-buster and
+ * exists only on a dev server. A published build serves hashed bundles, so the
+ * same ReferenceError out of production is still recorded in full — which matters,
+ * because an import missing from committed code IS a fault. That one is caught
+ * before it merges, by `tsc --noEmit` in CI (TS2304, added after the StockPage
+ * `DropdownMenu` incident of 08/09). Nothing catches the seconds between two
+ * writes to a sandbox, and nothing needs to.
+ */
+const DEV_MODULE_FRAME = /\/src\/[^\s"')]+\.[jt]sx?\?[tv]=[0-9a-f]+/i;
+const HALF_WRITTEN_MODULE = /\bis not defined\b|\bCannot access '[^']*' before initialization\b/;
+
+function isMidEditReload(message: string, stack?: string | null, filename?: unknown): boolean {
+  if (!HALF_WRITTEN_MODULE.test(message)) return false;
+  const origin = `${typeof filename === "string" ? filename : ""}\n${stack ?? ""}`;
+  return DEV_MODULE_FRAME.test(origin);
 }
 
 /**
