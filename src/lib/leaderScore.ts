@@ -383,10 +383,34 @@ export function computeLeaderScore(
    * measurement exists, and letting one unjudged row erase an error somebody signed
    * would hand a leader a way to park a demerit by raising another action.
    */
-  const documentation: LeaderScoreComponent = validatedPaperwork === 0 && pendingPaperwork > 0
+  /**
+   * A verdict is what makes this block scorable at all.
+   *
+   * `documentationScore(0)` returning 100 covered two completely different facts:
+   * "the paperwork was checked and found right" and "nothing here was ever labelled
+   * Paperwork, so nobody looked". The second one was paying out a full quarter of the
+   * final score for a judgement nobody made — measured on 09/09/2026, zero of the 135
+   * actions in the base carry the label while nine name a paperwork failure in their
+   * own error_type.
+   *
+   * So the pillar scores only when at least one labelled action carries a VERDICT.
+   * Rejected counts as a verdict: Quality looked and said there was no error, and the
+   * 100 that follows is earned. Pending does not.
+   */
+  const judgedPaperwork = input.actions.filter(
+    (a) => (a.labels ?? []).includes(DOCUMENTATION_LABEL)
+      && (a.validation_status === "validated" || a.validation_status === "rejected"),
+  ).length;
+  const labelledPaperwork = input.actions.filter(
+    (a) => (a.labels ?? []).includes(DOCUMENTATION_LABEL),
+  ).length;
+
+  const documentation: LeaderScoreComponent = judgedPaperwork === 0
     ? {
         value: null,
-        basis: `${pendingPaperwork} paperwork action${pendingPaperwork === 1 ? "" : "s"} awaiting a verdict from Quality — not scored until one is given`,
+        basis: labelledPaperwork > 0
+          ? `${pendingPaperwork} paperwork action${pendingPaperwork === 1 ? "" : "s"} awaiting a verdict from Quality — not scored until one is given`
+          : "No action in this period carries the Paperwork label — nothing was judged, so this block does not score.",
       }
     : {
         value: documentationScore(validatedPaperwork),
@@ -394,6 +418,7 @@ export function computeLeaderScore(
           ? "No validated paperwork error"
           : `100 less ${penaltyPct}% for each of ${validatedPaperwork} validated paperwork error${validatedPaperwork === 1 ? "" : "s"}`,
       };
+
 
   // A component with nothing to measure is dropped and its weight shared out, rather
   // than counted as zero: a leader with no production target in the period has not

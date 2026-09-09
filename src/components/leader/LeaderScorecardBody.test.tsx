@@ -937,3 +937,41 @@ describe("the documentation block does not vouch for what it never saw", () => {
     expect(within(block).queryByText(/nothing scored here/i)).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Health & Safety in the header is a STATE, not a percentage: a gate is a ceiling and
+ * never a weight, so it may not be drawn as a block "as wide as it counts for".
+ */
+describe("the Health & Safety block in the score panel", () => {
+  it("says GATED when the period was capped", () => {
+    renderBody(makeResult({
+      safety: { total: 1, rejected: 0, byKind: { lost_time_injury: 1 }, occurrences: [] },
+      score: {
+        ...makeResult().score,
+        final: 49,
+        cap: { value: 49, applied: true, weighted: 93, reason: "A lost-time injury limits this score to 49%." },
+      },
+    }));
+    expect(screen.getByText("GATED")).toBeInTheDocument();
+    expect(screen.getByText(/limited to 49%/)).toBeInTheDocument();
+  });
+
+  it("says WATCH when nothing at all was reported — the period nobody can vouch for", () => {
+    renderBody(makeResult());
+    expect(screen.getByText("WATCH")).toBeInTheDocument();
+    expect(screen.getByText("nothing reported")).toBeInTheDocument();
+  });
+
+  it("says CLEAR when occurrences were reported and none gates", () => {
+    renderBody(makeResult({
+      safety: { total: 3, rejected: 0, byKind: { near_miss: 3 }, occurrences: [] },
+    }));
+    expect(screen.getByText("CLEAR")).toBeInTheDocument();
+    expect(screen.getByText("3 reported, none gating")).toBeInTheDocument();
+  });
+
+  it("never claims a weight for it", () => {
+    renderBody(makeResult());
+    expect(screen.getByText("limits, never counts")).toBeInTheDocument();
+  });
+});

@@ -603,15 +603,55 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
     docs.penalised.length === 0 && docs.pending.length === 0 && docs.rejected.length === 0 &&
     actions.some((a) => a.domain !== "safety");
 
+  /**
+   * The pillar is unscored because nothing in the period carries the label it scores
+   * on. Different fact again from "awaiting a verdict", and different from the generic
+   * "there was nothing to measure it on" the dropped list prints.
+   */
+  const docsNothingJudged =
+    score.documentation.value === null && docs.pending.length === 0;
+
   const dropped = ([
     ["Production", score.production], ["Quality", score.quality], ["Documentation", score.documentation],
   ] as const)
-    .filter(([label, c]) => c.value === null && !(label === "Documentation" && docsAwaitingVerdict))
+    .filter(([label, c]) => c.value === null
+      && !(label === "Documentation" && (docsAwaitingVerdict || docsNothingJudged)))
     .map(([label]) => label);
+
+  /**
+   * Health & Safety in the header: a STATE, never a percentage and never a bar.
+   *
+   * A gate is a ceiling, not a weight (migration 20260818090000), so drawing it as a
+   * block "as wide as it counts for" would be the same kind of lie this panel exists
+   * to remove. The word carries the meaning and the colour only seconds it, because
+   * the card prints as ink on white.
+   */
+  const hs: { word: string; caption: string; className: string; printClassName: string } =
+    score.cap
+      ? { word: "GATED", caption: `limited to ${score.cap.value}%`, className: "text-red-300", printClassName: "print:text-black" }
+      : safety.total === 0
+        ? { word: "WATCH", caption: "nothing reported", className: "text-amber-200", printClassName: "print:text-black" }
+        : { word: "CLEAR", caption: `${safety.total} reported, none gating`, className: "text-emerald-200", printClassName: "print:text-black" };
 
   const barLabel = `How this score was built. ${parts
     .map(([label, c, w]) => `${label} ${displayScore(c.value)}% of 100, counting ${w}%`)
-    .join(". ")}.`;
+    .join(". ")}. Health and safety ${hs.word}: ${hs.caption}. It limits the score, never counts towards it.`;
+
+  const HSBlock = () => (
+    <div className="min-w-0">
+      <span className="block truncate font-display text-[10px] font-bold uppercase tracking-[0.08em] text-white/60 print:text-black/50">
+        <span className="sm:hidden">H&amp;S</span>
+        <span className="hidden sm:inline">Health &amp; Safety</span>
+      </span>
+
+      <p className={`mt-1.5 font-figure text-base font-semibold leading-none sm:text-lg ${hs.className} ${hs.printClassName}`}>
+        {hs.word}
+      </p>
+      <p className="mt-1 truncate font-figure text-2xs text-white/50 print:text-black/50">{hs.caption}</p>
+      <p className="mt-0.5 truncate font-figure text-2xs text-white/40 print:text-black/40">limits, never counts</p>
+    </div>
+  );
+
 
   // Who signed each verdict — "Attributable", the first letter of ALCOA+.
   const { data: profileNames = [] } = useProfileNames();
@@ -665,7 +705,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
               printed page, and the caption below the bars was laid out beside them,
               on top of the Documentation label. */}
           <div className="min-w-0 grow basis-0">
-            <div role="img" aria-label={barLabel} className="flex items-end gap-1.5">
+            <div role="img" aria-label={barLabel} className="flex flex-wrap items-end gap-x-1.5 gap-y-3">
               {parts.map(([label, c, w]) => (
                 <div key={label} role="presentation" style={{ flexGrow: w }} className="min-w-0 basis-0">
                   {/* "Documentation" needs 99px and the narrow segment offers about 94
@@ -691,10 +731,19 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
                   </p>
                 </div>
               ))}
+              {/* No track, no fill, no width claim: it carries no weight. It wraps to
+                  full width below the bars where the row runs out of room. */}
+              <div
+                className="w-full min-w-0 border-t border-white/15 pt-2 sm:w-28 sm:shrink-0 sm:grow-0 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0 print:border-black/20"
+              >
+                <HSBlock />
+              </div>
             </div>
             <p className="mt-3 text-2xs text-white/50 print:text-black/50">
-              Each block is as wide as it counts for, and as full as it scored.
+              Each weighted block is as wide as it counts for, and as full as it scored.
+              Health &amp; Safety carries no weight — it can only limit the score.
             </p>
+
           </div>
         </div>
 
@@ -777,6 +826,13 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
             )}
           </p>
         )}
+        {docsNothingJudged && (
+          <p className="mt-2 text-2xs text-amber-200 print:text-black">
+            Documentation is not scored in this period: no action carries the Paperwork label, so nothing
+            was judged. Its weight is shared between the blocks above rather than counted as a full mark.
+          </p>
+        )}
+
         {dropped.length > 0 && (
           <p className="mt-2 text-2xs text-amber-200 print:text-black">
             {dropped.join(" and ")} {dropped.length === 1 ? "is" : "are"} not counted in this period — there was

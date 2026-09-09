@@ -124,10 +124,12 @@ describe("documentation only scores what was judged", () => {
     expect(r.documentation.value).toBe(100);
   });
 
-  it("scores 100 when there was no paperwork action at all", () => {
-    // Nothing pending, nothing found — a measured clean period, not an unmeasured one.
+  it("does not score at all when nothing carries the Paperwork label", () => {
+    // Nothing pending and nothing labelled is not a clean paperwork period — it is a
+    // period nobody judged, and it must not pay out a full quarter of the score.
     const r = perfect([{ severity: null, labels: ["GMP"], validation_status: "open" }]);
-    expect(r.documentation.value).toBe(100);
+    expect(r.documentation.value).toBeNull();
+    expect(r.documentation.basis).toMatch(/carries the Paperwork label/i);
   });
 
   it("charges the validated error, as it always did", () => {
