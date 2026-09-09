@@ -220,8 +220,12 @@ describe("the H&S ceiling on the card", () => {
     } as never);
 
   it("says nothing at all when no occurrence gated the period", () => {
+    // Scoped to the score panel. The Health & Safety band below it now prints on every
+    // card, and its footnote explains what a ceiling IS — which is not the same as a
+    // card claiming one fired. The panel is where that claim would be made.
     renderBody();
-    expect(screen.queryByText(/ceiling/i)).not.toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: /final score/i });
+    expect(within(panel).queryByText(/ceiling/i)).not.toBeInTheDocument();
   });
 
   it("shows the score it was cut from, and the one that stands", () => {
@@ -233,10 +237,13 @@ describe("the H&S ceiling on the card", () => {
     // cause when a failed CCP became able to cap a period too — a heading that names the
     // wrong cause is the first thing a leader reads. What fired is on the reason line,
     // which is asserted below.
-    expect(screen.getByText(/Score ceiling/i)).toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: /final score/i });
+    expect(within(panel).getByText(/Score ceiling/i)).toBeInTheDocument();
     // The number that was lost, struck through, beside the one that replaced it.
-    expect(screen.getByText("97%")).toBeInTheDocument();
-    expect(screen.getByText(/lost-time injury/i)).toBeInTheDocument();
+    expect(within(panel).getByText("97%")).toBeInTheDocument();
+    // Scoped: the band's footnote names a lost-time injury too, as the thing that WOULD
+    // fire a ceiling. Only the panel says one actually did.
+    expect(within(panel).getByText(/lost-time injury/i)).toBeInTheDocument();
   });
 
   it("does not claim a limit it did not impose", () => {
@@ -370,11 +377,20 @@ describe("the Health & Safety band", () => {
     },
   } as never);
 
-  it("says nothing at all when the period holds no safety occurrence", () => {
-    // Six tiles reading 0 is nine pieces of furniture for one fact, and the fact is
-    // the good news — the same reason the Quality section says it in one line.
+  it("prints three sentences, not six tiles reading zero, when nothing was reported", () => {
+    // This used to assert the section was ABSENT, on the reasoning that six tiles
+    // reading 0 are nine pieces of furniture for one fact and the fact is good news.
+    // The reasoning was right about the tiles and wrong about the section, and the
+    // band itself says why: an empty signal column is the one figure on this card that
+    // is bad news for being low — "under-reporting, not a safe line" — and hiding the
+    // whole band made that sentence unreachable in the only case it describes. The
+    // furniture stays gone; the words stay.
     renderBody(makeResult({ safety: { total: 0, rejected: 0, byKind: {}, occurrences: [] } } as never));
-    expect(screen.queryByRole("heading", { name: /health & safety/i })).not.toBeInTheDocument();
+    const band = screen.getByRole("region", { name: /health & safety/i });
+    expect(within(band).getByText(/nobody was hurt/i)).toBeInTheDocument();
+    expect(within(band).getByText(/under-reporting/i)).toBeInTheDocument();
+    expect(within(band).getByText(/nothing recorded/i)).toBeInTheDocument();
+    expect(within(band).queryByText("0")).not.toBeInTheDocument();
   });
 
   it("counts each kind under its own group", () => {
@@ -817,5 +833,107 @@ describe("the reference on a row", () => {
     renderBody(withRow({ source: undefined, action_no: null }));
     const line = screen.getByText(/04\/09/).closest("p")!;
     expect(line.textContent).toBe("04/09 · Line 5");
+  });
+});
+
+/**
+ * The band that could not print the one sentence it was written for.
+ *
+ * `SafetyBand` carries three empty states, and the middle one is emphatic: "Nothing
+ * reported — which reads as under-reporting, not as a safe line." It is the only
+ * figure on the card that is bad news for being low, and it was unreachable in exactly
+ * the case it describes. The band rendered on `safety.total > 0`, so a period where
+ * NOTHING was reported — no near miss, no toolbox talk, no first aid — printed no
+ * Health & Safety section at all.
+ *
+ * A leader signs this page. A page that says nothing about safety says the shift was
+ * safe, and a shift that reported nothing is the one nobody can vouch for.
+ */
+describe("Health & Safety is on every card", () => {
+  it("prints the section on a period that reported nothing", () => {
+    renderBody(makeResult({ safety: { total: 0, rejected: 0, byKind: {}, occurrences: [] } } as never));
+    expect(screen.getByRole("heading", { name: /health & safety/i })).toBeInTheDocument();
+  });
+
+  it("says an empty signal column is under-reporting, not a safe line", () => {
+    renderBody(makeResult({ safety: { total: 0, rejected: 0, byKind: {}, occurrences: [] } } as never));
+    const band = screen.getByRole("region", { name: /health & safety/i });
+    expect(within(band).getByText(/under-reporting/i)).toBeInTheDocument();
+  });
+
+  it("still says plainly that nobody was hurt", () => {
+    // The good news is said once, in words, and not as three tiles reading 0.
+    renderBody(makeResult({ safety: { total: 0, rejected: 0, byKind: {}, occurrences: [] } } as never));
+    const band = screen.getByRole("region", { name: /health & safety/i });
+    expect(within(band).getByText(/nobody was hurt/i)).toBeInTheDocument();
+  });
+
+  it("never prints a total across the three groups, empty or not", () => {
+    renderBody(makeResult({ safety: { total: 0, rejected: 0, byKind: {}, occurrences: [] } } as never));
+    const band = screen.getByRole("region", { name: /health & safety/i });
+    expect(within(band).queryByText(/^total/i)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * What "100% compliant" is allowed to mean.
+ *
+ * The demerit is scoped to ONE label — `DOCUMENTATION_LABEL`, "Paperwork" — and the
+ * green box read "No penalty · 100% compliant" over a period holding an action whose
+ * own `error_type` says "Incomplete checklist". Measured on 09/09/2026: 53 actions
+ * carry a classified `error_type`, nine of them name a paperwork failure outright
+ * (Missing signature or time, Check not recorded, Missing check on spec, Incomplete
+ * checklist) and ZERO of the 135 rows in the base carry the Paperwork label — the
+ * import writes none, and the two classification rules that catch those failures set
+ * an `error_type` and leave `label` NULL.
+ *
+ * The number is not wrong. The claim on top of it is: a block that has judged nothing
+ * must not print a compliance figure, which is the same mistake the box beside it
+ * already exists to prevent.
+ */
+describe("the documentation block does not vouch for what it never saw", () => {
+  const action = (over: Record<string, unknown> = {}) => ({
+    id: "d1", status: "todo", severity: "low", recorded_at: "2026-09-04T10:00:00Z",
+    labels: [], department: null, line: "Line 5", action_no: null, source: "safetyculture",
+    description: null, title: "Missing informations on checklist (L5)", shift: null,
+    validation_status: "open", validated_at: null, validated_by: null,
+    attachments: null, closed_at: null, domain: "quality", ...over,
+  });
+
+  it("does not claim compliance over a period whose actions were never labelled", () => {
+    renderBody(makeResult({
+      actions: [action()],
+      charges: { d1: { charged: 2, worth: 2, counted: true, reason: "counted" } },
+    } as never));
+    expect(screen.queryByText(/100% compliant/i)).not.toBeInTheDocument();
+  });
+
+  it("says what the demerit is actually scoped to", () => {
+    renderBody(makeResult({
+      actions: [action()],
+      charges: { d1: { charged: 2, worth: 2, counted: true, reason: "counted" } },
+    } as never));
+    expect(screen.getByText(/Paperwork label/i)).toBeInTheDocument();
+  });
+
+  it("still says 100% compliant when the period genuinely held no action at all", () => {
+    // Nothing happened is a real, clean answer and keeps its plain words.
+    renderBody();
+    expect(screen.getByText(/100% compliant/i)).toBeInTheDocument();
+  });
+
+  it("hands a labelled action awaiting a verdict to the box that already says so", () => {
+    // A Paperwork action Quality has not ruled on is a different state again, and the
+    // card has had words for it since d107199a. The new box must not swallow it.
+    const pending = action({ labels: ["Paperwork"] });
+    renderBody(makeResult({
+      actions: [pending],
+      charges: { d1: { charged: 2, worth: 2, counted: true, reason: "counted" } },
+      docs: { penalised: [], pending: [pending], rejected: [], score: 100, impactPct: 0, penaltyPct: 5, pendingImpactPct: 0 },
+    } as never));
+    // Scoped: the Quality section says "under review" too, about the same action.
+    const block = screen.getByRole("region", { name: /documentation errors/i });
+    expect(within(block).getByText(/under review/i)).toBeInTheDocument();
+    expect(within(block).queryByText(/nothing scored here/i)).not.toBeInTheDocument();
   });
 });
