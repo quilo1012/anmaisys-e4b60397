@@ -616,6 +616,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   );
   const currentPageTitle = routeTitles[location.pathname] ?? "";
 
+  // The window never scrolls — this div does. The mobile header collapses its own
+  // height while scrolling down so the 44px goes back to the content.
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const headerHidden = useHideOnScroll(contentRef, { enabled: isMobile });
+
+  // The bottom bar already has Home; rendering the role's dashboard row again next
+  // to it wasted a tab and pushed a real screen out.
+  const homePath = dashboardPathFor(role as AppRole | null as never);
+  const mobileTabs = filteredItems.filter((i) => i.url.split("?")[0] !== homePath).slice(0, 3);
+
   // Every toggle request (header button, Ctrl/Cmd+B) advances the cycle
   // Expanded -> Rail -> Hidden -> Expanded, so there is a single source of truth.
   //
