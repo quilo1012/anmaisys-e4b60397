@@ -74,6 +74,7 @@ export function useWOAlerts() {
             engineer_notified_acknowledged_at: string | null;
             notified_engineers: string[] | null;
             line_id: string | null;
+            wo_type: string | null;
           };
 
           // Single-fire per WO + targeting + line filter (pure gate, unit-tested).

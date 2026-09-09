@@ -119,3 +119,43 @@ describe("shouldFireWOAlert", () => {
     ).toBe(true);
   });
 });
+
+/**
+ * A sirene do engenheiro e a espera do armazem.
+ *
+ * A 09/09 uma ordem `warehouse_service` chegou ao quadro do engenheiro e tocou-
+ * lhe a sirene. O portao julgava a ordem por estado, atribuicao e linha, e uma
+ * espera por embalagem passa nos tres: esta `open`, nao tem engenheiro, e tem
+ * uma linha. Nada no portao perguntava de quem era o trabalho.
+ *
+ * O primeiro teste e o caso real. O segundo guarda a fronteira do lado de la:
+ * uma preventiva TAMBEM nao e uma avaria, mas e trabalho de manutencao e a
+ * regra nao a pode apanhar por arrasto.
+ */
+describe("shouldFireWOAlert e o tipo da ordem", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("nao toca a sirene por uma ordem de armazem", () => {
+    expect(
+      shouldFireWOAlert(wo({ wo_type: "warehouse_service" }), {
+        userId: USER_ID,
+        shouldAlertForLine: allLines,
+        isAcknowledged: isWOAcknowledged,
+      }),
+    ).toBe(false);
+  });
+
+  it("continua a tocar por uma ordem de producao e por uma preventiva", () => {
+    for (const t of ["production", "preventive", null, undefined]) {
+      expect(
+        shouldFireWOAlert(wo({ wo_type: t as string | null }), {
+          userId: USER_ID,
+          shouldAlertForLine: allLines,
+          isAcknowledged: isWOAcknowledged,
+        }),
+      ).toBe(true);
+    }
+  });
+});
