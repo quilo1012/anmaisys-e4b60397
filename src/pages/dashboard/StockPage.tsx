@@ -535,7 +535,7 @@ export default function StockPage() {
                 />
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
-                <SelectTrigger className="min-w-0" aria-label="Filter by category">
+                <SelectTrigger className="min-w-0 h-8 md:h-10" aria-label="Filter by category">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -544,7 +544,7 @@ export default function StockPage() {
                 </SelectContent>
               </Select>
               {isManager && (
-                <Button size="sm" onClick={() => setAddOpen(true)} className="shrink-0">
+                <Button size="sm" onClick={() => setAddOpen(true)} className="shrink-0 h-8 md:h-10">
                   <Plus className="mr-1 h-4 w-4" /> Add product
                 </Button>
               )}
