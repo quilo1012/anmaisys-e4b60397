@@ -441,7 +441,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/operator": "Operator Panel",
   "/dashboard/operator/my-production": "My Production",
   "/dashboard/leader/scorecard": "My Scorecard",
-  "/dashboard/engineer": "Dashboard",
+  "/dashboard/engineer": "Engineer Console",
   "/dashboard/manager": "Dashboard",
   "/dashboard/work-orders": "Maintenance Orders",
   "/dashboard/downtime": "Downtime",
