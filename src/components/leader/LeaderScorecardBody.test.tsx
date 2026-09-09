@@ -761,3 +761,61 @@ describe("grading from the card", () => {
     expect(printed.className).toMatch(/print:block/);
   });
 });
+
+/**
+ * Where the reference sits, and what a row says when it has none.
+ *
+ * `action_no` is NULL on 115 of the 135 actions and the two absences are different
+ * facts. One typed on the Quality screen may never have been given a number; a
+ * SafetyCulture action always has one — `unique_id`, "A-1042" — that this database
+ * does not hold yet.
+ */
+describe("the reference on a row", () => {
+  const base = {
+    id: "r1", status: "todo", severity: null, recorded_at: "2026-09-04T10:00:00Z",
+    labels: [], department: null, line: "Line 5", action_no: null, source: "pm",
+    description: null, title: "Missing informations on checklist (L5)", shift: null,
+    validation_status: "open", validated_at: null, validated_by: null,
+    attachments: null, closed_at: null, domain: "quality",
+  };
+  const withRow = (over: Record<string, unknown>) => makeResult({
+    actions: [{ ...base, ...over }],
+    charges: { r1: { charged: 0, worth: 0, counted: true, reason: "counted" } },
+  } as never);
+
+  it("leads the metadata with the number, not trails it", () => {
+    renderBody(withRow({ action_no: "AC-6189" }));
+    const line = screen.getByText(/AC-6189/).closest("p")!;
+    expect(line.textContent).toMatch(/^AC-6189 · 04\/09/);
+  });
+
+  it("sets a real number as a figure, because it gets typed in somewhere else", () => {
+    renderBody(withRow({ action_no: "AC-6189" }));
+    expect(screen.getByText("AC-6189").className).toMatch(/font-figure/);
+  });
+
+  it("names the system a SafetyCulture row's number lives in while the field is empty", () => {
+    renderBody(withRow({ source: "safetyculture", action_no: null }));
+    expect(screen.getByText("SafetyCulture")).toBeInTheDocument();
+  });
+
+  it("shows the imported number the moment the import carries one", () => {
+    // Nothing in this component changes for that — only the row does.
+    renderBody(withRow({ source: "safetyculture", action_no: "A-1042" }));
+    expect(screen.getByText("A-1042")).toBeInTheDocument();
+    expect(screen.queryByText("SafetyCulture")).not.toBeInTheDocument();
+  });
+
+  it("does not dress the system name as a reference", () => {
+    renderBody(withRow({ source: "safetyculture", action_no: null }));
+    expect(screen.getByText("SafetyCulture").className).not.toMatch(/font-figure/);
+  });
+
+  it("says nothing where a hand-typed row simply has no number", () => {
+    // The tablet's projection has no `source` at all until the migration lands, and an
+    // undefined source must read as "no reference", never as a guess.
+    renderBody(withRow({ source: undefined, action_no: null }));
+    const line = screen.getByText(/04\/09/).closest("p")!;
+    expect(line.textContent).toBe("04/09 · Line 5");
+  });
+});
