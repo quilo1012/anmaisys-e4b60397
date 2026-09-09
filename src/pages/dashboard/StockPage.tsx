@@ -492,6 +492,10 @@ export default function StockPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56 bg-popover">
+                    <DropdownMenuItem onSelect={() => setLowOnly((v) => !v)}>
+                      <AlertTriangle className="mr-2 h-4 w-4" /> Low stock
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => runExport("pdf", false)}>
                       <FileText className="mr-2 h-4 w-4" /> PDF list
                     </DropdownMenuItem>
@@ -512,9 +516,6 @@ export default function StockPage() {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onSelect={() => setAdjustOpen(true)}>
                           <SlidersHorizontal className="mr-2 h-4 w-4" /> Stock adjustment
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setAddOpen(true)}>
-                          <Plus className="mr-2 h-4 w-4" /> Add product
                         </DropdownMenuItem>
                       </>
                     )}
@@ -542,15 +543,11 @@ export default function StockPage() {
                   {filterCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button
-                variant={lowOnly ? "default" : "outline"}
-                size="sm"
-                className="shrink-0"
-                onClick={() => setLowOnly((v) => !v)}
-                aria-pressed={lowOnly}
-              >
-                <AlertTriangle className="mr-1 h-4 w-4" /> Low stock
-              </Button>
+              {isManager && (
+                <Button size="sm" onClick={() => setAddOpen(true)} className="shrink-0">
+                  <Plus className="mr-1 h-4 w-4" /> Add product
+                </Button>
+              )}
             </div>
             <div className="hidden flex-nowrap items-center gap-2 overflow-x-auto md:flex">
               <div className="relative w-[180px] lg:w-[200px] shrink-0">
