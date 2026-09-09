@@ -460,7 +460,7 @@ export default function StockPage() {
                 />
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
-                <SelectTrigger className="w-[130px] shrink-0" aria-label="Filter by category">
+                <SelectTrigger className="w-[130px] md:w-[160px] shrink-0" aria-label="Filter by category">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
