@@ -583,6 +583,26 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
    */
   const docsAwaitingVerdict = score.documentation.value === null && docs.pending.length > 0;
 
+  /**
+   * The period raised quality actions and not one of them carries the label this block
+   * scores on.
+   *
+   * The demerit is scoped to ONE label — `DOCUMENTATION_LABEL`, "Paperwork" — and that
+   * is a deliberate, documented decision. What was not deliberate is the green box
+   * printing "No penalty · 100% compliant" on top of it. Measured on 09/09/2026: zero
+   * of the 135 actions in the base carry the label, while nine name a paperwork
+   * failure in their own `error_type` — Missing signature or time, Check not recorded,
+   * Missing check on spec, Incomplete checklist. So the card was reading "no action
+   * was labelled" and printing "the leader made no paperwork errors".
+   *
+   * The score does not move. The claim does: a block that judged nothing must not
+   * publish a compliance figure, which is exactly what the warning box directly above
+   * this one already exists to stop.
+   */
+  const docsNeverLabelled =
+    docs.penalised.length === 0 && docs.pending.length === 0 && docs.rejected.length === 0 &&
+    actions.some((a) => a.domain !== "safety");
+
   const dropped = ([
     ["Production", score.production], ["Quality", score.quality], ["Documentation", score.documentation],
   ] as const)
@@ -861,8 +881,16 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
       )}
 
 
-      {/* Health & Safety. Counted here, scored nowhere — see SafetyBand. */}
-      {safety.total > 0 && <SafetyBand safety={safety} />}
+      {/* Health & Safety. Counted here, scored nowhere — see SafetyBand.
+
+          Unconditional, and it was `safety.total > 0`. The band carries three empty
+          states and the middle one is the whole reason it has them: "Nothing reported —
+          which reads as under-reporting, not as a safe line." That sentence could only
+          ever appear on a period that had reported SOMETHING, which is precisely the
+          period it is not about. A leader signs this page; a page that says nothing
+          about safety says the shift was safe, and a shift that reported nothing is
+          the one nobody can vouch for. */}
+      <SafetyBand safety={safety} />
 
       {/* Documentation errors — the demerit block. Answers, on its own, the question an
           audit asks: why did this leader lose points, who decided, when, and where is
@@ -899,6 +927,20 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
               moves that charge here at −{docs.penaltyPct}% each rather than adding to it, and quality gives
               back what it was holding — a verdict is a transfer, not a new penalty.
               {docs.rejected.length > 0 && ` ${docs.rejected.length} rejected by Quality.`}
+            </p>
+          </div>
+        ) : docsNeverLabelled ? (
+          /* Neutral, not green. Nothing here is wrong and nothing has been cleared
+             either, and the colour is the part a reader takes away from a box they do
+             not finish. */
+          <div className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-sm font-semibold">Nothing scored here</p>
+            <p className="text-2xs text-muted-foreground">
+              This block scores one thing: an action carrying the {DOCUMENTATION_LABEL} label that
+              Quality has validated. No action in this period carries that label, so there is nothing
+              for it to judge — which is not the same as the paperwork having been checked and found
+              right. An action that describes a paperwork failure and was never labelled is counted
+              in the quality score above and cannot appear here.
             </p>
           </div>
         ) : docs.penalised.length === 0 ? (
