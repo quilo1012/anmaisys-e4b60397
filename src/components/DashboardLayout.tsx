@@ -704,19 +704,29 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <header className="min-h-14 border-b bg-card flex flex-wrap items-center px-2 sm:px-4 py-1.5 gap-2 sm:gap-3 print:hidden">
-              <SidebarStateControl uiState={sidebarUiState} />
+            {/* On a phone the header is 44px, sticky, and slides out of the way while
+                the page is pushed up. It carries only Back, the page name and the
+                things that change on their own — the menu is the bottom bar's job. */}
+            <header
+              className={cn(
+                "border-b bg-card flex items-center print:hidden",
+                isMobile
+                  ? "sticky top-0 z-30 h-11 flex-nowrap px-2 gap-1 transition-transform duration-200 motion-reduce:transition-none"
+                  : "min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3",
+                isMobile && headerHidden && "-translate-y-full",
+              )}
+            >
+              {!isMobile && <SidebarStateControl uiState={sidebarUiState} />}
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
               <BackButton />
-              {isMobile && (
-                <div className="flex items-center gap-1.5">
-                  <img src={appliedLogo} alt="AN" className="h-7 w-7 rounded-md object-cover" />
-                  <span className="hidden sm:inline text-sm font-bold text-foreground">AN System</span>
-                </div>
+              {isMobile && currentPageTitle && (
+                <span className="truncate text-sm font-semibold text-foreground" aria-current="page">
+                  {currentPageTitle}
+                </span>
               )}
-              {currentPageTitle && (
+              {!isMobile && currentPageTitle && (
                 <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
                   <span className="text-muted-foreground">Home</span>
                   <span className="text-muted-foreground/60">/</span>
