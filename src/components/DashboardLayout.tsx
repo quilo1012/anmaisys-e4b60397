@@ -740,7 +740,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   <OnlineEngineersPanel />
                 </div>
               )}
-              <div className="ml-auto flex items-center gap-1 sm:gap-2 min-w-0">
+              <div className={cn("ml-auto flex items-center min-w-0 shrink-0", isMobile ? "gap-0.5 [&_button]:h-9 [&_button]:w-9" : "gap-1 sm:gap-2")}>
                 {showStoppedBadge && (
                   <Button
                     variant="ghost"
