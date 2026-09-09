@@ -416,26 +416,51 @@ export default function StockPage() {
 
         <Card>
           <CardHeader className="space-y-4">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" /> Spare parts stock
-              {/* What is on screen, when it is not everything. */}
-              {visible.length !== rows.length && (
-                <span className="text-sm font-normal text-muted-foreground">{visible.length} of {rows.length}</span>
-              )}
+            <CardTitle className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Package className="h-5 w-5 shrink-0" /> Spare parts stock
+                {/* What is on screen, when it is not everything. */}
+                {visible.length !== rows.length && (
+                  <span className="text-sm font-normal text-muted-foreground hidden sm:inline">{visible.length} of {rows.length}</span>
+                )}
+              </div>
+              {/* Visual search helpers sit on the title row, right-aligned. */}
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setPhotoSearchOpen(true)}
+                  aria-label="Find a part by photo"
+                  title="Find a part by photo"
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+                {isManager && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setScanOutOpen(true)}
+                    aria-label="Scan QR (take out)"
+                    title="Scan QR (take out)"
+                  >
+                    <QrCode className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </CardTitle>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[240px] flex-1">
+              <div className="relative w-full min-w-0 sm:w-auto sm:min-w-[180px] sm:max-w-[260px] md:max-w-[320px] lg:max-w-[360px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Search by model, description, machine, line or location"
+                  placeholder="Search parts"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label="Search parts"
                 />
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
-                <SelectTrigger className="w-[180px]" aria-label="Filter by category">
+                <SelectTrigger className="w-[140px]" aria-label="Filter by category">
                   <SelectValue placeholder="All categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -445,25 +470,12 @@ export default function StockPage() {
               </Select>
               <Button
                 variant={lowOnly ? "default" : "outline"}
+                size="sm"
                 onClick={() => setLowOnly((v) => !v)}
                 aria-pressed={lowOnly}
               >
                 <AlertTriangle className="mr-1 h-4 w-4" /> Low stock
               </Button>
-              {/* Another way to search the same list: a part in the hand, no code on it.
-                  Icon only, at the end of the row, as the warehouse app has it — the
-                  camera is the label. `aria-label` and `title` carry the words. */}
-              <Button
-                size="icon"
-                onClick={() => setPhotoSearchOpen(true)}
-                aria-label="Find a part by photo"
-                title="Find a part by photo"
-              >
-                <Camera className="h-4 w-4" />
-              </Button>
-
-            </div>
-            <div className="flex flex-wrap gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" variant="outline" disabled={printingLabels}>
@@ -490,15 +502,6 @@ export default function StockPage() {
               {isManager && (
                 <>
                   <span aria-hidden className="mx-1 hidden w-px self-stretch bg-border sm:block" />
-                  <Button
-                    size="icon"
-                    onClick={() => setScanOutOpen(true)}
-                    aria-label="Scan QR (take out)"
-                    title="Scan QR (take out)"
-                  >
-                    <QrCode className="h-5 w-5" />
-                  </Button>
-
                   <Button size="sm" variant="outline" onClick={() => setAdjustOpen(true)}>
                     <SlidersHorizontal className="mr-1 h-4 w-4" /> Stock adjustment
                   </Button>
