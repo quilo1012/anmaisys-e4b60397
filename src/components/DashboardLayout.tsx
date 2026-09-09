@@ -588,6 +588,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   }, [location.pathname]);
 
   const isMobile = useIsMobile();
+  // The window never scrolls — this div does — so the header watches it directly.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headerHidden = useHideOnScroll(scrollRef, { enabled: isMobile });
   const device = useDeviceType();
   const filteredItems = navItems.filter(
     (item) =>
