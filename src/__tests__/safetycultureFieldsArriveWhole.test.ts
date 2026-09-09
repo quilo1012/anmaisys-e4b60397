@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseAction } from "../../supabase/functions/_shared/safetyculture/parseAction";
 import { buildRecord } from "../../supabase/functions/_shared/safetyculture/normalize";
+import { DOCUMENTATION_LABEL } from "../lib/qualityConstants";
 
 /**
  * Four fields the importer was dropping on the floor.
@@ -128,6 +129,32 @@ describe("buildRecord keeps what the action carried", () => {
       }],
     });
     expect(draft.labels).toEqual(["Paperwork", "Batch code"]);
+  });
+
+  it("labels a paperwork failure the action itself did not label", () => {
+    // The Documentation pillar only scores when an action carries this label, so a
+    // rule that names a paperwork failure has to be the one to put it there.
+    const raw = {
+      task: {
+        task_id: "t2",
+        unique_id: "A-1043",
+        title: "Missing finishing time on the batch record (L4)",
+        created_at: "2026-09-06T07:19:47Z",
+        status: { key: "TO_DO" },
+        asset: { code: "L4-FILLER" },
+      },
+    };
+    const { draft } = buildRecord(parseAction(raw)!, {
+      ...OPTS,
+      rules: [{
+        id: "r-sig", name: "Missing signature or time", match_field: "title",
+        match_value: "missing finishing time", match_mode: "contains",
+        error_type: "Missing signature or time", label: DOCUMENTATION_LABEL,
+        priority: 40, active: true,
+      }],
+    });
+    expect(draft.labels).toContain(DOCUMENTATION_LABEL);
+    expect(draft.error_type).toBe("Missing signature or time");
   });
 
   it("turns the priority into a name and a severity", () => {
