@@ -361,6 +361,33 @@ export default function StockPage() {
 
   const lowStockCount = totals.low;
 
+  /** Type "rolamento", get the rows for "bearing". Reading only: it rewrites the
+   *  search box, nothing else on the screen or in the database. */
+  const translateSearch = async () => {
+    const text = search.trim();
+    if (!text || translating) return;
+    setTranslating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("translate-message", {
+        body: { text, mode: "part_search" },
+      });
+      if (error) throw error;
+      const translated = String((data as any)?.translated ?? "").trim();
+      if (!translated) throw new Error("No translation returned");
+      setSearch(translated);
+      setCatFilter("__all__");
+      setLowOnly(false);
+      setOutOnly(false);
+      if (translated.toLowerCase() !== text.toLowerCase()) {
+        toast({ title: "Searching in English", description: `${text} → ${translated}` });
+      }
+    } catch (err: any) {
+      toast({ title: "Translation failed", description: err?.message ?? "Try again", variant: "destructive" });
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   // The bucket is private: the stored path is not an address. Sign the few paths that
   // exist, in one request, and show the usual empty square when a signature is missing.
   const photoPaths = useMemo(
