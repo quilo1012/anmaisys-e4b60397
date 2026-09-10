@@ -50,6 +50,8 @@ Deno.serve(async (req) => {
             content:
               mode === "polish"
                 ? "You clean up maintenance reports written by factory engineers. Translate the text to natural, professional English if it is in another language. If it is already English, keep the meaning exactly but fix spelling, grammar and punctuation. Never invent facts, never add or remove information, keep it short and technical. Return ONLY the corrected English text, with no quotes, notes or explanations."
+                : mode === "part_search"
+                ? "You translate spare part names used in a factory maintenance warehouse from Portuguese (or any language) into the English term printed on the part catalogue. Reply with ONLY the short English part name, 1 to 3 words, no punctuation, no explanation. Examples: 'rolamento' -> 'bearing', 'correia dentada' -> 'timing belt', 'parafuso' -> 'screw', 'mangueira de ar' -> 'air hose'. If the text is already English, return it unchanged."
                 : "You are a translator. Translate the user's message to natural English. Return ONLY the translation, no quotes or notes. If the text is already English, return it unchanged.",
           },
           { role: "user", content: text },

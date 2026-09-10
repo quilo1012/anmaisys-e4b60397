@@ -13,7 +13,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, QrCode, Printer, ChevronDown, MoreVertical } from "lucide-react";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, QrCode, Printer, ChevronDown, MoreVertical, Languages } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 import { QRCodeSVG } from "qrcode.react";
@@ -128,6 +129,9 @@ export default function StockPage() {
   // Taking parts out by scanning their shelf labels. Same right as the −1 button.
   const [scanOutOpen, setScanOutOpen] = useState(false);
   const [printingLabels, setPrintingLabels] = useState(false);
+  // Searching in Portuguese: the catalogue is in English, so the typed words are
+  // turned into the English part term before the list is filtered.
+  const [translating, setTranslating] = useState(false);
 
 
 
@@ -357,6 +361,33 @@ export default function StockPage() {
 
   const lowStockCount = totals.low;
 
+  /** Type "rolamento", get the rows for "bearing". Reading only: it rewrites the
+   *  search box, nothing else on the screen or in the database. */
+  const translateSearch = async () => {
+    const text = search.trim();
+    if (!text || translating) return;
+    setTranslating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("translate-message", {
+        body: { text, mode: "part_search" },
+      });
+      if (error) throw error;
+      const translated = String((data as any)?.translated ?? "").trim();
+      if (!translated) throw new Error("No translation returned");
+      setSearch(translated);
+      setCatFilter("__all__");
+      setLowOnly(false);
+      setOutOnly(false);
+      if (translated.toLowerCase() !== text.toLowerCase()) {
+        toast({ title: "Searching in English", description: `${text} → ${translated}` });
+      }
+    } catch (err: any) {
+      toast({ title: "Translation failed", description: err?.message ?? "Try again", variant: "destructive" });
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   // The bucket is private: the stored path is not an address. Sign the few paths that
   // exist, in one request, and show the usual empty square when a signature is missing.
   const photoPaths = useMemo(
@@ -527,12 +558,29 @@ export default function StockPage() {
               <div className="relative col-span-2">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="pl-9"
+                  className="pl-9 pr-9"
                   placeholder="Search parts"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label="Search parts"
+                  onKeyDown={(e) => { if (e.key === "Enter") void translateSearch(); }}
                 />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                      onClick={() => void translateSearch()}
+                      disabled={!search.trim() || translating}
+                      aria-label="Search in Portuguese"
+                    >
+                      {translating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Search in Portuguese</TooltipContent>
+                </Tooltip>
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
                 <SelectTrigger className="min-w-0 h-8 md:h-10" aria-label="Filter by category">
@@ -553,12 +601,28 @@ export default function StockPage() {
               <div className="relative w-[180px] lg:w-[200px] shrink-0">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="pl-9"
+                  className="pl-9 pr-9"
                   placeholder="Search parts"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label="Search parts"
                 />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                      onClick={() => void translateSearch()}
+                      disabled={!search.trim() || translating}
+                      aria-label="Search in Portuguese"
+                    >
+                      {translating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Search in Portuguese</TooltipContent>
+                </Tooltip>
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
                 <SelectTrigger className="w-[130px] md:w-[150px] shrink-0" aria-label="Filter by category">
