@@ -135,6 +135,9 @@ test.describe("o menu volta de escondido", () => {
     await expect(page.getByRole("menuitemradio", { name: ICONS_ONLY })).toHaveAttribute("aria-checked", "false");
     await expect(page.getByRole("menuitemradio", { name: HIDE_MENU })).toHaveAttribute("aria-checked", "false");
     await page.keyboard.press("Escape");
+    // Espera o menu desmontar antes do próximo clique — caso contrário o clique
+    // cai a meio da animação de fecho e o Radix ignora a reabertura.
+    await page.getByRole("menu").waitFor({ state: "detached" });
 
     // Menu completo -> Esconder menu, directamente, sem passar pelos ícones.
     await pickMenuState(page, HIDE_MENU);
