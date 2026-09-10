@@ -563,7 +563,24 @@ export default function StockPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label="Search parts"
+                  onKeyDown={(e) => { if (e.key === "Enter") void translateSearch(); }}
                 />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                      onClick={() => void translateSearch()}
+                      disabled={!search.trim() || translating}
+                      aria-label="Search in Portuguese"
+                    >
+                      {translating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Search in Portuguese</TooltipContent>
+                </Tooltip>
               </div>
               <Select value={catFilter} onValueChange={setCatFilter}>
                 <SelectTrigger className="min-w-0 h-8 md:h-10" aria-label="Filter by category">
