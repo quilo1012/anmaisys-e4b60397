@@ -45,9 +45,18 @@ const TODOS_OS_PAPEIS: Role[] = [
   "production_office_admin",
 ];
 
+/**
+ * The four profiles retired on 10/09/2026. They hold nothing in the matrix any more,
+ * and the SQL written before that day still names some of them. That is inert — no
+ * account carries these values — so the comparison is made over the live profiles only,
+ * rather than rewriting policies nobody is governed by.
+ */
+const RETIRED = ["supervisor", "planner", "viewer", "co_engineer"];
+const live = (roles: string[]) => roles.filter((r) => !RETIRED.includes(r)).sort();
+
 /** What MATRIX grants for an action, via the same function the app asks. */
 function matrixFor(action: Action): string[] {
-  return TODOS_OS_PAPEIS.filter((r) => defaultCan(r, action)).sort();
+  return live(TODOS_OS_PAPEIS.filter((r) => defaultCan(r, action)));
 }
 
 /** The roles named inside the has_action(...) call for one action. */
@@ -56,7 +65,7 @@ function baselineFor(sql: string, action: string): string[] {
   if (at < 0) throw new Error(`no has_action for ${action}`);
   const abre = sql.indexOf("ARRAY[", at);
   const fecha = sql.indexOf("]", abre);
-  return [...sql.slice(abre, fecha).matchAll(/'([a-z_]+)'::app_role/g)].map((m) => m[1]).sort();
+  return live([...sql.slice(abre, fecha).matchAll(/'([a-z_]+)'::app_role/g)].map((m) => m[1]));
 }
 
 describe("the baselines the policies fall back to", () => {

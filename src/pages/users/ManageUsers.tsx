@@ -23,7 +23,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
 import type { Database } from "@/integrations/supabase/types";
-import { can, isPermissionOverridden, ALL_ACTIONS, ALL_ROLES } from "@/lib/permissions";
+import { can, isPermissionOverridden, ALL_ACTIONS, ACTIVE_ROLES } from "@/lib/permissions";
 import { Link } from "react-router-dom";
 
 
@@ -55,9 +55,12 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   production_office_admin: Shield,
 };
 
-const adminRoleOptions: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "production_office_admin"];
-const managerCreateRoleOptions: AppRole[] = ["engineer", "co_engineer"];
-const managerEditRoleOptions: AppRole[] = ["engineer", "co_engineer", "operator"];
+// The eight profiles a person is given today, in authority order. `supervisor`,
+// `planner`, `viewer` and `co_engineer` were retired and are no longer offered here —
+// an account still carrying one goes on rendering, it is simply not assignable again.
+const adminRoleOptions: AppRole[] = [...ACTIVE_ROLES];
+const managerCreateRoleOptions: AppRole[] = ["engineer"];
+const managerEditRoleOptions: AppRole[] = ["engineer", "operator"];
 const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "production_office_admin"];
 
 function roleBadgeClass(role?: AppRole) {
@@ -99,7 +102,7 @@ function RolePermissionsSummary() {
         </Button>
       </CardHeader>
       <CardContent className="space-y-2">
-        {ALL_ROLES.map((roleOption) => {
+        {ACTIVE_ROLES.map((roleOption) => {
           const allowedCount = ALL_ACTIONS.filter((a) => can(roleOption, a)).length;
           const overrideCount = ALL_ACTIONS.filter((a) => isPermissionOverridden(roleOption, a)).length;
           return (

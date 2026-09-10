@@ -106,35 +106,65 @@ export type Action =
   // Permissions matrix
   | "permissions.manage";
 
-const ALL: Role[] = ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
+/**
+ * The roles a person is given TODAY. Four values of the `app_role` enum — `supervisor`,
+ * `planner`, `viewer` and `co_engineer` — were retired on 10/09/2026: nobody held them,
+ * and everything they could do is covered by the eight below. The enum in the database
+ * is untouched, and so are the `Record<Role, …>` maps further down: an old record
+ * carrying a retired value must go on rendering, it simply holds no action any more.
+ *
+ * Order = authority. This is the list the Permissions page, the Role rules page and the
+ * role picker in ManageUsers walk — NOT `ALL_ROLES`.
+ */
+export const ACTIVE_ROLES: Role[] = [
+  "admin",
+  "manager",
+  "production_office_admin",
+  "maintenance_manager",
+  "engineer",
+  "quality_supervisor",
+  "warehouse",
+  "operator",
+];
+
+/**
+ * The shorthand several matrix rows spread with `...ALL`: the active roles minus the
+ * three that are granted case by case (warehouse, quality_supervisor,
+ * production_office_admin). It used to also carry the four retired values.
+ */
+const ALL: Role[] = ["admin", "manager", "maintenance_manager", "engineer", "operator"];
 
 const MATRIX: Record<Action, Role[]> = {
   "wo.view": [...ALL, "warehouse", "production_office_admin"],
-  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "warehouse", "production_office_admin"],
-  "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
+  "wo.create": ["admin", "manager", "maintenance_manager", "operator", "warehouse", "production_office_admin"],
+  "wo.update": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
   "wo.delete": ["admin"],
-  "wo.close": ["admin", "manager", "supervisor", "engineer", "co_engineer", "production_office_admin"],
-  "wo.force": ["admin"],
-  "wo.print": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
+  "wo.close": ["admin", "manager", "engineer", "production_office_admin"],
+  // Forcing an order shut is maintenance work, not only an admin's: the maintenance
+  // manager signs off the stoppage record and did it 16 times in a month while the
+  // matrix said he could not. The screen asks `can(role, "wo.force")` now, so the
+  // rule and the button say the same thing.
+  "wo.force": ["admin", "maintenance_manager"],
+  "wo.print": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
   "downtime.view": [...ALL, "production_office_admin"],
-  "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer", "production_office_admin"],
+  "downtime.manage": ["admin", "manager", "engineer", "production_office_admin"],
 
   "machines.view": [...ALL, "warehouse", "production_office_admin"],
-  "machines.manage": ["admin", "manager", "supervisor", "production_office_admin"],
+  "machines.manage": ["admin", "manager", "production_office_admin"],
 
   "problems.view": [...ALL, "production_office_admin"],
-  "problems.manage": ["admin", "manager", "supervisor", "production_office_admin"],
+  "problems.manage": ["admin", "manager", "production_office_admin"],
 
-  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse", "production_office_admin"],
-  "stock.manage": ["admin", "manager", "supervisor", "maintenance_manager", "production_office_admin"],
+  "stock.view": ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "production_office_admin"],
+  "stock.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "stock.pricing": ["admin"],
 
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
-  "audit.view": ["admin", "manager", "supervisor"],
+  "audit.view": ["admin", "manager"],
 
-  "reports.analytics": ["admin", "manager", "supervisor", "production_office_admin"],
+  "reports.analytics": ["admin", "manager", "production_office_admin"],
 
   "system.clear": ["admin"],
   "system.settings": ["admin"],
@@ -146,37 +176,24 @@ const MATRIX: Record<Action, Role[]> = {
   "system.shiftpasswords": ["admin"],
 
   "production.view": [...ALL, "production_office_admin"],
-  // engineer/co_engineer intentionally excluded: they never edit production
-  // (no RLS write path for them either). They keep production.view (read-only).
-  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
-  "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
-  "production.target.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
+  // engineer intentionally excluded: they never edit production (no RLS write path
+  // for them either). They keep production.view (read-only).
+  "production.manage": ["admin", "manager", "maintenance_manager", "operator", "production_office_admin"],
+  "production.target.view": ["admin", "manager", "maintenance_manager", "operator", "production_office_admin"],
+  "production.target.manage": ["admin", "manager", "production_office_admin"],
   // quality_supervisor added 08/09/2026. The two accounts holding it fill in and
   // approve the leader scorecard (scorecard.fill / scorecard.approve), and a
   // leader's card is opened from Production Performance — scorecardPath() is built
-  // there and nowhere else. Without this action they held the verdict and could not
-  // open the page it is written on: the board only by typing its URL, and the card
-  // behind it refused outright. Fixed here rather than by loosening the route,
-  // because the route gates SOLELY on this action (allowedRoles is ignored when
-  // requiredAction is set) and because re-gating the card on scorecard.fill would
-  // have taken it from maintenance_manager, who opens it today.
-  "production.performance.view": ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "operator", "production_office_admin"],
-  // Packaging module: everyone who could open it before (production.view = ALL)
-  // PLUS warehouse and quality_supervisor, for whom the PVS module is built.
+  // there and nowhere else.
+  "production.performance.view": ["admin", "manager", "quality_supervisor", "maintenance_manager", "operator", "production_office_admin"],
 
-  "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
-  // Admin was missing from these two alone, so an admin could open the Planner and
-  // edit SKUs but not browse the catalogue. Fixed in the matrix rather than with a
-  // short-circuit in `can()`: the permissions screen draws this table, so an admin
-  // who is allowed by code but unticked here is a screen that lies.
+  "planner.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "sku.view": ["admin", "production_office_admin"],
-  "sku.manage": ["admin", "manager", "supervisor", "planner", "production_office_admin"],
+  "sku.manage": ["admin", "manager", "production_office_admin"],
 
-  "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
-  "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
-  // planner excluded: commenting wasn't part of the planner enablement (no RLS
-  // insert path for planner either). supervisor is enabled to match RLS.
-  "rag.comment": ["admin", "manager", "supervisor", "production_office_admin"],
+  "rag.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "rag.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "rag.comment": ["admin", "manager", "production_office_admin"],
 
   "scorecard.fill": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   // Mais restrita do que preencher, de proposito: aprovar uma semana com Fail e o
@@ -185,80 +202,72 @@ const MATRIX: Record<Action, Role[]> = {
 
   "smarttarget.view": ["admin", "production_office_admin"],
 
-  "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer", "production_office_admin"],
-  "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor", "production_office_admin"],
-  // The verdict and the closure are two different jobs, held by two different
-  // people, and the database enforces exactly this split (enforce_quality_validation).
-  // They are listed here so the screen offers what the database will accept: a
-  // supervisor used to be shown the Validation control and got a raw Postgres
-  // exception when they used it.
+  "quality.view": ["admin", "manager", "quality_supervisor", "engineer", "production_office_admin"],
+  "quality.manage": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   // Headcount, attendance and overtime. Admin only, viewing included: the module is
   // still paused and off the menu, and the route stays live, so anyone holding this
-  // reaches the board by URL. Manager held it briefly and the matrix test caught the
-  // gap; widen it again when the module is deliberately unpaused, not before.
+  // reaches the board by URL.
   "workforce.view": ["admin"],
   // Moving someone between lines and marking who turned up. Separate from viewing,
   // so a read-only account can be given later without also handing over the board.
   "workforce.manage": ["admin"],
+  // The verdict and the closure are two different jobs, held by two different
+  // people, and the database enforces exactly this split (enforce_quality_validation).
   "quality.validate": ["admin", "quality_supervisor"],
   "quality.close": ["admin", "manager", "maintenance_manager"],
 
-  // Production Headcount (Day/Night allocation board).
-  //
-  // Admin only, viewing included, and deliberately narrower than the board deserves:
-  // the allocation is still being built and the day opens mostly empty, so an
-  // operator reading it would be reading a plan nobody has made yet. It also names
-  // every person on the shift and who was absent, which is not an operator's to
-  // browse. Widen it when the board is the real plan — the same rule the Workforce
-  // module is under, and for the same reason.
+  // Production Headcount (Day/Night allocation board). Admin only, viewing included,
+  // and deliberately narrower than the board deserves: the allocation is still being
+  // built and the day opens mostly empty.
   "headcount.view": ["admin"],
   "headcount.manage": ["admin"],
-  "attendance.manage": ["admin", "manager", "supervisor", "planner"],
-  "downtime.adjust": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
+  "attendance.manage": ["admin", "manager"],
+  "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   // Rewriting a stoppage number that is already on the record is deliberately
   // narrower than `downtime.adjust`: it changes how a line and an engineer are
   // measured, so only the admin and the maintenance manager may do it.
   "downtime.correct": ["admin", "maintenance_manager"],
-  "reports.export": ["admin", "manager", "supervisor", "planner"],
+  // production_office_admin builds the boards — the weekly RAG and the targets — so
+  // taking the CSV/Excel/PDF export off them would be a regression the day the six
+  // accounts move across from admin.
+  "reports.export": ["admin", "manager", "production_office_admin"],
 
-  "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"],
-  // O engineer cria e corrige o proprio plano de preventiva. Ver ja via; escrever
-  // era so da gestao, e o plano nascia longe de quem conhece a maquina.
-  // A RLS de pm_schedules/pm_tasks/pm_executions tem de dizer o mesmo — nao le esta matriz.
-  "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "production_office_admin"],
+  "pm.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
+  // O engineer cria e corrige o proprio plano de preventiva.
+  "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
 
-  "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
+  "engineers.view": ["admin", "manager", "maintenance_manager"],
   "engineers.manage": ["admin", "manager", "maintenance_manager"],
-  "leaders.view": ["admin", "manager", "supervisor", "production_office_admin"],
+  "leaders.view": ["admin", "manager", "production_office_admin"],
   "leaders.manage": ["admin", "manager", "production_office_admin"],
 
-  "chat.line": [...ALL.filter((r) => r !== "viewer"), "warehouse", "quality_supervisor", "production_office_admin"],
-  "chat.dm": ["admin", "manager", "supervisor", "operator"],
-  // Who may name the chat administrators the operators write to. Was admin+manager
-  // on the route; kept exactly as it was, now as an action the matrix can govern.
+  "chat.line": [...ALL, "warehouse", "quality_supervisor", "production_office_admin"],
+  "chat.dm": ["admin", "manager", "operator"],
+  // Who may name the chat administrators the operators write to.
   "chat.settings": ["admin", "manager"],
 
 
   "notifications.view": [...ALL, "quality_supervisor", "production_office_admin"],
   "notifications.manage": ["admin", "manager"],
 
-  "intouch.view": ["admin", "manager", "maintenance_manager", "planner", "production_office_admin"],
+  "intouch.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "intouch.manage": ["admin", "maintenance_manager"],
 
-  "controlcenter.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
+  "controlcenter.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "assets.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
   "dashboard.executive": ["admin", "manager"],
-  "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer", "production_office_admin"],
-  "dashboard.engineer": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
-  "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"],
+  "dashboard.manager": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "dashboard.engineer": ["admin", "manager", "maintenance_manager", "engineer"],
+  "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "operator"],
   "dashboard.warehouse": ["admin", "warehouse"],
 
-  "reliability.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
-  "suppliers.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"],
+  "reliability.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "suppliers.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
   "permissions.manage": ["admin"],
 };
+
 
 /**
  * Default landing route per role. Single source of truth used by
@@ -402,7 +411,16 @@ export function canOnDevice(role: Role | null | undefined, action: Action, isMob
 
 /** All known actions (for admin UIs). */
 export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
-export const ALL_ROLES: Role[] = [...ALL, "warehouse", "quality_supervisor", "production_office_admin"];
+/**
+ * Every value the `app_role` enum has ever carried — including the four retired on
+ * 10/09/2026. Kept whole so an account or an override saved against a retired role can
+ * still be counted and shown. Use `ACTIVE_ROLES` for anything a person picks today.
+ */
+export const ALL_ROLES: Role[] = [
+  "admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer",
+  "co_engineer", "operator", "viewer", "warehouse", "quality_supervisor",
+  "production_office_admin",
+];
 
 /**
  * The display name of each role, in one place.
@@ -433,13 +451,13 @@ export const roleTitle: Record<Role, string> = {
 export const ROLE_SUMMARY: Record<Role, string> = {
   admin: "Runs the system: every screen, every setting, and the things nobody else may touch.",
   manager: "Runs the factory day: sees every board, approves work, and manages the people and their accounts.",
-  supervisor: "Runs a shift on the floor: production, quality and maintenance orders for the lines under them.",
+  supervisor: "Retired profile. What it did is now split between Manager and Production Office.",
   maintenance_manager: "Runs maintenance: the engineers, the preventive plan, the parts and the stoppage record.",
-  planner: "Plans the work: the schedule, the SKUs, the targets and the reports that come out of them.",
+  planner: "Retired profile. Planning the SKUs, the targets and the reports is now Production Office work.",
   engineer: "Fixes machines: takes maintenance orders, records what was done and keeps the preventive plan.",
-  co_engineer: "Works alongside the engineer on maintenance orders, with the same tools on the floor.",
+  co_engineer: "Retired profile. An account still carrying it works as an Engineer — the inheritance is kept on purpose.",
   operator: "Runs a line: logs production, raises maintenance calls, sees their own targets.",
-  viewer: "Looks, never touches: read-only access to the main boards.",
+  viewer: "Retired profile. Read-only access is no longer given as a profile of its own; Manager covers it.",
   warehouse: "Runs the store: parts in and out, and the service requests that come from the floor.",
   quality_supervisor: "Owns quality: raises and rules on quality actions, and signs off the leader scorecards.",
   production_office_admin: "The production office: keeps the boards, the plan and the paperwork behind the lines up to date.",
