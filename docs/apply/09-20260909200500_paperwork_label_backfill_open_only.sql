@@ -3,13 +3,48 @@
 -- ================================================================
 -- Adds the 'Paperwork' label to the nine SafetyCulture actions whose error_type names
 -- a paperwork failure AND whose validation_status is neither 'validated' nor
--- 'rejected'. Labelling an unjudged action changes no computed figure: qualityScore
--- only hands a VALIDATED paperwork error to the documentation demerit, and the
--- Documentation pillar stays null while no verdict exists. Only the sentence the card
--- prints changes.
+-- 'rejected'.
+--
+-- CORRECTION (10/09/2026). This header claimed "labelling an unjudged action changes
+-- no computed figure ... the Documentation pillar stays null while no verdict exists.
+-- Only the sentence the card prints changes."
+--
+-- THE SECOND HALF OF THAT IS WRONG, AND ONE LEADER'S CARD MOVED BECAUSE OF IT.
+--
+-- The Documentation pillar is null only when `pendingPaperwork > 0`. Read
+-- `computeLeaderScore`: the null branch is `validatedPaperwork === 0 && pendingPaperwork
+-- > 0`. A leader with NO paperwork action pending at all falls through to
+-- `documentationScore(0)`, which is 100 — full marks. So labelling a leader's FIRST
+-- paperwork action flips their Documentation from 100 to null, the pillar drops out,
+-- and its 40% is shared among the others. The final score changes.
+--
+-- "No verdict exists" and "the pillar is null" are not the same statement, and the
+-- distance between them is exactly one leader:
+--
+--   Cainan, Guilherme, Henrique, Rafael Tosta — each already had a pending paperwork
+--   action before this ran, so their Documentation was ALREADY null. Unchanged, as
+--   claimed.
+--
+--   Everton had none. His Documentation was 100 and is now null. Measured against the
+--   live rows: production 100% over the last 30 days and 88.7% over the full history,
+--   quality 87.
+--       last 30 days   (100·10 + 87·50 + 100·40)/100 = 93  ->  (100·10 + 87·50)/60 = 89
+--       full history   ( 88.7·10 + 87·50 + 100·40)/100 = 92  ->  (887 + 4350)/60    = 87
+--   His card fell 4 to 5 points.
+--
+-- The FALL IS CORRECT and this backfill should not be reverted for it: he was being
+-- handed 40% of his score for a judgement nobody had made, and now he is not. What was
+-- wrong was reporting that nothing moved. Anyone reading a leader's score down by five
+-- points deserves the sentence that explains it, and this file is where that sentence
+-- has to live.
+--
+-- The claim about `qualityScore` IS right: only a VALIDATED paperwork error moves to the
+-- documentation demerit, so the quality pillar is untouched, and `points_at_creation` is
+-- frozen on all nine, so no charge moved either.
 --
 -- No 'validated' or 'rejected' action is touched — there were none among the
--- candidates on 09/09/2026, and this UPDATE guards against it anyway.
+-- candidates on 09/09/2026, and this UPDATE guards against it anyway. That guard is what
+-- kept the damage to one pillar on one card instead of rewriting signed figures.
 --
 -- EXACT IDS CHANGED (undo: remove 'Paperwork' from labels for these ids):
 --   2144c615-082e-467c-a632-c5d3c070d73f  Henrique      Line 6    Missing signature or time
