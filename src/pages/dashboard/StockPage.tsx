@@ -129,6 +129,9 @@ export default function StockPage() {
   // Taking parts out by scanning their shelf labels. Same right as the −1 button.
   const [scanOutOpen, setScanOutOpen] = useState(false);
   const [printingLabels, setPrintingLabels] = useState(false);
+  // Searching in Portuguese: the catalogue is in English, so the typed words are
+  // turned into the English part term before the list is filtered.
+  const [translating, setTranslating] = useState(false);
 
 
 
