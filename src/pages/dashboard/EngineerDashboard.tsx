@@ -534,17 +534,14 @@ function EngineerDashboardContent() {
       const line = typeof rawLine === "string" ? rawLine.replace(/^line\s+/i, "") : rawLine;
       const resolution = wo.resolution_notes || wo.description || "—";
       const downtimeText = qualifying
-        .map((e: any) => {
-          const min = eventDurationMinutes(e);
-          const reason = clean(e.stopped_reason || "No reason");
-          return `${min}m - ${reason}`;
-        })
+        .map((e: any) => `${eventDurationMinutes(e)}m`)
         .join("; ");
-      lines.push(`Line ${line}: ${clean(resolution)}`);
+      lines.push(`**Line ${line}:** ${clean(resolution)}`);
       lines.push(`Downtime: ${downtimeText}`);
     });
     // Nothing qualified under the >15-minute rule: say so on the next line.
-    if (lines.length === 1) lines.push("- No issues today.");
+    if (lines.length === 2) lines.push("- No issues today.");
+    lines.push("- Have a good day.");
     return lines.join("\n");
   };
 
