@@ -1,29 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { defaultCan, type Action, type Role } from "@/lib/permissions";
+import { ACTIVE_ROLES, ALL_ACTIONS, defaultCan, type Action, type Role } from "@/lib/permissions";
 
 /**
- * A role listed on a route that the matrix does not grant is a promise the app cannot keep.
+ * A route used to say who may enter twice: an `allowedRoles` list AND a `requiredAction`.
+ * `ProtectedRoute` demanded both, so the two lists only had to disagree by one name for a
+ * screen to be promised to somebody and then refused to them. /dashboard/line-production
+ * was exactly that, and the only way to find out was to hold the role and be turned away.
  *
- * `ProtectedRoute` requires BOTH: the role must be in `allowedRoles` AND `can(role,
- * action)` must be true. So a role named on the route but missing from the matrix is
- * refused anyway — the list says one thing and the app does another, and the only way to
- * find out is to hold that role and be turned away.
+ * Since the profile model was fixed there is one list, not two: a gated route declares an
+ * action and the matrix answers. What can still go wrong is smaller and is what this
+ * checks — an action nobody holds (a dead screen), a misspelt action (silently ungated in
+ * the type-free string), or a role name on the few `allowedRoles`-only routes that does
+ * not exist.
  *
- * /dashboard/line-production carried `engineer` and `co_engineer` for exactly that
- * reason. Neither holds `production.manage`, and the RLS on production_sessions and
- * production_items does not name them either, so even granting it would have produced a
- * screen that loads and refuses to save. Three places already agreed; only the route
- * disagreed.
- *
- * This checks all of them, because one route being wrong is a typo and the next one will
- * be too.
- *
- * THE OTHER DIRECTION IS NOT AN ERROR and is not checked: a role that holds the action
- * but is absent from `allowedRoles` is a route deliberately narrower than the
- * permission — `/dashboard/users` is admin-only while `manager` holds `users.manage`
- * and reaches the same screen through `/users/manage`. That is a decision, not a slip.
+ * A route deliberately narrower than its permission is NOT an error: `/dashboard/users`
+ * is admin-only while `manager` holds `users.manage` and reaches the same screen through
+ * `/users/manage`.
  */
 
 const APP = readFileSync(resolve(__dirname, "..", "App.tsx"), "utf8");
@@ -34,9 +28,9 @@ const PAPEIS: Role[] = [
   "production_office_admin",
 ];
 
-interface Rota { path: string; roles: Role[]; action: Action }
+interface Rota { path: string; roles: Role[]; action: Action | null }
 
-/** Every <Route> whose ProtectedRoute carries both an allowedRoles list and an action. */
+/** Every <Route> wrapped in a ProtectedRoute, with whichever gate it declares. */
 function rotas(): Rota[] {
   const out: Rota[] = [];
   const re = /<Route\s+path="([^"]+)"\s+element=\{[\s\S]*?<ProtectedRoute([^>]*)>/g;
@@ -45,11 +39,11 @@ function rotas(): Rota[] {
     const attrs = m[2];
     const ar = /allowedRoles=\{\[([^\]]*)\]\}/.exec(attrs);
     const ra = /requiredAction="([^"]+)"/.exec(attrs);
-    if (!ar || !ra) continue;
+    if (!ar && !ra) continue;
     out.push({
       path: m[1],
-      roles: [...ar[1].matchAll(/"([a-z_]+)"/g)].map((x) => x[1] as Role),
-      action: ra[1] as Action,
+      roles: ar ? [...ar[1].matchAll(/"([a-z_]+)"/g)].map((x) => x[1] as Role) : [],
+      action: ra ? (ra[1] as Action) : null,
     });
   }
   return out;
@@ -64,32 +58,37 @@ describe("every protected route", () => {
     expect(todas.map((r) => r.path)).toContain("/dashboard/line-production");
   });
 
-  it("lists only roles the matrix actually grants the action to", () => {
-    const mentiras = todas.flatMap((r) =>
-      r.roles
-        .filter((papel) => !defaultCan(papel, r.action))
-        .map((papel) => `${r.path} lists ${papel} but the matrix denies ${r.action}`),
-    );
-    expect(mentiras).toEqual([]);
+  it("never states the same gate twice", () => {
+    // Both props together is the AND-lockout this whole file exists because of.
+    const duplas = todas.filter((r) => r.action && r.roles.length).map((r) => r.path);
+    expect(duplas).toEqual([]);
+  });
+
+  it("names an action the matrix knows", () => {
+    // requiredAction is a plain string in the JSX, so a typo is not caught by the type
+    // system and would gate the route on an action nobody can ever hold.
+    const desconhecidas = todas
+      .filter((r) => r.action && !(ALL_ACTIONS as string[]).includes(r.action))
+      .map((r) => `${r.path}: ${r.action}`);
+    expect(desconhecidas).toEqual([]);
   });
 
   it("names a role that exists", () => {
-    // A typo in a role name fails open in the worst way: the string is simply never
-    // matched, so the route silently admits nobody by that name and no type catches it,
-    // because allowedRoles is written inline.
     const desconhecidos = todas.flatMap((r) =>
       r.roles.filter((p) => !PAPEIS.includes(p)).map((p) => `${r.path}: ${p}`),
     );
     expect(desconhecidos).toEqual([]);
   });
 
-  it("can be entered by somebody", () => {
-    // The degenerate case the two checks above would both pass: a route whose role list
-    // and whose action have no role in common at all. Nobody but an owner gets in, and
-    // the screen is effectively dead.
+  it("can be entered by somebody who still has an account", () => {
+    // A screen whose gate no live profile holds is dead to everyone but the owner.
     const inalcancaveis = todas
-      .filter((r) => !r.roles.some((papel) => defaultCan(papel, r.action)))
-      .map((r) => `${r.path} (${r.action})`);
+      .filter((r) =>
+        r.action
+          ? !ACTIVE_ROLES.some((papel) => defaultCan(papel, r.action as Action))
+          : !r.roles.some((papel) => (ACTIVE_ROLES as readonly Role[]).includes(papel)),
+      )
+      .map((r) => `${r.path} (${r.action ?? r.roles.join("/")})`);
     expect(inalcancaveis).toEqual([]);
   });
 });

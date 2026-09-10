@@ -83,12 +83,12 @@ export const navItems: NavItem[] = [
   // The operator's screen no longer offers it at all — neither here nor as a tile on
   // the line hub. /dashboard/leader/scorecard still exists and still asks for the PIN;
   // it just has no link pointing at it from the tablet.
-  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer", "co_engineer"], group: "Overview", action: "dashboard.engineer" },
+  { title: "Dashboard", url: "/dashboard/engineer", icon: LayoutDashboard, roles: ["engineer"], group: "Overview", action: "dashboard.engineer" },
   // "My Tasks" and "History" used to sit here as separate entries. Both opened the
   // same page as Dashboard and only scrolled to a section of it, so the menu offered
   // three doors into one room — and clicking Dashboard from either of them appeared to
   // do nothing, because the page was already open.
-  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner"], group: "Overview", action: "dashboard.manager" },
+  { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Overview", action: "dashboard.manager" },
   { title: "Dashboard", url: "/dashboard/warehouse", icon: LayoutDashboard, roles: ["warehouse"], group: "Overview" },
   // Control Center is OFF the menu, and only off the menu. Nobody is using the wall
   // map today — it exists for a screen on the maintenance floor that is not up — so
@@ -101,17 +101,17 @@ export const navItems: NavItem[] = [
 
 
   // Maintenance
-  { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "wo.view" },
+  { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "wo.view" },
   { title: "Service Requests", shortTitle: "Requests", url: "/dashboard/warehouse", icon: ClipboardList, roles: ["warehouse"], group: "Maintenance", action: "wo.view" },
-  { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
-  { title: "PM Intelligence", shortTitle: "PM Intel", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"], group: "Maintenance", action: "pm.view" },
+  { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
+  { title: "PM Intelligence", shortTitle: "PM Intel", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"], group: "Maintenance", action: "pm.view" },
 
   // Assets
-  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse", "production_office_admin"], group: "Maintenance", action: "machines.view" },
-  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Maintenance", action: "problems.view" },
+  { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "maintenance_manager", "warehouse", "production_office_admin"], group: "Maintenance", action: "machines.view" },
+  { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "problems.view" },
   // warehouse was the one role holding stock.view without a row for it — the
   // people who keep the parts could not open the parts screen from the menu.
-  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "warehouse", "production_office_admin"], group: "Maintenance", action: "stock.view" },
+  { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "production_office_admin"], group: "Maintenance", action: "stock.view" },
 
   // Production. The order is the group's argument, and the sidebar renders these in
   // array order, so it is written here rather than left to whoever appends next:
@@ -123,7 +123,7 @@ export const navItems: NavItem[] = [
   // It was previously Production Control, RAG Weekly, Performance, SKU Products,
   // Quality — with Headcount declared sixty lines below among the admin screens, so
   // it landed last with nothing near it to say why.
-  { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "supervisor", "maintenance_manager", "planner", "production_office_admin"], group: "Production", action: "rag.view" },
+  { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "rag.view" },
   // The leader scorecard has no row of its own: it is opened from Performance, on
   // the leader the page is already filtered to, so the week and the shift travel
   // with the link. A menu row would have opened it on nobody in particular.
@@ -136,9 +136,9 @@ export const navItems: NavItem[] = [
   // quality_supervisor is here for the scorecard, not for the trend. This row is
   // the only way to a leader's card, and the two people who approve the week had
   // one row in the whole sidebar — Quality.
-  { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.performance.view" },
-  { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Production", action: "sku.manage" },
-  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
+  { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "quality_supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.performance.view" },
+  { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
+  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and
   // Finance Close are reached from the tab bar on the board rather than from here:
   // they are one job seen from four angles, and four menu rows said they were four
@@ -168,7 +168,7 @@ export const navItems: NavItem[] = [
   // not left for the next reader to discover as a failure.
   // engineer and co_engineer hold quality.view. The row listed neither, so the
   // screen opened only for somebody who typed the URL.
-  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer", "production_office_admin"], group: "Quality", action: "quality.view" },
+  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "quality_supervisor", "engineer", "production_office_admin"], group: "Quality", action: "quality.view" },
 
   // Analytics and Messages sit in Overview rather than each holding a group of its
   // own. The argument that dissolved Assets applies harder to a group of one: a
@@ -183,9 +183,9 @@ export const navItems: NavItem[] = [
   // figure comes from the screen it links to, so nothing goes stale while it is
   // hidden. Analytics stays, for the question it actually answers — digging, not
   // reporting.
-  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "supervisor", "production_office_admin"], group: "Overview", action: "reports.analytics" },
+  { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "supervisor", "operator"], group: "Overview", action: "chat.dm" },
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "operator"], group: "Overview", action: "chat.dm" },
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { navItems } from "@/components/DashboardLayout";
-import { defaultCan, type Role } from "@/lib/permissions";
+import { ACTIVE_ROLES, defaultCan, type Action, type Role } from "@/lib/permissions";
 
 /**
  * O engineer via os planos de preventiva e nao chegava ao ecra que os explica.
@@ -19,16 +19,24 @@ import { defaultCan, type Role } from "@/lib/permissions";
 
 const APP = readFileSync(resolve(__dirname, "..", "App.tsx"), "utf8");
 
-/** As roles do `allowedRoles` da rota com este caminho. */
-function rolesDaRota(path: string): Role[] {
+/**
+ * A rota ja nao repete uma lista de roles: declara a accao e a matriz responde. As
+ * roles que entram sao, por definicao, as que a matriz autoriza para essa accao.
+ */
+function accaoDaRota(path: string): Action {
   const re = new RegExp(
     `<Route\\s+path="${path}"\\s+element=\\{[\\s\\S]*?<ProtectedRoute([^>]*)>`,
   );
   const m = re.exec(APP);
   expect(m, `a rota ${path} nao foi encontrada no App.tsx`).toBeTruthy();
-  const ar = /allowedRoles=\{\[([^\]]*)\]\}/.exec(m![1]);
-  expect(ar, `a rota ${path} nao declara allowedRoles`).toBeTruthy();
-  return [...ar![1].matchAll(/"([a-z_]+)"/g)].map((x) => x[1] as Role);
+  const ra = /requiredAction="([^"]+)"/.exec(m![1]);
+  expect(ra, `a rota ${path} nao declara requiredAction`).toBeTruthy();
+  return ra![1] as Action;
+}
+
+function rolesDaRota(path: string): Role[] {
+  const accao = accaoDaRota(path);
+  return ACTIVE_ROLES.filter((r) => defaultCan(r, accao));
 }
 
 function rolesDoMenu(url: string): Role[] {
@@ -41,16 +49,14 @@ const PM_INTELLIGENCE = "/dashboard/pm-intelligence";
 const PREVENTIVE = "/dashboard/preventive";
 
 describe("PM Intelligence", () => {
-  it("deixa entrar o engineer e o co_engineer", () => {
-    const rota = rolesDaRota(PM_INTELLIGENCE);
-    expect(rota).toContain("engineer");
-    expect(rota).toContain("co_engineer");
+  it("deixa entrar o engineer", () => {
+    // O co_engineer foi reformado: ProtectedRoute le-o como engineer antes de
+    // perguntar a matriz, por isso quem ainda o tiver entra na mesma.
+    expect(rolesDaRota(PM_INTELLIGENCE)).toContain("engineer");
   });
 
   it("mostra-lhes a entrada no menu", () => {
-    const menu = rolesDoMenu(PM_INTELLIGENCE);
-    expect(menu).toContain("engineer");
-    expect(menu).toContain("co_engineer");
+    expect(rolesDoMenu(PM_INTELLIGENCE)).toContain("engineer");
   });
 
   it("nao poe no menu ninguem que a rota va recusar", () => {
@@ -65,7 +71,6 @@ describe("PM Intelligence", () => {
 describe("o plano de preventiva", () => {
   it("e escrito por quem conhece a maquina, nao so pela gestao", () => {
     expect(defaultCan("engineer", "pm.manage")).toBe(true);
-    expect(defaultCan("co_engineer", "pm.manage")).toBe(true);
   });
 
   it("continua fora do alcance do chao de fabrica", () => {

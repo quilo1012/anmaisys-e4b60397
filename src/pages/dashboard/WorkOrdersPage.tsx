@@ -28,6 +28,7 @@ const WAREHOUSE_LOCATIONS = ["AC1", "AC2 - Warehouse", "K53", "Depot RD"];
 // Radix Select has no empty-string value, so "no line chosen" needs a sentinel.
 const ANY_LINE = "__any_line__";
 
+import { can } from "@/lib/permissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { format, subDays, startOfDay, endOfDay, startOfMonth, differenceInMinutes } from "date-fns";
@@ -190,6 +191,9 @@ export default function WorkOrdersPage() {
   // database enforces the same rule, so hiding the button is only the courtesy of not
   // offering something that would be refused.
   const canSignOff = role === "admin" || role === "maintenance_manager";
+  // Forcing an order shut asks the matrix, not a hand-written list of roles: the rule
+  // is `wo.force` (admin + maintenance_manager) and the button now says the same.
+  const canForce = can(role, "wo.force");
   const canAssign = canSignOff || role === "manager";
 
   /** Minutes an open order has gone without an engineer accepting it. */
@@ -854,7 +858,7 @@ export default function WorkOrdersPage() {
                                 {closeWO.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-1" />} Sign off
                               </Button>
                             )}
-                            {canForceClose && canSignOff && (
+                            {canForceClose && canForce && (
                               <Button size="sm" variant="destructive" className="h-10 flex-1 touch-manipulation" onClick={() => setForceCloseWO(wo)}>
                                 <XCircle className="h-4 w-4 mr-1" /> Force
                               </Button>
@@ -971,7 +975,7 @@ export default function WorkOrdersPage() {
                                   {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Sign off
                                 </Button>
                               )}
-                              {canForceClose && canSignOff && (
+                              {canForceClose && canForce && (
                                 <Button size="sm" variant="destructive" onClick={() => setForceCloseWO(wo)}>
                                   <XCircle className="h-3 w-3 mr-1" /> Force
                                 </Button>

@@ -24,7 +24,7 @@ import { BackButton } from "@/components/BackButton";
 import { Check, Minus, Printer, Search, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
-  ALL_ROLES,
+  ACTIVE_ROLES,
   ROLE_SUMMARY,
   roleDashMap,
   roleTitle,
@@ -78,7 +78,7 @@ export default function RoleRulesPage() {
 
   const rules = useMemo(() => deriveRoleRules(selected), [selected]);
   const counts = useMemo(
-    () => Object.fromEntries(ALL_ROLES.map((r) => [r, countAllowed(r)])) as Record<Role, number>,
+    () => Object.fromEntries(ACTIVE_ROLES.map((r) => [r, countAllowed(r)])) as Record<Role, number>,
     [],
   );
 
@@ -120,7 +120,7 @@ export default function RoleRulesPage() {
               <Select value={selected} onValueChange={(v) => setSelected(v as Role)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ALL_ROLES.map((r) => (
+                  {ACTIVE_ROLES.map((r) => (
                     <SelectItem key={r} value={r}>
                       {roleTitle[r]} · {counts[r]} actions
                     </SelectItem>
@@ -129,7 +129,7 @@ export default function RoleRulesPage() {
               </Select>
             </div>
             <nav className="hidden flex-col gap-1 lg:flex" aria-label="Roles">
-              {ALL_ROLES.map((r) => (
+              {ACTIVE_ROLES.map((r) => (
                 <button
                   key={r}
                   type="button"

@@ -311,7 +311,7 @@ const App = () => (
                 <Route
                   path="/dashboard/operator"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "operator", "engineer", "maintenance_manager"]} requiredAction="dashboard.operator">
+                    <ProtectedRoute requiredAction="dashboard.operator">
                       <OperatorDashboard />
                     </ProtectedRoute>
                   }
@@ -319,7 +319,7 @@ const App = () => (
                 <Route
                   path="/dashboard/operator/my-production"
                   element={
-                    <ProtectedRoute allowedRoles={["operator"]} requiredAction="production.target.view">
+                    <ProtectedRoute requiredAction="production.target.view">
                       <MyProductionPage />
                     </ProtectedRoute>
                   }
@@ -327,7 +327,7 @@ const App = () => (
                 <Route
                   path="/dashboard/operator/performance"
                   element={
-                    <ProtectedRoute allowedRoles={["operator"]} requiredAction="production.performance.view">
+                    <ProtectedRoute requiredAction="production.performance.view">
                       <OperatorPerformancePage />
                     </ProtectedRoute>
                   }
@@ -363,7 +363,7 @@ const App = () => (
                 <Route
                   path="/dashboard/engineer"
                   element={
-                    <ProtectedRoute allowedRoles={["engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="dashboard.engineer">
+                    <ProtectedRoute requiredAction="dashboard.engineer">
                       <EngineerDashboard />
                     </ProtectedRoute>
                   }
@@ -371,7 +371,7 @@ const App = () => (
                 <Route
                   path="/dashboard/manager"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer"]} requiredAction="dashboard.manager">
+                    <ProtectedRoute requiredAction="dashboard.manager">
                       <ManagerDashboard />
                     </ProtectedRoute>
                   }
@@ -380,7 +380,7 @@ const App = () => (
                 <Route
                   path="/dashboard/analytics"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="reports.analytics">
+                    <ProtectedRoute requiredAction="reports.analytics">
                       <AnalyticsPage />
                     </ProtectedRoute>
                   }
@@ -388,7 +388,7 @@ const App = () => (
                 <Route
                   path="/dashboard/work-orders"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="wo.view">
+                    <ProtectedRoute requiredAction="wo.view">
                       <WorkOrdersPage />
                     </ProtectedRoute>
                   }
@@ -403,7 +403,7 @@ const App = () => (
                 <Route
                   path="/dashboard/machines"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse"]} requiredAction="machines.view">
+                    <ProtectedRoute requiredAction="machines.view">
                       <MachinesPage />
                     </ProtectedRoute>
                   }
@@ -411,7 +411,7 @@ const App = () => (
                 <Route
                   path="/dashboard/problems"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="problems.view">
+                    <ProtectedRoute requiredAction="problems.view">
                       <ProblemsPage />
                     </ProtectedRoute>
                   }
@@ -419,7 +419,7 @@ const App = () => (
                 <Route
                   path="/dashboard/control-center"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="controlcenter.view">
+                    <ProtectedRoute requiredAction="controlcenter.view">
                       <ControlCenterPage />
                     </ProtectedRoute>
                   }
@@ -431,7 +431,7 @@ const App = () => (
                 <Route
                   path="/dashboard/machines/:name/history"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="machines.view">
+                    <ProtectedRoute requiredAction="machines.view">
                       <MachineHistoryPage />
                     </ProtectedRoute>
                   }
@@ -498,7 +498,7 @@ const App = () => (
                 <Route
                   path="/dashboard/audit-logs"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="audit.view">
+                    <ProtectedRoute requiredAction="audit.view">
                       <AuditLogsPage />
                     </ProtectedRoute>
                   }
@@ -506,7 +506,7 @@ const App = () => (
                 <Route
                   path="/dashboard/downtime"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="downtime.view">
+                    <ProtectedRoute requiredAction="downtime.view">
                       <DowntimePage />
                     </ProtectedRoute>
                   }
@@ -514,7 +514,7 @@ const App = () => (
                 <Route
                   path="/dashboard/preventive"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "engineer", "co_engineer", "maintenance_manager", "planner"]} requiredAction="pm.view">
+                    <ProtectedRoute requiredAction="pm.view">
                       <PreventiveMaintenancePage />
                     </ProtectedRoute>
                   }
@@ -522,7 +522,7 @@ const App = () => (
                 <Route
                   path="/dashboard/reliability"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="reliability.view">
+                    <ProtectedRoute requiredAction="reliability.view">
                       <ReliabilityDashboard />
                     </ProtectedRoute>
                   }
@@ -530,7 +530,7 @@ const App = () => (
                 <Route
                   path="/dashboard/wo/:id"
                   element={
-                    <ProtectedRoute allowedRoles={["operator", "engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse"]} requiredAction="wo.view">
+                    <ProtectedRoute requiredAction="wo.view">
                       <WorkOrderDetail />
                     </ProtectedRoute>
                   }
@@ -538,7 +538,7 @@ const App = () => (
                 <Route
                   path="/dashboard/stock"
                   element={
-                    <ProtectedRoute allowedRoles={["engineer", "co_engineer", "admin", "manager", "supervisor", "maintenance_manager", "planner", "warehouse"]} requiredAction="stock.view">
+                    <ProtectedRoute requiredAction="stock.view">
                       <StockPage />
                     </ProtectedRoute>
                   }
@@ -546,7 +546,7 @@ const App = () => (
                 <Route
                   path="/users/manage"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="users.manage">
+                    <ProtectedRoute requiredAction="users.manage">
                       <ManageUsers />
                     </ProtectedRoute>
                   }
@@ -554,7 +554,7 @@ const App = () => (
                 <Route
                   path="/dashboard/users"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="users.manage">
+                    <ProtectedRoute requiredAction="users.manage">
                       <ManageUsers />
                     </ProtectedRoute>
                   }
@@ -562,7 +562,7 @@ const App = () => (
                 <Route
                   path="/dashboard/roles"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager"]} requiredAction="users.view">
+                    <ProtectedRoute requiredAction="users.view">
                       <RoleRulesPage />
                     </ProtectedRoute>
                   }
@@ -570,7 +570,7 @@ const App = () => (
                 <Route
                   path="/dashboard/permissions"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="permissions.manage">
+                    <ProtectedRoute requiredAction="permissions.manage">
                       <PermissionsMatrixPage />
                     </ProtectedRoute>
                   }
@@ -580,7 +580,7 @@ const App = () => (
                 <Route
                   path="/dashboard/settings"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="system.settings">
+                    <ProtectedRoute requiredAction="system.settings">
                       <SettingsPage />
                     </ProtectedRoute>
                   }
@@ -612,7 +612,7 @@ const App = () => (
                 <Route
                   path="/dashboard/suppliers"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="suppliers.view">
+                    <ProtectedRoute requiredAction="suppliers.view">
                       <SuppliersPage />
                     </ProtectedRoute>
                   }
@@ -620,7 +620,7 @@ const App = () => (
                 <Route
                   path="/dashboard/sku-products"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="sku.manage">
+                    <ProtectedRoute requiredAction="sku.manage">
                       <SKUProductsPage />
                     </ProtectedRoute>
                   }
@@ -628,7 +628,7 @@ const App = () => (
                 <Route
                   path="/dashboard/production-performance"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.performance.view">
+                    <ProtectedRoute requiredAction="production.performance.view">
                       <ProductionPerformancePage />
                     </ProtectedRoute>
                   }
@@ -636,7 +636,7 @@ const App = () => (
                 <Route
                   path="/dashboard/quality"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "quality_supervisor"]} requiredAction="quality.view">
+                    <ProtectedRoute requiredAction="quality.view">
                       <QualityPage />
                     </ProtectedRoute>
                   }
@@ -644,7 +644,7 @@ const App = () => (
                 <Route
                   path="/dashboard/quality-report"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "quality_supervisor"]} requiredAction="quality.view">
+                    <ProtectedRoute requiredAction="quality.view">
                       <Navigate to="/dashboard/quality" replace />
                     </ProtectedRoute>
                   }
@@ -652,7 +652,7 @@ const App = () => (
                 <Route
                   path="/dashboard/shift-history"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.manage">
+                    <ProtectedRoute requiredAction="production.manage">
                       <ShiftHistoryPage />
                     </ProtectedRoute>
                   }
@@ -660,7 +660,7 @@ const App = () => (
                 <Route
                   path="/dashboard/rag-weekly"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="rag.view">
+                    <ProtectedRoute requiredAction="rag.view">
                       <RAGWeeklyPage />
                     </ProtectedRoute>
                   }
@@ -668,7 +668,7 @@ const App = () => (
                 <Route
                   path="/dashboard/leader-scorecard"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "quality_supervisor", "production_office_admin"]} requiredAction="scorecard.fill">
+                    <ProtectedRoute requiredAction="scorecard.fill">
                       <LeaderScorecardWeekPage />
                     </ProtectedRoute>
                   }
@@ -684,7 +684,7 @@ const App = () => (
                 <Route
                   path="/dashboard/leader-scorecard/:leader"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor"]} requiredAction="production.performance.view">
+                    <ProtectedRoute requiredAction="production.performance.view">
                       <LeaderScorecardDetailPage />
                     </ProtectedRoute>
                   }
@@ -699,7 +699,7 @@ const App = () => (
                        them either, so the screen would have loaded and refused to save.
                        Removed rather than granted: three places already agree that
                        writing production is not an engineer's job. */
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner"]} requiredAction="production.manage">
+                    <ProtectedRoute requiredAction="production.manage">
                       <LineProductionScreen />
                     </ProtectedRoute>
                   }
@@ -709,7 +709,7 @@ const App = () => (
                 <Route
                   path="/dashboard/line-display"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "operator", "engineer", "co_engineer", "maintenance_manager", "planner"]} requiredAction="production.view">
+                    <ProtectedRoute requiredAction="production.view">
                       <LineDisplayScreen />
                     </ProtectedRoute>
                   }
@@ -718,7 +718,7 @@ const App = () => (
                 <Route
                   path="/dashboard/intouch-settings"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="intouch.manage">
+                    <ProtectedRoute requiredAction="intouch.manage">
                       <IntouchSettingsPage />
                     </ProtectedRoute>
                   }
@@ -726,7 +726,7 @@ const App = () => (
                 <Route
                   path="/dashboard/safetyculture-settings"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="system.settings">
+                    <ProtectedRoute requiredAction="system.settings">
                       <SafetyCultureSettingsPage />
                     </ProtectedRoute>
                   }
@@ -734,7 +734,7 @@ const App = () => (
                 <Route
                   path="/dashboard/intouch-machines"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="intouch.manage">
+                    <ProtectedRoute requiredAction="intouch.manage">
                       <IntouchMachineMapPage />
                     </ProtectedRoute>
                   }
@@ -742,7 +742,7 @@ const App = () => (
                 <Route
                   path="/dashboard/intouch-stop-codes"
                   element={
-                    <ProtectedRoute allowedRoles={["admin"]} requiredAction="intouch.manage">
+                    <ProtectedRoute requiredAction="intouch.manage">
                       <IntouchStopCodesPage />
                     </ProtectedRoute>
                   }
@@ -755,7 +755,7 @@ const App = () => (
                 <Route
                   path="/dashboard/pm-intelligence"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "production_office_admin"]} requiredAction="pm.view">
+                    <ProtectedRoute requiredAction="pm.view">
                       <PMIntelligencePage />
                     </ProtectedRoute>
                   }
@@ -764,7 +764,7 @@ const App = () => (
                 <Route
                   path="/dashboard/messages"
                   element={
-                    <ProtectedRoute allowedRoles={["admin", "manager", "supervisor", "operator"]} requiredAction="chat.dm">
+                    <ProtectedRoute requiredAction="chat.dm">
                       <DirectMessagesPage />
                     </ProtectedRoute>
                   }

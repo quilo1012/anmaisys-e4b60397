@@ -4,88 +4,88 @@ import {
   type Role, type Action,
 } from "./permissions";
 
-const ROLES: Role[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"];
+// Every value of the enum, retired ones included: `supervisor`, `planner`, `viewer`
+// and `co_engineer` are asserted to hold nothing at all, which is the whole point of
+// retiring them in the matrix rather than deleting them from the enum.
+const ROLES: Role[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "production_office_admin"];
 
 // Expected MATRIX — kept in sync manually with permissions.ts. If someone
 // edits permissions.ts without updating this table, the diff fails loudly.
 const EXPECTED: Record<Action, Role[]> = {
-  "wo.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
-  "wo.create": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
-  "wo.update": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
+  "wo.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "warehouse", "production_office_admin"],
+  "wo.create": ["admin", "manager", "maintenance_manager", "operator", "warehouse", "production_office_admin"],
+  "wo.update": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
   "wo.delete": ["admin"],
-  "wo.close": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
-  "wo.force": ["admin"],
-  "wo.print": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "downtime.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
-  "downtime.manage": ["admin", "manager", "supervisor", "engineer", "co_engineer"],
-  "machines.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
-  "machines.manage": ["admin", "manager", "supervisor"],
-  "problems.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
-  "problems.manage": ["admin", "manager", "supervisor"],
-  "stock.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
-  "stock.manage": ["admin", "manager", "supervisor", "maintenance_manager"],
+  "wo.close": ["admin", "manager", "engineer", "production_office_admin"],
+  "wo.force": ["admin", "maintenance_manager"],
+  "wo.print": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "downtime.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "production_office_admin"],
+  "downtime.manage": ["admin", "manager", "engineer", "production_office_admin"],
+  "machines.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "warehouse", "production_office_admin"],
+  "machines.manage": ["admin", "manager", "production_office_admin"],
+  "problems.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "production_office_admin"],
+  "problems.manage": ["admin", "manager", "production_office_admin"],
+  "stock.view": ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "production_office_admin"],
+  "stock.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "stock.pricing": ["admin"],
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
-  "audit.view": ["admin", "manager", "supervisor"],
-  "reports.analytics": ["admin", "manager", "supervisor"],
+  "audit.view": ["admin", "manager"],
+  "reports.analytics": ["admin", "manager", "production_office_admin"],
   "system.clear": ["admin"],
   "system.settings": ["admin"],
-  "production.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
-  "production.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
-  "production.target.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "operator"],
-  "production.target.manage": ["admin", "manager", "supervisor", "planner"],
-  "production.performance.view": ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "operator"],
-  "planner.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "sku.view": ["admin", "production_office_admin"],
-  "sku.manage": ["admin", "manager", "supervisor", "planner"],
-  "rag.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "rag.manage": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "rag.comment": ["admin", "manager", "supervisor"],
-  "scorecard.fill": ["admin", "manager", "quality_supervisor", "production_office_admin"],
-  "scorecard.approve": ["admin", "manager", "quality_supervisor"],
-  "smarttarget.view": ["admin", "production_office_admin"],
-  "quality.view": ["admin", "manager", "supervisor", "quality_supervisor", "engineer", "co_engineer"],
-  "quality.manage": ["admin", "manager", "supervisor", "quality_supervisor"],
-  "quality.validate": ["admin", "quality_supervisor"],
-  "quality.close": ["admin", "manager", "maintenance_manager"],
-  "pm.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
-  "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer"],
-  "engineers.view": ["admin", "manager", "supervisor", "maintenance_manager"],
-  "engineers.manage": ["admin", "manager", "maintenance_manager"],
-  "leaders.view": ["admin", "manager", "supervisor"],
-  "leaders.manage": ["admin", "manager"],
-  "chat.line": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "quality_supervisor"],
-  "headcount.view": ["admin"],
-  "headcount.manage": ["admin"],
-  "attendance.manage": ["admin", "manager", "supervisor", "planner"],
-  "downtime.adjust": ["admin", "manager", "supervisor", "maintenance_manager", "engineer", "co_engineer"],
-  "downtime.correct": ["admin", "maintenance_manager"],
-  "reports.export": ["admin", "manager", "supervisor", "planner"],
-  "chat.dm": ["admin", "manager", "supervisor", "operator"],
-  "notifications.view": ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer"],
-  "notifications.manage": ["admin", "manager"],
-  "intouch.view": ["admin", "manager", "maintenance_manager", "planner"],
-  "intouch.manage": ["admin", "maintenance_manager"],
-  "controlcenter.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "assets.manage": ["admin", "manager", "maintenance_manager"],
-  "dashboard.executive": ["admin", "manager"],
-  "dashboard.manager": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "viewer"],
-  "dashboard.engineer": ["admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer", "co_engineer"],
-  "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "co_engineer", "operator"],
-  "reliability.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "suppliers.view": ["admin", "manager", "supervisor", "maintenance_manager", "planner"],
-  "permissions.manage": ["admin"],
-  "workforce.view": ["admin"],
-  "workforce.manage": ["admin"],
-  // The five screens that used to be gated by `allowedRoles` alone, now actions the
-  // matrix owns. system.hub is admin only by decision — a manager keeps Users and
-  // nothing else behind that door.
   "system.hub": ["admin"],
   "system.diagnostics": ["admin"],
   "system.shiftpasswords": ["admin"],
+  "production.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "production_office_admin"],
+  "production.manage": ["admin", "manager", "maintenance_manager", "operator", "production_office_admin"],
+  "production.target.view": ["admin", "manager", "maintenance_manager", "operator", "production_office_admin"],
+  "production.target.manage": ["admin", "manager", "production_office_admin"],
+  "production.performance.view": ["admin", "manager", "maintenance_manager", "operator", "quality_supervisor", "production_office_admin"],
+  "planner.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "sku.view": ["admin", "production_office_admin"],
+  "sku.manage": ["admin", "manager", "production_office_admin"],
+  "rag.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "rag.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "rag.comment": ["admin", "manager", "production_office_admin"],
+  "scorecard.fill": ["admin", "manager", "quality_supervisor", "production_office_admin"],
+  "scorecard.approve": ["admin", "manager", "quality_supervisor"],
+  "smarttarget.view": ["admin", "production_office_admin"],
+  "quality.view": ["admin", "manager", "engineer", "quality_supervisor", "production_office_admin"],
+  "quality.manage": ["admin", "manager", "quality_supervisor", "production_office_admin"],
+  "workforce.view": ["admin"],
+  "workforce.manage": ["admin"],
+  "quality.validate": ["admin", "quality_supervisor"],
+  "quality.close": ["admin", "manager", "maintenance_manager"],
+  "headcount.view": ["admin"],
+  "headcount.manage": ["admin"],
+  "attendance.manage": ["admin", "manager"],
+  "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
+  "downtime.correct": ["admin", "maintenance_manager"],
+  "reports.export": ["admin", "manager", "production_office_admin"],
+  "pm.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
+  "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
+  "engineers.view": ["admin", "manager", "maintenance_manager"],
+  "engineers.manage": ["admin", "manager", "maintenance_manager"],
+  "leaders.view": ["admin", "manager", "production_office_admin"],
+  "leaders.manage": ["admin", "manager", "production_office_admin"],
+  "chat.line": ["admin", "manager", "maintenance_manager", "engineer", "operator", "warehouse", "quality_supervisor", "production_office_admin"],
+  "chat.dm": ["admin", "manager", "operator"],
   "chat.settings": ["admin", "manager"],
-  "dashboard.warehouse": ["admin"],
+  "notifications.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "quality_supervisor", "production_office_admin"],
+  "notifications.manage": ["admin", "manager"],
+  "intouch.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "intouch.manage": ["admin", "maintenance_manager"],
+  "controlcenter.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "assets.manage": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "dashboard.executive": ["admin", "manager"],
+  "dashboard.manager": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "dashboard.engineer": ["admin", "manager", "maintenance_manager", "engineer"],
+  "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "operator"],
+  "dashboard.warehouse": ["admin", "warehouse"],
+  "reliability.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "suppliers.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
+  "permissions.manage": ["admin"],
 };
 
 describe("permissions.can — full role × action matrix", () => {
@@ -144,13 +144,16 @@ describe("permissions.canAll", () => {
  */
 describe("canPrintReport", () => {
   it("lets through exactly the roles the matrix grants reports.export to", () => {
-    for (const role of ["admin", "manager", "supervisor", "planner"] as const) {
+    for (const role of ["admin", "manager", "production_office_admin"] as const) {
       expect(canPrintReport(role)).toBe(true);
     }
   });
 
-  it("refuses the supervisor's old refusal — he holds the permission", () => {
-    expect(canPrintReport("supervisor")).toBe(true);
+  it("gives the production office the export, because they build the boards", () => {
+    // Six accounts move from admin to production_office_admin. Without this the day
+    // the change lands is the day they lose the CSV/Excel/PDF they produce today.
+    expect(can("production_office_admin", "reports.analytics")).toBe(true);
+    expect(canPrintReport("production_office_admin")).toBe(true);
   });
 
   it("no longer waves through maintenance_manager, who cannot even open the page", () => {
@@ -158,10 +161,10 @@ describe("canPrintReport", () => {
     expect(can("maintenance_manager", "reports.analytics")).toBe(false);
   });
 
-  it("refuses a role that can read the report but was never granted the export", () => {
-    // production_office_admin opens Analytics and does not export it.
-    expect(can("production_office_admin", "reports.analytics")).toBe(true);
-    expect(canPrintReport("production_office_admin")).toBe(false);
+  it("refuses a retired profile that used to hold the export", () => {
+    // supervisor and planner both held reports.export; both are retired and hold nothing.
+    expect(canPrintReport("supervisor")).toBe(false);
+    expect(canPrintReport("planner")).toBe(false);
   });
 
   it("refuses when there is no role at all", () => {
@@ -244,7 +247,9 @@ describe("preventive maintenance planning for the engineer", () => {
     // O engineer ja via os planos; quem os cria e quem os corrige e ele.
     expect(can("engineer", "pm.view")).toBe(true);
     expect(can("engineer", "pm.manage")).toBe(true);
-    expect(can("co_engineer", "pm.manage")).toBe(true);
+    // co_engineer is a retired value and holds nothing; ProtectedRoute reads it as
+    // engineer before it asks the matrix, so an account still carrying it still plans.
+    expect(can("co_engineer", "pm.manage")).toBe(false);
   });
 
   it("keeps the shop floor out of PM planning", () => {

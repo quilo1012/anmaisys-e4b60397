@@ -31,6 +31,7 @@ import {
   type DeviceType,
   ALL_ACTIONS,
   ALL_ROLES,
+  ACTIVE_ROLES,
   ACTION_GROUPS,
   ACTION_LABELS,
   ACTION_DESCRIPTIONS,
@@ -72,7 +73,7 @@ export default function PermissionsMatrixPage() {
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<string>("all");
   const [onlyChanged, setOnlyChanged] = useState(false);
-  const [visibleRoles, setVisibleRoles] = useState<Set<Role>>(new Set(ALL_ROLES));
+  const [visibleRoles, setVisibleRoles] = useState<Set<Role>>(new Set(ACTIVE_ROLES));
 
   const DEVICES: DeviceType[] = ["tablet", "mobile"];
   const dkey = (device: string, r: Role, a: Action) => `${device}:${r}:${a}`;
@@ -249,7 +250,7 @@ export default function PermissionsMatrixPage() {
     setDirty(new Set());
   };
 
-  const rolesToShow = ALL_ROLES.filter((r) => visibleRoles.has(r));
+  const rolesToShow = ACTIVE_ROLES.filter((r) => visibleRoles.has(r));
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -354,13 +355,13 @@ export default function PermissionsMatrixPage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="h-9">
-                <Filter className="mr-1.5 h-4 w-4" /> Roles ({visibleRoles.size}/{ALL_ROLES.length})
+                <Filter className="mr-1.5 h-4 w-4" /> Roles ({visibleRoles.size}/{ACTIVE_ROLES.length})
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 bg-popover">
               <DropdownMenuLabel>Visible columns</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {ALL_ROLES.map((r) => (
+              {ACTIVE_ROLES.map((r) => (
                 <DropdownMenuCheckboxItem
                   key={r}
                   checked={visibleRoles.has(r)}
