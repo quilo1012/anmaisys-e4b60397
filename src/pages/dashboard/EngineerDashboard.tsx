@@ -514,7 +514,11 @@ function EngineerDashboardContent() {
   const generateReport = (): string => {
     const events = reportDowntimeEvents || [];
     const clean = (text: any) => String(text ?? "—").replace(/\s+/g, " ").trim();
-    const lines: string[] = ["Maintenance:"];
+    const isDay = shiftWindow.start.getHours() === 6;
+    const lines: string[] = [
+      "**Maintenance:**",
+      isDay ? "**Day Shift (06-18)**" : "**Night Shift (18-06)**",
+    ];
     reportWOs.forEach((wo) => {
       const qualifying = events
         .filter((e: any) => e.work_order_id === wo.id)
