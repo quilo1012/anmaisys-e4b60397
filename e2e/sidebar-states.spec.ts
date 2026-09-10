@@ -158,7 +158,9 @@ test.describe("o menu volta de escondido", () => {
   });
 
   test("no tablet: esconder e voltar funciona da mesma maneira", async ({ page }) => {
-    await openDashboard(page, 900, 700);
+    // O controlo do cabeçalho só existe em ≥1024px (isMobile esconde-o abaixo
+    // disso), por isso o tablet mede-se em paisagem, exactamente no limite.
+    await openDashboard(page, 1024, 768);
 
     // Num tablet o menu já arranca em ícones.
     await pickMenuState(page, HIDE_MENU);
