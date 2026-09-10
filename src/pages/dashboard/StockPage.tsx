@@ -661,11 +661,20 @@ export default function StockPage() {
                         </div>
                         {isManager && (
                           <div className="flex gap-2 pt-1">
-                            <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" onClick={() => openEdit(p)}>
-                              <Pencil className="h-4 w-4 mr-1" /> Edit
+                            {/* Quick one-off adjustments first — the gesture that
+                                repeats — then a compact edit; same adjustOne path
+                                as the desktop table, audit-logged alike. */}
+                            <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" aria-label={`Take one ${p.code} out of stock`} disabled={p.quantity <= 0 || adjustingId === p.id} onClick={() => adjustOne(p, -1)}>
+                              <Minus className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="destructive" className="h-10 flex-1 touch-manipulation" onClick={() => setDeleteId(p.id)}>
-                              <Trash2 className="h-4 w-4 mr-1" /> Delete
+                            <Button size="sm" variant="outline" className="h-10 flex-1 touch-manipulation" aria-label={`Add one ${p.code} to stock`} disabled={adjustingId === p.id} onClick={() => adjustOne(p, 1)}>
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="outline" className="h-10 w-10 shrink-0 touch-manipulation" aria-label="Edit part" onClick={() => openEdit(p)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="destructive" className="h-10 w-10 shrink-0 touch-manipulation" aria-label="Delete part" onClick={() => setDeleteId(p.id)}>
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         )}
