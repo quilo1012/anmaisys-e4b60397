@@ -18,6 +18,13 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -477,35 +484,51 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/intouch-stop-codes": "iTouching Stop Codes",
 };
 
-// The header's menu control names the three sidebar states instead of hiding them
-// behind one unlabelled toggle: the icon shows where the menu IS, and the label says
-// where one press takes it. Uses useSidebar().toggleSidebar so the Ctrl/Cmd+B
-// shortcut, this button and the mobile sheet all go through the same cycle.
-function SidebarStateControl({ uiState }: { uiState: SidebarUiState }) {
-  const { toggleSidebar } = useSidebar();
-  const Icon = uiState === "expanded" ? PanelLeft : uiState === "rail" ? PanelLeftClose : PanelLeftOpen;
-  const label =
-    uiState === "expanded"
-      ? "Collapse menu to icons (Ctrl+B)"
-      : uiState === "rail"
-        ? "Hide menu (Ctrl+B)"
-        : "Show full menu (Ctrl+B)";
+// The header's menu control opens a menu where the three sidebar states are
+// chosen directly, instead of cycling through them with one press at a time.
+// The icon shows where the menu IS; the radio item's dot marks the current
+// state. Ctrl/Cmd+B keeps cycling through the states on its own — it goes
+// through the same applySidebarState this menu calls, and does not open it.
+const SIDEBAR_STATE_OPTIONS: { value: SidebarUiState; label: string; short: string; icon: typeof PanelLeft }[] = [
+  { value: "expanded", label: "Full menu", short: "full menu", icon: PanelLeft },
+  { value: "rail", label: "Icons only", short: "icons only", icon: PanelLeftClose },
+  { value: "hidden", label: "Hide menu", short: "hidden", icon: PanelLeftOpen },
+];
+
+function SidebarStateControl({ uiState, onSelect }: { uiState: SidebarUiState; onSelect: (next: SidebarUiState) => void }) {
+  const current = SIDEBAR_STATE_OPTIONS.find((o) => o.value === uiState) ?? SIDEBAR_STATE_OPTIONS[0];
+  const Icon = current.icon;
+  const label = `Menu: ${current.short}. Open menu options`;
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSidebar}
-          title={label}
-          aria-label={label}
-          className="shrink-0 h-11 w-11"
-        >
-          <Icon className="h-5 w-5" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              title={label}
+              aria-label={label}
+              aria-haspopup="menu"
+              className="shrink-0 h-11 w-11"
+            >
+              <Icon className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{label}</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuRadioGroup value={uiState} onValueChange={(v) => onSelect(v as SidebarUiState)}>
+          {SIDEBAR_STATE_OPTIONS.map((o) => (
+            <DropdownMenuRadioItem key={o.value} value={o.value}>
+              <o.icon className="mr-2 h-4 w-4" />
+              {o.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -726,7 +749,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   : "min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3",
               )}
             >
-              {!isMobile && <SidebarStateControl uiState={sidebarUiState} />}
+              {!isMobile && <SidebarStateControl uiState={sidebarUiState} onSelect={applySidebarState} />}
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
