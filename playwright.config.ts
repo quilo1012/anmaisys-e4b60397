@@ -18,6 +18,10 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: "http://localhost:8080",
+    // CI and local runs use the browser `playwright install` downloads. Sandboxes
+    // whose system libraries that build needs are absent can point PW_CHROME_PATH
+    // at any compatible chromium/headless_shell instead.
+    launchOptions: process.env.PW_CHROME_PATH ? { executablePath: process.env.PW_CHROME_PATH } : {},
   },
   webServer: {
     command: "npm run dev",
