@@ -20,8 +20,11 @@ import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, Bar
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -34,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
@@ -303,6 +306,46 @@ function readSavedSidebarPreference(): boolean | null {
   return null;
 }
 
+
+/**
+ * The flyout that makes the icon rail usable: hovering (or focusing, or clicking) a
+ * group marker or an icon with sub-pages names every page behind it. Opens on hover
+ * as well as click because the rail is scanned with the mouse, not clicked blind.
+ */
+function RailFlyout({
+  label,
+  items,
+  children,
+}: {
+  label: string;
+  items: { title: string; url: string }[];
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild onMouseEnter={() => setOpen(true)} onFocus={() => setOpen(true)}>
+        {children}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        side="right"
+        align="start"
+        className="w-56"
+        onMouseLeave={() => setOpen(false)}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <DropdownMenuLabel className="text-2xs uppercase tracking-wider text-muted-foreground">
+          {label}
+        </DropdownMenuLabel>
+        {items.map((i) => (
+          <DropdownMenuItem key={i.title + i.url} asChild>
+            <Link to={i.url}>{i.title}</Link>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 // SidebarFooterToggle lived here. The sidebar still collapses — the rail on its edge
 // and the panel button in the header both do it — so a third control spending a row
