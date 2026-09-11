@@ -103,7 +103,7 @@ async function openDashboard(page: Page, width: number, height: number) {
   await page.setViewportSize({ width, height });
   await page.goto("/dashboard/manager");
   await page.waitForSelector("header button[aria-label*='menu' i]", { timeout: 20_000 });
-
+}
 test.describe("verificação temporária do rail", () => {
   for (const [w, h, name] of [[1440, 900, "desktop"], [1024, 800, "tablet"], [390, 844, "phone"]] as const) {
     test(`rail em ${name}`, async ({ page }) => {
@@ -112,11 +112,10 @@ test.describe("verificação temporária do rail", () => {
       const info = await readMenu(page);
       const panelVisible = await page.locator('[data-sidebar="sidebar"]').first().isVisible().catch(() => false);
       console.log(name, JSON.stringify({ ...info, panelVisible }));
-      // tooltip on hover over first rail icon
       const icons = page.locator('[data-sidebar="sidebar"] a[href]');
       const count = await icons.count();
-      let tip = null;
-      if (count > 0) {
+      let tip: string | null = null;
+      if (count > 0 && panelVisible) {
         await icons.first().hover();
         await page.waitForTimeout(400);
         tip = await page.locator('[role="tooltip"]').first().innerText().catch(() => null);
