@@ -10,7 +10,9 @@
 import {
   ACTION_DESCRIPTIONS,
   ACTION_GROUPS,
+  ACTION_LABELS,
   ALL_ACTIONS,
+  defaultCan,
   roleHolds,
   isDeviceHidden,
   isPermissionOverridden,
@@ -24,6 +26,8 @@ export interface RuleEntry {
   description: string;
   /** True when the matrix default was changed for this role/action pair. */
   customised: boolean;
+  /** What the shipped matrix says, ignoring any override — printed beside the badge. */
+  defaultAllowed: boolean;
   hiddenOnTablet: boolean;
   hiddenOnMobile: boolean;
 }
@@ -45,8 +49,22 @@ export interface RoleRules {
   customisedCount: number;
 }
 
+/** `wo.force` means nothing to an auditor. Turn a bare key into readable words. */
+function humaniseAction(action: Action): string {
+  return action
+    .split(".")
+    .map((part) => part.replace(/_/g, " "))
+    .join(" — ")
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/**
+ * The sentence the reader gets: the written description first, then the short label
+ * used by the permissions matrix, and only as a last resort a humanised key. A raw
+ * `verb.resource` is never printed on a sheet somebody signs.
+ */
 export function describeAction(action: Action): string {
-  return ACTION_DESCRIPTIONS[action] ?? action;
+  return ACTION_DESCRIPTIONS[action] ?? ACTION_LABELS[action] ?? humaniseAction(action);
 }
 
 function entry(role: Role, action: Action): RuleEntry {
@@ -54,10 +72,12 @@ function entry(role: Role, action: Action): RuleEntry {
     action,
     description: describeAction(action),
     customised: isPermissionOverridden(role, action),
+    defaultAllowed: defaultCan(role, action),
     hiddenOnTablet: isDeviceHidden(role, action, "tablet"),
     hiddenOnMobile: isDeviceHidden(role, action, "mobile"),
   };
 }
+
 
 /** Computes the can / cannot picture for a role. Exact complements over ALL_ACTIONS. */
 export function deriveRoleRules(role: Role): RoleRules {
