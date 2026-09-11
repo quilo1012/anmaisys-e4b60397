@@ -1,9 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { applyActions, type Context } from "../../supabase/functions/_shared/safetyculture/sync";
-import type { ScAction } from "../../supabase/functions/_shared/safetyculture/normalize";
+import { applyActions, type Context } from "./sync.ts";
+import type { ScAction } from "./normalize.ts";
 
 /**
  * The sync writes the product the operator named.
+ *
+ * This test lives BESIDE the function, not in `src/__tests__/`, and that is not a
+ * filing preference. `tsconfig.app.json` includes `src` and nothing else, so a test
+ * in there drags whatever it imports into the browser build's typecheck — and
+ * `sync.ts` is the first module under test that is genuinely Deno's: it imports
+ * `npm:@supabase/supabase-js@2` and reads `Deno.env`. Neither exists for `tsc -p
+ * tsconfig.app.json`, which went from clean to twelve errors. The pure modules next
+ * door (`normalize`, `leaderOnDuty`, `productNote`) are still tested from `src`
+ * because they import nothing Deno owns.
  *
  * A SafetyCulture Action has no product field, so the floor writes it into the free
  * text: `Product / BATCH / best-before`. The sync copied that sentence into
