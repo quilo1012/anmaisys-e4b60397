@@ -73,7 +73,14 @@ export interface NavItem {
   roles: AppRole[];
   group: string;
   action?: Action;
+  /**
+   * Sub-pages that hang off this row. In the full menu they are indented under it;
+   * in the icon rail they are the contents of the icon's flyout, so nothing that is
+   * reachable with the labels on becomes unreachable with them off.
+   */
+  children?: { title: string; url: string }[];
 }
+
 
 export const navItems: NavItem[] = [
   // Overview
