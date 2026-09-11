@@ -140,7 +140,8 @@ export function parseQualityImport(
       description: cell(r, ["notes", "note", "description", "descrição", "descricao"]),
       domain,
       safety_kind,
-      original_leader_id: null,
+      root_cause_area: "",
+    original_leader_id: null,
     };
 
     const empty = !form.line && !form.description && !form.action_no && !form.sku && !form.leader_name && form.labels.length === 0;

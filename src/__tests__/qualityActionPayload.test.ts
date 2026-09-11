@@ -14,6 +14,7 @@ const BASE_FORM: QualityActionFormInput = {
   action_no: "", line: "Line 3", shift: "DAY", leader_id: "leader-123", leader_name: "",
   date: "2026-08-16", sku: "", batch: "", department: "",
   severity: "", labels: [], description: "", domain: "safety", safety_kind: "near_miss",
+  root_cause_area: "",
   original_leader_id: null,
 };
 

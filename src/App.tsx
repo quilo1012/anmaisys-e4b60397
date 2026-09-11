@@ -23,7 +23,7 @@ import { RefreshCw, WifiOff } from "lucide-react";
 import { roleDashMap } from "@/lib/permissions";
 import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
 import { useSeverityPointsSync } from "@/hooks/useSeverityPoints";
-import { useLabelPointsSync, useDepartmentAttributionSync } from "@/hooks/useQualityOptions";
+import { useLabelPointsSync, useDepartmentAttributionSync, useRootCauseAttributionSync } from "@/hooks/useQualityOptions";
 import { useLabelPointsCapSync } from "@/hooks/useLabelPointsCap";
 
 function PermissionOverridesSync() {
@@ -46,6 +46,14 @@ function LabelPointsSync() {
 /** And who is charged at all: the departments that answer for their own problems. */
 function DepartmentAttributionSync() {
   useDepartmentAttributionSync();
+  return null;
+}
+
+/** The same question asked of one action rather than a department: whose failure was
+ *  this. It overrides every other attribution rule, so it has to be loaded everywhere
+ *  a score is drawn. */
+function RootCauseAttributionSync() {
+  useRootCauseAttributionSync();
   return null;
 }
 
@@ -300,6 +308,7 @@ const App = () => (
             <SeverityPointsSync />
             <LabelPointsSync />
             <DepartmentAttributionSync />
+      <RootCauseAttributionSync />
             <LabelPointsCapSync />
             <TelemetryInit />
             <Suspense fallback={<PageLoader />}>

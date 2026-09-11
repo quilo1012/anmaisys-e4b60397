@@ -1,4 +1,4 @@
-import { DOCUMENTATION_LABEL, documentationPenaltyPct, documentationScore, isValidatedPaperwork, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
+import { DOCUMENTATION_LABEL, countsAgainstLeaderRootCause, documentationPenaltyPct, documentationScore, isValidatedPaperwork, sumActionPoints, standsAgainstLeader } from "@/lib/qualityConstants";
 
 /**
  * The leader's final score: production, quality and documentation, weighted.
@@ -50,6 +50,8 @@ export interface LeaderScoreInput {
     validation_status?: string | null;
     domain?: string | null;
     safety_kind?: string | null;
+    /** Whose failure it was. Voids the quality charge — never the gate. */
+    root_cause_area?: string | null;
     /** The frozen charge, when the row carries one — see `actionPoints`. */
     points_at_creation?: number | null;
     /** Only so a gate can name the day it fired. Absent is handled. */
@@ -134,6 +136,16 @@ export interface LeaderScoreCap {
   weighted: number | null;
   /** "A lost-time injury limits this score to 49%." */
   reason: string;
+  /**
+   * Just the gates and their dates — "Fail Ccp on 12/07", "A lost-time injury" — with
+   * no sentence wrapped round them.
+   *
+   * `reason` carries the whole explanation because most callers want one line. The
+   * scorecard banner sets the explanation out at length above the score, and pasting
+   * `reason` into it would say "limits this score to 49%" twice in three lines, which
+   * is how a warning starts being skimmed.
+   */
+  named: string;
 }
 
 export interface LeaderScoreComponent {
@@ -270,7 +282,23 @@ function qualityScore(input: LeaderScoreInput): LeaderScoreComponent {
     (a) => a.domain === "safety" && a.validation_status === "rejected",
   ).length;
   const safetyRows = input.actions.filter((a) => a.domain === "safety").length - rejectedSafety;
-  const notTheirs = input.actions.length - attributable.length - rejected - safetyRows;
+  /**
+   * Split out of `notTheirs` for the same reason the safety rows were: the two say
+   * different things and a leader reads them differently.
+   *
+   * "Not attributable" is an inference from a set of labels, and it is arguable.
+   * "Root cause is Maintenance" is a finding — one field, one area, set by Quality,
+   * with a name and a time against it in the action's history. Naming the area is what
+   * lets a leader check it, and what stops the count reading as an unexplained
+   * discount on their own scorecard.
+   *
+   * The order of the subtractions matters: safety and rejected are taken out first, so
+   * a row can only be counted once however many rules would have voided it.
+   */
+  const byRootCause = input.actions.filter(
+    (a) => a.domain !== "safety" && a.validation_status !== "rejected" && !countsAgainstLeaderRootCause(a),
+  ).length;
+  const notTheirs = input.actions.length - attributable.length - rejected - safetyRows - byRootCause;
   const points = sumActionPoints(standing, input.excludedLabels);
   return {
     value: Math.max(0, 100 - points),
@@ -279,7 +307,8 @@ function qualityScore(input: LeaderScoreInput): LeaderScoreComponent {
       (rejected ? ` · ${rejected} rejected by Quality and not counted` : "") +
       (onTheDemerit ? ` · ${onTheDemerit} charged to documentation instead` : "") +
       (safetyRows ? ` · ${safetyRows} safety occurrence${safetyRows === 1 ? "" : "s"}, counted under Health & Safety and not scored` : "") +
-      (notTheirs ? ` · ${notTheirs} not attributable to the leader` : ""),
+      (byRootCause ? ` · ${byRootCause} whose root cause is another area's, so not charged here` : "") +
+      (notTheirs ? ` · ${notTheirs} not attributable to the leader by label` : ""),
   };
 }
 
@@ -333,7 +362,8 @@ function namedLabelGates(
   });
 }
 
-function capReason(
+/** "Fail Ccp on 12/07 and a lost-time injury" — every gate that fired, and when. */
+function namedGateList(
   gating: Array<{ safety_kind?: string | null }>,
   hits: Array<{ labels?: string[] | null; recorded_at?: string | null }>,
   gateLabels: Set<string>,
@@ -341,9 +371,17 @@ function capReason(
   const parts: string[] = [];
   if (gating.length) parts.push(namedGates(gating));
   parts.push(...namedLabelGates(hits, gateLabels));
-  const named = parts.length === 1
+  return parts.length === 1
     ? parts[0]
     : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+function capReason(
+  gating: Array<{ safety_kind?: string | null }>,
+  hits: Array<{ labels?: string[] | null; recorded_at?: string | null }>,
+  gateLabels: Set<string>,
+): string {
+  const named = namedGateList(gating, hits, gateLabels);
   return `${named} limits this score to ${GATE_CAP}%. A gate is a ceiling, never a weight — no production can buy it back.`;
 }
 
@@ -482,6 +520,7 @@ export function computeLeaderScore(
         applied: weighted !== null && weighted > GATE_CAP,
         weighted,
         reason: capReason(gating, gateHits, input.gateLabels),
+        named: namedGateList(gating, gateHits, input.gateLabels),
       }
     : null;
   const final = weighted === null ? null : cap ? Math.min(weighted, cap.value) : weighted;

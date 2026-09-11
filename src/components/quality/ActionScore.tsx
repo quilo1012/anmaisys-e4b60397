@@ -29,7 +29,14 @@ export function ActionScore({
   failed,
   className,
 }: {
-  action: { domain?: string | null; severity: string | null; labels?: string[] | null; validation_status?: string | null };
+  action: {
+    domain?: string | null;
+    severity: string | null;
+    labels?: string[] | null;
+    validation_status?: string | null;
+    /** Whose failure it was. Voids the charge outright when it is another area's. */
+    root_cause_area?: string | null;
+  };
   excluded: Set<string>;
   /** Attribution has loaded. Until it has, an empty set reads as "nothing excluded". */
   ready: boolean;

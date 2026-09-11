@@ -269,7 +269,9 @@ describe("action_points_at() keeps the guards, and keeps them in order", () => {
    * new rule — which is the review this failure is asking for.
    */
   it("is read from the migration that is actually in force", () => {
-    expect(MIGRATION).toBe("20260828090000_maintenance_keeps_its_own_list_and_a_hazard_can_cost.sql");
+    // Moved by the root-cause change: 20260911075414 redefines the function with a
+    // seventh argument, `_root_cause`, and a veto ahead of every other guard.
+    expect(MIGRATION).toBe("20260911075414_59d13ec5-b749-43f2-989d-33a2c820ae30.sql");
   });
 
   /**
@@ -365,7 +367,42 @@ describe("action_points_at() keeps the guards, and keeps them in order", () => {
     expect(body).toMatch(/lower\(trim\(/);
   });
 
-  it("reads the dated snapshot, never the live tables", () => {
-    expect(body).not.toMatch(/quality_severity_points|quality_options|quality_label_attribution/);
+  /**
+   * Everything the ARITHMETIC uses comes from the dated snapshot, so raising a price in
+   * November cannot change what a July action cost.
+   *
+   * `quality_options` is the one documented exception, and only for kind `root_cause`.
+   * A root cause is not a price: it is a statement about WHOSE failure the deviation
+   * was, and there is no version of that fact — if the factory decides a machine fault
+   * is maintenance's, it was maintenance's in July too. It is also the only way for the
+   * veto to reach a row at all, since the snapshot tables have no column for it.
+   * Narrowing rather than deleting the assertion keeps the real guarantee: no severity
+   * price and no label attribution may be read live.
+   */
+  it("reads the dated snapshot for every price, never the live tables", () => {
+    expect(body).not.toMatch(/quality_severity_points|quality_label_attribution/);
+    const liveReads = [...body.matchAll(/quality_options/g)];
+    expect(liveReads.length).toBe(1);
+    const rootCauseBlock = body.slice(body.indexOf("_root_cause"), body.indexOf("_kind :="));
+    expect(rootCauseBlock).toMatch(/kind = 'root_cause'/);
+    expect(rootCauseBlock).toContain("quality_options");
+  });
+
+  it("vetoes on the root cause before it prices anything at all", () => {
+    // Ahead of the labels AND the grade. A veto applied after them would let a Critical
+    // grade leak through on an action the factory has already said was not the
+    // leader's — which is the exact leak this change was written to close.
+    const veto = body.indexOf("kind = 'root_cause'");
+    expect(veto).toBeGreaterThan(-1);
+    expect(body.indexOf("scoring_version_label")).toBeGreaterThan(veto);
+    expect(body.indexOf("scoring_version_severity")).toBeGreaterThan(veto);
+  });
+
+  it("lets a blank or unknown root cause through rather than treating it as excluded", () => {
+    // btrim/coalesce: null and '' fall through, so every row logged before the column
+    // existed keeps exactly the score it already had.
+    expect(body).toMatch(/btrim\(coalesce\(_root_cause, ''\)\) <> ''/);
+    // EXISTS ... = false: a typo finds no row, so it charges rather than clearing.
+    expect(body).toMatch(/counts_against_leader = false/);
   });
 });

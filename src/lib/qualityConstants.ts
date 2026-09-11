@@ -345,6 +345,66 @@ export function excludedDepartmentSet(): Set<string> {
 }
 
 /**
+ * The root causes that are NOT the leader's to answer for, lowercased.
+ *
+ * The case this exists for: "Batch Code Printing Issue (L5)", 13/08, Line 5, labels
+ * `Batch code` + `Maintenance`. The root cause is a printer failure. Attribution by
+ * LABEL lets that through — `countsAgainstLeader` needs only ONE attributable label,
+ * deliberately, and the note above it explains at length why that lever must not be
+ * flipped back. So `Maintenance` is excluded and worth nothing while `Batch code`
+ * still charges the shift leader five points for a machine fault.
+ *
+ * A root cause closes that door without reopening the one the label rule guards.
+ * There is exactly ONE per action, Quality alone may set it (a database trigger, not
+ * an honour system), it prints in its own column, and every change is written to
+ * `quality_action_history` with a name and a time against it. That is the same
+ * reasoning `countsAgainstLeaderDepartment` runs on, applied to the field that
+ * actually answers "whose failure was this".
+ *
+ * The SQL twin is the root-cause guard at the top of `public.action_points_at`
+ * (20260913...). Change one, change the other — src/__tests__/rootCauseParity.test.ts
+ * runs the same action through both expectations and fails if they part company.
+ */
+let EXCLUDED_ROOT_CAUSES: Set<string> = new Set();
+
+/** Takes the option rows as `{ [root cause]: counts_against_leader }`. */
+export function setRootCauseAttribution(map: Record<string, boolean>) {
+  EXCLUDED_ROOT_CAUSES = new Set(
+    Object.entries(map ?? {})
+      .filter(([, counts]) => counts === false)
+      .map(([cause]) => cause.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  listeners.forEach((l) => l());
+}
+
+/** The root causes in force right now, lowercased. */
+export function excludedRootCauseSet(): Set<string> {
+  return EXCLUDED_ROOT_CAUSES;
+}
+
+/**
+ * Whether an action's ROOT CAUSE makes it the leader's to answer for.
+ *
+ * A veto, and the strongest one in the file — it outranks the department, the labels
+ * and the grade, because it is the broadest claim: this deviation is somebody else's
+ * failure and nothing on the action can argue it back.
+ *
+ * A blank root cause counts, for the same reason a blank department and a blank label
+ * list count: leaving a field empty must never quietly remove a deviation from
+ * somebody's score. That is also why the column is nullable — every action logged
+ * before this rule keeps exactly the score it already had.
+ */
+export function countsAgainstLeaderRootCause(
+  action: { root_cause_area?: string | null },
+  excluded: Set<string> = excludedRootCauseSet(),
+): boolean {
+  const cause = (action.root_cause_area ?? "").trim().toLowerCase();
+  if (!cause) return true;
+  return !excluded.has(cause);
+}
+
+/**
  * What one label is worth on an action of this domain. Zero means it does not price it.
  *
  * The domain is not decoration: the same text can be priced on the quality list and
@@ -635,6 +695,12 @@ export interface ScorableAction {
    * did not admit it, so nothing could be written against it.
    */
   department?: string | null;
+  /**
+   * Which area's failure this was, set by Quality — see `countsAgainstLeaderRootCause`.
+   * Null means "not established yet" and scores exactly as it did before the field
+   * existed, which is what keeps every historical action where it is.
+   */
+  root_cause_area?: string | null;
   /** What this action was worth under the scale of its own day. See `actionPoints`. */
   points_at_creation?: number | null;
 }
@@ -653,6 +719,10 @@ export function livePoints(
   excludedDepartments: Set<string> = excludedDepartmentSet(),
 ): number {
   if (isRejected(action)) return 0;
+  // First of all the attribution rules, and the twin of the guard at the top of
+  // `public.action_points_at`. A printer failure is maintenance's however the action
+  // is labelled or graded.
+  if (!countsAgainstLeaderRootCause(action)) return 0;
   // Before the labels, because it is the broader claim: the department says the action
   // belongs to somebody else entirely, and no label can argue it back.
   if (!countsAgainstLeaderDepartment(action, excludedDepartments)) return 0;
@@ -724,7 +794,7 @@ export function actionPoints(
  * AND its price is what makes the rule visible — including the awkward case where
  * skipping it changes the total by nothing because the severity then pays in full.
  */
-export type PointsBasis = "safety" | "rejected" | "not_leaders" | "labels" | "severity" | "unpriced" | "frozen" | "severity_over_labels";
+export type PointsBasis = "safety" | "rejected" | "not_leaders" | "not_leaders_root_cause" | "labels" | "severity" | "unpriced" | "frozen" | "severity_over_labels";
 
 export interface PointsBreakdown {
   /** Always equal to `actionPoints` for the same arguments. */
@@ -804,6 +874,27 @@ export function pointsBreakdown(
   if (action.validation_status === "rejected") {
     return { ...base, basis: "rejected", explanation: "Quality rejected this — it is not charged." };
   }
+  /**
+   * The zero this whole field was added for, said in words.
+   *
+   * Never a silent 0: the reader is looking at an action carrying a priced label and a
+   * total of nothing, and the only thing that reconciles the two is the sentence below.
+   * The priced labels are moved into `spared` rather than dropped, so the receipt still
+   * shows what WOULD have been charged with a line through it — a total that has quietly
+   * had something removed is indistinguishable from a total that never had it.
+   */
+  if (!countsAgainstLeaderRootCause(action)) {
+    const cause = (action.root_cause_area ?? "").trim();
+    return {
+      ...base,
+      charged: [],
+      spared: priced,
+      basis: "not_leaders_root_cause",
+      explanation:
+        `0 points — root cause is ${cause}, so this is not charged to the leader.` +
+        (priced.length ? ` Its labels would otherwise charge ${sumInWords(priced)}.` : ""),
+    };
+  }
   if (!countsAgainstLeader(action, excluded)) {
     const named = (action.labels ?? []).join(", ");
     return { ...base, basis: "not_leaders", explanation: `${named} is not the leader's — this is not charged to them.` };
@@ -878,11 +969,16 @@ export function standsAgainstLeader(
     domain?: string | null;
     labels?: string[] | null;
     department?: string | null;
+    root_cause_area?: string | null;
     validation_status?: string | null;
   },
   excluded: Set<string>,
   excludedDepartments: Set<string> = excludedDepartmentSet(),
 ): boolean {
+  // Same order as `livePoints`, and it has to stay the same order: anything worth
+  // points must also stand, or a leader is charged for a row the screen says is not
+  // his. The root cause voids both together.
+  if (!countsAgainstLeaderRootCause(action)) return false;
   if (!countsAgainstLeaderDepartment(action, excludedDepartments)) return false;
   if (isRejected(action) || !countsAgainstLeader(action, excluded)) return false;
   // A safety occurrence stands exactly when it costs something. That is the invariant

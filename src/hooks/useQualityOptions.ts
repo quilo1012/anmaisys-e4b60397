@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { isMissingColumn } from "@/lib/postgrestErrors";
-import { QUALITY_LABELS, QUALITY_DEPARTMENTS, chargingLabelPoints, setLabelPoints, setHazardPoints, setExcludedDepartments } from "@/lib/qualityConstants";
+import { QUALITY_LABELS, QUALITY_DEPARTMENTS, chargingLabelPoints, setLabelPoints, setHazardPoints, setExcludedDepartments, setRootCauseAttribution } from "@/lib/qualityConstants";
 
 export interface QualityOption {
   id: string;
@@ -10,7 +10,7 @@ export interface QualityOption {
    * `safety_label` is the safety form's own list — see SAFETY_LABELS.
    * `maintenance_label` is the breakdown list — priced for the log, never charged.
    */
-  kind: "label" | "department" | "safety_label" | "maintenance_label";
+  kind: "label" | "department" | "safety_label" | "maintenance_label" | "root_cause";
   value: string;
   active: boolean;
   sort: number;
@@ -122,6 +122,10 @@ export function useQualityOptions() {
       // Empty until the seed lands, same as the hazards — `labelsForDomain` simply
       // appends nothing, so the quality form reads exactly as it did before.
       const maintenanceLabels = rows.filter((r) => r.kind === "maintenance_label").map((r) => r.value);
+      // The areas that can own a deviation. Empty until the seed lands, and empty is
+      // safe: with no options the select offers nothing, nothing gets set, and every
+      // action scores exactly as it did before the field existed.
+      const rootCauseRows = rows.filter((r) => r.kind === "root_cause");
       // Which list each label came from, keyed the way `labelKindOf` looks it up. The
       // log colours a chip off this: the action stores the text only.
       const labelKinds = Object.fromEntries(
@@ -152,6 +156,12 @@ export function useQualityOptions() {
         ),
         /** False when the column is not there — nothing is excluded and nothing can be. */
         departmentAttributionKnown: attributed,
+        /** The pickable root causes, in the order the list manager put them. */
+        rootCauses: rootCauseRows.map((r) => r.value),
+        // Keyed by the root cause's own text; `setRootCauseAttribution` lowercases it.
+        rootCauseAttribution: Object.fromEntries(
+          rootCauseRows.map((r) => [r.value, r.counts_against_leader !== false]),
+        ),
       };
     },
   });
@@ -210,6 +220,49 @@ export function useDepartmentAttributionSync() {
     if (!data) return;
     setExcludedDepartments(data.departmentAttribution);
   }, [data]);
+}
+
+/**
+ * Loads the root-cause attribution into the qualityConstants module.
+ *
+ * Beside `useDepartmentAttributionSync` in App, for its reason exactly: `livePoints()`
+ * runs inside plain functions.
+ *
+ * The one-frame settle errs in the same direction and it is worth being explicit,
+ * because this rule is the one that takes points OFF. Before the query lands nothing
+ * is excluded, so an action voided by its root cause reads at its full charge for a
+ * frame and then drops to zero. Too high, briefly, and visible. The reverse — showing
+ * zero and settling upwards — would flatter a leader on a screen they are appraised
+ * on, which is the direction this module refuses everywhere else.
+ */
+export function useRootCauseAttributionSync() {
+  const { data } = useQualityOptions();
+  useEffect(() => {
+    if (!data) return;
+    setRootCauseAttribution(data.rootCauseAttribution);
+  }, [data]);
+}
+
+/**
+ * The root causes on offer and which of them charge the leader.
+ *
+ * `missing` shaped like `useGateLabels`': on a database without the seed there are no
+ * options at all, and a select with nothing in it has to say why rather than look
+ * broken.
+ */
+export function useRootCauses() {
+  const query = useQualityOptions();
+  const attribution = query.data?.rootCauseAttribution ?? {};
+  return {
+    options: query.data?.rootCauses ?? [],
+    attribution,
+    /** True when picking this area means the action charges the leader nothing. */
+    voids: (value: string | null | undefined) =>
+      !!value && attribution[value] === false,
+    ready: query.isSuccess,
+    missing: query.isSuccess && (query.data?.rootCauses.length ?? 0) === 0,
+    failed: query.isError,
+  };
 }
 
 /**

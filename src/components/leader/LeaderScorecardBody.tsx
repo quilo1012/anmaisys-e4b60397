@@ -680,6 +680,53 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
           Navy on the brand's --section, the same panel ModuleHeader uses, so the one
           number the screen exists for is the one thing that is not a white card. It
           goes back to ink on paper for print — the page is meant to be handed over. */}
+      {/* The ceiling, at the very top, before the number it limits.
+
+          It used to sit BELOW the bars, in amber, at the foot of a panel people stop
+          reading once they have the figure. That put the single most consequential
+          sentence on the card in the position reserved for footnotes: a leader could
+          take 49% away with them and never learn that it was a ceiling rather than a
+          score, which is the one misreading this document cannot afford — it is the
+          difference between "you performed badly" and "a food safety event happened on
+          your line".
+
+          Red and full width, above everything, so it is read before the figure and not
+          after it. Never `print:hidden`: this card is printed and signed, and a printed
+          49% with no ceiling on it is a document that says the wrong thing.
+
+          Shown whether or not the ceiling BIT. A gate that fired on a week already
+          below 49 changed no arithmetic, but it is still the fact of the period, and
+          the wording below says exactly which of the two happened rather than claiming
+          work the ceiling did not do. */}
+      {score.cap && (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-xl border-2 border-destructive/60 bg-destructive/10 p-4 print:rounded-none print:border print:border-black print:bg-white"
+        >
+          <AlertTriangle aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-destructive-strong print:text-black" />
+          <div className="min-w-0 space-y-1.5">
+            <p className="font-display text-2xs font-bold uppercase tracking-[0.14em] text-destructive-strong print:text-black">
+              Score ceiling — {score.cap.named}
+            </p>
+            {score.cap.applied ? (
+              <p className="text-xs leading-snug text-foreground print:text-black">
+                This score is limited to {score.cap.value}% because a food safety gate fired in
+                this period. A gate is a ceiling, never a weight — it records that the event
+                happened on this line, in this period, whoever was at fault. No production can
+                buy it back.
+              </p>
+            ) : (
+              <p className="text-xs leading-snug text-foreground print:text-black">
+                A food safety gate fired in this period, which limits a score to {score.cap.value}%.
+                This period already scored below that, so the ceiling changed nothing — the
+                occurrence still stands on the record. A gate is a ceiling, never a weight, and it
+                records that the event happened on this line, in this period, whoever was at fault.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div
         role="region"
         aria-label="Final score"
@@ -694,6 +741,22 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
               {score.final === null ? "—" : displayScore(score.final)}
               {score.final !== null && <span className="align-top text-2xl font-medium text-white/50 sm:text-3xl print:text-black/40">%</span>}
             </p>
+            {/* The subtraction, beside the number it produced. A leader shown 49 with
+                no sight of the 97 it was cut from cannot check the arithmetic, and this
+                is the line they will argue with hardest — so it is next to the figure,
+                not three paragraphs below it. Only when the ceiling actually bit. */}
+            {score.cap?.applied && score.cap.weighted !== null && (
+              <p className="mt-2 flex items-baseline gap-1.5 text-sm">
+                <span className="font-figure line-through decoration-2 text-white/55 print:text-black/50">
+                  {displayScore(score.cap.weighted)}%
+                </span>
+                <span aria-hidden className="text-white/55 print:text-black/50">→</span>
+                <span className="font-figure font-semibold text-white print:text-black">{score.cap.value}%</span>
+                <span className="rounded border border-white/30 px-1 py-px font-display text-2xs font-bold uppercase tracking-wide text-white/80 print:border-black/40 print:text-black">
+                  Gated
+                </span>
+              </p>
+            )}
           </div>
 
           {/* Width = what it counts for. Fill = what it scored.
@@ -747,43 +810,11 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
           </div>
         </div>
 
-        {/* The ceiling, when one fired.
-            Above the three bases and not among them, because it is not a fourth
-            component — it is a limit on the whole. It carries the arithmetic in full:
-            a leader shown 49 with no sight of the 97 it was cut from cannot check it,
-            and this is the line they will argue with hardest. Amber rather than the
-            panel's white, and it survives to paper, where this card is signed. */}
-        {score.cap && (
-          <div className="mt-4 rounded-lg border border-amber-300/50 bg-amber-400/15 p-3 print:border-black/40 print:bg-white">
-            {/* Not "Health & Safety ceiling" any more. It was accurate while an injury
-                was the only thing that could cap a period; a failed CCP can now, and a
-                heading naming the wrong cause is the first thing a leader reads. The
-                reason line below names what actually fired. */}
-            <p className="font-display text-2xs font-bold uppercase tracking-[0.14em] text-amber-200 print:text-black">
-              Score ceiling
-            </p>
-            <p className="mt-1.5 text-xs leading-snug text-white/90 print:text-black">
-              {score.cap.applied && score.cap.weighted !== null ? (
-                <>
-                  <span className="font-figure line-through decoration-2 text-white/60 print:text-black/50">
-                    {displayScore(score.cap.weighted)}%
-                  </span>
-                  <span className="px-1.5 text-white/60 print:text-black/50">→</span>
-                  <span className="font-figure font-semibold">{score.cap.value}%</span>
-                  <span className="pl-2">{score.cap.reason}</span>
-                </>
-              ) : (
-                // The gate fired on a week already below the ceiling. Saying "limited
-                // to 49" there would claim work the ceiling did not do, so it says what
-                // actually happened: the occurrence stands, the score was already lower.
-                <>
-                  {score.cap.reason} This period already scored below it, so the ceiling
-                  changed nothing — the occurrence still stands on the record.
-                </>
-              )}
-            </p>
-          </div>
-        )}
+        {/* The ceiling used to be explained here, at the foot of the panel, in amber.
+            It is now the red banner at the TOP of the card, above the figure it limits,
+            and the subtraction sits beside the number itself. Explaining a ceiling
+            below the score it capped is explaining it to someone who has already
+            stopped reading. */}
 
         {/* The period does not sit on one ruler.
             Quieter than the ceiling on purpose: nothing here is wrong, and nothing needs
