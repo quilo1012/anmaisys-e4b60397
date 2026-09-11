@@ -263,17 +263,36 @@ const SIDEBAR_STATE_KEY = "an_sidebar_state";
 /** Expanded (full menu) -> Rail (icons only) -> Hidden (off-canvas). */
 type SidebarUiState = "expanded" | "rail" | "hidden";
 
-function readSavedSidebarState(): SidebarUiState | null {
+/**
+ * A monitor and a factory tablet are two different places to work, and the state
+ * that suits one does not suit the other: the same account wants the full menu on a
+ * 1440px screen and the rail on a 1024px tablet. So the choice is remembered per
+ * device class, under its own key, and the old single key is still read once so
+ * nobody loses the state they already set.
+ */
+type SidebarScope = "desktop" | "tablet";
+function sidebarScope(): SidebarScope {
+  if (typeof window === "undefined") return "desktop";
+  return window.innerWidth >= 1024 ? "desktop" : "tablet";
+}
+
+function readSavedSidebarState(scope: SidebarScope = sidebarScope()): SidebarUiState | null {
   if (typeof window === "undefined") return null;
+  const valid = (v: string | null): SidebarUiState | null =>
+    v === "expanded" || v === "rail" || v === "hidden" ? v : null;
   try {
-    const v = window.localStorage.getItem(SIDEBAR_STATE_KEY);
-    if (v === "expanded" || v === "rail" || v === "hidden") return v;
+    return (
+      valid(window.localStorage.getItem(`${SIDEBAR_STATE_KEY}:${scope}`)) ??
+      valid(window.localStorage.getItem(SIDEBAR_STATE_KEY))
+    );
   } catch { /* ignore */ }
   return null;
 }
 
 function readSavedSidebarPreference(): boolean | null {
   if (typeof document === "undefined") return null;
+  const saved = readSavedSidebarState();
+  if (saved) return saved === "expanded";
   try {
     const ls = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
     if (ls === "true") return true;
@@ -283,6 +302,7 @@ function readSavedSidebarPreference(): boolean | null {
   if (m) return m[1] === "true";
   return null;
 }
+
 
 // SidebarFooterToggle lived here. The sidebar still collapses — the rail on its edge
 // and the panel button in the header both do it — so a third control spending a row
