@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, it, expect } from "vitest";
+import { setLabelPoints } from "@/lib/qualityConstants";
 import {
   computeScorecard, actionsInPeriod, workOrdersInPeriod,
   EMPTY_RAW, type LSAction, type LSWorkOrder, type ScorecardPeriod,
@@ -376,7 +377,11 @@ describe("charges", () => {
     // The case that covers most of the base: no grade, no priced label. It counts
     // against the leader and costs zero, which is a different fact from not counting.
     const c = run([action({ id: "a1", severity: null, labels: [], points_at_creation: null })]);
-    expect(c.a1).toEqual({ charged: 0, worth: 0, counted: true, reason: "counted" });
+    expect(c.a1).toMatchObject({ charged: 0, worth: 0, counted: true, reason: "counted" });
+    // And it says WHY it is a zero, rather than leaving the reader to guess between
+    // "nothing was wrong" and "nothing was ever assessed".
+    expect(c.a1.basis).toBe("unpriced");
+    expect(c.a1.explanation).toMatch(/no grade/i);
   });
 
   it("honours the frozen figure over the live grade", () => {
@@ -422,5 +427,31 @@ describe("charges", () => {
     const r = computeScorecard({ ...EMPTY_RAW, actions }, period(), ctx);
     const summed = Object.values(r.charges).reduce((n, c) => n + c.charged, 0);
     expect(r.score.quality.basis).toContain(String(summed));
+  });
+});
+
+/**
+ * `actionPoints` is MAX(priced labels, grade), so "not graded" and "charged nothing"
+ * are not the same statement — and the card printed them as if they were.
+ */
+describe("a charge that did not come from the grade", () => {
+  const ctx = { excludedLabels: NOTHING_EXCLUDED, gateLabels: NO_GATES };
+  const run = (actions: LSAction[]) =>
+    computeScorecard({ ...EMPTY_RAW, actions }, period(), ctx).charges;
+
+  // Label prices live in `quality_options` and are pushed into the module at runtime;
+  // a test that does not set them prices every label at 0, which is the state this
+  // whole case is about NOT being in.
+  beforeEach(() => setLabelPoints({ gmp: 2, maintenance: 3 }));
+  afterEach(() => setLabelPoints({}));
+
+  it("names the labels as the payer on a row with no grade at all", () => {
+    // AC-6500 in the base: no severity, four priced labels, charged 5.
+    const c = run([action({
+      id: "a1", severity: null, labels: ["GMP", "Maintenance"], points_at_creation: null,
+    })]);
+    expect(c.a1.charged).toBeGreaterThan(0);
+    expect(c.a1.basis).toBe("labels");
+    expect(c.a1.explanation).toMatch(/GMP|Maintenance/);
   });
 });

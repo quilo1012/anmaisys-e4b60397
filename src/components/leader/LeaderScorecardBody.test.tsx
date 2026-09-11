@@ -975,3 +975,70 @@ describe("the Health & Safety block in the score panel", () => {
     expect(screen.getByText("limits, never counts")).toBeInTheDocument();
   });
 });
+
+/**
+ * "Not graded" beside "5p".
+ *
+ * AC-6500 — "Excessive Powder Leakage hopper (L6)" — carries no severity and charges
+ * five points, and the card said both things without ever joining them. Neither number
+ * is wrong: `actionPoints` is MAX(priced labels, grade), and this action's four labels
+ * (GMP, Maintenance, Other - General, Quality) price it at 5 while its grade is empty.
+ * Read down the column it looks like the card charging a leader for an action nobody
+ * assessed, which is the one reading that would be worth arguing with.
+ *
+ * `pointsBreakdown` exists for exactly this and was written for the same complaint on
+ * the Quality screen: "no one could tell whether that was Batch code 2 + Maintenance 3,
+ * or Batch code priced at 5 with Maintenance already costing nothing."
+ */
+describe("where a charge came from, when it did not come from the grade", () => {
+  const base = {
+    id: "p1", status: "complete", severity: null, recorded_at: "2026-09-04T10:00:00Z",
+    labels: ["GMP", "Maintenance"], department: null, line: "Line 6", action_no: "AC-6500",
+    source: "safetyculture", description: null, title: "Excessive Powder Leakage hopper (L6)",
+    shift: null, validation_status: "open", validated_at: null, validated_by: null,
+    attachments: null, closed_at: null, domain: "quality",
+  };
+  const withCharge = (charge: Record<string, unknown>, over: Record<string, unknown> = {}) =>
+    makeResult({
+      actions: [{ ...base, ...over }],
+      charges: { p1: { charged: 5, worth: 5, counted: true, reason: "counted", basis: "labels", ...charge } },
+    } as never);
+
+  it("says the labels priced it, on a row that carries no grade", () => {
+    renderBody(withCharge({}));
+    const list = screen.getByRole("region", { name: /actions in this period/i });
+    expect(within(list).getByText("labels")).toBeInTheDocument();
+  });
+
+  it("stays quiet when the grade is what priced it — the grade is already on the row", () => {
+    renderBody(withCharge({ basis: "severity" }, { severity: "high" }));
+    const list = screen.getByRole("region", { name: /actions in this period/i });
+    expect(within(list).queryByText("labels")).not.toBeInTheDocument();
+  });
+
+  it("names an old scale rather than letting the arithmetic look wrong", () => {
+    // A frozen figure the current prices no longer add up to. The reader checks the
+    // sum, finds it wrong, and stops believing the number — unless it is said.
+    renderBody(withCharge({ basis: "frozen" }));
+    const list = screen.getByRole("region", { name: /actions in this period/i });
+    expect(within(list).getByText(/old scale/i)).toBeInTheDocument();
+  });
+
+  it("does not claim an ungraded action carried no priced label when it did", () => {
+    // The summary line said "3 carry no grade and no priced label" over a set where one
+    // of the three was priced at 5 by its labels. Two facts welded into one sentence,
+    // and the weld was false.
+    renderBody(makeResult({
+      actions: [
+        { ...base, id: "p1" },
+        { ...base, id: "p2", action_no: "AC-6485", labels: ["Quality"], title: "Sample bags" },
+      ],
+      charges: {
+        p1: { charged: 5, worth: 5, counted: true, reason: "counted", basis: "labels" },
+        p2: { charged: 0, worth: 0, counted: true, reason: "counted", basis: "unpriced" },
+      },
+    } as never));
+    expect(screen.queryByText(/2 carry no grade and no priced label/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/priced by (its|their) labels/i)).toBeInTheDocument();
+  });
+});

@@ -2,7 +2,8 @@ import { format } from "date-fns";
 import {
   DOCUMENTATION_LABEL, documentationPenaltyPct,
   documentationScore, isValidatedPaperwork,
-  actionPoints, standsAgainstLeader, type ScorableAction,
+  standsAgainstLeader, pointsBreakdown,
+  type ScorableAction, type PointsBasis,
 } from "@/lib/qualityConstants";
 import { computeLeaderScore, DEFAULT_WEIGHTS, type LeaderScoreResult, type LeaderScoreWeights } from "@/lib/leaderScore";
 import { getShift, shiftSessionDate } from "@/lib/shifts";
@@ -287,6 +288,17 @@ export interface ActionCharge {
   worth: number;
   counted: boolean;
   reason: ChargeReason;
+  /**
+   * WHICH of the two inputs paid, from `pointsBreakdown`.
+   *
+   * `actionPoints` is MAX(priced labels, grade), so an action with no grade at all can
+   * still charge — AC-6500 carries no severity and four priced labels and costs 5. A
+   * column printing "Grade" beside "5p" and nothing else reads as the card charging a
+   * leader for an action nobody assessed, which is the one reading worth arguing with.
+   */
+  basis: PointsBasis;
+  /** The arithmetic in a sentence, ready to print. */
+  explanation: string;
 }
 
 /**
@@ -302,7 +314,8 @@ export interface ActionCharge {
 function chargesOf(actions: LSAction[], excludedLabels: Set<string>): Record<string, ActionCharge> {
   const out: Record<string, ActionCharge> = {};
   for (const a of actions) {
-    const worth = actionPoints(a as unknown as ScorableAction, excludedLabels);
+    const breakdown = pointsBreakdown(a as unknown as ScorableAction, excludedLabels);
+    const worth = breakdown.points;
     const stands = standsAgainstLeader(a, excludedLabels);
     const paperwork = isValidatedPaperwork(a);
     const counted = stands && !paperwork;
@@ -315,7 +328,10 @@ function chargesOf(actions: LSAction[], excludedLabels: Set<string>): Record<str
       : a.validation_status === "rejected" ? "rejected"
       : paperwork ? "documentation"
       : "not_theirs";
-    out[a.id] = { charged: counted ? worth : 0, worth, counted, reason };
+    out[a.id] = {
+      charged: counted ? worth : 0, worth, counted, reason,
+      basis: breakdown.basis, explanation: breakdown.explanation,
+    };
   }
   return out;
 }
