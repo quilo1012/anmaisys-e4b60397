@@ -3,9 +3,11 @@ import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";
 
-// Sidebar uses its own narrower breakpoint (640px) so tablets keep the
-// collapsible icon rail instead of collapsing into an offcanvas Sheet.
-const SIDEBAR_MOBILE_BREAKPOINT = 640;
+// Sidebar uses its own breakpoint (768px) so tablets keep the collapsible icon
+// rail while phones get no rail at all — on a phone the bottom tab bar IS the
+// navigation, and a 3rem column of unlabelled icons only steals width from it.
+const SIDEBAR_MOBILE_BREAKPOINT = 768;
+
 function useSidebarIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean>(() =>
     typeof window !== "undefined" ? window.innerWidth < SIDEBAR_MOBILE_BREAKPOINT : false,
