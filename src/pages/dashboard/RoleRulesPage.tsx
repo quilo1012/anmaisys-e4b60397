@@ -190,14 +190,15 @@ export default function RoleRulesPage() {
   const single = ACTIVE_ROLES.includes(requested as Role) ? (requested as Role) : null;
   const shown = single ? [single] : ACTIVE_ROLES;
 
-  // The matrix can change under the page (overrides arrive after login); re-render.
-  const [, force] = [0, useMemo(() => ({}), [])];
+  // The matrix can change under the page (overrides arrive after login); re-derive.
+  const [, setVersion] = useState(0);
   useEffect(() => {
-    const rerender = () => setParams((p) => p, { replace: true });
-    const a = subscribePermissionOverrides(rerender);
-    const b = subscribeDeviceHidden(rerender);
+    const bump = () => setVersion((v) => v + 1);
+    const a = subscribePermissionOverrides(bump);
+    const b = subscribeDeviceHidden(bump);
     return () => { a(); b(); };
-  }, [setParams]);
+  }, []);
+
 
   const generatedOn = format(new Date(), "dd/MM/yyyy");
   const canEdit = can(myRole as Role | null, "permissions.manage");
