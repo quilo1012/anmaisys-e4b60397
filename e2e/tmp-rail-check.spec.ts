@@ -104,24 +104,16 @@ async function openDashboard(page: Page, width: number, height: number) {
   await page.goto("/dashboard/manager");
   await page.waitForSelector("header button[aria-label*='menu' i]", { timeout: 20_000 });
 }
-test.describe("verificação temporária do rail", () => {
-  for (const [w, h, name] of [[1440, 900, "desktop"], [1024, 800, "tablet"], [390, 844, "phone"]] as const) {
-    test(`rail em ${name}`, async ({ page }) => {
-      await openDashboard(page, w, h);
-      await pickMenuState(page, ICONS_ONLY);
-      const info = await readMenu(page);
-      const panelVisible = await page.locator('[data-sidebar="sidebar"]').first().isVisible().catch(() => false);
-      console.log(name, JSON.stringify({ ...info, panelVisible }));
-      const icons = page.locator('[data-sidebar="sidebar"] a[href]');
-      const count = await icons.count();
-      let tip: string | null = null;
-      if (count > 0 && panelVisible) {
-        await icons.first().hover();
-        await page.waitForTimeout(400);
-        tip = await page.locator('[role="tooltip"]').first().innerText().catch(() => null);
-      }
-      console.log(name, "icons=", count, "tooltip=", tip);
-      await page.screenshot({ path: `/tmp/browser/rail/${name}.png` });
-    });
-  }
+test("phone sem rail", async ({ page }) => {
+  await stubSupabase(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/dashboard/manager");
+  await page.waitForTimeout(4000);
+  const panelVisible = await page.locator('[data-sidebar="sidebar"]').first().isVisible().catch(() => false);
+  const railWidth = await page.evaluate(() => {
+    const el = document.querySelector('[data-sidebar="sidebar"]') as HTMLElement | null;
+    return el ? Math.round(el.getBoundingClientRect().width) : null;
+  });
+  console.log("phone", JSON.stringify({ panelVisible, railWidth, url: page.url() }));
+  await page.screenshot({ path: "/tmp/browser/rail/phone.png" });
 });
