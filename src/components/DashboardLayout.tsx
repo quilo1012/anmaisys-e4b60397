@@ -605,30 +605,42 @@ const SIDEBAR_STATE_OPTIONS: { value: SidebarUiState; label: string; short: stri
   { value: "hidden", label: "Hide menu", short: "hidden", icon: PanelLeftOpen },
 ];
 
+/** The shortcut that cycles the three states, written the way this machine writes it. */
+const SIDEBAR_SHORTCUT =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "") ? "⌘B" : "Ctrl+B";
+
 function SidebarStateControl({ uiState, onSelect }: { uiState: SidebarUiState; onSelect: (next: SidebarUiState) => void }) {
   const current = SIDEBAR_STATE_OPTIONS.find((o) => o.value === uiState) ?? SIDEBAR_STATE_OPTIONS[0];
   const Icon = current.icon;
-  const label = `Menu: ${current.short}. Open menu options`;
+  const label = `Menu layout: ${current.short}. Open menu options (${SIDEBAR_SHORTCUT})`;
   return (
     <DropdownMenu>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
+            {/* It used to be a bare icon nobody pressed. It now says "Menu" on any
+                screen with the room for it, and the tooltip names the current state. */}
             <Button
-              variant="ghost"
-              size="icon"
+              variant="outline"
+              size="sm"
               title={label}
               aria-label={label}
               aria-haspopup="menu"
-              className="shrink-0 h-11 w-11"
+              className="shrink-0 h-11 gap-1.5 px-2.5"
             >
               <Icon className="h-5 w-5" />
+              <span className="hidden text-xs font-medium lg:inline">Menu</span>
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="bottom">{label}</TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="start" className="w-44">
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuLabel className="flex items-center justify-between text-2xs uppercase tracking-wider text-muted-foreground">
+          <span>Menu layout</span>
+          <kbd className="rounded border px-1 font-mono text-[10px] normal-case">{SIDEBAR_SHORTCUT}</kbd>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={uiState} onValueChange={(v) => onSelect(v as SidebarUiState)}>
           {SIDEBAR_STATE_OPTIONS.map((o) => (
             <DropdownMenuRadioItem key={o.value} value={o.value}>
@@ -641,6 +653,7 @@ function SidebarStateControl({ uiState, onSelect }: { uiState: SidebarUiState; o
     </DropdownMenu>
   );
 }
+
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
