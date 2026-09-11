@@ -758,6 +758,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       ? savedSidebarPref
       : typeof window !== "undefined" && window.innerWidth >= 1024;
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(defaultSidebarOpen);
+  // Read synchronously in the initialiser, never in an effect: an effect would paint
+  // the default state first and then snap to the saved one.
   const [sidebarUiState, setSidebarUiState] = useState<SidebarUiState>(
     () => readSavedSidebarState() ?? (defaultSidebarOpen ? "expanded" : "rail"),
   );
@@ -792,6 +794,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     const open = next === "expanded";
     setSidebarOpen(open);
     try {
+      // Per device class: a monitor and a tablet keep their own choice.
+      window.localStorage.setItem(`${SIDEBAR_STATE_KEY}:${sidebarScope()}`, next);
       window.localStorage.setItem(SIDEBAR_STATE_KEY, next);
       window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
     } catch { /* ignore */ }
