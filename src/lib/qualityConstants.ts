@@ -384,22 +384,59 @@ export function excludedRootCauseSet(): Set<string> {
 }
 
 /**
+ * The label that declares its own root cause, and what it declares.
+ *
+ * Mirrors `public.default_root_cause_from_label()` (20260921090000). Both halves are
+ * here rather than inline so the parity test can name them.
+ */
+export const ROOT_CAUSE_DERIVING_LABEL = "maintenance";
+export const DERIVED_ROOT_CAUSE = "Maintenance";
+
+/**
+ * The root cause in force on an action — the written one, or the one the database
+ * derives from the `Maintenance` label.
+ *
+ * The derivation is not a convenience. `root_cause_area` shipped in 20260911075414 and
+ * sat at 0 rows filled out of 182: the SafetyCulture sync never writes it and it could
+ * otherwise only be set one action at a time by hand. A rule nobody can reach is not a
+ * rule, so the factory's decision — a machine being involved means the machine is the
+ * cause, unless Quality says otherwise — is applied by a trigger on every writer.
+ *
+ * This function exists so the SCREEN says the same thing the trigger will store. Without
+ * it the log form would preview `GMP · Maintenance` at 5 while the row it is about to
+ * write lands at 0, which is the preview/record split that the frozen-points mechanism
+ * exists to prevent.
+ *
+ * An explicit value always wins, including an explicit `Production` that puts the charge
+ * back — that is Quality overruling the default, and it must survive.
+ */
+export function effectiveRootCause(
+  action: { root_cause_area?: string | null; labels?: string[] | null },
+): string | null {
+  const written = (action.root_cause_area ?? "").trim();
+  if (written) return written;
+  const derives = (action.labels ?? []).some(
+    (l) => (l ?? "").trim().toLowerCase() === ROOT_CAUSE_DERIVING_LABEL,
+  );
+  return derives ? DERIVED_ROOT_CAUSE : null;
+}
+
+/**
  * Whether an action's ROOT CAUSE makes it the leader's to answer for.
  *
  * A veto, and the strongest one in the file — it outranks the department, the labels
  * and the grade, because it is the broadest claim: this deviation is somebody else's
  * failure and nothing on the action can argue it back.
  *
- * A blank root cause counts, for the same reason a blank department and a blank label
- * list count: leaving a field empty must never quietly remove a deviation from
- * somebody's score. That is also why the column is nullable — every action logged
- * before this rule keeps exactly the score it already had.
+ * A blank root cause on an action with no `Maintenance` label counts, for the same
+ * reason a blank department and a blank label list count: leaving a field empty must
+ * never quietly remove a deviation from somebody's score.
  */
 export function countsAgainstLeaderRootCause(
-  action: { root_cause_area?: string | null },
+  action: { root_cause_area?: string | null; labels?: string[] | null },
   excluded: Set<string> = excludedRootCauseSet(),
 ): boolean {
-  const cause = (action.root_cause_area ?? "").trim().toLowerCase();
+  const cause = (effectiveRootCause(action) ?? "").toLowerCase();
   if (!cause) return true;
   return !excluded.has(cause);
 }
@@ -884,7 +921,7 @@ export function pointsBreakdown(
    * had something removed is indistinguishable from a total that never had it.
    */
   if (!countsAgainstLeaderRootCause(action)) {
-    const cause = (action.root_cause_area ?? "").trim();
+    const cause = effectiveRootCause(action) ?? "";
     return {
       ...base,
       charged: [],
