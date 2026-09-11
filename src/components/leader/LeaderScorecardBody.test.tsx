@@ -231,19 +231,21 @@ describe("the H&S ceiling on the card", () => {
   it("shows the score it was cut from, and the one that stands", () => {
     renderBody(capped({
       final: 49,
-      cap: { value: 49, applied: true, weighted: 97.2, reason: "A lost-time injury limits this score to 49%." },
+      cap: { value: 49, applied: true, weighted: 97.2, named: "A lost-time injury", reason: "A lost-time injury limits this score to 49%." },
     }));
-    // "Score ceiling", not "Health & Safety ceiling". The heading stopped naming the
-    // cause when a failed CCP became able to cap a period too — a heading that names the
-    // wrong cause is the first thing a leader reads. What fired is on the reason line,
-    // which is asserted below.
+    // The ceiling now leads the card, ABOVE the panel, as a red alert. It used to sit
+    // at the foot of the panel, which is the position reserved for footnotes — a leader
+    // could take 49% away and never learn it was a ceiling rather than a score.
+    const banner = screen.getByRole("alert");
+    expect(within(banner).getByText(/Score ceiling/i)).toBeInTheDocument();
+    expect(within(banner).getByText(/A lost-time injury/i)).toBeInTheDocument();
+    // The sentence the leader will argue with: a ceiling records the event, it does not
+    // apportion blame, and production cannot buy it back.
+    expect(within(banner).getByText(/whoever was at fault/i)).toBeInTheDocument();
+    // The subtraction stays beside the figure it produced, inside the panel.
     const panel = screen.getByRole("region", { name: /final score/i });
-    expect(within(panel).getByText(/Score ceiling/i)).toBeInTheDocument();
-    // The number that was lost, struck through, beside the one that replaced it.
     expect(within(panel).getByText("97%")).toBeInTheDocument();
-    // Scoped: the band's footnote names a lost-time injury too, as the thing that WOULD
-    // fire a ceiling. Only the panel says one actually did.
-    expect(within(panel).getByText(/lost-time injury/i)).toBeInTheDocument();
+    expect(within(panel).getByText("Gated")).toBeInTheDocument();
   });
 
   it("does not claim a limit it did not impose", () => {
@@ -252,10 +254,14 @@ describe("the H&S ceiling on the card", () => {
     // to appear, or a bad week hides the injury in it.
     renderBody(capped({
       final: 31,
-      cap: { value: 49, applied: false, weighted: 31, reason: "A lost-time injury limits this score to 49%." },
+      cap: { value: 49, applied: false, weighted: 31, named: "A lost-time injury", reason: "A lost-time injury limits this score to 49%." },
     }));
-    expect(screen.getByText(/already scored below it/i)).toBeInTheDocument();
-    expect(screen.getByText(/still stands on the record/i)).toBeInTheDocument();
+    const banner = screen.getByRole("alert");
+    expect(within(banner).getByText(/already scored below that/i)).toBeInTheDocument();
+    expect(within(banner).getByText(/still stands on the record/i)).toBeInTheDocument();
+    // No struck-through arithmetic: there was none to show.
+    const panel = screen.getByRole("region", { name: /final score/i });
+    expect(within(panel).queryByText("Gated")).not.toBeInTheDocument();
   });
 });
 
@@ -953,7 +959,8 @@ describe("the Health & Safety block in the score panel", () => {
       },
     }));
     expect(screen.getByText("GATED")).toBeInTheDocument();
-    expect(screen.getByText(/limited to 49%/)).toBeInTheDocument();
+    // Twice now: the band's own wording, and the red banner at the top of the card.
+    expect(screen.getAllByText(/limited to 49%/).length).toBeGreaterThan(0);
   });
 
   it("says WATCH when nothing at all was reported — the period nobody can vouch for", () => {
