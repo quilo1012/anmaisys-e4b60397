@@ -263,14 +263,21 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
    * reader only that the chip exists.
    */
   const totals = useMemo(() => {
-    let charged = 0, ungraded = 0, free = 0;
+    let charged = 0, ungraded = 0, free = 0, ungradedPriced = 0;
     for (const a of actions) {
       const c = charges[a.id];
       charged += c?.charged ?? 0;
-      if (!a.severity) ungraded += 1;
       if (c && c.counted && c.charged === 0) free += 1;
+      if (!a.severity) {
+        ungraded += 1;
+        // Counted apart, because the sentence used to weld the two together and the
+        // weld was false: it read "3 carry no grade and no priced label" over a set
+        // where one of the three was priced at 5 by its labels. `actionPoints` is
+        // MAX(labels, grade) — no grade does not mean no charge.
+        if ((c?.charged ?? 0) > 0) ungradedPriced += 1;
+      }
     }
-    return { charged, ungraded, free };
+    return { charged, ungraded, free, ungradedPriced };
   }, [actions, charges]);
 
   // The filter changes what is DRAWN and never what is counted — the heading, the note
@@ -284,7 +291,22 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
     const st = statusMeta(a.status);
     const sev = a.severity ? severityMeta(a.severity) : null;
     const validation = validationMeta(a.validation_status);
-    const charge: ActionCharge = charges[a.id] ?? { charged: 0, worth: 0, counted: true, reason: "counted" };
+    const charge: ActionCharge = charges[a.id]
+      ?? { charged: 0, worth: 0, counted: true, reason: "counted", basis: "unpriced", explanation: "" };
+    /**
+     * Where the charge came from, when it did not come from the grade.
+     *
+     * Said only where the row cannot already answer it. A graded action prints its
+     * grade one line up, so naming "severity" under the figure would repeat what the
+     * eye has just read. The two cases that DO need a word are the ones that look like
+     * arithmetic errors: a charge on a row carrying no grade at all, and a frozen
+     * figure that today's prices no longer add up to.
+     */
+    const pricedBy = charge.counted && charge.charged > 0
+      ? charge.basis === "labels" ? "labels"
+        : charge.basis === "frozen" ? "old scale"
+        : null
+      : null;
     // Only a verdict that means something. "Open" beside the state word would be the
     // same idea twice in one column, in two vocabularies.
     const showValidation = a.validation_status === "validated" || a.validation_status === "rejected";
@@ -444,12 +466,20 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
         {/* What it cost. The column the card existed without. */}
         <div className="w-14 shrink-0 text-right">
           {charge.counted ? (
-            <p className={cn(
-              "font-figure text-sm leading-none",
-              charge.charged > 0 ? "font-semibold text-foreground" : "text-muted-foreground/60",
-            )}>
-              {charge.charged}<span className="text-2xs font-normal">p</span>
-            </p>
+            <>
+              <p
+                title={charge.explanation || undefined}
+                className={cn(
+                  "font-figure text-sm leading-none",
+                  charge.charged > 0 ? "font-semibold text-foreground" : "text-muted-foreground/60",
+                )}
+              >
+                {charge.charged}<span className="text-2xs font-normal">p</span>
+              </p>
+              {pricedBy && (
+                <p className="mt-0.5 text-2xs leading-tight text-muted-foreground">{pricedBy}</p>
+              )}
+            </>
           ) : (
             <>
               <p className="font-figure text-sm leading-none text-muted-foreground/50">—</p>
@@ -477,10 +507,21 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
           the leader did nothing wrong, or because nobody graded any of it, and the two
           were indistinguishable on the page — 112 of the 135 actions in the base carry
           no grade. Said once, in words, rather than as a pill repeated on every row. */}
-      {totals.free > 0 && (
+      {(totals.free > 0 || totals.ungraded > 0) && (
         <p className="mb-2 text-2xs leading-snug text-muted-foreground">
-          {totals.free} of {actions.length} action{actions.length === 1 ? "" : "s"} charged nothing
-          {totals.ungraded > 0 && ` — ${totals.ungraded} carr${totals.ungraded === 1 ? "ies" : "y"} no grade and no priced label`}.
+          {totals.free > 0 && (
+            <>{totals.free} of {actions.length} action{actions.length === 1 ? "" : "s"} charged nothing. </>
+          )}
+          {totals.ungraded > 0 && (
+            <>
+              {totals.ungraded} carr{totals.ungraded === 1 ? "ies" : "y"} no grade
+              {totals.ungradedPriced > 0
+                ? <>, and {totals.ungradedPriced === totals.ungraded
+                    ? totals.ungraded === 1 ? "it is" : "they are"
+                    : `${totals.ungradedPriced} of ${totals.ungraded === 1 ? "it" : "those"} ${totals.ungradedPriced === 1 ? "is" : "are"}`} priced by {totals.ungradedPriced === 1 ? "its" : "their"} labels anyway.</>
+                : " and no priced label."}
+            </>
+          )}
           {onGrade && " Grading one here re-prices it against this period's ruler."}
         </p>
       )}
