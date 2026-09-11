@@ -75,13 +75,32 @@ describe("the root cause outranks the labels, in TypeScript as in SQL", () => {
 
   it("behaves exactly as it did before the column existed when nothing is established", () => {
     // The reason the column is nullable: no history moves.
+    //
+    // Asserted on a PAPERWORK action rather than on EVERTON, and the change of fixture
+    // is the point rather than a convenience. This case used to read EVERTON and expect
+    // 5, because a blank root cause was blank and that was all. Since 20260921090000 the
+    // `Maintenance` label DECLARES its root cause — the field sat NULL on all 182 rows
+    // and the rule was unreachable — so EVERTON no longer has "nothing established". An
+    // action with no such label still does, and that is what this property was about.
+    const PAPERWORK = { domain: "quality", severity: null as string | null, labels: ["Paperwork"] };
+    setLabelPoints({ paperwork: 4 });
+    setRootCauseAttribution(SEEDED);
+    const before = actionPoints(PAPERWORK, NO_EXCLUDED_LABELS);
+    expect(before).toBe(4);
+    expect(actionPoints({ ...PAPERWORK, root_cause_area: null }, NO_EXCLUDED_LABELS)).toBe(before);
+    expect(actionPoints({ ...PAPERWORK, root_cause_area: "" }, NO_EXCLUDED_LABELS)).toBe(before);
+    expect(actionPoints({ ...PAPERWORK, root_cause_area: "   " }, NO_EXCLUDED_LABELS)).toBe(before);
+  });
+
+  it("derives Maintenance from the label when nobody has written a cause", () => {
+    // The case the whole change exists for, now true without anybody opening the action:
+    // "Batch Code Printing Issue (L5)", Everton, `Batch code` + `Maintenance`.
     setLabelPoints({ "batch code": 5 });
     setRootCauseAttribution(SEEDED);
-    const before = actionPoints(EVERTON, NO_EXCLUDED_LABELS);
-    expect(before).toBe(5);
-    expect(actionPoints({ ...EVERTON, root_cause_area: null }, NO_EXCLUDED_LABELS)).toBe(before);
-    expect(actionPoints({ ...EVERTON, root_cause_area: "" }, NO_EXCLUDED_LABELS)).toBe(before);
-    expect(actionPoints({ ...EVERTON, root_cause_area: "   " }, NO_EXCLUDED_LABELS)).toBe(before);
+    expect(actionPoints(EVERTON, NO_EXCLUDED_LABELS)).toBe(0);
+    expect(standsAgainstLeader(EVERTON, NO_EXCLUDED_LABELS)).toBe(false);
+    // And an explicit Production still overrules it — see default_root_cause_from_label.
+    expect(actionPoints({ ...EVERTON, root_cause_area: "Production" }, NO_EXCLUDED_LABELS)).toBe(5);
   });
 
   it("matches case-insensitively, because the SQL compares lower(btrim(...))", () => {
