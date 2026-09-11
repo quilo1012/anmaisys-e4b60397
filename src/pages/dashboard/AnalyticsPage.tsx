@@ -299,7 +299,7 @@ export default function AnalyticsPage() {
       // to fall back on a base where `domain` has not been migrated yet — see
       // selectOptionalDomain.
       range: (a, b) => selectOptionalDomain(
-        "leader_name, severity, status, labels, validation_status, recorded_at, description, shift, domain, points_at_creation, scoring_version_id",
+        "leader_name, severity, status, labels, validation_status, recorded_at, description, shift, domain, points_at_creation, scoring_version_id, root_cause_area",
         (columns) => (supabase as any)
           .from("quality_actions")
           .select(columns)

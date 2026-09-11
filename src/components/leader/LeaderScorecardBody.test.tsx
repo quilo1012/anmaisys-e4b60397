@@ -949,7 +949,7 @@ describe("the Health & Safety block in the score panel", () => {
       score: {
         ...makeResult().score,
         final: 49,
-        cap: { value: 49, applied: true, weighted: 93, reason: "A lost-time injury limits this score to 49%." },
+        cap: { value: 49, applied: true, weighted: 93, named: "A lost-time injury", reason: "A lost-time injury limits this score to 49%." },
       },
     }));
     expect(screen.getByText("GATED")).toBeInTheDocument();

@@ -37,7 +37,7 @@ import { leaderPointsBreakdown, issueWeight } from "@/lib/qualityBreakdown";
 import { useScoringFreeze } from "@/hooks/useScoringFreeze";
 import { useGateLabels, useLabelKinds } from "@/hooks/useQualityOptions";
 import { useLeaderAttribution, useSetLabelAttribution } from "@/hooks/useLabelAttribution";
-import { useQualityOptions, useAllQualityOptions, useDepartmentAttribution, type QualityOption } from "@/hooks/useQualityOptions";
+import { useQualityOptions, useAllQualityOptions, useDepartmentAttribution, useRootCauses, type QualityOption } from "@/hooks/useQualityOptions";
 import { listGroups } from "@/lib/qualityListGroups";
 import { railEdge } from "@/lib/rail";
 import { useSeverityPointRows, useUpdateSeverityPoints } from "@/hooks/useSeverityPoints";
@@ -75,6 +75,8 @@ interface QualityAction {
   closed_at: string | null; closed_by: string | null;
   sku: string | null; batch: string | null;
   domain?: string | null; safety_kind?: string | null;
+  /** Which area's failure this was. Voids the leader's charge when it is not theirs. */
+  root_cause_area?: string | null;
   source?: string | null;
   /** The sync's verdict: line | leader | quality_error | needs_review | excluded. NULL on rows typed by hand. */
   classification?: string | null;
@@ -101,6 +103,7 @@ const makeEmptyForm = (domain: "quality" | "safety" = "quality") => ({
   action_no: "", action_type_id: "", line: "", shift: "DAY", leader_id: "", leader_name: "",
   date: todayISO(), sku: "", batch: "",
   department: "", severity: "", labels: [] as string[], description: "",
+  root_cause_area: "",
   domain, safety_kind: "",
   // The leader_id already on the row being edited (null for a new insert) — see the
   // doc comment on QualityActionFormInput.original_leader_id for why this exists.
@@ -137,6 +140,11 @@ function RowDeleteButton({ actionNo, onConfirm }: { actionNo?: string | number |
 export function QualityActionsView() {
   const { can } = useRole();
   const canManage = can("quality.manage");
+  /* Mirrors the database trigger `guard_quality_root_cause`, which is the thing that
+     actually refuses the write. Disabling the control is a courtesy so nobody types an
+     answer that comes back as an error they cannot act on. */
+  const canSetRootCause = can("quality.validate") || canManage;
+  const rootCauses = useRootCauses();
   // `canValidate` and `canClose` were read here, for the verdict and the closure
   // controls in the detail dialog. Both controls are gone. A capability nothing renders
   // is how a dead control gets rebuilt, so they are not left standing: `quality.validate`
@@ -222,6 +230,7 @@ export function QualityActionsView() {
       sku: a.sku ?? "",
       batch: a.batch ?? "",
       department: a.department ?? "",
+      root_cause_area: a.root_cause_area ?? "",
       severity: a.severity ?? "",
       labels: a.labels ?? [],
       description: a.description ?? "",
@@ -892,6 +901,45 @@ export function QualityActionsView() {
                       </Select>
                     </div>
                   </div>
+                  {/* Root cause. Quality only — a safety occurrence scores 0 whatever
+                      caused it, so asking whose it was would imply a charge that does
+                      not exist.
+                      Not mandatory here on purpose: whoever raises the action on the
+                      floor usually does not know yet, and a required field would be
+                      filled in with a guess that then has to be argued back out of
+                      somebody's score. Quality settles it before validating. */}
+                  {form.domain !== "safety" && (
+                    <div>
+                      <Label>Root cause — whose is this?</Label>
+                      <Select
+                        value={form.root_cause_area || "none"}
+                        onValueChange={(v) => setForm({ ...form, root_cause_area: v === "none" ? "" : v })}
+                        disabled={!canSetRootCause || rootCauses.missing}
+                      >
+                        <SelectTrigger className="mt-1"><SelectValue placeholder="Not established" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Not established yet</SelectItem>
+                          {rootCauses.options.map((rc) => (
+                            <SelectItem key={rc} value={rc}>
+                              {rc}{rootCauses.attribution[rc] === false ? " — not charged to the leader" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="mt-1 text-2xs text-muted-foreground">
+                        A machine fault is maintenance's. Choosing anything other than Production
+                        or Quality means this action charges nothing to the line leader.
+                      </p>
+                      {!canSetRootCause && (
+                        <p className="mt-1 text-2xs text-warning-strong">Only Quality may set this.</p>
+                      )}
+                      {rootCauses.missing && (
+                        <p className="mt-1 text-2xs text-warning-strong">
+                          No root causes are configured yet — add them under Lists &amp; scoring.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>SKU</Label>
                       <ComboboxInput
@@ -1570,6 +1618,11 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
                 <DetailMeta label="Shift" value={action.shift} />
                 <DetailMeta label="Leader" value={action.leader_name} />
                 <DetailMeta label="Department" value={action.department} />
+                {/* Named even when it is empty: "not established" is a fact about the
+                    action, and a blank row is what lets a leader ask for one. */}
+                {domainOf(action) !== "safety" && (
+                  <DetailMeta label="Root cause" value={action.root_cause_area ?? "Not established"} />
+                )}
                 <DetailMeta label="Logged" value={format(new Date(action.recorded_at), "dd/MM/yyyy HH:mm")} />
               </div>
 

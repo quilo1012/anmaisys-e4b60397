@@ -76,7 +76,7 @@ export function ControlCentreHome() {
       // see selectOptionalDomain. Rejecting the whole query for that one column is what
       // made this tile report "Open actions 0" over four open ones.
       const { data, error } = await selectOptionalDomain(
-        "id, status, severity, labels, validation_status, line, leader_name, recorded_at, domain, points_at_creation",
+        "id, status, severity, labels, validation_status, line, leader_name, recorded_at, domain, points_at_creation, root_cause_area",
         (columns) => (supabase as any)
           .from("quality_actions")
           .select(columns)
@@ -94,6 +94,7 @@ export function ControlCentreHome() {
          *  cast if it is not declared, which would leave this tile computing today's
          *  scale while every other surface reports the scale of the action's day. */
         points_at_creation?: number | null;
+        root_cause_area?: string | null;
       }>;
     },
   });

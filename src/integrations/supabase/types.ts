@@ -4154,6 +4154,7 @@ export type Database = {
           points_recalculated_at: string | null
           recorded_at: string
           recorded_by: string | null
+          root_cause_area: string | null
           safety_kind: Database["public"]["Enums"]["safety_kind"] | null
           scoring_version_id: number | null
           session_id: string | null
@@ -4213,6 +4214,7 @@ export type Database = {
           points_recalculated_at?: string | null
           recorded_at?: string
           recorded_by?: string | null
+          root_cause_area?: string | null
           safety_kind?: Database["public"]["Enums"]["safety_kind"] | null
           scoring_version_id?: number | null
           session_id?: string | null
@@ -4272,6 +4274,7 @@ export type Database = {
           points_recalculated_at?: string | null
           recorded_at?: string
           recorded_by?: string | null
+          root_cause_area?: string | null
           safety_kind?: Database["public"]["Enums"]["safety_kind"] | null
           scoring_version_id?: number | null
           session_id?: string | null
@@ -7832,6 +7835,7 @@ export type Database = {
           _department: string
           _domain: string
           _labels: string[]
+          _root_cause: string
           _severity: string
           _validation_status: string
           _version_id: number

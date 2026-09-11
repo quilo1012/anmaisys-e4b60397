@@ -9,7 +9,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ActionScore } from "@/components/quality/ActionScore";
-import { setLabelPoints } from "@/lib/qualityConstants";
+import { setLabelPoints, setRootCauseAttribution } from "@/lib/qualityConstants";
 
 const EXCLUDED = new Set(["maintenance"]);
 const action = {
@@ -19,7 +19,10 @@ const action = {
   validation_status: "open" as string | null,
 };
 
-afterEach(() => setLabelPoints({}));
+afterEach(() => {
+  setLabelPoints({});
+  setRootCauseAttribution({});
+});
 
 describe("ActionScore", () => {
   it("draws no number until attribution has loaded", () => {
@@ -60,5 +63,47 @@ describe("ActionScore", () => {
   it("says the grade paid when no label carries a price", () => {
     render(<ActionScore action={action} excluded={EXCLUDED} ready />);
     expect(screen.getByText(/from the Critical grade/)).toBeTruthy();
+  });
+});
+
+/**
+ * The root-cause void, on the receipt.
+ *
+ * A machine fault reaching a leader's score through a priced label is what this whole
+ * change exists to stop. The stopping has to be VISIBLE on the action it changed —
+ * a silent 0 beside a label worth 5 is indistinguishable from a bug.
+ */
+describe("ActionScore — root cause", () => {
+  it("names the area, and shows what its labels would otherwise have cost", () => {
+    setLabelPoints({ "batch code": 5 });
+    setRootCauseAttribution({ Production: true, Maintenance: false });
+    render(
+      <ActionScore
+        action={{ ...action, severity: null, root_cause_area: "Maintenance" }}
+        excluded={new Set()}
+        ready
+      />,
+    );
+    expect(screen.getByText(
+      /0 points — root cause is Maintenance, so this is not charged to the leader\./,
+    )).toBeTruthy();
+    // Struck through, not dropped: a total that has quietly had something removed
+    // looks exactly like a total that never had it.
+    expect(screen.getByText("Batch code")).toBeTruthy();
+  });
+
+  it("charges in full when the root cause is the line's own", () => {
+    setLabelPoints({ "batch code": 5 });
+    setRootCauseAttribution({ Production: true, Maintenance: false });
+    render(
+      <ActionScore
+        action={{ ...action, severity: null, root_cause_area: "Production" }}
+        excluded={new Set()}
+        ready
+      />,
+    );
+    // Twice on purpose — the figure, and the line item that produced it.
+    expect(screen.getAllByText("5")).toHaveLength(2);
+    expect(screen.queryByText(/not charged to the leader/)).toBeNull();
   });
 });

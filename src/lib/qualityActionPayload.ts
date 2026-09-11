@@ -36,6 +36,11 @@ export interface QualityActionFormInput {
   description: string;
   domain: "quality" | "safety";
   safety_kind: string;
+  /**
+   * Which area's failure this was. Empty means "not established yet", which scores
+   * exactly as it did before the field existed — see `countsAgainstLeaderRootCause`.
+   */
+  root_cause_area: string;
   original_leader_id: string | null;
 }
 
@@ -104,5 +109,13 @@ export function buildQualityActionPayload(
     // null for quality, the picked kind for safety — the CHECK constraint on the
     // table refuses any other combination.
     safety_kind: form.domain === "safety" ? (form.safety_kind || null) : null,
+    // Quality only, for the same reason the form only asks there: a safety occurrence
+    // scores 0 whatever caused it, so an area recorded against one would look like an
+    // attribution that changes a charge, and it changes nothing.
+    //
+    // Always sent, including unchanged. `guard_quality_root_cause` compares NEW with
+    // OLD, so a user who may not set it can still save an edit to any other field —
+    // it is only a CHANGE that is refused.
+    root_cause_area: form.domain === "safety" ? null : (form.root_cause_area || null),
   };
 }

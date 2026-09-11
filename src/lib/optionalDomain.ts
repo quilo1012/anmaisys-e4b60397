@@ -49,7 +49,11 @@ type Settled<T> = { data: T[] | null; error: unknown };
  * Delete an entry the day its migration is confirmed applied everywhere. Each one hides
  * real schema drift for as long as it stays.
  */
-const OPTIONAL_COLUMNS = ["domain", "safety_kind", "points_at_creation", "scoring_version_id"];
+// `root_cause_area` arrives with the root-cause migration. Same treatment: a base
+// without the column has no root cause on any action, and a null root cause is defined
+// to score exactly as it did before the field existed, so dropping it is the correct
+// reading rather than a workaround.
+const OPTIONAL_COLUMNS = ["domain", "safety_kind", "points_at_creation", "scoring_version_id", "root_cause_area"];
 
 export async function selectOptionalColumns<T>(
   columns: string,
