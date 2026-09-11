@@ -353,16 +353,24 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
           <SidebarGroup key={group.label} className={cn("px-2", iconCollapsed && "px-0")}>
             {/* In the rail the group headings disappear with the labels, which leaves
                 ~17 undifferentiated icons in one column. These 3-letter markers keep
-                the section structure legible at 3rem wide, so the rail can still be
-                used to reach each section's page rather than being a wall of icons. */}
-            {iconCollapsed && groupIndex > 0 && (
-              <div className="flex flex-col items-center gap-0.5 pt-1.5 pb-0.5" aria-hidden="true">
-                <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-sidebar-foreground/40">
-                  {group.label.slice(0, 3)}
-                </span>
-                <div className="w-6 border-t border-sidebar-border/60" />
-              </div>
+                the section structure legible at 3rem wide — and they open a flyout
+                naming every page in the section, so the rail is a menu you can read
+                rather than a wall of icons you have to remember. */}
+            {iconCollapsed && (
+              <RailFlyout label={group.label} items={group.items}>
+                <button
+                  type="button"
+                  aria-label={`${group.label} — abrir secção`}
+                  className="mx-auto flex w-full flex-col items-center gap-0.5 pt-1.5 pb-0.5 text-sidebar-foreground/50 hover:text-sidebar-foreground"
+                >
+                  <span className="text-[9px] font-bold uppercase tracking-[0.1em]">
+                    {group.label.slice(0, 3)}
+                  </span>
+                  <div className="w-6 border-t border-sidebar-border/60" />
+                </button>
+              </RailFlyout>
             )}
+
             {compact && !iconCollapsed && (
               <button
                 type="button"
