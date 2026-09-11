@@ -8,6 +8,7 @@ import XLSX from "xlsx-js-style";
 import logoUrl from "@/assets/appliedlogo.jpeg";
 import { severityMeta, validationMeta, actionHeadline } from "@/lib/qualityConstants";
 import { leaderTracking, pointsLabel } from "@/lib/leaderTracking";
+import { parseProductNote, resolveSkuFromNote } from "@/lib/qualityProductNote";
 
 export interface QualityReportAction {
   recorded_at: string;
@@ -46,7 +47,20 @@ export interface QualityReportInput {
    * `src/lib/qualityReport.test.ts` calls in 4 places without passing it.
    */
   skuCatalog?: { code: string; name: string }[];
+  /**
+   * Which SKUs each batch code was actually run as, from `production_items`.
+   * OPTIONAL: without it the Actions sheet still recovers the product name and the
+   * batch an operator wrote into a SafetyCulture note, and leaves SKU unresolved.
+   */
+  batchSkus?: { batch: string; code: string; name: string }[];
 }
+
+/**
+ * What an empty cell says. The PDF has always printed an em dash for an ungraded
+ * severity; the workbook now says the same thing everywhere, because a grid of
+ * blanks reads as a sheet nobody finished rather than as a fact about the factory.
+ */
+export const EMPTY_CELL = "\u2014";
 
 /** Sentinel written when a SKU is not in the catalogue — the same text the formula produces. */
 export const SKU_NOT_FOUND = "### CODIGO NAO ENCONTRADO ###";
@@ -321,11 +335,66 @@ export function generateQualityReportExcel(input: QualityReportInput) {
   const s = summarize(actions);
   const wb = XLSX.utils.book_new();
 
+  // SKU catalogue, normalised (TRIM + UPPER) so the VLOOKUP below — whose left-hand
+  // side is normalised the same way — matches a hand-typed " abebr ".
+  const catalog = (input.skuCatalog ?? [])
+    .map((p) => ({ code: (p.code ?? "").trim().toUpperCase(), name: p.name }))
+    .filter((p) => p.code)
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const nameByCode = new Map(catalog.map((p) => [p.code, p.name]));
+  const lastCatalogRow = catalog.length + 1; // +1 for the SKUs header row
+
+  // What each batch code was actually run as, so a note naming a batch can name a SKU.
+  const byBatch = new Map<string, { code: string; name: string }[]>();
+  for (const b of input.batchSkus ?? []) {
+    const key = (b.batch ?? "").trim().toUpperCase();
+    const code = (b.code ?? "").trim().toUpperCase();
+    if (!key || !code) continue;
+    const list = byBatch.get(key) ?? [];
+    if (!list.some((c) => c.code === code)) list.push({ code, name: b.name });
+    byBatch.set(key, list);
+  }
+
+  /**
+   * SKU, Product and Batch for one row.
+   *
+   * From the form when the form holds them. Otherwise from the operator's own note:
+   * every action since 01/09/2026 comes from SafetyCulture, which has no product
+   * field and never writes `sku` or `batch`, so those three columns printed blank on
+   * all 106 of them while the note said, in as many words, which product and which
+   * batch. See `qualityProductNote.ts`.
+   *
+   * `derived` marks a value read out of a sentence rather than typed into the field
+   * for it — the sheet sets those in italic, because on a document that gets signed
+   * the two are not the same claim.
+   */
+  const identify = (a: QualityReportAction) => {
+    const sku = (a.sku ?? "").trim();
+    const batch = (a.batch ?? "").trim();
+    if (sku || batch) return { sku, batch, product: "", derived: false };
+    const note = parseProductNote(a.description);
+    if (!note) return { sku: "", batch: "", product: "", derived: false };
+    const code = resolveSkuFromNote(note, byBatch.get(note.batch) ?? []);
+    return {
+      sku: code ?? "",
+      batch: note.batch,
+      // The catalogue's name when the code is certain, the operator's own words when
+      // it is not — never nothing, because the note did name the product.
+      product: (code && nameByCode.get(code)) || note.product,
+      derived: true,
+    };
+  };
+  const ids = actions.map(identify);
+  const derivedRows = ids.filter((i) => i.derived).length;
+
   // Summary sheet
   const sum: any[][] = [];
   sum.push([{ v: "Quality Report", s: TITLE_STYLE }]);
   sum.push([periodLabel]);
   sum.push([`Generated ${new Date().toLocaleString("en-GB")} by ${generatedBy}`]);
+  if (derivedRows) {
+    sum.push([`Actions sheet: ${derivedRows} row(s) have SKU, Product and Batch read from the action's own note, shown in italic.`]);
+  }
   sum.push([]);
   sum.push([{ v: "KPIs", s: { font: { bold: true } } }]);
   sum.push(["Total actions", s.total]);
@@ -336,37 +405,36 @@ export function generateQualityReportExcel(input: QualityReportInput) {
   const block = (title: string, rows: [string, number][]) => {
     sum.push([]);
     sum.push([{ v: title, s: HEAD_STYLE }, { v: "Count", s: HEAD_STYLE }]);
-    for (const [k, v] of (rows.length ? rows : [["—", 0] as [string, number]])) sum.push([k, v]);
+    for (const [k, v] of (rows.length ? rows : [["\u2014", 0] as [string, number]])) sum.push([k, v]);
   };
   block("By Validation", tally(actions, (a) => validationMeta(a.validation_status).label));
   block("By Severity", tally(actions, (a) => sevLabel(a.severity)));
-  block("By Line", tally(actions, (a) => a.line || "—"));
-  block("By Department", tally(actions, (a) => a.department || "—"));
+  block("By Line", tally(actions, (a) => a.line || EMPTY_CELL));
+  block("By Department", tally(actions, (a) => a.department || EMPTY_CELL));
   // Same rule as `leaderTracking` above and in the PDF's per-leader table: this is a
   // per-leader ranking, and a safety near miss must not inflate anyone's place in it.
-  block("By Leader", tally(actions.filter((a) => a.domain !== "safety"), (a) => a.leader_name || "—"));
+  block("By Leader", tally(actions.filter((a) => a.domain !== "safety"), (a) => a.leader_name || EMPTY_CELL));
   const wsSum = XLSX.utils.aoa_to_sheet(sum);
   wsSum["!cols"] = [{ wch: 22 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, wsSum, "Summary");
 
-  // SKU catalogue, normalised (TRIM + UPPER) so the VLOOKUP below — whose left-hand
-  // side is normalised the same way — matches a hand-typed " abebr ".
-  const catalog = (input.skuCatalog ?? [])
-    .map((p) => ({ code: (p.code ?? "").trim().toUpperCase(), name: p.name }))
-    .filter((p) => p.code)
-    .sort((a, b) => a.code.localeCompare(b.code));
-  const nameByCode = new Map(catalog.map((p) => [p.code, p.name]));
-  const lastCatalogRow = catalog.length + 1; // +1 for the SKUs header row
+  /** A value read out of a note, not typed into the field for it. */
+  const DERIVED_STYLE = { font: { italic: true, color: { rgb: "475569" } } };
+  const derivedCell = (v: string) => ({ t: "s", v, s: DERIVED_STYLE });
+  /** No cell is left blank: the em dash says "this action has none", which is a fact. */
+  const text = (v: string | null | undefined) => (filled(v) ? (v as string).trim() : EMPTY_CELL);
 
-  const productCell = (excelRow: number, sku: string | null) => {
-    const key = (sku ?? "").trim().toUpperCase();
+  const productCell = (excelRow: number, id: ReturnType<typeof identify>) => {
+    if (id.derived) return derivedCell(id.product || EMPTY_CELL);
+    const key = id.sku.toUpperCase();
     return {
       t: "s",
       // Cached value: readers that do not evaluate formulas (Numbers, a parser,
       // a Google Sheets import) still show the name instead of a blank cell.
-      v: key ? (nameByCode.get(key) ?? SKU_NOT_FOUND) : "",
+      v: key ? (nameByCode.get(key) ?? SKU_NOT_FOUND) : EMPTY_CELL,
       // Formula: when someone types a code into the sheet by hand, the column answers.
-      f: `IF(TRIM(I${excelRow})="","",IFERROR(VLOOKUP(TRIM(UPPER(I${excelRow})),SKUs!$A$2:$B$${lastCatalogRow},2,FALSE),"${SKU_NOT_FOUND}"))`,
+      // An em dash on the left is the sheet's own "none", not a code to look up.
+      f: `IF(OR(TRIM(I${excelRow})="",TRIM(I${excelRow})="${EMPTY_CELL}"),"${EMPTY_CELL}",IFERROR(VLOOKUP(TRIM(UPPER(I${excelRow})),SKUs!$A$2:$B$${lastCatalogRow},2,FALSE),"${SKU_NOT_FOUND}"))`,
     };
   };
 
@@ -376,12 +444,17 @@ export function generateQualityReportExcel(input: QualityReportInput) {
     "Batch", "Labels", "Notes"];
   const rows: any[][] = [header.map((h) => ({ v: h, s: HEAD_STYLE }))];
   actions.forEach((a, r) => {
+    const id = ids[r];
     rows.push([
-      fmtDate(a.recorded_at), a.action_no ?? "", validationMeta(a.validation_status).label, sevLabel(a.severity),
-      a.line ?? "", a.shift ?? "", a.leader_name ?? "", a.department ?? "", a.sku ?? "",
-      ...(catalog.length ? [productCell(r + 2, a.sku)] : []),
-      a.batch ?? "",
-      (a.labels ?? []).join("; "), actionHeadline(a) ?? "",
+      text(fmtDate(a.recorded_at)), text(a.action_no), validationMeta(a.validation_status).label, sevLabel(a.severity),
+      text(a.line), text(a.shift), text(a.leader_name), text(a.department),
+      id.derived && id.sku ? derivedCell(id.sku) : text(id.sku),
+      ...(catalog.length ? [productCell(r + 2, id)] : []),
+      id.derived && id.batch ? derivedCell(id.batch) : text(id.batch),
+      text((a.labels ?? []).join("; ")),
+      // `actionHeadline`, not `description`: 88 of the 106 SafetyCulture rows carry no
+      // description at all, and the whole of what they say lives in `title`.
+      text(actionHeadline(a)),
     ]);
   });
   const wsAct = XLSX.utils.aoa_to_sheet(rows);

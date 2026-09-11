@@ -39,6 +39,19 @@ export default defineConfig({
     testTimeout: 15_000,
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      /**
+       * Deno's specifier, resolved to the copy already in node_modules.
+       *
+       * `src/__tests__/` reaches straight into `supabase/functions/_shared/` for the
+       * pure modules and always has. `sync.ts` is the first one under test that
+       * actually talks to a database, and it imports the client the way Deno wants —
+       * which Vite cannot resolve, so the file could not be loaded at all. The alias
+       * is scoped to the test config: the app bundle and the deployed function are
+       * untouched, and the function still ships the `npm:` specifier Deno reads.
+       */
+      "npm:@supabase/supabase-js@2": "@supabase/supabase-js",
+    },
   },
 });

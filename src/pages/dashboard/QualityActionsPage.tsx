@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
-import { generateQualityReportPDF, generateQualityReportExcel } from "@/lib/qualityReport";
+import { generateQualityReportPDF, generateQualityReportExcel, type QualityReportAction } from "@/lib/qualityReport";
+import { parseProductNote } from "@/lib/qualityProductNote";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -94,6 +95,65 @@ async function resolveSkuCode(it: { sku_code_text?: string | null; sku_id?: stri
     return data?.code ?? "";
   }
   return "";
+}
+
+/**
+ * One log row, in the shape the report reads.
+ *
+ * `title` is the field this mapper existed without, and the hole it left was the
+ * whole Notes column: `actionHeadline` prefers the title and falls back to the
+ * description, and 88 of the 106 SafetyCulture rows have no description — so the
+ * workbook printed for 04–11/09/2026 came out with Notes blank on all but four of
+ * its 55 rows, while every one of them had a title in the base.
+ */
+const reportAction = (a: QualityAction): QualityReportAction => ({
+  recorded_at: a.recorded_at, action_no: a.action_no, severity: a.severity,
+  line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
+  sku: a.sku, batch: a.batch, labels: a.labels, title: a.title, description: a.description,
+  // Never passed before this mapper existed. It did not show while the report printed
+  // `status`; the moment the report started printing the verdict instead, every row of
+  // the daily PDF would have read "Open" — including the ones Quality had already
+  // validated that morning.
+  validation_status: a.validation_status, closed_at: a.closed_at,
+  domain: a.domain, safety_kind: a.safety_kind,
+});
+
+/**
+ * What each batch named in a note was actually run as.
+ *
+ * A SafetyCulture action has no product field, so the operator writes it into the
+ * note as `Product / BATCH / best-before`. That middle token is a batch code, and a
+ * batch is not a SKU — `production_items` says A26213 was run as both CRE250 and
+ * CRE500. This fetches the candidates and `qualityReport` decides, or leaves the
+ * cell empty rather than guess.
+ *
+ * Only rows with a real `sku_id` count: `sku_code_text` is free text an operator
+ * typed ("Basix oats coconut 3kg tubs"), which is not a code the SKUs sheet can
+ * answer for.
+ */
+async function batchSkusFor(actions: QualityReportAction[]) {
+  const batches = Array.from(new Set(
+    actions
+      .filter((a) => !(a.sku ?? "").trim() && !(a.batch ?? "").trim())
+      .map((a) => parseProductNote(a.description)?.batch)
+      .filter((b): b is string => !!b),
+  ));
+  if (batches.length === 0) return [];
+  const { data: items } = await supabase
+    .from("production_items").select("batch_code, sku_id").in("batch_code", batches);
+  const rows = (items ?? [])
+    .filter((r): r is { batch_code: string; sku_id: string } => !!r.batch_code && !!r.sku_id);
+  const ids = Array.from(new Set(rows.map((r) => r.sku_id)));
+  if (ids.length === 0) return [];
+  const { data: skus } = await supabase
+    .from("sku_products").select("id, code, name").in("id", ids);
+  const byId = new Map((skus ?? []).map((p) => [p.id, p]));
+  const out: { batch: string; code: string; name: string }[] = [];
+  for (const r of rows) {
+    const p = byId.get(r.sku_id);
+    if (p?.code) out.push({ batch: r.batch_code.trim().toUpperCase(), code: p.code, name: p.name });
+  }
+  return out;
 }
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -663,20 +723,24 @@ export function QualityActionsView() {
   };
 
   const reportInput = () => ({
-    actions: filtered.map((a) => ({
-      recorded_at: a.recorded_at, action_no: a.action_no, severity: a.severity,
-      line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
-      sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
-      validation_status: a.validation_status, closed_at: a.closed_at,
-      domain: a.domain, safety_kind: a.safety_kind,
-    })),
+    actions: filtered.map(reportAction),
     periodLabel,
     generatedBy: profile?.name || "—",
     // The PDF shares this object and ignores the field.
     skuCatalog,
   });
   const printPDF = () => { generateQualityReportPDF(reportInput()).catch(() => toast.error("Could not generate PDF")); };
-  const fullExcel = () => { try { generateQualityReportExcel(reportInput()); } catch { toast.error("Could not generate Excel"); } };
+  /**
+   * Async only for the batch lookup: the workbook recovers the SKU and the batch an
+   * operator wrote into a SafetyCulture note, and a note names a BATCH, which is not
+   * a SKU — only `production_items` knows what a batch was actually run as.
+   */
+  const fullExcel = async () => {
+    try {
+      const actions = filtered.map(reportAction);
+      generateQualityReportExcel({ ...reportInput(), actions, batchSkus: await batchSkusFor(actions) });
+    } catch { toast.error("Could not generate Excel"); }
+  };
 
   // One-tap report of TODAY's actions, independent of the date-range filter —
   // it queries today directly so it's right even if the filter is on a past range.
@@ -694,17 +758,7 @@ export function QualityActionsView() {
         .filter((a) => shiftSessionDate(a.recorded_at, a.shift) === day);
       if (rows.length === 0) { toast.info("No quality actions logged today"); return; }
       await generateQualityReportPDF({
-        actions: rows.map((a) => ({
-          recorded_at: a.recorded_at, action_no: a.action_no, severity: a.severity,
-          line: a.line, shift: a.shift, leader_name: a.leader_name, department: a.department,
-          sku: a.sku, batch: a.batch, labels: a.labels, description: a.description,
-          // Never passed before. It did not show while the report printed `status`;
-          // the moment the report started printing the verdict instead, every row of
-          // the daily PDF would have read "Open" — including the ones Quality had
-          // already validated that morning.
-          validation_status: a.validation_status, closed_at: a.closed_at,
-          domain: a.domain, safety_kind: a.safety_kind,
-        })),
+        actions: rows.map(reportAction),
         periodLabel: `Daily report · ${format(new Date(), "dd/MM/yyyy")}`,
         generatedBy: profile?.name || "—",
       });

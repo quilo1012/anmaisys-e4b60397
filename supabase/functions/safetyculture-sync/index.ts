@@ -44,7 +44,7 @@ const ALLOWED = ["admin", "manager", "quality_supervisor", "maintenance_manager"
  * Stamp of the build that is actually running. Returned in every response so a
  * deploy can be confirmed from the outside, without reading the logs.
  */
-const SYNC_BUILD = "73651e47+";
+const SYNC_BUILD = "512d28e4+";
 
 function json(payload: unknown, status = 200) {
   const body =

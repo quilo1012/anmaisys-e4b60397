@@ -246,6 +246,114 @@ describe("generateQualityReportExcel — SKU catalogue", () => {
     expect(ws["J2"].v).toBe("ABE Blue Razz 500g");
     expect(ws["J2"].f).toContain("VLOOKUP(TRIM(UPPER(I2)),SKUs!$A$2:$B$4,2,FALSE)");
     expect(ws["J3"].v).toBe("### CODIGO NAO ENCONTRADO ###");
-    expect(ws["J4"].v).toBe("");
+    // Was "". A row with no SKU now says so with an em dash, like every other empty
+    // cell on the sheet — see the suite below.
+    expect(ws["J4"].v).toBe("\u2014");
+    // …and the formula treats that em dash as the sheet's own "none", so a reader
+    // who clears it and types a code still gets the name back.
+    expect(ws["J4"].f).toContain('TRIM(I4)="\u2014"');
+  });
+});
+
+/**
+ * The workbook printed for 04–11/09/2026 came out looking like a form nobody
+ * finished: SKU, Product, Batch and Shift blank on every one of its 55 rows, and
+ * Notes blank on all but four. None of that was missing data.
+ *
+ *   - Notes was blank because `actionHeadline` prefers `title`, and the page passed
+ *     only `description` — which 88 of the 106 SafetyCulture rows do not have.
+ *   - SKU and Batch were blank because nothing writes those columns for a
+ *     SafetyCulture row; what the operator wrote is in the note, as
+ *     `Product / BATCH / best-before`.
+ *
+ * So: no cell is left blank, and the three columns are read back out of the note.
+ */
+describe("generateQualityReportExcel — a sheet with no empty cells", () => {
+  const catalog = [
+    { code: "CRE250", name: "CREATINE MONOHYDRATE POWDER 250g     [HS CODE: 2106909285]" },
+    { code: "CRE500", name: "CREATINE MONOHYDRATE POWDER 500g     [HS CODE: 2106909285]" },
+    { code: "ZZZ", name: "Zed" },
+  ];
+  const batchSkus = [
+    { batch: "A26213", code: "CRE250", name: catalog[0].name },
+    { batch: "A26213", code: "CRE500", name: catalog[1].name },
+  ];
+  const sc = (over: Partial<QualityReportAction> = {}): QualityReportAction => ({
+    ...base, recorded_at: "2026-09-10", leader_name: null, line: null, shift: null,
+    severity: null, domain: "quality", validation_status: "open", ...over,
+  });
+
+  const actionsGrid = (over: Partial<Parameters<typeof generateQualityReportExcel>[0]> = {}, rows?: QualityReportAction[]) => {
+    capturedBooks.length = 0;
+    generateQualityReportExcel({
+      actions: rows ?? [sc()], periodLabel: "p", generatedBy: "t", skuCatalog: catalog, batchSkus, ...over,
+    });
+    const wb = capturedBooks[capturedBooks.length - 1] as { Sheets: Record<string, Record<string, { v?: string; f?: string; s?: { font?: { italic?: boolean } } }>> };
+    return { wb, grid: summaryGrid(wb.Sheets["Actions"]), ws: wb.Sheets["Actions"] };
+  };
+
+  it("leaves no cell of the Actions sheet blank", () => {
+    const { grid } = actionsGrid();
+    expect(grid[1].length).toBe(grid[0].length);
+    expect(grid[1].filter((v) => v === undefined || v === "")).toEqual([]);
+  });
+
+  it("prints the title when the action has no description — the Notes column's real hole", () => {
+    const { grid } = actionsGrid({}, [sc({ title: "3.00 mm Laboratory Sieve – Damaged", description: null })]);
+    expect(grid[1][grid[0].indexOf("Notes")]).toBe("3.00 mm Laboratory Sieve – Damaged");
+  });
+
+  it("reads SKU, Product and Batch back out of the note", () => {
+    const { grid } = actionsGrid({}, [sc({
+      title: "Wrong label applied",
+      description: "Creatine Monohydrate Unflavoured 250g / A26213 / 08-2026 ,  08-2028",
+    })]);
+    const at = (h: string) => grid[1][grid[0].indexOf(h)];
+    expect(at("Batch")).toBe("A26213");
+    expect(at("SKU")).toBe("CRE250");
+    expect(at("Product")).toBe(catalog[0].name);
+    // The note stays the note: recovering the product does not consume it.
+    expect(at("Notes")).toBe("Wrong label applied");
+  });
+
+  it("still names the product when the batch cannot say which SKU it was", () => {
+    const { grid } = actionsGrid({ batchSkus: [] }, [sc({
+      description: "Basix Clear Peach Iced Tea 998g / L26244 / 09-2026 09-2028",
+    })]);
+    const at = (h: string) => grid[1][grid[0].indexOf(h)];
+    expect(at("Batch")).toBe("L26244");
+    expect(at("SKU")).toBe("\u2014");
+    expect(at("Product")).toBe("Basix Clear Peach Iced Tea 998g");
+  });
+
+  it("sets a value read out of a note in italic, and one typed into the form in plain", () => {
+    const { ws } = actionsGrid({}, [
+      sc({ description: "Creatine Monohydrate Unflavoured 250g / A26213 / 08-2026" }),
+      sc({ sku: "CRE500" }),
+    ]);
+    expect(ws["I2"].s?.font?.italic).toBe(true);   // derived
+    expect(ws["I3"].s?.font?.italic).toBeUndefined(); // entered on the form
+  });
+
+  it("never overwrites what the form already says", () => {
+    const { grid } = actionsGrid({}, [sc({
+      sku: "CRE500", batch: "B1",
+      description: "Creatine Monohydrate Unflavoured 250g / A26213 / 08-2026",
+    })]);
+    const at = (h: string) => grid[1][grid[0].indexOf(h)];
+    expect(at("SKU")).toBe("CRE500");
+    expect(at("Batch")).toBe("B1");
+  });
+
+  it("says on the Summary sheet how many rows were read out of a note", () => {
+    const { wb } = actionsGrid({}, [sc({ description: "Creatine Monohydrate Unflavoured 250g / A26213 / 08-2026" }), sc()]);
+    const said = summaryGrid(wb.Sheets["Summary"]).flat().filter((v): v is string => typeof v === "string");
+    expect(said.some((v) => v.startsWith("Actions sheet: 1 row(s)"))).toBe(true);
+  });
+
+  it("says nothing about derived values when none was derived", () => {
+    const { wb } = actionsGrid({}, [sc()]);
+    const said = summaryGrid(wb.Sheets["Summary"]).flat().filter((v): v is string => typeof v === "string");
+    expect(said.some((v) => v.startsWith("Actions sheet:"))).toBe(false);
   });
 });
