@@ -8,7 +8,16 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: [
+      "src/**/*.{test,spec}.{ts,tsx}",
+      /**
+       * The edge functions' own tests. `_test.ts` is Deno's suffix and stays Deno's;
+       * `.test.ts` here is run by vitest, next to the code it tests, because a test
+       * for a Deno module cannot live under `src` without pulling `npm:` specifiers
+       * and `Deno.env` into the browser build's typecheck.
+       */
+      "supabase/functions/**/*.test.ts",
+    ],
     /**
      * 15s, up from the 5s default.
      *
