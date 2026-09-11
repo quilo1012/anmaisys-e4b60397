@@ -15,7 +15,7 @@
  *
  * `?role=engineer` opens that role alone — one sheet for one person.
  */
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { routeTitles } from "@/components/DashboardLayout";
@@ -140,7 +140,9 @@ function SignatureBlock() {
 }
 
 function RoleSheet({ role, generatedOn }: { role: Role; generatedOn: string }) {
-  const rules = useMemo(() => deriveRoleRules(role), [role]);
+  // Derived on every render on purpose: an override arriving after login must move a
+  // line from one column to the other without a memo holding yesterday's answer.
+  const rules = deriveRoleRules(role);
   const landing = roleDashMap[role];
 
   return (
@@ -185,7 +187,7 @@ function RoleSheet({ role, generatedOn }: { role: Role; generatedOn: string }) {
 
 export default function RoleRulesPage() {
   const { role: myRole } = useAuth();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const requested = params.get("role");
   const single = ACTIVE_ROLES.includes(requested as Role) ? (requested as Role) : null;
   const shown = single ? [single] : ACTIVE_ROLES;
