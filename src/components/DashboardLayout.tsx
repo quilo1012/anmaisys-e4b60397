@@ -347,7 +347,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
 
   return (
     <>
-      {grouped.map((group, groupIndex) => {
+      {grouped.map((group) => {
         const isOpen = !compact || iconCollapsed || openGroup === group.label;
         return (
           <SidebarGroup key={group.label} className={cn("px-2", iconCollapsed && "px-0")}>
@@ -386,12 +386,12 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
               <SidebarGroupContent>
                 <SidebarMenu className="gap-0.5">
                   {group.items.map((item) => {
-                    const active = isItemActive(item.url);
-                    return (
-                      <SidebarMenuItem key={item.title + item.url}>
+                    const active = isItemActive(item.url) || (item.children ?? []).some((c) => isItemActive(c.url));
+                    const kids = item.children ?? [];
+                    const button = (
                         <SidebarMenuButton
                           asChild
-                          tooltip={item.title}
+                          tooltip={kids.length ? `${item.title} (${kids.length} páginas)` : item.title}
                           className={cn(
                             "h-9 rounded-md transition-colors",
                             "group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10",
@@ -405,13 +405,13 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                             className={cn(
                               "relative transition-colors",
                               active
-                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium ring-1 ring-sidebar-border/60 shadow-sm"
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium ring-1 ring-sidebar-border/60 shadow-sm group-data-[collapsible=icon]:ring-2 group-data-[collapsible=icon]:ring-primary"
                                 : "text-sidebar-foreground/75 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
                             )}
                           >
                             {active && (
                               <span
-                                className="hidden group-data-[collapsible=icon]:block absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-primary"
+                                className="hidden group-data-[collapsible=icon]:block absolute left-0 top-1 bottom-1 w-1 rounded-full bg-primary"
                                 aria-hidden="true"
                               />
                             )}
@@ -446,8 +446,40 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                             )}
                           </NavLink>
                         </SidebarMenuButton>
+                    );
+                    return (
+                      <SidebarMenuItem key={item.title + item.url}>
+                        {/* In the rail a row with sub-pages opens them in a flyout —
+                            nothing reachable with the labels on may become
+                            unreachable with them off. */}
+                        {iconCollapsed && kids.length > 0 ? (
+                          <RailFlyout label={item.title} items={[{ title: item.title, url: item.url }, ...kids]}>
+                            {button}
+                          </RailFlyout>
+                        ) : (
+                          button
+                        )}
+                        {!iconCollapsed && kids.length > 0 && (
+                          <ul className="ml-6 border-l border-sidebar-border/60 pl-2">
+                            {kids.map((c) => (
+                              <li key={c.url}>
+                                <NavLink
+                                  to={c.url}
+                                  end
+                                  className={cn(
+                                    "block rounded-md px-2 py-1 text-xs transition-colors",
+                                    isItemActive(c.url)
+                                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+                                  )}
+                                >
+                                  {c.title}
+                                </NavLink>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </SidebarMenuItem>
-
                     );
                   })}
                 </SidebarMenu>
