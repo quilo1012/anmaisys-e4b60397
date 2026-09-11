@@ -1,0 +1,40 @@
+-- 48 pedidos por dia a um site externo para alimentar um ecrã que não existe.
+--
+-- `refresh-site-banner` corre de 30 em 30 minutos desde 23/07/2026 e continua vivo: a
+-- última escrita em `site_banner.updated_at` foi às 08:00 de hoje. A cada passagem,
+-- `public.refresh_site_banner()` faz um `extensions.http_get('https://appliednutrition.uk/')`
+-- e guarda as og:tags na linha única de `public.site_banner`.
+--
+-- A CADEIA, do dado até ao pixel — e onde morre:
+--
+--   cron 'refresh-site-banner'  (*/30 * * * *)        activo
+--     -> public.refresh_site_banner()                 escreve
+--       -> public.site_banner                         1 linha, actualizada hoje
+--         -> src/hooks/useSiteBanner.ts               ZERO importadores
+--           -> src/components/SiteBannerImages.tsx    só usado pelo AuthShell
+--             -> AuthShell, prop `backgroundImages`   nenhum dos 4 chamadores a passa
+--
+-- Os quatro sítios que montam o `AuthShell` (três em ResetPassword.tsx, um em Login.tsx)
+-- chamam-no sem `backgroundImages`; dentro do componente, `hasBanner` é sempre falso e o
+-- `SiteBannerImages` nunca chega a renderizar. Vertical morta de ponta a ponta: o pedido
+-- HTTP sai da base de dados, os dados chegam à tabela, e mais nada os lê.
+--
+-- O QUE ESTE FICHEIRO FAZ: desagenda o job. Nada mais.
+--
+-- O QUE NÃO FAZ, e é deliberado: a função `refresh_site_banner()`, a tabela
+-- `site_banner`, a policy de leitura e o `GRANT` ficam todos onde estão. Desligar o
+-- agendamento reverte-se numa linha (`cron.schedule`, com o mesmo nome e a mesma
+-- expressão); apagar a função obrigaria a reescrevê-la se um dia se quiser mesmo o
+-- banner no ecrã de login. Também não toca em nenhum outro job.
+--
+-- O `WHERE EXISTS` não é decoração: esta migração vai correr no DESTINO, onde o job
+-- nunca terá sido agendado, e `cron.unschedule()` com um nome que não existe levanta
+-- excepção e parte a migração. É o mesmo padrão idempotente que o
+-- 20260723250000_site_banner.sql já usava antes de agendar.
+--
+-- VERIFICAÇÃO depois de aplicar:
+--   SELECT jobname FROM cron.job WHERE jobname = 'refresh-site-banner';  -- 0 linhas
+--   SELECT updated_at FROM public.site_banner;                           -- pára de avançar
+
+SELECT cron.unschedule('refresh-site-banner')
+WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'refresh-site-banner');
