@@ -10,6 +10,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { buildRecord, londonDay, type ClassificationRule, type ScAction } from "./normalize.ts";
 import type { Attendance } from "./classification.ts";
 import { sessionInCharge, type ProductionSession } from "./leaderOnDuty.ts";
+import { parseProductNote, resolveSkuFromNote } from "./productNote.ts";
 
 export function adminClient(): SupabaseClient {
   return createClient(
@@ -311,54 +312,17 @@ export async function upsertAction(
 
   const { data: existing, error: findErr } = await db
     .from("quality_actions")
-    .select("id, external_updated_at, closed_at, validation_status")
+    .select("id, external_updated_at, closed_at, validation_status, sku, batch")
     .eq("source", "safetyculture")
     .eq("external_id", action.id)
     .maybeSingle();
   if (findErr) throw findErr;
 
-  // The columns an imported record owns. Everything else on the row — the verdict
-  // Quality gave it, its closure, its frozen points — belongs to the PM System and
-  // is never overwritten by a sync.
-  const payload = {
-    source: draft.source,
-    external_id: draft.external_id,
-    external_url: draft.external_url,
-    external_status: draft.external_status,
-    external_priority: draft.external_priority,
-    external_priority_id: draft.external_priority_id,
-    action_no: draft.action_no,
-    external_updated_at: draft.external_updated_at,
-    external_created_at: draft.external_created_at,
-    external_deleted_at: draft.external_deleted_at,
-    external_site: draft.external_site,
-    external_asset: draft.external_asset,
-    external_template: draft.external_template,
-    external_assignees: draft.external_assignees,
-    title: draft.title,
-    description: draft.description,
-    assignee_name: draft.assignee_name,
-    due_date: draft.due_date,
-    recorded_at: draft.recorded_at,
-    status: draft.status,
-    line: draft.line,
-    leader_id: draft.leader_id,
-    leader_name: draft.leader_name,
-    error_type: draft.error_type,
-    department: draft.department,
-    labels: draft.labels,
-    severity: draft.severity,
-    domain: draft.domain,
-    needs_classification: draft.needs_classification,
-    classification_status: draft.classification_status,
-    classification: draft.classification,
-    classification_checks: draft.classification_checks,
-    classification_reasons: draft.classification_reasons,
-    matched_rule_ids: draft.matched_rule_ids,
-    matched_rule_names: draft.matched_rule_names,
-    classified_at: draft.classified_at,
-    last_synced_at: draft.last_synced_at,
-  };
+  const identity = (await identifyProducts(db, [{ draft }])).get(draft.external_id);
+  // The columns an imported record owns, from the one place that lists them. Only a
+  // row carrying neither SKU nor batch takes the note's word for it — see `rowFor`.
+  const blank = !existing || (!String(existing.sku ?? "").trim() && !String(existing.batch ?? "").trim());
+  const payload = rowFor(draft, blank ? identity : undefined);
 
   if (!existing) {
     const { error } = await db.from("quality_actions").insert(payload);
@@ -410,6 +374,76 @@ export interface SyncSummary {
   cursor: string | null;
 }
 
+/** What the note said, once the batch has been looked up. */
+interface ProductIdentity {
+  /** A catalogue code, or null when the batch alone does not name one. */
+  sku: string | null;
+  batch: string;
+}
+
+/**
+ * The product and batch an operator wrote into the Action's description.
+ *
+ * A SafetyCulture Action has no product field. The people raising them write it
+ * into the free text instead, as `Product / BATCH / best-before`, and until now the
+ * sync copied that sentence into `description` and stopped — so `sku` and `batch`
+ * stayed NULL on every one of the 106 rows imported since 01/09/2026, and the
+ * Quality screen, the PDF and the workbook all printed empty columns about actions
+ * whose product was written down in as many words.
+ *
+ * The middle token is a BATCH, not a SKU: `production_items` says A26213 was run as
+ * both CRE250 and CRE500. So the batch gives the candidates and the operator's own
+ * words break the tie — see `resolveSkuFromNote`. A tie the words do not break
+ * leaves `sku` null and keeps the batch, because the batch is not in doubt.
+ *
+ * Two queries for the whole page, never one per Action: a round trip per row is
+ * what exhausted the worker on the first full read.
+ */
+async function identifyProducts(
+  db: SupabaseClient,
+  drafts: { draft: { external_id: string; description: string | null } }[],
+): Promise<Map<string, ProductIdentity>> {
+  const notes = new Map<string, { product: string; batch: string }>();
+  for (const { draft } of drafts) {
+    const note = parseProductNote(draft.description);
+    if (note) notes.set(draft.external_id, note);
+  }
+  if (notes.size === 0) return new Map();
+
+  const batches = Array.from(new Set(Array.from(notes.values()).map((n) => n.batch)));
+  const { data: items } = await db
+    .from("production_items").select("batch_code, sku_id").in("batch_code", batches);
+  const rows = ((items ?? []) as { batch_code: string | null; sku_id: string | null }[])
+    .filter((r): r is { batch_code: string; sku_id: string } => !!r.batch_code && !!r.sku_id);
+
+  const byBatch = new Map<string, { code: string; name: string }[]>();
+  if (rows.length) {
+    const { data: skus } = await db
+      .from("sku_products").select("id, code, name")
+      .in("id", Array.from(new Set(rows.map((r) => r.sku_id))));
+    const byId = new Map(
+      ((skus ?? []) as { id: string; code: string; name: string }[]).map((p) => [p.id, p]),
+    );
+    for (const r of rows) {
+      const p = byId.get(r.sku_id);
+      if (!p?.code) continue;
+      const key = r.batch_code.trim().toUpperCase();
+      const list = byBatch.get(key) ?? [];
+      if (!list.some((c) => c.code === p.code)) list.push({ code: p.code, name: p.name });
+      byBatch.set(key, list);
+    }
+  }
+
+  const out = new Map<string, ProductIdentity>();
+  for (const [externalId, note] of notes) {
+    out.set(externalId, {
+      sku: resolveSkuFromNote(note, byBatch.get(note.batch) ?? []),
+      batch: note.batch,
+    });
+  }
+  return out;
+}
+
 /**
  * Applies one page in a handful of queries instead of one per Action.
  *
@@ -437,10 +471,13 @@ export async function applyActions(
   if (!actions.length) return summary;
 
   const drafts = actions.map((a) => ({ action: a, ...buildRecord(a, ctx) }));
+  const identities = await identifyProducts(db, drafts);
 
+  // `sku, batch` are read back so an update can tell a row that has never carried a
+  // product from one somebody has already filled in by hand.
   const { data: existingRows, error: findErr } = await db
     .from("quality_actions")
-    .select("id, external_id, external_updated_at, validation_status")
+    .select("id, external_id, external_updated_at, validation_status, sku, batch")
     .eq("source", "safetyculture")
     .in("external_id", actions.map((a) => a.id));
   if (findErr) throw findErr;
@@ -457,21 +494,43 @@ export async function applyActions(
       summary.cursor = action.modified_at;
     }
 
-    const payload = rowFor(draft);
+    const identity = identities.get(draft.external_id);
     const prev = existing.get(action.id);
 
     if (!prev) {
-      toInsert.push(payload);
+      toInsert.push(rowFor(draft, identity));
       continue;
     }
+    // Only a row with neither takes the note's word for it. See `rowFor`.
+    const blank = !String(prev.sku ?? "").trim() && !String(prev.batch ?? "").trim();
+
     if (
       prev.external_updated_at &&
       draft.external_updated_at &&
       prev.external_updated_at === draft.external_updated_at
     ) {
+      // Nothing changed at SafetyCulture's end — but the rows imported before this
+      // function learned to read a product note still carry NULL in both columns,
+      // and SafetyCulture will never touch them again, so no later sync would ever
+      // reach them. A re-read of the period (`full`, or `since`) heals them here,
+      // by the same resolver that fills a new row, and writes nothing else.
+      if (blank && identity) {
+        const { error } = await db
+          .from("quality_actions")
+          .update({ sku: identity.sku, batch: identity.batch })
+          .eq("id", prev.id);
+        if (error) {
+          summary.errors++;
+        } else {
+          summary.updated++;
+          continue;
+        }
+      }
       summary.unchanged++;
       continue;
     }
+
+    const payload = rowFor(draft, blank ? identity : undefined);
 
     // A manual correction is respected: once someone has classified the record,
     // a later sync does not push it back into "needs classification".
@@ -515,9 +574,21 @@ export async function applyActions(
   return summary;
 }
 
-/** The columns an imported record owns. Everything else belongs to the PM System. */
-function rowFor(draft: ReturnType<typeof buildRecord>["draft"]): Record<string, unknown> {
+/**
+ * The columns an imported record owns. Everything else belongs to the PM System.
+ *
+ * `sku` and `batch` are the exception that proves the rule: they belong to the PM
+ * System, and the sync fills them only when they are EMPTY — never on an update to
+ * a row that already carries one. Someone who corrects a SKU by hand must not find
+ * it rewritten on the hour, which is exactly what happened to `validation_status`
+ * once already. The caller decides; `identity` is simply absent when it must not.
+ */
+function rowFor(
+  draft: ReturnType<typeof buildRecord>["draft"],
+  identity?: ProductIdentity,
+): Record<string, unknown> {
   return {
+    ...(identity ? { sku: identity.sku, batch: identity.batch } : {}),
     source: draft.source,
     external_id: draft.external_id,
     external_url: draft.external_url,

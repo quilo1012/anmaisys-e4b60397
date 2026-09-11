@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseProductNote, resolveSkuFromNote } from "@/lib/qualityProductNote";
+import { parseProductNote, resolveSkuFromNote } from "../../supabase/functions/_shared/safetyculture/productNote";
 
 /**
  * Every string below is a real `quality_actions.description` read off the live base
