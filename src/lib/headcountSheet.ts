@@ -1,18 +1,35 @@
 import * as XLSX from "xlsx";
 import { keepsLeadership } from "@/lib/leaderMark";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
+import { boardShiftFor } from "@/hooks/useHeadcount";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
 
 /** Rows that label a block or a total rather than naming a person. */
 const NOT_A_NAME = /^(total|totals|total staff.*|absence[s]?|holiday[s]?|overtime|support|production|off|—|-)$/i;
 
-/** Blocks written under the columns, in the order the factory's sheet has them. */
-const STATUS_BLOCKS: { label: string; status: AllocStatus }[] = [
-  { label: "Sickness", status: "sick" },
-  { label: "Unpaid", status: "unpaid" },
-  { label: "Holidays", status: "holiday" },
-  { label: "Overtime", status: "overtime" },
+/**
+ * Blocks written under the columns, in the order the factory's sheet has them.
+ *
+ * `also` is what the company spreadsheet heads the same block with. Its overtime
+ * column says "Overtime staff", which did not equal "Overtime" and so was read as a
+ * column nobody claimed — everybody working an overtime day was dropped in silence.
+ */
+const STATUS_BLOCKS: { label: string; status: AllocStatus; also?: string[] }[] = [
+  { label: "Sickness", status: "sick", also: ["Sick", "Sickness absence"] },
+  { label: "Unpaid", status: "unpaid", also: ["Unpaid leave", "Unpaid Leave"] },
+  { label: "Holidays", status: "holiday", also: ["Holiday", "Annual leave"] },
+  { label: "Overtime", status: "overtime", also: ["Overtime staff", "OT"] },
 ];
+
+/**
+ * The company sheet's single away column.
+ *
+ * It has one "Absence" and the board has two answers — Sickness and Unpaid — and
+ * which one a name belongs under is a payroll fact, not something to pick quietly.
+ * So the column is recognised and reported, and the names under it are written only
+ * once the office says what it means (`absenceAs`).
+ */
+const ABSENCE_LABELS = ["Absence", "Absences", "Absent"];
 
 export interface SheetDay {
   /** yyyy-mm-dd */
@@ -28,15 +45,31 @@ export interface ImportedAllocation {
   status: AllocStatus;
 }
 
+/** A name on the sheet that was not written to the board, and why. */
+export interface UnmatchedName {
+  name: string;
+  column: string;
+  date: string;
+  /** `ambiguous`: more than one person answers to it. `unknown`: nobody does. */
+  reason: "ambiguous" | "unknown";
+  /** Who it could be, for the picker. Empty when nobody on the payroll answers to it. */
+  candidates: { id: string; full_name: string }[];
+}
+
 export interface ImportPreview {
   matched: ImportedAllocation[];
   /** Names the sheet had that no employee answers to. */
-  unmatchedNames: { name: string; column: string; date: string }[];
+  unmatchedNames: UnmatchedName[];
   /** Column headings that are not an area on the board. */
   unknownColumns: string[];
   /** Sheets whose tab name is not a date we can read. */
   skippedSheets: string[];
   days: string[];
+  /**
+   * Whether the sheet has an Absence column. True with no `absenceAs` given means
+   * names were held back waiting for an answer, not that there were none.
+   */
+  absenceColumnFound: boolean;
 }
 
 /** `Line 5 (A&B)` and `line 5` both mean Line 5. */
@@ -193,15 +226,48 @@ export function buildHeadcountWorkbook(input: {
 /**
  * The same layout, read back.
  *
- * Matching is deliberately timid. A full name that appears once wins; a first name
- * wins only when exactly one person on that shift answers to it. Anything ambiguous
- * or misspelled is handed back in `unmatchedNames` for a human to settle — guessing
- * would put somebody on a line they were never on, and the board would look correct
- * while being wrong, which is the failure that costs the most to find later.
+ * Matching is deliberately timid, and stays that way: it never picks between two
+ * people who both answer to a name. What changed is how much it can settle without
+ * picking. Measured against `Production Headcount August.xlsx`, the company's own
+ * sheet for four days in August, the old rule matched 188 names and dropped 61 —
+ * a quarter of the factory, every month, placed again by hand.
+ *
+ * The four things those 61 were:
+ *
+ * 1. **Written short.** "RICARDO F", "LUIS FERN", "Aleks", "KAROL", "ANDERSON C".
+ *    Each is a prefix of exactly one person on the payroll, so each is now taken.
+ * 2. **A first name two people share.** "Lucas" under Office is Lucas Duarte and
+ *    cannot be Lucas Gloor, because the column has a department and so does he. That
+ *    is not a guess; where the column does not settle it, it is still refused.
+ * 3. **Spelled the way the line spells it.** "LUCAS GLOR", "Crsitiano", "GYOVANI",
+ *    "Gimenez". No rule should guess at a typo. It is written on the person once,
+ *    in `sheet_aliases`, and read from there after.
+ * 4. **Not on this board at all.** Quality and Maintenance are on the night crew and
+ *    on the day sheet both; "Toni" and "Ismael" could never match while the roster
+ *    held one board. The caller now hands over everybody, and a name two boards share
+ *    goes to the one the sheet is for.
+ *
+ * `assigned` is the last word — what somebody chose on screen, keyed by the name as
+ * the sheet spells it. Same shape, and for the same reason, as `matchNames` in
+ * `timeMotoSheet`.
  */
 export function parseHeadcountWorkbook(
   wb: XLSX.WorkBook,
-  ctx: { areas: HeadcountArea[]; roster: HeadcountEmployee[]; shift: string; fallbackYear: number },
+  ctx: {
+    areas: HeadcountArea[];
+    /**
+     * Everybody, not only this board's crew. A name that belongs to both boards is
+     * resolved to this one; a name only the other board has still lands, which is the
+     * point — the factory's day sheet carries night-crew Quality and Maintenance.
+     */
+    roster: HeadcountEmployee[];
+    shift: string;
+    fallbackYear: number;
+    /** Names settled on screen: the spelling on the sheet, to an employee id. */
+    assigned?: Record<string, string>;
+    /** What this sheet's single Absence column means. Unset holds those names back. */
+    absenceAs?: AllocStatus;
+  },
 ): ImportPreview {
   /**
    * Every name a column can go by, back to the area it means.
@@ -233,32 +299,97 @@ export function parseHeadcountWorkbook(
     }
   }
 
+  const push = (m: Map<string, HeadcountEmployee[]>, k: string, e: HeadcountEmployee) => {
+    if (!k) return;
+    const list = m.get(k) ?? [];
+    if (!list.includes(e)) list.push(e);
+    m.set(k, list);
+  };
+
+  const byAlias = new Map<string, HeadcountEmployee[]>();
   const byFull = new Map<string, HeadcountEmployee[]>();
   const byFirst = new Map<string, HeadcountEmployee[]>();
+  const tokensOf = new Map<string, string[]>();
   for (const e of ctx.roster) {
     const full = normalise(e.full_name);
-    const first = full.split(" ")[0];
-    if (!byFull.has(full)) byFull.set(full, []);
-    byFull.get(full)!.push(e);
-    if (!byFirst.has(first)) byFirst.set(first, []);
-    byFirst.get(first)!.push(e);
+    const parts = full.split(" ").filter(Boolean);
+    tokensOf.set(e.id, parts);
+    push(byFull, full, e);
+    push(byFirst, parts[0] ?? "", e);
+    for (const a of String(e.sheet_aliases ?? "").split(",")) push(byAlias, normalise(a), e);
   }
-  const resolve = (raw: string): HeadcountEmployee | null => {
+
+  /**
+   * "RICARDO F" is Ricardo Fernandes and cannot be Ricardo Marques.
+   *
+   * Either way round, because the sheet abbreviates and so does the payroll: the sheet
+   * writes "LUIS FERN" for a man the payroll has as "Luis F".
+   */
+  const startsEitherWay = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
+  const byPrefix = (parts: string[]) => ctx.roster.filter((e) => {
+    const rt = tokensOf.get(e.id) ?? [];
+    return rt.length >= parts.length && parts.every((x, i) => startsEitherWay(rt[i], x));
+  });
+
+  /**
+   * Two people answer to the name; the column may already know which.
+   *
+   * The board first — the sheet is one shift, and a Day name is a Day person when
+   * both boards have one. Then the department: an Office column and an Office job is
+   * the same fact written twice, not a coin toss. Either filter is skipped when it
+   * would leave nobody, because narrowing to nothing is how a real person disappears.
+   */
+  const narrow = (list: HeadcountEmployee[], area: HeadcountArea | null) => {
+    let c = list;
+    const onBoard = c.filter((e) => boardShiftFor(e.shift_group) === ctx.shift);
+    if (onBoard.length) c = onBoard;
+    if (c.length > 1 && area?.department) {
+      const sameJob = c.filter((e) => e.department === area.department);
+      if (sameJob.length) c = sameJob;
+    }
+    return c;
+  };
+
+  type Resolved =
+    | { emp: HeadcountEmployee }
+    | { reason: "ambiguous" | "unknown"; candidates: HeadcountEmployee[] };
+
+  const resolve = (raw: string, area: HeadcountArea | null): Resolved => {
     const n = normalise(raw);
-    if (!n) return null;
-    const full = byFull.get(n);
-    if (full?.length === 1) return full[0];
-    if (full && full.length > 1) return null;
-    const first = byFirst.get(n);
-    if (first?.length === 1) return first[0];
-    return null;
+    if (!n) return { reason: "unknown", candidates: [] };
+    const settled = ctx.assigned?.[raw.trim()] ?? ctx.assigned?.[n];
+    if (settled) {
+      const chosen = ctx.roster.find((e) => e.id === settled);
+      if (chosen) return { emp: chosen };
+    }
+    // Exact before short: "Andre" is the two Andres, and must not also drag in
+    // Andreia for starting with the same five letters.
+    for (const step of [byAlias.get(n), byFull.get(n), byFirst.get(n), byPrefix(n.split(" "))]) {
+      if (!step?.length) continue;
+      const c = narrow(step, area);
+      return c.length === 1 ? { emp: c[0] } : { reason: "ambiguous", candidates: c };
+    }
+    return { reason: "unknown", candidates: [] };
   };
 
   const out: ImportPreview = {
     matched: [], unmatchedNames: [], unknownColumns: [], skippedSheets: [], days: [],
+    absenceColumnFound: false,
   };
   const seen = new Set<string>();
   const unknown = new Set<string>();
+
+  /** A heading, as this sheet writes it, to what it means. */
+  const headingOf = (cell: string) => {
+    const k = normalise(cell);
+    const area = areaByName.get(k);
+    if (area) return { area } as const;
+    const st = STATUS_BLOCKS.find((b) =>
+      [b.label, ...(b.also ?? [])].some((l) => normalise(l) === k));
+    if (st) return { status: st.status } as const;
+    if (ABSENCE_LABELS.some((l) => normalise(l) === k)) return { absence: true } as const;
+    return null;
+  };
 
   for (const tab of wb.SheetNames) {
     const date = parseSheetDate(tab, ctx.fallbackYear);
@@ -274,19 +405,47 @@ export function parseHeadcountWorkbook(
     // Holidays and Overtime as columns beside the lines, the way the company sheet
     // has them. Reading them only as row labels is what broke the round trip the
     // moment the export changed shape.
-    type Col = { area: HeadcountArea } | { status: AllocStatus } | null;
+    type Col = ReturnType<typeof headingOf>;
     let columns: Col[] = [];
+
+    /** One cell under one column, onto the board — or onto the list of what did not land. */
+    const place = (cell: string, col: Col) => {
+      if (!col || !cell || NOT_A_NAME.test(cell)) return;
+      // A count row under a column is a number, not somebody called "7".
+      if (/^\d+$/.test(cell)) return;
+      const area = "area" in col ? col.area : null;
+      const label = area ? area.name
+        : "absence" in col ? ABSENCE_LABELS[0]
+        : STATUS_BLOCKS.find((b) => b.status === col.status)!.label;
+      // The sheet's one Absence column against the board's two answers. Until the
+      // office says which, these names are held rather than filed under a guess.
+      if ("absence" in col) {
+        out.absenceColumnFound = true;
+        if (!ctx.absenceAs) return;
+      }
+      const r = resolve(cell, area);
+      if (!("emp" in r)) {
+        out.unmatchedNames.push({
+          name: cell, column: label, date, reason: r.reason,
+          candidates: r.candidates.map((e) => ({ id: e.id, full_name: e.full_name })),
+        });
+        return;
+      }
+      const key = `${date}|${r.emp.id}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.matched.push({
+        date, shift: ctx.shift, employeeId: r.emp.id,
+        areaId: area ? area.id : null,
+        status: area ? "assigned" : "absence" in col ? ctx.absenceAs! : col.status,
+      });
+    };
+
     for (const rawRow of grid) {
       const row = (rawRow ?? []).map((c) => String(c ?? "").trim());
       if (row.every((c) => !c)) { columns = []; continue; }
 
-      const asCols: Col[] = row.map((c) => {
-        if (!c) return null;
-        const area = areaByName.get(normalise(c));
-        if (area) return { area };
-        const st = STATUS_BLOCKS.find((b) => normalise(b.label) === normalise(c));
-        return st ? { status: st.status } : null;
-      });
+      const asCols: Col[] = row.map((c) => (c ? headingOf(c) : null));
       const hits = asCols.filter(Boolean).length;
       // A heading row is one where most of the filled cells name a column.
       const filled = row.filter(Boolean).length;
@@ -297,38 +456,14 @@ export function parseHeadcountWorkbook(
       }
 
       const first = row[0] ?? "";
-      const statusBlock = STATUS_BLOCKS.find((b) => normalise(b.label) === normalise(first));
-      if (statusBlock) {
-        for (const cell of row.slice(1)) {
-          if (!cell || NOT_A_NAME.test(cell)) continue;
-          const emp = resolve(cell);
-          if (!emp) { out.unmatchedNames.push({ name: cell, column: statusBlock.label, date }); continue; }
-          const key = `${date}|${emp.id}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.matched.push({ date, shift: ctx.shift, employeeId: emp.id, areaId: null, status: statusBlock.status });
-        }
+      const asBlock = first ? headingOf(first) : null;
+      if (asBlock && !("area" in asBlock)) {
+        for (const cell of row.slice(1)) place(cell, asBlock);
         continue;
       }
 
       if (columns.length === 0) continue;
-      row.forEach((cell, i) => {
-        const col = columns[i];
-        if (!col || !cell || NOT_A_NAME.test(cell)) return;
-        // A count row under a column is a number, not somebody called "7".
-        if (/^\d+$/.test(cell)) return;
-        const label = "area" in col ? col.area.name : STATUS_BLOCKS.find((b) => b.status === col.status)!.label;
-        const emp = resolve(cell);
-        if (!emp) { out.unmatchedNames.push({ name: cell, column: label, date }); return; }
-        const key = `${date}|${emp.id}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        out.matched.push({
-          date, shift: ctx.shift, employeeId: emp.id,
-          areaId: "area" in col ? col.area.id : null,
-          status: "area" in col ? "assigned" : col.status,
-        });
-      });
+      row.forEach((cell, i) => place(cell, columns[i]));
     }
   }
 

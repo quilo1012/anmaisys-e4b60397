@@ -171,7 +171,10 @@ describe("matching names typed by hand", () => {
     // looks right while being wrong.
     const p = parse([["Line 1"], ["Maria"]]);
     expect(p.matched).toHaveLength(0);
-    expect(p.unmatchedNames).toEqual([{ name: "Maria", column: "Line 1", date: "2026-08-04" }]);
+    expect(p.unmatchedNames).toEqual([{
+      name: "Maria", column: "Line 1", date: "2026-08-04", reason: "ambiguous",
+      candidates: [{ id: "e5", full_name: "Maria Souza" }, { id: "e6", full_name: "Maria Costa" }],
+    }]);
   });
 
   it("reads a column heading the sheet writes its own way", () => {
@@ -336,5 +339,117 @@ describe("rowsToImport, and the leader mark", () => {
     // The extraction must not lose the reason the import reads the rota at all: a day
     // nobody's rota covers is overtime, and is paid as one.
     expect(rows([sheet("l1")], [], () => OFF)[0].status).toBe("overtime");
+  });
+});
+
+describe("the names the factory's own sheet actually writes", () => {
+  // Measured against `Production Headcount August.xlsx`: of 249 names the company
+  // sheet carries over four days, 61 landed nowhere. These are the shapes they had.
+  const named = (id: string, full_name: string, department: string | null = null,
+                 sheet_aliases: string | null = null): HeadcountEmployee =>
+    ({ id, full_name, shift_group: "Day", department, shift_pattern_id: null, sheet_aliases }) as HeadcountEmployee;
+
+  const sheet = (rows: (string | number)[][]) => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "04.08.2026");
+    return wb;
+  };
+
+  it("takes an abbreviated name when exactly one person answers to it", () => {
+    // "RICARDO F" is Ricardo Fernandes, and cannot be Ricardo Marques.
+    const roster = [named("rf", "Ricardo Fernandes"), named("rm", "Ricardo Marques")];
+    const p = parseHeadcountWorkbook(sheet([["Line 1"], ["RICARDO F"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched.map((m) => m.employeeId)).toEqual(["rf"]);
+  });
+
+  it("takes a shortened first name nobody else answers to", () => {
+    const roster = [named("ak", "Aleksandra Kopec"), named("kg", "Karoline Goncalves")];
+    const p = parseHeadcountWorkbook(sheet([["Line 1", "Line 5"], ["Aleks", "KAROL"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["ak", "kg"]);
+  });
+
+  it("settles a shared first name by the department of the column it is under", () => {
+    // Two Lucases. The one under Office is the one who works in the Office.
+    const areas: HeadcountArea[] = [
+      { ...area("of", "Office", "support"), department: "Office" },
+      { ...area("l1", "Line 1"), department: "Production" },
+    ];
+    const roster = [named("ld", "Lucas Duarte", "Office"), named("lg", "Lucas Gloor", "Production")];
+    const p = parseHeadcountWorkbook(sheet([["Office", "Line 1"], ["Lucas", "Lucas Gloor"]]),
+      { areas, roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched.find((m) => m.areaId === "of")?.employeeId).toBe("ld");
+  });
+
+  it("still refuses a shared first name the column cannot settle", () => {
+    const roster = [named("p1", "Pedro Correia", "Production"), named("p2", "Pedro De Assis", "Production")];
+    const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Pedro"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched).toHaveLength(0);
+    expect(p.unmatchedNames[0]).toMatchObject({ name: "Pedro", reason: "ambiguous" });
+  });
+
+  it("hands back who a refused name could be, so it can be settled on screen", () => {
+    const roster = [named("p1", "Pedro Correia"), named("p2", "Pedro De Assis")];
+    const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Pedro"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.unmatchedNames[0].candidates.map((c) => c.id).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("says nobody rather than ambiguous when the name is not on the payroll", () => {
+    const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Joao Passacantando"]]),
+      { areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026 });
+    expect(p.unmatchedNames[0]).toMatchObject({ reason: "unknown", candidates: [] });
+  });
+
+  it("takes the spelling the sheet uses when it is written on the person", () => {
+    // "LUCAS GLOR", "Crsitiano", "GYOVANI", "Gimenez" — a month of typos that no
+    // rule should guess at and no office should have to fix twice.
+    const roster = [named("lg", "Lucas Gloor", "Production", "LUCAS GLOR"),
+                    named("gg", "Giovany Gava", "Production", "GYOVANI, Gyovani")];
+    const p = parseHeadcountWorkbook(sheet([["Line 1", "Line 5"], ["LUCAS GLOR", "GYOVANI"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["gg", "lg"]);
+  });
+
+  it("honours a name settled by hand over everything it works out itself", () => {
+    const roster = [named("p1", "Pedro Correia"), named("p2", "Pedro De Assis")];
+    const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Pedro"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026, assigned: { Pedro: "p2" } });
+    expect(p.matched.map((m) => m.employeeId)).toEqual(["p2"]);
+  });
+
+  it("reads the overtime column the company sheet heads its own way", () => {
+    const p = parseHeadcountWorkbook(sheet([["Line 1", "Overtime staff"], ["Izildo Santos", "Leonardo Silva"]]),
+      { areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched.find((m) => m.employeeId === "e2")).toMatchObject({ status: "overtime", areaId: null });
+    expect(p.unknownColumns).not.toContain("Overtime staff");
+  });
+
+  it("reports the Absence column instead of dropping everyone under it", () => {
+    // The sheet has one Absence column; the board has Sickness and Unpaid. Which one
+    // it means is a payroll fact and is asked for, not invented.
+    const p = parseHeadcountWorkbook(sheet([["Line 1", "Absence"], ["Izildo Santos", "Leonardo Silva"]]),
+      { areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026 });
+    expect(p.absenceColumnFound).toBe(true);
+    expect(p.matched.find((m) => m.employeeId === "e2")).toBeUndefined();
+  });
+
+  it("writes the Absence column as whatever the office says it means", () => {
+    const p = parseHeadcountWorkbook(sheet([["Line 1", "Absence"], ["Izildo Santos", "Leonardo Silva"]]),
+      { areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026, absenceAs: "unpaid" });
+    expect(p.matched.find((m) => m.employeeId === "e2")).toMatchObject({ status: "unpaid", areaId: null });
+  });
+
+  it("prefers the person on this board when two share a first name across boards", () => {
+    // Quality and Maintenance are on the Day sheet and on the night crew both. The
+    // roster has to carry both, or "Toni" can never land — but a Day name must not
+    // be taken off the night crew when a Day person answers to it too.
+    const day = { ...named("ta", "Toni Alves"), shift_group: "Day" } as HeadcountEmployee;
+    const night = { ...named("ts", "Toni Spinelli"), shift_group: "Night" } as HeadcountEmployee;
+    const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Toni"]]),
+      { areas: AREAS, roster: [night, day], shift: "Day", fallbackYear: 2026 });
+    expect(p.matched.map((m) => m.employeeId)).toEqual(["ta"]);
   });
 });

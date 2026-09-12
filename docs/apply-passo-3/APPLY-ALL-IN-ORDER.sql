@@ -4912,6 +4912,52 @@ CREATE TRIGGER trg_a_quality_root_cause_guard
 REVOKE ALL ON FUNCTION public.guard_quality_root_cause() FROM PUBLIC, anon, authenticated;
 
 -- ================================================================
+-- BLOCO 31B
+-- 20260911090000_a_cron_feeding_a_screen_that_does_not_exist.sql
+-- ================================================================
+
+-- 48 pedidos por dia a um site externo para alimentar um ecrã que não existe.
+--
+-- `refresh-site-banner` corre de 30 em 30 minutos desde 23/07/2026 e continua vivo: a
+-- última escrita em `site_banner.updated_at` foi às 08:00 de hoje. A cada passagem,
+-- `public.refresh_site_banner()` faz um `extensions.http_get('https://appliednutrition.uk/')`
+-- e guarda as og:tags na linha única de `public.site_banner`.
+--
+-- A CADEIA, do dado até ao pixel — e onde morre:
+--
+--   cron 'refresh-site-banner'  (*/30 * * * *)        activo
+--     -> public.refresh_site_banner()                 escreve
+--       -> public.site_banner                         1 linha, actualizada hoje
+--         -> src/hooks/useSiteBanner.ts               ZERO importadores
+--           -> src/components/SiteBannerImages.tsx    só usado pelo AuthShell
+--             -> AuthShell, prop `backgroundImages`   nenhum dos 4 chamadores a passa
+--
+-- Os quatro sítios que montam o `AuthShell` (três em ResetPassword.tsx, um em Login.tsx)
+-- chamam-no sem `backgroundImages`; dentro do componente, `hasBanner` é sempre falso e o
+-- `SiteBannerImages` nunca chega a renderizar. Vertical morta de ponta a ponta: o pedido
+-- HTTP sai da base de dados, os dados chegam à tabela, e mais nada os lê.
+--
+-- O QUE ESTE FICHEIRO FAZ: desagenda o job. Nada mais.
+--
+-- O QUE NÃO FAZ, e é deliberado: a função `refresh_site_banner()`, a tabela
+-- `site_banner`, a policy de leitura e o `GRANT` ficam todos onde estão. Desligar o
+-- agendamento reverte-se numa linha (`cron.schedule`, com o mesmo nome e a mesma
+-- expressão); apagar a função obrigaria a reescrevê-la se um dia se quiser mesmo o
+-- banner no ecrã de login. Também não toca em nenhum outro job.
+--
+-- O `WHERE EXISTS` não é decoração: esta migração vai correr no DESTINO, onde o job
+-- nunca terá sido agendado, e `cron.unschedule()` com um nome que não existe levanta
+-- excepção e parte a migração. É o mesmo padrão idempotente que o
+-- 20260723250000_site_banner.sql já usava antes de agendar.
+--
+-- VERIFICAÇÃO depois de aplicar:
+--   SELECT jobname FROM cron.job WHERE jobname = 'refresh-site-banner';  -- 0 linhas
+--   SELECT updated_at FROM public.site_banner;                           -- pára de avançar
+
+SELECT cron.unschedule('refresh-site-banner')
+WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'refresh-site-banner');
+
+-- ================================================================
 -- BLOCO 32
 -- 20260911090000_the_hr_roster_four_people_could_read_without_a_screen.sql
 -- ================================================================
@@ -4992,6 +5038,40 @@ COMMENT ON TABLE public.employees IS
   'tem permissao de RH nenhuma na matriz e nenhum ecra que leia esta tabela — quatro contas reais '
   'liam o roster inteiro pela API. Ver 20260911090000.';
 
+
+-- ================================================================
+-- BLOCO 32B
+-- 20260912090000_the_name_the_line_calls_somebody.sql
+-- ================================================================
+
+-- The spelling the factory's own headcount sheet uses for a person.
+--
+-- That sheet is typed by hand every morning and calls people what the line calls
+-- them. Measured against `Production Headcount August.xlsx`, four days of the
+-- company's own sheet carried 249 names and the import placed 188 of them: a quarter
+-- of the factory dropped in silence, every month, to be put back by hand.
+--
+-- Widening the matching rules recovered most of it. What no rule should ever recover
+-- is a typo — "LUCAS GLOR" is Lucas Gloor and "Gimenez" is Gabriel Chimenez, and any
+-- code clever enough to work that out is also clever enough to put the wrong person
+-- on a line. So it is written down instead: once, on the person, by whoever already
+-- knows. Comma separated, the same shape `headcount_areas.sheet_label` already uses
+-- for the columns, and read the same way.
+alter table public.employees
+  add column if not exists sheet_aliases text;
+
+comment on column public.employees.sheet_aliases is
+  'Other spellings the company headcount spreadsheet uses for this person, comma separated. Read by the headcount import; never shown on the board.';
+
+-- The six the August sheet had that belong to exactly one person on the payroll.
+-- Every other unmatched name was either two people who share a first name or somebody
+-- not on the payroll at all, and neither of those is settled here — the import asks.
+update public.employees set sheet_aliases = 'LUCAS GLOR'  where full_name = 'Lucas Gloor'        and sheet_aliases is null;
+update public.employees set sheet_aliases = 'GYOVANI'     where full_name = 'Giovany Gava'       and sheet_aliases is null;
+update public.employees set sheet_aliases = 'Gimenez'     where full_name = 'Gabriel Chimenez'   and sheet_aliases is null;
+update public.employees set sheet_aliases = 'Crsitiano'   where full_name = 'Cristiano Brunetto' and sheet_aliases is null;
+update public.employees set sheet_aliases = 'Welligton'   where full_name = 'Wellington Segato'  and sheet_aliases is null;
+update public.employees set sheet_aliases = 'Russo'       where full_name = 'Carlos Russo'       and sheet_aliases is null;
 
 -- ================================================================
 -- BLOCO 33
@@ -6088,3 +6168,4 @@ UPDATE public.quality_actions
      SELECT 1 FROM unnest(coalesce(labels, ARRAY[]::text[])) AS l
       WHERE lower(btrim(l)) = 'maintenance'
    );
+

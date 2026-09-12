@@ -1241,7 +1241,18 @@ export default function ProductionHeadcountPage() {
   // to be one shift per file for the import to know what it is reading back.
   const sheetShift: ShiftKey = view === "Split" ? "Day" : (view as ShiftKey);
   const [sheet, setSheet] = useState<"export" | "import" | null>(null);
-  const { data: sheetRoster = [] } = useShiftRoster(sheetShift, date, true);
+  /**
+   * Everybody active, not this board's crew.
+   *
+   * The company's day sheet carries night-crew Quality and Maintenance — they cover
+   * both shifts and are written on both boards' sheets. Handing the import only the
+   * day crew meant "Ismael", "Richard" and "Toni" could never match anybody, on any
+   * import, and were reported as names nobody answers to. The parser resolves a name
+   * both boards share to the board the sheet is for, so widening this costs nothing
+   * and stops throwing those people away.
+   */
+  const { byId: everyoneById } = useShiftRoster(sheetShift, date, true);
+  const sheetRoster = useMemo(() => [...everyoneById.values()], [everyoneById]);
 
   const shiftDate = (delta: number) => {
     const d = new Date(`${date}T12:00:00`);

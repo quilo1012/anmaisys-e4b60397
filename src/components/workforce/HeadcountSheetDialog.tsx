@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,13 +9,95 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Download, Upload, AlertTriangle, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import { Download, Upload, AlertTriangle, Loader2, ChevronsUpDown, Check } from "lucide-react";
 import {
   buildHeadcountWorkbook, parseHeadcountWorkbook, datesBetween, rowsToImport,
-  type ImportPreview, type StandingLeader,
+  type ImportPreview, type StandingLeader, type UnmatchedName,
 } from "@/lib/headcountSheet";
 import { useRotaCover } from "@/hooks/useHeadcount";
-import type { HeadcountArea, HeadcountEmployee, Allocation } from "@/hooks/useHeadcount";
+import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
+
+/**
+ * Who the sheet meant, chosen by somebody who knows.
+ *
+ * Searchable rather than a plain list, because "Pedro" offers two people and
+ * "Crsitiano" offers two hundred and fifty, and the same control has to do both.
+ */
+function NamePicker({
+  spelling, candidates, roster, value, onChange,
+}: {
+  spelling: string;
+  candidates: { id: string; full_name: string }[];
+  roster: HeadcountEmployee[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  // The shortlist when there is one — the people who actually answer to the name —
+  // and everybody after it, because a sheet that spells somebody "Gimenez" is not
+  // going to be on any shortlist.
+  const shortlist = candidates.length ? candidates : [];
+  const rest = roster
+    .filter((e) => !shortlist.some((c) => c.id === e.id))
+    .map((e) => ({ id: e.id, full_name: e.full_name }));
+  const chosen = [...shortlist, ...rest].find((e) => e.id === value) ?? null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 w-56 justify-between px-2 text-2xs font-normal">
+          <span className={chosen ? "" : "text-muted-foreground"}>
+            {chosen ? chosen.full_name : "Who is this?"}
+          </span>
+          <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder={`“${spelling}” is…`} className="h-8 text-xs" />
+          <CommandList className="max-h-56">
+            <CommandEmpty>Nobody by that name.</CommandEmpty>
+            {shortlist.length > 0 && (
+              <CommandGroup heading="Answers to this name">
+                {shortlist.map((e) => (
+                  <CommandItem key={e.id} value={e.full_name} onSelect={() => { onChange(e.id); setOpen(false); }}>
+                    <Check className={`mr-2 h-3 w-3 ${value === e.id ? "opacity-100" : "opacity-0"}`} />
+                    {e.full_name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            <CommandGroup heading={shortlist.length ? "Everyone else" : "Everyone"}>
+              {rest.map((e) => (
+                <CommandItem key={e.id} value={e.full_name} onSelect={() => { onChange(e.id); setOpen(false); }}>
+                  <Check className={`mr-2 h-3 w-3 ${value === e.id ? "opacity-100" : "opacity-0"}`} />
+                  {e.full_name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** One row per spelling, not per cell: "Pedro" appears on nine days and is one question. */
+function bySpelling(unmatched: UnmatchedName[]) {
+  const out = new Map<string, { name: string; columns: Set<string>; times: number; candidates: { id: string; full_name: string }[] }>();
+  for (const u of unmatched) {
+    const row = out.get(u.name) ?? { name: u.name, columns: new Set<string>(), times: 0, candidates: u.candidates };
+    row.columns.add(u.column);
+    row.times += 1;
+    if (u.candidates.length > row.candidates.length) row.candidates = u.candidates;
+    out.set(u.name, row);
+  }
+  return [...out.values()].sort((a, b) => b.times - a.times);
+}
 
 /**
  * The board out to the factory's spreadsheet and back again, over a range of days.
@@ -42,11 +124,28 @@ export function HeadcountSheetDialog({
   const [from, setFrom] = useState(date);
   const [to, setTo] = useState(date);
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  // The workbook is kept, not just its first reading: settling one name or saying
+  // what the Absence column means has to re-read the same file, and asking somebody
+  // to choose the spreadsheet again after every answer is how a screen gets abandoned.
+  const [book, setBook] = useState<XLSX.WorkBook | null>(null);
+  const [assigned, setAssigned] = useState<Record<string, string>>({});
+  const [absenceAs, setAbsenceAs] = useState<AllocStatus | null>(null);
+  const [remember, setRemember] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const rotaCover = useRotaCover();
 
-  const close = () => { setPreview(null); onOpenChange(false); };
+  const preview: ImportPreview | null = useMemo(
+    () => book ? parseHeadcountWorkbook(book, {
+      areas, roster, shift, fallbackYear: Number(date.slice(0, 4)),
+      assigned, absenceAs: absenceAs ?? undefined,
+    }) : null,
+    [book, areas, roster, shift, date, assigned, absenceAs],
+  );
+
+  const close = () => {
+    setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true);
+    onOpenChange(false);
+  };
 
   const runExport = async () => {
     setBusy(true);
@@ -95,14 +194,48 @@ export function HeadcountSheetDialog({
   const readFile = async (file: File) => {
     setBusy(true);
     try {
-      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      setPreview(parseHeadcountWorkbook(wb, {
-        areas, roster, shift, fallbackYear: Number(date.slice(0, 4)),
-      }));
+      setAssigned({}); setAbsenceAs(null);
+      setBook(XLSX.read(await file.arrayBuffer(), { type: "array" }));
     } catch (e) {
       toast.error(`Could not read the file: ${(e as Error).message}`);
     } finally {
       setBusy(false);
+    }
+  };
+
+  /**
+   * The spellings settled by hand, written onto the people they belong to.
+   *
+   * This is the whole point of asking. The factory's sheet calls Lucas Gloor
+   * "LUCAS GLOR" every morning; answering that once and having it asked again next
+   * month is the same as not asking. Appended, never replaced — somebody already has
+   * two spellings and a third does not cost them the first two.
+   */
+  const rememberSpellings = async () => {
+    const byEmployee = new Map<string, string[]>();
+    for (const [spelling, id] of Object.entries(assigned)) {
+      const person = roster.find((e) => e.id === id);
+      if (!person) continue;
+      const already = String(person.sheet_aliases ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+      const clean = (x: string) => x.trim().toLowerCase();
+      if (already.some((a) => clean(a) === clean(spelling))) continue;
+      if (clean(person.full_name) === clean(spelling)) continue;
+      byEmployee.set(id, [...(byEmployee.get(id) ?? already), spelling]);
+    }
+    if (byEmployee.size === 0) return;
+    const failed: string[] = [];
+    for (const [id, aliases] of byEmployee) {
+      const { error } = await supabase
+        .from("employees")
+        .update({ sheet_aliases: aliases.join(", ") } as never)
+        .eq("id", id);
+      if (error) failed.push(roster.find((e) => e.id === id)?.full_name ?? id);
+    }
+    if (failed.length) {
+      // Said out loud rather than swallowed: the board is placed either way, but a
+      // spelling that was answered and not kept will be asked for again next month,
+      // and nobody would know why.
+      toast.warning(`Imported, but the spelling was not remembered for ${failed.join(", ")} — that needs an admin.`);
     }
   };
 
@@ -169,6 +302,8 @@ export function HeadcountSheetDialog({
         toast.warning(`Board imported, but the attendance record did not save: ${attErr.message}`);
       }
 
+      if (remember) await rememberSpellings();
+
       toast.success(`Imported ${rows.length} allocation${rows.length === 1 ? "" : "s"}`);
       onImported();
       close();
@@ -226,6 +361,32 @@ export function HeadcountSheetDialog({
               </Button>
             )}
 
+            {preview?.absenceColumnFound && (
+              // One Absence column on the sheet, two answers on the board. Which one
+              // it is belongs to payroll, so it is asked rather than picked quietly —
+              // and until it is answered those names are held, not dropped.
+              <div className="rounded-md border border-warning/30 bg-warning/5 p-2.5">
+                <div className="text-2xs font-semibold">This sheet has an “Absence” column</div>
+                <p className="mt-0.5 text-2xs text-muted-foreground">
+                  The board keeps sickness and unpaid leave apart. Nobody under that column is
+                  imported until you say which it means.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  {(["sick", "unpaid"] as AllocStatus[]).map((k) => (
+                    <Button
+                      key={k}
+                      size="sm"
+                      variant={absenceAs === k ? "default" : "outline"}
+                      className="h-7 text-2xs"
+                      onClick={() => setAbsenceAs(absenceAs === k ? null : k)}
+                    >
+                      {k === "sick" ? "Sickness" : "Unpaid leave"}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {preview && (
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
@@ -247,12 +408,34 @@ export function HeadcountSheetDialog({
                     </div>
                     {preview.unmatchedNames.length > 0 && (
                       <div>
-                        <div className="font-semibold">Names nobody on this shift answers to</div>
-                        <ul className="mt-0.5 space-y-0.5 text-muted-foreground">
-                          {preview.unmatchedNames.slice(0, 25).map((u, i) => (
-                            <li key={i}>“{u.name}” — {u.column}, {u.date}</li>
+                        <div className="font-semibold">Names the sheet spells its own way</div>
+                        <p className="mt-0.5 text-muted-foreground">
+                          Say who each one is and they go in with the rest. One row per spelling,
+                          however many days it appears on.
+                        </p>
+                        <ul className="mt-1.5 space-y-1">
+                          {bySpelling(preview.unmatchedNames).map((u) => (
+                            <li key={u.name} className="flex items-center justify-between gap-2">
+                              <span className="min-w-0 flex-1 truncate">
+                                “{u.name}”
+                                <span className="text-muted-foreground">
+                                  {" "}— {[...u.columns].join(", ")}
+                                  {u.times > 1 ? ` (×${u.times})` : ""}
+                                </span>
+                              </span>
+                              <NamePicker
+                                spelling={u.name}
+                                candidates={u.candidates}
+                                roster={roster}
+                                value={assigned[u.name] ?? null}
+                                onChange={(id) => setAssigned((prev) => {
+                                  const next = { ...prev };
+                                  if (id) next[u.name] = id; else delete next[u.name];
+                                  return next;
+                                })}
+                              />
+                            </li>
                           ))}
-                          {preview.unmatchedNames.length > 25 && <li>…and {preview.unmatchedNames.length - 25} more</li>}
                         </ul>
                       </div>
                     )}
@@ -271,13 +454,25 @@ export function HeadcountSheetDialog({
                   </div>
                 )}
 
+                {Object.keys(assigned).length > 0 && (
+                  <label className="flex items-center gap-2 text-2xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={remember}
+                      onChange={(e) => setRemember(e.target.checked)}
+                      className="h-3 w-3 accent-[hsl(var(--primary))]"
+                    />
+                    Remember these spellings, so the next import does not ask again
+                  </label>
+                )}
+
                 <p className="text-2xs text-muted-foreground">
                   Anyone already on these days who is not in the file keeps their place — the
                   file says what it knows, not what is untrue.
                 </p>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setPreview(null)} className="flex-1">Choose another</Button>
+                  <Button variant="outline" onClick={() => setBook(null)} className="flex-1">Choose another</Button>
                   <Button onClick={commit} disabled={busy || !canManage || preview.matched.length === 0} className="flex-1">
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Import {preview.matched.length}
