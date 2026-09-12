@@ -45,7 +45,7 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
       {tabs.map((t) => (
         <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={t.shortTitle ?? t.title} onClick={() => navigate(t.url)} />
       ))}
-      <Tab active={false} icon={Menu} label="Menu" onClick={() => setOpenMobile(true)} />
+      <Tab active={false} icon={Menu} label="Menu" onClick={openMenu} />
     </nav>
   );
 }
