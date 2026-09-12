@@ -33,6 +33,19 @@ export type HeadcountEmployee = {
   department: string | null;
   /** Which rota they are on. Null means unrecorded, which is not the same as off. */
   shift_pattern_id: string | null;
+  /**
+   * The other spellings the company spreadsheet uses for this person, comma separated.
+   *
+   * The factory's own headcount sheet is typed by hand every morning and calls people
+   * what the line calls them: "LUCAS GLOR" for Lucas Gloor, "GYOVANI" for Giovany Gava,
+   * "Gimenez" for Gabriel Chimenez. No matching rule should guess at those, and the
+   * office should not have to place the same four people by hand every month — so the
+   * spelling is written down once, on the person, and the import reads it.
+   *
+   * Same idea and same shape as `headcount_areas.sheet_label`, which already does this
+   * for the columns.
+   */
+  sheet_aliases?: string | null;
 };
 
 export type Allocation = {
@@ -152,7 +165,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,shift_group,department,shift_pattern_id")
+        .select("id,full_name,shift_group,department,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -230,7 +243,7 @@ export function useRotaCover() {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,shift_group,department,shift_pattern_id")
+        .select("id,full_name,shift_group,department,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
