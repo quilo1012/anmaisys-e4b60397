@@ -10,7 +10,11 @@ import { dashboardPathFor, type Role } from "@/lib/permissions";
 export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { setOpenMobile } = useSidebar();
+  // The bar shows from 768px up, but the sidebar only has a drawer below 768px.
+  // On a tablet, "Menu" must therefore re-open the sidebar itself, otherwise the
+  // button does nothing at all once the menu is hidden.
+  const { setOpenMobile, setOpen, isMobile: sidebarHasDrawer } = useSidebar();
+  const openMenu = () => (sidebarHasDrawer ? setOpenMobile(true) : setOpen(true));
   const { role } = useAuth();
   const home = dashboardPathFor(role as Role | null);
 
@@ -41,7 +45,7 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
       {tabs.map((t) => (
         <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={t.shortTitle ?? t.title} onClick={() => navigate(t.url)} />
       ))}
-      <Tab active={false} icon={Menu} label="Menu" onClick={() => setOpenMobile(true)} />
+      <Tab active={false} icon={Menu} label="Menu" onClick={openMenu} />
     </nav>
   );
 }

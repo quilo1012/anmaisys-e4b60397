@@ -8184,7 +8184,7 @@ export type Database = {
         Returns: undefined
       }
       scorecard_derived_volume: {
-        Args: { _line_id: string; _week_ending: string }
+        Args: { _leader_id?: string; _line_id: string; _week_ending: string }
         Returns: {
           actual_volume: number
           planned_volume: number
@@ -8340,6 +8340,7 @@ export type Database = {
           rag_driver: string
           score_bruto: number
           score_final: number
+          shifts_led: number
           state: string
           volume_rag: string
         }[]

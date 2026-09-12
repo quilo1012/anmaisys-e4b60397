@@ -801,7 +801,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   };
 
-  const handleSidebarOpenChange = () => {
+  const handleSidebarOpenChange = (open?: boolean) => {
+    // An explicit "open me" — the tablet's Menu tab — means the full menu, not the
+    // next step of the cycle, which from the rail would have hidden it instead.
+    if (open === true) return applySidebarState("expanded");
     const order: SidebarUiState[] = ["expanded", "rail", "hidden"];
     const next = order[(order.indexOf(sidebarUiState) + 1) % order.length];
     applySidebarState(next);
@@ -876,7 +879,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   : "min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3",
               )}
             >
-              {!isMobile && <SidebarStateControl uiState={sidebarUiState} onSelect={applySidebarState} />}
+              {/* Shown on tablets too: below 1024px the sidebar has no drawer of its own,
+                  so hiding this control left a hidden menu with no way back on the very
+                  devices used on the floor. Only a phone (tab bar navigation) hides it. */}
+              {device !== "mobile" && <SidebarStateControl uiState={sidebarUiState} onSelect={applySidebarState} />}
               {/* Back lives in the shell so every screen has it in the same place —
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
