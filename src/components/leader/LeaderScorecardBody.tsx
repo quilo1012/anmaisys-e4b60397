@@ -749,19 +749,23 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
             <p className="font-display text-2xs font-bold uppercase tracking-[0.14em] text-destructive-strong print:text-black">
               Score ceiling — {score.cap.named}
             </p>
+            {/* Names the gate that actually fired rather than assuming it was a food
+                safety one: the same ceiling is produced by a lost-time injury or a
+                reportable accident, and this card is printed and signed. */}
             {score.cap.applied ? (
               <p className="text-xs leading-snug text-foreground print:text-black">
-                This score is limited to {score.cap.value}% because a food safety gate fired in
-                this period. A gate is a ceiling, never a weight — it records that the event
+                This score is limited to {score.cap.value}% because a gate fired in this period:{" "}
+                {score.cap.named}. A gate is a ceiling, never a weight — it records that the event
                 happened on this line, in this period, whoever was at fault. No production can
                 buy it back.
               </p>
             ) : (
               <p className="text-xs leading-snug text-foreground print:text-black">
-                A food safety gate fired in this period, which limits a score to {score.cap.value}%.
-                This period already scored below that, so the ceiling changed nothing — the
-                occurrence still stands on the record. A gate is a ceiling, never a weight, and it
-                records that the event happened on this line, in this period, whoever was at fault.
+                A gate fired in this period — {score.cap.named} — which limits a score to{" "}
+                {score.cap.value}%. This period already scored below that, so the ceiling changed
+                nothing — the occurrence still stands on the record. A gate is a ceiling, never a
+                weight, and it records that the event happened on this line, in this period,
+                whoever was at fault.
               </p>
             )}
           </div>
