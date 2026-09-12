@@ -1246,8 +1246,8 @@ export type Database = {
           manager_id: string | null
           notes: string | null
           position: string | null
-          shift_group: string | null
           sheet_aliases: string | null
+          shift_group: string | null
           shift_pattern_id: string | null
           source: string
           started_on: string | null
@@ -1269,8 +1269,8 @@ export type Database = {
           manager_id?: string | null
           notes?: string | null
           position?: string | null
-          shift_group?: string | null
           sheet_aliases?: string | null
+          shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
           started_on?: string | null
@@ -1292,8 +1292,8 @@ export type Database = {
           manager_id?: string | null
           notes?: string | null
           position?: string | null
-          shift_group?: string | null
           sheet_aliases?: string | null
+          shift_group?: string | null
           shift_pattern_id?: string | null
           source?: string
           started_on?: string | null
