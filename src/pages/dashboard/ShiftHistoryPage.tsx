@@ -439,6 +439,48 @@ const hhmm = (v: string | null | undefined) => (v ? new Date(v).toTimeString().s
 const cleanDescription = (name: string) =>
   name.replace(/\s*\[\s*HS\s*CODE[^\]]*\]/gi, "").replace(/\s{2,}/g, " ").trim();
 
+/**
+ * A régua da folha: o que cada coluna tem de aguentar, em pixels de papel.
+ *
+ * Uma A4 deitada com os 10 mm de margem que o `@media print` do `index.css` impõe dá
+ * 277 mm — 1047 px de layout — e a tabela é `table-layout: fixed`. Numa tabela fixa uma
+ * célula mais larga do que a sua coluna NÃO a alarga: transborda por cima da coluna
+ * seguinte, sem erro e sem aviso. Foi assim que o `NEUBFWP900WCP` se imprimiu por cima
+ * do `NOT FOR EU —`, que o `M 09/26 · E 09/28` passou por cima dos números da mistura, e
+ * que um SKU escrito à mão ("Essential protein banana milkshake", 216 px) atravessou a
+ * descrição inteira e saiu com o travessão da descrição a riscá-lo ao meio.
+ *
+ * Por isso a largura não se adivinha. Cada número aqui é o que a coluna precisa medido
+ * com os dados reais de um dia de sete linhas, e o `need` ao lado é essa medida: quem
+ * apertar uma coluna abaixo do seu `need` volta a pôr texto por cima de texto.
+ *
+ * Só a descrição é que não tem número — fica com o que sobra, que é como uma coluna de
+ * texto corrido se comporta. E as três colunas que podem receber texto sem limite (o
+ * SKU, a descrição e o lote) passam à linha em vez de transbordar: numa folha de turno
+ * uma palavra partida em duas linhas lê-se, uma palavra impressa por cima da do lado
+ * não.
+ */
+export const PC_COLUMNS = [
+  { key: "rail",    width: 9,   need: 9 },   // a faixa da baía
+  { key: "date",    width: 42,  need: 42 },  // "11/09" e o cabeçalho DATE
+  { key: "shift",   width: 52,  need: 51 },  // a chapa NIGHT com o seu bordo
+  { key: "line",    width: 72,  need: 70 },  // "Tablet Line"
+  { key: "leader",  width: 80,  need: 70 },  // "Rafael Tosta", com folga para nomes maiores
+  { key: "team",    width: 40,  need: 39 },  // o cabeçalho TEAM, que é mais largo que o número
+  { key: "sku",     width: 100, need: 84 },  // "NEUBFWP900WCP"; o texto livre passa à linha
+  { key: "desc",    width: 0,   need: 0 },   // o que sobra
+  { key: "batch",   width: 94,  need: 94 },  // "M 09/26 · E 09/28", que é mais largo que o lote
+  { key: "blender", width: 58,  need: 57 },  // o cabeçalho BLENDER, que não parte a meio
+  { key: "qty",     width: 58,  need: 55 },
+  { key: "weight",  width: 68,  need: 67 },  // "WEIGHT (g)" numa linha só
+  { key: "start",   width: 43,  need: 43 },
+  { key: "finish",  width: 44,  need: 44 },
+] as const;
+
+/** O que sobra para a descrição, e o aviso se algum dia não sobrar nada. */
+export const PC_PRINTABLE_PX = 1047;
+export const PC_FIXED_PX = PC_COLUMNS.reduce((a, c) => a + c.width, 0);
+
 /** O plano ao lado do feito, na mesma língua nos três sítios em que a folha o diz. */
 function AgainstPlan({ qty, plan, pct }: { qty: number; plan: number; pct: number | null }) {
   return (
@@ -582,6 +624,11 @@ export function ProductionControlPrintSheet({
         : [];
       const weight = i ? parseWeightFromSku(code, name, sku?.weight ?? null) : 0;
       const leaderName = s.leader_name ?? (s.leader_id ? leaderById.get(s.leader_id) ?? null : null);
+      const skuText = i ? (baseSkuCode(code) || i.sku_code_text || "—") : "—";
+      // Um travessão não é uma descrição: é a ausência de uma. Vazio para que a fila
+      // saiba que não há segunda coluna para escrever.
+      const rawDesc = i ? cleanDescription(name) : "";
+      const descText = rawDesc === "—" ? "" : rawDesc;
       return rows.push(
         <tr key={`p-row-${s.id}-${i?.id ?? idx}`} className="border-t border-black/12">
           <td className="pc-rail" style={{ backgroundColor: bayPaper(s.line) }} />
@@ -602,17 +649,28 @@ export function ProductionControlPrintSheet({
               cheio em cada fila era dizer três vezes a mesma coisa. Fica calado — quem
               grita é a faixa —, mas fica, porque uma página que comece a meio de uma
               baía não traz a chapa consigo. */}
-          <td className={`${cell} whitespace-nowrap pr-3 text-black/55`}>{(s.line ?? "").trim()}</td>
+          <td className={`${cell} pr-3 text-black/55`}>{(s.line ?? "").trim()}</td>
           {/* O líder e a equipa são do turno, não de cada SKU que ele fez: escrevem-se
               uma vez, na primeira fila da sessão, como uma célula fundida na folha que
               este ecrã substituiu. */}
-          <td className={`${cell} whitespace-nowrap`}>{idx === 0 ? (leaderName ?? "—") : ""}</td>
+          <td className={cell}>{idx === 0 ? (leaderName ?? "—") : ""}</td>
           <td className={num}>{idx === 0 ? (s.staff_actual ?? "—") : ""}</td>
-          <td className={`${cell} whitespace-nowrap font-figure font-bold`}>
-            {i ? (baseSkuCode(code) || i.sku_code_text || "—") : "—"}
-          </td>
-          <td className={`${cell} pc-wrap`}>{i ? cleanDescription(name) : "—"}</td>
-          <td className={`${cell} whitespace-nowrap font-figure`}>
+          {/* O SKU e a descrição são duas colunas quando há duas coisas para dizer.
+              Quando o item entrou sem catálogo o que vai no SKU não é um código: é o
+              `sku_code_text` que alguém escreveu à mão — "Essential protein banana
+              milkshake" — e a descrição ao lado fica um travessão. Numa coluna de
+              100 px esse nome cai em três linhas ao lado de uma célula vazia. Então
+              não há duas colunas: há uma, com a largura das duas, e o travessão que
+              não dizia nada desaparece. */}
+          {descText ? (
+            <>
+              <td className={`${cell} pc-wrap font-figure font-bold`}>{skuText}</td>
+              <td className={`${cell} pc-wrap`}>{descText}</td>
+            </>
+          ) : (
+            <td colSpan={2} className={`${cell} pc-wrap font-figure font-bold`}>{skuText}</td>
+          )}
+          <td className={`${cell} pc-wrap font-figure`}>
             {i?.batch_code || "—"}
             {i && (i.manufacture_month || i.expiry_month) && (
               <div className="text-[6pt] text-black/55">
@@ -649,6 +707,14 @@ export function ProductionControlPrintSheet({
            dos outros ecrãs. Aqui as larguras são dadas, e partir "LEADER" em "LEADE R"
            é o que fazia isto parecer um despejo de folha de cálculo. */
         #production-control-print th, #production-control-print td { word-break: normal; overflow-wrap: normal; }
+        /* Um título de coluna nunca passa à linha: a régua tem a largura que ele pede,
+           e um "WEIGHT (g)" em duas linhas empurrava a tabela toda para baixo. */
+        #production-control-print th { white-space: nowrap; }
+        /* O travão de fim de linha. Numa tabela fixa o transbordo é SILENCIOSO: a
+           célula pinta-se por cima da vizinha e a folha sai com ar de estar certa.
+           Cortar é pior do que caber e melhor do que escrever por cima — e não chega
+           a acontecer, porque as colunas que podem crescer levam .pc-wrap. */
+        #production-control-print td, #production-control-print th { overflow: hidden; }
         #production-control-print .pc-wrap { overflow-wrap: anywhere; }
         /* A faixa da baía: 2,5 mm de cor a descer o bloco todo, encostada à margem. */
         #production-control-print .pc-rail { width: 9px; padding: 0; border: 0; }
@@ -658,6 +724,11 @@ export function ProductionControlPrintSheet({
         /* O total é a última fila da folha e não um rodapé: um tfoot repete-se em
            todas as páginas, e o total do período aparecia ao fundo de cada uma. */
         #production-control-print .pc-total td { border-top: 1.2pt solid #000; }
+        /* E nunca sozinho. Faltando 23 px à última página, a folha virava a página
+           para imprimir uma em branco com o total ao cimo e mais nada — que é o
+           aspecto de um documento que se enganou, não o de um que acabou. Leva a
+           última fila consigo. */
+        #production-control-print .pc-total { break-before: avoid; }
       `}</style>
 
       <ReportPrintHeader
@@ -703,23 +774,10 @@ export function ProductionControlPrintSheet({
         <p className="text-[8pt]">No production recorded for this period.</p>
       ) : (
         <table className="text-[7.5pt] leading-[1.25]">
-          {/* Larguras dadas, e a descrição a ficar com o que sobra: sem isto o
-              navegador dá a folga à coluna do lote e parte o cabeçalho das outras. */}
           <colgroup>
-            <col style={{ width: "9px" }} />
-            <col style={{ width: "42px" }} />
-            <col style={{ width: "44px" }} />
-            <col style={{ width: "94px" }} />
-            <col style={{ width: "84px" }} />
-            <col style={{ width: "34px" }} />
-            <col style={{ width: "76px" }} />
-            <col />
-            <col style={{ width: "76px" }} />
-            <col style={{ width: "46px" }} />
-            <col style={{ width: "62px" }} />
-            <col style={{ width: "48px" }} />
-            <col style={{ width: "40px" }} />
-            <col style={{ width: "40px" }} />
+            {PC_COLUMNS.map((c) => (
+              <col key={c.key} style={c.width ? { width: `${c.width}px` } : undefined} />
+            ))}
           </colgroup>
           <thead>
             <tr>
@@ -734,7 +792,9 @@ export function ProductionControlPrintSheet({
               <th className={th}>Batch</th>
               <th className={thNum}>Blender</th>
               <th className={thNum}>Qty</th>
-              <th className={thNum}>Weight (g)</th>
+              {/* `uppercase` transformava "(g)" em "(G)", que é giga. Numa folha de
+                  fábrica a unidade escreve-se como a unidade é. */}
+              <th className={thNum}>Weight <span className="normal-case">(g)</span></th>
               <th className={th}>Start</th>
               <th className={th}>Finish</th>
             </tr>
