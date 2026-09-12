@@ -747,7 +747,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
           <AlertTriangle aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-destructive-strong print:text-black" />
           <div className="min-w-0 space-y-1.5">
             <p className="font-display text-2xs font-bold uppercase tracking-[0.14em] text-destructive-strong print:text-black">
-              Score ceiling — {score.cap.named}
+              Score ceiling
             </p>
             {/* Names the gate that actually fired rather than assuming it was a food
                 safety one: the same ceiling is produced by a lost-time injury or a
