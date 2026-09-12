@@ -801,7 +801,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   };
 
-  const handleSidebarOpenChange = () => {
+  const handleSidebarOpenChange = (open?: boolean) => {
+    // An explicit "open me" — the tablet's Menu tab — means the full menu, not the
+    // next step of the cycle, which from the rail would have hidden it instead.
+    if (open === true) return applySidebarState("expanded");
     const order: SidebarUiState[] = ["expanded", "rail", "hidden"];
     const next = order[(order.indexOf(sidebarUiState) + 1) % order.length];
     applySidebarState(next);
