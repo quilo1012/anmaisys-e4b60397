@@ -73,7 +73,7 @@ export type Allocation = {
  * day is paid. It is now `unpaid`, with `sick` beside it, so the board records the
  * two separately at the moment somebody knows which it was.
  */
-export type AllocStatus = "assigned" | "overtime" | "sick" | "unpaid" | "holiday";
+export type AllocStatus = "assigned" | "overtime" | "sick" | "unpaid" | "holiday" | "training";
 
 /** Areas that make up the board columns (production first, then support). */
 export function useHeadcountAreas() {

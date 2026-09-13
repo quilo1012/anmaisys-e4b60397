@@ -20,22 +20,33 @@
  * `present`.
  */
 
-/** Board statuses, best evidence of attendance first. */
+/**
+ * Board statuses, best evidence of attendance first.
+ *
+ * Training sits directly under a day on a line: somebody in training was in the
+ * building and is paid for the day, so it beats every away mark — but a person who
+ * also stood on a line that day worked, and the line wins.
+ */
 const RANK: Record<string, number> = {
   assigned: 0,
   overtime: 0,
-  holiday: 1,
-  sick: 2,
-  unpaid: 3,
+  training: 1,
+  holiday: 2,
+  sick: 3,
+  unpaid: 4,
 };
 
-export type AttendanceStatus = "present" | "holiday" | "sick" | "unpaid";
+export type AttendanceStatus = "present" | "holiday" | "sick" | "unpaid" | "training";
 
 /** What one board mark means to payroll. */
 export function attendanceForStatus(boardStatus: string): AttendanceStatus {
   return boardStatus === "holiday" ? "holiday"
     : boardStatus === "sick" ? "sick"
     : boardStatus === "unpaid" ? "unpaid"
+    // The one board mark payroll spells the same way. `employee_attendance` has
+    // accepted `training` since the workforce board was written; only the production
+    // board could not say it.
+    : boardStatus === "training" ? "training"
     : "present";
 }
 

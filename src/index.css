@@ -836,6 +836,18 @@ select:-webkit-autofill {
     break-inside: avoid !important;
   }
 
+  /* The blocks under the columns — Sickness, Unpaid, Holidays, Overtime, Training.
+     Not `.headcount-columns`: 118px tracks are right for twenty area columns and leave
+     five wide blocks huddled in the left half of the sheet. But the screen's own floor
+     does not fit either — five at 200px with a 16px gap want 1064px and an A4 landscape
+     sheet gives 1047, so Training dropped onto a second row with four empty tracks
+     beside it. A floor of 150px and the same tight gap the columns print at puts all
+     five across one sheet with room to spare. */
+  .headcount-away {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important;
+    gap: 6px !important;
+  }
+
   .headcount-chip {
     min-height: 0 !important;
     padding: 1px 3px !important;

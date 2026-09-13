@@ -10,6 +10,9 @@ describe("attendanceForStatus", () => {
     expect(attendanceForStatus("holiday")).toBe("holiday");
     expect(attendanceForStatus("sick")).toBe("sick");
     expect(attendanceForStatus("unpaid")).toBe("unpaid");
+    // The one the two sides already spelled the same way, and the only one the
+    // production board could not write until the check constraint allowed it.
+    expect(attendanceForStatus("training")).toBe("training");
   });
 
   it("treats anything it does not recognise as present rather than as absent", () => {
@@ -43,6 +46,16 @@ describe("attendanceFromBoard", () => {
   it("ranks an away day above nothing but below a day worked", () => {
     expect(attendanceFromBoard([mark("sick"), mark("unpaid")])[0].status).toBe("sick");
     expect(attendanceFromBoard([mark("overtime"), mark("holiday")])[0].status).toBe("present");
+  });
+
+  it("puts a training day above every away mark and below a day on a line", () => {
+    // They came in and they are paid, so a holiday marked on another board must not
+    // win. A line does: somebody who stood on Line 3 worked, whatever else was said.
+    expect(attendanceFromBoard([mark("holiday"), mark("training")])[0].status).toBe("training");
+    expect(attendanceFromBoard([mark("training"), mark("sick")])[0].status).toBe("training");
+    expect(attendanceFromBoard([mark("training"), mark("unpaid")])[0].status).toBe("training");
+    expect(attendanceFromBoard([mark("training"), mark("assigned")])[0].status).toBe("present");
+    expect(attendanceFromBoard([mark("assigned"), mark("training")])[0].status).toBe("present");
   });
 
   it("never lets an unknown status win over a day somebody demonstrably worked", () => {

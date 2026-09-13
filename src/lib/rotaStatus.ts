@@ -27,7 +27,7 @@
  *   the status control itself takes it off again; see `explicit` below.
  */
 
-export type AllocStatus = "assigned" | "overtime" | "holiday" | "sick" | "unpaid";
+export type AllocStatus = "assigned" | "overtime" | "holiday" | "sick" | "unpaid" | "training";
 
 export interface RotaCover {
   /** Whether a rota is recorded at all. False means unknown, which is not "off". */
