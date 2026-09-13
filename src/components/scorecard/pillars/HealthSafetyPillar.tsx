@@ -1,6 +1,7 @@
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { COUNT_INPUT, FRACTION_INPUT, fractionLabel, parseNullableNumber } from "@/lib/scorecardNumberInput";
+import { FRACTION_INPUT, fractionLabel } from "@/lib/scorecardNumberInput";
+// Um so campo numerico para todo o scorecard. Os quatro campos de fraccao eram
+// impossiveis de teclar enquanto cada pilar tinha a sua copia do input.
+import { NumericField as NumField } from "../NumericField";
 import type { ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import type { SetField } from "./types";
 
@@ -8,35 +9,6 @@ type NumKey =
   | "lost_time_injuries" | "reportable_accidents" | "first_aid_cases"
   | "near_misses_reported" | "safety_observations_done" | "toolbox_talks_done"
   | "ppe_compliance_pct" | "hs_training_compliance_pct" | "overdue_hs_actions";
-
-function NumField({
-  id, label, value, onChange, caption, bounds = COUNT_INPUT,
-}: {
-  id: string;
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-  caption?: string;
-  /** The database's own domain, restated on the box. Counters by default. */
-  bounds?: { min: number; max?: number; step: number };
-}) {
-  return (
-    <div>
-      <Label htmlFor={id} className="text-xs">{label}</Label>
-      <Input
-        id={id}
-        type="number"
-        min={bounds.min}
-        max={bounds.max}
-        step={bounds.step}
-        value={value ?? ""}
-        onChange={(e) => onChange(parseNullableNumber(e.target.value))}
-        className="mt-1 h-9"
-      />
-      {caption && <p className="mt-1 text-2xs text-muted-foreground">{caption}</p>}
-    </div>
-  );
-}
 
 /**
  * Nine fields, all starting empty. `verdict.hs_rag` — the database's — is shown by

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { emptyDraft, type ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import { HealthSafetyPillar } from "./HealthSafetyPillar";
 
@@ -15,10 +15,15 @@ function Harness({ verdict = null }: { verdict?: { hs_driver: string[] | null } 
 describe("HealthSafetyPillar", () => {
   it("every one of the nine fields starts empty, never zero", () => {
     render(<Harness />);
-    for (const input of screen.getAllByRole("spinbutton")) {
+    // Sete contadores inteiros (spinbutton) e duas fraccoes. As fraccoes sao caixas de
+    // texto com teclado decimal porque um `type="number"` nao deixa passar o "0." — sem
+    // isso os dois campos sao impossiveis de preencher. Ver `NumericField`.
+    const fields = [...screen.getAllByRole("spinbutton"), ...screen.getAllByRole("textbox")];
+    for (const input of fields) {
       expect((input as HTMLInputElement).value).toBe("");
     }
-    expect(screen.getAllByRole("spinbutton")).toHaveLength(9);
+    expect(screen.getAllByRole("spinbutton")).toHaveLength(7);
+    expect(screen.getAllByRole("textbox")).toHaveLength(2);
   });
 
   it("carries the under-reporting caption next to near misses, and only there", () => {
@@ -55,11 +60,39 @@ describe("HealthSafetyPillar", () => {
     // A box labelled "%" invites 95 and the database refuses the whole row.
     for (const label of ["PPE compliance (0\u20131)", "H&S training compliance (0\u20131)"]) {
       const input = screen.getByLabelText(label);
-      expect(input).toHaveAttribute("min", "0");
-      expect(input).toHaveAttribute("max", "1");
-      expect(input).toHaveAttribute("step", "0.01");
+      // O intervalo ja nao vive em `min`/`max` nativos: estes campos sao de texto, para
+      // que o "0." sobreviva ao ser teclado. Quem o diz e a etiqueta, e um valor fora
+      // do intervalo e marcado em vez de ser recusado em silencio pelo browser.
+      expect(input).toHaveAttribute("inputmode", "decimal");
+      expect(input).not.toHaveAttribute("aria-invalid");
+      fireEvent.change(input, { target: { value: "95" } });
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      fireEvent.change(input, { target: { value: "0.95" } });
+      expect(input).not.toHaveAttribute("aria-invalid");
     }
     expect(screen.queryByLabelText("PPE compliance %")).not.toBeInTheDocument();
+  });
+
+  it("deixa escrever uma fraccao ate ao fim, em vez de comer o ponto decimal", () => {
+    render(<Harness />);
+    const ppe = screen.getByLabelText("PPE compliance (0\u20131)") as HTMLInputElement;
+
+    // Como uma pessoa escreve mesmo: digito, ponto, digitos. O estado intermedio "0."
+    // costumava voltar a "0" — e o campo ficava impossivel de preencher.
+    fireEvent.change(ppe, { target: { value: "0" } });
+    fireEvent.change(ppe, { target: { value: "0." } });
+    expect(ppe.value).toBe("0.");
+    fireEvent.change(ppe, { target: { value: "0.9" } });
+    fireEvent.change(ppe, { target: { value: "0.95" } });
+    expect(ppe.value).toBe("0.95");
+  });
+
+  it("esvaziar o campo continua a escrever null, e nao um zero", () => {
+    render(<Harness />);
+    const ppe = screen.getByLabelText("PPE compliance (0\u20131)") as HTMLInputElement;
+    fireEvent.change(ppe, { target: { value: "0.95" } });
+    fireEvent.change(ppe, { target: { value: "" } });
+    expect(ppe.value).toBe("");
   });
 
   it("bounds the counters at zero, as every CHECK on them does", () => {

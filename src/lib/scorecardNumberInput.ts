@@ -30,3 +30,35 @@ export function fractionLabel(label: string): string {
 
 /** Counters: whole, never negative — `CHECK (… >= 0)` on every one of them. */
 export const COUNT_INPUT = { min: 0, step: 1 } as const;
+
+/**
+ * O que fazer com o texto que acabou de ser teclado num campo numerico.
+ *
+ * Existe por causa dos quatro campos de fraccao: `numeric(5,4)` entre 0 e 1, ou seja
+ * numeros que SO se escrevem com ponto decimal. Um `<input type="number">` controlado
+ * por `value={n ?? ""}` e impossivel de teclar, e por duas razoes de uma vez:
+ *
+ *   - `Number("0.")` da 0, portanto o estado volta a "0" e o ponto desaparece no
+ *     instante em que e teclado;
+ *   - num browser real o proprio input devolve `value === ""` enquanto o texto nao
+ *     for um numero completo (marca `validity.badInput`), portanto o campo esvazia-se.
+ *
+ * Em qualquer dos caminhos o utilizador nunca chega a `0.95`. A saida e distinguir
+ * "isto ja e um numero" de "isto ainda esta a ser escrito" e nao propagar o segundo.
+ */
+export type NumberEdit =
+  /** Ha um numero (ou um campo genuinamente vazio): pode ir para o rascunho. */
+  | { kind: "value"; value: number | null }
+  /** Texto a meio — "0.", "-", "." — ou lixo: guarda-se o texto e nao se escreve nada. */
+  | { kind: "pending" };
+
+export function readNumberEdit(raw: string): NumberEdit {
+  const t = raw.trim();
+  if (t === "") return { kind: "value", value: null };
+  // Prefixos que ainda nao sao numero nenhum: "-", "+", ".", "0.", "-12."
+  if (/^[+-]?(\d*\.)?$/.test(t)) return { kind: "pending" };
+  const n = Number(t);
+  // Lixo ("abc") tambem fica pendente, e nao apaga o que la estava: apagar exige
+  // esvaziar o campo, que e o unico caso em que este modulo devolve `null`.
+  return Number.isFinite(n) ? { kind: "value", value: n } : { kind: "pending" };
+}
