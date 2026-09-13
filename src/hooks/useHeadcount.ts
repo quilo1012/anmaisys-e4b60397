@@ -1026,23 +1026,70 @@ export function useChangeShift(onDate: string) {
       });
 
       const board = boardShiftFor(shiftGroup);
-      if (board) {
+      if (!board) return { alreadyThere: [] as string[] };
+
+      // A person can be on both boards on the same day, and often is.
+      //
+      // `daily_allocations` is keyed on day + board + person exactly so that somebody
+      // can work their own shift and take overtime on the other board the same day —
+      // a thousand and twenty-six person-days in this factory are that pair, Day
+      // assigned plus Night overtime. Rewriting `shift` on every future row therefore
+      // asks Postgres for two rows with one key, and
+      // `daily_allocations_on_date_shift_employee_id_key` refuses the whole statement:
+      // the crew changed, `employee_shift_history` recorded it, not a single day moved,
+      // and the board showed a raw constraint name to whoever pressed the button.
+      //
+      // So read the days ahead first and move only the ones whose destination is free.
+      // The same guard the 07/08 migration used when it unstranded the Weekend board,
+      // and for the same reason.
+      //
+      // Unpaged on purpose. The thousand rows PostgREST returns without a word is a
+      // real hazard on this table and the sheet import pages around it — but that is a
+      // range of both boards for everybody. This read is one person from one date, and
+      // the worst case in the live board is thirteen rows ahead and fifty-four ever.
+      const { data: ahead, error: aheadErr } = await supabase
+        .from("daily_allocations")
+        .select("id,on_date,shift")
+        .eq("employee_id", employeeId)
+        .gte("on_date", onDate);
+      if (aheadErr) throw aheadErr;
+
+      const rows = (ahead ?? []) as { id: string; on_date: string; shift: string }[];
+      const taken = new Set(rows.filter((r) => r.shift === board).map((r) => r.on_date));
+      const movable = rows.filter((r) => r.shift !== board && !taken.has(r.on_date));
+
+      // The days that stay where they are. They are not lost: the person is already
+      // drawn on the new board for each of them, so both shifts they had that day
+      // survive. What is left over is which of the two is the ordinary one — the row
+      // on the old board still says `assigned` where the crew change has made it
+      // overtime, and only the rota can settle that. Say so rather than guess.
+      const alreadyThere = [...new Set(rows.filter((r) => r.shift !== board && taken.has(r.on_date)).map((r) => r.on_date))].sort();
+
+      if (movable.length > 0) {
         // The mark stays behind with the board it was on: leading Line 1 on days says
         // nothing about Line 1 on nights, and carrying it across could land a second
         // leader in a column that already has one — the same index, the same refusal.
+        // Only the rows that actually move lose it; a row already on the new board
+        // earned its mark there and a crew change is no reason to take it away.
         const { error: moveErr } = await supabase
           .from("daily_allocations")
           .update({ shift: board, is_leader: false })
-          .eq("employee_id", employeeId)
-          .gte("on_date", onDate);
+          .in("id", movable.map((r) => r.id));
         if (moveErr) throw moveErr;
       }
+
+      return { alreadyThere };
     },
-    onSuccess: () => {
+    onSuccess: ({ alreadyThere }) => {
       qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
       qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
       qc.invalidateQueries({ queryKey: ["employee_shift_history"] });
       toast.success("Shift changed. Days already past keep the shift they were worked on.");
+      if (alreadyThere.length > 0) {
+        toast.warning(
+          `${alreadyThere.length} day${alreadyThere.length === 1 ? "" : "s"} were left on the old board because this person is already on the new one that day (${alreadyThere.join(", ")}). Check which of the two shifts is the ordinary one.`,
+        );
+      }
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not change the shift"),
   });

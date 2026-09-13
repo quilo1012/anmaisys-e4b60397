@@ -24,6 +24,8 @@ let employeeRow: { shift_group: string | null; shift_pattern_id: string | null }
   shift_group: "Day",
   shift_pattern_id: "mon-thu",
 };
+/** The days already on the board ahead of the move, which decide what can move. */
+let allocationRows: { id: string; on_date: string; shift: string }[] = [];
 
 vi.mock("@/integrations/supabase/client", () => {
   function makeBuilder(table: string) {
@@ -36,11 +38,16 @@ vi.mock("@/integrations/supabase/client", () => {
       select: () => builder,
       eq: (c: string, v: unknown) => { filters[c] = v; return builder; },
       gte: (c: string, v: unknown) => { filters[`gte:${c}`] = v; return builder; },
+      in: (c: string, v: unknown) => { filters[`in:${c}`] = v; return builder; },
       update: (p: unknown) => { op = "update"; payload = p; return builder; },
       upsert: (p: unknown) => { op = "upsert"; payload = p; return builder; },
       single: async () => { record(); return { data: employeeRow, error: null }; },
       maybeSingle: async () => { record(); return { data: employeeRow, error: null }; },
-      then: (resolve: (r: unknown) => unknown) => { record(); return resolve({ data: [], error: null }); },
+      then: (resolve: (r: unknown) => unknown) => {
+        record();
+        const data = table === "daily_allocations" && op === "read" ? allocationRows : [];
+        return resolve({ data, error: null });
+      },
     });
     return builder;
   }
@@ -62,6 +69,10 @@ const history = () => calls.filter((c) => c.table === "employee_shift_history" &
 beforeEach(() => {
   calls = [];
   employeeRow = { shift_group: "Day", shift_pattern_id: "mon-thu" };
+  allocationRows = [
+    { id: "a-08", on_date: "2026-08-08", shift: "Day" },
+    { id: "a-09", on_date: "2026-08-09", shift: "Day" },
+  ];
 });
 
 describe("useSetShiftPattern", () => {
@@ -115,7 +126,44 @@ describe("useChangeShift", () => {
 
     const moved = calls.find((c) => c.table === "daily_allocations" && c.op === "update");
     expect(moved?.payload).toMatchObject({ shift: "Night" });
-    expect(moved?.filters).toMatchObject({ "gte:on_date": "2026-08-08" });
+    expect(moved?.filters["in:id"]).toEqual(["a-08", "a-09"]);
+  });
+
+  /**
+   * A day the person is already drawn on twice.
+   *
+   * `daily_allocations` is keyed on day + board + person precisely so somebody can do
+   * their own shift and overtime on the other board the same day — a thousand and
+   * twenty-six person-days in this factory are exactly that, Day assigned plus Night
+   * overtime. Collapsing every future row onto one board asks Postgres for two rows
+   * with the same key, and `daily_allocations_on_date_shift_employee_id_key` refuses
+   * the whole statement: the crew changed, the board did not move at all, and the
+   * screen showed a raw constraint name.
+   */
+  it("leaves behind a day already held on the new board instead of colliding", async () => {
+    allocationRows = [
+      { id: "a-08-day", on_date: "2026-08-08", shift: "Day" },
+      { id: "a-08-night", on_date: "2026-08-08", shift: "Night" },
+      { id: "a-09-day", on_date: "2026-08-09", shift: "Day" },
+    ];
+    const { result } = renderHook(() => useChangeShift("2026-08-08"), { wrapper: wrapper() });
+    result.current.mutate({ employeeId: "josiley", shiftGroup: "Night" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const moved = calls.find((c) => c.table === "daily_allocations" && c.op === "update");
+    expect(moved?.payload).toMatchObject({ shift: "Night" });
+    // Only the 09th. The 08th already has a Night row, and moving the Day one on top
+    // of it is the duplicate key.
+    expect(moved?.filters["in:id"]).toEqual(["a-09-day"]);
+  });
+
+  it("does not write at all when every day ahead is already on the new board", async () => {
+    allocationRows = [{ id: "a-08-night", on_date: "2026-08-08", shift: "Night" }];
+    const { result } = renderHook(() => useChangeShift("2026-08-08"), { wrapper: wrapper() });
+    result.current.mutate({ employeeId: "josiley", shiftGroup: "Night" });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(calls.some((c) => c.table === "daily_allocations" && c.op === "update")).toBe(false);
   });
 });
 
