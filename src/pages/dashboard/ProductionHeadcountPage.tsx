@@ -76,11 +76,24 @@ let draggedEmployeeId: string | null = null;
 type ShiftKey = "Day" | "Night";
 type ViewKey = ShiftKey | "Split";
 
+/**
+ * The blocks under the columns — everybody the board has something to say about who is
+ * not standing on a line.
+ *
+ * Training is not an absence and it is not overtime: they came in, they are paid, and
+ * they are in a classroom rather than on Line 3. It had nowhere to go on this board,
+ * so a training day was marked as holiday or left blank — and `employee_attendance`
+ * has accepted `training` since the workforce board was written, so the record could
+ * say it while the board it is written from could not. Purple, because that is what
+ * training already looks like on the Workforce board; the same fact should not change
+ * colour between two screens.
+ */
 const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
   { status: "sick", label: "Sickness", accent: "border-destructive/40 bg-destructive/5" },
   { status: "unpaid", label: "Unpaid", accent: "border-warning/40 bg-warning/5" },
   { status: "holiday", label: "Holidays", accent: "border-warning/40 bg-warning/5" },
   { status: "overtime", label: "Overtime", accent: "border-primary/40 bg-primary/5" },
+  { status: "training", label: "Training", accent: "border-purple-500/40 bg-purple-500/5" },
 ];
 
 function toISO(d: Date) {
@@ -214,7 +227,7 @@ function Chip({
   onDragStart,
 }: {
   name: string;
-  tone: "production" | "support" | "away" | "overtime" | "roster";
+  tone: "production" | "support" | "away" | "overtime" | "roster" | "training";
   leader?: boolean;
   /** Named role — LEAD, SUP, TEC, LAB, WH, OFF — when the department says one. */
   role?: { short: string; label: string; cls: string } | null;
@@ -240,6 +253,7 @@ function Chip({
     support: "bg-muted/40 border-border",
     away: "bg-warning/10 border-warning/30",
     overtime: "bg-primary/10 border-primary/30",
+    training: "bg-purple-500/10 border-purple-500/30",
     roster: "bg-card border-border",
   };
   return (
@@ -563,6 +577,13 @@ function ShiftBoard({
     (a) => (a.status === "sick" || a.status === "unpaid" || a.status === "holiday")
       && employeeById.has(a.employee_id),
   ).length;
+  // Deliberately outside `away` and outside `working`: a person in training is here
+  // and is paid, and counting them as away would tell a supervisor to ring them. They
+  // are said on their own line instead, and only when there are any — a permanent
+  // "0 training" is a number nobody reads.
+  const training = allocations.filter(
+    (a) => a.status === "training" && employeeById.has(a.employee_id),
+  ).length;
   const overtime = working.filter((a) => a.status === "overtime").length;
 
   const dragStart = (e: React.DragEvent, employeeId: string) => {
@@ -802,6 +823,7 @@ function ShiftBoard({
             </div>
             <div className="mt-1 text-2xs text-muted-foreground">
               {unassigned.length} unallocated · {away} away
+              {training > 0 && <> · {training} training</>}
             </div>
           </div>
         </div>
@@ -1161,11 +1183,22 @@ function ShiftBoard({
         );
       })()}
 
-      <SectionLabel>Away &amp; overtime</SectionLabel>
-      {/* Three blocks sharing the width. auto-fill with a 200px minimum left an empty
-          track on anything wider than a laptop: three cards against the left edge
-          with a hole beside them. */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <SectionLabel>Away, overtime &amp; training</SectionLabel>
+      {/* auto-*fit*, not auto-fill, and not a fixed column count either.
+          auto-fill was what left an empty track on anything wider than a laptop: cards
+          against the left edge with a hole beside them. auto-fit collapses that track
+          and lets the cards stretch into it. A fixed `lg:grid-cols-5` would have been
+          wrong for a different reason — Tailwind's breakpoints read the window, and in
+          the Both view this board is half of one, so five columns there are 120px each.
+          The container decides instead.
+          Deliberately *not* `headcount-columns`: that class is overridden in print to
+          118px auto-fill tracks, which suits twenty area columns and leaves five blocks
+          huddled in the left half of a landscape sheet. `headcount-away` is this row's
+          own print floor — see the note beside it in index.css. */}
+      <div
+        className="headcount-away grid gap-4"
+        style={{ gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))" }}
+      >
         {AWAY_BLOCKS.map((block) => {
           const people = peopleWith(block.status);
           return (
@@ -1199,7 +1232,7 @@ function ShiftBoard({
                         onOpen={() => setEditing(p.id)}
                         dimmed={isDimmed(p.full_name)}
                         role={roleStripe(p.department)}
-                        tone={block.status === "overtime" ? "overtime" : "away"}
+                        tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
                         half={byEmployee.get(p.id)?.half_day === true}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                         arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
@@ -1404,7 +1437,7 @@ export default function ProductionHeadcountPage() {
       </Tabs>
 
       {!canManage && (
-        <p className="text-xs text-muted-foreground">Read-only view — you don't have permission to change allocations.</p>
+        <p className="text-xs text-muted-foreground print:hidden">Read-only view — you don't have permission to change allocations.</p>
       )}
 
       {isLoading ? (
@@ -1424,9 +1457,17 @@ export default function ProductionHeadcountPage() {
           other pages.
           Both sit inside the PIN gate with the board, which is the point of the gate:
           the shift balance is pay information and does not become less so for being
-          further down the page. */}
-      <PeriodCalendar />
-      <HeadcountOvertimePanel />
+          further down the page.
+
+          `no-print` because the sheet that comes off this screen is the board and
+          nothing else. Print took the whole page: a twenty-eight day calendar and a
+          shift-balance table followed the board onto paper, which is two extra sheets
+          nobody asked for and a page of pay information left on a printer by the lines.
+          Reading them is what the screen is for. */}
+      <div className="no-print space-y-4">
+        <PeriodCalendar />
+        <HeadcountOvertimePanel />
+      </div>
 
       <HeadcountSheetDialog
         open={sheet !== null}
