@@ -36,8 +36,8 @@ const FIELDS: { key: NumericKey; label: string; min: number }[] = [
 ];
 
 /**
- * Volume, offered from what production already recorded for this line and week —
- * never fabricated. `scorecard_derived_volume` can answer three different ways,
+ * Volume, offered from what production already recorded for this leader on this line
+ * and week — never fabricated. `scorecard_derived_volume` can answer three different ways,
  * kept visibly distinct here: a row with real numbers; a row that resolves but
  * has nothing for this line/week (`data === null`, no error); or the lookup
  * itself failing (today's reality — the function does not exist in the database
@@ -54,14 +54,21 @@ const FIELDS: { key: NumericKey; label: string; min: number }[] = [
  * volume was confirmed" have to stay different facts in the audit trail.
  */
 export function VolumePillar({
-  lineId, weekEnding, draft, setField,
+  lineId, leaderId, weekEnding, draft, setField,
 }: {
   lineId: string;
+  /**
+   * Quem este cartao e. O volume oferecido e o dos turnos DESTA pessoa nesta linha,
+   * nao o da linha inteira: na Line 1 da semana de 06/09 a linha fez 24 533 unidades
+   * em sete turnos, e o Kaz fez tres deles. Oferecer-lhe as 24 533 e oferecer-lhe o
+   * trabalho de nove pessoas.
+   */
+  leaderId: string;
   weekEnding: string;
   draft: ScorecardEntryDraft;
   setField: SetField;
 }) {
-  const { data: derived, isLoading, isError, error } = useDerivedVolume(lineId, weekEnding);
+  const { data: derived, isLoading, isError, error } = useDerivedVolume(lineId, weekEnding, leaderId);
 
   const applyValue = (field: NumericKey, value: number | null) => {
     setField(field, value);

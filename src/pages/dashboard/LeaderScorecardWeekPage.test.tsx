@@ -63,7 +63,7 @@ describe("LeaderScorecardWeekPage", () => {
     rpc.mockResolvedValue({ data: [], error: null });
     renderPage();
 
-    expect(await screen.findByText(/no leader is assigned to a line for this week/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no line was opened in this week/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // Zero is a real count here, not a stand-in for "unknown" — the query
     // succeeded, so the footer is trustworthy.

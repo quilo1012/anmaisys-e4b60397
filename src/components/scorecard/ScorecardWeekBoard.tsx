@@ -12,12 +12,14 @@ type Props = {
 export function ScorecardWeekBoard({ rows, isLoading, onOpen }: Props) {
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading the week…</p>;
 
-  // Sem atribuicao nao ha quadro, e isso nao e um erro: e uma coisa por configurar.
+  // Um board vazio nao e um erro: e uma semana em que ninguem abriu uma linha. O texto
+  // mudou com a fonte — ja nao ha atribuicoes para configurar, ha turnos por registar.
   if (rows.length === 0) {
     return (
       <div className="rounded border border-dashed p-6 text-sm text-muted-foreground">
-        No leader is assigned to a line for this week. Set the assignments first — the
-        board is built from them, not from what happens to have been typed in.
+        No line was opened in this week. The board is built from the shifts recorded in
+        production — who opened which line, on which day — so it stays empty until
+        somebody has been on a line.
       </div>
     );
   }
@@ -29,6 +31,7 @@ export function ScorecardWeekBoard({ rows, isLoading, onOpen }: Props) {
           <TableRow>
             <TableHead>Leader</TableHead>
             <TableHead>Line</TableHead>
+            <TableHead>Shifts</TableHead>
             <TableHead>Volume</TableHead>
             <TableHead>Quality</TableHead>
             <TableHead>H&amp;S</TableHead>
@@ -49,6 +52,9 @@ export function ScorecardWeekBoard({ rows, isLoading, onOpen }: Props) {
               >
                 <TableCell className="font-medium">{r.leader_name}</TableCell>
                 <TableCell>{r.line_name}</TableCell>
+                <TableCell className="tabular-nums text-sm text-muted-foreground">
+                  {r.shifts_led}
+                </TableCell>
                 <TableCell><RagChip value={r.volume_rag} /></TableCell>
                 <TableCell><RagChip value={r.quality_rag} /></TableCell>
                 <TableCell><RagChip value={r.hs_rag} /></TableCell>

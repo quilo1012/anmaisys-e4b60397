@@ -77,6 +77,7 @@ const row: ScorecardBoardRow = {
   leader_name: "JOAO SILVA",
   line_id: "line-1",
   line_name: "Line 3",
+  shifts_led: 3,
   entry_id: null,
   state: "por preencher",
   volume_rag: null,
@@ -164,6 +165,7 @@ describe("ScorecardEntryDrawer — CAPA gate and approval", () => {
       week_ending: "2026-07-05",
       overall_rag: "Red",
       quality_fail_type: "Fail",
+      submitted_at: "2026-07-06T08:00:00.000Z",
     };
     renderDrawer();
 
@@ -171,6 +173,25 @@ describe("ScorecardEntryDrawer — CAPA gate and approval", () => {
     expect(approveButton).toBeDisabled();
     expect(screen.getByText(/cannot approve yet/i)).toHaveTextContent(
       "Cannot approve yet — missing: Root cause, Corrective action, CAPA owner, CAPA due date.",
+    );
+  });
+
+  // O trigger passou a recusar `approved_at` sobre um `submitted_at` nulo. Sem isto o
+  // botao deixava carregar e a recusa so aparecia como excepcao da base.
+  it("blocks Approve on a week that was never submitted, whatever the quality verdict", async () => {
+    mockCanApprove = true;
+    mockVerdictRow = {
+      leader_id: "leader-1",
+      line_id: "line-1",
+      week_ending: "2026-07-05",
+      quality_fail_type: null,
+    };
+    renderDrawer();
+
+    const approveButton = await screen.findByRole("button", { name: "Approve" });
+    expect(approveButton).toBeDisabled();
+    expect(screen.getByText(/cannot approve yet/i)).toHaveTextContent(
+      "Cannot approve yet — missing: Submission.",
     );
   });
 
@@ -182,6 +203,7 @@ describe("ScorecardEntryDrawer — CAPA gate and approval", () => {
       week_ending: "2026-07-05",
       overall_rag: "Red",
       quality_fail_type: "Not Done",
+      submitted_at: "2026-07-06T08:00:00.000Z",
     };
     renderDrawer();
 
@@ -222,6 +244,7 @@ describe("ScorecardEntryDrawer — CAPA gate and approval", () => {
       line_id: "line-1",
       week_ending: "2026-07-05",
       quality_fail_type: "Fail",
+      submitted_at: "2026-07-06T08:00:00.000Z",
       root_cause: "x",
       corrective_action: "y",
       capa_owner: "z",
@@ -261,7 +284,7 @@ describe("ScorecardEntryDrawer — CAPA gate and approval", () => {
   it("a rejected Approve surfaces the database's refusal and does NOT present itself as approved", async () => {
     mockCanApprove = true;
     upsertError = { message: 'Aprovacao exige approved_by.' };
-    mockVerdictRow = { leader_id: "leader-1", line_id: "line-1", week_ending: "2026-07-05", quality_fail_type: null };
+    mockVerdictRow = { leader_id: "leader-1", line_id: "line-1", week_ending: "2026-07-05", quality_fail_type: null, submitted_at: "2026-07-06T08:00:00.000Z" };
     renderDrawer();
 
     const approveButton = await screen.findByRole("button", { name: "Approve" });

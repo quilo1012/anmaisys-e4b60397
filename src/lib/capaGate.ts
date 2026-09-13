@@ -7,10 +7,16 @@ import { isBlank, type ScorecardEntryDraft } from "./scorecardEntry";
  */
 export function approvalBlockers(
   draft: ScorecardEntryDraft,
-  verdict: { quality_fail_type: string | null } | null,
+  verdict: { quality_fail_type: string | null; submitted_at?: string | null } | null,
 ): string[] {
-  if (verdict?.quality_fail_type !== "Fail") return [];
+  // Aprovar e o segundo passo, nunca o primeiro. O trigger passou a recusar
+  // `approved_at` sobre um `submitted_at` nulo, e este espelho tem de o dizer ANTES
+  // — caso contrario o botao deixa carregar e a base devolve uma excepcao.
+  // Fica FORA do atalho do "Fail": uma semana sem reprovacao nenhuma tambem tem de
+  // ser submetida antes de ser assinada.
   const missing: string[] = [];
+  if (verdict !== null && !verdict.submitted_at) missing.push("Submission");
+  if (verdict?.quality_fail_type !== "Fail") return missing;
   if (isBlank(draft.root_cause)) missing.push("Root cause");
   if (isBlank(draft.corrective_action)) missing.push("Corrective action");
   if (isBlank(draft.capa_owner)) missing.push("CAPA owner");

@@ -4,6 +4,12 @@ export type ScorecardBoardRow = {
   leader_name: string;
   line_id: string;
   line_name: string;
+  /**
+   * Quantos turnos desta linha foram desta pessoa na semana — `scorecard_week_board`
+   * conta-os a partir de `production_sessions`. Uma linha com quatro lideres tem
+   * quatro cartoes, e este numero e o que diz que nao valem todos o mesmo.
+   */
+  shifts_led: number;
   /** Null when the week has not yet been created. */
   entry_id: string | null;
   state: "por preencher" | "rascunho" | "submetida" | "aprovada";
