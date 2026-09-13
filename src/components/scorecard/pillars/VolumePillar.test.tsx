@@ -35,7 +35,7 @@ function Harness({ initial = {}, onDraftChange }: {
       return next;
     });
   };
-  return <VolumePillar lineId="line-1" weekEnding="2026-07-05" draft={draft} setField={setField} />;
+  return <VolumePillar lineId="line-1" leaderId="leader-1" weekEnding="2026-07-05" draft={draft} setField={setField} />;
 }
 
 function renderHarness(initial?: Partial<ScorecardEntryDraft>, onDraftChange?: (d: ScorecardEntryDraft) => void) {

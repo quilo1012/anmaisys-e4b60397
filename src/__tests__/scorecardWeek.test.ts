@@ -13,6 +13,7 @@ const row = (over: Partial<ScorecardBoardRow>): ScorecardBoardRow => ({
   leader_name: "LIDER",
   line_id: "n",
   line_name: "LINHA",
+  shifts_led: 1,
   entry_id: null,
   state: "por preencher",
   volume_rag: null,

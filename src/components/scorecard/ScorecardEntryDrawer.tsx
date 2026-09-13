@@ -125,7 +125,7 @@ function ScorecardEntryDrawerBody({ row, weekEnding }: { row: ScorecardBoardRow;
         <p aria-live="polite" aria-busy="true" className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <>
-          <VolumePillar lineId={row.line_id} weekEnding={weekEnding} draft={draft} setField={setField} />
+          <VolumePillar lineId={row.line_id} leaderId={row.leader_id} weekEnding={weekEnding} draft={draft} setField={setField} />
           <QualityPillar draft={draft} setField={setField} verdict={verdict} />
           <HealthSafetyPillar draft={draft} setField={setField} verdict={verdict} />
           <MonitoredPillar draft={draft} setField={setField} />

@@ -3,9 +3,10 @@
  * voltarem a pontuar, tem de ser como pilar proprio, com peso explicito. Nao os diluir
  * dentro de Health & Safety: um atraso nao e um acidente.
  */
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { COUNT_INPUT, FRACTION_INPUT, fractionLabel, parseNullableNumber } from "@/lib/scorecardNumberInput";
+import { COUNT_INPUT, FRACTION_INPUT, fractionLabel } from "@/lib/scorecardNumberInput";
+// O mesmo campo que Health & Safety usa: as duas colunas de assiduidade sao fraccoes
+// e partilham com as de la o problema de nao se conseguirem teclar.
+import { NumericField } from "../NumericField";
 import type { ScorecardEntryDraft } from "@/lib/scorecardEntry";
 import type { SetField } from "./types";
 
@@ -36,19 +37,14 @@ export function MonitoredPillar({
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {FIELDS.map(({ key, label, bounds }) => (
-          <div key={key}>
-            <Label htmlFor={`monitored-${key}`} className="text-xs">{label}</Label>
-            <Input
-              id={`monitored-${key}`}
-              type="number"
-              min={bounds.min}
-              max={bounds.max}
-              step={bounds.step}
-              value={draft[key] ?? ""}
-              onChange={(e) => setField(key, parseNullableNumber(e.target.value))}
-              className="mt-1 h-9"
-            />
-          </div>
+          <NumericField
+            key={key}
+            id={`monitored-${key}`}
+            label={label}
+            value={draft[key] ?? null}
+            onChange={(v) => setField(key, v)}
+            bounds={bounds}
+          />
         ))}
       </div>
     </section>
