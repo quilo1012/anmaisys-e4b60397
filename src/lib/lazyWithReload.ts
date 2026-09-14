@@ -1,4 +1,5 @@
 import { lazy, type ComponentType } from "react";
+import { isChunkLoadError, RELOAD_KEY } from "@/lib/chunkCrashEvidence";
 
 /**
  * Wraps React.lazy so that when a dynamic-import chunk fails to load
@@ -19,18 +20,14 @@ import { lazy, type ComponentType } from "react";
  * Two short retries cover that gap without throwing away the user's page at all,
  * and the reload stays as the answer to the case the retries cannot fix: an
  * index.html in this tab so old that the chunk it asks for is genuinely gone.
+ *
+ * `isChunkLoadError` and `RELOAD_KEY` live in `chunkCrashEvidence`, which is where the
+ * ErrorBoundary asks what a failed chunk answers now — one definition of what counts
+ * as a chunk failure, and one key, so the two cannot drift apart.
  */
-const RELOAD_KEY = "__lovable_chunk_reload_at";
 
 /** Both waits together are under two seconds, which is inside a Suspense fallback. */
 const RETRY_DELAYS_MS = [600, 1500];
-
-function isChunkLoadError(err: unknown): boolean {
-  const msg = String((err as { message?: string })?.message || err || "");
-  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk .* failed/i.test(
-    msg,
-  );
-}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { logSystemError } from "@/lib/telemetry";
+import { chunkCrashEvidence } from "@/lib/chunkCrashEvidence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
@@ -34,9 +35,23 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("ErrorBoundary caught:", error, info);
     this.setState({ info });
+    void this.record(error, info);
+  }
+
+  /**
+   * A crash that says a screen would not download is worth two questions before it is
+   * filed, because the sentence alone cannot tell a deploy that deleted the chunk from
+   * a tablet that lost the Wi-Fi — and those want opposite answers. `chunkCrashEvidence`
+   * asks them, with its own timeouts, and answers nothing for any other crash.
+   */
+  private async record(error: Error, info: ErrorInfo) {
+    let evidence = {};
+    try {
+      evidence = await chunkCrashEvidence(error);
+    } catch { /* the crash is the thing to record; the evidence is a bonus */ }
     logSystemError("REACT_CRASH", error.message || "React render crash", {
       stack: error.stack,
-      metadata: { componentStack: info.componentStack?.slice(0, 4000) },
+      metadata: { componentStack: info.componentStack?.slice(0, 4000), ...evidence },
     });
     void this.reloadIfStaleBuild();
   }

@@ -77,8 +77,10 @@ describe("the scan dialog detaches those handlers before it closes the camera", 
   });
 
   it("clears onabort and onerror before calling stop()", () => {
+    // Both live in `closeScanner`, which is the only path that puts the camera down —
+    // the effect cleanup and the start() that resolves after it both go through there.
     const detach = src.indexOf("surface.onabort = null");
-    const stop = src.indexOf("s.isScanning ? s.stop()");
+    const stop = src.indexOf("await s.stop()");
     expect(detach).toBeGreaterThan(-1);
     expect(stop).toBeGreaterThan(-1);
     expect(detach).toBeLessThan(stop);
