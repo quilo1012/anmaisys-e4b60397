@@ -1363,6 +1363,25 @@ export function actionHeadline(a: { title?: string | null; description?: string 
   return (a.title ?? "").trim() || (a.description ?? "").trim() || null;
 }
 
+/**
+ * The same line, for a sheet that has nowhere to fall back to.
+ *
+ * A screen can print a dash and let the reader open the row; a printed report cannot,
+ * and neither can a CSV. Two rungs below {@link actionHeadline}: `error_type`, which
+ * the sync fills on 54 of the rows it brings in, and then the labels, which are what
+ * a person chose the action to be about. Null only when the row truly says nothing —
+ * 2 rows of 188 on 13/09/2026.
+ */
+export function actionSummary(a: {
+  title?: string | null;
+  description?: string | null;
+  error_type?: string | null;
+  labels?: string[] | null;
+}): string | null {
+  const labels = (a.labels ?? []).map((l) => String(l ?? "").trim()).filter(Boolean);
+  return actionHeadline(a) ?? ((a.error_type ?? "").trim() || labels.join(" · ") || null);
+}
+
 /** The longer note, only when it is not already the headline. */
 export function actionDetail(a: { title?: string | null; description?: string | null }): string | null {
   const detail = (a.description ?? "").trim();

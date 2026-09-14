@@ -19,8 +19,9 @@ import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Do
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { aggregateLines, buildDailyHistory } from "@/lib/productionHistory";
-import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange } from "@/lib/shifts";
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
+import { actionsInReportPeriod, actionShift, shiftWasRecorded } from "@/lib/performanceActions";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { useLineLiveStatus } from "@/hooks/useLineLiveStatus";
 import { stopColour, isAmbiguousStop, ITOUCH_RUNNING } from "@/lib/intouchStopColours";
@@ -31,6 +32,7 @@ import { ANDON_FIELD } from "@/lib/rail";
 import { pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/lib/lineSku";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { EmptyState } from "@/components/EmptyState";
+import { wideBoardColumns, WIDE_BOARD_GRID } from "@/lib/lineBoardColumns";
 import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { toast } from "sonner";
 
@@ -241,6 +243,22 @@ export default function ProductionPerformancePage() {
 
   type RagRow = { entry_date: string; line: string; shift: string; plan_qty: number; actual_qty: number };
 
+  /** A quality action as the report reads it — the columns, and only those. */
+  type PerfQualityAction = {
+    id: string;
+    action_no: string | null;
+    recorded_at: string;
+    line: string | null;
+    shift: string | null;
+    status: string | null;
+    severity: string | null;
+    description: string | null;
+    title: string | null;
+    error_type: string | null;
+    labels: string[] | null;
+    leader_name: string | null;
+  };
+
   // Quality actions in the period — every status, so the report can list completed
   // ones with a Status column.
   //
@@ -248,6 +266,11 @@ export default function ProductionPerformancePage() {
   // shift: the same leader covers more than one line in a period, and the action's
   // own `line` is where it happened, not who answers for it. Filtering by line hid a
   // leader's actions the moment anyone narrowed the screen to a line.
+  //
+  // `title` and `error_type` are asked for because half this table describes itself
+  // in a different column: the sync writes the fault into `title` and leaves
+  // `description` for the product and batch, so a report reading `description` alone
+  // printed a page of dashes. See `actionSummary`.
   const { data: periodActions = [] } = useQuery({
     queryKey: ["perf-quality-actions", range.from, range.to, shift, leaderFilter],
     // Live feed: keep the panel current as actions are opened/closed elsewhere.
@@ -255,11 +278,15 @@ export default function ProductionPerformancePage() {
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const window = shiftDateFetchRange(range.from, range.to);
+      // The shift is NOT asked of the database. Every action the SafetyCulture sync
+      // brings in lands with `shift` null, so `.eq("shift", "DAY")` — the screen opens
+      // on the running shift, never on "All" — matched none of them and the report's
+      // quality section had been empty for a month. `actionsInReportPeriod` reads the
+      // column where there is one and the clock where there is not.
       let q = supabase.from("quality_actions")
-        .select("id, action_no, recorded_at, line, shift, status, severity, description, leader_name")
+        .select("id, action_no, recorded_at, line, shift, status, severity, description, title, error_type, labels, leader_name")
         .gte("recorded_at", window.gte).lte("recorded_at", window.lte)
         .order("recorded_at", { ascending: false });
-      if (shift !== "all") q = q.eq("shift", shift);
       // The leader filter comes from line_leaders, the quality log's name from
       // whoever raised the action. Matched case-insensitively so the five leaders
       // spelled in capitals do not filter down to an empty panel — see
@@ -267,10 +294,7 @@ export default function ProductionPerformancePage() {
       if (leaderFilter !== "__all__") q = q.ilike("leader_name", leaderNamePattern(leaderFilter));
       const { data, error } = await q;
       if (error) throw error;
-      return ((data ?? []) as any[]).filter((a) => {
-        const day = shiftSessionDate(a.recorded_at, a.shift);
-        return day >= range.from && day <= range.to;
-      });
+      return actionsInReportPeriod((data ?? []) as unknown as PerfQualityAction[], { from: range.from, to: range.to, shift });
     },
   });
 
@@ -568,7 +592,13 @@ export default function ProductionPerformancePage() {
       // range including a single day, where it is simply that day's rows — the
       // report should not change shape depending on how wide the filter is.
       dailyRows: dailyHistory.map((d) => ({ date: d.date, line: d.line, shift: d.shift, leader: d.leader, target: d.target, actual: d.actual, eff: d.eff })),
-      openActions: periodActions.map((a) => ({ recorded_at: a.recorded_at, action_no: a.action_no, line: a.line, shift: a.shift, severity: a.severity, description: a.description, status: a.status })),
+      openActions: periodActions.map((a) => ({
+        recorded_at: a.recorded_at, action_no: a.action_no, line: a.line,
+        // The shift the action worked, not the column it left empty.
+        shift: actionShift(a), shiftDerived: !shiftWasRecorded(a),
+        severity: a.severity, status: a.status,
+        description: a.description, title: a.title, error_type: a.error_type, labels: a.labels,
+      })),
       generatedBy: profile?.name || "—",
     }, { output });
   };
@@ -879,11 +909,15 @@ export default function ProductionPerformancePage() {
 
         {/* `items-stretch` com o `fill` do cartão: numa fila, todos os cartões têm a
             altura do mais alto, e a medida de cada um encosta ao mesmo fundo.
-            Três colunas onde antes eram quatro: com as nove linhas da fábrica, quatro
-            colunas deixavam a última sozinha ao lado de três colunas de fundo vazio —
-            e um painel de instrumentos com um buraco desse tamanho lê-se como um ecrã
-            que não acabou de carregar. Nove em três filas de três fecham o painel. */}
-        <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            A largura já não é uma constante. Três colunas foram escolhidas para as
+            nove linhas da fábrica, e nove em três filas de três fecham o painel — mas
+            num dia com sete linhas as mesmas três deixavam a última sozinha ao lado de
+            dois terços de fundo vazio, que é o buraco que a escolha fixa existia para
+            evitar. Num monitor grande a conta escolhe entre três e quatro a que fecha
+            melhor a última fila; em xl continuam a ser três, que é onde um cartão de um
+            quarto de largura deixa de ter espaço para o número de 40 px.
+            Ver `wideBoardColumns`. */}
+        <div className={cn("grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3", WIDE_BOARD_GRID[wideBoardColumns(sortedByLine.length)])}>
           {sortedByLine.map((l) => {
 
             // Industrial Andon panel — high-contrast dark, readable from across

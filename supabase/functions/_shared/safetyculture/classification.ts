@@ -137,6 +137,38 @@ export function londonDay(iso: string | null | undefined): string | null {
   }).format(d);
 }
 
+/**
+ * Which half of the factory day an instant falls in: DAY 06:00–17:59, NIGHT
+ * 18:00–05:59, Europe/London.
+ *
+ * A SafetyCulture Action carries no shift, and for months this import wrote none —
+ * so 123 live actions sat in the log with `shift` NULL while every screen that
+ * narrows to a shift filters `.eq("shift", …)` on the server. Production
+ * Performance opens pinned to whichever shift is running, which meant it dropped
+ * every action ever synced and printed 0 quality points on every line, every day.
+ *
+ * The rule is the one src/lib/shifts.ts applies on the screen and the one
+ * workOrdersInPeriod() already applies to a work order, which also has no shift
+ * column: where nobody wrote a shift down, the factory clock says which it was.
+ *
+ * Only for instants that are real. The `pm` source stamps a synthetic 12:00 because
+ * its form asks for a date and not a time, and reading DAY off that would be an
+ * invention — those rows stay blank, and the database trigger draws the same line.
+ */
+export function londonShift(iso: string | null | undefined): "DAY" | "NIGHT" | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const hour = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      hour: "2-digit",
+      hour12: false,
+    }).format(d).replace(/\D/g, ""),
+  );
+  return hour >= 6 && hour < 18 ? "DAY" : "NIGHT";
+}
+
 function haystacks(input: ClassificationInput, rule: ClassificationRuleV2): string[] {
   switch (rule.match_field) {
     case "label":

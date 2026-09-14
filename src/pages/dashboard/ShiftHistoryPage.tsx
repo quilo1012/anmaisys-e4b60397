@@ -476,25 +476,44 @@ const cleanDescription = (name: string) =>
  * da primeira coluna de cada grupo; quatro filetes e não treze, porque um filete entre
  * todas as colunas é papel quadriculado e aí volta a não dizer nada.
  *
- * As colunas com junta levam essa folga na largura: quem tirar o `joint` sem tirar os
- * pixels fica com uma coluna larga de mais, e quem o puser sem os somar volta a cortar.
+ * A junta não engorda a coluna. Os 10 px de ar à esquerda saem dos 6 px que ela tinha à
+ * direita — 10 e 2, que continuam a dar os mesmos 12 — e é por isso que pôr ou tirar uma
+ * junta não mexe em número nenhum desta régua. Não é asseio: os 277 mm não têm 4 px por
+ * junta para dar, e quem os desse dava-os à custa da descrição, que é a única coluna que
+ * vive do que as outras deixam. A régua já esteve 16 px acima do que a folha tem.
  */
 export const PC_COLUMNS = [
-  { key: "rail",    width: 9,   need: 9,  joint: false }, // a faixa da baía
-  { key: "date",    width: 42,  need: 42, joint: false }, // "11/09" e o cabeçalho DATE
-  { key: "shift",   width: 52,  need: 52, joint: false }, // a chapa NIGHT com o seu bordo
-  { key: "line",    width: 75,  need: 75, joint: true  }, // "Tablet Line"
-  { key: "leader",  width: 71,  need: 71, joint: false }, // "Rafael Tosta"
-  { key: "team",    width: 40,  need: 40, joint: false }, // o cabeçalho TEAM, mais largo que o número
-  { key: "sku",     width: 89,  need: 89, joint: true  }, // "NEUBFWP900WCP"; o texto livre passa à linha
+  { key: "rail",    width: 9,   need: 0,  joint: false }, // a faixa da baía: 9 px de cor, não de texto
+  { key: "date",    width: 46,  need: 43, joint: false }, // "11/09" e o cabeçalho DATE
+  { key: "shift",   width: 55,  need: 52, joint: false }, // a chapa NIGHT com o seu bordo
+  { key: "line",    width: 67,  need: 64, joint: true  }, // "Tablet Line", sem o `pr-3` que a junta agora dá
+  { key: "leader",  width: 74,  need: 71, joint: false }, // "Rafael Tosta"
+  { key: "team",    width: 42,  need: 39, joint: false }, // o cabeçalho TEAM, que é mais largo que o número
+  { key: "sku",     width: 94,  need: 91, joint: true  }, // "NEUBFWP900WCP"; o texto livre passa à linha
   { key: "desc",    width: 0,   need: 0,  joint: false }, // o que sobra
-  { key: "batch",   width: 98,  need: 98, joint: false }, // "M 09/26 · E 09/28" numa linha, que é mais largo que o lote
-  { key: "blender", width: 78,  need: 77, joint: true  }, // "11, 12, 13" — três misturas numa linha; à quarta passa à linha
-  { key: "qty",     width: 56,  need: 56, joint: false },
-  { key: "weight",  width: 66,  need: 66, joint: false }, // "WEIGHT (g)" numa linha só
-  { key: "start",   width: 48,  need: 48, joint: true  },
-  { key: "finish",  width: 45,  need: 45, joint: false },
+  { key: "batch",   width: 97,  need: 94, joint: false }, // "M 09/26 · E 09/28", que é mais largo que o lote
+  { key: "blender", width: 80,  need: 77, joint: true  }, // "11, 12, 13" — três misturas numa linha; à quarta passa à linha
+  { key: "qty",     width: 59,  need: 56, joint: false },
+  { key: "weight",  width: 69,  need: 66, joint: false }, // "WEIGHT (g)" numa linha só
+  { key: "start",   width: 46,  need: 43, joint: true  },
+  { key: "finish",  width: 48,  need: 45, joint: false },
 ] as const;
+
+/**
+ * A margem que cada coluna leva acima do que mediu.
+ *
+ * Três pixels, e não zero. A régua tinha sido medida com a IBM Plex Mono carregada, e
+ * a IBM Plex Mono vem do `fonts.googleapis.com` — numa máquina da nave atrás de um
+ * proxy que não o deixe passar, a folha imprime-se na face de recurso. O avanço muda
+ * um pixel por coluna, o que chegava para pôr a **data** e o **fim** já em -1 px: com
+ * `overflow: hidden` o "11/09" e o "17:45" perdiam a última coluna de pixels do
+ * último algarismo, sem nada que o explicasse.
+ *
+ * Três pixels são três vezes a variação medida entre a face real e as de recurso
+ * (Courier New, Menlo, Consolas, a genérica). O `need` de cada coluna aqui é já o da
+ * face de recurso — o número pior, não o melhor.
+ */
+export const PC_COLUMN_MARGIN_PX = 3;
 
 /** O que sobra para a descrição, e o aviso se algum dia não sobrar nada. */
 export const PC_PRINTABLE_PX = 1047;
@@ -672,7 +691,7 @@ export function ProductionControlPrintSheet({
               cheio em cada fila era dizer três vezes a mesma coisa. Fica calado — quem
               grita é a faixa —, mas fica, porque uma página que comece a meio de uma
               baía não traz a chapa consigo. */}
-          <td className={`${cell} ${joint("line")} pc-wrap pr-3 text-black/55`}>{(s.line ?? "").trim()}</td>
+          <td className={`${cell} ${joint("line")} pc-wrap text-black/55`}>{(s.line ?? "").trim()}</td>
           {/* O líder e a equipa são do turno, não de cada SKU que ele fez: escrevem-se
               uma vez, na primeira fila da sessão, como uma célula fundida na folha que
               este ecrã substituiu. */}
@@ -758,8 +777,17 @@ export function ProductionControlPrintSheet({
            pouco para não competir com os fios que separam as filas, e o que sobrevive à
            fotocópia sem virar um traço a sério. O ar à esquerda vale tanto como o
            filete: um filete colado ao algarismo separa menos do que um milímetro de
-           branco. */
-        #production-control-print .pc-joint { border-left: 0.5pt solid rgba(0,0,0,0.28); padding-left: 10px; }
+           branco.
+
+           E esse ar NÃO é ar novo. Os 10 px da esquerda saem dos 6+6 px que a coluna já
+           tinha à volta: 10 à esquerda e 2 à direita, que continuam a dar 12. Uma junta
+           que engordasse a coluna tirava os pixels à descrição — 4 px por junta, 16 nas
+           quatro — e a descrição é a única coluna que vive do que sobra. Do lado de cá
+           o aperto ainda ajuda: a seguir a uma junta vem sempre outra coluna do MESMO
+           grupo (a linha e o líder, o SKU e a descrição, a mistura e a quantidade, o
+           início e o fim), e duas colunas que respondem à mesma pergunta lêem-se melhor
+           juntas do que afastadas. */
+        #production-control-print .pc-joint { border-left: 0.5pt solid rgba(0,0,0,0.28); padding-left: 10px; padding-right: 2px; }
         /* No cabeçalho o filete sobe até ao topo da chapa, senão a junta começa a meio
            da tabela e as colunas do título ficam por agrupar. */
         #production-control-print thead th.pc-joint { border-left-color: rgba(0,0,0,0.45); }
