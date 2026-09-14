@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,6 +99,28 @@ export function LineIndicators({
 
   const { excluded, ready, failed } = useLeaderAttribution();
 
+  /**
+   * As acções que contam para uma LINHA.
+   *
+   * Uma linha de segurança já não é uma acção de qualidade aberta nesta linha (mesma
+   * regra que o `qualityOnly` da QualityActionsPage), e a decisão é de quem chama —
+   * `linePointsBreakdown` avalia a lista que lhe derem.
+   */
+  const qualityOnly = useMemo(() => quality.filter((a) => a.domain !== "safety"), [quality]);
+
+  /**
+   * O que a tabela não conseguiu pôr em linha nenhuma.
+   *
+   * `linePointsBreakdown` salta as acções sem `line` — não há linha onde as somar — e
+   * 55 das 188 acções do log não nomeiam nenhuma. Sem isto dito, o total "All lines"
+   * era mais baixo do que o log e nada no ecrã explicava a diferença: a tabela parecia
+   * a contagem do período e era a contagem do que estava atribuído.
+   */
+  const unplaced = useMemo(
+    () => qualityOnly.filter((a) => !String(a.line ?? "").trim() && a.validation_status !== "rejected").length,
+    [qualityOnly],
+  );
+
   const rows = useMemo(() => {
     const byLine = new Map<string, {
       qualityPoints: number; openActions: number;
@@ -111,12 +134,9 @@ export function LineIndicators({
 
     // Same rule as the leader table, the chart and the scorecard — one function, so
     // a line's points and its leader's points can never tell different stories.
-    // `linePointsBreakdown` prices a safety row at 0 already, but its `openActions`
-    // count does not know about domains — it breaks down whatever list it is given.
-    // Deciding what belongs in that list is the call site's job (same ruling as
-    // `qualityOnly` in QualityActionsPage), so a near miss is filtered out here
-    // before it can show up as an open quality action on this line.
-    const qualityOnly = quality.filter((a) => a.domain !== "safety");
+    // What belongs in the list is decided above, in `qualityOnly`: the breakdown
+    // prices a safety row at 0 already, but its `openActions` count breaks down
+    // whatever it is handed and would show a near miss as an open quality action.
     for (const q of linePointsBreakdown(qualityOnly, excluded)) {
       const e = seed(q.line);
       e.qualityPoints = q.qualityPoints;
@@ -146,7 +166,7 @@ export function LineIndicators({
         staff: e && e.staff.length ? Math.round(e.staff.reduce((s, n) => s + n, 0) / e.staff.length) : null,
       };
     });
-  }, [lines, quality, items, excluded]);
+  }, [lines, qualityOnly, items, excluded]);
 
   const anyScrap = rows.some((r) => r.scrapPct !== null);
 
@@ -184,7 +204,15 @@ export function LineIndicators({
           {leader && ` Every figure below counts only the shifts ${leader} led.`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      {/* A tabela e a lista de lacunas, lado a lado.
+          Empilhadas, as oito colunas espalhavam-se por toda a largura do cartão: num
+          monitor de 1500 px o nome da linha ficava a 250 px do seu próprio plano, e
+          seguir uma linha da esquerda para a direita passava a ser trabalho. A coluna
+          da direita encurta a medida da tabela para algo que se lê de uma vez, e
+          enche-a com a única coisa que já pertencia a este cartão — o que o sistema
+          ainda não mede. Abaixo de xl volta a empilhar, que é onde a largura falta. */}
+      <CardContent className="grid items-start gap-x-8 gap-y-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="min-w-0 space-y-2.5">
         <div className="overflow-x-auto">
           {/* O livro da fábrica: chapas em caixa alta, algarismos tabulares, e as
               colunas fechadas no fim. A face de algarismos é a mesma dos cartões — as
@@ -265,11 +293,27 @@ export function LineIndicators({
           </table>
         </div>
 
+        {/* A diferença entre esta tabela e o log, dita pela tabela.
+            Uma acção que não nomeia uma linha não tem onde ser somada, portanto o
+            fecho "All lines" é mais baixo do que o período — e sem isto escrito
+            parecia ser a contagem do período. */}
+        {unplaced > 0 && (
+          <p className="text-2xs text-muted-foreground">
+            {unplaced} {unplaced === 1 ? "action names" : "actions name"} no line in this period, so
+            {unplaced === 1 ? " it is" : " they are"} in none of the rows above.{" "}
+            <Link to="/dashboard/quality" className="underline underline-offset-2 hover:text-foreground">
+              Open the quality log
+            </Link>{" "}
+            to give {unplaced === 1 ? "it" : "them"} one.
+          </p>
+        )}
+        </div>
+
         {/* Named, not hidden. A director asking "do we have the data" deserves the
             honest half of the answer as much as the flattering half. */}
-        <div className="rounded-lg border bg-muted/30 p-3">
+        <aside className="rounded-lg border bg-muted/30 p-3">
           <p className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">Not measured yet</p>
-          <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+          <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
             <li>
               <b>OEE, availability and speed</b> — no production session carries them. iTouching reports
               0% on its own screens, so there is nothing to read.
@@ -279,10 +323,10 @@ export function LineIndicators({
             <li><b>Absence</b> — attendance is captured per person per day, but the workforce module is
               switched off; turning it on makes this column real.</li>
             {!anyScrap && (
-              <li><b>Scrap</b> — the field went live today. It fills as shifts record it.</li>
+              <li><b>Scrap</b> — the column exists and no shift has recorded a figure into it yet.</li>
             )}
           </ul>
-        </div>
+        </aside>
       </CardContent>
     </Card>
   );

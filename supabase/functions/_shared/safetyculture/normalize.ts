@@ -9,13 +9,14 @@
 import {
   classifyAction,
   londonDay,
+  londonShift,
   type ActionClass,
   type Attendance,
   type CheckState,
   type ClassificationRuleV2,
 } from "./classification.ts";
 
-export { londonDay };
+export { londonDay, londonShift };
 
 export interface ScAction {
   /** The stable external identifier. Never invented — it is the idempotency key. */

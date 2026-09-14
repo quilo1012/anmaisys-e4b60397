@@ -1266,7 +1266,8 @@ Deno.serve(async (req) => {
             target_qty: ragPlan,
             planned_qty: ragPlan,
             actual_qty: prevQty,
-            scrap_qty: 0,
+            // Este ramo nunca leu sucata nenhuma — escrevia 0 por preencher a coluna.
+            scrap_qty: null,
             notes: `itouching:live_good`,
           }).eq("id", prevItem.id);
         } else {
@@ -1276,7 +1277,7 @@ Deno.serve(async (req) => {
             target_qty: ragPlan,
             planned_qty: ragPlan,
             actual_qty: prevQty,
-            scrap_qty: 0,
+            scrap_qty: null,
             notes: `itouching:live_good`,
           }]);
         }
@@ -1387,7 +1388,16 @@ Deno.serve(async (req) => {
           const actual = prev;
           const manualTarget = sku_id ? manualTargetBySku.get(sku_id) : undefined;
           const plan = manualTarget != null ? manualTarget : orderQty;
-          const scrap_qty = Math.round(scrapByCode.get(code) ?? 0);
+          // Em branco quer dizer que ninguém mediu, e não que não houve sucata.
+          //
+          // Isto escrevia 0 sempre que o iTouching não reportava nada para o código, e
+          // como a coluna era NOT NULL DEFAULT 0 as 943 linhas da tabela valiam todas
+          // exactamente 0. O ecrã não tinha como distinguir uma sucata medida a zero de
+          // uma sucata que ninguém contou, e imprimia "0.0%" em todas as linhas como se
+          // fosse leitura. `extractScrapByCode` só guarda valores acima de zero, portanto
+          // a ausência da chave é exactamente a ausência de medição.
+          const reported = scrapByCode.get(code);
+          const scrap_qty = reported == null ? null : Math.round(reported);
           return {
             session_id: session.id,
             sku_id,
@@ -1466,7 +1476,7 @@ Deno.serve(async (req) => {
         rag_plan: ragPlan,
         source,
         actual_preserved: rows.reduce((s, r) => s + r.actual_qty, 0),
-        scrap_total: rows.reduce((s, r) => s + r.scrap_qty, 0),
+        scrap_total: rows.reduce((s, r) => s + (r.scrap_qty ?? 0), 0),
         run_min: metrics.runMin || null,
         down_min: metrics.downMin || null,
         oee: metrics.oee,
