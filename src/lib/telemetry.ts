@@ -135,12 +135,36 @@ function isKnownNoise(message: string): boolean {
   );
 }
 
+/**
+ * The browser refusing to say anything, which is not the same as an error.
+ *
+ * An exception thrown inside a script served from another origin reaches
+ * window.onerror stripped to a fixed placeholder — message "Script error.", filename
+ * "", line and column 0, and no Error object. There is no file, no line, no stack,
+ * and no way to tell which script: the entry is a tally mark. /dashboard/engineer,
+ * 10/09 05:29, is one.
+ *
+ * It is never this app. Our bundle is served from our own origin, so its exceptions
+ * arrive whole. The placeholder means a script we do not serve — on a shop tablet,
+ * usually a browser extension. If a third-party script we DO load ever needs to be
+ * seen, the answer is `crossorigin` on its tag and CORS on its host, which unmasks it
+ * properly; there is nothing here to unmask.
+ *
+ * Filtered on the SHAPE and not the words, because the words alone are not proof: an
+ * error whose message happens to read "Script error." while carrying a file, a line
+ * or a stack came from somewhere we can look, and is still recorded.
+ */
+function isOpaqueCrossOriginError(e: ErrorEvent): boolean {
+  if (!/^Script error\.?$/i.test((e.message || "").trim())) return false;
+  return !e.filename && !e.lineno && !e.colno && !e.error;
+}
+
 /** Register global handlers for uncaught JS errors + unhandled promise rejections. */
 export function installTelemetryHandlers() {
   if (typeof window === "undefined") return;
   window.addEventListener("error", (e) => {
     const m = e.message || (e.error as Error | undefined)?.message || "";
-    if (!m || isKnownNoise(m)) return;
+    if (!m || isKnownNoise(m) || isOpaqueCrossOriginError(e)) return;
     logSystemError("JS_ERROR", m, {
       stack: (e.error as Error | undefined)?.stack,
       metadata: { filename: e.filename, lineno: e.lineno, colno: e.colno },

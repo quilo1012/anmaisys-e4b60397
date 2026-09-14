@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Undo2, ScanLine } from "lucide-react";
 import type { Product } from "@/hooks/useStock";
 import { codeFromQr } from "@/lib/stockQrLabels";
+import { qrboxFor } from "@/lib/scannerViewfinder";
 
 /**
  * Taking parts out of stock by pointing the phone at their shelf labels.
@@ -19,6 +20,36 @@ import { codeFromQr } from "@/lib/stockQrLabels";
  *  shelf to the next takes a moment. Nothing is debited within this window of the
  *  previous read, whichever label it is. */
 const COOLDOWN_MS = 3000;
+
+/**
+ * Put the camera down, from wherever we happen to be holding it.
+ *
+ * Two things have to be right here, and each one cost a line in the error log.
+ *
+ * The handlers first. html5-qrcode sets `onabort` and `onerror` on the video it
+ * creates, and both THROW a bare string (camera/core-impl.js). Closing the camera
+ * pulls the tracks off the MediaStream while the video is still pointed at it, so the
+ * browser fires `abort` on the way out — and that throw, from a DOM event handler,
+ * lands in window.onerror. The scanner shut down exactly as asked and the telemetry
+ * log fills with "RenderedCameraImpl video surface onabort() called". Nothing reads
+ * them, and a camera that genuinely fails still reports through the start() rejection.
+ *
+ * Then the question asked before stopping. `Html5Qrcode.isScanning` is a plain field,
+ * and the library sets it from the `playing` listener on that video — so between
+ * `start()` resolving and the first frame arriving it is still false while the camera
+ * is fully up. Gating on it there meant `stop()` was skipped and only `clear()` ran,
+ * which empties the container and leaves the stream live; the detached video then
+ * played, measured 0 x 0, and the library threw the qrbox floor into window.onerror
+ * (09/09 12:58, /dashboard/stock). `getState()` is the same question `stop()` asks
+ * itself before it agrees to run, so it is the one that cannot disagree with it.
+ */
+async function closeScanner(s: Html5Qrcode, surface: HTMLVideoElement | null) {
+  if (surface) { surface.onabort = null; surface.onerror = null; }
+  try {
+    if (s.getState() !== Html5QrcodeScannerState.NOT_STARTED) await s.stop();
+  } catch { /* already down, or never came up */ }
+  try { s.clear(); } catch { /* ignore */ }
+}
 
 interface ScanEntry {
   id: string;
@@ -193,13 +224,22 @@ export function StockScanOutDialog({
       scanner
         .start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: (w, h) => { const s = Math.min(w, h) * 0.7; return { width: s, height: s }; } },
+          { fps: 10, qrbox: qrboxFor },
           (text) => { void handleRead(text); },
           () => { /* no code in frame — normal */ },
         )
         .then(() => {
           surfaceRef.current = el.querySelector("video");
-          if (!cancelled) setStarting(false);
+          // The dialog can close while the camera is still coming up, and the cleanup
+          // below runs long before this resolves. At that moment the library was still
+          // NOT_STARTED, so the state gate there could not shut anything down — and
+          // this is where the camera actually becomes stoppable. Without it the stream
+          // stays live on a video nobody can see, until the tab is closed.
+          if (cancelled) {
+            void closeScanner(scanner, el.querySelector("video"));
+            return;
+          }
+          setStarting(false);
         })
         .catch((err: unknown) => {
           if (cancelled) return;
@@ -212,23 +252,11 @@ export function StockScanOutDialog({
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      // html5-qrcode sets `onabort` and `onerror` on the video it creates, and both
-      // THROW a bare string (camera/core-impl.js). Closing the camera pulls the tracks
-      // off the MediaStream while the video is still pointed at it, so the browser
-      // fires `abort` on the way out — and that throw, from a DOM event handler, lands
-      // in window.onerror. The scanner shut down exactly as asked and the telemetry log
-      // fills with "RenderedCameraImpl video surface onabort() called". Detach them
-      // first: nothing reads them, and a camera that genuinely fails still reports
-      // through the start() rejection above.
       const surface = surfaceRef.current;
       surfaceRef.current = null;
-      if (surface) { surface.onabort = null; surface.onerror = null; }
       const s = scannerRef.current;
       scannerRef.current = null;
-      if (s) {
-        const stop = s.isScanning ? s.stop() : Promise.resolve();
-        stop.catch(() => undefined).finally(() => { try { s.clear(); } catch { /* ignore */ } });
-      }
+      if (s) void closeScanner(s, surface);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
