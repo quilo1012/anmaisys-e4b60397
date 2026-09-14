@@ -5,6 +5,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logoUrl from "@/assets/appliedlogo.jpeg";
+import { actionSummary } from "@/lib/qualityConstants";
 
 export interface PerfReportLine {
   line: string;
@@ -17,9 +18,16 @@ export interface PerfReportOpenAction {
   recorded_at: string;
   action_no: string | null;
   line: string | null;
+  /** Resolved by `actionShift` — the column where there is one, the clock where there is not. */
   shift: string | null;
+  /** True when the log recorded no shift and the hour answered for it. Footnoted once. */
+  shiftDerived?: boolean;
   severity: string | null;
   description: string | null;
+  /** Where the sync writes the fault; `description` is where a typed action writes it. */
+  title?: string | null;
+  error_type?: string | null;
+  labels?: string[] | null;
   status?: string | null;
 }
 /** One line's day, as the history table prints it. */
@@ -357,30 +365,89 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
   // ── Quality actions (all statuses in the period) ──────────────────────
   const fmtStatus = (s: string | null | undefined) =>
     s === "in_progress" ? "In progress" : s === "todo" ? "To do" : s === "complete" ? "Complete" : (s ?? "—");
+  const isOpen = (s: string | null | undefined) => s === "todo" || s === "in_progress";
+  // The count belongs beside the heading, and what the count is made of belongs under
+  // it: five actions of which three are still open is a different period from five
+  // closed ones, and the table below takes a page to say so.
+  const openCount = openActions.filter((a) => isOpen(a.status)).length;
+  const bySeverity = new Map<string, number>();
+  for (const a of openActions) {
+    const grade = (a.severity ?? "").trim().toLowerCase();
+    if (grade) bySeverity.set(grade, (bySeverity.get(grade) ?? 0) + 1);
+  }
+  const ungraded = openActions.length - [...bySeverity.values()].reduce((t, c) => t + c, 0);
+  const summary = [
+    ...["critical", "high", "medium", "low"]
+      .filter((g) => bySeverity.has(g))
+      .map((g) => `${bySeverity.get(g)} ${g}`),
+    ...(ungraded > 0 ? [`${ungraded} not graded`] : []),
+    ...(openActions.length > 0 ? [`${openCount} still open`] : []),
+  ].join("   ·   ");
+
+  ensureSpace(26);
   doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...INK);
   doc.text(`Quality Actions  (${openActions.length})`, margin, y);
+  if (summary) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...SUBTLE);
+    doc.text(summary, margin, y + 4.5);
+    y += 4.5;
+  }
   y += 3;
   doc.setTextColor(0);
   autoTable(doc, {
     startY: y,
-    head: [["Date", "Action #", "Line", "Shift", "Status", "Severity", "Description"]],
+    head: [["Date", "Action #", "Line", "Shift", "Severity", "Status", "What happened"]],
     body: openActions.length
       ? openActions.map((a) => [
           fmtDate(a.recorded_at),
           a.action_no ?? "—",
           a.line ?? "—",
-          a.shift ?? "—",
+          // Italic where the hour answered for a log that recorded no shift, so the
+          // column cannot pass an inference off as something somebody wrote down.
+          { content: (a.shift ?? "—").toUpperCase(), styles: { fontStyle: a.shiftDerived ? "italic" : "normal" } },
+          a.severity
+            ? { content: a.severity.toUpperCase(), styles: { ...sevChip(a.severity), fontStyle: "bold" } }
+            // Not a grade, so not a chip: an ungraded action costs nothing and a
+            // coloured badge saying so would read as a verdict.
+            : { content: "Not graded", styles: { textColor: SUBTLE } },
           fmtStatus(a.status),
-          { content: (a.severity ?? "—").toUpperCase(), styles: { ...sevChip(a.severity), fontStyle: "bold", halign: "center" } },
-          (a.description ?? "").slice(0, 70) || "—",
+          // `title` first, `description` second, then `error_type` and the labels:
+          // the sync writes the fault into `title` and leaves `description` for the
+          // product and batch. Reading `description` alone printed a dash over 104
+          // of the 188 actions on the log.
+          actionSummary(a) ?? "—",
         ])
       : [[{ content: "No quality actions in this period.", colSpan: 7, styles: { halign: "center", textColor: SUBTLE, fontStyle: "italic" } }]],
     styles: { fontSize: 8, cellPadding: 1.8, overflow: "linebreak", lineColor: [226, 232, 240], lineWidth: 0.1 },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: { 4: { halign: "center" }, 5: { halign: "center" } },
+    // Everything but the last column is fixed, so "What happened" takes the rest of
+    // the page and wraps inside it instead of squeezing the columns that identify
+    // the action.
+    // Widths are in mm and every one of them is a word that must not wrap:
+    // `10/09/2026` needs 20, `NIGHT` 15, `In progress` 21. Left to share the width
+    // out on its own, autoTable broke the date across two lines and printed "NIGH T".
+    columnStyles: {
+      0: { cellWidth: 20 },
+      1: { cellWidth: 17 },
+      2: { cellWidth: 16 },
+      3: { cellWidth: 15, halign: "center" },
+      4: { cellWidth: 20, halign: "center" },
+      5: { cellWidth: 21, halign: "center" },
+    },
     margin: { left: margin, right: margin, top: 30 },
   });
+
+  // Said once, and only when it happened — the same rule as the daily totals note.
+  if (openActions.some((a) => a.shiftDerived)) {
+    y = (doc as any).lastAutoTable.finalY + 4;
+    doc.setFont("helvetica", "italic"); doc.setFontSize(7); doc.setTextColor(...SUBTLE);
+    doc.text(
+      "Shifts in italic were read from the time the action was raised: the quality log records a shift only for actions typed by hand.",
+      margin, y, { maxWidth: pageW - margin * 2 },
+    );
+    doc.setFont("helvetica", "normal"); doc.setTextColor(0);
+  }
 
   // ── Header band and footer, once every page exists ────────────────────
   //
