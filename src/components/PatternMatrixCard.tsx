@@ -76,6 +76,18 @@ export interface PatternMatrixCardProps {
   showUnresumed?: boolean;
   /** Como se chama uma ocorrência, no tooltip da célula. */
   countNoun?: string;
+  /**
+   * Como se escreve uma duração numa célula.
+   *
+   * A manutenção usa "Xh Ym" porque as suas paragens contam-se em horas. O
+   * armazém não: as esperas ficam quase todas abaixo da hora, e catorze colunas
+   * de "0h 12m" são o ruído que o `formatDurationCompact` existe para evitar.
+   */
+  formatCell?: (minutes: number) => string;
+  /** O que a legenda diz sobre o †. */
+  unresumedLegend?: string;
+  /** A frase que o tooltip acrescenta quando a célula tem minutos marcados. */
+  unresumedNote?: (formatted: string) => string;
   /** Rodapé, por baixo da tabela. */
   footer?: ReactNode;
 }
@@ -92,6 +104,9 @@ export function PatternMatrixCard({
   emptyMessage = "No downtime recorded in the selected range.",
   showUnresumed = true,
   countNoun = "events",
+  formatCell = formatMinutes,
+  unresumedLegend = "† auto-closed",
+  unresumedNote = (t) => ` — ${t} of it auto-closed at a shift boundary, not resumed by anyone`,
   footer,
 }: PatternMatrixCardProps) {
   const { matrix, lines, lineTotals, dayShiftTotals, grandMax, grandTotalMinutes } = heatmap;
@@ -118,7 +133,7 @@ export function PatternMatrixCard({
             <span className="h-3 w-5 rounded-sm bg-destructive/70" />
             <span>More</span>
             {showUnresumed && (
-              <span className="ml-2 border-l border-border pl-2 normal-case tracking-normal">† auto-closed</span>
+              <span className="ml-2 border-l border-border pl-2 normal-case tracking-normal">{unresumedLegend}</span>
             )}
           </div>
         </div>
@@ -169,15 +184,13 @@ export function PatternMatrixCard({
                           key={`${line}-${di}-${s}`}
                           className={`text-center rounded-md ${hasData ? cellColor(c.minutes, grandMax) : "bg-muted/20"}`}
                           title={
-                            `${line} • ${DAYS[di]} ${s}: ${formatMinutes(c.minutes)} (${c.count} ${countNoun})` +
-                            (showUnresumed && c.systemMinutes > 0
-                              ? ` — ${formatMinutes(c.systemMinutes)} of it auto-closed at a shift boundary, not resumed by anyone`
-                              : "")
+                            `${line} • ${DAYS[di]} ${s}: ${formatCell(c.minutes)} (${c.count} ${countNoun})` +
+                            (showUnresumed && c.systemMinutes > 0 ? unresumedNote(formatCell(c.systemMinutes)) : "")
                           }
                         >
                           <div className="px-1 py-1.5 leading-tight">
                             <div className="font-semibold tabular-nums">
-                              {hasData ? formatMinutes(c.minutes) : <span className="text-muted-foreground/40">—</span>}
+                              {hasData ? formatCell(c.minutes) : <span className="text-muted-foreground/40">—</span>}
                               {dagger(c)}
                             </div>
                             {c.count > 0 && <div className="text-2xs opacity-80 tabular-nums">{c.count}×</div>}
@@ -187,7 +200,7 @@ export function PatternMatrixCard({
                     }),
                   )}
                   <td className="p-2 text-right font-semibold tabular-nums border-l border-border/60">
-                    {formatMinutes(total)}
+                    {formatCell(total)}
                     {dagger(lineTotals.get(line))}
                   </td>
                 </tr>
@@ -203,14 +216,14 @@ export function PatternMatrixCard({
                     const c = dayShiftTotals.get(`${di}-${s}`) ?? EMPTY_CELL;
                     return (
                       <td key={`tot-${di}-${s}`} className="text-center p-1 font-semibold tabular-nums text-muted-foreground">
-                        {c.minutes > 0 ? formatMinutes(c.minutes) : "—"}
+                        {c.minutes > 0 ? formatCell(c.minutes) : "—"}
                         {dagger(c)}
                       </td>
                     );
                   }),
                 )}
                 <td className="p-2 text-right font-bold tabular-nums border-l border-border/60">
-                  {grandTotalMinutes > 0 ? formatMinutes(grandTotalMinutes) : "—"}
+                  {grandTotalMinutes > 0 ? formatCell(grandTotalMinutes) : "—"}
                 </td>
               </tr>
             </tfoot>

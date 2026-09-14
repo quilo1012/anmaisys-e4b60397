@@ -24,13 +24,15 @@ export const MATRIX_COLUMN_LABELS: string[] = DAYS.flatMap((d) => [`${d} D`, `${
 
 export function buildReportMatrix(
   hm: HeatmapResult,
-  opts?: { emptyRowLabel?: string },
+  /** `format` tem de ser o mesmo que o ecrã usa, ou o papel diz outro número. */
+  opts?: { emptyRowLabel?: string; format?: (minutes: number) => string },
 ): ReportMatrix | undefined {
   if (!hm.lines.length) return undefined;
   const emptyRowLabel = opts?.emptyRowLabel ?? "(line removed)";
+  const fmt = opts?.format ?? formatMinutes;
   const cellVal = (line: string, di: number, s: "Day" | "Night") => {
     const c = hm.matrix.get(line)?.get(`${di}-${s}`);
-    return c && c.minutes > 0 ? formatMinutes(c.minutes) : "—";
+    return c && c.minutes > 0 ? fmt(c.minutes) : "—";
   };
   const flat14 = (fn: (di: number, s: "Day" | "Night") => string) =>
     Array.from({ length: 7 }, (_, di) => [fn(di, "Day"), fn(di, "Night")]).flat();
@@ -38,13 +40,13 @@ export function buildReportMatrix(
     rows: hm.lines.map((line) => ({
       line: line === "—" ? emptyRowLabel : line,
       cells: flat14((di, s) => cellVal(line, di, s)),
-      total: formatMinutes(hm.lineTotals.get(line)?.minutes ?? 0),
+      total: fmt(hm.lineTotals.get(line)?.minutes ?? 0),
     })),
     totals: flat14((di, s) => {
       const v = hm.dayShiftTotals.get(`${di}-${s}`)?.minutes ?? 0;
-      return v > 0 ? formatMinutes(v) : "—";
+      return v > 0 ? fmt(v) : "—";
     }),
-    grandTotal: formatMinutes(hm.grandTotalMinutes),
+    grandTotal: fmt(hm.grandTotalMinutes),
   };
 }
 

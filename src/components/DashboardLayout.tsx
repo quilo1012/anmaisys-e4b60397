@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,6 +112,11 @@ export const navItems: NavItem[] = [
 
   // Maintenance
   { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "wo.view" },
+  // A matriz semanal das esperas vive neste ecrã, e o admin só lá chegava
+  // escrevendo o URL: `dashboard.warehouse` sempre lhe deu acesso, faltava a
+  // entrada no menu. Só `admin` porque só `admin` e `warehouse` têm essa acção —
+  // pôr aqui `manager` dava-lhe uma linha de menu que a rota recusa a seguir.
+  { title: "Warehouse", shortTitle: "Warehouse", url: "/dashboard/warehouse", icon: Warehouse, roles: ["admin"], group: "Maintenance", action: "dashboard.warehouse" },
   { title: "Service Requests", shortTitle: "Requests", url: "/dashboard/warehouse", icon: ClipboardList, roles: ["warehouse"], group: "Maintenance", action: "wo.view" },
   { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
   { title: "PM Intelligence", shortTitle: "PM Intel", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"], group: "Maintenance", action: "pm.view" },

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeHeatmap } from "@/lib/downtimeHeatmap";
 import { warehouseWaitMinutes } from "@/lib/warehouseWait";
 import {
+  filterWarehouseWaits,
   isWarehouseWo,
   toWarehouseHeatmapRecords,
   type WarehouseWoRow,
@@ -120,5 +121,54 @@ describe("a matriz do armazém", () => {
     expect(hm.lines).toEqual(["Line 1", "Line 4"]);
     // Duas linhas à espera ao mesmo tempo contam uma vez no total de parede.
     expect(hm.grandTotalMinutes).toBe(20);
+  });
+});
+
+describe("filterWarehouseWaits", () => {
+  const NOW = Date.parse("2026-09-10T12:00:00.000Z");
+  const range = { fromMs: FROM, toMs: TO, now: NOW };
+
+  it("aceita a espera que apenas toca no período", () => {
+    // Começou no domingo anterior e só fechou na segunda de manhã.
+    const kept = filterWarehouseWaits(
+      [wo({ created_at: "2026-09-06T20:00:00.000Z", closed_at: "2026-09-07T02:00:00.000Z" })],
+      range,
+    );
+    expect(kept).toHaveLength(1);
+  });
+
+  it("deixa de fora a que fechou antes de o período começar", () => {
+    expect(filterWarehouseWaits(
+      [wo({ created_at: "2026-09-05T10:00:00.000Z", closed_at: "2026-09-05T10:20:00.000Z" })],
+      range,
+    )).toHaveLength(0);
+  });
+
+  it("segue o filtro de linha", () => {
+    const rows = [wo({ id: "a" }), wo({ id: "b", line_at_time: "Line 1" })];
+    expect(filterWarehouseWaits(rows, { ...range, line: "Line 1" }).map((r) => r.id)).toEqual(["b"]);
+    // O pedido sem linha atende pela mesma fila em que a matriz o põe.
+    expect(filterWarehouseWaits([wo({ id: "c", line_at_time: null })], { ...range, line: "—" }))
+      .toHaveLength(1);
+  });
+
+  it("a espera ainda aberta conta até agora", () => {
+    const open = wo({ created_at: "2026-09-10T11:30:00.000Z", closed_at: null, finished_at: null });
+    expect(filterWarehouseWaits([open], range)).toHaveLength(1);
+  });
+
+  /**
+   * A lista e a matriz têm de ter as mesmas esperas lá dentro: o total por cima
+   * da tabela e as linhas por baixo dela contam a mesma coisa ou o ecrã mente.
+   */
+  it("entrega à matriz exactamente o que a lista mostra", () => {
+    const rows = [
+      wo({ id: "a", created_at: "2026-09-05T10:00:00.000Z", closed_at: "2026-09-05T10:20:00.000Z" }),
+      wo({ id: "b", created_at: "2026-09-10T10:00:00.000Z", closed_at: "2026-09-10T10:12:00.000Z" }),
+    ];
+    const kept = filterWarehouseWaits(rows, range);
+    const hm = computeHeatmap(toWarehouseHeatmapRecords(kept), FROM, TO, "all", "all");
+    expect(kept.map((r) => r.id)).toEqual(["b"]);
+    expect(hm.lineTotals.get("Line 4")?.count).toBe(kept.length);
   });
 });

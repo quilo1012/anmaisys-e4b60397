@@ -20,6 +20,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { WAREHOUSE_LOCATIONS } from "@/lib/warehouseLocations";
 import { formatWarehouseWait } from "@/lib/warehouseWait";
+import { WarehousePatternMatrix } from "@/components/WarehousePatternMatrix";
 import { cn } from "@/lib/utils";
 
 const WAREHOUSE_LOCATIONS_LC = new Set(WAREHOUSE_LOCATIONS.map((l) => l.toLowerCase()));
@@ -356,6 +357,10 @@ export default function WarehouseDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* A mesma matriz dia × turno que a manutenção mostra para as avarias,
+            aqui sobre as esperas — e continua fora do downtime de produção. */}
+        <WarehousePatternMatrix />
 
         {/* Warehouse machines / assets */}
         <Card>
