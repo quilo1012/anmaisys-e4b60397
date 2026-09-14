@@ -338,3 +338,50 @@ describe("sidebar reachability", () => {
   });
 
 });
+
+/**
+ * A matriz semanal das esperas do armazém vive em `/dashboard/warehouse`.
+ *
+ * Até aqui esse ecrã só estava no menu para o papel `warehouse`, embora
+ * `dashboard.warehouse` sempre tenha deixado o admin entrar: quem quisesse ler a
+ * matriz tinha de saber o URL de cor. Uma página a que só se chega escrevendo o
+ * endereço é uma página que ninguém abre.
+ *
+ * O terceiro teste é o que apanha o erro caro: uma linha de menu para um papel
+ * que a rota depois recusa — visível, clicável, e a mandar a pessoa de volta.
+ */
+describe("o armazém no menu", () => {
+  const rows = navItems.filter((i) => i.url === "/dashboard/warehouse");
+
+  it("está ao alcance de quem lê a matriz", () => {
+    for (const role of ["admin", "warehouse"] as Role[]) {
+      const visible = rows.filter((i) => i.roles.includes(role));
+      expect(visible.length, `${role} não vê o armazém no menu`).toBeGreaterThan(0);
+      for (const row of visible) {
+        expect(row.action ? can(role, row.action as Action) : true).toBe(true);
+      }
+    }
+  });
+
+  it("nunca põe duas entradas do armazém no mesmo grupo", () => {
+    // O papel `warehouse` vê-o duas vezes de propósito: uma como "Dashboard" em
+    // Overview, outra como "Service Requests" em Maintenance. Duas no MESMO
+    // grupo é que seria a mesma linha escrita duas vezes.
+    for (const role of ALL_ROLES) {
+      const byGroup = new Map<string, number>();
+      for (const i of rows.filter((r) => r.roles.includes(role))) {
+        byGroup.set(i.group, (byGroup.get(i.group) ?? 0) + 1);
+      }
+      for (const [group, n] of byGroup) {
+        expect(n, `${role} vê ${n} entradas do armazém em ${group}`).toBe(1);
+      }
+    }
+  });
+
+  it("não abre a porta a quem a permissão fecha", () => {
+    for (const role of ALL_ROLES) {
+      if (!rows.some((i) => i.roles.includes(role))) continue;
+      expect(can(role, "dashboard.warehouse"), `${role} tem a entrada mas não a permissão`).toBe(true);
+    }
+  });
+});
