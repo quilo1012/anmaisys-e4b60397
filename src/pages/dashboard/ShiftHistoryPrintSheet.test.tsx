@@ -57,7 +57,11 @@ const session = {
       started_at: startedAt,
       finished_at: finishedAt,
       tickets_unit: "bags" as const,
-      production_blender_entries: [{ blender_number: 7, quantity: 1059 }],
+      production_blender_entries: [
+        { blender_number: 11, quantity: 353 },
+        { blender_number: 12, quantity: 353 },
+        { blender_number: 13, quantity: 353 },
+      ],
     },
   ],
 };
@@ -221,5 +225,72 @@ describe("Production Control print sheet — a régua das colunas", () => {
     );
     expect(cell).toBeTruthy();
     expect(cell!.getAttribute("colspan")).toBe("2");
+  });
+
+  /**
+   * As juntas.
+   *
+   * Treze colunas separadas todas pelo mesmo meio milímetro de ar não se lêem: o lote,
+   * a mistura, a quantidade, o peso e as horas chegam ao olho como um número só. O
+   * filete só marca as juntas — as mesmas do ecrã (`RULE`) — e quem o puser em todas as
+   * colunas faz papel quadriculado, onde o filete volta a não dizer nada.
+   */
+  it("draws a rule only where the question changes, and in the same places as the screen", () => {
+    const { container } = renderSheet();
+    const heads = [...container.querySelectorAll("thead th")];
+    expect(heads.length).toBe(PC_COLUMNS.length);
+    const jointed = heads
+      .map((th, i) => (th.className.includes("pc-joint") ? PC_COLUMNS[i].key : null))
+      .filter(Boolean);
+    // QUANDO (data, turno) · QUEM (linha…) · O QUÊ (SKU…) · QUANTO (mistura…) · RELÓGIO
+    expect(jointed).toEqual(["line", "sku", "blender", "start"]);
+  });
+
+  it("carries each joint down the rows, not just across the header", () => {
+    const { container } = renderSheet();
+    const row = container.querySelectorAll("tbody tr")[2]; // dia, baía, e a primeira fila
+    const jointed = [...row.querySelectorAll("td")]
+      .map((td, i) => (td.className.includes("pc-joint") ? PC_COLUMNS[i].key : null))
+      .filter(Boolean);
+    expect(jointed).toEqual(["line", "sku", "blender", "start"]);
+  });
+
+  /**
+   * A mistura alinha-se como identificador e não como grandeza.
+   *
+   * Encostada à direita, o `2` da mistura ficava a um espaço do `2,160` da quantidade e
+   * lia-se `2 2,160` — um número só. Não é uma grandeza: é o nome de uma máquina.
+   */
+  it("aligns the blender left, unlike the quantities around it", () => {
+    const { container } = renderSheet();
+    const cell = [...container.querySelectorAll("td")].find((td) => td.textContent === "11, 12, 13");
+    expect(cell).toBeTruthy();
+    expect(cell!.className).not.toContain("text-right");
+  });
+
+  /**
+   * A largura que a Line 4 pediu e não teve.
+   *
+   * `11, 12, 13` são 77 px e a coluna tinha 58: o `3` era cortado pelo `overflow:hidden`
+   * e a folha saía a dizer que a ordem correu nas misturas 11, 12 e 1. Sem erro nenhum.
+   */
+  it("gives the blender room for three two-digit mixes", () => {
+    const blender = PC_COLUMNS.find((c) => c.key === "blender")!;
+    expect(blender.width).toBeGreaterThanOrEqual(77);
+  });
+
+  /**
+   * E deixa a quarta passar à linha.
+   *
+   * Nenhuma largura chega para todas as ordens — `10, 11, 12, 13` não cabe em coluna
+   * nenhuma que deixe a descrição viver. O que tem de ser verdade é que a lista desce
+   * para a linha de baixo em vez de ser cortada: com `whitespace-nowrap` a folha saía a
+   * dizer `10, 11, 12,` ao lado de uma quantidade feita em quatro misturas.
+   */
+  it("lets a fourth mix drop to the next line instead of being cut off", () => {
+    const { container } = renderSheet();
+    const cell = [...container.querySelectorAll("td")].find((td) => td.textContent === "11, 12, 13")!;
+    expect(cell.className).toContain("pc-wrap");
+    expect(cell.className).not.toContain("whitespace-nowrap");
   });
 });

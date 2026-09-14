@@ -458,23 +458,45 @@ const cleanDescription = (name: string) =>
  * texto corrido se comporta. E as três colunas que podem receber texto sem limite (o
  * SKU, a descrição e o lote) passam à linha em vez de transbordar: numa folha de turno
  * uma palavra partida em duas linhas lê-se, uma palavra impressa por cima da do lado
- * não.
+ * não. A linha e o líder também: os dois vêm de tabelas onde alguém escreve o nome, e
+ * uma coluna medida contra "Rafael Tosta" e "Tablet Line" não é uma promessa sobre o
+ * nome seguinte. Passar à linha é a folga que os pixels de reserva só fingiam dar.
+ *
+ * ── As juntas (`joint`) ───────────────────────────────────────────────────────────
+ *
+ * Caber não é ler-se. Com treze colunas separadas todas pelo mesmo meio milímetro de ar,
+ * `R26215  2  2,160  500  06:20  10:20` chega ao olho como um número só, e é essa a
+ * queixa de quem recebe a folha: o lote, a mistura, a quantidade, o peso e as horas
+ * estão todos juntos.
+ *
+ * O `joint` é o `RULE` do ecrã, em papel — o mesmo filete nas mesmas juntas, para que
+ * quem lê a folha na parede e quem lê o ecrã leiam a mesma tabela: QUANDO (data, turno)
+ * · QUEM (linha, líder, equipa) · O QUÊ (SKU, descrição, lote) · QUANTO (mistura,
+ * quantidade, peso) · RELÓGIO (início, fim). Um filete e um pouco mais de ar à esquerda
+ * da primeira coluna de cada grupo; quatro filetes e não treze, porque um filete entre
+ * todas as colunas é papel quadriculado e aí volta a não dizer nada.
+ *
+ * A junta não engorda a coluna. Os 10 px de ar à esquerda saem dos 6 px que ela tinha à
+ * direita — 10 e 2, que continuam a dar os mesmos 12 — e é por isso que pôr ou tirar uma
+ * junta não mexe em número nenhum desta régua. Não é asseio: os 277 mm não têm 4 px por
+ * junta para dar, e quem os desse dava-os à custa da descrição, que é a única coluna que
+ * vive do que as outras deixam. A régua já esteve 16 px acima do que a folha tem.
  */
 export const PC_COLUMNS = [
-  { key: "rail",    width: 9,   need: 0 },   // a faixa da baía
-  { key: "date",    width: 46,  need: 43 },  // "11/09" e o cabeçalho DATE
-  { key: "shift",   width: 55,  need: 52 },  // a chapa NIGHT com o seu bordo
-  { key: "line",    width: 73,  need: 70 },  // "Tablet Line"
-  { key: "leader",  width: 74,  need: 71 },  // "Rafael Tosta"
-  { key: "team",    width: 42,  need: 39 },  // o cabeçalho TEAM, que é mais largo que o número
-  { key: "sku",     width: 94,  need: 91 },  // "NEUBFWP900WCP"; o texto livre passa à linha
-  { key: "desc",    width: 0,   need: 0 },   // o que sobra
-  { key: "batch",   width: 97,  need: 94 },  // "M 09/26 · E 09/28", que é mais largo que o lote
-  { key: "blender", width: 60,  need: 57 },  // o cabeçalho BLENDER, que não parte a meio
-  { key: "qty",     width: 59,  need: 56 },
-  { key: "weight",  width: 69,  need: 66 },  // "WEIGHT (g)" numa linha só
-  { key: "start",   width: 46,  need: 43 },
-  { key: "finish",  width: 48,  need: 45 },
+  { key: "rail",    width: 9,   need: 0,  joint: false }, // a faixa da baía: 9 px de cor, não de texto
+  { key: "date",    width: 46,  need: 43, joint: false }, // "11/09" e o cabeçalho DATE
+  { key: "shift",   width: 55,  need: 52, joint: false }, // a chapa NIGHT com o seu bordo
+  { key: "line",    width: 67,  need: 64, joint: true  }, // "Tablet Line", sem o `pr-3` que a junta agora dá
+  { key: "leader",  width: 74,  need: 71, joint: false }, // "Rafael Tosta"
+  { key: "team",    width: 42,  need: 39, joint: false }, // o cabeçalho TEAM, que é mais largo que o número
+  { key: "sku",     width: 94,  need: 91, joint: true  }, // "NEUBFWP900WCP"; o texto livre passa à linha
+  { key: "desc",    width: 0,   need: 0,  joint: false }, // o que sobra
+  { key: "batch",   width: 97,  need: 94, joint: false }, // "M 09/26 · E 09/28", que é mais largo que o lote
+  { key: "blender", width: 80,  need: 77, joint: true  }, // "11, 12, 13" — três misturas numa linha; à quarta passa à linha
+  { key: "qty",     width: 59,  need: 56, joint: false },
+  { key: "weight",  width: 69,  need: 66, joint: false }, // "WEIGHT (g)" numa linha só
+  { key: "start",   width: 46,  need: 43, joint: true  },
+  { key: "finish",  width: 48,  need: 45, joint: false },
 ] as const;
 
 /**
@@ -496,6 +518,10 @@ export const PC_COLUMN_MARGIN_PX = 3;
 /** O que sobra para a descrição, e o aviso se algum dia não sobrar nada. */
 export const PC_PRINTABLE_PX = 1047;
 export const PC_FIXED_PX = PC_COLUMNS.reduce((a, c) => a + c.width, 0);
+
+/** A classe da junta, lida da régua — para que a régua e a folha não possam discordar. */
+const PC_JOINTS = new Set<string>(PC_COLUMNS.filter((c) => c.joint).map((c) => c.key));
+const joint = (key: string) => (PC_JOINTS.has(key) ? "pc-joint" : "");
 
 /** O plano ao lado do feito, na mesma língua nos três sítios em que a folha o diz. */
 function AgainstPlan({ qty, plan, pct }: { qty: number; plan: number; pct: number | null }) {
@@ -665,11 +691,11 @@ export function ProductionControlPrintSheet({
               cheio em cada fila era dizer três vezes a mesma coisa. Fica calado — quem
               grita é a faixa —, mas fica, porque uma página que comece a meio de uma
               baía não traz a chapa consigo. */}
-          <td className={`${cell} pr-3 text-black/55`}>{(s.line ?? "").trim()}</td>
+          <td className={`${cell} ${joint("line")} pc-wrap text-black/55`}>{(s.line ?? "").trim()}</td>
           {/* O líder e a equipa são do turno, não de cada SKU que ele fez: escrevem-se
               uma vez, na primeira fila da sessão, como uma célula fundida na folha que
               este ecrã substituiu. */}
-          <td className={cell}>{idx === 0 ? (leaderName ?? "—") : ""}</td>
+          <td className={`${cell} pc-wrap`}>{idx === 0 ? (leaderName ?? "—") : ""}</td>
           <td className={num}>{idx === 0 ? (s.staff_actual ?? "—") : ""}</td>
           {/* O SKU e a descrição são duas colunas quando há duas coisas para dizer.
               Quando o item entrou sem catálogo o que vai no SKU não é um código: é o
@@ -680,11 +706,11 @@ export function ProductionControlPrintSheet({
               não dizia nada desaparece. */}
           {descText ? (
             <>
-              <td className={`${cell} pc-wrap font-figure font-bold`}>{skuText}</td>
+              <td className={`${cell} ${joint("sku")} pc-wrap font-figure font-bold`}>{skuText}</td>
               <td className={`${cell} pc-wrap`}>{descText}</td>
             </>
           ) : (
-            <td colSpan={2} className={`${cell} pc-wrap font-figure font-bold`}>{skuText}</td>
+            <td colSpan={2} className={`${cell} ${joint("sku")} pc-wrap font-figure font-bold`}>{skuText}</td>
           )}
           <td className={`${cell} pc-wrap font-figure`}>
             {i?.batch_code || "—"}
@@ -697,11 +723,26 @@ export function ProductionControlPrintSheet({
             )}
           </td>
           {/* Sem misturas, célula vazia. Uma coluna cheia de travessões é ruído com a
-              forma de informação. */}
-          <td className={num}>{blenders.length ? blenders.join(", ") : ""}</td>
+              forma de informação.
+
+              Alinhada à ESQUERDA, ao contrário das três quantidades que a rodeiam: o
+              número da mistura não é uma grandeza, é o nome de uma máquina. Encostada à
+              direita ficava a um espaço da quantidade, e `2  2,160` lia-se como um
+              número só — era metade do "está tudo junto". Encostada à esquerda, o
+              filete e a coluna inteira separam-nas.
+
+              E passa à linha. A coluna dá para três misturas — `11, 12, 13`, que é o que
+              uma ordem da Line 4 gasta — e a quarta desce para a linha de baixo. Com
+              `whitespace-nowrap` não descia: a lista era cortada pelo `overflow: hidden`
+              e a folha saía a dizer `10, 11, 12,` ao lado de uma quantidade que tinha
+              sido feita em quatro. Uma mistura a menos numa folha de rastreio é o
+              contrário do que a folha existe para fazer. */}
+          <td className={`${cell} ${joint("blender")} pc-wrap font-figure`}>
+            {blenders.length ? blenders.join(", ") : ""}
+          </td>
           <td className={`${num} font-bold`}>{i ? Number(i.actual_qty ?? 0).toLocaleString() : "—"}</td>
           <td className={`${num} text-black/55`}>{weight ? weight.toLocaleString() : ""}</td>
-          <td className={`${cell} font-figure whitespace-nowrap`}>{i ? hhmm(i.started_at) : "—"}</td>
+          <td className={`${cell} ${joint("start")} font-figure whitespace-nowrap`}>{i ? hhmm(i.started_at) : "—"}</td>
           <td className={`${cell} font-figure whitespace-nowrap`}>{i ? hhmm(i.finished_at) : "—"}</td>
         </tr>,
       );
@@ -732,6 +773,24 @@ export function ProductionControlPrintSheet({
            a acontecer, porque as colunas que podem crescer levam .pc-wrap. */
         #production-control-print td, #production-control-print th { overflow: hidden; }
         #production-control-print .pc-wrap { overflow-wrap: anywhere; }
+        /* As juntas. Um filete a 28% de preto — o suficiente para o olho parar nele e
+           pouco para não competir com os fios que separam as filas, e o que sobrevive à
+           fotocópia sem virar um traço a sério. O ar à esquerda vale tanto como o
+           filete: um filete colado ao algarismo separa menos do que um milímetro de
+           branco.
+
+           E esse ar NÃO é ar novo. Os 10 px da esquerda saem dos 6+6 px que a coluna já
+           tinha à volta: 10 à esquerda e 2 à direita, que continuam a dar 12. Uma junta
+           que engordasse a coluna tirava os pixels à descrição — 4 px por junta, 16 nas
+           quatro — e a descrição é a única coluna que vive do que sobra. Do lado de cá
+           o aperto ainda ajuda: a seguir a uma junta vem sempre outra coluna do MESMO
+           grupo (a linha e o líder, o SKU e a descrição, a mistura e a quantidade, o
+           início e o fim), e duas colunas que respondem à mesma pergunta lêem-se melhor
+           juntas do que afastadas. */
+        #production-control-print .pc-joint { border-left: 0.5pt solid rgba(0,0,0,0.28); padding-left: 10px; padding-right: 2px; }
+        /* No cabeçalho o filete sobe até ao topo da chapa, senão a junta começa a meio
+           da tabela e as colunas do título ficam por agrupar. */
+        #production-control-print thead th.pc-joint { border-left-color: rgba(0,0,0,0.45); }
         /* A faixa da baía: 2,5 mm de cor a descer o bloco todo, encostada à margem. */
         #production-control-print .pc-rail { width: 9px; padding: 0; border: 0; }
         /* Uma chapa sozinha no fim da página é uma chapa sem o que ela anuncia. */
@@ -800,18 +859,19 @@ export function ProductionControlPrintSheet({
               <th className="pc-rail" />
               <th className={th}>Date</th>
               <th className={th}>Shift</th>
-              <th className={th}>Line</th>
+              <th className={`${th} ${joint("line")}`}>Line</th>
               <th className={th}>Leader</th>
               <th className={thNum}>Team</th>
-              <th className={th}>SKU</th>
+              <th className={`${th} ${joint("sku")}`}>SKU</th>
               <th className={th}>Description</th>
               <th className={th}>Batch</th>
-              <th className={thNum}>Blender</th>
+              {/* Alinhado à esquerda como a coluna que encabeça: são nomes de máquinas. */}
+              <th className={`${th} ${joint("blender")}`}>Blender</th>
               <th className={thNum}>Qty</th>
               {/* `uppercase` transformava "(g)" em "(G)", que é giga. Numa folha de
                   fábrica a unidade escreve-se como a unidade é. */}
               <th className={thNum}>Weight <span className="normal-case">(g)</span></th>
-              <th className={th}>Start</th>
+              <th className={`${th} ${joint("start")}`}>Start</th>
               <th className={th}>Finish</th>
             </tr>
           </thead>
@@ -819,10 +879,17 @@ export function ProductionControlPrintSheet({
             {rows}
             <tr className="pc-total">
               <td className="pc-rail" />
-              <td colSpan={9} className="px-1.5 pt-[6px] text-right font-display text-[7pt] font-bold uppercase tracking-[0.1em]">
+              <td colSpan={8} className="px-1.5 pt-[6px] text-right font-display text-[7pt] font-bold uppercase tracking-[0.1em]">
                 Total for the period
               </td>
-              <td className="px-1.5 pt-[6px] text-right font-figure text-[9pt] font-bold whitespace-nowrap">
+              {/* O total ocupa a mistura e a quantidade, e não só a quantidade.
+                  Encosta à direita no mesmo sítio — a régua da folha não se mexe — mas
+                  tem 134 px por onde crescer em vez de 56. A coluna da quantidade foi
+                  medida contra `11,119`, que é uma ordem; o total de um mês é `186,009`,
+                  que são 62 px a 9pt, e ia cortado pelo `overflow: hidden` sem dizer
+                  nada. Um total truncado é a única linha da folha que ninguém confere,
+                  porque é a linha por onde se confere tudo o resto. */}
+              <td colSpan={2} className="px-1.5 pt-[6px] text-right font-figure text-[9pt] font-bold whitespace-nowrap">
                 {Math.round(summary.actual).toLocaleString()}
               </td>
               <td colSpan={3} className="px-1.5 pt-[6px] font-figure text-[7.5pt] whitespace-nowrap">
