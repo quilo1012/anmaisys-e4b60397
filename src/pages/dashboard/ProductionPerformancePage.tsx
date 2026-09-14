@@ -32,6 +32,7 @@ import { ANDON_FIELD } from "@/lib/rail";
 import { pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/lib/lineSku";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { EmptyState } from "@/components/EmptyState";
+import { wideBoardColumns, WIDE_BOARD_GRID } from "@/lib/lineBoardColumns";
 import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { toast } from "sonner";
 
@@ -908,11 +909,15 @@ export default function ProductionPerformancePage() {
 
         {/* `items-stretch` com o `fill` do cartão: numa fila, todos os cartões têm a
             altura do mais alto, e a medida de cada um encosta ao mesmo fundo.
-            Três colunas onde antes eram quatro: com as nove linhas da fábrica, quatro
-            colunas deixavam a última sozinha ao lado de três colunas de fundo vazio —
-            e um painel de instrumentos com um buraco desse tamanho lê-se como um ecrã
-            que não acabou de carregar. Nove em três filas de três fecham o painel. */}
-        <div className="grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            A largura já não é uma constante. Três colunas foram escolhidas para as
+            nove linhas da fábrica, e nove em três filas de três fecham o painel — mas
+            num dia com sete linhas as mesmas três deixavam a última sozinha ao lado de
+            dois terços de fundo vazio, que é o buraco que a escolha fixa existia para
+            evitar. Num monitor grande a conta escolhe entre três e quatro a que fecha
+            melhor a última fila; em xl continuam a ser três, que é onde um cartão de um
+            quarto de largura deixa de ter espaço para o número de 40 px.
+            Ver `wideBoardColumns`. */}
+        <div className={cn("grid items-stretch gap-3 sm:grid-cols-2 xl:grid-cols-3", WIDE_BOARD_GRID[wideBoardColumns(sortedByLine.length)])}>
           {sortedByLine.map((l) => {
 
             // Industrial Andon panel — high-contrast dark, readable from across

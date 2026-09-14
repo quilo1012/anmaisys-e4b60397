@@ -7,7 +7,7 @@
  */
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { buildRecord, londonDay, type ClassificationRule, type ScAction } from "./normalize.ts";
+import { buildRecord, londonDay, londonShift, type ClassificationRule, type ScAction } from "./normalize.ts";
 import type { Attendance } from "./classification.ts";
 import { sessionInCharge, type ProductionSession } from "./leaderOnDuty.ts";
 import { parseProductNote, resolveSkuFromNote } from "./productNote.ts";
@@ -537,6 +537,15 @@ function rowFor(
     assignee_name: draft.assignee_name,
     due_date: draft.due_date,
     recorded_at: draft.recorded_at,
+    // O turno em que a acção foi levantada, lido do instante em que o foi.
+    //
+    // SafetyCulture não tem campo de turno e esta função nunca escreveu um, portanto
+    // as 123 acções vivas estavam todas com `shift` NULL — e a Production Performance,
+    // que abre fixada no turno a correr e filtra `.eq("shift", …)` no servidor,
+    // derrubava-as a todas: zero pontos de qualidade em todas as linhas, todos os dias.
+    // A regra é a mesma do ecrã (src/lib/shifts.ts) e a mesma que workOrdersInPeriod()
+    // já aplica a uma ordem de trabalho, que também não tem coluna de turno.
+    shift: londonShift(draft.recorded_at),
     status: draft.status,
     line: draft.line,
     leader_id: draft.leader_id,
