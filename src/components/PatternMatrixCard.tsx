@@ -15,7 +15,7 @@ import { formatMinutes } from "@/lib/formatDuration";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 
-export function cellColor(minutes: number, max: number): string {
+function cellColor(minutes: number, max: number): string {
   if (minutes <= 0) return "bg-background";
   const pct = max > 0 ? minutes / max : 0;
   if (pct < 0.15) return "bg-success/15 text-success-strong";
@@ -30,7 +30,7 @@ const EMPTY_CELL: Cell = { minutes: 0, count: 0, systemMinutes: 0 };
  * A data de calendário (dd/MM) por baixo de cada coluna — só quando o intervalo
  * apanha aquele dia da semana exactamente uma vez, ou seja, numa semana só.
  */
-export function useWeekdayDates(fromMs: number, toMs: number): (string | null)[] {
+function useWeekdayDates(fromMs: number, toMs: number): (string | null)[] {
   return useMemo(() => {
     const byIdx = new Map<number, Set<string>>();
     const startP = londonAllParts(new Date(fromMs));
