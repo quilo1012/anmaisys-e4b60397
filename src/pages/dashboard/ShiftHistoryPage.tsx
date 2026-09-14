@@ -461,21 +461,37 @@ const cleanDescription = (name: string) =>
  * não.
  */
 export const PC_COLUMNS = [
-  { key: "rail",    width: 9,   need: 9 },   // a faixa da baía
-  { key: "date",    width: 42,  need: 42 },  // "11/09" e o cabeçalho DATE
-  { key: "shift",   width: 52,  need: 51 },  // a chapa NIGHT com o seu bordo
-  { key: "line",    width: 72,  need: 70 },  // "Tablet Line"
-  { key: "leader",  width: 80,  need: 70 },  // "Rafael Tosta", com folga para nomes maiores
-  { key: "team",    width: 40,  need: 39 },  // o cabeçalho TEAM, que é mais largo que o número
-  { key: "sku",     width: 100, need: 84 },  // "NEUBFWP900WCP"; o texto livre passa à linha
+  { key: "rail",    width: 9,   need: 0 },   // a faixa da baía
+  { key: "date",    width: 46,  need: 43 },  // "11/09" e o cabeçalho DATE
+  { key: "shift",   width: 55,  need: 52 },  // a chapa NIGHT com o seu bordo
+  { key: "line",    width: 73,  need: 70 },  // "Tablet Line"
+  { key: "leader",  width: 74,  need: 71 },  // "Rafael Tosta"
+  { key: "team",    width: 42,  need: 39 },  // o cabeçalho TEAM, que é mais largo que o número
+  { key: "sku",     width: 94,  need: 91 },  // "NEUBFWP900WCP"; o texto livre passa à linha
   { key: "desc",    width: 0,   need: 0 },   // o que sobra
-  { key: "batch",   width: 94,  need: 94 },  // "M 09/26 · E 09/28", que é mais largo que o lote
-  { key: "blender", width: 58,  need: 57 },  // o cabeçalho BLENDER, que não parte a meio
-  { key: "qty",     width: 58,  need: 55 },
-  { key: "weight",  width: 68,  need: 67 },  // "WEIGHT (g)" numa linha só
-  { key: "start",   width: 43,  need: 43 },
-  { key: "finish",  width: 44,  need: 44 },
+  { key: "batch",   width: 97,  need: 94 },  // "M 09/26 · E 09/28", que é mais largo que o lote
+  { key: "blender", width: 60,  need: 57 },  // o cabeçalho BLENDER, que não parte a meio
+  { key: "qty",     width: 59,  need: 56 },
+  { key: "weight",  width: 69,  need: 66 },  // "WEIGHT (g)" numa linha só
+  { key: "start",   width: 46,  need: 43 },
+  { key: "finish",  width: 48,  need: 45 },
 ] as const;
+
+/**
+ * A margem que cada coluna leva acima do que mediu.
+ *
+ * Três pixels, e não zero. A régua tinha sido medida com a IBM Plex Mono carregada, e
+ * a IBM Plex Mono vem do `fonts.googleapis.com` — numa máquina da nave atrás de um
+ * proxy que não o deixe passar, a folha imprime-se na face de recurso. O avanço muda
+ * um pixel por coluna, o que chegava para pôr a **data** e o **fim** já em -1 px: com
+ * `overflow: hidden` o "11/09" e o "17:45" perdiam a última coluna de pixels do
+ * último algarismo, sem nada que o explicasse.
+ *
+ * Três pixels são três vezes a variação medida entre a face real e as de recurso
+ * (Courier New, Menlo, Consolas, a genérica). O `need` de cada coluna aqui é já o da
+ * face de recurso — o número pior, não o melhor.
+ */
+export const PC_COLUMN_MARGIN_PX = 3;
 
 /** O que sobra para a descrição, e o aviso se algum dia não sobrar nada. */
 export const PC_PRINTABLE_PX = 1047;
