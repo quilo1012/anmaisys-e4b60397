@@ -19,6 +19,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 import {
   ProductionControlPrintSheet,
   PC_COLUMNS,
+  PC_COLUMN_MARGIN_PX,
   PC_FIXED_PX,
   PC_PRINTABLE_PX,
 } from "@/pages/dashboard/ShiftHistoryPage";
@@ -160,9 +161,12 @@ describe("Production Control print sheet", () => {
  * gesto que reabre o bug — e é isto que o apanha.
  */
 describe("Production Control print sheet — a régua das colunas", () => {
-  it("gives every column at least what its widest cell measured", () => {
-    const tight = PC_COLUMNS.filter((c) => c.width > 0 && c.width < c.need);
-    expect(tight.map((c) => `${c.key}: ${c.width}px < ${c.need}px`)).toEqual([]);
+  it("gives every column what its widest cell measured, plus the margin", () => {
+    // Não `>= need`: a régua já esteve exactamente em `need` e isso não chegou. A face
+    // de recurso, quando a IBM Plex Mono não carrega, muda o avanço um pixel por
+    // coluna, e a data e o fim ficavam a -1 px — o último algarismo cortado.
+    const tight = PC_COLUMNS.filter((c) => c.width > 0 && c.width - c.need < PC_COLUMN_MARGIN_PX);
+    expect(tight.map((c) => `${c.key}: ${c.width}px − ${c.need}px = ${c.width - c.need}px de folga`)).toEqual([]);
   });
 
   it("leaves the description a column to live in", () => {
