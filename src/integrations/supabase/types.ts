@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -3481,7 +3481,7 @@ export type Database = {
           not_for_eu: boolean
           notes: string | null
           planned_qty: number
-          scrap_qty: number
+          scrap_qty: number | null
           session_id: string
           sku_code_text: string | null
           sku_id: string | null
@@ -3507,7 +3507,7 @@ export type Database = {
           not_for_eu?: boolean
           notes?: string | null
           planned_qty?: number
-          scrap_qty?: number
+          scrap_qty?: number | null
           session_id: string
           sku_code_text?: string | null
           sku_id?: string | null
@@ -3533,7 +3533,7 @@ export type Database = {
           not_for_eu?: boolean
           notes?: string | null
           planned_qty?: number
-          scrap_qty?: number
+          scrap_qty?: number | null
           session_id?: string
           sku_code_text?: string | null
           sku_id?: string | null
@@ -7921,6 +7921,7 @@ export type Database = {
       }
       delete_leader: { Args: { _id: string }; Returns: undefined }
       factory_shift_key: { Args: { _ts: string }; Returns: string }
+      factory_shift_of: { Args: { at: string }; Returns: string }
       finish_wo_with_pin: {
         Args: { _pin: string; _signed_by_name?: string; _wo_id: string }
         Returns: Json
