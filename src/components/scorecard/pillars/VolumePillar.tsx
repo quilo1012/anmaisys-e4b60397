@@ -103,6 +103,21 @@ export function VolumePillar({
     const derivedValue = d[field];
     if (derivedValue === null) return null;
 
+    // CHECK (planned_volume > 0): a planned zero is not a plan. Production does record
+    // a leader's shifts with no plan against them — four leader-weeks in the twelve to
+    // 12/09/2026, one of them 3 644 units made against a plan of nothing — and offering
+    // that 0 would be offering a button whose only outcome is a save the table refuses,
+    // with nothing on screen saying why. Say what production holds and leave the box to
+    // a person. This is about one column's CHECK, not about zeros: a downtime of 0 is a
+    // result, and is still offered.
+    if (field === "planned_volume" && derivedValue === 0) {
+      return (
+        <p className="mt-1 text-2xs text-muted-foreground">
+          Production recorded no planned volume for this leader's shifts.
+        </p>
+      );
+    }
+
     if (typed === null) {
       return (
         <p className="mt-1 flex items-center gap-1.5 text-2xs text-muted-foreground">
