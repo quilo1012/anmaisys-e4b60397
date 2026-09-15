@@ -72,6 +72,26 @@ export function nextShiftBoundary(t: number): number {
   return londonWallToUtc(p.year, p.month, p.day + 1, 6);
 }
 
+/**
+ * A coluna a que uma fatia pertence, 0 = segunda.
+ *
+ * A noite corre das 18:00 às 06:00 e é toda do dia em que entrou: quem a fez
+ * chama-lhe a noite do 28, não meia noite do 28 e meia do 29, e o resto do
+ * sistema já a arruma assim — ver `getCurrentFactoryShift` e o comentário do
+ * `shiftSessionDate` em `lib/shifts.ts`.
+ *
+ * Isto lia a data de calendário e mais nada. Das 00:00 às 06:00 a data de
+ * calendário já é o dia seguinte, por isso a cauda de cada noite ia para a noite
+ * do dia a seguir — que já lá tinha a sua própria noite inteira. A célula somava
+ * as duas e chegava a 18 horas, num turno que tem doze. Apareceu no ecrã do
+ * armazém, numa espera que atravessou quatro noites seguidas.
+ */
+function shiftDayIndex(parts: { year: number; month: number; day: number; hour: number }): number {
+  const atMidnight = Date.UTC(parts.year, parts.month - 1, parts.day);
+  const owning = new Date(parts.hour < 6 ? atMidnight - 86_400_000 : atMidnight);
+  return (owning.getUTCDay() + 6) % 7;
+}
+
 export interface HeatmapResult {
   matrix: Map<string, Map<string, Cell>>;
   lines: string[];
@@ -144,8 +164,7 @@ export function computeHeatmap(
       const boundary = Math.min(nextShiftBoundary(cursor), clampedEnd);
       if (boundary > cursor) {
         const parts = londonAllParts(new Date(cursor));
-        const jsWd = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
-        const dayIdx = (jsWd + 6) % 7;
+        const dayIdx = shiftDayIndex(parts);
         const shift = shiftOf(parts.hour);
         if (shiftFilter === "all" || shift === shiftFilter) {
           const key = `${dayIdx}-${shift}`;
@@ -160,10 +179,11 @@ export function computeHeatmap(
     }
 
     const sp = londonAllParts(new Date(clampedStart));
-    const sJsWd = new Date(Date.UTC(sp.year, sp.month - 1, sp.day)).getUTCDay();
     const startShift = shiftOf(sp.hour);
     if (shiftFilter === "all" || startShift === shiftFilter) {
-      const startKey = `${(sJsWd + 6) % 7}-${startShift}`;
+      // A contagem segue a mesma coluna que os minutos: uma paragem que entra às
+      // 23:30 é da noite de quarta, não de duas noites diferentes.
+      const startKey = `${shiftDayIndex(sp)}-${startShift}`;
       const cellIds = lc.get(startKey) ?? new Set<string>();
       lc.set(startKey, cellIds);
       cellIds.add(stoppageId);
