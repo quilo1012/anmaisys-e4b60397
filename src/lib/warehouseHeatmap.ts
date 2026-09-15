@@ -11,9 +11,9 @@
  * `20260919090000` e o texto no cabeçalho do ecrã do armazém.
  */
 import type { HeatmapRecord } from "@/lib/downtimeHeatmap";
+import { WAREHOUSE_WO_TYPE, isWarehouseWo } from "@/lib/woKinds";
 
-/** O `wo_type` que o poll do iTouching carimba na ordem que abre por espera. */
-export const WAREHOUSE_WO_TYPE = "warehouse_service";
+export { WAREHOUSE_WO_TYPE, isWarehouseWo };
 
 /**
  * O único estado com que o poll fecha uma espera.
@@ -39,10 +39,6 @@ export interface WarehouseWoRow {
   closed_at?: string | null;
   finished_at?: string | null;
   status?: string | null;
-}
-
-export function isWarehouseWo(wo: WarehouseWoRow): boolean {
-  return wo?.wo_type === WAREHOUSE_WO_TYPE;
 }
 
 /**

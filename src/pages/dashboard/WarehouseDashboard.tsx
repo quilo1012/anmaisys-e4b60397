@@ -43,7 +43,7 @@ export default function WarehouseDashboard() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { data: workOrders, isLoading } = useWorkOrders();
+  const { data: workOrders, isLoading } = useWorkOrders({ includeWarehouse: true });
   const { data: machines } = useMachines();
   const { data: distinctVals } = useDistinctMachineValues();
   const createWO = useCreateWorkOrder();

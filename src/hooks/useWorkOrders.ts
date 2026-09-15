@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { WAREHOUSE_WO_TYPE } from "@/lib/woKinds";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
@@ -125,6 +126,20 @@ export function useWorkOrders(filter?: {
    */
   from?: Date;
   to?: Date;
+  /**
+   * Trazer também as ordens de armazém. Por omissão NÃO vêm.
+   *
+   * São 21 os chamadores deste hook e dois querem-nas: o ecrã do armazém e a sua
+   * matriz. Os outros dezanove contam trabalho de manutenção — a lista de
+   * Maintenance Orders, os KPIs, o Analytics, o MTBF, os cartões do manager — e
+   * uma espera de embalagem não é trabalho de manutenção nenhum.
+   *
+   * A base já diz isto para toda a gente menos uma: a policy restritiva
+   * `Warehouse orders belong to the warehouse` isenta o `admin`, porque sem essa
+   * isenção a matriz do armazém não carregava. É por isso que a exclusão tem de
+   * ser dita também aqui, e num sítio só em vez de em dezanove.
+   */
+  includeWarehouse?: boolean;
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -140,6 +155,14 @@ export function useWorkOrders(filter?: {
         .limit(ranged ? 5000 : 200);
       if (filter?.from) q = q.gte("created_at", filter.from.toISOString());
       if (filter?.to) q = q.lte("created_at", filter.to.toISOString());
+
+      // No servidor e não no cliente: sem intervalo esta consulta trava nas 200
+      // ordens mais recentes, e uma ordem de armazém filtrada já do lado de cá
+      // teria gasto na mesma um dos 200 lugares.
+      //
+      // `neq` chega porque `wo_type` é `NOT NULL DEFAULT 'production'` — não há
+      // nulos para o comparador deixar cair.
+      if (!filter?.includeWarehouse) q = q.neq("wo_type", WAREHOUSE_WO_TYPE);
 
       // Device line scoping (operator tablets) — takes precedence over operatorOnly self-filter
       if (filter?.lineId) {

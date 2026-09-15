@@ -70,7 +70,7 @@ export function WarehousePatternMatrix() {
   // Com intervalo, e não sem ele: sem `from`/`to` este hook devolve as 200 ordens
   // mais recentes, e as do armazém são uma minoria delas — um período de 30 dias
   // seria calculado sobre as ordens que couberam, sem dizer que faltavam as outras.
-  const { data: workOrders, isLoading } = useWorkOrders({ from: startDate, to: endDate });
+  const { data: workOrders, isLoading } = useWorkOrders({ from: startDate, to: endDate, includeWarehouse: true });
 
   const inRange = useMemo(
     () => filterWarehouseWaits(workOrders as never[] | undefined, { fromMs, toMs }),
