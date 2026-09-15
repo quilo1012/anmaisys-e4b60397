@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { navItems } from "@/components/DashboardLayout";
+import { navItems, SIDEBAR_GROUPS } from "@/components/DashboardLayout";
 import { SYSTEM_TOOLS } from "@/pages/dashboard/SystemHubPage";
 import { can, roleHolds, ALL_ACTIONS, ALL_ROLES, type Action, type Role } from "@/lib/permissions";
 
@@ -169,10 +169,14 @@ describe("sidebar", () => {
 
   it("puts every item in a group the sidebar actually renders", () => {
     // Assets was folded into Maintenance — an item left behind in a group the sidebar
-    // no longer renders would simply vanish from the menu.
-    const rendered = ["Overview", "Maintenance", "Production", "Quality", "Planning", "Reports", "Communication", "Administration", "System"];
+    // no longer renders would simply vanish from the menu. This used to keep its own
+    // copy of the group list, which is a copy somebody forgets: it now reads the one
+    // the sidebar itself renders from.
     for (const item of navItems) {
-      expect(rendered, `"${item.title}" is in group "${item.group}", which is never rendered`).toContain(item.group);
+      expect(
+        SIDEBAR_GROUPS as readonly string[],
+        `"${item.title}" is in group "${item.group}", which is never rendered`,
+      ).toContain(item.group);
     }
   });
 
@@ -360,6 +364,33 @@ describe("o armazém no menu", () => {
       for (const row of visible) {
         expect(row.action ? can(role, row.action as Action) : true).toBe(true);
       }
+    }
+  });
+
+  it("não é um ecrã de manutenção, e o cabeçalho tem de o dizer", () => {
+    // Debaixo de MAINTENANCE a linha afirmava o contrário do que a própria página
+    // promete: uma espera do armazém nunca conta como avaria de linha. A estrutura
+    // não pode contradizer o conteúdo.
+    for (const row of rows) {
+      if (row.group === "Overview") continue; // o atalho do papel `warehouse`
+      expect(row.group, `"${row.title}" voltou para ${row.group}`).toBe("Warehouse");
+    }
+    expect(SIDEBAR_GROUPS).toContain("Warehouse");
+  });
+
+  it("desenha-se depois de Production, não no meio da manutenção", () => {
+    const order = SIDEBAR_GROUPS as readonly string[];
+    expect(order.indexOf("Warehouse")).toBeGreaterThan(order.indexOf("Production"));
+    expect(order.indexOf("Warehouse")).toBeGreaterThan(order.indexOf("Maintenance"));
+  });
+
+  it("deixa a manutenção com mais do que uma linha para cada papel que a abre", () => {
+    // Tirar de lá o armazém não pode transformar Maintenance num cabeçalho sobre
+    // uma linha só — foi isso que dissolveu Assets, Reports e Communication.
+    for (const role of ALL_ROLES) {
+      const n = navItems.filter((i) => i.group === "Maintenance" && i.roles.includes(role)).length;
+      if (n === 0) continue;
+      expect(n, `${role} vê ${n} linha em Maintenance`).toBeGreaterThan(1);
     }
   });
 

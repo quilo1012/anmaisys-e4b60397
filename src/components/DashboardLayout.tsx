@@ -85,6 +85,21 @@ export interface NavItem {
 }
 
 
+/**
+ * A ordem por que a barra lateral desenha os grupos, e a lista completa deles.
+ *
+ * Um item cujo grupo não esteja aqui não é desenhado — some do menu sem erro
+ * nenhum. Era por isso que `navigation.test.ts` guardava uma cópia desta lista, e
+ * uma cópia é uma coisa que se esquece de actualizar: agora o teste lê esta.
+ *
+ * Planning, Reports e Communication já não têm itens. Ficam na lista para que um
+ * item que ainda carregue o grupo antigo apareça em vez de desaparecer.
+ */
+export const SIDEBAR_GROUPS = [
+  "Overview", "Maintenance", "Production", "Warehouse", "Quality",
+  "Planning", "Reports", "Communication", "Administration", "System",
+] as const;
+
 export const navItems: NavItem[] = [
   // Overview
   { title: "Operator Panel", shortTitle: "Panel", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
@@ -112,13 +127,7 @@ export const navItems: NavItem[] = [
 
   // Maintenance
   { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "wo.view" },
-  // A matriz semanal das esperas vive neste ecrã, e o admin só lá chegava
-  // escrevendo o URL: `dashboard.warehouse` sempre lhe deu acesso, faltava a
-  // entrada no menu. Só `admin` porque só `admin` e `warehouse` têm essa acção —
-  // pôr aqui `manager` dava-lhe uma linha de menu que a rota recusa a seguir.
-  { title: "Warehouse", shortTitle: "Warehouse", url: "/dashboard/warehouse", icon: Warehouse, roles: ["admin"], group: "Maintenance", action: "dashboard.warehouse" },
-  { title: "Service Requests", shortTitle: "Requests", url: "/dashboard/warehouse", icon: ClipboardList, roles: ["warehouse"], group: "Maintenance", action: "wo.view" },
-  { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
+    { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
   { title: "PM Intelligence", shortTitle: "PM Intel", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"], group: "Maintenance", action: "pm.view" },
 
   // Assets
@@ -164,6 +173,24 @@ export const navItems: NavItem[] = [
   // still an import. The route, the screen, the hooks and the data all remain —
   // /dashboard/workforce still opens for an admin who types it.
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
+
+  // ── Warehouse ────────────────────────────────────────────────────────────────
+  // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
+  // cabeçalho MAINTENANCE a dizer o contrário. A própria página promete que uma
+  // espera do armazém nunca conta como avaria de linha; ter a linha do menu a
+  // afirmar o contrário é a estrutura a contradizer o conteúdo.
+  //
+  // Um cabeçalho por cima de uma linha custa-se a si próprio, e foi isso que
+  // dissolveu Assets, Reports e Communication. Aqui paga-se, pela mesma razão que
+  // Quality paga o seu: o que a linha precisa de dizer é de quem é o ecrã, e
+  // dentro de Maintenance não havia maneira de o dizer. É também o que sobra
+  // quando a barra colapsa para ícones e os cabeçalhos desaparecem — daí o ícone
+  // de armazém e não um de calendário, por mais que a matriz seja uma grelha.
+  //
+  // Dois títulos para um URL, um por papel: quem trabalha no armazém abre a sua
+  // lista de pedidos, e quem administra vem ler o padrão das esperas.
+  { title: "Wait Pattern", shortTitle: "Waits", url: "/dashboard/warehouse", icon: Warehouse, roles: ["admin"], group: "Warehouse", action: "dashboard.warehouse" },
+  { title: "Service Requests", shortTitle: "Requests", url: "/dashboard/warehouse", icon: Warehouse, roles: ["warehouse"], group: "Warehouse", action: "wo.view" },
 
   // Quality has a heading of its own, under Production and not inside it.
   //
@@ -366,8 +393,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
   // Reports and Communication held one item each and are gone with them. The names
   // stay in the list so an item still carrying the old group is rendered rather than
   // silently dropped from the menu.
-  const groups = ["Overview", "Maintenance", "Production", "Quality", "Planning", "Reports", "Communication", "Administration", "System"];
-  const grouped = groups.map((g) => ({
+  const grouped = SIDEBAR_GROUPS.map((g) => ({
     label: g,
     items: filteredItems.filter((i) => i.group === g),
   })).filter((g) => g.items.length > 0);
