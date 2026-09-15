@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Loader2, Clock, Play, CheckCircle, XCircle, Printer, PenTool, Phone, MapPin, Wrench, Lock, Camera, DollarSign, ClipboardCheck, AlertOctagon, CheckSquare, Square, FileText } from "lucide-react";
 import { useWorkOrderById, useWorkOrderAccessHint } from "@/hooks/useWorkOrders";
+import { woReference } from "@/lib/woFormat";
 import { toast } from "sonner";
 import { printElementAsDocument } from "@/lib/printDocument";
 import { WO_SHEET_CSS } from "@/lib/woPrintSheet";
@@ -30,6 +31,7 @@ import { DowntimeHistorySection } from "@/components/DowntimeHistorySection";
 import { OperatorRecurrenceCard } from "@/components/OperatorRecurrenceCard";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { WoTimeline } from "@/components/WoTimeline";
+import { WarehouseWaitTimeline } from "@/components/WarehouseWaitTimeline";
 import { StoppageRibbon } from "@/components/StoppageRibbon";
 import { useDowntimeCorrections } from "@/hooks/useDowntimeCorrections";
 
@@ -195,7 +197,7 @@ export default function WorkOrderDetail() {
     if (!el) return;
     // One tick so the cards below have laid out before the clone is taken.
     const t = window.setTimeout(() => {
-      printElementAsDocument(el, `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`, WO_SHEET_OPTS)
+      printElementAsDocument(el, woReference(wo as never), WO_SHEET_OPTS)
         .catch((err) => toast.error(err?.message ?? "Could not open the print dialog."));
     }, 400);
     return () => window.clearTimeout(t);
@@ -246,7 +248,8 @@ export default function WorkOrderDetail() {
   const pri = priorityConfig[wo.priority || "medium"] || priorityConfig.medium;
   // Warehouse service WOs never touch the production line → no downtime control / impact.
   const isWarehouseWO = (wo as any).wo_type === "warehouse_service";
-  const woLabel = `WO-${new Date(wo.created_at).getFullYear()}-${String(wo.wo_number).padStart(6, "0")}`;
+  // Duas séries, e a linha sabe a qual pertence — ver `woFormat.ts`.
+  const woLabel = woReference(wo as never);
 
   // ── Metrics from v_wo_metrics view (single source of truth) ──────────
   // Falls back to inline math while the view is still loading or hasn't
@@ -286,7 +289,7 @@ export default function WorkOrderDetail() {
               {/* The sheet used to carry a logo and nothing else, so a print where the
                   image failed to load came out of the printer unidentifiable. */}
               <div>
-                <p className="text-[13pt] font-bold uppercase tracking-wide leading-none">Maintenance Order</p>
+                <p className="text-[13pt] font-bold uppercase tracking-wide leading-none">{isWarehouseWO ? "Warehouse Order" : "Maintenance Order"}</p>
                 <p className="text-[8pt] text-gray-600 mt-0.5">Applied Nutrition</p>
               </div>
             </div>
@@ -378,8 +381,8 @@ export default function WorkOrderDetail() {
         <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden md:-mx-6 md:px-6">
           <span className="font-figure text-sm font-semibold tabular-nums">{woLabel}</span>
           <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-            {(wo as any).wo_type === "warehouse_service"
-              ? `Warehouse · ${(wo as any).warehouse_location || "—"}`
+            {isWarehouseWO
+              ? ["Warehouse", (wo as any).line_at_time, (wo as any).warehouse_location].filter(Boolean).join(" · ")
               : ([((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—")}
           </span>
           <Badge variant="outline" className={`shrink-0 ${cfg.className}`}>{cfg.label}</Badge>
@@ -399,14 +402,18 @@ export default function WorkOrderDetail() {
         <div className="flex items-start justify-between gap-4 print:hidden">
           <div className="flex flex-col min-w-0 flex-1">
             <div className="mb-1 font-display text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
-              Maintenance · Work order
+              {isWarehouseWO ? "Warehouse · Packaging wait" : "Maintenance · Work order"}
             </div>
             <h2 className="truncate font-figure text-[27px] font-semibold leading-tight tracking-tight" title={woLabel}>
               {woLabel}
             </h2>
             <p className="mt-1 truncate text-base text-muted-foreground" title={wo.machine || (wo as any).line_at_time || ""}>
-              {(wo as any).wo_type === "warehouse_service"
-                ? `Warehouse · ${(wo as any).warehouse_location || "—"}`
+              {/* A linha que esperou, e não um travessão: as ordens que o poll
+                  abre têm `warehouse_location` a NULL — quem esperou está no
+                  `line_at_time`. O ecrã tinha a informação e mostrava um traço. */}
+              {isWarehouseWO
+                ? ["Warehouse", (wo as any).line_at_time, (wo as any).warehouse_location]
+                    .filter(Boolean).join(" · ")
                 : ([((wo as any).line_at_time), wo.machine].filter(Boolean).join(" · ") || "—")}
             </p>
             <div className="flex items-center gap-2 flex-wrap mt-2">
@@ -465,9 +472,12 @@ export default function WorkOrderDetail() {
           </div>
         )}
 
-        {/* Lifecycle Timeline — labeled durations from v_wo_metrics (single source of truth) */}
+        {/* A linha do tempo de cada tipo de ordem. A de manutenção tem oito
+            batidas e vem do `v_wo_metrics`; a do armazém tem três, e cinco das
+            oito nunca lhe podiam acontecer — ninguém aceita, ninguém se desloca,
+            ninguém repara. */}
         <div className="print:hidden">
-          <WoTimeline workOrderId={wo.id} />
+          {isWarehouseWO ? <WarehouseWaitTimeline wo={wo as never} /> : <WoTimeline workOrderId={wo.id} />}
         </div>
 
         {/* Operator: report a recurring failure on a finished/closed WO */}

@@ -34,6 +34,7 @@ import { buildReportMatrix, matrixToSheetRows } from "@/lib/patternMatrixReport"
 import { resolveReportRange } from "@/lib/reportRange";
 import { filterWarehouseWaits, toWarehouseHeatmapRecords } from "@/lib/warehouseHeatmap";
 import { formatWarehouseWait } from "@/lib/warehouseWait";
+import { woReference } from "@/lib/woFormat";
 
 /**
  * Uma duração desta matriz, escrita como a coluna "Wait" já a escreve.
@@ -70,7 +71,7 @@ export function WarehousePatternMatrix() {
   // Com intervalo, e não sem ele: sem `from`/`to` este hook devolve as 200 ordens
   // mais recentes, e as do armazém são uma minoria delas — um período de 30 dias
   // seria calculado sobre as ordens que couberam, sem dizer que faltavam as outras.
-  const { data: workOrders, isLoading } = useWorkOrders({ from: startDate, to: endDate });
+  const { data: workOrders, isLoading } = useWorkOrders({ from: startDate, to: endDate, includeWarehouse: true });
 
   const inRange = useMemo(
     () => filterWarehouseWaits(workOrders as never[] | undefined, { fromMs, toMs }),
@@ -130,6 +131,7 @@ export function WarehousePatternMatrix() {
         .sort((a: { created_at: string }, b: { created_at: string }) =>
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .map((w: Record<string, string | null>) => ({
+          ref: woReference(w as never),
           line: w.line_at_time ?? NO_LINE_LABEL,
           machine: w.machine ?? "—",
           reason: w.description ?? "—",
@@ -176,10 +178,10 @@ export function WarehousePatternMatrix() {
       XLSX.utils.json_to_sheet(
         waitRows.length
           ? waitRows.map((w) => ({
-              Line: w.line, Asset: w.machine, Reason: w.reason,
+              Ref: w.ref, Line: w.line, Asset: w.machine, Reason: w.reason,
               Started: w.started, Wait: w.wait, Status: w.status,
             }))
-          : [{ Line: "", Asset: "", Reason: "No warehouse waits in the selected range.", Started: "", Wait: "", Status: "" }],
+          : [{ Ref: "", Line: "", Asset: "", Reason: "No warehouse waits in the selected range.", Started: "", Wait: "", Status: "" }],
       ),
       "Warehouse Waits",
     );
@@ -370,6 +372,7 @@ export function WarehousePatternMatrix() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead>Ref</TableHead>
                           <TableHead>Line</TableHead>
                           <TableHead>Asset</TableHead>
                           <TableHead>Reason</TableHead>
@@ -388,6 +391,7 @@ export function WarehousePatternMatrix() {
                               className="cursor-pointer hover:bg-muted/50"
                               onClick={() => navigate(`/dashboard/wo/${w.id}`)}
                             >
+                              <TableCell className="font-mono text-xs whitespace-nowrap">{woReference(w as never)}</TableCell>
                               <TableCell className="font-medium whitespace-nowrap">
                                 {w.line_at_time ?? <span className="italic text-muted-foreground">{NO_LINE_LABEL}</span>}
                               </TableCell>

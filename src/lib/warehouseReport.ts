@@ -26,7 +26,7 @@ export interface WarehouseReportInput {
     /** Quantas ainda estão abertas neste momento. */
     openNow: number;
   };
-  waits: { line: string; machine: string; reason: string; started: string; wait: string; status: string }[];
+  waits: { ref: string; line: string; machine: string; reason: string; started: string; wait: string; status: string }[];
   matrix?: ReportMatrix;
 }
 
@@ -63,15 +63,15 @@ export async function generateWarehouseReportPDF(
   autoTable(doc, {
     ...commonTable,
     startY: chrome.y,
-    head: [["Line", "Asset", "Reason", "Started", "Wait", "Status"]],
+    head: [["Ref", "Line", "Asset", "Reason", "Started", "Wait", "Status"]],
     body: waits.length
       ? waits.map((w) => [
-          w.line, w.machine, w.reason, w.started,
+          w.ref, w.line, w.machine, w.reason, w.started,
           { content: w.wait, styles: { halign: "right" as const } },
           { content: w.status, styles: { ...statusChip(w.status), fontStyle: "bold" as const, halign: "center" as const } },
         ])
-      : [[{ content: "No warehouse waits in the selected range.", colSpan: 6, styles: { halign: "center" as const, textColor: SUBTLE, fontStyle: "italic" as const } }]],
-    columnStyles: { 4: { halign: "right" }, 5: { halign: "center" } },
+      : [[{ content: "No warehouse waits in the selected range.", colSpan: 7, styles: { halign: "center" as const, textColor: SUBTLE, fontStyle: "italic" as const } }]],
+    columnStyles: { 5: { halign: "right" }, 6: { halign: "center" } },
   });
 
   return chrome.finish(`warehouse-waits_${rangeLabel.replace(/[^0-9A-Za-z]+/g, "-")}`, opts);

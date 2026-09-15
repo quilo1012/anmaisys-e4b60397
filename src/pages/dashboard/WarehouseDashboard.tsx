@@ -20,6 +20,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { WAREHOUSE_LOCATIONS } from "@/lib/warehouseLocations";
 import { formatWarehouseWait } from "@/lib/warehouseWait";
+import { woReference } from "@/lib/woFormat";
 import { WarehousePatternMatrix } from "@/components/WarehousePatternMatrix";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,7 @@ export default function WarehouseDashboard() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { data: workOrders, isLoading } = useWorkOrders();
+  const { data: workOrders, isLoading } = useWorkOrders({ includeWarehouse: true });
   const { data: machines } = useMachines();
   const { data: distinctVals } = useDistinctMachineValues();
   const createWO = useCreateWorkOrder();
@@ -331,7 +332,7 @@ export default function WarehouseDashboard() {
                         onClick={() => navigate(`/dashboard/wo/${wo.id}`)}
                       >
                         <TableCell className="font-mono text-xs">
-                          WO-{new Date(wo.created_at).getFullYear()}-{String(wo.wo_number).padStart(6, "0")}
+                          {woReference(wo)}
                         </TableCell>
                         <TableCell>{wo.warehouse_location || "—"}</TableCell>
                         <TableCell>{wo.machine || "—"}</TableCell>

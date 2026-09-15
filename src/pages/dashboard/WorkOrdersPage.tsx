@@ -114,7 +114,10 @@ export default function WorkOrdersPage() {
   // service nor planned preventive work. Naming it that way keeps the filter honest
   // about the 300+ orders raised before the type existed, which are production rows
   // with no third value to distinguish them.
-  const [typeFilter, setTypeFilter] = useState<"all" | "corrective" | "preventive" | "warehouse_service">("all");
+  // Sem "warehouse_service": as ordens de armazém já não chegam a este ecrã — o
+  // `useWorkOrders` deixa-as no servidor. Um filtro para um tipo que a lista não
+  // tem é uma escolha que devolve sempre zero.
+  const [typeFilter, setTypeFilter] = useState<"all" | "corrective" | "preventive">("all");
 
   const ALL_COLUMNS = [
     { key: "wo", label: "WO#" },
@@ -345,7 +348,6 @@ export default function WorkOrdersPage() {
     return {
       corrective: rows.filter((w) => (w.wo_type ?? "production") === "production").length,
       preventive: rows.filter((w) => w.wo_type === "preventive").length,
-      warehouse: rows.filter((w) => w.wo_type === "warehouse_service").length,
     };
   }, [workOrders]);
 
@@ -735,7 +737,6 @@ export default function WorkOrdersPage() {
                     <SelectItem value="all">All types</SelectItem>
                     <SelectItem value="corrective">Corrective ({typeCounts.corrective})</SelectItem>
                     <SelectItem value="preventive">Preventive ({typeCounts.preventive})</SelectItem>
-                    <SelectItem value="warehouse_service">Warehouse ({typeCounts.warehouse})</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
