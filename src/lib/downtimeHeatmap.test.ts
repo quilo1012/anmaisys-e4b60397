@@ -203,3 +203,73 @@ describe("computeHeatmap counts stoppages, not pieces", () => {
     expect(cell.minutes).toBe(288);
   });
 });
+
+/**
+ * O turno da noite atravessa a meia-noite, e a matriz não dava por isso.
+ *
+ * A noite corre das 18:00 às 06:00. Quem a faz chama-lhe toda a noite do dia em
+ * que entrou, e o resto do sistema já a arruma assim — `getCurrentFactoryShift`
+ * devolve a data da véspera para qualquer hora antes das 06:00, e o comentário
+ * do `shiftSessionDate` diz-o por extenso: "uma noite que começa no dia 28 e
+ * acaba às 06:00 do 29 é a noite do 28 de ponta a ponta".
+ *
+ * O `computeHeatmap` lia a data de calendário da fatia. Das 00:00 às 06:00 isso
+ * é o dia seguinte, por isso a cauda de cada noite era arrumada na noite do dia
+ * a seguir — que já tinha a sua própria noite inteira lá dentro.
+ *
+ * A prova de que é um erro e não uma convenção: a célula passa a somar 18 horas.
+ * Uma noite tem doze. Foi assim que apareceu no ecrã do armazém, numa espera que
+ * atravessou quatro noites seguidas.
+ */
+describe("a noite é do dia em que entrou", () => {
+  // Quinta 10/09/2026 00:00 Londres (BST) → quinta 17/09 00:00.
+  const FROM = Date.parse("2026-09-09T23:00:00.000Z");
+  const TO = Date.parse("2026-09-16T23:00:00.000Z");
+  const WED = 2, THU = 3, FRI = 4;
+
+  it("arruma as primeiras horas de quinta na noite de quarta", () => {
+    // Quinta 02:00 → 03:00 de Londres: hora de quinta, noite de quarta.
+    const hm = computeHeatmap(
+      [rec({ started_at: "2026-09-10T01:00:00.000Z", ended_at: "2026-09-10T02:00:00.000Z" })],
+      FROM, TO, "all", "all",
+    );
+    const cells = hm.matrix.get("Line 1")!;
+    expect(cells.get(`${WED}-Night`)?.minutes).toBe(60);
+    expect(cells.get(`${THU}-Night`)?.minutes ?? 0).toBe(0);
+  });
+
+  it("nunca põe mais de doze horas numa noite", () => {
+    // A WH-1 do armazém: quarta 09/09 10:02 Londres até domingo 06:52. Quatro
+    // noites inteiras, e nenhuma pode valer mais do que doze horas.
+    const hm = computeHeatmap(
+      [rec({ line: "Line 2", started_at: "2026-09-09T09:02:15.996Z", ended_at: "2026-09-13T05:52:14.265Z" })],
+      FROM, TO, "all", "all",
+    );
+    for (const [key, cell] of hm.matrix.get("Line 2")!) {
+      expect(cell.minutes, `${key} tem ${cell.minutes} minutos`).toBeLessThanOrEqual(12 * 60);
+    }
+  });
+
+  it("conta a paragem na noite em que ela começou, não na madrugada seguinte", () => {
+    // Entra às 23:30 de quinta e acaba às 00:30 de sexta: uma paragem, na noite
+    // de quinta, e não uma em cada dia. (Quinta e não quarta porque o intervalo
+    // deste bloco começa à meia-noite de quinta, e uma paragem cortada pelo
+    // início do período mediria meia — que é outro teste.)
+    const hm = computeHeatmap(
+      [rec({ started_at: "2026-09-10T22:30:00.000Z", ended_at: "2026-09-10T23:30:00.000Z" })],
+      FROM, TO, "all", "all",
+    );
+    const cells = hm.matrix.get("Line 1")!;
+    expect(cells.get(`${THU}-Night`)?.minutes).toBe(60);
+    expect(cells.get(`${THU}-Night`)?.count).toBe(1);
+    expect(cells.get(`${FRI}-Night`)?.count ?? 0).toBe(0);
+  });
+
+  it("deixa o turno de dia exactamente onde estava", () => {
+    const hm = computeHeatmap(
+      [rec({ started_at: "2026-09-10T07:00:00.000Z", ended_at: "2026-09-10T08:00:00.000Z" })],
+      FROM, TO, "all", "all",
+    );
+    expect(hm.matrix.get("Line 1")!.get(`${THU}-Day`)?.minutes).toBe(60);
+  });
+});
