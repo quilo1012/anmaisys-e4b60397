@@ -1,0 +1,32 @@
+name: Deploy Edge Functions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ammlyqnjlhioukpgldgc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Listar funções encontradas
+        run: |
+          echo "Funções no repositório:"
+          ls -1 supabase/functions | grep -v '^_' | sed 's/^/  - /'
+          echo
+          echo "Total: $(ls -1 supabase/functions | grep -v '^_' | wc -l)"
+
+      - name: Deploy
+        run: supabase functions deploy --project-ref "$PROJECT_REF"
+
+      - name: Confirmar
+        run: supabase functions list --project-ref "$PROJECT_REF"
