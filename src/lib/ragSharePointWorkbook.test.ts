@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
 import {
-  parseSharePointRagWorkbook, diffPlans, buildUpsertPayload, lineKey, WorkbookShapeError,
+  parseSharePointRagWorkbook, diffPlans, buildPlanUpdates, buildNewRowInserts, lineKey,
+  WorkbookShapeError,
   type ExistingRow,
 } from "./ragSharePointWorkbook";
 
