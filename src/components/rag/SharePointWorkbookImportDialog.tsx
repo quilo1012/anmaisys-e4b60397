@@ -68,12 +68,18 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
       const buf = await file.arrayBuffer();
 
       // The database's own spelling of the lines is the one that wins.
-      const { data: lineRows, error: lineErr } = await supabase
-        .from("rag_weekly_entries")
-        .select("line")
-        .order("line");
+      // Read the distinct lines through an RPC: a plain select on the table is
+      // capped at 1000 rows by PostgREST, which would silently drop the
+      // alphabetically-last line once the table outgrows one page.
+      const { data: lineRows, error: lineErr } = await supabase.rpc("distinct_rag_lines");
       if (lineErr) throw lineErr;
-      const knownLines = [...new Set((lineRows ?? []).map((r: { line: string }) => r.line))];
+      const knownLines = [
+        ...new Set(
+          ((lineRows ?? []) as Array<{ line: string } | string>)
+            .map((r) => (typeof r === "string" ? r : r.line))
+            .filter((l): l is string => Boolean(l)),
+        ),
+      ];
       if (knownLines.length === 0) {
         throw new WorkbookShapeError(
           "There are no RAG lines recorded yet, so the file's lines cannot be matched. Add a week on the board first.",
