@@ -16,6 +16,7 @@ const ALLOWED_ACTIONS = [
   "receive", "resume", "start", "team_activity_started", "team_activity_ended",
   "update", "user_created", "user_deleted",
   "user_role_changed", "wo_recurrence_reopened", "work_orders_cleared",
+  "import_rag_plan_workbook",
 ] as const;
 
 // Allow-list of accepted entity types.
