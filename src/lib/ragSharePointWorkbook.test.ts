@@ -168,31 +168,43 @@ describe("diff and payload", () => {
     expect(d.skippedEmpty).toBeGreaterThan(0);
   });
 
-  it("carries every other column over untouched and only moves plan", () => {
+  it("sends the id and plan only, so a newer actual cannot be overwritten", () => {
     const d = diffPlans(
       [{ entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000, sheet: "WC 010926" }],
       [row({})],
     );
-    const [payload] = buildUpsertPayload(d.changes, [], "2026-09-17T10:00:00.000Z");
-    expect(payload).toMatchObject({
-      entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000,
-      actual_qty: 850, upm_target: 60, upm_actual: 57, downtime_min: 30,
-      notes: "kept", actual_source: "intouch", updated_at: "2026-09-17T10:00:00.000Z",
-    });
+    const updates = buildPlanUpdates(d.changes);
+    expect(updates).toEqual([{ id: "id-1", plan_qty: 1000 }]);
+    // No snapshot column, and no hand-set updated_at — the triggers own those.
+    expect(Object.keys(updates[0]).sort()).toEqual(["id", "plan_qty"]);
   });
 
-  it("keeps the payload uniform so it can be one batched write", () => {
+  it("inserts new rows with the plan and everything else at zero", () => {
+    const d = diffPlans(
+      [{ entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400, sheet: "s" }],
+      [],
+    );
+    const inserts = buildNewRowInserts(d.newRows);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({
+      entry_date: "2026-09-08", line: "Line 1", shift: "DAY",
+      plan_qty: 400, actual_qty: 0, upm_target: 0, upm_actual: 0,
+      downtime_min: 0, notes: null, actual_source: "manual",
+    });
+    expect(inserts[0]).not.toHaveProperty("updated_at");
+  });
+
+  it("keeps each payload uniform so each can be one batched write", () => {
     const d = diffPlans(
       [
         { entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000, sheet: "s" },
         { entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400, sheet: "s" },
       ],
-      [row({})],
+      [row({}), row({ id: "id-2", entry_date: "2026-09-08", plan_qty: 100 })],
     );
-    const payload = buildUpsertPayload(d.changes, d.newRows, "now");
-    expect(payload).toHaveLength(2);
-    const keys = payload.map((p) => Object.keys(p).sort().join(","));
-    expect(new Set(keys).size).toBe(1);
-    expect(payload[1]).toMatchObject({ plan_qty: 400, actual_qty: 0, notes: null });
+    const updates = buildPlanUpdates(d.changes);
+    expect(updates).toHaveLength(2);
+    expect(new Set(updates.map((u) => Object.keys(u).sort().join(","))).size).toBe(1);
+    expect(buildNewRowInserts(d.newRows)).toHaveLength(0);
   });
 });
