@@ -39,6 +39,7 @@ import { mapRagApiRecords, type RagApiRecord } from "@/lib/ragApiMapping";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { CloudDownload } from "lucide-react";
 import { RagApiAddressDialog } from "@/components/rag/RagApiAddressDialog";
+import { SharePointWorkbookImportDialog } from "@/components/rag/SharePointWorkbookImportDialog";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
