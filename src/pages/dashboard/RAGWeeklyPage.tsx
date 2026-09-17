@@ -1256,6 +1256,13 @@ export default function RAGWeeklyPage() {
 
       <RagApiAddressDialog open={ragApiSettingsOpen} onOpenChange={setRagApiSettingsOpen} />
 
+      <SharePointWorkbookImportDialog
+        open={spWorkbookOpen}
+        onOpenChange={setSpWorkbookOpen}
+        lineLabel={displayLineLabel}
+        onImported={() => qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] })}
+      />
+
       <Dialog open={!!importPreview} onOpenChange={(o) => { if (!o) setImportPreview(null); }}>
         <DialogContent>
           <DialogHeader>
