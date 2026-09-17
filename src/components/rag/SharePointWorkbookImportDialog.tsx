@@ -121,32 +121,33 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
       const inserts = buildNewRowInserts(newRows);
       if (planUpdates.length === 0 && inserts.length === 0) throw new Error("Nothing to import");
 
-      // Existing rows: keyed on the primary key, plan_qty only. Nothing else is
-      // sent, so a newer actual cannot be overwritten by the preview's snapshot.
-      // Each change is audited by trg_log_rag_plan_change — we do not duplicate it.
-      if (planUpdates.length > 0) {
-        const { error } = await (supabase as any)
-          .from("rag_weekly_entries")
-          .upsert(planUpdates, { onConflict: "id" });
-        if (error) throw error;
-      }
+      // One database function, one transaction: the updates and the new rows
+      // either all land or none do. A partial-column upsert cannot work here —
+      // entry_date / line / shift are NOT NULL and Postgres checks the proposed
+      // row before it looks for the conflict. The function is SECURITY INVOKER,
+      // so RLS still decides, and each plan change is audited by
+      // trg_log_rag_plan_change — we do not duplicate it.
+      const { data, error } = await (supabase as any).rpc("import_rag_plan_workbook", {
+        _updates: planUpdates,
+        _inserts: inserts,
+      });
+      if (error) throw error;
 
-      if (inserts.length > 0) {
-        const { error } = await (supabase as any).from("rag_weekly_entries").insert(inserts);
-        if (error) throw error;
-      }
+      const updated = Number((data as any)?.updated ?? 0);
+      const created = Number((data as any)?.created ?? 0);
 
       // One summary event per import: who imported which file, when, how many rows.
+      // Counts come from the function, which reports what actually changed.
       await logAuditEvent("import_rag_plan_workbook", "rag_weekly_entry", undefined, {
         source_file: fileName,
         sheets: parsed?.sheets.map((s) => s.name) ?? [],
         date_from: parsed?.dateRange?.from ?? null,
         date_to: parsed?.dateRange?.to ?? null,
-        changed_count: planUpdates.length,
-        created_count: inserts.length,
+        changed_count: updated,
+        created_count: created,
       });
 
-      return { updated: planUpdates.length, created: inserts.length };
+      return { updated, created };
     },
     onSuccess: ({ updated, created }) => {
       toast.success(
