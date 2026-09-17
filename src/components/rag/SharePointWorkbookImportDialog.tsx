@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import {
-  buildUpsertPayload, diffPlans, parseSharePointRagWorkbook, WorkbookShapeError,
+  buildNewRowInserts, buildPlanUpdates, diffPlans, parseSharePointRagWorkbook, WorkbookShapeError,
   type ExistingRow, type ImportDiff, type WorkbookParseResult,
 } from "@/lib/ragSharePointWorkbook";
 
@@ -111,34 +111,36 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
     mutationFn: async () => {
       if (!diff) throw new Error("Nothing to import");
       const newRows = createMissing ? diff.newRows : [];
-      const payload = buildUpsertPayload(diff.changes, newRows, new Date().toISOString());
-      if (payload.length === 0) throw new Error("Nothing to import");
+      const planUpdates = buildPlanUpdates(diff.changes);
+      const inserts = buildNewRowInserts(newRows);
+      if (planUpdates.length === 0 && inserts.length === 0) throw new Error("Nothing to import");
 
-      // Audit trail first: old and new plan per row, so a bad import can be undone.
-      await logAuditEvent("import_rag_plan_from_file", "rag_weekly_entries", undefined, {
+      // Existing rows: keyed on the primary key, plan_qty only. Nothing else is
+      // sent, so a newer actual cannot be overwritten by the preview's snapshot.
+      // Each change is audited by trg_log_rag_plan_change — we do not duplicate it.
+      if (planUpdates.length > 0) {
+        const { error } = await (supabase as any)
+          .from("rag_weekly_entries")
+          .upsert(planUpdates, { onConflict: "id" });
+        if (error) throw error;
+      }
+
+      if (inserts.length > 0) {
+        const { error } = await (supabase as any).from("rag_weekly_entries").insert(inserts);
+        if (error) throw error;
+      }
+
+      // One summary event per import: who imported which file, when, how many rows.
+      await logAuditEvent("import_rag_plan_workbook", "rag_weekly_entry", undefined, {
         source_file: fileName,
         sheets: parsed?.sheets.map((s) => s.name) ?? [],
         date_from: parsed?.dateRange?.from ?? null,
         date_to: parsed?.dateRange?.to ?? null,
-        updated_count: diff.changes.length,
-        created_count: newRows.length,
-        updated: diff.changes.map((c) => ({
-          id: c.id, entry_date: c.entry_date, line: c.line, shift: c.shift,
-          old_plan_qty: c.currentPlan, new_plan_qty: c.filePlan,
-        })),
-        created: newRows.map((n) => ({
-          entry_date: n.entry_date, line: n.line, shift: n.shift,
-          old_plan_qty: null, new_plan_qty: n.filePlan,
-        })),
+        changed_count: planUpdates.length,
+        created_count: inserts.length,
       });
 
-      // One statement: either the whole set lands or nothing does.
-      const { error } = await (supabase as any)
-        .from("rag_weekly_entries")
-        .upsert(payload, { onConflict: "entry_date,line,shift" });
-      if (error) throw error;
-
-      return { updated: diff.changes.length, created: newRows.length };
+      return { updated: planUpdates.length, created: inserts.length };
     },
     onSuccess: ({ updated, created }) => {
       toast.success(
@@ -342,10 +344,18 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
-              </>
+               </>
+            )}
+
+            {!nothingToDo && (
+              <p className="text-xs text-muted-foreground">
+                Changing the plan also moves the line targets on the production screens — those will
+                follow these figures. Actual, UPM, downtime and notes are not touched.
+              </p>
             )}
           </div>
         )}
+
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

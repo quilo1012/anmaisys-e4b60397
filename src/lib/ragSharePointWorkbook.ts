@@ -289,29 +289,23 @@ export function diffPlans(plans: PlanCell[], existing: ExistingRow[]): ImportDif
 }
 
 /**
- * Build the single upsert payload. Every existing column is carried over
- * untouched — only plan_qty and updated_at move — so actuals, UPM, downtime and
- * notes captured in this system survive the import.
+ * Existing rows: the payload carries the primary key and plan_qty and NOTHING
+ * else. Carrying the other columns over would send back the snapshot taken when
+ * the file was parsed — and because `rag_actual_is_derived()` accepts a passed
+ * actual_qty verbatim for 'sharepoint' rows, that would quietly overwrite an
+ * actual the floor or the sync recorded while the preview was open.
+ * updated_at is left to `trg_rag_weekly_updated_at`.
  */
-export function buildUpsertPayload(
-  changes: PlanChange[],
-  newRows: NewPlanRow[],
-  nowIso: string,
-): Record<string, unknown>[] {
-  const fromChanges = changes.map((c) => ({
-    entry_date: c.entry_date,
-    line: c.line,
-    shift: c.shift,
-    plan_qty: c.filePlan,
-    actual_qty: Number(c.existing.actual_qty),
-    upm_target: Number(c.existing.upm_target),
-    upm_actual: Number(c.existing.upm_actual),
-    downtime_min: Number(c.existing.downtime_min),
-    notes: c.existing.notes,
-    actual_source: c.existing.actual_source,
-    updated_at: nowIso,
-  }));
-  const fromNew = newRows.map((n) => ({
+export function buildPlanUpdates(changes: PlanChange[]): { id: string; plan_qty: number }[] {
+  return changes.map((c) => ({ id: c.id, plan_qty: c.filePlan }));
+}
+
+/**
+ * Rows that do not exist yet: nothing to clobber, so insert the full default
+ * row with the plan from the file and everything else at zero.
+ */
+export function buildNewRowInserts(newRows: NewPlanRow[]): Record<string, unknown>[] {
+  return newRows.map((n) => ({
     entry_date: n.entry_date,
     line: n.line,
     shift: n.shift,
@@ -322,7 +316,5 @@ export function buildUpsertPayload(
     downtime_min: 0,
     notes: null,
     actual_source: "manual",
-    updated_at: nowIso,
   }));
-  return [...fromChanges, ...fromNew];
 }
