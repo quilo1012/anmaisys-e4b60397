@@ -154,7 +154,13 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
           ? `Plan updated on ${updated} rows and ${created} new rows created`
           : `Plan updated on ${updated} rows`,
       );
-      qc.invalidateQueries({ queryKey: ["rag-week"] });
+      // The board uses ["rag-week", weekStart]; the same screen also reads
+      // ["rag-week-items", …], ["rag-week-line-stops", …], ["rag-comments", …]
+      // and ["rag-exclusions", …]. Prefix matching only covers an exact first
+      // key, so refresh each of them.
+      for (const key of ["rag-week", "rag-week-items", "rag-week-line-stops", "rag-comments", "rag-exclusions", "rag-lines"]) {
+        qc.invalidateQueries({ queryKey: [key] });
+      }
       onImported?.();
       reset();
       onOpenChange(false);
