@@ -186,12 +186,13 @@ describe("diff and payload", () => {
     );
     const inserts = buildNewRowInserts(d.newRows);
     expect(inserts).toHaveLength(1);
-    expect(inserts[0]).toMatchObject({
-      entry_date: "2026-09-08", line: "Line 1", shift: "DAY",
-      plan_qty: 400, actual_qty: 0, upm_target: 0, upm_actual: 0,
-      downtime_min: 0, notes: null, actual_source: "manual",
+    expect(inserts[0]).toEqual({
+      entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400,
     });
-    expect(inserts[0]).not.toHaveProperty("updated_at");
+    // Defaults belong to the table, not the client.
+    for (const col of ["actual_qty", "upm_target", "upm_actual", "downtime_min", "notes", "actual_source", "updated_at"]) {
+      expect(inserts[0]).not.toHaveProperty(col);
+    }
   });
 
   it("keeps each payload uniform so each can be one batched write", () => {

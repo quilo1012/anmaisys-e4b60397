@@ -301,20 +301,18 @@ export function buildPlanUpdates(changes: PlanChange[]): { id: string; plan_qty:
 }
 
 /**
- * Rows that do not exist yet: nothing to clobber, so insert the full default
- * row with the plan from the file and everything else at zero.
+ * Rows that do not exist yet: only the four columns that identify the row and
+ * carry the plan. `import_rag_plan_workbook` lets the column defaults handle
+ * actual_qty, upm_target, upm_actual, downtime_min, notes and actual_source —
+ * sending them from the client is how stale values creep back in.
  */
-export function buildNewRowInserts(newRows: NewPlanRow[]): Record<string, unknown>[] {
+export function buildNewRowInserts(
+  newRows: NewPlanRow[],
+): { entry_date: string; line: string; shift: Shift; plan_qty: number }[] {
   return newRows.map((n) => ({
     entry_date: n.entry_date,
     line: n.line,
     shift: n.shift,
     plan_qty: n.filePlan,
-    actual_qty: 0,
-    upm_target: 0,
-    upm_actual: 0,
-    downtime_min: 0,
-    notes: null,
-    actual_source: "manual",
   }));
 }
