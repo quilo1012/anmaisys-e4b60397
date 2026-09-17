@@ -16,12 +16,13 @@ const ALLOWED_ACTIONS = [
   "receive", "resume", "start", "team_activity_started", "team_activity_ended",
   "update", "user_created", "user_deleted",
   "user_role_changed", "wo_recurrence_reopened", "work_orders_cleared",
+  "import_rag_plan_workbook",
 ] as const;
 
 // Allow-list of accepted entity types.
 const ALLOWED_ENTITY_TYPES = [
   "engineer", "machine", "problem", "product", "product_category",
-  "role_permission", "system", "user", "work_order",
+  "rag_weekly_entry", "role_permission", "system", "user", "work_order",
 ] as const;
 
 const BodySchema = z.object({
