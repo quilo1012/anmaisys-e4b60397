@@ -946,6 +946,17 @@ export default function RAGWeeklyPage() {
 
                       </>
                     )}
+                    {/* Reading the SharePoint workbook by hand. Gated by the same
+                        permission as editing entries — opening the board must not
+                        imply being able to overwrite the plan. */}
+                    {canEditRagEntries && (
+                      <>
+                        <DropdownMenuItem onClick={() => setSpWorkbookOpen(true)}>
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />Import from SharePoint file
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
