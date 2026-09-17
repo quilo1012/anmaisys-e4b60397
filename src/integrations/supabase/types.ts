@@ -7981,6 +7981,10 @@ export type Database = {
         Returns: boolean
       }
       import_production_rows: { Args: { _rows: Json }; Returns: Json }
+      import_rag_plan_workbook: {
+        Args: { _inserts?: Json; _updates?: Json }
+        Returns: Json
+      }
       import_sku_products: { Args: { _rows: Json }; Returns: Json }
       increment_product_quantity: {
         Args: { p_delta: number; p_product_id: string }
