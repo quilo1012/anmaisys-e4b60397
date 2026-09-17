@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import {
-  buildUpsertPayload, diffPlans, parseSharePointRagWorkbook, WorkbookShapeError,
+  buildNewRowInserts, buildPlanUpdates, diffPlans, parseSharePointRagWorkbook, WorkbookShapeError,
   type ExistingRow, type ImportDiff, type WorkbookParseResult,
 } from "@/lib/ragSharePointWorkbook";
 
