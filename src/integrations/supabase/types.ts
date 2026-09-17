@@ -7923,6 +7923,12 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_leader: { Args: { _id: string }; Returns: undefined }
+      distinct_rag_lines: {
+        Args: never
+        Returns: {
+          line: string
+        }[]
+      }
       factory_shift_key: { Args: { _ts: string }; Returns: string }
       factory_shift_of: { Args: { at: string }; Returns: string }
       finish_wo_with_pin: {
