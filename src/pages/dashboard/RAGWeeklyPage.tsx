@@ -39,6 +39,7 @@ import { mapRagApiRecords, type RagApiRecord } from "@/lib/ragApiMapping";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { CloudDownload } from "lucide-react";
 import { RagApiAddressDialog } from "@/components/rag/RagApiAddressDialog";
+import { SharePointWorkbookImportDialog } from "@/components/rag/SharePointWorkbookImportDialog";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
@@ -212,6 +213,9 @@ export default function RAGWeeklyPage() {
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
+  // Manual reader for the SharePoint "Production RAG Performance" workbook.
+  // Independent of the rag-sharepoint-sync service: writes plan only, in the browser.
+  const [spWorkbookOpen, setSpWorkbookOpen] = useState(false);
   type ImportPayload = {
     rows: ParsedTemplateRow[];
     comments: { line: string; comment: string; entry_date: string; week_start: string }[];
@@ -942,6 +946,17 @@ export default function RAGWeeklyPage() {
 
                       </>
                     )}
+                    {/* Reading the SharePoint workbook by hand. Gated by the same
+                        permission as editing entries — opening the board must not
+                        imply being able to overwrite the plan. */}
+                    {canEditRagEntries && (
+                      <>
+                        <DropdownMenuItem onClick={() => setSpWorkbookOpen(true)}>
+                          <FileSpreadsheet className="h-4 w-4 mr-2" />Import from SharePoint file
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuItem
                       onClick={async () => {
                         try {
@@ -1240,6 +1255,13 @@ export default function RAGWeeklyPage() {
       <ManageLinesDialog open={manageLinesOpen} onOpenChange={setManageLinesOpen} />
 
       <RagApiAddressDialog open={ragApiSettingsOpen} onOpenChange={setRagApiSettingsOpen} />
+
+      <SharePointWorkbookImportDialog
+        open={spWorkbookOpen}
+        onOpenChange={setSpWorkbookOpen}
+        lineLabel={displayLineLabel}
+        onImported={() => qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] })}
+      />
 
       <Dialog open={!!importPreview} onOpenChange={(o) => { if (!o) setImportPreview(null); }}>
         <DialogContent>
