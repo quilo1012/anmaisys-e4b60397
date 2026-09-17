@@ -344,10 +344,18 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
-              </>
+               </>
+            )}
+
+            {!nothingToDo && (
+              <p className="text-xs text-muted-foreground">
+                Changing the plan also moves the line targets on the production screens — those will
+                follow these figures. Actual, UPM, downtime and notes are not touched.
+              </p>
             )}
           </div>
         )}
+
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
