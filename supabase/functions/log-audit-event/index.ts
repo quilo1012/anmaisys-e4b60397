@@ -22,7 +22,7 @@ const ALLOWED_ACTIONS = [
 // Allow-list of accepted entity types.
 const ALLOWED_ENTITY_TYPES = [
   "engineer", "machine", "problem", "product", "product_category",
-  "role_permission", "system", "user", "work_order",
+  "rag_weekly_entry", "role_permission", "system", "user", "work_order",
 ] as const;
 
 const BodySchema = z.object({
