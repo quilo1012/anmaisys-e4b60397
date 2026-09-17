@@ -166,7 +166,12 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
       reset();
       onOpenChange(false);
     },
-    onError: (e: Error) => toast.error(e.message || "Import failed — nothing was changed"),
+    onError: (e: Error) =>
+      toast.error(
+        e.message
+          ? `Import failed — nothing was changed. ${e.message}`
+          : "Import failed — nothing was changed.",
+      ),
   });
 
   const nothingToDo = diff && diff.changes.length === 0 && diff.newRows.length === 0;
