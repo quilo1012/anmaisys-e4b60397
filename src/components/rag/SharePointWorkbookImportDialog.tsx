@@ -161,12 +161,12 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
 
       return { updated, created, auditLogged };
     },
-    onSuccess: ({ updated, created }) => {
-      toast.success(
+    onSuccess: ({ updated, created, auditLogged }) => {
+      const base =
         created > 0
           ? `Plan updated on ${updated} rows and ${created} new rows created`
-          : `Plan updated on ${updated} rows`,
-      );
+          : `Plan updated on ${updated} rows`;
+      toast.success(auditLogged ? base : `${base} (the import record could not be saved)`);
       // The board uses ["rag-week", weekStart]; the same screen also reads
       // ["rag-week-items", …], ["rag-week-line-stops", …], ["rag-comments", …]
       // and ["rag-exclusions", …]. Prefix matching only covers an exact first
