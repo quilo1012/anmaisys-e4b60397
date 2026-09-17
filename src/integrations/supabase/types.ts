@@ -6969,6 +6969,7 @@ export type Database = {
           total_paused_minutes: number
           updated_at: string | null
           warehouse_location: string | null
+          warehouse_number: number | null
           wo_number: number
           wo_type: string
         }
@@ -7027,6 +7028,7 @@ export type Database = {
           total_paused_minutes?: number
           updated_at?: string | null
           warehouse_location?: string | null
+          warehouse_number?: number | null
           wo_number?: number
           wo_type?: string
         }
@@ -7085,6 +7087,7 @@ export type Database = {
           total_paused_minutes?: number
           updated_at?: string | null
           warehouse_location?: string | null
+          warehouse_number?: number | null
           wo_number?: number
           wo_type?: string
         }
