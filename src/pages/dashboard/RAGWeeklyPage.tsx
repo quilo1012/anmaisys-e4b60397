@@ -213,6 +213,9 @@ export default function RAGWeeklyPage() {
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
   const [manageLinesOpen, setManageLinesOpen] = useState(false);
+  // Manual reader for the SharePoint "Production RAG Performance" workbook.
+  // Independent of the rag-sharepoint-sync service: writes plan only, in the browser.
+  const [spWorkbookOpen, setSpWorkbookOpen] = useState(false);
   type ImportPayload = {
     rows: ParsedTemplateRow[];
     comments: { line: string; comment: string; entry_date: string; week_start: string }[];
