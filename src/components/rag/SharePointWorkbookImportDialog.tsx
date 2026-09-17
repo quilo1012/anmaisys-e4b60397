@@ -138,16 +138,28 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
 
       // One summary event per import: who imported which file, when, how many rows.
       // Counts come from the function, which reports what actually changed.
-      await logAuditEvent("import_rag_plan_workbook", "rag_weekly_entry", undefined, {
-        source_file: fileName,
-        sheets: parsed?.sheets.map((s) => s.name) ?? [],
-        date_from: parsed?.dateRange?.from ?? null,
-        date_to: parsed?.dateRange?.to ?? null,
-        changed_count: updated,
-        created_count: created,
-      });
+      //
+      // This runs AFTER the irreversible write. It is reporting, not part of the
+      // transaction, so it must never be able to turn a successful import into an
+      // "Import failed" toast. A failure here is swallowed and surfaced in the
+      // success toast instead; the per-row trail still comes from
+      // trg_log_rag_plan_change either way.
+      let auditLogged = true;
+      try {
+        await logAuditEvent("import_rag_plan_workbook", "rag_weekly_entry", undefined, {
+          source_file: fileName,
+          sheets: parsed?.sheets.map((s) => s.name) ?? [],
+          date_from: parsed?.dateRange?.from ?? null,
+          date_to: parsed?.dateRange?.to ?? null,
+          changed_count: updated,
+          created_count: created,
+        });
+      } catch (err) {
+        auditLogged = false;
+        console.error("Import summary audit event failed (the import itself succeeded):", err);
+      }
 
-      return { updated, created };
+      return { updated, created, auditLogged };
     },
     onSuccess: ({ updated, created }) => {
       toast.success(
