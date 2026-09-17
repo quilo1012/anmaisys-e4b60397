@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { shiftRank } from "@/lib/operationalShift";
+import { canAdjustProductionControl } from "@/lib/productionControlAccess";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -908,8 +909,10 @@ export default function ShiftHistoryPage() {
   const qc = useQueryClient();
   const { role } = useAuth();
   // Who may adjust Production Control — import, correct the SKU, edit actuals.
-  // Supervisor manages the floor, so they get the same control as admin/manager.
-  const isAdmin = role === "admin" || role === "manager" || role === "maintenance_manager" || role === "supervisor";
+  // The list lives in `productionControlAccess` with the reasoning and a test:
+  // it was written out here and the production office admin was missing from it,
+  // which left him the one cell on the row he could not touch. See the file.
+  const isAdmin = canAdjustProductionControl(role);
   const { data: lines = [] } = useLines();
   const { data: leaders = [] } = useLeaders();
   const { data: skus = [] } = useSkuProducts(false);
