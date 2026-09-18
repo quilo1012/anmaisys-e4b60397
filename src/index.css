@@ -299,6 +299,16 @@ select:-webkit-autofill {
     page: landscape-sheet;
   }
 
+  /* …and so does everything around it. A named page starts a new sheet wherever the
+     name changes, and the wrapper sits inside the app shell: the shell — hidden, but
+     still boxes — was laid out on the default portrait page first, and the landscape
+     sheet began after it. The headcount board printed two blank portrait pages and
+     then itself. Naming the page from the root down leaves no change to break at. */
+  html:has(.print-landscape),
+  body:has(.print-landscape) {
+    page: landscape-sheet;
+  }
+
   /* Hide all non-document UI.
      `.print-keep` is the way out, and it is not decoration: `header` in this list was
      hiding `ModuleHeader`, which is the band carrying the screen's title and the date
@@ -331,6 +341,14 @@ select:-webkit-autofill {
   [data-sidebar="rail"],
   .peer[data-sidebar],
   [class*="group/sidebar-wrapper"] > [data-sidebar],
+  /* The sidebar's own wrapper, which none of the above reach: it carries `data-side`
+     and `data-variant`, not `data-sidebar`. Inside it is the spacer that holds the
+     sidebar's width open on screen, `h-svh` tall — and on paper `svh` is the height of
+     the sheet. Once the shell turns from flex to block (below) that spacer stops being
+     beside the content and sits above it: exactly one blank page, before everything.
+     `.peer[data-sidebar]`, two lines up, was written for this element and has never
+     matched it. */
+  .peer[data-side][data-variant],
   .SidebarProvider [data-sidebar],
   [data-slot="sidebar"] {
     display: none !important;
@@ -411,6 +429,9 @@ select:-webkit-autofill {
   .min-h-screen,
   .min-h-svh {
     padding: 0 !important;
+    /* On paper `svh` is one sheet, so the shell was never shorter than a page — and the
+       body's 10mm on top of it made every short report one page and a blank one. */
+    min-height: 0 !important;
   }
 
   /* Print content area */
@@ -829,6 +850,45 @@ select:-webkit-autofill {
        names are overleaf is a line somebody miscounts. */
   .headcount-columns {
     grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  /* One margin, on every sheet.
+     The body pads the paper by 10mm and `.print-content` by ten more, so a landscape
+     A4 kept 971px of its 1047 and the eighth line dropped to a row of its own — the
+     118px above was worked out against the 1047. And because `@page` has no margin
+     (see the top of this sheet) both paddings are laid down once: whatever began page
+     two began on the very edge of the paper, in the strip no office printer reaches.
+     `clone` lays the wrapper's padding down again on every fragment, which makes it
+     the page margin; a browser without it prints as it did before. */
+  body:has(.print-landscape .headcount-columns) {
+    padding: 0 !important;
+  }
+
+  .print-content.print-landscape:has(.headcount-columns) {
+    padding: 10mm !important;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* A heading is never the last thing on a sheet. PRODUCTION sat alone at the foot of
+     page one with every one of its columns overleaf. */
+  .headcount-section-label {
+    break-after: avoid !important;
+    margin-top: 3mm !important;
+    margin-bottom: 1.5mm !important;
+  }
+
+  /* A section folded on screen still prints. See the note where the class is set. */
+  .print-content .headcount-folded {
+    display: block !important;
+  }
+
+  /* Five figures, one row. The screen picks two, three or five by the width of the
+     window and paper landed on three — a second row holding two, and a fifth of the
+     first sheet spent on it. */
+  .print-content .headcount-kpis {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     gap: 6px !important;
   }
 
