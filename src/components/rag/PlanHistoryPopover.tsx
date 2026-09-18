@@ -16,14 +16,17 @@ export function PlanHistoryPopover({
   shift,
   dateLabel,
   align = "end",
+  markerOnly = false,
 }: {
   /** The cell itself, rendered as the popover trigger. */
-  value: React.ReactNode;
+  value?: React.ReactNode;
   history: RagPlanHistoryRow[];
   line: string;
   shift: string;
   dateLabel: string;
   align?: "start" | "center" | "end";
+  /** Editable cells keep their input; only the dot opens the history. */
+  markerOnly?: boolean;
 }) {
   const hasHistory = history.length > 0;
 
