@@ -55,6 +55,8 @@ function formatIsoDay(isoDay: string, withYear = false): string {
   return format(new Date(`${isoDay}T00:00:00`), withYear ? "dd MMM yyyy" : "dd MMM");
 }
 import { ragBoardLines } from "@/lib/ragBoardLines";
+import { PlanHistoryPopover } from "@/components/rag/PlanHistoryPopover";
+import { useRagPlanHistory } from "@/hooks/useRagPlanHistory";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
 function displayLineLabel(name: string): string {
