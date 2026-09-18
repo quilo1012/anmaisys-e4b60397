@@ -2212,12 +2212,13 @@ function DayNightTotalSummary({
                         onOpen={() => onOpenFull?.(ds, lineName, shift)}
                       />
                     );
-                    // The cell stays typeable — only the dot beside it opens the history,
-                    // so editing a target and reading who last moved it never fight.
+                    // The cell stays typeable — the history marker floats over the
+                    // input's corner (absolute, zero width), so the input keeps its
+                    // full width and editing never fights with reading the history.
                     const hist = isPlan ? historyFor(ds, shift) : null;
                     if (!hist) return input;
                     return (
-                      <span className="flex items-center justify-end gap-0.5">
+                      <span className="relative flex items-center justify-end">
                         {input}
                         <PlanHistoryPopover
                           markerOnly
