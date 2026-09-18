@@ -168,29 +168,51 @@ describe("diff and payload", () => {
     expect(d.skippedEmpty).toBeGreaterThan(0);
   });
 
-  it("sends the id and plan only, so a newer actual cannot be overwritten", () => {
+  it("sends the id, plan and UPM target only, so a newer actual cannot be overwritten", () => {
     const d = diffPlans(
-      [{ entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000, sheet: "WC 010926" }],
+      [{ entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000, upm_target: null, sheet: "WC 010926" }],
       [row({})],
     );
     const updates = buildPlanUpdates(d.changes);
-    expect(updates).toEqual([{ id: "id-1", plan_qty: 1000 }]);
-    // No snapshot column, and no hand-set updated_at — the triggers own those.
-    expect(Object.keys(updates[0]).sort()).toEqual(["id", "plan_qty"]);
+    expect(updates).toEqual([{ id: "id-1", plan_qty: 1000, upm_target: null }]);
+    // No snapshot column, no upm_actual, and no hand-set updated_at.
+    expect(Object.keys(updates[0]).sort()).toEqual(["id", "plan_qty", "upm_target"]);
   });
 
-  it("inserts new rows with the plan and everything else at zero", () => {
+  it("carries the UPM target when the file states one, and leaves it alone when blank", () => {
+    const stored = row({ upm_target: 120 } as any);
+    const same = diffPlans(
+      [{ entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 900, upm_target: 120, sheet: "s" }],
+      [stored],
+    );
+    expect(same.changes).toHaveLength(0);
+
+    const moved = diffPlans(
+      [{ entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 900, upm_target: 150, sheet: "s" }],
+      [stored],
+    );
+    expect(moved.changes).toHaveLength(1);
+    expect(buildPlanUpdates(moved.changes)[0]).toEqual({ id: "id-1", plan_qty: 900, upm_target: 150 });
+
+    const blank = diffPlans(
+      [{ entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000, upm_target: null, sheet: "s" }],
+      [stored],
+    );
+    expect(buildPlanUpdates(blank.changes)[0].upm_target).toBeNull();
+  });
+
+  it("inserts new rows with the plan and UPM target, and nothing measured", () => {
     const d = diffPlans(
-      [{ entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400, sheet: "s" }],
+      [{ entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400, upm_target: 90, sheet: "s" }],
       [],
     );
     const inserts = buildNewRowInserts(d.newRows);
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toEqual({
-      entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400,
+      entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400, upm_target: 90,
     });
-    // Defaults belong to the table, not the client.
-    for (const col of ["actual_qty", "upm_target", "upm_actual", "downtime_min", "notes", "actual_source", "updated_at"]) {
+    // Defaults belong to the table, not the client — and upm_actual is measured here.
+    for (const col of ["actual_qty", "upm_actual", "downtime_min", "notes", "actual_source", "updated_at"]) {
       expect(inserts[0]).not.toHaveProperty(col);
     }
   });
@@ -198,8 +220,8 @@ describe("diff and payload", () => {
   it("keeps each payload uniform so each can be one batched write", () => {
     const d = diffPlans(
       [
-        { entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000, sheet: "s" },
-        { entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400, sheet: "s" },
+        { entry_date: "2026-09-01", line: "Line 1", shift: "DAY", plan_qty: 1000, upm_target: null, sheet: "s" },
+        { entry_date: "2026-09-08", line: "Line 1", shift: "DAY", plan_qty: 400, upm_target: null, sheet: "s" },
       ],
       [row({}), row({ id: "id-2", entry_date: "2026-09-08", plan_qty: 100 })],
     );

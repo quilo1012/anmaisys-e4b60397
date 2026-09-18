@@ -8185,6 +8185,9 @@ export type Database = {
           before_qty: number
           changed_at: string
           entry_id: string
+          kind: string
+          sku_code: string
+          sku_name: string
           user_name: string
         }[]
       }

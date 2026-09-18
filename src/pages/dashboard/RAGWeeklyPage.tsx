@@ -42,7 +42,7 @@ import { RagApiAddressDialog } from "@/components/rag/RagApiAddressDialog";
 import { SharePointWorkbookImportDialog } from "@/components/rag/SharePointWorkbookImportDialog";
 import { useRole } from "@/hooks/useRole";
 import { useIsFetching } from "@tanstack/react-query";
-import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { RagSyncHealthBadge } from "@/components/rag/RagSyncHealthBadge";
 import { planAfterPlannerSync } from "@/lib/ragPlanOwnership";
 import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { mapWoToStop } from "@/lib/ragDowntime";
@@ -1138,18 +1138,19 @@ export default function RAGWeeklyPage() {
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <SyncStatusIndicator
-                  isSyncing={
+                {/* The truth is whether the reader answered, not whether the screen
+                    finished its own refetch. A green badge over a dead tunnel is how
+                    the plan figures drifted from the workbook unnoticed. */}
+                <RagSyncHealthBadge
+                  isBusy={
                     ragFetching > 0 ||
                     upsertMutation.isPending ||
                     importTemplateMutation.isPending ||
                     syncMutation.isPending
                   }
-                  error={
-                    upsertMutation.error ||
-                    importTemplateMutation.error ||
-                    syncMutation.error
-                  }
+                  isAdmin={isAdmin}
+                  onOpenSettings={() => setRagApiSettingsOpen(true)}
+                  onOpenManualImport={canEditRagEntries ? () => setSpWorkbookOpen(true) : undefined}
                 />
 
                 <Button size="sm" variant="outline" className="h-8" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}>This week</Button>
