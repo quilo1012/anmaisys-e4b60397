@@ -57,8 +57,12 @@ export function PlanHistoryPopover({
           className={cn(
             "rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             markerOnly
-              ? "inline-flex h-4 w-3 items-center justify-center align-middle"
-              : "inline-flex w-full items-center justify-end gap-1 px-0.5 text-right",
+              // Zero-footprint marker: floats over the input's top-right corner,
+              // so the input keeps its full width.
+              ? "absolute -top-0.5 right-0 z-10 inline-flex h-3 w-3 items-center justify-center"
+              // The dot is absolutely positioned against the cell — it occupies
+              // no horizontal space, so the number renders exactly as wide as before.
+              : "relative inline-flex w-full items-center justify-end px-0.5 text-right",
           )}
           aria-label={
             hasHistory
@@ -71,7 +75,10 @@ export function PlanHistoryPopover({
           {hasHistory && (
             <span
               aria-hidden
-              className="h-1 w-1 shrink-0 rounded-full bg-primary/70"
+              className={cn(
+                "h-1 w-1 rounded-full bg-primary/70",
+                !markerOnly && "absolute right-0 top-0",
+              )}
             />
           )}
         </button>
