@@ -42,7 +42,7 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
 import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
-import { dashboardPathFor, type Role, can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleTitle, type Action } from "@/lib/permissions";
+import { dashboardPathFor, type Role, can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleHolds, roleTitle, type DeviceType, type Action } from "@/lib/permissions";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
@@ -99,6 +99,30 @@ export const SIDEBAR_GROUPS = [
   "Overview", "Maintenance", "Production", "Warehouse", "Quality",
   "Planning", "Reports", "Communication", "Administration", "System",
 ] as const;
+
+/**
+ * Whether a row is drawn for a role.
+ *
+ * `roles` says which rows a role gets OUT OF THE BOX — it is what keeps an operator on
+ * "My Production" and a manager on "Targets" when both hold the same action. It was
+ * also the whole answer, and that made the Permissions page half a switch: taking an
+ * action away removed the row (`canForDevice` below), but GRANTING one did nothing.
+ * Headcount names `["admin"]`; an admin ticked `headcount.view` for the office admin,
+ * the route opened, the database agreed — and the menu stayed exactly as it was, so the
+ * change looked as though it had not saved.
+ *
+ * A grant made on the Permissions page now brings the row with it. Only an override
+ * counts, never the matrix default: a default the row does not name is a decision
+ * somebody made in this file, and the navigation tests hold it to account.
+ */
+export function navItemShows(item: NavItem, role: AppRole, device: DeviceType): boolean {
+  const granted = !!item.action
+    && isPermissionOverridden(role as Role, item.action)
+    && roleHolds(role as Role, item.action);
+  if (!item.roles.includes(role) && !granted) return false;
+  // Respect per-role, per-device visibility (Desktop / Tablet / Mobile).
+  return !item.action || canForDevice(role as Role, item.action, device);
+}
 
 export const navItems: NavItem[] = [
   // Overview
@@ -766,13 +790,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   const isMobile = useIsMobile();
   const device = useDeviceType();
-  const filteredItems = navItems.filter(
-    (item) =>
-      effectiveRole &&
-      item.roles.includes(effectiveRole as AppRole) &&
-      // Respect per-role, per-device visibility (Desktop / Tablet / Mobile).
-      (!item.action || canForDevice(effectiveRole as AppRole, item.action, device)),
-  );
+  const filteredItems = effectiveRole
+    ? navItems.filter((item) => navItemShows(item, effectiveRole as AppRole, device))
+    : [];
   const permissionOverrideCount = ALL_ROLES.reduce(
     (sum, role) => sum + ALL_ACTIONS.filter((action) => isPermissionOverridden(role, action)).length,
     0,
