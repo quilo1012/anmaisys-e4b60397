@@ -8178,6 +8178,16 @@ export type Database = {
         Args: { _date: string; _line: string; _shift: string }
         Returns: number
       }
+      rag_plan_history: {
+        Args: { _entry_ids: string[] }
+        Returns: {
+          after_qty: number
+          before_qty: number
+          changed_at: string
+          entry_id: string
+          user_name: string
+        }[]
+      }
       receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
       refresh_site_banner: { Args: never; Returns: undefined }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }

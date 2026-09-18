@@ -55,6 +55,8 @@ function formatIsoDay(isoDay: string, withYear = false): string {
   return format(new Date(`${isoDay}T00:00:00`), withYear ? "dd MMM yyyy" : "dd MMM");
 }
 import { ragBoardLines } from "@/lib/ragBoardLines";
+import { PlanHistoryPopover } from "@/components/rag/PlanHistoryPopover";
+import { useRagPlanHistory } from "@/hooks/useRagPlanHistory";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
 function displayLineLabel(name: string): string {
@@ -1713,6 +1715,14 @@ function DayNightTotalSummary({
     return Array.from(autoDtBucketMap?.keys() ?? []);
   }, [autoDtBucketMap]);
 
+  // Target history for the whole week in ONE request, keyed by entry id. The board
+  // draws 100–200 Plan cells; a request per cell (or per popover) would crawl.
+  const weekEntryIds = useMemo(
+    () => Array.from(entryMap.values()).map((e) => e.id).filter(Boolean),
+    [entryMap],
+  );
+  const { byEntry: planHistoryByEntry } = useRagPlanHistory(weekEntryIds);
+
   if (!lines.length) return null;
 
   const fmtHm = (min: number) => {
@@ -2182,21 +2192,43 @@ function DayNightTotalSummary({
                       });
                     }
                   };
+                  const isDt = row.key.startsWith("dt:");
+                  const dtBucket: string | null = isDt ? (row.bucket ?? row.key.slice(3)) : null;
+                  const isPlan = row.key === "plan";
+                  const historyFor = (ds: string, shift: Shift) => {
+                    if (lineFilter.length !== 1) return null;
+                    const e = entryMap.get(`${ds}|${lineFilter[0]}|${shift}`);
+                    if (!e?.id) return null;
+                    return planHistoryByEntry.get(e.id) ?? [];
+                  };
                   const renderEdit = (ds: string, shift: Shift) => {
                     const existing = entryMap.get(`${ds}|${lineName}|${shift}`);
                     const current =
                       row.key === "plan" ? (existing?.plan_qty ?? 0) : (existing?.downtime_min ?? 0);
-                    return (
+                    const input = (
                       <SummaryInlineInput
                         value={current}
                         onCommit={(v) => commitValue(ds, shift, v)}
                         onOpen={() => onOpenFull?.(ds, lineName, shift)}
                       />
                     );
+                    // The cell stays typeable — only the dot beside it opens the history,
+                    // so editing a target and reading who last moved it never fight.
+                    const hist = isPlan ? historyFor(ds, shift) : null;
+                    if (!hist) return input;
+                    return (
+                      <span className="flex items-center justify-end gap-0.5">
+                        {input}
+                        <PlanHistoryPopover
+                          markerOnly
+                          history={hist}
+                          line={displayLineLabel(lineName)}
+                          shift={shift === "DAY" ? "Day" : "Night"}
+                          dateLabel={formatIsoDay(ds, true)}
+                        />
+                      </span>
+                    );
                   };
-                  const isDt = row.key.startsWith("dt:");
-                  const dtBucket: string | null = isDt ? (row.bucket ?? row.key.slice(3)) : null;
-                  const isPlan = row.key === "plan";
                   const wrapDt = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
                     if (!isDt || lineFilter.length !== 1) return cellEl;
                     const key = `${ds}|${lineFilter[0]}|${shift}`;
@@ -2212,14 +2244,24 @@ function DayNightTotalSummary({
                     const e = entryMap.get(key);
                     const itemSum = cellItemTargetMap?.get(key) ?? 0;
                     const plan = Number(e?.plan_qty ?? 0);
-                    if (!plan || !itemSum) return cellEl;
-                    const diff = Math.abs(plan - itemSum);
-                    if (diff === 0) return cellEl;
+                    const diff = plan && itemSum ? Math.abs(plan - itemSum) : 0;
+                    const withWarn =
+                      diff === 0 ? cellEl : (
+                        <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
+                          {cellEl}
+                          <span className="text-warning-strong text-2xs leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
+                        </span>
+                      );
+                    const hist = historyFor(ds, shift);
+                    if (!hist) return withWarn;
                     return (
-                      <span className="inline-flex items-center gap-1" title={`Plan ${plan} ≠ sum of SKU targets ${itemSum} (Δ${diff})`}>
-                        {cellEl}
-                        <span className="text-warning-strong text-2xs leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
-                      </span>
+                      <PlanHistoryPopover
+                        value={withWarn}
+                        history={hist}
+                        line={displayLineLabel(lineFilter[0])}
+                        shift={shift === "DAY" ? "Day" : "Night"}
+                        dateLabel={formatIsoDay(ds, true)}
+                      />
                     );
                   };
                   const wrapCell = (ds: string, shift: Shift, cellEl: React.ReactNode) =>
