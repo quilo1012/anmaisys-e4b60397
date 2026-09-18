@@ -36,6 +36,14 @@ export interface ChunkCrashEvidence {
   chunkUrl?: string | null;
   /** The HTTP status the chunk answers now, or "unreachable" when the request failed. */
   chunkStatus?: number | "unreachable" | null;
+  /**
+   * What the host says the chunk IS. A 200 is not yet a module: a body served as
+   * text/html (an SPA fallback swallowing an asset path) or as text/plain (this
+   * host's own 404 page) is refused by the module loader with the same sentence a
+   * dead network produces. 17/09 16:11 recorded three failures on chunks answering
+   * 200 and left no way to tell which of those it was.
+   */
+  chunkContentType?: string | null;
   runningEntry?: string | null;
   servedEntry?: string | null;
   /** True when index.html has moved on from the bundle this page is running. */
@@ -46,7 +54,14 @@ export interface ChunkCrashEvidence {
 
 const PROBE_TIMEOUT_MS = 4000;
 
-function urlFrom(err: unknown): string | null {
+/**
+ * The chunk address the browser put in the message.
+ *
+ * Exported because `lazyWithReload` re-requests exactly this URL under a `?reload=`
+ * query — the module map keys on the address, so the retry has to know it. One
+ * reader, so the retry and the evidence can never disagree about which file failed.
+ */
+export function chunkUrlFrom(err: unknown): string | null {
   const msg = String((err as { message?: string })?.message || err || "");
   return /(https?:\/\/[^\s"')]+)/.exec(msg)?.[1] ?? null;
 }
@@ -86,8 +101,9 @@ export async function chunkCrashEvidence(err: unknown): Promise<ChunkCrashEviden
   if (!isChunkLoadError(err)) return {};
 
   const evidence: ChunkCrashEvidence = {
-    chunkUrl: urlFrom(err),
+    chunkUrl: chunkUrlFrom(err),
     chunkStatus: null,
+    chunkContentType: null,
     runningEntry: null,
     servedEntry: null,
     entryIsStale: null,
@@ -110,6 +126,7 @@ export async function chunkCrashEvidence(err: unknown): Promise<ChunkCrashEviden
       try {
         const res = await fetch(evidence.chunkUrl, { method: "HEAD", cache: "no-store", signal: ac.signal });
         evidence.chunkStatus = res.status;
+        evidence.chunkContentType = res.headers.get("content-type");
       } catch {
         // A rejected fetch is the network answering, and it is the answer that says
         // "nothing is missing" — the one a 404 cannot mean.

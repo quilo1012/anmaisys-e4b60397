@@ -30,6 +30,14 @@ class Catch extends Component<{ children: ReactNode }, { failed: boolean }> {
  * different reasons: that a late chunk is waited for rather than reloaded through,
  * and that a genuine error inside the module is still raised at once instead of being
  * swallowed by three attempts at it.
+ *
+ * REESCRITO a 18/09. A primeira versao deste teste passava um `factory` que falhava
+ * uma vez e acertava a seguir, e dava por provado que a retentativa recuperava o
+ * ecra. Nao recuperava: repetir `import()` do mesmo endereco devolve o resultado
+ * guardado no module map — a falha incluida — sem tocar na rede, e so um `factory`
+ * de mentira tem a liberdade de mudar de ideias. A espera continua a ser a resposta
+ * certa ao intervalo entre duas builds; o que mudou e que a segunda tentativa pede
+ * o chunk por um endereco novo. Ver `oChunkSoSeRetentaComOutroEndereco`.
  */
 
 const chunkError = () =>
@@ -58,13 +66,24 @@ afterEach(() => {
 });
 
 describe("a chunk that arrives late", () => {
-  it("is retried, and the screen renders without reloading the page", async () => {
+  it("is waited for and re-requested, and the screen renders without reloading the page", async () => {
     let attempts = 0;
-    const Late = lazyWithReload(async () => {
-      attempts++;
-      if (attempts === 1) throw chunkError();
-      return { default: Screen };
-    });
+    const asked: string[] = [];
+
+    const Late = lazyWithReload(
+      async () => {
+        attempts++;
+        throw chunkError();
+      },
+      {
+        // The chunk that was still going up when the first ask arrived. By the
+        // time the second one goes out, 600ms later, the host has it.
+        importUrl: async (url: string) => {
+          asked.push(url);
+          return { default: Screen };
+        },
+      },
+    );
 
     render(
       <Suspense fallback={<div>loading</div>}>
@@ -73,7 +92,9 @@ describe("a chunk that arrives late", () => {
     );
 
     expect(await screen.findByText("attendance")).toBeTruthy();
-    expect(attempts).toBe(2);
+    expect(attempts).toBe(1);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toContain("/assets/AttendancePage-DJUwM4M1.js");
     // The whole point: the user's page was never thrown away.
     expect(reload).not.toHaveBeenCalled();
   });
