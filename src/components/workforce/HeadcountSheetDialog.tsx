@@ -401,7 +401,7 @@ export function HeadcountSheetDialog({
                   )}
                 </div>
 
-                {(preview.unmatchedNames.length > 0 || preview.unknownColumns.length > 0 || preview.skippedSheets.length > 0) && (
+                {(preview.unmatchedNames.length > 0 || preview.unknownColumns.length > 0 || preview.skippedSheets.length > 0 || preview.otherShiftSheets.length > 0) && (
                   <div className="max-h-52 space-y-2 overflow-y-auto rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
                     <div className="flex items-center gap-1.5 font-semibold text-warning-strong">
                       <AlertTriangle className="h-3.5 w-3.5" /> These will not be imported
@@ -451,7 +451,28 @@ export function HeadcountSheetDialog({
                         <div className="text-muted-foreground">{preview.skippedSheets.join(", ")}</div>
                       </div>
                     )}
+                    {preview.otherShiftSheets.length > 0 && (
+                      <div>
+                        <div className="font-semibold">Tabs for the other shift</div>
+                        <div className="text-muted-foreground">
+                          {preview.otherShiftSheets.join(", ")} — open the {shift === "Day" ? "Night" : "Day"} board
+                          and import the same file there.
+                        </div>
+                      </div>
+                    )}
                   </div>
+                )}
+
+                {preview.matched.length === 0 && preview.unmatchedNames.length === 0 && preview.days.length > 0
+                  && preview.unknownColumns.length === 0 && !preview.absenceColumnFound && (
+                  // "0 matched" and a disabled button said nothing about why. The usual
+                  // reason is a sheet laid out another way: names down the side, or no
+                  // row of area names above them.
+                  <p className="rounded-md border p-2.5 text-2xs text-muted-foreground">
+                    No row of area names was found. The import reads one tab per day, with the
+                    areas across a row — “Line 1”, “Hygiene”… — and the names underneath each.
+                    Export a day from here to see the layout it expects.
+                  </p>
                 )}
 
                 {Object.keys(assigned).length > 0 && (

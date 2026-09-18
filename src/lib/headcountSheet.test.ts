@@ -453,3 +453,93 @@ describe("the names the factory's own sheet actually writes", () => {
     expect(p.matched.map((m) => m.employeeId)).toEqual(["ta"]);
   });
 });
+
+/**
+ * What the importer still dropped, found by feeding it the sheets a Portuguese-speaking
+ * office actually types: capitals without accents, first and last name with the middle
+ * ones left out, tabs named "4 Aug", a single tab nobody renamed from "Sheet1", and a
+ * workbook that carries the night board beside the day one.
+ */
+describe("the sheets the office actually types", () => {
+  const AREAS2 = [area("l1", "Line 1"), area("l5", "Line 5")];
+  const wbOf = (tabs: Record<string, (string | number)[][]>) => {
+    const wb = XLSX.utils.book_new();
+    for (const [name, rows] of Object.entries(tabs)) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+    }
+    return wb;
+  };
+  const read = (wb: XLSX.WorkBook, roster: HeadcountEmployee[]) =>
+    parseHeadcountWorkbook(wb, { areas: AREAS2, roster, shift: "Day", fallbackYear: 2026 });
+
+  it("matches a name typed without its accents", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1", "Line 5"], ["JOAO SILVA", "Jose"]] }),
+      [emp("e1", "João Silva"), emp("e2", "José Antônio")],
+    );
+    expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["e1", "e2"]);
+    expect(p.unmatchedNames).toEqual([]);
+  });
+
+  it("matches an accented name against a payroll typed without them", () => {
+    const p = read(wbOf({ "04.08": [["Line 1"], ["Antônio Conceição"]] }), [emp("e1", "Antonio Conceicao")]);
+    expect(p.matched).toHaveLength(1);
+  });
+
+  it("takes first and last name when the payroll has the middle ones too", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1", "Line 5"], ["Elias Alves", "Felipe Nascimento"]] }),
+      [emp("e1", "Elias Carvalho Alves"), emp("e2", "Felipe de Oliveira Nascimento"), emp("e3", "Elias Marques")],
+    );
+    expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["e1", "e2"]);
+  });
+
+  it("still refuses first and last name when two people answer to it", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1"], ["Ana Lima"]] }),
+      [emp("e1", "Ana Paula Lima"), emp("e2", "Ana Beatriz Lima")],
+    );
+    expect(p.matched).toEqual([]);
+    expect(p.unmatchedNames[0].reason).toBe("ambiguous");
+    expect(p.unmatchedNames[0].candidates.map((c) => c.id).sort()).toEqual(["e1", "e2"]);
+  });
+
+  it("reads a tab named after the month in words", () => {
+    expect(parseSheetDate("4 Aug", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("Tue 4 Aug", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("4 August 2025", 2026)).toBe("2025-08-04");
+    expect(parseSheetDate("Aug 4", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("4 ago", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("1 Set", 2026)).toBe("2026-09-01");
+  });
+
+  it("refuses a day the calendar does not have", () => {
+    // Postgres refuses `2026-02-31`, and it refuses the whole upsert with it — one
+    // mistyped tab took a month of board down.
+    expect(parseSheetDate("31.02", 2026)).toBeNull();
+    expect(parseSheetDate("29.02", 2026)).toBeNull();
+    expect(parseSheetDate("29.02", 2028)).toBe("2028-02-29");
+  });
+
+  it("takes the date from the sheet's own title when the tab was never renamed", () => {
+    const p = read(
+      wbOf({ Sheet1: [["Day shift — 2026-08-04"], [], ["Line 1"], ["Ana Lima"]] }),
+      [emp("e1", "Ana Lima")],
+    );
+    expect(p.skippedSheets).toEqual([]);
+    expect(p.matched).toEqual([expect.objectContaining({ employeeId: "e1", date: "2026-08-04" })]);
+  });
+
+  it("does not write the night tab onto the day board", () => {
+    const p = read(
+      wbOf({
+        "04.08 Day": [["Line 1"], ["Ana Lima"]],
+        "04.08 Night": [["Line 1"], ["Rui Paz"]],
+        "Monday 05.08": [["Line 1"], ["Ana Lima"]],
+      }),
+      [emp("e1", "Ana Lima"), { ...emp("e2", "Rui Paz"), shift_group: "Night" }],
+    );
+    expect(p.matched.map((m) => `${m.employeeId}@${m.date}`)).toEqual(["e1@2026-08-04", "e1@2026-08-05"]);
+    expect(p.otherShiftSheets).toEqual(["04.08 Night"]);
+  });
+});

@@ -64,6 +64,12 @@ export interface ImportPreview {
   unknownColumns: string[];
   /** Sheets whose tab name is not a date we can read. */
   skippedSheets: string[];
+  /**
+   * Tabs that say they are the other board. A workbook with "04.08 Day" and
+   * "04.08 Night" used to land both on whichever board the dialog was opened from,
+   * and the night crew were written onto the day.
+   */
+  otherShiftSheets: string[];
   days: string[];
   /**
    * Whether the sheet has an Absence column. True with no `absenceAs` given means
@@ -72,9 +78,52 @@ export interface ImportPreview {
   absenceColumnFound: boolean;
 }
 
-/** `Line 5 (A&B)` and `line 5` both mean Line 5. */
+/**
+ * `Line 5 (A&B)` and `line 5` both mean Line 5 — and `JOAO` means João.
+ *
+ * The accents come off first, and not as a nicety. Everything outside a–z becomes a
+ * space, so "João" was read as the two words "jo" and "o": the sheet's "JOAO SILVA"
+ * matched nobody, and "Jose" became a prefix that João and José both answered to. The
+ * line types in capitals without accents and the payroll has them, every day.
+ */
 function normalise(s: string): string {
-  return s.trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/** Month names a tab is headed with, English and Portuguese, accents already off. */
+const MONTH_NAMES: [string, number][] = [
+  ["january", 1], ["janeiro", 1], ["february", 2], ["fevereiro", 2], ["march", 3], ["marco", 3],
+  ["april", 4], ["abril", 4], ["may", 5], ["maio", 5], ["june", 6], ["junho", 6],
+  ["july", 7], ["julho", 7], ["august", 8], ["agosto", 8], ["september", 9], ["setembro", 9],
+  ["october", 10], ["outubro", 10], ["november", 11], ["novembro", 11], ["december", 12], ["dezembro", 12],
+];
+
+/**
+ * "Aug", "August", "ago" — the name or the start of it, three letters at least.
+ * Not any word that opens with the same three: a tab called "Outros 3" is not the
+ * 3rd of October, and a date guessed is worse than a tab reported.
+ */
+function monthNamed(word: string): number | null {
+  const w = normalise(word);
+  if (w.length < 3) return null;
+  return MONTH_NAMES.find(([name]) => name.startsWith(w))?.[1] ?? null;
+}
+
+/** A date the calendar has, or null. `31.02` is a typo, not the 3rd of March. */
+function ymd(y: number, m: number, d: number): string | null {
+  if (y < 100) y += 2000;
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Which board a tab or a title says it is for, when it says. */
+function shiftNamed(text: string): "Day" | "Night" | null {
+  // Whole words: "Monday 04.08" is not the day board announcing itself.
+  if (/\bnight\b/i.test(text)) return "Night";
+  if (/\bday\b/i.test(text)) return "Day";
+  return null;
 }
 
 /**
@@ -89,17 +138,22 @@ export function parseSheetDate(name: string, fallbackYear: number): string | nul
   // ISO first, and not by preference: `2026-08-04` contains `26-08-04`, which the
   // day-first pattern below reads as the 26th of August 2004.
   const iso = cleaned.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return iso[0];
+  if (iso) return ymd(Number(iso[1]), Number(iso[2]), Number(iso[3]));
 
   const dmy = cleaned.match(/(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?/);
-  if (dmy) {
-    const d = Number(dmy[1]);
-    const m = Number(dmy[2]);
-    let y = dmy[3] ? Number(dmy[3]) : fallbackYear;
-    if (y < 100) y += 2000;
-    if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
-      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
+  if (dmy) return ymd(dmy[3] ? Number(dmy[3]) : fallbackYear, Number(dmy[2]), Number(dmy[1]));
+
+  // "4 Aug", "Tue 4 August 2026", "Aug 4". The comment above has always promised the
+  // first of these; nothing read it, so every such tab was reported as undated.
+  const month = "([A-Za-zç]{3,9})";
+  const dayFirst = cleaned.match(new RegExp(`(\\d{1,2})\\s*(?:de\\s+)?${month}\\.?(?:\\s+(?:de\\s+)?(\\d{4}))?`, "i"));
+  const monthFirst = cleaned.match(new RegExp(`${month}\\.?\\s+(\\d{1,2})(?:,?\\s+(\\d{4}))?`, "i"));
+  for (const [hit, d, name] of [
+    [dayFirst, dayFirst?.[1], dayFirst?.[2]],
+    [monthFirst, monthFirst?.[2], monthFirst?.[1]],
+  ] as const) {
+    const m = name ? monthNamed(name) : null;
+    if (hit && m) return ymd(hit[3] ? Number(hit[3]) : fallbackYear, m, Number(d));
   }
   return null;
 }
@@ -332,6 +386,25 @@ export function parseHeadcountWorkbook(
   });
 
   /**
+   * "Elias Alves" is Elias Carvalho Alves.
+   *
+   * The payroll carries every name somebody was given and the line writes the first and
+   * the last. `byPrefix` compares word for word from the left, so the sheet's second
+   * word met the payroll's second and lost. Here the first name still has to be the
+   * first name, and the rest have to appear later in the same order — middle names are
+   * stepped over, never reordered. Two words at least: one word is `byFirst`'s question.
+   */
+  const bySkipping = (parts: string[]) => parts.length < 2 ? [] : ctx.roster.filter((e) => {
+    const rt = tokensOf.get(e.id) ?? [];
+    if (rt.length <= parts.length || !startsEitherWay(rt[0], parts[0])) return false;
+    let at = 1;
+    return parts.slice(1).every((x) => {
+      while (at < rt.length && !rt[at].startsWith(x)) at++;
+      return at++ < rt.length;
+    });
+  });
+
+  /**
    * Two people answer to the name; the column may already know which.
    *
    * The board first — the sheet is one shift, and a Day name is a Day person when
@@ -364,7 +437,8 @@ export function parseHeadcountWorkbook(
     }
     // Exact before short: "Andre" is the two Andres, and must not also drag in
     // Andreia for starting with the same five letters.
-    for (const step of [byAlias.get(n), byFull.get(n), byFirst.get(n), byPrefix(n.split(" "))]) {
+    const parts = n.split(" ");
+    for (const step of [byAlias.get(n), byFull.get(n), byFirst.get(n), byPrefix(parts), bySkipping(parts)]) {
       if (!step?.length) continue;
       const c = narrow(step, area);
       return c.length === 1 ? { emp: c[0] } : { reason: "ambiguous", candidates: c };
@@ -373,7 +447,7 @@ export function parseHeadcountWorkbook(
   };
 
   const out: ImportPreview = {
-    matched: [], unmatchedNames: [], unknownColumns: [], skippedSheets: [], days: [],
+    matched: [], unmatchedNames: [], unknownColumns: [], skippedSheets: [], otherShiftSheets: [], days: [],
     absenceColumnFound: false,
   };
   const seen = new Set<string>();
@@ -392,11 +466,25 @@ export function parseHeadcountWorkbook(
   };
 
   for (const tab of wb.SheetNames) {
-    const date = parseSheetDate(tab, ctx.fallbackYear);
+    const grid = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[tab], { header: 1, blankrows: true });
+
+    // The sheet's own title — "Day shift — 2026-08-04", which is what the exporter
+    // writes in A1. A line on its own near the top, and only that: a date sitting in a
+    // row of names is not the sheet saying what day it is.
+    const title = grid.slice(0, 3)
+      .map((r) => (r ?? []).map((c) => String(c ?? "").trim()).filter(Boolean))
+      .find((r) => r.length === 1)?.[0] ?? "";
+
+    // A tab that names the other board belongs to the other board. Everything in this
+    // file is written as `ctx.shift`, so reading it would put the night crew on days.
+    const says = shiftNamed(tab) ?? shiftNamed(title);
+    if (says && says !== ctx.shift) { out.otherShiftSheets.push(tab); continue; }
+
+    // The tab first. A workbook saved with one tab still called "Sheet1" was refused
+    // whole, though its first line said the date in full.
+    const date = parseSheetDate(tab, ctx.fallbackYear) ?? parseSheetDate(title, ctx.fallbackYear);
     if (!date) { out.skippedSheets.push(tab); continue; }
     if (!out.days.includes(date)) out.days.push(date);
-
-    const grid = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[tab], { header: 1, blankrows: true });
 
     // Columns are claimed by the nearest heading row above them, so the same sheet
     // can carry a production block and a support block without them bleeding together.
