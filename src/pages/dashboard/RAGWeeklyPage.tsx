@@ -2225,7 +2225,6 @@ function DayNightTotalSummary({
                           line={displayLineLabel(lineName)}
                           shift={shift === "DAY" ? "Day" : "Night"}
                           dateLabel={formatIsoDay(ds, true)}
-                          history-key={undefined as never}
                         />
                       </span>
                     );
