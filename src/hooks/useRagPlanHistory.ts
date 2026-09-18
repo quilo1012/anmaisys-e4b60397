@@ -8,6 +8,14 @@ export interface RagPlanHistoryRow {
   user_name: string | null;
   before_qty: number | null;
   after_qty: number | null;
+  /**
+   * 'line' — the line/shift plan itself was edited.
+   * 'sku'  — a SKU target was edited, which feeds the line plan through
+   *          sync_items_target_from_rag. Same cell, different level.
+   */
+  kind: "line" | "sku";
+  sku_code: string | null;
+  sku_name: string | null;
 }
 
 /**

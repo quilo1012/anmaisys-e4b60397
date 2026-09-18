@@ -164,8 +164,8 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
     onSuccess: ({ updated, created, auditLogged }) => {
       const base =
         created > 0
-          ? `Plan updated on ${updated} rows and ${created} new rows created`
-          : `Plan updated on ${updated} rows`;
+          ? `Plan and UPM target updated on ${updated} rows and ${created} new rows created`
+          : `Plan and UPM target updated on ${updated} rows`;
       toast.success(auditLogged ? base : `${base} (the import record could not be saved)`);
       // The board uses ["rag-week", weekStart]; the same screen also reads
       // ["rag-week-items", …], ["rag-week-line-stops", …], ["rag-comments", …]
@@ -197,7 +197,8 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
           </DialogTitle>
           <DialogDescription>
             Choose the "Production RAG Performance" workbook. The file is read here in the browser and
-            only the <strong>Plan</strong> figures are written — actual, UPM, downtime and notes are left alone.
+            only the <strong>Plan</strong> and <strong>UPM target</strong> figures are written — actual,
+            UPM actual, downtime and notes are measured here and are left alone.
           </DialogDescription>
         </DialogHeader>
 
@@ -286,6 +287,7 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
                               <TableHead className="text-right">Current plan</TableHead>
                               <TableHead className="text-right">File plan</TableHead>
                               <TableHead className="text-right">Difference</TableHead>
+                              <TableHead className="text-right">UPM target</TableHead>
                               <TableHead className="text-right">Actual</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -299,8 +301,21 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
                                   <TableCell>{c.shift}</TableCell>
                                   <TableCell className="text-right tabular-nums">{c.currentPlan.toLocaleString()}</TableCell>
                                   <TableCell className="text-right tabular-nums font-medium">{c.filePlan.toLocaleString()}</TableCell>
-                                  <TableCell className={`text-right tabular-nums ${d > 0 ? "text-success-strong" : "text-destructive"}`}>
+                                  <TableCell className={`text-right tabular-nums ${d > 0 ? "text-success-strong" : d < 0 ? "text-destructive" : "text-muted-foreground"}`}>
                                     {d > 0 ? "+" : ""}{d.toLocaleString()}
+                                  </TableCell>
+                                  {/* A blank UPM cell in the file leaves the stored rate alone. */}
+                                  <TableCell className="text-right tabular-nums">
+                                    {c.fileUpm === null ? (
+                                      <span className="text-muted-foreground">unchanged</span>
+                                    ) : (
+                                      <>
+                                        <span className="text-muted-foreground line-through mr-1">
+                                          {c.currentUpm.toLocaleString()}
+                                        </span>
+                                        <span className="font-medium">{c.fileUpm.toLocaleString()}</span>
+                                      </>
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums text-muted-foreground">
                                     {c.actual.toLocaleString()}
@@ -328,7 +343,7 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
                           disabled={diff.newRows.length === 0}
                           onCheckedChange={(v) => setCreateMissing(Boolean(v))}
                         />
-                        also create missing rows (plan only, actual left at 0)
+                        also create missing rows (plan and UPM target only, actual left at 0)
                       </label>
                       {diff.newRows.length > 0 && (
                         <ScrollArea className="max-h-60">
@@ -339,6 +354,7 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
                                 <TableHead>Line</TableHead>
                                 <TableHead>Shift</TableHead>
                                 <TableHead className="text-right">File plan</TableHead>
+                                <TableHead className="text-right">UPM target</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -348,6 +364,9 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
                                   <TableCell>{label(n.line)}</TableCell>
                                   <TableCell>{n.shift}</TableCell>
                                   <TableCell className="text-right tabular-nums">{n.filePlan.toLocaleString()}</TableCell>
+                                  <TableCell className="text-right tabular-nums">
+                                    {n.fileUpm === null ? <span className="text-muted-foreground">—</span> : n.fileUpm.toLocaleString()}
+                                  </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -380,7 +399,8 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
             {!nothingToDo && (
               <p className="text-xs text-muted-foreground">
                 Changing the plan also moves the line targets on the production screens — those will
-                follow these figures. Actual, UPM, downtime and notes are not touched.
+                follow these figures. Plan and UPM target are written; actual, UPM actual, downtime and
+                notes are not touched.
               </p>
             )}
           </div>

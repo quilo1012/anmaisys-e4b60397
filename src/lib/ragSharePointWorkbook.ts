@@ -28,6 +28,12 @@ export interface PlanCell {
   line: string;
   shift: Shift;
   plan_qty: number;
+  /**
+   * Row bs+7 of the block. `null` means the file said nothing here — the stored
+   * value is kept. It is often written once per day in the Total column instead
+   * of per shift, in which case the same figure applies to Day and Night.
+   */
+  upm_target: number | null;
   /** Sheet the value came from — used to explain "last sheet wins". */
   sheet: string;
 }
@@ -95,6 +101,18 @@ export function parsePlanCell(cell: XLSX.CellObject | undefined): number {
     return Number.isFinite(n) ? Math.round(n) : 0;
   }
   return 0;
+}
+
+/**
+ * A UPM-target cell. Unlike the plan, a blank here is "not stated", not zero —
+ * writing 0 over a stored rate would destroy information the file never carried.
+ */
+export function parseUpmCell(cell: XLSX.CellObject | undefined): number | null {
+  if (!cell || cell.t === "e" || cell.v == null) return null;
+  const v = cell.v;
+  const n = typeof v === "number" ? v : Number(String(v).replace(/[,\s]/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n);
 }
 
 function cellAt(ws: XLSX.WorkSheet, row1: number, col0: number): XLSX.CellObject | undefined {
@@ -168,6 +186,11 @@ export function parseSharePointRagWorkbook(
         if (!date) continue; // derived / progressive columns
         sheetDates.add(date);
 
+        // Row bs+7 is "UPM target". It is usually filled once per day, in the
+        // Total column (dayCol + 2), rather than in each shift column — so the
+        // day's figure stands in for whichever shift is blank.
+        const upmDayTotal = parseUpmCell(cellAt(ws, bs + 7, dayCol + 2));
+
         const shifts: [Shift, number][] = [
           ["DAY", dayCol],
           ["NIGHT", dayCol + 1],
@@ -180,6 +203,7 @@ export function parseSharePointRagWorkbook(
             line: dbLine,
             shift,
             plan_qty: parsePlanCell(cellAt(ws, bs + 4, col)),
+            upm_target: parseUpmCell(cellAt(ws, bs + 7, col)) ?? upmDayTotal,
             sheet: name,
           });
         }
@@ -236,6 +260,10 @@ export interface PlanChange {
   shift: Shift;
   currentPlan: number;
   filePlan: number;
+  /** Stored UPM target. */
+  currentUpm: number;
+  /** UPM target in the file, or null when the file said nothing. */
+  fileUpm: number | null;
   actual: number;
   existing: ExistingRow;
 }
@@ -245,6 +273,7 @@ export interface NewPlanRow {
   line: string;
   shift: Shift;
   filePlan: number;
+  fileUpm: number | null;
 }
 
 export interface ImportDiff {
@@ -268,7 +297,11 @@ export function diffPlans(plans: PlanCell[], existing: ExistingRow[]): ImportDif
   for (const p of plans) {
     const row = map.get(`${p.entry_date}|${p.line}|${p.shift}`);
     if (row) {
-      if (Number(row.plan_qty) !== p.plan_qty) {
+      const currentUpm = Number(row.upm_target ?? 0);
+      const planMoved = Number(row.plan_qty) !== p.plan_qty;
+      // A blank UPM cell in the file is not a change: nothing was stated.
+      const upmMoved = p.upm_target !== null && currentUpm !== p.upm_target;
+      if (planMoved || upmMoved) {
         changes.push({
           id: row.id,
           entry_date: p.entry_date,
@@ -276,12 +309,20 @@ export function diffPlans(plans: PlanCell[], existing: ExistingRow[]): ImportDif
           shift: p.shift,
           currentPlan: Number(row.plan_qty),
           filePlan: p.plan_qty,
+          currentUpm,
+          fileUpm: upmMoved ? p.upm_target : null,
           actual: Number(row.actual_qty),
           existing: row,
         });
       } else unchanged++;
     } else if (p.plan_qty > 0) {
-      newRows.push({ entry_date: p.entry_date, line: p.line, shift: p.shift, filePlan: p.plan_qty });
+      newRows.push({
+        entry_date: p.entry_date,
+        line: p.line,
+        shift: p.shift,
+        filePlan: p.plan_qty,
+        fileUpm: p.upm_target,
+      });
     } else skippedEmpty++;
   }
 
@@ -289,30 +330,34 @@ export function diffPlans(plans: PlanCell[], existing: ExistingRow[]): ImportDif
 }
 
 /**
- * Existing rows: the payload carries the primary key and plan_qty and NOTHING
- * else. Carrying the other columns over would send back the snapshot taken when
- * the file was parsed — and because `rag_actual_is_derived()` accepts a passed
+ * Existing rows: the payload carries the primary key, plan_qty and upm_target and
+ * NOTHING else. Carrying the other columns over would send back the snapshot taken
+ * when the file was parsed — and because `rag_actual_is_derived()` accepts a passed
  * actual_qty verbatim for 'sharepoint' rows, that would quietly overwrite an
  * actual the floor or the sync recorded while the preview was open.
+ * `upm_actual` is measured here and is never sent, for the same reason.
  * updated_at is left to `trg_rag_weekly_updated_at`.
  */
-export function buildPlanUpdates(changes: PlanChange[]): { id: string; plan_qty: number }[] {
-  return changes.map((c) => ({ id: c.id, plan_qty: c.filePlan }));
+export function buildPlanUpdates(
+  changes: PlanChange[],
+): { id: string; plan_qty: number; upm_target: number | null }[] {
+  return changes.map((c) => ({ id: c.id, plan_qty: c.filePlan, upm_target: c.fileUpm }));
 }
 
 /**
- * Rows that do not exist yet: only the four columns that identify the row and
- * carry the plan. `import_rag_plan_workbook` lets the column defaults handle
- * actual_qty, upm_target, upm_actual, downtime_min, notes and actual_source —
+ * Rows that do not exist yet: only the columns that identify the row and carry
+ * the plan and the UPM target. `import_rag_plan_workbook` lets the column
+ * defaults handle actual_qty, upm_actual, downtime_min, notes and actual_source —
  * sending them from the client is how stale values creep back in.
  */
 export function buildNewRowInserts(
   newRows: NewPlanRow[],
-): { entry_date: string; line: string; shift: Shift; plan_qty: number }[] {
+): { entry_date: string; line: string; shift: Shift; plan_qty: number; upm_target: number | null }[] {
   return newRows.map((n) => ({
     entry_date: n.entry_date,
     line: n.line,
     shift: n.shift,
     plan_qty: n.filePlan,
+    upm_target: n.fileUpm,
   }));
 }
