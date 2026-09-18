@@ -103,3 +103,85 @@ export function runMinutes(startIso: string | null, finishIso: string | null): n
   if (mins <= 0 || mins > LONGEST_RUN_MIN) return null;
   return mins;
 }
+
+/**
+ * Where a run sits on the shift's own clock, in minutes from midnight.
+ *
+ * The sheet is read down the clock, so it has to be sorted by the number printed in
+ * the cell — not by the instant behind it. The two usually agree. They stop agreeing
+ * on the records stamped with the wrong day (the bug at the top of this file): the
+ * cell reads 17:20 and the column reads the morning after, and sorting on the instant
+ * would file that run a day away from the shift it belongs to.
+ *
+ * A night is one continuous stretch, so the small hours are counted past midnight —
+ * 01:20 on a night shift is minute 1520, after 22:10, not eleven hours before it.
+ */
+export function shiftClockMinutes(
+  iso: string | null | undefined,
+  shift: string | null | undefined,
+): number | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  const hm = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour12: false, hour: "2-digit", minute: "2-digit",
+  }).format(at);
+  const m = /^(\d{2}):(\d{2})$/.exec(hm === "24:00" ? "00:00" : hm);
+  if (!m) return null;
+  const hour = Number(m[1]) === 24 ? 0 : Number(m[1]);
+  const isNight = (shift ?? "").toUpperCase() === "NIGHT";
+  const rollsOver = isNight && hour < NIGHT_ROLLS_OVER_BEFORE;
+  return (rollsOver ? hour + 24 : hour) * 60 + Number(m[2]);
+}
+
+/** The fields an ordering needs. Anything wider than this is welcome. */
+export type RunOrdered = {
+  started_at?: string | null;
+  finished_at?: string | null;
+  display_order?: number | null;
+  created_at?: string | null;
+  id?: string | null;
+};
+
+/**
+ * A shift's runs in the order they happened.
+ *
+ * Production Control asked Postgres for a session's items without asking for an order,
+ * and an embedded resource with no order comes back in whatever order the heap holds
+ * that minute — so the Tablet Line of 17/09 opened at 14:45, went back to 06:20 and
+ * then to 07:50. Three runs, one shift, and no way to read the shift down the page.
+ *
+ * The clock decides. A row nobody has timed yet has no place in a chronology, so it
+ * goes after the ones that do, keeping the sequence the line planned for it
+ * (`display_order`, the same key the operator's own screen sorts on) — which is also
+ * what the whole session falls back to when no run was timed at all.
+ *
+ * Returns a new array: the caller's list is the query cache's, and sorting it in place
+ * mutates state React is holding.
+ */
+export function inRunOrder<T extends RunOrdered>(
+  items: readonly T[],
+  shift: string | null | undefined,
+): T[] {
+  const plan = (i: T) => (typeof i.display_order === "number" ? i.display_order : Number.MAX_SAFE_INTEGER);
+  const born = (i: T) => i.created_at ?? "";
+  return [...items].sort((a, b) => {
+    const sa = shiftClockMinutes(a.started_at, shift);
+    const sb = shiftClockMinutes(b.started_at, shift);
+    if (sa === null && sb !== null) return 1;
+    if (sa !== null && sb === null) return -1;
+    if (sa !== null && sb !== null) {
+      if (sa !== sb) return sa - sb;
+      // Two runs opened on the same minute: the one that closed first came first, and
+      // one still running comes after one that has finished.
+      const fa = shiftClockMinutes(a.finished_at, shift);
+      const fb = shiftClockMinutes(b.finished_at, shift);
+      if (fa === null && fb !== null) return 1;
+      if (fa !== null && fb === null) return -1;
+      if (fa !== null && fb !== null && fa !== fb) return fa - fb;
+    }
+    return plan(a) - plan(b)
+      || born(a).localeCompare(born(b))
+      || (a.id ?? "").localeCompare(b.id ?? "");
+  });
+}

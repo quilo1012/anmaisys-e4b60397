@@ -56,6 +56,8 @@ const session = {
       expiry_month: null,
       started_at: startedAt,
       finished_at: finishedAt,
+      display_order: 0,
+      created_at: "2026-08-26T05:00:00Z",
       tickets_unit: "bags" as const,
       production_blender_entries: [
         { blender_number: 11, quantity: 353 },
@@ -127,6 +129,43 @@ describe("Production Control print sheet", () => {
     // fundo de cada uma, como se fosse o total daquela página.
     expect(container.querySelectorAll("tfoot").length).toBe(0);
     expect(screen.getAllByText(/Total for the period/i).length).toBe(1);
+  });
+
+  it("writes the shift down the clock, whatever order it was handed", () => {
+    // O ecrã pedia os itens sem pedir ordem nenhuma, e um recurso encaixado sem ordem
+    // volta pela ordem que a heap tiver. A Tablet Line de 17/09 abria às 14:45, voltava
+    // atrás para as 06:20 e só depois ia às 07:50: três corridas, um turno, e nenhuma
+    // maneira de o ler de cima a baixo.
+    const late = {
+      ...session.production_items[0],
+      id: "i2", sku_id: "sku2", batch_code: "B4418", display_order: 1,
+      started_at: new Date(2026, 7, 26, 15, 0).toISOString(),
+      finished_at: new Date(2026, 7, 26, 17, 30).toISOString(),
+    };
+    const { container } = render(
+      <ProductionControlPrintSheet
+        sessions={[{ ...session, production_items: [late, session.production_items[0]] }]}
+        bands={{
+          day: new Map([["2026-08-26", { qty: 1059, plan: 1200, lines: new Set(["Line 3"]) }]]),
+          bay: new Map([
+            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 2, shifts: new Set(["DAY"]), noLeader: false }],
+          ]),
+        }}
+        summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}
+        skuMap={new Map([
+          ["sku1", { code: "SKU-001", name: "Whey Protein 1kg" }],
+          ["sku2", { code: "SKU-002", name: "Whey Protein 2kg" }],
+        ])}
+        leaders={[{ id: "l1", name: "Gill" }]}
+        periodLabel="26/08/2026"
+        shiftLabel="Day"
+      />,
+    );
+    const rows = [...container.querySelectorAll("tbody tr")].map((r) => r.textContent ?? "");
+    const first = rows.findIndex((t) => t.includes("SKU-001"));   // 06:00
+    const second = rows.findIndex((t) => t.includes("SKU-002"));  // 15:00
+    expect(first).toBeGreaterThan(-1);
+    expect(second).toBeGreaterThan(first);
   });
 
   it("keeps a shift that logged nothing on the sheet", () => {

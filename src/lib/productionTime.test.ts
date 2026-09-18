@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { shiftTimeToIso, runMinutes } from "@/lib/productionTime";
+import { shiftTimeToIso, runMinutes, inRunOrder } from "@/lib/productionTime";
+
+/** A time on the session of 17/09/2026, as the app stores it. */
+const sameDay = (hm: string) => shiftTimeToIso(hm, "2026-09-17", "DAY")!;
+/** A time on the NIGHT session of 17/09 — the small hours land on the 18th. */
+const nightOf = (hm: string) => shiftTimeToIso(hm, "2026-09-17", "NIGHT")!;
 
 /** What the London wall clock reads at that instant — what the operator typed. */
 const wall = (iso: string | null) =>
@@ -93,5 +98,69 @@ describe("runMinutes refuses a pair that cannot describe a run", () => {
 
   it("still measures an ordinary run", () => {
     expect(runMinutes("2026-08-06T06:00:00Z", "2026-08-06T10:05:00Z")).toBe(245);
+  });
+});
+
+describe("inRunOrder puts a shift's runs in the order they happened", () => {
+  // The order the API happens to return them in: no `order` on the embedded
+  // resource, so Postgres gives back whatever the heap holds that minute.
+  const asFetched = [
+    { id: "c", started_at: sameDay("14:45"), finished_at: sameDay("16:45"), display_order: 2, created_at: "2026-09-17T09:00:00Z" },
+    { id: "a", started_at: sameDay("06:20"), finished_at: sameDay("07:07"), display_order: 0, created_at: "2026-09-17T06:00:00Z" },
+    { id: "b", started_at: sameDay("07:50"), finished_at: sameDay("14:25"), display_order: 1, created_at: "2026-09-17T07:00:00Z" },
+  ];
+
+  it("reads the Tablet Line of 17/09 down the clock", () => {
+    // What the screen showed: 14:45, then 06:20, then 07:50.
+    expect(inRunOrder(asFetched, "DAY").map((i) => i.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("does not disturb the array it was handed", () => {
+    const before = asFetched.map((i) => i.id);
+    inRunOrder(asFetched, "DAY");
+    expect(asFetched.map((i) => i.id)).toEqual(before);
+  });
+
+  it("keeps the small hours of a night at the END of that night", () => {
+    // 01:20 is not the first run of the night, it is the last: the shift starts at
+    // 18:00 and the clock rolls over inside it. Sorting on the number alone would
+    // open the shift with the small hours.
+    const night = [
+      { id: "small-hours", started_at: nightOf("01:20"), finished_at: nightOf("03:35"), display_order: 2, created_at: "2026-09-17T23:00:00Z" },
+      { id: "evening", started_at: sameDay("18:40"), finished_at: sameDay("22:05"), display_order: 0, created_at: "2026-09-17T18:00:00Z" },
+      { id: "late", started_at: sameDay("22:10"), finished_at: nightOf("00:50"), display_order: 1, created_at: "2026-09-17T22:00:00Z" },
+    ];
+    expect(inRunOrder(night, "NIGHT").map((i) => i.id)).toEqual(["evening", "late", "small-hours"]);
+  });
+
+  it("sorts by the time the row shows, not by the day it was stamped with", () => {
+    // The twenty-three records with a start saved after midnight and stamped with
+    // that day: the cell reads 17:20, the column reads a day later. The sheet has to
+    // read the way its own numbers read, so the clock decides, not the date.
+    const stampedADayLate = [
+      { id: "wrong-day", started_at: "2026-09-18T17:20:00Z", finished_at: null, display_order: 1, created_at: "2026-09-17T23:30:00Z" },
+      { id: "right-day", started_at: "2026-09-17T19:10:00Z", finished_at: null, display_order: 0, created_at: "2026-09-17T19:00:00Z" },
+    ];
+    expect(inRunOrder(stampedADayLate, "NIGHT").map((i) => i.id)).toEqual(["wrong-day", "right-day"]);
+  });
+
+  it("sends a run with no start to the end, in the order the line planned it", () => {
+    // A row nobody has timed yet has no place in a chronology. It keeps the sequence
+    // the line gave it (display_order), so the sheet still shows the planned run.
+    const half = [
+      { id: "untimed-second", started_at: null, finished_at: null, display_order: 5, created_at: "2026-09-17T08:00:00Z" },
+      { id: "timed", started_at: sameDay("09:00"), finished_at: sameDay("11:00"), display_order: 9, created_at: "2026-09-17T09:00:00Z" },
+      { id: "untimed-first", started_at: null, finished_at: null, display_order: 3, created_at: "2026-09-17T10:00:00Z" },
+    ];
+    expect(inRunOrder(half, "DAY").map((i) => i.id)).toEqual(["timed", "untimed-first", "untimed-second"]);
+  });
+
+  it("breaks a tie on the finish, then on the plan", () => {
+    const tied = [
+      { id: "longer", started_at: sameDay("09:00"), finished_at: sameDay("12:00"), display_order: 4, created_at: "2026-09-17T09:00:00Z" },
+      { id: "shorter", started_at: sameDay("09:00"), finished_at: sameDay("10:00"), display_order: 7, created_at: "2026-09-17T09:00:00Z" },
+      { id: "no-finish", started_at: sameDay("09:00"), finished_at: null, display_order: 1, created_at: "2026-09-17T09:00:00Z" },
+    ];
+    expect(inRunOrder(tied, "DAY").map((i) => i.id)).toEqual(["shorter", "longer", "no-finish"]);
   });
 });
