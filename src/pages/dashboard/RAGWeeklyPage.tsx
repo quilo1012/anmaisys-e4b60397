@@ -1715,6 +1715,14 @@ function DayNightTotalSummary({
     return Array.from(autoDtBucketMap?.keys() ?? []);
   }, [autoDtBucketMap]);
 
+  // Target history for the whole week in ONE request, keyed by entry id. The board
+  // draws 100–200 Plan cells; a request per cell (or per popover) would crawl.
+  const weekEntryIds = useMemo(
+    () => Array.from(entryMap.values()).map((e) => e.id).filter(Boolean),
+    [entryMap],
+  );
+  const { byEntry: planHistoryByEntry } = useRagPlanHistory(weekEntryIds);
+
   if (!lines.length) return null;
 
   const fmtHm = (min: number) => {
