@@ -54,7 +54,12 @@ export function PlanHistoryPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex w-full items-center justify-end gap-1 rounded px-0.5 text-right focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className={cn(
+            "rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            markerOnly
+              ? "inline-flex h-4 w-3 items-center justify-center align-middle"
+              : "inline-flex w-full items-center justify-end gap-1 px-0.5 text-right",
+          )}
           aria-label={
             hasHistory
               ? `Target history — ${history.length} change${history.length === 1 ? "" : "s"}`
@@ -62,7 +67,7 @@ export function PlanHistoryPopover({
           }
           title={hasHistory ? `${history.length} recorded change${history.length === 1 ? "" : "s"} — click to see who and when` : "Target history"}
         >
-          {value}
+          {!markerOnly && value}
           {hasHistory && (
             <span
               aria-hidden
