@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils";
  * The old badge went green on any completed local refetch, so a tunnel that had
  * been dead for weeks still read "Synced a minute ago" and nobody investigated
  * while the plan figures drifted from the workbook. This asks the reader itself,
- * through the `health` mode of rag-sharepoint-sync, which answers 502 with the
- * configured address when the address is stale.
+ * through the `health` mode of rag-sharepoint-sync, which returns a structured
+ * unavailable state with the configured address when the reader is down.
  */
 
 export type RagServiceHealth =
