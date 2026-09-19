@@ -1,4 +1,6 @@
-import * as XLSX from "xlsx";
+// `xlsx-js-style`, not `xlsx`: the same library and the same API, and the only one of
+// the two that writes a cell's fill. Every other coloured export in the app uses it.
+import XLSX from "xlsx-js-style";
 import { keepsLeadership } from "@/lib/leaderMark";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { boardShiftFor } from "@/hooks/useHeadcount";
@@ -64,6 +66,12 @@ export interface ImportPreview {
   unknownColumns: string[];
   /** Sheets whose tab name is not a date we can read. */
   skippedSheets: string[];
+  /**
+   * Tabs that say they are the other board. A workbook with "04.08 Day" and
+   * "04.08 Night" used to land both on whichever board the dialog was opened from,
+   * and the night crew were written onto the day.
+   */
+  otherShiftSheets: string[];
   days: string[];
   /**
    * Whether the sheet has an Absence column. True with no `absenceAs` given means
@@ -72,9 +80,52 @@ export interface ImportPreview {
   absenceColumnFound: boolean;
 }
 
-/** `Line 5 (A&B)` and `line 5` both mean Line 5. */
+/**
+ * `Line 5 (A&B)` and `line 5` both mean Line 5 — and `JOAO` means João.
+ *
+ * The accents come off first, and not as a nicety. Everything outside a–z becomes a
+ * space, so "João" was read as the two words "jo" and "o": the sheet's "JOAO SILVA"
+ * matched nobody, and "Jose" became a prefix that João and José both answered to. The
+ * line types in capitals without accents and the payroll has them, every day.
+ */
 function normalise(s: string): string {
-  return s.trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .trim().toLowerCase().replace(/\(.*?\)/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/** Month names a tab is headed with, English and Portuguese, accents already off. */
+const MONTH_NAMES: [string, number][] = [
+  ["january", 1], ["janeiro", 1], ["february", 2], ["fevereiro", 2], ["march", 3], ["marco", 3],
+  ["april", 4], ["abril", 4], ["may", 5], ["maio", 5], ["june", 6], ["junho", 6],
+  ["july", 7], ["julho", 7], ["august", 8], ["agosto", 8], ["september", 9], ["setembro", 9],
+  ["october", 10], ["outubro", 10], ["november", 11], ["novembro", 11], ["december", 12], ["dezembro", 12],
+];
+
+/**
+ * "Aug", "August", "ago" — the name or the start of it, three letters at least.
+ * Not any word that opens with the same three: a tab called "Outros 3" is not the
+ * 3rd of October, and a date guessed is worse than a tab reported.
+ */
+function monthNamed(word: string): number | null {
+  const w = normalise(word);
+  if (w.length < 3) return null;
+  return MONTH_NAMES.find(([name]) => name.startsWith(w))?.[1] ?? null;
+}
+
+/** A date the calendar has, or null. `31.02` is a typo, not the 3rd of March. */
+function ymd(y: number, m: number, d: number): string | null {
+  if (y < 100) y += 2000;
+  const probe = new Date(Date.UTC(y, m - 1, d));
+  if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** Which board a tab or a title says it is for, when it says. */
+function shiftNamed(text: string): "Day" | "Night" | null {
+  // Whole words: "Monday 04.08" is not the day board announcing itself.
+  if (/\bnight\b/i.test(text)) return "Night";
+  if (/\bday\b/i.test(text)) return "Day";
+  return null;
 }
 
 /**
@@ -89,20 +140,103 @@ export function parseSheetDate(name: string, fallbackYear: number): string | nul
   // ISO first, and not by preference: `2026-08-04` contains `26-08-04`, which the
   // day-first pattern below reads as the 26th of August 2004.
   const iso = cleaned.match(/(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return iso[0];
+  if (iso) return ymd(Number(iso[1]), Number(iso[2]), Number(iso[3]));
 
   const dmy = cleaned.match(/(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?/);
-  if (dmy) {
-    const d = Number(dmy[1]);
-    const m = Number(dmy[2]);
-    let y = dmy[3] ? Number(dmy[3]) : fallbackYear;
-    if (y < 100) y += 2000;
-    if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
-      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    }
+  if (dmy) return ymd(dmy[3] ? Number(dmy[3]) : fallbackYear, Number(dmy[2]), Number(dmy[1]));
+
+  // "4 Aug", "Tue 4 August 2026", "Aug 4". The comment above has always promised the
+  // first of these; nothing read it, so every such tab was reported as undated.
+  const month = "([A-Za-zç]{3,9})";
+  const dayFirst = cleaned.match(new RegExp(`(\\d{1,2})\\s*(?:de\\s+)?${month}\\.?(?:\\s+(?:de\\s+)?(\\d{4}))?`, "i"));
+  const monthFirst = cleaned.match(new RegExp(`${month}\\.?\\s+(\\d{1,2})(?:,?\\s+(\\d{4}))?`, "i"));
+  for (const [hit, d, name] of [
+    [dayFirst, dayFirst?.[1], dayFirst?.[2]],
+    [monthFirst, monthFirst?.[2], monthFirst?.[1]],
+  ] as const) {
+    const m = name ? monthNamed(name) : null;
+    if (hit && m) return ymd(hit[3] ? Number(hit[3]) : fallbackYear, m, Number(d));
   }
   return null;
 }
+
+// Blocks follow `section`, the same rule the board draws by, so the sheet and the
+// screen cannot disagree about where Hygiene sits. The totals below still count by
+// `kind` — that is the other question, and the answer to it did not change.
+const sheetBandOf = (a: HeadcountArea): "production" | "support" => {
+  const sec = (a.section ?? "").toLowerCase();
+  // Sectors — hygiene, quality, maintenance, the warehouse — print with support on
+  // the company's sheet, which has two bands and not three. The screen shows them
+  // apart because that is the question a supervisor asks; the sheet keeps its own
+  // shape so an export still reads back the way it always did.
+  if (sec === "production") return "production";
+  if (sec === "sectors" || sec === "support") return "support";
+  return a.kind === "production" ? "production" : "support";
+};
+
+/**
+ * The columns the company's own sheet has, built from the data rather than a list
+ * in this file.
+ *
+ * `sheet_label` renames one — the system says "Line 5", the sheet says
+ * "Line 5 (A&B)". `sheet_group` merges several into one: Capsules Machine 1 and 2
+ * are two areas on the board and a single "Pill line" column on the sheet.
+ *
+ * Anything with neither keeps its own name and still gets a column. That is the
+ * point of doing it this way: a hard-coded column list would have dropped Gel Line
+ * for being empty today and silently lost whoever is put there tomorrow.
+ */
+const columnsOf = (areas: HeadcountArea[]) => {
+  const cols: { label: string; areas: HeadcountArea[] }[] = [];
+  for (const a of areas) {
+    const label = (a.sheet_group ?? a.sheet_label ?? a.name).trim();
+    const existing = cols.find((c) => c.label === label);
+    if (existing) existing.areas.push(a);
+    else cols.push({ label, areas: [a] });
+  }
+  return cols;
+};
+
+/**
+ * How the exported sheet is coloured — the fills of `Production Headcount <month>.xlsx`,
+ * read from the file itself rather than matched by eye: FFFF00 headings, D9D9D9 for the
+ * leader on the first row, 92D050 for every Total and for Holidays / Overtime, FF0000
+ * for absence, 7030A0 for "Total staff in Production". Arial 12, centred, a thin border
+ * on every cell of a column.
+ *
+ * The export used to be the right words in an unformatted grid, and the office went on
+ * keeping the old workbook beside it because that one could be read from across the room.
+ */
+type SheetLook = "title" | "label" | "summary" | "heading" | "away" | "leave" | "name" | "leader" | "total" | "grand";
+
+const THIN = { style: "thin", color: { rgb: "000000" } };
+const BOXED = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+const CENTRED = { horizontal: "center", vertical: "center", wrapText: true };
+const filled = (rgb: string, font: Record<string, unknown> = {}) => ({
+  fill: { patternType: "solid", fgColor: { rgb } },
+  font: { name: "Arial", sz: 12, color: { rgb: "000000" }, ...font },
+  alignment: CENTRED,
+  border: BOXED,
+});
+
+const SHEET_LOOKS: Record<SheetLook, Record<string, unknown>> = {
+  title: { font: { name: "Arial", sz: 14, bold: true } },
+  label: { font: { name: "Arial", sz: 10, bold: true, color: { rgb: "595959" } } },
+  // Sentences in a column sized for a first name: wrapped, or they are cut at the cell.
+  summary: { font: { name: "Arial", sz: 9 }, alignment: { wrapText: true, vertical: "center" } },
+  heading: filled("FFFF00", { bold: true }),
+  away: filled("FF0000", { bold: true, color: { rgb: "FFFFFF" } }),
+  leave: filled("92D050", { bold: true }),
+  name: { font: { name: "Arial", sz: 12 }, alignment: CENTRED, border: BOXED },
+  leader: filled("D9D9D9", { bold: true }),
+  total: filled("92D050"),
+  grand: filled("7030A0", { bold: true, color: { rgb: "FFFFFF" } }),
+};
+
+/** The away columns keep the colour the company's sheet gives them. */
+const STATE_LOOK: Record<string, SheetLook> = {
+  Sickness: "away", Unpaid: "away", Holidays: "leave", Overtime: "leave",
+};
 
 /**
  * The board for a range of days, one sheet per day, in the factory's own layout.
@@ -119,69 +253,54 @@ export function buildHeadcountWorkbook(input: {
   allocationsFor: (date: string, shift: string) => Allocation[];
 }): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
-  // Blocks follow `section`, the same rule the board draws by, so the sheet and the
-  // screen cannot disagree about where Hygiene sits. The totals below still count by
-  // `kind` — that is the other question, and the answer to it did not change.
-  const block = (a: HeadcountArea) => {
-    const sec = (a.section ?? "").toLowerCase();
-    // Sectors — hygiene, quality, maintenance, the warehouse — print with support on
-    // the company's sheet, which has two bands and not three. The screen shows them
-    // apart because that is the question a supervisor asks; the sheet keeps its own
-    // shape so an export still reads back the way it always did.
-    if (sec === "production") return "production";
-    if (sec === "sectors" || sec === "support") return "support";
-    return a.kind === "production" ? "production" : "support";
-  };
-
-  /**
-   * The columns the company's own sheet has, built from the data rather than a list
-   * in this file.
-   *
-   * `sheet_label` renames one — the system says "Line 5", the sheet says
-   * "Line 5 (A&B)". `sheet_group` merges several into one: Capsules Machine 1 and 2
-   * are two areas on the board and a single "Pill line" column on the sheet.
-   *
-   * Anything with neither keeps its own name and still gets a column. That is the
-   * point of doing it this way: a hard-coded column list would have dropped Gel Line
-   * for being empty today and silently lost whoever is put there tomorrow.
-   */
-  const columnsOf = (areas: HeadcountArea[]) => {
-    const cols: { label: string; areas: HeadcountArea[] }[] = [];
-    for (const a of areas) {
-      const label = (a.sheet_group ?? a.sheet_label ?? a.name).trim();
-      const existing = cols.find((c) => c.label === label);
-      if (existing) existing.areas.push(a);
-      else cols.push({ label, areas: [a] });
-    }
-    return cols;
-  };
-
-  const production = columnsOf(input.areas.filter((a) => block(a) === "production"));
-  const support = columnsOf(input.areas.filter((a) => block(a) !== "production"));
+  const production = columnsOf(input.areas.filter((a) => sheetBandOf(a) === "production"));
+  const support = columnsOf(input.areas.filter((a) => sheetBandOf(a) !== "production"));
 
   for (const day of input.days) {
     const allocs = input.allocationsFor(day.date, day.shift);
     const nameOf = (id: string) => input.employeeById.get(id)?.full_name ?? "";
 
     const working = allocs.filter((a) => a.status === "assigned" || a.status === "overtime");
+    // Leader first, then by name. The first row of a column on the company's sheet is
+    // who runs it, in grey; alphabetical order put them wherever their name fell.
     const inColumn = (col: { areas: HeadcountArea[] }) => {
       const ids = new Set(col.areas.map((a) => a.id));
       return working.filter((a) => a.area_id && ids.has(a.area_id))
-        .map((a) => nameOf(a.employee_id)).filter(Boolean).sort();
+        .map((a) => ({ name: nameOf(a.employee_id), leader: a.is_leader ?? false }))
+        .filter((x) => x.name)
+        .sort((x, y) => Number(y.leader) - Number(x.leader) || x.name.localeCompare(y.name));
     };
 
     const rows: (string | number)[][] = [];
+    /** What each cell looks like, by `row,col`. Values and looks are kept apart so the
+     *  rows stay exactly what the importer reads back. */
+    const looks = new Map<string, SheetLook>();
+    const paint = (r: number, c: number, look: SheetLook) => looks.set(`${r},${c}`, look);
+
     const band = (cols: { label: string; areas: HeadcountArea[] }[], heading: string, extra: [string, string[]][] = []) => {
       if (cols.length === 0 && extra.length === 0) return 0;
       rows.push([heading]);
+      paint(rows.length - 1, 0, "label");
       // The away states are columns beside the areas, the way the sheet has them —
       // a name under "Absence" reads the same as a name under "Line 1".
       const labels = [...cols.map((c) => c.label), ...extra.map(([l]) => l)];
-      const lists = [...cols.map(inColumn), ...extra.map(([, names]) => names)];
+      const lists = [
+        ...cols.map(inColumn),
+        ...extra.map(([, names]) => names.map((name) => ({ name, leader: false }))),
+      ];
       rows.push(labels);
-      const depth = Math.max(0, ...lists.map((c) => c.length));
-      for (let i = 0; i < depth; i++) rows.push(lists.map((c) => c[i] ?? ""));
+      labels.forEach((l, c) => paint(rows.length - 1, c, c < cols.length ? "heading" : STATE_LOOK[l] ?? "heading"));
+      // One spare row under the longest column, as the sheet has: room to write a name in.
+      const depth = Math.max(0, ...lists.map((c) => c.length)) + 1;
+      for (let i = 0; i < depth; i++) {
+        rows.push(lists.map((c) => c[i]?.name ?? ""));
+        lists.forEach((c, x) => paint(rows.length - 1, x, c[i]?.leader ? "leader" : "name"));
+      }
+      // "Total" and the figure under it, green, the way every column on the sheet ends.
+      rows.push(lists.map(() => "Total"));
+      lists.forEach((_, x) => paint(rows.length - 1, x, "total"));
       rows.push(lists.map((c) => c.length));
+      lists.forEach((_, x) => paint(rows.length - 1, x, "total"));
       rows.push([]);
       // Only the area columns count towards the band subtotal; the states are people
       // who are not there.
@@ -189,13 +308,18 @@ export function buildHeadcountWorkbook(input: {
     };
 
     rows.push([`${day.shift} shift — ${day.date}`]);
+    paint(0, 0, "title");
     rows.push([]);
     const states: [string, string[]][] = STATUS_BLOCKS.map((b) => [
       b.label,
       allocs.filter((a) => a.status === b.status).map((a) => nameOf(a.employee_id)).filter(Boolean).sort(),
     ]);
-    const inProduction = band(production, "PRODUCTION", states);
-    const inSupport = band(support, "SUPPORT");
+    // The away columns sit in the second band, beside Office and Maintenance, which is
+    // where the company's sheet has them. Beside the lines they made the top band
+    // sixteen columns wide, and a sheet that wide does not print on one page. The
+    // importer reads a column by its heading, so where it stands changes nothing.
+    const inProduction = band(production, "PRODUCTION");
+    const inSupport = band(support, "SUPPORT", states);
     rows.push([]);
     // The number the sheet exists to carry: everyone standing on a production area.
     // Three numbers, because two definitions of "in production" are in use and this
@@ -212,15 +336,141 @@ export function buildHeadcountWorkbook(input: {
     rows.push(["On production lines (system: kind = production)", byKind]);
     rows.push(["In the production band on this sheet", inProduction]);
     rows.push(["In the support band on this sheet", inSupport]);
+    for (const r of [1, 2, 3]) paint(rows.length - r, 0, "summary");
     rows.push(["Total staff in Production (both bands)", inProduction + inSupport]);
+    // The purple cell. On the company's sheet it is the one figure people look for.
+    paint(rows.length - 1, 0, "grand");
+    paint(rows.length - 1, 1, "grand");
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
+    for (const [at, look] of looks) {
+      const [r, c] = at.split(",").map(Number);
+      const addr = XLSX.utils.encode_cell({ r, c });
+      // An empty cell is not in the sheet at all, and a border needs a cell to be on.
+      if (!ws[addr]) ws[addr] = { t: "s", v: "" };
+      ws[addr].s = SHEET_LOOKS[look];
+    }
+    const width = Math.max(1, ...rows.map((r) => r.length));
+    // The first column also carries the four summary lines, which are sentences.
+    ws["!cols"] = Array.from({ length: width }, (_, c) => ({ wch: c === 0 ? 24 : 20 }));
     // A tab name Excel accepts: 31 characters, none of : \ / ? * [ ]
     const tab = `${day.date} ${day.shift}`.slice(0, 31).replace(/[:\\/?*[\]]/g, "-");
     XLSX.utils.book_append_sheet(wb, ws, tab);
   }
 
   return wb;
+}
+
+/** One cell of a printed column: a name, and what the sheet says beside it. */
+export interface PrintSheetName {
+  name: string;
+  /** Printed grey on the first row, the way the sheet marks who runs the line. */
+  leader: boolean;
+  /** "Half day", "left 14:00" — what the office writes after the name by hand. */
+  note?: string;
+}
+
+export interface PrintSheetColumn {
+  label: string;
+  /** Picks the heading's colour: yellow for a place, red / green for a state. */
+  tone: "area" | "absence" | "holiday" | "overtime" | "training";
+  names: PrintSheetName[];
+}
+
+export interface PrintSheetLayout {
+  /** Line 1 … Runner: the top band of the company's sheet. */
+  top: PrintSheetColumn[];
+  /** Lab … Blender Team, then Absence, Holidays, Overtime staff. */
+  bottom: PrintSheetColumn[];
+  /** The purple cell: everyone working, both bands. The sheet's own SUM. */
+  totalStaff: number;
+}
+
+/**
+ * The day laid out the way the company's sheet lays it out — for paper.
+ *
+ * The board prints as the board: cards, chips, three sheets. What hangs by the lines
+ * every morning is `Production Headcount <month>.xlsx`, and a supervisor reads that
+ * shape without reading it. This is that shape, from the same two rules the workbook
+ * uses (`sheetBandOf`, `columnsOf`), so paper, export and import cannot disagree about
+ * which column a person is in.
+ *
+ * Two things differ from the board on purpose:
+ *
+ * - **One "Absence".** The board keeps Sickness and Unpaid apart because payroll needs
+ *   to. The sheet has never said which, and a page pinned up by the lines is not where
+ *   it should start.
+ * - **Training appears only when somebody is on it.** The company sheet has no such
+ *   column, and an empty one every day is a column nobody asked for.
+ */
+export function printSheetLayout(input: {
+  areas: HeadcountArea[];
+  allocations: Allocation[];
+  employeeById: Map<string, HeadcountEmployee>;
+}): PrintSheetLayout {
+  const known = input.allocations.filter((a) => input.employeeById.has(a.employee_id));
+
+  // First and last name, the way the line says it — a column is 23mm wide and
+  // "Felipe de Oliveira Nascimento" took three lines of it, which is what pushed the
+  // day onto a second sheet. Shortened only while it stays one person: if two people
+  // on today's sheet would both read "Maria Santos", both keep every name they have.
+  const shortOf = (full: string) => {
+    const w = full.trim().split(/\s+/);
+    return w.length > 2 ? `${w[0]} ${w[w.length - 1]}` : full.trim();
+  };
+  const wearers = new Map<string, Set<string>>();
+  for (const a of known) {
+    const k = shortOf(input.employeeById.get(a.employee_id)!.full_name).toLowerCase();
+    wearers.set(k, (wearers.get(k) ?? new Set()).add(a.employee_id));
+  }
+  const printed = (full: string) => (wearers.get(shortOf(full).toLowerCase())?.size ?? 0) > 1 ? full.trim() : shortOf(full);
+
+  const hhmm = (t: string | null | undefined) => (t ?? "").slice(0, 5);
+  const cell = (a: Allocation, leader = false): PrintSheetName => {
+    const notes = [
+      a.half_day ? "Half day" : "",
+      a.arrived_late_at ? `in ${hhmm(a.arrived_late_at)}` : "",
+      a.left_early_at ? `left ${hhmm(a.left_early_at)}` : "",
+    ].filter(Boolean);
+    return {
+      name: printed(input.employeeById.get(a.employee_id)!.full_name),
+      leader,
+      ...(notes.length ? { note: notes.join(", ") } : {}),
+    };
+  };
+  // Leader first, then by name — the first row of a column is who runs it.
+  const ordered = (cells: PrintSheetName[]) =>
+    cells.sort((x, y) => Number(y.leader) - Number(x.leader) || x.name.localeCompare(y.name));
+
+  const working = known.filter((a) => a.status === "assigned" || a.status === "overtime");
+  const place = (col: { label: string; areas: HeadcountArea[] }): PrintSheetColumn => {
+    const ids = new Set(col.areas.map((a) => a.id));
+    return {
+      label: col.label,
+      tone: "area",
+      names: ordered(working.filter((a) => a.area_id && ids.has(a.area_id)).map((a) => cell(a, a.is_leader ?? false))),
+    };
+  };
+  const state = (label: string, tone: PrintSheetColumn["tone"], statuses: AllocStatus[]): PrintSheetColumn => ({
+    label, tone, names: ordered(known.filter((a) => (statuses as string[]).includes(a.status)).map((a) => cell(a))),
+  });
+
+  const active = input.areas.filter((a) => a.active !== false);
+  const top = columnsOf(active.filter((a) => sheetBandOf(a) === "production")).map(place);
+  const support = columnsOf(active.filter((a) => sheetBandOf(a) !== "production")).map(place);
+  const training = state("Training", "training", ["training"]);
+
+  return {
+    top,
+    bottom: [
+      ...support,
+      state("Absence", "absence", ["sick", "unpaid"]),
+      state("Holidays", "holiday", ["holiday"]),
+      state("Overtime staff", "overtime", ["overtime"]),
+      ...(training.names.length ? [training] : []),
+    ],
+    totalStaff: [...top, ...support].reduce((n, c) => n + c.names.length, 0),
+  };
 }
 
 /**
@@ -332,6 +582,25 @@ export function parseHeadcountWorkbook(
   });
 
   /**
+   * "Elias Alves" is Elias Carvalho Alves.
+   *
+   * The payroll carries every name somebody was given and the line writes the first and
+   * the last. `byPrefix` compares word for word from the left, so the sheet's second
+   * word met the payroll's second and lost. Here the first name still has to be the
+   * first name, and the rest have to appear later in the same order — middle names are
+   * stepped over, never reordered. Two words at least: one word is `byFirst`'s question.
+   */
+  const bySkipping = (parts: string[]) => parts.length < 2 ? [] : ctx.roster.filter((e) => {
+    const rt = tokensOf.get(e.id) ?? [];
+    if (rt.length <= parts.length || !startsEitherWay(rt[0], parts[0])) return false;
+    let at = 1;
+    return parts.slice(1).every((x) => {
+      while (at < rt.length && !rt[at].startsWith(x)) at++;
+      return at++ < rt.length;
+    });
+  });
+
+  /**
    * Two people answer to the name; the column may already know which.
    *
    * The board first — the sheet is one shift, and a Day name is a Day person when
@@ -364,7 +633,8 @@ export function parseHeadcountWorkbook(
     }
     // Exact before short: "Andre" is the two Andres, and must not also drag in
     // Andreia for starting with the same five letters.
-    for (const step of [byAlias.get(n), byFull.get(n), byFirst.get(n), byPrefix(n.split(" "))]) {
+    const parts = n.split(" ");
+    for (const step of [byAlias.get(n), byFull.get(n), byFirst.get(n), byPrefix(parts), bySkipping(parts)]) {
       if (!step?.length) continue;
       const c = narrow(step, area);
       return c.length === 1 ? { emp: c[0] } : { reason: "ambiguous", candidates: c };
@@ -373,7 +643,7 @@ export function parseHeadcountWorkbook(
   };
 
   const out: ImportPreview = {
-    matched: [], unmatchedNames: [], unknownColumns: [], skippedSheets: [], days: [],
+    matched: [], unmatchedNames: [], unknownColumns: [], skippedSheets: [], otherShiftSheets: [], days: [],
     absenceColumnFound: false,
   };
   const seen = new Set<string>();
@@ -392,11 +662,25 @@ export function parseHeadcountWorkbook(
   };
 
   for (const tab of wb.SheetNames) {
-    const date = parseSheetDate(tab, ctx.fallbackYear);
+    const grid = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[tab], { header: 1, blankrows: true });
+
+    // The sheet's own title — "Day shift — 2026-08-04", which is what the exporter
+    // writes in A1. A line on its own near the top, and only that: a date sitting in a
+    // row of names is not the sheet saying what day it is.
+    const title = grid.slice(0, 3)
+      .map((r) => (r ?? []).map((c) => String(c ?? "").trim()).filter(Boolean))
+      .find((r) => r.length === 1)?.[0] ?? "";
+
+    // A tab that names the other board belongs to the other board. Everything in this
+    // file is written as `ctx.shift`, so reading it would put the night crew on days.
+    const says = shiftNamed(tab) ?? shiftNamed(title);
+    if (says && says !== ctx.shift) { out.otherShiftSheets.push(tab); continue; }
+
+    // The tab first. A workbook saved with one tab still called "Sheet1" was refused
+    // whole, though its first line said the date in full.
+    const date = parseSheetDate(tab, ctx.fallbackYear) ?? parseSheetDate(title, ctx.fallbackYear);
     if (!date) { out.skippedSheets.push(tab); continue; }
     if (!out.days.includes(date)) out.days.push(date);
-
-    const grid = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[tab], { header: 1, blankrows: true });
 
     // Columns are claimed by the nearest heading row above them, so the same sheet
     // can carry a production block and a support block without them bleeding together.
@@ -451,7 +735,10 @@ export function parseHeadcountWorkbook(
       const filled = row.filter(Boolean).length;
       if (filled > 0 && hits >= Math.max(1, Math.ceil(filled / 2))) {
         columns = asCols;
-        row.forEach((c, i) => { if (c && !asCols[i]) unknown.add(c); });
+        // "Total staff  in Production" heads a figure, not a list of people. Measured
+        // on the September workbook it was reported as an unknown column on every one of
+        // 23 tabs — a warning that teaches people to ignore the warnings.
+        row.forEach((c, i) => { if (c && !asCols[i] && !NOT_A_NAME.test(c.replace(/\s+/g, " "))) unknown.add(c); });
         continue;
       }
 

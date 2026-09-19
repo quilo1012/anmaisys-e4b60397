@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
 import {
-  buildHeadcountWorkbook, parseHeadcountWorkbook, parseSheetDate, datesBetween, rowsToImport,
+  buildHeadcountWorkbook, parseHeadcountWorkbook, printSheetLayout, parseSheetDate, datesBetween, rowsToImport,
   type ImportedAllocation,
 } from "@/lib/headcountSheet";
 import type { HeadcountArea, HeadcountEmployee, Allocation } from "@/hooks/useHeadcount";
@@ -451,5 +451,231 @@ describe("the names the factory's own sheet actually writes", () => {
     const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Toni"]]),
       { areas: AREAS, roster: [night, day], shift: "Day", fallbackYear: 2026 });
     expect(p.matched.map((m) => m.employeeId)).toEqual(["ta"]);
+  });
+});
+
+/**
+ * What the importer still dropped, found by feeding it the sheets a Portuguese-speaking
+ * office actually types: capitals without accents, first and last name with the middle
+ * ones left out, tabs named "4 Aug", a single tab nobody renamed from "Sheet1", and a
+ * workbook that carries the night board beside the day one.
+ */
+describe("the sheets the office actually types", () => {
+  const AREAS2 = [area("l1", "Line 1"), area("l5", "Line 5")];
+  const wbOf = (tabs: Record<string, (string | number)[][]>) => {
+    const wb = XLSX.utils.book_new();
+    for (const [name, rows] of Object.entries(tabs)) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+    }
+    return wb;
+  };
+  const read = (wb: XLSX.WorkBook, roster: HeadcountEmployee[]) =>
+    parseHeadcountWorkbook(wb, { areas: AREAS2, roster, shift: "Day", fallbackYear: 2026 });
+
+  it("matches a name typed without its accents", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1", "Line 5"], ["JOAO SILVA", "Jose"]] }),
+      [emp("e1", "João Silva"), emp("e2", "José Antônio")],
+    );
+    expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["e1", "e2"]);
+    expect(p.unmatchedNames).toEqual([]);
+  });
+
+  it("matches an accented name against a payroll typed without them", () => {
+    const p = read(wbOf({ "04.08": [["Line 1"], ["Antônio Conceição"]] }), [emp("e1", "Antonio Conceicao")]);
+    expect(p.matched).toHaveLength(1);
+  });
+
+  it("takes first and last name when the payroll has the middle ones too", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1", "Line 5"], ["Elias Alves", "Felipe Nascimento"]] }),
+      [emp("e1", "Elias Carvalho Alves"), emp("e2", "Felipe de Oliveira Nascimento"), emp("e3", "Elias Marques")],
+    );
+    expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["e1", "e2"]);
+  });
+
+  it("still refuses first and last name when two people answer to it", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1"], ["Ana Lima"]] }),
+      [emp("e1", "Ana Paula Lima"), emp("e2", "Ana Beatriz Lima")],
+    );
+    expect(p.matched).toEqual([]);
+    expect(p.unmatchedNames[0].reason).toBe("ambiguous");
+    expect(p.unmatchedNames[0].candidates.map((c) => c.id).sort()).toEqual(["e1", "e2"]);
+  });
+
+  it("reads a tab named after the month in words", () => {
+    expect(parseSheetDate("4 Aug", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("Tue 4 Aug", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("4 August 2025", 2026)).toBe("2025-08-04");
+    expect(parseSheetDate("Aug 4", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("4 ago", 2026)).toBe("2026-08-04");
+    expect(parseSheetDate("1 Set", 2026)).toBe("2026-09-01");
+  });
+
+  it("refuses a day the calendar does not have", () => {
+    // Postgres refuses `2026-02-31`, and it refuses the whole upsert with it — one
+    // mistyped tab took a month of board down.
+    expect(parseSheetDate("31.02", 2026)).toBeNull();
+    expect(parseSheetDate("29.02", 2026)).toBeNull();
+    expect(parseSheetDate("29.02", 2028)).toBe("2028-02-29");
+  });
+
+  it("takes the date from the sheet's own title when the tab was never renamed", () => {
+    const p = read(
+      wbOf({ Sheet1: [["Day shift — 2026-08-04"], [], ["Line 1"], ["Ana Lima"]] }),
+      [emp("e1", "Ana Lima")],
+    );
+    expect(p.skippedSheets).toEqual([]);
+    expect(p.matched).toEqual([expect.objectContaining({ employeeId: "e1", date: "2026-08-04" })]);
+  });
+
+  it("does not report the sheet's own total as a column nobody knows", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1", "Line 5", "Total staff  in Production", "Canteen"], ["Ana Lima", "", 77, "Rui Paz"]] }),
+      [emp("e1", "Ana Lima")],
+    );
+    expect(p.unknownColumns).toEqual(["Canteen"]);
+  });
+
+  it("does not write the night tab onto the day board", () => {
+    const p = read(
+      wbOf({
+        "04.08 Day": [["Line 1"], ["Ana Lima"]],
+        "04.08 Night": [["Line 1"], ["Rui Paz"]],
+        "Monday 05.08": [["Line 1"], ["Ana Lima"]],
+      }),
+      [emp("e1", "Ana Lima"), { ...emp("e2", "Rui Paz"), shift_group: "Night" }],
+    );
+    expect(p.matched.map((m) => `${m.employeeId}@${m.date}`)).toEqual(["e1@2026-08-04", "e1@2026-08-05"]);
+    expect(p.otherShiftSheets).toEqual(["04.08 Night"]);
+  });
+});
+
+/**
+ * Paper. The board printed as the board — cards and chips over three sheets — and what
+ * the factory reads every morning is the company's own grid. `printSheetLayout` is that
+ * grid, measured against `Production Headcount September.xlsx`.
+ */
+describe("the day laid out as the company's sheet", () => {
+  const sa = (id: string, name: string, section: string, extra: Partial<HeadcountArea> = {}): HeadcountArea =>
+    ({ ...area(id, name), section, kind: section === "production" ? "production" : "support", ...extra } as HeadcountArea);
+  const AREAS3 = [
+    sa("l1", "Line 1", "production"),
+    sa("c1", "Capsules Machine 1", "production", { sheet_group: "Pill line" } as Partial<HeadcountArea>),
+    sa("c2", "Capsules Machine 2", "production", { sheet_group: "Pill line" } as Partial<HeadcountArea>),
+    sa("of", "Office", "support"),
+    sa("old", "Closed Line", "production", { active: false }),
+  ];
+  const al = (employee_id: string, status: string, area_id: string | null, extra: Record<string, unknown> = {}) =>
+    ({ id: `a-${employee_id}`, on_date: "2026-09-18", shift: "Day", employee_id, area_id, status,
+       half_day: false, left_early_at: null, arrived_late_at: null, note: null, is_leader: false, ...extra }) as never;
+  const people = [emp("e1", "Zeca Lima"), emp("e2", "Ana Paz"), emp("e3", "Rui Sá"), emp("e4", "Bia Reis"),
+    emp("e5", "Caio Melo"), emp("e6", "Duda Luz"), emp("e7", "Edu Vaz")];
+  const layout = (allocations: never[]) =>
+    printSheetLayout({ areas: AREAS3, allocations, employeeById: new Map(people.map((p) => [p.id, p])) });
+
+  it("puts the leader on the first row, whatever the alphabet says", () => {
+    const l = layout([al("e2", "assigned", "l1"), al("e1", "assigned", "l1", { is_leader: true })]);
+    expect(l.top[0].names.map((n) => n.name)).toEqual(["Zeca Lima", "Ana Paz"]);
+    expect(l.top[0].names[0].leader).toBe(true);
+  });
+
+  it("prints two machines as the one column the sheet has", () => {
+    const l = layout([al("e1", "assigned", "c1"), al("e2", "assigned", "c2")]);
+    expect(l.top.map((c) => c.label)).toEqual(["Line 1", "Pill line"]);
+    expect(l.top[1].names).toHaveLength(2);
+  });
+
+  it("has one Absence, and does not say which kind", () => {
+    const l = layout([al("e1", "sick", null), al("e2", "unpaid", null)]);
+    const absence = l.bottom.find((c) => c.label === "Absence")!;
+    expect(absence.names.map((n) => n.name)).toEqual(["Ana Paz", "Zeca Lima"]);
+    expect(JSON.stringify(l)).not.toMatch(/sick|unpaid/i);
+  });
+
+  it("lists overtime on the line and under Overtime staff, and counts the person once", () => {
+    const l = layout([al("e1", "overtime", "l1"), al("e2", "assigned", "of")]);
+    expect(l.top[0].names.map((n) => n.name)).toEqual(["Zeca Lima"]);
+    expect(l.bottom.find((c) => c.label === "Overtime staff")!.names.map((n) => n.name)).toEqual(["Zeca Lima"]);
+    expect(l.totalStaff).toBe(2);
+  });
+
+  it("writes the half day beside the name, the way the office does", () => {
+    const l = layout([al("e1", "holiday", null, { half_day: true })]);
+    expect(l.bottom.find((c) => c.label === "Holidays")!.names[0]).toMatchObject({ name: "Zeca Lima", note: "Half day" });
+  });
+
+  it("leaves Training off the sheet until somebody is on it", () => {
+    expect(layout([]).bottom.map((c) => c.label)).toEqual(["Office", "Absence", "Holidays", "Overtime staff"]);
+    expect(layout([al("e1", "training", null)]).bottom.map((c) => c.label)).toContain("Training");
+  });
+
+  it("prints first and last name, and every name when two people would read the same", () => {
+    const crew = [emp("e1", "Felipe de Oliveira Nascimento"), emp("e2", "Maria Souza Santos"), emp("e3", "Maria Lima Santos")];
+    const l = printSheetLayout({
+      areas: AREAS3,
+      allocations: [al("e1", "assigned", "l1"), al("e2", "assigned", "l1"), al("e3", "assigned", "of")],
+      employeeById: new Map(crew.map((p) => [p.id, p])),
+    });
+    expect(l.top[0].names.map((n) => n.name)).toEqual(["Felipe Nascimento", "Maria Souza Santos"]);
+    expect(l.bottom[0].names.map((n) => n.name)).toEqual(["Maria Lima Santos"]);
+  });
+
+  it("gives a closed area no column", () => {
+    expect(layout([]).top.map((c) => c.label)).not.toContain("Closed Line");
+  });
+});
+
+/**
+ * The export was the right words in a bare grid, and the office kept the old workbook
+ * beside it because that one can be read from across the room. These hold the colours
+ * to the fills of `Production Headcount September.xlsx`, read from the file.
+ */
+describe("the exported sheet looks like the company's", () => {
+  const areasX = [area("l1", "Line 1"), { ...area("of", "Office"), kind: "support", section: "support" } as HeadcountArea];
+  const crew = [emp("e1", "Zeca Lima"), emp("e2", "Ana Paz"), emp("e3", "Rui Sá"), emp("e4", "Bia Reis")];
+  const row = (employee_id: string, status: string, area_id: string | null, is_leader = false) =>
+    ({ id: employee_id, on_date: "2026-09-18", shift: "Day", employee_id, area_id, status,
+       half_day: false, left_early_at: null, arrived_late_at: null, note: null, is_leader }) as unknown as Allocation;
+  const wb = buildHeadcountWorkbook({
+    days: [{ date: "2026-09-18", shift: "Day" }],
+    areas: areasX,
+    employeeById: new Map(crew.map((p) => [p.id, p])),
+    allocationsFor: () => [row("e2", "assigned", "l1"), row("e1", "assigned", "l1", true), row("e3", "sick", null), row("e4", "holiday", null)],
+  });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const cells = Object.keys(ws).filter((k) => !k.startsWith("!")).map((k) => ws[k] as { v: unknown; s?: { fill?: { fgColor?: { rgb?: string } }; border?: unknown } });
+  const fillOf = (v: unknown) => cells.find((c) => c.v === v)?.s?.fill?.fgColor?.rgb;
+
+  it("heads a place in yellow, absence in red, leave in green", () => {
+    expect(fillOf("Line 1")).toBe("FFFF00");
+    expect(fillOf("Office")).toBe("FFFF00");
+    expect(fillOf("Sickness")).toBe("FF0000");
+    expect(fillOf("Holidays")).toBe("92D050");
+  });
+
+  it("puts the leader on the first row, in grey", () => {
+    const names = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }).map((r) => r[0]).filter((v) => v === "Zeca Lima" || v === "Ana Paz");
+    expect(names).toEqual(["Zeca Lima", "Ana Paz"]);
+    expect(fillOf("Zeca Lima")).toBe("D9D9D9");
+    expect(fillOf("Ana Paz")).toBeUndefined();
+  });
+
+  it("ends every column on a green Total, and the sheet on the purple one", () => {
+    expect(fillOf("Total")).toBe("92D050");
+    expect(fillOf("Total staff in Production (both bands)")).toBe("7030A0");
+  });
+
+  it("draws the box round an empty cell too", () => {
+    // Line 1 has two names and Sickness one: the cell beside the second name is empty,
+    // and on the company's sheet it is still a cell.
+    expect(cells.filter((c) => c.v === "" && c.s?.border).length).toBeGreaterThan(0);
+  });
+
+  it("still reads back as the day it was written from", () => {
+    const back = parseHeadcountWorkbook(wb, { areas: areasX, roster: crew, shift: "Day", fallbackYear: 2026 });
+    expect(back.matched.map((m) => `${m.employeeId}:${m.status}`).sort()).toEqual(["e1:assigned", "e2:assigned", "e3:sick", "e4:holiday"]);
+    expect(back.unknownColumns).toEqual([]);
   });
 });

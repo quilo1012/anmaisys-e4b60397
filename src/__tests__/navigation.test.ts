@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { navItems, SIDEBAR_GROUPS } from "@/components/DashboardLayout";
+import { describe, it, expect, afterEach } from "vitest";
+import { navItems, navItemShows, SIDEBAR_GROUPS } from "@/components/DashboardLayout";
 import { SYSTEM_TOOLS } from "@/pages/dashboard/SystemHubPage";
-import { can, roleHolds, ALL_ACTIONS, ALL_ROLES, type Action, type Role } from "@/lib/permissions";
+import { can, roleHolds, setPermissionOverrides, ALL_ACTIONS, ALL_ROLES, type Action, type Role } from "@/lib/permissions";
 
 /**
  * The sidebar's shape, asserted rather than assumed.
@@ -414,5 +414,34 @@ describe("o armazém no menu", () => {
       if (!rows.some((i) => i.roles.includes(role))) continue;
       expect(can(role, "dashboard.warehouse"), `${role} tem a entrada mas não a permissão`).toBe(true);
     }
+  });
+});
+
+/**
+ * The Permissions page was half a switch. Taking an action away removed the row; granting
+ * one opened the route and changed nothing anybody could see, because the row is also
+ * filtered by a list of roles written in DashboardLayout. An admin gave the office admin
+ * the headcount board and reported that the change had not saved.
+ */
+describe("a grant made on the Permissions page reaches the menu", () => {
+  const headcount = navItems.find((i) => i.url === "/dashboard/headcount")!;
+  afterEach(() => setPermissionOverrides({}));
+
+  it("draws the row for a role the row does not name, once the action is granted", () => {
+    expect(navItemShows(headcount, "production_office_admin", "desktop")).toBe(false);
+    setPermissionOverrides({ "production_office_admin:headcount.view": true });
+    expect(navItemShows(headcount, "production_office_admin", "desktop")).toBe(true);
+  });
+
+  it("still takes the row away when the action is revoked", () => {
+    setPermissionOverrides({ "admin:headcount.view": false });
+    expect(navItemShows(headcount, "admin", "desktop")).toBe(false);
+  });
+
+  it("does not hand out rows on a matrix default the row does not name", () => {
+    // An operator holds production.target.view and has "My Production" for it; the
+    // manager's row for the same action must not appear beside it.
+    const others = navItems.filter((i) => i.action === "production.target.view" && !(i.roles as string[]).includes("operator"));
+    for (const row of others) expect(navItemShows(row, "operator", "desktop")).toBe(false);
   });
 });

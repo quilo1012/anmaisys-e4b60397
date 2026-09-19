@@ -261,6 +261,11 @@ select:-webkit-autofill {
   size: A4 landscape;
 }
 
+/* The headcount's printed sheet. Drawn only on paper — see HeadcountPrintSheet.tsx. */
+.headcount-print-sheet {
+  display: none;
+}
+
 @media print {
   body {
     padding: 10mm !important;
@@ -299,6 +304,16 @@ select:-webkit-autofill {
     page: landscape-sheet;
   }
 
+  /* …and so does everything around it. A named page starts a new sheet wherever the
+     name changes, and the wrapper sits inside the app shell: the shell — hidden, but
+     still boxes — was laid out on the default portrait page first, and the landscape
+     sheet began after it. The headcount board printed two blank portrait pages and
+     then itself. Naming the page from the root down leaves no change to break at. */
+  html:has(.print-landscape),
+  body:has(.print-landscape) {
+    page: landscape-sheet;
+  }
+
   /* Hide all non-document UI.
      `.print-keep` is the way out, and it is not decoration: `header` in this list was
      hiding `ModuleHeader`, which is the band carrying the screen's title and the date
@@ -331,6 +346,14 @@ select:-webkit-autofill {
   [data-sidebar="rail"],
   .peer[data-sidebar],
   [class*="group/sidebar-wrapper"] > [data-sidebar],
+  /* The sidebar's own wrapper, which none of the above reach: it carries `data-side`
+     and `data-variant`, not `data-sidebar`. Inside it is the spacer that holds the
+     sidebar's width open on screen, `h-svh` tall — and on paper `svh` is the height of
+     the sheet. Once the shell turns from flex to block (below) that spacer stops being
+     beside the content and sits above it: exactly one blank page, before everything.
+     `.peer[data-sidebar]`, two lines up, was written for this element and has never
+     matched it. */
+  .peer[data-side][data-variant],
   .SidebarProvider [data-sidebar],
   [data-slot="sidebar"] {
     display: none !important;
@@ -411,6 +434,9 @@ select:-webkit-autofill {
   .min-h-screen,
   .min-h-svh {
     padding: 0 !important;
+    /* On paper `svh` is one sheet, so the shell was never shorter than a page — and the
+       body's 10mm on top of it made every short report one page and a blank one. */
+    min-height: 0 !important;
   }
 
   /* Print content area */
@@ -829,6 +855,117 @@ select:-webkit-autofill {
        names are overleaf is a line somebody miscounts. */
   .headcount-columns {
     grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  /* One margin, on every sheet.
+     The body pads the paper by 10mm and `.print-content` by ten more, so a landscape
+     A4 kept 971px of its 1047 and the eighth line dropped to a row of its own — the
+     118px above was worked out against the 1047. And because `@page` has no margin
+     (see the top of this sheet) both paddings are laid down once: whatever began page
+     two began on the very edge of the paper, in the strip no office printer reaches.
+     `clone` lays the wrapper's padding down again on every fragment, which makes it
+     the page margin; a browser without it prints as it did before. */
+  body:has(.print-landscape .headcount-columns) {
+    padding: 0 !important;
+  }
+
+  .print-content.print-landscape:has(.headcount-columns) {
+    padding: 10mm !important;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  /* A heading is never the last thing on a sheet. PRODUCTION sat alone at the foot of
+     page one with every one of its columns overleaf. */
+  .headcount-section-label {
+    break-after: avoid !important;
+    margin-top: 3mm !important;
+    margin-bottom: 1.5mm !important;
+  }
+
+  /* ── The headcount prints as the company's sheet ───────────────────────────────
+     Paper gets the grid the factory already reads — `Production Headcount <month>.xlsx`
+     — and not the board. The board's own print rules above stay: they are what a
+     browser falls back to if this block is ever removed, and the margin rules among
+     them (`:has(.headcount-columns)`) still match, because the board is hidden here,
+     not unmounted.
+
+     The colours are the workbook's own fills, read from the file: FFFF00 headings,
+     D9D9D9 leader, 92D050 totals / Holidays / Overtime, FF0000 Absence, and the purple
+     of "Total staff in Production". `print-color-adjust: exact` is already set on the
+     whole sheet, without which a browser drops every one of them. */
+  .print-content .headcount-on-screen,
+  .print-content:has(.headcount-print-sheet) > .print-keep,
+  .print-content:has(.headcount-print-sheet) > nav {
+    display: none !important;
+  }
+
+  .print-content .headcount-print-sheet {
+    display: block !important;
+    break-inside: avoid;
+  }
+
+  /* Split view prints two sheets, Day then Night, one to a page. */
+  .print-content .headcount-print-sheet ~ .headcount-print-sheet {
+    break-before: page;
+  }
+
+  .hps-title {
+    font-size: 10.5pt !important;
+    font-weight: 700 !important;
+    margin: 0 0 2mm !important;
+    color: #000 !important;
+  }
+
+  .print-content table.hps-band {
+    table-layout: fixed !important;
+    margin: 0 0 3.5mm !important;
+    font-size: 8pt !important;
+    break-inside: avoid;
+  }
+
+  .print-content table.hps-band th,
+  .print-content table.hps-band td {
+    padding: 0.6mm 0.8mm !important;
+    border: 0.75pt solid #000 !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    font-weight: 400 !important;
+    color: #000 !important;
+    background: #fff !important;
+    line-height: 1.12 !important;
+    height: 4.7mm;
+  }
+
+  /* Smaller than the names: "Maintenance" has to fit a 21mm column in one piece, and
+     the global `overflow-wrap: break-word` would otherwise print it as "Maintenanc / e". */
+  .print-content table.hps-band th.hps-head { font-weight: 700 !important; font-size: 7.5pt !important; }
+  .print-content table.hps-band th.hps-area { background: #ffff00 !important; }
+  .print-content table.hps-band th.hps-absence { background: #ff0000 !important; color: #fff !important; }
+  .print-content table.hps-band th.hps-holiday,
+  .print-content table.hps-band th.hps-overtime { background: #92d050 !important; }
+  .print-content table.hps-band th.hps-training { background: #d9e1f2 !important; }
+  .print-content table.hps-band th.hps-total-staff { background: #7030a0 !important; color: #fff !important; }
+  .print-content table.hps-band td.hps-total-staff-figure {
+    font-size: 20pt !important;
+    font-weight: 700 !important;
+  }
+  .print-content table.hps-band td.hps-leader { background: #d9d9d9 !important; font-weight: 700 !important; }
+  .print-content table.hps-band td.hps-sum { background: #92d050 !important; }
+  .print-content table.hps-band td.hps-sum-figure { font-weight: 700 !important; }
+  .hps-note { font-size: 7pt; font-style: italic; }
+
+  /* A section folded on screen still prints. See the note where the class is set. */
+  .print-content .headcount-folded {
+    display: block !important;
+  }
+
+  /* Five figures, one row. The screen picks two, three or five by the width of the
+     window and paper landed on three — a second row holding two, and a fifth of the
+     first sheet spent on it. */
+  .print-content .headcount-kpis {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     gap: 6px !important;
   }
 

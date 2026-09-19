@@ -1,3 +1,4 @@
+import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { blockOf } from "@/lib/headcountBlocks";
 import { useQueryClient } from "@tanstack/react-query";
@@ -59,6 +60,8 @@ import {
   type HeadcountEmployee,
 } from "@/hooks/useHeadcount";
 import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialog";
+import { HeadcountPrintSheet } from "@/components/workforce/HeadcountPrintSheet";
+import { printSheetLayout } from "@/lib/headcountSheet";
 import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
@@ -167,7 +170,7 @@ function SectionLabel({
       // button that does not carry it, and these headings are buttons because they
       // fold — so a printed board came out as an unbroken wall of columns with
       // Production, Sectors, Support and Away & overtime all missing from it.
-      className="print-keep mb-2 mt-5 flex w-full items-center gap-2 text-left text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0"
+      className="print-keep headcount-section-label mb-2 mt-5 flex w-full items-center gap-2 text-left text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0"
     >
       {onToggle && (
         <ChevronRight className={cn("h-3.5 w-3.5 transition-transform print:hidden", open && "rotate-90")} />
@@ -624,7 +627,14 @@ function ShiftBoard({
   }
 
   return (
-    <div className="space-y-4">
+    <>
+    {/* What goes to the printer. The board below is `headcount-on-screen` and stays
+        there; see HeadcountPrintSheet for why paper gets the company's grid instead. */}
+    <HeadcountPrintSheet
+      title={`Production Headcount — ${shift} shift — ${format(parseISO(onDate), "EEEE dd.MM.yyyy")}`}
+      layout={printSheetLayout({ areas, allocations, employeeById })}
+    />
+    <div className="headcount-on-screen space-y-4">
       {/* Says whose board this is before a single column is read.
           It used to be a full-width colour slab in white type. The colour is doing
           real work — in Split the two boards are otherwise identical grids side by
@@ -896,7 +906,8 @@ function ShiftBoard({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      {/* `headcount-kpis`: the print sheet sets these five in one row. See index.css. */}
+      <div className="headcount-kpis grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
         <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
         <KpiPill icon={Wrench} label="Support" value={support} tone="" />
@@ -919,7 +930,12 @@ function ShiftBoard({
         >
           {section.label}
         </SectionLabel>
-        {open && (<>
+        {/* Folded is hidden, not unmounted. Folding is for the screen — the supervisor
+            who does not need Support at 6am — and it is remembered in this browser. The
+            sheet printed from that browser came out with no Support on it at all, and a
+            printed board missing fourteen people looks exactly like one that is right.
+            `headcount-folded` is what the print sheet opens again. */}
+        <div className={cn(!open && "hidden headcount-folded")}>
         <DndContext
           sensors={columnSensors}
           collisionDetection={closestCenter}
@@ -1005,7 +1021,7 @@ function ShiftBoard({
         </div>
         </SortableContext>
         </DndContext>
-        </>)}
+        </div>
         </div>
         );
       })}
@@ -1254,6 +1270,7 @@ function ShiftBoard({
       </div>
 
     </div>
+    </>
   );
 }
 
