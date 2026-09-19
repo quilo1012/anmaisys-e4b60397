@@ -455,6 +455,58 @@ describe("the names the factory's own sheet actually writes", () => {
 });
 
 /**
+ * A Day import wrote the night crew onto the Day board. The roster carries both crews,
+ * on purpose, and a name only a night person answered to was taken without a word.
+ */
+describe("a sheet for one shift places that shift's people", () => {
+  const named = (id: string, full_name: string) => emp(id, full_name);
+  const sheet = (rows: (string | number)[][]) => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "04.08");
+    return wb;
+  };
+  const dayP = { ...named("d1", "Ana Lima"), shift_group: "Day" } as HeadcountEmployee;
+  const nightP = { ...named("n1", "Marcio Reis"), shift_group: "Night" } as HeadcountEmployee;
+  const weekend = { ...named("w1", "Bia Paz"), shift_group: "Weekend" } as HeadcountEmployee;
+  const noCrew = { ...named("x1", "Caio Melo"), shift_group: null } as unknown as HeadcountEmployee;
+  const read = (rows: string[][], extra: Record<string, unknown> = {}, roster = [dayP, nightP, weekend, noCrew]) =>
+    parseHeadcountWorkbook(sheet(rows), { areas: AREAS, roster, shift: "Day", fallbackYear: 2026, ...extra });
+
+  it("does not place the only Marcio it knows when he works nights", () => {
+    const p = read([["Line 1"], ["Marcio"]]);
+    expect(p.matched).toEqual([]);
+    expect(p.unmatchedNames[0]).toMatchObject({ name: "Marcio", reason: "otherShift" });
+    expect(p.unmatchedNames[0].candidates.map((c) => c.id)).toEqual(["n1"]);
+  });
+
+  it("refuses him by his full name too — the crew is the question, not the spelling", () => {
+    expect(read([["Line 1"], ["Marcio Reis"]]).matched).toEqual([]);
+  });
+
+  it("places him once somebody says so in the dialog", () => {
+    const p = read([["Line 1"], ["Marcio"]], { assigned: { Marcio: "n1" } });
+    expect(p.matched.map((m) => m.employeeId)).toEqual(["n1"]);
+  });
+
+  it("places him when the spelling was written on him before", () => {
+    const known = { ...nightP, sheet_aliases: "Marcio" } as HeadcountEmployee;
+    expect(read([["Line 1"], ["Marcio"]], {}, [dayP, known]).matched.map((m) => m.employeeId)).toEqual(["n1"]);
+  });
+
+  it("still places the Fri–Mon crew and people with no crew on file on the Day board", () => {
+    const p = read([["Line 1"], ["Bia"], ["Caio"], ["Ana"]]);
+    expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["d1", "w1", "x1"]);
+  });
+
+  it("works the other way round on the Night board", () => {
+    const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Ana"], ["Marcio"]]),
+      { areas: AREAS, roster: [dayP, nightP], shift: "Night", fallbackYear: 2026 });
+    expect(p.matched.map((m) => m.employeeId)).toEqual(["n1"]);
+    expect(p.unmatchedNames[0]).toMatchObject({ name: "Ana", reason: "otherShift" });
+  });
+});
+
+/**
  * What the importer still dropped, found by feeding it the sheets a Portuguese-speaking
  * office actually types: capitals without accents, first and last name with the middle
  * ones left out, tabs named "4 Aug", a single tab nobody renamed from "Sheet1", and a

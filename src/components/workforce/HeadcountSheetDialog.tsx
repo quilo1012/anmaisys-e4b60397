@@ -89,9 +89,10 @@ function NamePicker({
 
 /** One row per spelling, not per cell: "Pedro" appears on nine days and is one question. */
 function bySpelling(unmatched: UnmatchedName[]) {
-  const out = new Map<string, { name: string; columns: Set<string>; times: number; candidates: { id: string; full_name: string }[] }>();
+  const out = new Map<string, { name: string; columns: Set<string>; times: number; otherShift: boolean; candidates: { id: string; full_name: string }[] }>();
   for (const u of unmatched) {
-    const row = out.get(u.name) ?? { name: u.name, columns: new Set<string>(), times: 0, candidates: u.candidates };
+    const row = out.get(u.name) ?? { name: u.name, columns: new Set<string>(), times: 0, otherShift: false, candidates: u.candidates };
+    if (u.reason === "otherShift") row.otherShift = true;
     row.columns.add(u.column);
     row.times += 1;
     if (u.candidates.length > row.candidates.length) row.candidates = u.candidates;
@@ -423,6 +424,14 @@ export function HeadcountSheetDialog({
                                   {" "}— {[...u.columns].join(", ")}
                                   {u.times > 1 ? ` (×${u.times})` : ""}
                                 </span>
+                                {/* The one person who answers to it is on the other crew. Said,
+                                    because the picker offering a single name looks like a formality
+                                    and this is the row that put the night crew on the day board. */}
+                                {u.otherShift && (
+                                  <span className="ml-1 font-semibold text-warning-strong">
+                                    · only match is on the {shift === "Day" ? "Night" : "Day"} crew
+                                  </span>
+                                )}
                               </span>
                               <NamePicker
                                 spelling={u.name}

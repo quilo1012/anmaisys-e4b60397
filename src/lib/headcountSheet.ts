@@ -53,7 +53,11 @@ export interface UnmatchedName {
   column: string;
   date: string;
   /** `ambiguous`: more than one person answers to it. `unknown`: nobody does. */
-  reason: "ambiguous" | "unknown";
+  /**
+   * `otherShift`: exactly one person answers to the name, and they are on the other
+   * crew. Offered, never taken — see `resolve`.
+   */
+  reason: "ambiguous" | "unknown" | "otherShift";
   /** Who it could be, for the picker. Empty when nobody on the payroll answers to it. */
   candidates: { id: string; full_name: string }[];
 }
@@ -621,7 +625,7 @@ export function parseHeadcountWorkbook(
 
   type Resolved =
     | { emp: HeadcountEmployee }
-    | { reason: "ambiguous" | "unknown"; candidates: HeadcountEmployee[] };
+    | { reason: "ambiguous" | "unknown" | "otherShift"; candidates: HeadcountEmployee[] };
 
   const resolve = (raw: string, area: HeadcountArea | null): Resolved => {
     const n = normalise(raw);
@@ -634,10 +638,26 @@ export function parseHeadcountWorkbook(
     // Exact before short: "Andre" is the two Andres, and must not also drag in
     // Andreia for starting with the same five letters.
     const parts = n.split(" ");
-    for (const step of [byAlias.get(n), byFull.get(n), byFirst.get(n), byPrefix(parts), bySkipping(parts)]) {
+    const aliased = byAlias.get(n);
+    for (const step of [aliased, byFull.get(n), byFirst.get(n), byPrefix(parts), bySkipping(parts)]) {
       if (!step?.length) continue;
       const c = narrow(step, area);
-      return c.length === 1 ? { emp: c[0] } : { reason: "ambiguous", candidates: c };
+      if (c.length !== 1) return { reason: "ambiguous", candidates: c };
+      // A Day sheet places Day people. The roster carries both crews so that Quality
+      // and Maintenance — night crew, written on the day sheet — can be found at all,
+      // and that made every name only a night person answers to a silent placement:
+      // the sheet's "Marcio" is a day operator payroll spells another way, the one
+      // Marcio the system knows works nights, and a month of Day board was written
+      // with the night crew standing on it, as overtime, into the attendance record.
+      // Being the only candidate is not the same as being the person. They are
+      // offered in the preview, one click to accept; only a spelling somebody already
+      // wrote on that person (`sheet_aliases`) or picked in this dialog is taken.
+      // Somebody with no crew on file is on no other board; they are left as they were.
+      const theirs = boardShiftFor(c[0].shift_group);
+      if (step !== aliased && theirs && theirs !== ctx.shift) {
+        return { reason: "otherShift", candidates: c };
+      }
+      return { emp: c[0] };
     }
     return { reason: "unknown", candidates: [] };
   };
