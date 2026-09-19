@@ -117,12 +117,9 @@ Deno.serve(async (req) => {
       }
     };
 
-    // A dead tunnel is the ordinary state of this service, not an internal fault: the
-    // reader gets a new trycloudflare address every time it restarts. The week path
-    // below already answers 502 with the address and what to do about it. These two
-    // used to let the fetch throw straight into the catch-all, so "Test connection"
-    // against a tunnel that had moved reported 500 and a raw network string — the one
-    // screen whose entire job is to tell you the address is wrong.
+    // An unavailable reader is an operational state the board knows how to display,
+    // not a crash in this function. Return a structured 200 response so the preview
+    // runtime does not turn an expected downstream outage into a blank-screen 502.
     if (mode === "health" || mode === "weeks") {
       try {
         const payload = await call(mode === "health" ? "/health" : "/weeks");
@@ -132,7 +129,7 @@ Deno.serve(async (req) => {
           error: "unreachable",
           message: `Could not reach the SharePoint RAG service at ${base}. The address may have changed — update it in Settings.`,
           details: (e as Error).message,
-        }, 502);
+        });
       }
     }
 
@@ -157,7 +154,7 @@ Deno.serve(async (req) => {
         error: "unreachable",
         message: `Could not reach the SharePoint RAG service at ${base}. The address may have changed — update it in Settings.`,
         details: errors.slice(0, 3),
-      }, 502);
+      });
     }
 
     return json({ ok: true, week_start: weekStart, count: records.length, records, errors });
