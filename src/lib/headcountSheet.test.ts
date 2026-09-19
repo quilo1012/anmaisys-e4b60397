@@ -626,3 +626,56 @@ describe("the day laid out as the company's sheet", () => {
     expect(layout([]).top.map((c) => c.label)).not.toContain("Closed Line");
   });
 });
+
+/**
+ * The export was the right words in a bare grid, and the office kept the old workbook
+ * beside it because that one can be read from across the room. These hold the colours
+ * to the fills of `Production Headcount September.xlsx`, read from the file.
+ */
+describe("the exported sheet looks like the company's", () => {
+  const areasX = [area("l1", "Line 1"), { ...area("of", "Office"), kind: "support", section: "support" } as HeadcountArea];
+  const crew = [emp("e1", "Zeca Lima"), emp("e2", "Ana Paz"), emp("e3", "Rui Sá"), emp("e4", "Bia Reis")];
+  const row = (employee_id: string, status: string, area_id: string | null, is_leader = false) =>
+    ({ id: employee_id, on_date: "2026-09-18", shift: "Day", employee_id, area_id, status,
+       half_day: false, left_early_at: null, arrived_late_at: null, note: null, is_leader }) as unknown as Allocation;
+  const wb = buildHeadcountWorkbook({
+    days: [{ date: "2026-09-18", shift: "Day" }],
+    areas: areasX,
+    employeeById: new Map(crew.map((p) => [p.id, p])),
+    allocationsFor: () => [row("e2", "assigned", "l1"), row("e1", "assigned", "l1", true), row("e3", "sick", null), row("e4", "holiday", null)],
+  });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const cells = Object.keys(ws).filter((k) => !k.startsWith("!")).map((k) => ws[k] as { v: unknown; s?: { fill?: { fgColor?: { rgb?: string } }; border?: unknown } });
+  const fillOf = (v: unknown) => cells.find((c) => c.v === v)?.s?.fill?.fgColor?.rgb;
+
+  it("heads a place in yellow, absence in red, leave in green", () => {
+    expect(fillOf("Line 1")).toBe("FFFF00");
+    expect(fillOf("Office")).toBe("FFFF00");
+    expect(fillOf("Sickness")).toBe("FF0000");
+    expect(fillOf("Holidays")).toBe("92D050");
+  });
+
+  it("puts the leader on the first row, in grey", () => {
+    const names = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1 }).map((r) => r[0]).filter((v) => v === "Zeca Lima" || v === "Ana Paz");
+    expect(names).toEqual(["Zeca Lima", "Ana Paz"]);
+    expect(fillOf("Zeca Lima")).toBe("D9D9D9");
+    expect(fillOf("Ana Paz")).toBeUndefined();
+  });
+
+  it("ends every column on a green Total, and the sheet on the purple one", () => {
+    expect(fillOf("Total")).toBe("92D050");
+    expect(fillOf("Total staff in Production (both bands)")).toBe("7030A0");
+  });
+
+  it("draws the box round an empty cell too", () => {
+    // Line 1 has two names and Sickness one: the cell beside the second name is empty,
+    // and on the company's sheet it is still a cell.
+    expect(cells.filter((c) => c.v === "" && c.s?.border).length).toBeGreaterThan(0);
+  });
+
+  it("still reads back as the day it was written from", () => {
+    const back = parseHeadcountWorkbook(wb, { areas: areasX, roster: crew, shift: "Day", fallbackYear: 2026 });
+    expect(back.matched.map((m) => `${m.employeeId}:${m.status}`).sort()).toEqual(["e1:assigned", "e2:assigned", "e3:sick", "e4:holiday"]);
+    expect(back.unknownColumns).toEqual([]);
+  });
+});

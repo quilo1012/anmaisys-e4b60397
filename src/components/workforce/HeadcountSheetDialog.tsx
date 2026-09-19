@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
+// The styled build: `writeFile` from plain `xlsx` drops every fill the workbook carries.
+import XLSX from "xlsx-js-style";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";

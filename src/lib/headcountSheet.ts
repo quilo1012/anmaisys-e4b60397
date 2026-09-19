@@ -1,4 +1,6 @@
-import * as XLSX from "xlsx";
+// `xlsx-js-style`, not `xlsx`: the same library and the same API, and the only one of
+// the two that writes a cell's fill. Every other coloured export in the app uses it.
+import XLSX from "xlsx-js-style";
 import { keepsLeadership } from "@/lib/leaderMark";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { boardShiftFor } from "@/hooks/useHeadcount";
@@ -196,6 +198,47 @@ const columnsOf = (areas: HeadcountArea[]) => {
 };
 
 /**
+ * How the exported sheet is coloured — the fills of `Production Headcount <month>.xlsx`,
+ * read from the file itself rather than matched by eye: FFFF00 headings, D9D9D9 for the
+ * leader on the first row, 92D050 for every Total and for Holidays / Overtime, FF0000
+ * for absence, 7030A0 for "Total staff in Production". Arial 12, centred, a thin border
+ * on every cell of a column.
+ *
+ * The export used to be the right words in an unformatted grid, and the office went on
+ * keeping the old workbook beside it because that one could be read from across the room.
+ */
+type SheetLook = "title" | "label" | "summary" | "heading" | "away" | "leave" | "name" | "leader" | "total" | "grand";
+
+const THIN = { style: "thin", color: { rgb: "000000" } };
+const BOXED = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+const CENTRED = { horizontal: "center", vertical: "center", wrapText: true };
+const filled = (rgb: string, font: Record<string, unknown> = {}) => ({
+  fill: { patternType: "solid", fgColor: { rgb } },
+  font: { name: "Arial", sz: 12, color: { rgb: "000000" }, ...font },
+  alignment: CENTRED,
+  border: BOXED,
+});
+
+const SHEET_LOOKS: Record<SheetLook, Record<string, unknown>> = {
+  title: { font: { name: "Arial", sz: 14, bold: true } },
+  label: { font: { name: "Arial", sz: 10, bold: true, color: { rgb: "595959" } } },
+  // Sentences in a column sized for a first name: wrapped, or they are cut at the cell.
+  summary: { font: { name: "Arial", sz: 9 }, alignment: { wrapText: true, vertical: "center" } },
+  heading: filled("FFFF00", { bold: true }),
+  away: filled("FF0000", { bold: true, color: { rgb: "FFFFFF" } }),
+  leave: filled("92D050", { bold: true }),
+  name: { font: { name: "Arial", sz: 12 }, alignment: CENTRED, border: BOXED },
+  leader: filled("D9D9D9", { bold: true }),
+  total: filled("92D050"),
+  grand: filled("7030A0", { bold: true, color: { rgb: "FFFFFF" } }),
+};
+
+/** The away columns keep the colour the company's sheet gives them. */
+const STATE_LOOK: Record<string, SheetLook> = {
+  Sickness: "away", Unpaid: "away", Holidays: "leave", Overtime: "leave",
+};
+
+/**
  * The board for a range of days, one sheet per day, in the factory's own layout.
  *
  * Production areas are the columns with names stacked underneath, then a Total row,
@@ -218,24 +261,46 @@ export function buildHeadcountWorkbook(input: {
     const nameOf = (id: string) => input.employeeById.get(id)?.full_name ?? "";
 
     const working = allocs.filter((a) => a.status === "assigned" || a.status === "overtime");
+    // Leader first, then by name. The first row of a column on the company's sheet is
+    // who runs it, in grey; alphabetical order put them wherever their name fell.
     const inColumn = (col: { areas: HeadcountArea[] }) => {
       const ids = new Set(col.areas.map((a) => a.id));
       return working.filter((a) => a.area_id && ids.has(a.area_id))
-        .map((a) => nameOf(a.employee_id)).filter(Boolean).sort();
+        .map((a) => ({ name: nameOf(a.employee_id), leader: a.is_leader ?? false }))
+        .filter((x) => x.name)
+        .sort((x, y) => Number(y.leader) - Number(x.leader) || x.name.localeCompare(y.name));
     };
 
     const rows: (string | number)[][] = [];
+    /** What each cell looks like, by `row,col`. Values and looks are kept apart so the
+     *  rows stay exactly what the importer reads back. */
+    const looks = new Map<string, SheetLook>();
+    const paint = (r: number, c: number, look: SheetLook) => looks.set(`${r},${c}`, look);
+
     const band = (cols: { label: string; areas: HeadcountArea[] }[], heading: string, extra: [string, string[]][] = []) => {
       if (cols.length === 0 && extra.length === 0) return 0;
       rows.push([heading]);
+      paint(rows.length - 1, 0, "label");
       // The away states are columns beside the areas, the way the sheet has them —
       // a name under "Absence" reads the same as a name under "Line 1".
       const labels = [...cols.map((c) => c.label), ...extra.map(([l]) => l)];
-      const lists = [...cols.map(inColumn), ...extra.map(([, names]) => names)];
+      const lists = [
+        ...cols.map(inColumn),
+        ...extra.map(([, names]) => names.map((name) => ({ name, leader: false }))),
+      ];
       rows.push(labels);
-      const depth = Math.max(0, ...lists.map((c) => c.length));
-      for (let i = 0; i < depth; i++) rows.push(lists.map((c) => c[i] ?? ""));
+      labels.forEach((l, c) => paint(rows.length - 1, c, c < cols.length ? "heading" : STATE_LOOK[l] ?? "heading"));
+      // One spare row under the longest column, as the sheet has: room to write a name in.
+      const depth = Math.max(0, ...lists.map((c) => c.length)) + 1;
+      for (let i = 0; i < depth; i++) {
+        rows.push(lists.map((c) => c[i]?.name ?? ""));
+        lists.forEach((c, x) => paint(rows.length - 1, x, c[i]?.leader ? "leader" : "name"));
+      }
+      // "Total" and the figure under it, green, the way every column on the sheet ends.
+      rows.push(lists.map(() => "Total"));
+      lists.forEach((_, x) => paint(rows.length - 1, x, "total"));
       rows.push(lists.map((c) => c.length));
+      lists.forEach((_, x) => paint(rows.length - 1, x, "total"));
       rows.push([]);
       // Only the area columns count towards the band subtotal; the states are people
       // who are not there.
@@ -243,13 +308,18 @@ export function buildHeadcountWorkbook(input: {
     };
 
     rows.push([`${day.shift} shift — ${day.date}`]);
+    paint(0, 0, "title");
     rows.push([]);
     const states: [string, string[]][] = STATUS_BLOCKS.map((b) => [
       b.label,
       allocs.filter((a) => a.status === b.status).map((a) => nameOf(a.employee_id)).filter(Boolean).sort(),
     ]);
-    const inProduction = band(production, "PRODUCTION", states);
-    const inSupport = band(support, "SUPPORT");
+    // The away columns sit in the second band, beside Office and Maintenance, which is
+    // where the company's sheet has them. Beside the lines they made the top band
+    // sixteen columns wide, and a sheet that wide does not print on one page. The
+    // importer reads a column by its heading, so where it stands changes nothing.
+    const inProduction = band(production, "PRODUCTION");
+    const inSupport = band(support, "SUPPORT", states);
     rows.push([]);
     // The number the sheet exists to carry: everyone standing on a production area.
     // Three numbers, because two definitions of "in production" are in use and this
@@ -266,9 +336,23 @@ export function buildHeadcountWorkbook(input: {
     rows.push(["On production lines (system: kind = production)", byKind]);
     rows.push(["In the production band on this sheet", inProduction]);
     rows.push(["In the support band on this sheet", inSupport]);
+    for (const r of [1, 2, 3]) paint(rows.length - r, 0, "summary");
     rows.push(["Total staff in Production (both bands)", inProduction + inSupport]);
+    // The purple cell. On the company's sheet it is the one figure people look for.
+    paint(rows.length - 1, 0, "grand");
+    paint(rows.length - 1, 1, "grand");
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
+    for (const [at, look] of looks) {
+      const [r, c] = at.split(",").map(Number);
+      const addr = XLSX.utils.encode_cell({ r, c });
+      // An empty cell is not in the sheet at all, and a border needs a cell to be on.
+      if (!ws[addr]) ws[addr] = { t: "s", v: "" };
+      ws[addr].s = SHEET_LOOKS[look];
+    }
+    const width = Math.max(1, ...rows.map((r) => r.length));
+    // The first column also carries the four summary lines, which are sentences.
+    ws["!cols"] = Array.from({ length: width }, (_, c) => ({ wch: c === 0 ? 24 : 20 }));
     // A tab name Excel accepts: 31 characters, none of : \ / ? * [ ]
     const tab = `${day.date} ${day.shift}`.slice(0, 31).replace(/[:\\/?*[\]]/g, "-");
     XLSX.utils.book_append_sheet(wb, ws, tab);
