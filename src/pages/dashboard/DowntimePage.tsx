@@ -40,6 +40,7 @@ import { useRole } from "@/hooks/useRole";
 import { DowntimeCorrectionsSection } from "@/components/DowntimeCorrectionsSection";
 
 import { useToast } from "@/hooks/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
   format, differenceInMinutes, startOfDay,
 } from "date-fns";
@@ -155,6 +156,7 @@ export default function DowntimePage() {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { confirm, confirmDialog } = useConfirm();
   // Declarado antes das consultas porque é ele que agora decide o que se vai
   // buscar. Estava mais abaixo, quando o `useDowntime` tinha um tecto próprio de
   // noventa dias e ninguém lhe podia pedir mais.
@@ -252,6 +254,15 @@ export default function DowntimePage() {
   };
 
   const handleResolve = async (id: string) => {
+    // Resolving writes `ended_at`, which closes the stoppage clock that feeds the
+    // KPIs and the line's numbers. It used to fire straight off a 40px icon sitting
+    // 4px from the delete icon, with no confirmation at all.
+    const ok = await confirm({
+      title: "Mark this downtime as resolved?",
+      description: "This stops the clock now and fixes the recorded duration. It feeds the line's KPIs.",
+      confirmText: "Mark resolved",
+    });
+    if (!ok) return;
     try {
       await updateDowntime.mutateAsync({ id, ended_at: new Date().toISOString() });
       toast({ title: "Downtime resolved" });
@@ -754,7 +765,7 @@ export default function DowntimePage() {
              The report is absolutely positioned on top of it, so the browser prints
              the report and then the empty page the shell still measures: the orphan
              blank page. Collapsing every remaining box removes that page. */
-          #root [class*="h-screen"], #root [class*="min-h-screen"], #root main {
+          #root [class*="h-screen"], #root [class*="min-h-screen"], #root [class*="100dvh"], #root main {
             height: auto !important; min-height: 0 !important; max-height: none !important;
           }
           .downtime-print-root {
@@ -1094,14 +1105,36 @@ export default function DowntimePage() {
                                     Open WO
                                   </Button>
                                 ) : (
-                                  <div className="flex items-center gap-1">
-                                    <Button size="icon" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                                  <div className="flex items-center gap-3">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      aria-label="Edit this downtime record"
+                                      title="Edit"
+                                      onClick={() => openEdit(r)}
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
                                     {!r.ended_at && (
-                                      <Button size="icon" variant="ghost" className="text-success-strong" onClick={() => handleResolve(r.id)} title="Mark Resolved">
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="text-success-strong"
+                                        aria-label="Mark this downtime as resolved"
+                                        onClick={() => handleResolve(r.id)}
+                                        title="Mark Resolved"
+                                      >
                                         <CheckCircle className="h-4 w-4" />
                                       </Button>
                                     )}
-                                    <Button size="icon" variant="ghost" className="text-destructive-strong" onClick={() => setDeleteId(r.id)}>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="ml-2 text-destructive-strong"
+                                      aria-label="Delete this downtime record"
+                                      title="Delete"
+                                      onClick={() => setDeleteId(r.id)}
+                                    >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </div>
@@ -1320,6 +1353,7 @@ export default function DowntimePage() {
           </div>
         </div>
       </div>
+      {confirmDialog}
     </DashboardLayout>
   );
 }

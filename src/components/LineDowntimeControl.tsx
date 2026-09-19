@@ -259,7 +259,7 @@ export function LineDowntimeControl({
             <Button
               size="lg"
               variant="destructive"
-              className="w-full h-12 text-base font-bold"
+              className="w-full h-12 coarse:h-14 text-base font-bold"
               onClick={() => setStopDialogOpen(true)}
             >
               <PowerOff className="h-5 w-5 mr-2" /> LINE STOPPED AGAIN
@@ -307,18 +307,25 @@ export function LineDowntimeControl({
   // CASE C — never stopped
   return (
     <>
-      <div className="rounded-md bg-muted/50 px-3 py-2 flex items-center justify-between gap-2">
+      {/* Same button as CASE B above, same size and same place. It used to be
+          `size="sm"` tucked to the right of a sentence here and a full-width
+          `h-12` there — so the most important control on the screen changed
+          size, wording and position depending on whether the line had already
+          stopped once this shift. The first stop of a shift is precisely when
+          nobody has learned where to look. */}
+      <div className="rounded-md bg-muted/50 px-3 py-2 flex flex-col gap-2">
         <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-          <CheckCircle2 className="h-4 w-4 text-success-strong" /> Line in operation · no stoppage
+          <CheckCircle2 className="h-4 w-4 text-success-strong" aria-hidden="true" /> Line in operation · no stoppage
         </span>
 
         {canControl && workOrderStatus === "in_progress" && (
           <Button
-            size="sm"
+            size="lg"
             variant="destructive"
+            className="w-full h-12 coarse:h-14 text-base font-bold"
             onClick={() => setStopDialogOpen(true)}
           >
-            <PowerOff className="h-4 w-4 mr-1.5" /> Mark line as stopped
+            <PowerOff className="h-5 w-5 mr-2" aria-hidden="true" /> MARK LINE AS STOPPED
           </Button>
         )}
       </div>
@@ -370,16 +377,20 @@ function StopDialog({
                 Typed reasons came out as "leak", "Leak again", "leaking" and could not
                 be grouped or counted; a chip is one tap and reads the same on every
                 order. The box underneath is still there for what a chip cannot say. */}
-            <div className="flex flex-wrap gap-1.5">
+            {/* 24px tall and 6px apart was the primary touch target at the most
+                expensive moment of the shift: the line is down and the operator is
+                wearing gloves. `min-h-12` on a desk, 56px under a finger. */}
+            <div className="flex flex-wrap gap-2 coarse:gap-3">
               {problem?.trim() && (() => {
                 const active = reason.trim().toLowerCase() === problem.trim().toLowerCase();
                 return (
                   <button
                     type="button"
+                    aria-pressed={active}
                     onClick={() => setReason(active ? "" : problem.trim())}
                     title="The problem this order was raised for"
                     className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
+                      "inline-flex min-h-12 coarse:min-h-14 items-center rounded-full border px-4 text-sm font-semibold transition-colors",
                       active
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20",
@@ -395,9 +406,10 @@ function StopDialog({
                   <button
                     key={r}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => setReason(active ? "" : r)}
                     className={cn(
-                      "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                      "inline-flex min-h-12 coarse:min-h-14 items-center rounded-full border px-4 text-sm font-medium transition-colors",
                       active
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-input bg-background text-muted-foreground hover:bg-muted hover:text-foreground",

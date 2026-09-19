@@ -51,15 +51,15 @@ export function PageHeader({
           )}
           {module && (
             <>
-              <span className="font-display text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+              <span className="font-display text-2xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
                 {module}
               </span>
               <span className="text-muted-foreground/50" aria-hidden>/</span>
             </>
           )}
-          <h2 className="truncate font-display text-lg font-bold leading-tight tracking-[-0.015em] text-foreground">
+          <h1 className="truncate font-display text-lg font-bold leading-tight tracking-[-0.015em] text-foreground">
             {title}
-          </h2>
+          </h1>
           {badge}
           {description && (
             <>
@@ -86,14 +86,14 @@ export function PageHeader({
             // Archivo em caixa alta e apertado: é a face das chapas de máquina, e é o
             // único sítio onde entra além do título. Uma voz que aparece em todo o lado
             // deixa de ser uma voz.
-            <div className="mb-1 font-display text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">
+            <div className="mb-1 font-display text-2xs font-semibold uppercase tracking-[0.13em] text-muted-foreground">
               {module}
             </div>
           )}
           <div className="flex items-center gap-2">
-            <h2 className="truncate font-display text-[27px] font-bold leading-tight tracking-[-0.02em] text-foreground">
+            <h1 className="truncate font-display text-[27px] font-bold leading-tight tracking-[-0.02em] text-foreground">
               {title}
-            </h2>
+            </h1>
             {badge}
           </div>
           {description && (

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle, Zap, StopCircle, AlertCircle, Factory, Printer } from "lucide-react";
+import { ClipboardList, Plus, Loader2, AlertTriangle, Clock, CalendarIcon, CheckCircle, Zap, StopCircle, AlertCircle, Factory, Printer, WifiOff } from "lucide-react";
 import { useWorkOrders, useCreateWorkOrder } from "@/hooks/useWorkOrders";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -114,7 +114,7 @@ function OperatorDashboardContent() {
   const [shiftFilter, setShiftFilter] = useState<"all" | ShiftCode>("all");
 
   // Tablet is paired (guard guarantees lineId) — always scope to this line.
-  const { data: workOrders, isLoading } = useWorkOrders({ lineId });
+  const { data: workOrders, isLoading, isError: woError, refetch: refetchWOs } = useWorkOrders({ lineId });
   const { data: allWOs } = useWorkOrders({ lineId });
   // Operators only see the CURRENT factory shift's orders — previous shifts drop off automatically.
   // This shift's work, plus anything still unresolved whenever it was raised.
@@ -296,33 +296,40 @@ function OperatorDashboardContent() {
 
       <PageHeader title="Operator Panel" description="Open a maintenance request" />
 
-      {/* Compact state toggle — Line Stopped vs Line Running */}
-      <div className="inline-flex rounded-md border bg-card p-1 text-sm">
+      {/* Compact state toggle — Line Stopped vs Line Running.
+          `gap-3`, not a shared `p-1`. These two decide whether the order books
+          downtime — the note below says so — and they used to sit edge to edge
+          with nothing between them, which is exactly the arrangement that
+          produces the wrong answer from a gloved thumb in a hurry.
+          `aria-pressed` so the choice is also audible, not only coloured. */}
+      <div role="group" aria-label="Line state" className="inline-flex gap-3 rounded-md border bg-card p-2 text-sm">
         <button
           type="button"
+          aria-pressed={lineStopped === true}
           onClick={() => { setLineStopped(true); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
-            "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
+            "px-5 h-12 coarse:h-14 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
             lineStopped === true ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-accent"
           )}
         >
-          <StopCircle className="h-4 w-4" /> Stopped
+          <StopCircle className="h-4 w-4" aria-hidden="true" /> Stopped
         </button>
         <button
           type="button"
+          aria-pressed={lineStopped === false}
           onClick={() => { setLineStopped(false); document.getElementById("wo-form-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
           className={cn(
-            "px-5 h-12 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
+            "px-5 h-12 coarse:h-14 rounded-sm font-bold text-base transition-colors inline-flex items-center gap-2",
             lineStopped === false ? "bg-warning text-warning-foreground" : "text-muted-foreground hover:bg-accent"
           )}
         >
-          <AlertCircle className="h-4 w-4" /> Running
+          <AlertCircle className="h-4 w-4" aria-hidden="true" /> Running
         </button>
       </div>
       {/* What the choice does. It decides whether this order books downtime, and
           nothing on screen said so — half the orders raised on the floor in the last
           week said "Running", which is now taken at its word. */}
-      <p className={cn("text-xs max-w-md", lineStopped === null ? "font-medium text-warning-strong" : "text-muted-foreground")}>
+      <p className={cn("text-sm max-w-md", lineStopped === null ? "font-semibold text-warning-strong" : "text-muted-foreground")}>
         {lineStopped === null
           ? "Say which one. It decides whether this order counts as downtime."
           : lineStopped
@@ -750,8 +757,23 @@ function OperatorDashboardContent() {
           </p>
           {isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : woError ? (
+            /* A failed read used to fall through to the empty state below, which
+               told the operator there were no orders and invited them to create
+               one — so someone who had just raised an order raised it again. An
+               error and an empty shift are different answers and now say so. */
+            <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
+              <WifiOff className="h-8 w-8 text-destructive-strong" aria-hidden="true" />
+              <p className="text-base font-semibold text-destructive-strong">Could not load this shift&rsquo;s orders</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                This is a connection problem, not an empty shift — any order you raised is still there.
+              </p>
+              <Button variant="outline" className="h-12" onClick={() => void refetchWOs()}>
+                Try again
+              </Button>
+            </div>
           ) : !shiftWOs.length ? (
-            <p className="text-muted-foreground text-center py-8">No maintenance orders this shift yet. Create one above!</p>
+            <p className="text-base text-muted-foreground text-center py-8">No maintenance orders this shift yet. Create one above!</p>
           ) : (
             <div className="overflow-x-auto -mx-3 sm:mx-0">
             <Table>

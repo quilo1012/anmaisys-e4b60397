@@ -76,7 +76,11 @@ export function AndonBar({
           <div className="font-display text-2xl font-bold uppercase leading-none tracking-[0.08em] sm:text-[2rem]">
             {verdict}
           </div>
-          <div className="mt-2 text-2xs font-semibold uppercase tracking-[0.12em] opacity-80">
+          {/* This line is what the number was measured against — without it, as the
+              note at the top of this file says, 104% is a number with no question.
+              It was 11px at 80% opacity, which measured 4.0–4.15:1: under AA, on
+              the one piece of text that gives the figure beside it its meaning. */}
+          <div className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] sm:text-base">
             {basis}
           </div>
         </div>

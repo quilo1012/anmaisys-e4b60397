@@ -2,7 +2,7 @@
  * Role rules — the sheet a manager hands an auditor.
  *
  * EVERYTHING ON THIS PAGE IS DERIVED FROM THE LIVE MATRIX, NEVER TYPED TWICE. The
- * "Pode" and "Não pode" columns are computed through `roleHolds(role, action)` over
+ * The "Can" and "Cannot" columns are computed through `roleHolds(role, action)` over
  * `ALL_ACTIONS` / `ACTION_GROUPS` at render time, so the page reflects the matrix as
  * it is right now, including any override loaded from `role_permission_overrides`.
  * A hand-written list of rules would be right the day it is written and a lie the
@@ -66,10 +66,10 @@ function ActionLine({ entry, allowed }: { entry: RuleEntry; allowed: boolean }) 
               variant="outline"
               className="ml-2 h-4 px-1 align-middle text-[10px] font-semibold uppercase print:border-black print:text-black"
             >
-              regra alterada
+              changed rule
             </Badge>
             <span className="ml-1.5 text-xs text-muted-foreground print:text-black">
-              (por defeito: {entry.defaultAllowed ? "pode" : "não pode"})
+              (default: {entry.defaultAllowed ? "can" : "cannot"})
             </span>
           </>
         )}
@@ -89,7 +89,7 @@ function RuleColumn({ rules, allowed }: { rules: RoleRules; allowed: boolean }) 
             : "mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground print:text-black"
         }
       >
-        {allowed ? "Pode" : "Não pode"}
+        {allowed ? "Can" : "Cannot"}
       </h4>
       <div className="space-y-3">
         {rules.groups.map((g) => {
@@ -97,7 +97,7 @@ function RuleColumn({ rules, allowed }: { rules: RoleRules; allowed: boolean }) 
             // A group the role holds nothing in is one line, not twenty denials.
             return (
               <div key={g.key} className="text-sm text-muted-foreground print:text-black">
-                {g.label} — sem qualquer acesso
+                {g.label} — no access at all
               </div>
             );
           }
@@ -117,7 +117,7 @@ function RuleColumn({ rules, allowed }: { rules: RoleRules; allowed: boolean }) 
           );
         })}
         {allowed && rules.allowed.length === 0 && (
-          <p className="text-sm text-muted-foreground print:text-black">Este perfil não tem qualquer permissão.</p>
+          <p className="text-sm text-muted-foreground print:text-black">This role holds no permissions at all.</p>
         )}
       </div>
     </div>
@@ -213,19 +213,19 @@ export default function RoleRulesPage() {
         </div>
 
         <PageHeader
-          module="Sistema · Acessos"
-          title="Regras dos perfis"
-          description="O que cada perfil pode e não pode fazer. Gerado a partir da matriz de permissões em vigor — muda quando a matriz muda."
+          module="System · Access"
+          title="Role rules"
+          description="What each role can and cannot do. Generated from the permission matrix in force — it changes when the matrix changes."
           icon={<ShieldCheck className="h-5 w-5" />}
           actions={
             <div className="flex items-center gap-2 print:hidden">
               <Button variant="outline" size="sm" onClick={() => window.print()}>
-                <Printer className="mr-1.5 h-4 w-4" /> Imprimir
+                <Printer className="mr-1.5 h-4 w-4" /> Print
               </Button>
               {canEdit && (
                 <Button variant="outline" size="sm" asChild>
                   <Link to="/dashboard/permissions">
-                    <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Editar permissões
+                    <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Edit permissions
                   </Link>
                 </Button>
               )}
@@ -235,16 +235,16 @@ export default function RoleRulesPage() {
 
         {/* The sentence an auditor is owed: this is not a screen-only courtesy. */}
         <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground print:border-black print:bg-transparent print:text-black">
-          Estas regras são aplicadas no ecrã <strong>e na base de dados</strong> (RLS e funções do servidor):
-          esconder um botão não é o que trava a acção. Onde uma regra foi alterada localmente em relação ao
-          que o sistema traz de origem, a linha leva a marca <em>regra alterada</em> e mostra o valor por defeito.
-          Folha de {FACTORY}, produzida a {generatedOn}.
+          These rules are enforced on screen <strong>and in the database</strong> (RLS and server functions):
+          hiding a button is not what stops the action. Where a rule has been changed locally from what the
+          system ships with, the line is marked <em>changed rule</em> and shows the default value.
+          {FACTORY} sheet, produced on {generatedOn}.
         </p>
 
         {/* Role chooser — a link per role, so a single sheet has its own URL. */}
-        <div className="flex flex-wrap gap-1.5 print:hidden" aria-label="Perfis">
+        <div className="flex flex-wrap gap-1.5 print:hidden" aria-label="Roles">
           <Button variant={single ? "outline" : "secondary"} size="sm" asChild>
-            <Link to="/dashboard/roles">Todos</Link>
+            <Link to="/dashboard/roles">All</Link>
           </Button>
           {ACTIVE_ROLES.map((r) => (
             <Button key={r} variant={single === r ? "secondary" : "outline"} size="sm" asChild>

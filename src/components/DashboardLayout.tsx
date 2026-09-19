@@ -459,7 +459,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
               <RailFlyout label={group.label} items={group.items}>
                 <button
                   type="button"
-                  aria-label={`${group.label} — abrir secção`}
+                  aria-label={`${group.label} — open section`}
                   className="mx-auto flex w-full flex-col items-center gap-0.5 pt-1.5 pb-0.5 text-sidebar-foreground/50 hover:text-sidebar-foreground"
                 >
                   <span className="text-[9px] font-bold uppercase tracking-[0.1em]">
@@ -490,7 +490,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                     const button = (
                         <SidebarMenuButton
                           asChild
-                          tooltip={kids.length ? `${item.title} (${kids.length} páginas)` : item.title}
+                          tooltip={kids.length ? `${item.title} (${kids.length} pages)` : item.title}
                           className={cn(
                             "h-9 rounded-md transition-colors",
                             "group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10",
@@ -870,7 +870,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         onOpenChange={handleSidebarOpenChange}
         style={{ "--sidebar-width": "13rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}
       >
-        <div className="flex h-screen w-full overflow-hidden">
+        {/* `dvh`, not `vh`: on mobile Safari and Chrome `100vh` is the LARGE
+            viewport, so the shell was taller than the visible area and the
+            fixed bottom tab bar sat underneath the browser's own bar. The
+            sidebar already used `h-svh` and the dialog already used `dvh`; this
+            file, which is the shell for everything, had been left behind.
+            `--app-banner-h` is the update banner's reserved space (index.css). */}
+        <div className="flex h-[calc(100dvh-var(--app-banner-h))] w-full overflow-hidden">
           <Sidebar collapsible={sidebarUiState === "hidden" ? "offcanvas" : "icon"} className="border-r border-sidebar-border print:hidden">
 
             <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
@@ -919,6 +925,15 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               </Button>
             </div>
           </Sidebar>
+
+          {/* Roughly forty tab stops used to stand between the address bar and the
+              first control on the page: the entire sidebar, then the header. */}
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[300] focus:rounded-md focus:bg-primary focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            Skip to content
+          </a>
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header
@@ -999,9 +1014,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             )}
             <div
               ref={contentRef}
+              id="main-content"
+              tabIndex={-1}
               className={cn(
                 "flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6 min-w-0",
                 "pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-6",
+                "focus-visible:outline-none",
               )}
             >
               <div className="min-w-0 w-full">{children}</div>

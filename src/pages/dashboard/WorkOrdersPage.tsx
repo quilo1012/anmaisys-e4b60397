@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, UserPlus, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal } from "lucide-react";
+import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, UserPlus, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal, WifiOff } from "lucide-react";
 import { useWorkOrders, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
@@ -140,7 +140,7 @@ export default function WorkOrdersPage() {
     statusFilter === "all" || statusFilter === "stale"
       ? undefined
       : [statusFilter as WOStatus];
-  const { data: workOrders, isLoading } = useWorkOrders({ statusIn: filterStatuses });
+  const { data: workOrders, isLoading, isError: woError, refetch: refetchWOs } = useWorkOrders({ statusIn: filterStatuses });
   const closeWO = useCloseWorkOrder();
   const createWO = useCreateWorkOrder();
   const updateWO = useUpdateWorkOrder();
@@ -536,7 +536,7 @@ export default function WorkOrdersPage() {
               Showing one order: <span className="font-mono font-semibold">WO #{pinnedWo}</span>
             </span>
             <span className="text-muted-foreground">All other filters are ignored while it is pinned.</span>
-            <Button variant="outline" size="sm" className="ml-auto h-7 text-xs" onClick={clearPinnedWo}>
+            <Button variant="outline" size="sm" className="ml-auto h-11" onClick={clearPinnedWo}>
               Show all orders
             </Button>
           </div>
@@ -563,9 +563,27 @@ export default function WorkOrdersPage() {
             {/* Row 2 — View toggle + Unified date range + Shift */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="inline-flex items-center rounded-md border bg-background p-0.5 shadow-sm">
-                  <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="h-9 w-9 p-0"><List className="h-4 w-4" /></Button>
-                  <Button variant={viewMode === "board" ? "secondary" : "ghost"} size="sm" onClick={() => setViewMode("board")} className="h-9 w-9 p-0"><LayoutGrid className="h-4 w-4" /></Button>
+                <div role="group" aria-label="View mode" className="inline-flex items-center gap-1 rounded-md border bg-background p-1 shadow-sm">
+                  <Button
+                    variant={viewMode === "table" ? "secondary" : "ghost"}
+                    size="icon"
+                    aria-label="Table view"
+                    aria-pressed={viewMode === "table"}
+                    onClick={() => setViewMode("table")}
+                    className="h-11 w-11"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === "board" ? "secondary" : "ghost"}
+                    size="icon"
+                    aria-label="Board view"
+                    aria-pressed={viewMode === "board"}
+                    onClick={() => setViewMode("board")}
+                    className="h-11 w-11"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
                 </div>
                 <DateRangeFilter
                   value={drRange}
@@ -781,6 +799,17 @@ export default function WorkOrdersPage() {
             />
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : woError ? (
+              /* An error and an empty list are different answers. This one used to
+                 tell an engineer walking between machines that there was no work. */
+              <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
+                <WifiOff className="h-8 w-8 text-destructive-strong" aria-hidden="true" />
+                <p className="text-base font-semibold text-destructive-strong">Could not load the orders</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Connection problem — this is not an empty list. Nothing has been lost.
+                </p>
+                <Button variant="outline" className="h-12" onClick={() => void refetchWOs()}>Try again</Button>
+              </div>
             ) : !filteredWOs?.length ? (
               <div className="text-center py-12">
                 <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
@@ -946,7 +975,10 @@ export default function WorkOrdersPage() {
                           {isCol("created") && <TableCell className="text-sm text-muted-foreground">{format(new Date(wo.created_at), "dd/MM HH:mm")}</TableCell>}
                           {isCol("parts") && <TableCell className="no-print">{partsCounts?.[wo.id] ? <Badge variant="secondary">{partsCounts[wo.id]}</Badge> : "—"}</TableCell>}
                           {isCol("actions") && <TableCell className="no-print">
-                            <div className="flex gap-1">
+                            {/* `gap-3`, not `gap-1`. Sign off and Force close are both
+                                irreversible and used to sit 4px from each other and from
+                                Edit, at 36px tall, inside a table cell on a phone. */}
+                            <div className="flex flex-wrap items-center gap-3">
                               {/* This carried a printer icon but only opened the order in a new
                                   tab, so clicking the printer on a row printed nothing and the
                                   order sheet had to be found and printed by hand. It now opens
@@ -967,17 +999,17 @@ export default function WorkOrdersPage() {
                                   which keeps its history and leaves an audit trail; deleting it
                                   took the downtime, parts and timings with it. */}
                               {unacceptedMinutes(wo) !== null && canAssign && (
-                                <Button size="sm" variant="outline" onClick={() => setAssignWO(wo)}>
+                                <Button size="sm" variant="outline" className="h-11" onClick={() => setAssignWO(wo)}>
                                   <UserPlus className="h-3 w-3 mr-1" /> Assign
                                 </Button>
                               )}
                               {canClose && canSignOff && (
-                                <Button size="sm" variant="default" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: profile?.name || "Maintenance Manager" })} disabled={closeWO.isPending}>
+                                <Button size="sm" variant="default" className="h-11" onClick={() => closeWO.mutate({ woId: wo.id, signatureName: profile?.name || "Maintenance Manager" })} disabled={closeWO.isPending}>
                                   {closeWO.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />} Sign off
                                 </Button>
                               )}
                               {canForceClose && canForce && (
-                                <Button size="sm" variant="destructive" onClick={() => setForceCloseWO(wo)}>
+                                <Button size="sm" variant="destructive" className="h-11 sm:ml-2" onClick={() => setForceCloseWO(wo)}>
                                   <XCircle className="h-3 w-3 mr-1" /> Force
                                 </Button>
                               )}

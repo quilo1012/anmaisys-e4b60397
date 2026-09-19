@@ -35,6 +35,7 @@ import {
   ACTION_GROUPS,
   ACTION_LABELS,
   ACTION_DESCRIPTIONS,
+  roleTitle,
   type Action,
   type Role,
 } from "@/lib/permissions";
@@ -509,7 +510,11 @@ export default function PermissionsMatrixPage() {
                                       type="button"
                                       onClick={() => toggle(r, a)}
                                       disabled={!isAdmin}
-                                      aria-label={`${allowed ? "allowed" : "denied"} — toggle`}
+                                      // Every cell in an 8-role by ~100-action grid used to
+                                      // announce the identical "allowed — toggle", so a screen
+                                      // reader could not tell which cell was about to change —
+                                      // on the screen that decides who may close an order.
+                                      aria-label={`${roleTitle[r]} — ${a} — ${allowed ? "allowed" : "denied"}, toggle`}
                                       className={[
                                         "inline-flex h-9 w-9 items-center justify-center rounded-md border transition",
                                         allowed
@@ -519,12 +524,13 @@ export default function PermissionsMatrixPage() {
                                         !isAdmin ? "cursor-not-allowed opacity-70" : "cursor-pointer",
                                       ].join(" ")}
                                     >
-                                      {allowed ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                                      {allowed ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <X className="h-3.5 w-3.5" aria-hidden="true" />}
                                     </button>
                                     {isAdmin && differsFromDefault && (
                                       <button
                                         type="button"
                                         title="Reset to default"
+                                        aria-label={`Reset ${roleTitle[r]} — ${a} to its default`}
                                         onClick={() => resetCell(r, a)}
                                         className="absolute -right-3 -top-1 rounded-full bg-background text-2xs text-muted-foreground hover:text-foreground"
                                       >

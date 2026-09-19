@@ -18,7 +18,7 @@ import {
 } from "@/lib/linePerformance";
 import { identifyItemSku, pickLineSku, type LineSkuItem } from "@/lib/lineSku";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
-import { ArrowLeft, Maximize2, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Maximize2, Pencil, Check, X, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -163,9 +163,16 @@ export default function LineDisplayScreen() {
   });
 
 
-  const { data: rag } = useQuery({
+  const { data: rag, isError: ragError } = useQuery({
     queryKey: ["rag-live", date, line, shift],
     enabled: !!line,
+    // This screen hangs on a wall and nobody touches it, so `refetchOnWindowFocus`
+    // never fires: a fullscreen kiosk emits no focus event. It used to rely
+    // entirely on the Realtime websocket, subscribed with no status callback and
+    // no reconnect handling — when that socket dropped, the wall froze silently
+    // and showed numbers from whenever it last worked.
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("rag_weekly_entries")
@@ -179,9 +186,11 @@ export default function LineDisplayScreen() {
     },
   });
 
-  const { data: itemsData } = useQuery({
+  const { data: itemsData, isError: itemsError } = useQuery({
     queryKey: ["prod-items-live", date, line, shift],
     enabled: !!line,
+    refetchInterval: 20_000,
+    refetchIntervalInBackground: true,
     queryFn: async () => {
       const { data: sessions, error: e1 } = await supabase
         .from("production_sessions")
@@ -293,7 +302,7 @@ export default function LineDisplayScreen() {
 
   if (!line) {
     return (
-      <div className="min-h-screen bg-wall text-wall-ink flex items-center justify-center p-8 text-center">
+      <div className="dark min-h-screen bg-wall text-wall-ink flex items-center justify-center p-8 text-center">
         <div>
           <h1 className="text-4xl font-bold mb-4">No Production Line Assigned</h1>
           <p className="text-xl text-wall-ink-muted">
@@ -305,19 +314,43 @@ export default function LineDisplayScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-wall text-wall-ink p-6 flex flex-col gap-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-5xl font-black tracking-tight">{line}</h1>
-          <p className="text-wall-ink-muted text-xl mt-1">{SHIFT_LABEL[shift]}</p>
+    /* `dark` is pinned here on purpose. This route renders OUTSIDE DashboardLayout,
+       which is the only thing that adds and removes the class — so anyone who had
+       visited a dashboard screen with the light theme saved left the wall running
+       light tokens over the fixed near-black `wall-panel`. Measured, that put the
+       state plate at 2.54:1 and the progress bar at 2.99:1, well under the 3:1
+       floor: the two things the wall exists to show were the two that vanished. */
+    <div className="dark min-h-screen bg-wall text-wall-ink p-6 flex flex-col gap-6">
+      {/* A failed read used to fall through to hasSession:false, and the wall then
+          announced "Line not started" — a network problem presented to the whole
+          factory as a production fact, which sends a manager walking to the line. */}
+      {(itemsError || ragError) && (
+        <div
+          role="alert"
+          className="flex items-center justify-center gap-4 rounded-xl border-4 border-destructive bg-destructive/20 px-6 py-4 text-center"
+        >
+          <WifiOff className="h-10 w-10 shrink-0" aria-hidden="true" />
+          <span className="text-3xl font-black uppercase tracking-wide">
+            No connection to the server — figures below are from{" "}
+            {rag?.updated_at ? new Date(rag.updated_at).toLocaleTimeString("en-GB") : "an earlier read"}
+          </span>
         </div>
-        <div className="flex items-center gap-4">
-          <div className={`px-6 py-3 rounded-xl text-2xl font-bold ${status.color}`}>{status.label}</div>
+      )}
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-5xl 2xl:text-7xl font-black tracking-tight">{line}</h1>
+          <p className="text-wall-ink-muted text-xl 2xl:text-3xl mt-1">{SHIFT_LABEL[shift]}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className={`px-6 py-3 rounded-xl text-2xl 2xl:text-5xl font-bold ${status.color}`}>{status.label}</div>
           <div className="text-right">
             <div className="text-4xl font-figure font-bold">
               {now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
             </div>
-            <div className="text-sm text-wall-ink-muted">
+            {/* 14px on a wall TV is about 4.4 minutes of arc at five metres — below
+                the threshold for reading at all. The number was legible and the
+                word telling you what it meant was not. */}
+            <div className="text-xl 2xl:text-3xl text-wall-ink-muted">
               Updated {rag?.updated_at ? new Date(rag.updated_at).toLocaleTimeString("en-GB") : "—"}
             </div>
           </div>
@@ -333,7 +366,7 @@ export default function LineDisplayScreen() {
             REQUEST WO
           </Button>
 
-          <Button variant="outline" onClick={() => navigate("/dashboard/line-hub")} className="h-12 px-4 gap-2">
+          <Button variant="outline" onClick={() => navigate("/dashboard/operator")} className="h-12 px-4 gap-2">
             <ArrowLeft className="h-5 w-5" /> Back
           </Button>
 
@@ -426,7 +459,7 @@ export default function LineDisplayScreen() {
         );
       })()}
 
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-6">
 
         {/* Sem cor por mosaico, e a razão não é o contraste — é o que a cor diz.
             ACTUAL estava verde e REMAINING âmbar SEMPRE, corresse a linha bem ou
@@ -606,8 +639,17 @@ export default function LineDisplayScreen() {
 function WallTile({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="bg-wall-panel rounded-2xl p-6 text-center">
-      <div className="text-wall-ink-muted text-sm tracking-widest mb-2">{label}</div>
-      <div className={`text-wall-ink ${mono ? "font-figure" : ""} text-6xl font-black`}>{value}</div>
+      {/* Sized in `clamp` against the viewport rather than a fixed step, because
+          the same component has to hold up on a 1280px tablet in portrait and on
+          a 4K wall TV. At five metres a 60px figure subtends about 18.8 minutes
+          of arc — marginal — and a 14px label about 4.4, which is not readable at
+          all: the number could be read and the word saying what it was could not. */}
+      <div className="text-wall-ink-muted text-[clamp(1rem,1.6vw,2.25rem)] font-semibold uppercase tracking-widest mb-2">
+        {label}
+      </div>
+      <div className={`text-wall-ink ${mono ? "font-figure" : ""} text-[clamp(2.75rem,8vw,10rem)] font-black leading-none`}>
+        {value}
+      </div>
     </div>
   );
 }

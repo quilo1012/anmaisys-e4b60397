@@ -76,9 +76,9 @@ export default function IntouchMachineMapPage() {
     const owner = machineLineById.get(r.machine_name);
     // Não saber não é discordar — a mesma regra que o poller aplica.
     if (owner === undefined || owner === null || owner === r.line_id) return null;
-    return `"${r.machine_name}" pertence a ${lineNameById.get(owner) ?? "outra linha"}, `
-      + `não a ${lineNameById.get(r.line_id) ?? "esta linha"}. Enquanto assim estiver, `
-      + `nenhuma ordem automática é aberta para esta máquina.`;
+    return `"${r.machine_name}" belongs to ${lineNameById.get(owner) ?? "another line"}, `
+      + `not to ${lineNameById.get(r.line_id) ?? "this line"}. While that is the case, `
+      + `no automatic order is opened for this machine.`;
   };
 
   const syncFromIntouch = useMutation({

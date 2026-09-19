@@ -160,7 +160,11 @@
     --popover-foreground: 213 27% 95%;
 
     --primary: 207 80% 56%;
-    --primary-foreground: 0 0% 100%;
+    /* Ink, not white. White on this blue measures 3.09:1 — under AA for text, and
+       this is the DEFAULT theme, so it applied to every default Button and every
+       default Badge in the app. Ink on the same blue measures 5.34:1, and the
+       state tokens above already made exactly this choice. */
+    --primary-foreground: 215 28% 8%;
 
     --secondary: 215 22% 17%;
     --secondary-foreground: 213 27% 95%;
@@ -201,7 +205,7 @@
     --sidebar-background: 215 30% 11%;
     --sidebar-foreground: 213 27% 95%;
     --sidebar-primary: 207 80% 56%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary-foreground: 215 28% 8%; /* same 3.09:1 problem as --primary above */
     --sidebar-accent: 215 24% 18%;
     --sidebar-accent-foreground: 213 27% 95%;
     --sidebar-border: 215 22% 18%;
@@ -224,15 +228,20 @@
   }
 }
 
-/* Anti-autofill: remove browser yellow/blue backgrounds */
+/* Anti-autofill: remove browser yellow/blue backgrounds.
+   The inset shadow used to be a hard `white` with `-webkit-text-fill-color:
+   inherit`, and the inherited colour in dark mode is near-white — so accepting
+   a Chrome autofill suggestion left white text on a white box, about 1.1:1. Both
+   sides now come from the theme, so the field looks the same filled or empty. */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 1000px white inset !important;
-  -webkit-text-fill-color: inherit !important;
+  -webkit-box-shadow: 0 0 0 1000px hsl(var(--background)) inset !important;
+  -webkit-text-fill-color: hsl(var(--foreground)) !important;
+  caret-color: hsl(var(--foreground));
   transition: background-color 9999s ease-in-out 0s;
 }
 
@@ -298,6 +307,64 @@ select:-webkit-autofill {
     overflow: visible !important;
   }
 
+  /* …but `overflow: visible` on its own turns a too-wide table into SILENT
+     CLIPPING: the right-hand columns simply are not on the sheet, with no
+     scrollbar and no hint that anything is missing. The wide boards are
+     min-w-[820px] to min-w-[900px] against ~719px of usable A4 portrait. The
+     iframe printer already neutralises this (printDocument.ts); the global sheet
+     never did. */
+  [class*="min-w-\["] {
+    min-width: 0 !important;
+  }
+
+  /* A `sticky` header cannot be repeated by the browser, so page 2 of a long
+     table came out with no column headings at all — on the permissions matrix
+     that is a sheet of unlabelled boxes. `table-header-group` only works from a
+     statically positioned thead. */
+  thead,
+  [class*="sticky"] {
+    position: static !important;
+  }
+
+  /* Cards cut in half across a page break. The iframe printer avoids this and
+     the global sheet did not; only three cards in the whole app opted in by
+     hand with `print:break-inside-avoid`. */
+  .print-content [class*="rounded-lg"],
+  .print-content [class*="rounded-xl"],
+  .print-content section {
+    break-inside: avoid;
+  }
+
+  /* Black and white is how these sheets are actually read, and in greyscale the
+     three state colours land on 83, 102 and 78 of 255 — green and red two per
+     cent apart. Pulling them apart does not make a colour-only badge correct
+     (that still needs a word or a glyph beside it), but it stops the sheet
+     actively misleading the person holding it.
+     Fills become three light greys far enough apart to tell apart, each with
+     black on top — a mid grey with white text reads worse on paper than it does
+     on screen. The `-strong` variants are text, so they go to black. */
+  :root,
+  :root.dark {
+    --success: 0 0% 88%;
+    --success-foreground: 0 0% 0%;
+    --success-strong: 0 0% 0%;
+    --warning: 0 0% 76%;
+    --warning-foreground: 0 0% 0%;
+    --warning-strong: 0 0% 0%;
+    --destructive: 0 0% 58%;
+    --destructive-foreground: 0 0% 0%;
+    --destructive-strong: 0 0% 0%;
+  }
+
+  /* And the same for the text classes, which are often laid over a 10-20% tint
+     of their own colour: a mid grey on near-white at 9pt does not survive the
+     photocopier these sheets go through. */
+  [class*="text-warning"],
+  [class*="text-success"],
+  [class*="text-destructive"] {
+    color: #000 !important;
+  }
+
   /* A screen that asked for landscape gets it. `.print-landscape` goes on the page's
      own content wrapper, so nothing else on the site changes paper. */
   .print-landscape {
@@ -330,6 +397,10 @@ select:-webkit-autofill {
   .pagination, .filters-section,
   [data-radix-dialog-overlay], [role="dialog"],
   .sonner-toast, [data-sonner-toaster],
+  /* The shadcn toaster is a separate viewport from sonner's and was not on this
+     list, so a live error toast printed itself over the document header —
+     which is exactly when someone reaches for Ctrl+P. */
+  [data-radix-toast-viewport], .toaster,
   .breadcrumb, [aria-label="breadcrumb"] {
     display: none !important;
     width: 0 !important;
@@ -456,7 +527,13 @@ select:-webkit-autofill {
     display: block !important;
   }
 
-  .print-content [class*="flex"] {
+  /* An explicit list, not a substring match. `[class*="flex"]` also caught
+     `flex-1`, so a plain child of a flex row became a flex CONTAINER itself and
+     laid ITS children out in a row — which is exactly the scorecard bug
+     documented in LeaderScorecardBody.tsx, where a caption ended up beside its
+     bars and on top of the next label. */
+  .print-content .flex,
+  .print-content .inline-flex {
     display: flex !important;
   }
 
@@ -1007,20 +1084,70 @@ select:-webkit-autofill {
  * Touch / tablet ergonomics
  * - `.touch-manipulation` utility eliminates the 300ms tap delay on iOS
  *   Safari (touch-action: manipulation disables double-tap-to-zoom).
- * - On tablets (≤ 1024px) bump the `h-8` / `h-9` shadcn button sizes to
- *   the WCAG 2.5.5 minimum of 44px so gloved operators don't miss taps.
+ * - On any touch device, every control gets the 48px minimum this factory
+ *   asked for. This used to be `@media (max-width: 1024px)` matching only
+ *   `button.h-8` / `button.h-9`, and it had three holes that all pointed the
+ *   same way — away from the one device it was written for:
+ *     1. the Galaxy Tab on the line is 1280px wide in landscape, so the query
+ *        never fired on the tablet the operators actually hold;
+ *     2. it set `min-height` only, so an `h-8 w-8` icon button stayed 32px
+ *        WIDE — half the target in the axis a thumb misses on;
+ *     3. it matched two height classes on two tag names, so `h-7`, `h-6`,
+ *        `py-1` chips, Radix items and inputs all escaped.
+ *   `(pointer: coarse)` asks the right question — "is a finger driving this" —
+ *   instead of guessing from viewport width.
+ *   `min-width` does not apply to non-replaced inline elements, so inline text
+ *   links in prose are untouched; only inline-block controls grow.
+ *   Opt a control out with `.touch-exempt` when it is genuinely decorative or
+ *   sits inside its own larger hit area.
  * =========================================================================== */
 .touch-manipulation {
   touch-action: manipulation;
 }
 
-@media (max-width: 1024px) {
-  button.h-8,
-  button.h-9,
-  a.h-8,
-  a.h-9 {
-    min-height: 44px;
+@media (pointer: coarse) {
+  button:not(.touch-exempt),
+  a[href]:not(.touch-exempt),
+  [role="button"]:not(.touch-exempt),
+  [role="option"]:not(.touch-exempt),
+  [role="menuitem"]:not(.touch-exempt),
+  [role="menuitemcheckbox"]:not(.touch-exempt),
+  [role="menuitemradio"]:not(.touch-exempt),
+  [role="tab"]:not(.touch-exempt),
+  select:not(.touch-exempt),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not(.touch-exempt) {
+    min-height: 48px;
+    min-width: 48px;
   }
+
+  /* A control that fills its row already clears the width minimum, and a
+     textarea is sized by its rows, not by a thumb. */
+  textarea {
+    min-width: 0;
+  }
+}
+
+/* ===========================================================================
+ * Space reserved for the "new version available" banner.
+ *
+ * The banner is `fixed top-0 z-[200]` and nothing used to move out from under
+ * it, so while an update was pending it covered the sidebar toggle, Back, the
+ * page title, the notification bell and the critical-alert bell. On a kiosk
+ * tablet — no browser chrome, no way to scroll the banner away — that left the
+ * operator with no way out of the screen.
+ *
+ * AppUpdater sets `data-app-banner="1"` on <html> while it is showing; the shell
+ * subtracts this from its own height and every other screen is pushed down by
+ * the padding on #root.
+ * =========================================================================== */
+:root {
+  --app-banner-h: 0px;
+}
+:root[data-app-banner="1"] {
+  --app-banner-h: 3.25rem;
+}
+#root {
+  padding-top: var(--app-banner-h);
 }
 
 /* ===========================================================================

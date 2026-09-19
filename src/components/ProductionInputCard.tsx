@@ -101,6 +101,11 @@ export function ProductionInputCard({
   };
 
   const saveItem = async (it: Item) => {
+    // Enter reached this with no guard while only the button carried `disabled`.
+    // The write is an idempotent UPDATE so it does not duplicate a row, but two
+    // Enters fire two invalidations and can write over a value another tablet
+    // changed in between.
+    if (saveState[it.id] === "saving") return;
     const raw = values[it.id];
     const n = Number(raw ?? 0);
     if (!Number.isFinite(n) || n < 0) {

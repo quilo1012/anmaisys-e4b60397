@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, FileText, MoreVertical, ChevronRight, BookOpen } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, FileText, MoreVertical, ChevronRight, BookOpen, WifiOff } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
@@ -299,7 +299,7 @@ function EngineerDashboardContent() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const isMobile = useIsMobile();
-  const { data: workOrders, isLoading } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
+  const { data: workOrders, isLoading, isError: woError, refetch: refetchWOs } = useWorkOrders({ statusIn: ["open", "received", "arrived", "in_progress"] as any });
   const { data: allCompleted } = useWorkOrders({ statusIn: ["completed", "closed", "finished"] as any });
 
   // Server-side history scoped to the logged-in engineer (primary OR collaborator).
@@ -1164,8 +1164,19 @@ function EngineerDashboardContent() {
           <CardContent className="p-3 md:p-6 pt-0">
             {isLoading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : woError ? (
+              /* An error and an empty list are different answers. This one used to
+                 tell an engineer walking between machines that there was no work. */
+              <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
+                <WifiOff className="h-8 w-8 text-destructive-strong" aria-hidden="true" />
+                <p className="text-base font-semibold text-destructive-strong">Could not load the orders</p>
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  Connection problem — this is not an empty list. Nothing has been lost.
+                </p>
+                <Button variant="outline" className="h-12" onClick={() => void refetchWOs()}>Try again</Button>
+              </div>
             ) : !activeWOs?.length ? (
-              <p className="text-muted-foreground text-center py-8">No open maintenance orders right now.</p>
+              <p className="text-base text-muted-foreground text-center py-8">No open maintenance orders right now.</p>
             ) : isMobile ? (
               (() => {
                 const openWOs = activeWOs.filter((w) => w.status === "open");

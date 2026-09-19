@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
-import { Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -24,11 +24,17 @@ export function InlineActualInput({ itemId, value, disabled, align = "right", in
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // The write failed and the number on screen is the one the operator typed, not
+  // the one in the database. It used to be thrown away and replaced by the stored
+  // value, which on a factory wifi means a silent loss with a 4-second toast as
+  // the only trace. `failed` also holds the sync-back below open, because commit()
+  // clears `editing` before it knows whether the save worked.
+  const [failed, setFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!editing) setVal(String(value ?? 0));
-  }, [value, editing]);
+    if (!editing && !failed) setVal(String(value ?? 0));
+  }, [value, editing, failed]);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
@@ -43,6 +49,7 @@ export function InlineActualInput({ itemId, value, disabled, align = "right", in
       setEditing(false);
       return;
     }
+    setFailed(false);
     setSaving(true);
     const { error } = await supabase
       .from("production_items")
@@ -52,7 +59,7 @@ export function InlineActualInput({ itemId, value, disabled, align = "right", in
     setEditing(false);
     if (error) {
       toast.error(error.message);
-      setVal(String(value ?? 0));
+      setFailed(true);
       return;
     }
     setSaved(true);
@@ -73,14 +80,23 @@ export function InlineActualInput({ itemId, value, disabled, align = "right", in
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
-          if (e.key === "Escape") { setVal(String(value ?? 0)); setEditing(false); (e.target as HTMLInputElement).blur(); }
+          if (e.key === "Escape") { setFailed(false); setVal(String(value ?? 0)); setEditing(false); (e.target as HTMLInputElement).blur(); }
         }}
+        aria-invalid={failed || undefined}
+        aria-label="Actual quantity"
         className={cn(
-          "h-8 w-24 tabular-nums text-right px-2",
+          "h-10 coarse:h-12 w-24 tabular-nums text-right px-2",
           editing && "border-primary ring-2 ring-primary/30",
+          failed && "border-destructive ring-2 ring-destructive/40",
         )}
       />
       {saved && <Check className="h-4 w-4 text-success-strong" />}
+      {failed && (
+        <span role="alert" className="flex items-center gap-1 text-xs font-medium text-destructive-strong">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          not saved
+        </span>
+      )}
     </div>
   );
 }

@@ -87,6 +87,13 @@ export async function printElementAsDocument(
   .hidden.print\\:block { display: block !important; }
   .hidden.print\\:flex { display: flex !important; }
   .hidden.print\\:grid { display: grid !important; }
+  /* The three documents whose printed BODY is a table — the order list, the
+     preventive schedule, PM Intelligence — were all missing from this list, so
+     the sheet came out with the header and not one row. */
+  .hidden.print\\:table { display: table !important; }
+  .hidden.print\\:table-row { display: table-row !important; }
+  .hidden.print\\:table-cell { display: table-cell !important; }
+  .hidden.print\\:table-header-group { display: table-header-group !important; }
   .print\\:hidden { display: none !important; }
   img { max-width: 100%; }
   table { width: 100%; border-collapse: collapse; }
