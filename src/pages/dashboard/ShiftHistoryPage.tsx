@@ -36,6 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 import XLSX from "xlsx-js-style";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
+import { inRunOrder, shiftTimeToIso } from "@/lib/productionTime";
 
 /** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
 /** date "yyyy-mm-dd" → "MM/YY" for the compact batch mfg/expiry readout. */
@@ -257,9 +258,19 @@ function InlineSessionNumberCell({
     </div>
   );
 }
-/** Inline time (HH:mm) for an item's started_at / finished_at. Saves on blur. */
-function InlineTimeCell({ itemId, sessionDate, field, value, disabled, onSaved }: {
-  itemId: string; sessionDate: string; field: "started_at" | "finished_at";
+/**
+ * Inline time (HH:mm) for an item's started_at / finished_at. Saves on blur.
+ *
+ * The time belongs to the SESSION, not to the calendar day its date happens to name.
+ * This cell used to stamp `sessionDate` with the typed hour and no more, which is
+ * right on a day shift and wrong for half of every night: a night session dated 17/09
+ * runs to 06:00 on the 18th, so a 01:20 start typed here was saved as 17/09 01:20 —
+ * seventeen hours BEFORE the 18:40 run above it, a negative duration, and a run that
+ * counts as nothing on every screen that measures minutes. `shiftTimeToIso` already
+ * knew this; this cell was the one place still doing it by hand.
+ */
+function InlineTimeCell({ itemId, sessionDate, shift, field, value, disabled, onSaved }: {
+  itemId: string; sessionDate: string; shift: string | null; field: "started_at" | "finished_at";
   value: string | null; disabled?: boolean; onSaved: () => void;
 }) {
   const initial = value ? new Date(value).toTimeString().slice(0, 5) : "";
@@ -267,13 +278,8 @@ function InlineTimeCell({ itemId, sessionDate, field, value, disabled, onSaved }
   useEffect(() => { setVal(initial); }, [initial]);
   const commit = async () => {
     if (val === initial) return;
-    let iso: string | null = null;
-    if (val) {
-      const [h, m] = val.split(":").map(Number);
-      const d = new Date(`${sessionDate}T00:00:00`);
-      d.setHours(h, m, 0, 0);
-      iso = d.toISOString();
-    }
+    const iso = val ? shiftTimeToIso(val, sessionDate, shift) : null;
+    if (val && !iso) { toast.error("That is not a time this shift can hold."); setVal(initial); return; }
     if (isPlaceholderRow(itemId)) { toast.error("Pick a SKU for this shift first, then this field can be set."); return; }
     const { error } = await supabase.from("production_items").update({ [field]: iso } as never).eq("id", itemId);
     if (error) { toast.error(error.message); setVal(initial); return; }
@@ -412,7 +418,7 @@ interface SessionRow {
   tickets: number | null;
   tickets_unit: "tubs" | "bags" | null;
   locked: boolean; notes: string | null;
-  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; batch_code: string | null; manufacture_month: string | null; expiry_month: string | null; started_at: string | null; finished_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
+  production_items: { id: string; sku_id: string; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; notes: string | null; blender_ref: string | null; batch_code: string | null; manufacture_month: string | null; expiry_month: string | null; started_at: string | null; finished_at: string | null; display_order: number | null; created_at: string | null; tickets_unit: "tubs" | "bags" | null; production_blender_entries?: { blender_number: number; quantity: number }[] }[];
 }
 
 
@@ -657,7 +663,7 @@ export function ProductionControlPrintSheet({
 
     // Uma sessão sem itens continua a ocupar uma fila: um turno que não registou nada
     // é uma leitura, e desaparecer da folha faria dele um turno que não houve.
-    const items = s.production_items.length > 0 ? s.production_items : [null];
+    const items = s.production_items.length > 0 ? inRunOrder(s.production_items, s.shift) : [null];
     items.forEach((i, idx) => {
       const sku = i ? skuMap.get(i.sku_id) : undefined;
       const code = sku?.code ?? "";
@@ -1009,7 +1015,7 @@ export default function ShiftHistoryPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, batch_code, manufacture_month, expiry_month, started_at, finished_at, tickets_unit, production_blender_entries(blender_number, quantity))")
+        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, batch_code, manufacture_month, expiry_month, started_at, finished_at, display_order, created_at, tickets_unit, production_blender_entries(blender_number, quantity))")
         .gte("session_date", from).lte("session_date", to)
         .order("session_date", { ascending: false });
       if (error) throw error;
@@ -1293,7 +1299,7 @@ export default function ShiftHistoryPage() {
         rows.push([ddmmyyyy(s.session_date), "", lineLabel(s.line), "", "", "", "", "", "", s.shift, "", "", ""]);
         continue;
       }
-      for (const i of s.production_items) {
+      for (const i of inRunOrder(s.production_items, s.shift)) {
         const sku = skuMap.get(i.sku_id);
         const code = baseSkuCode(sku?.code) || i.sku_code_text || "";
         const name = sku?.name ?? "";
@@ -1582,7 +1588,7 @@ export default function ShiftHistoryPage() {
                         filtered.forEach((s) => {
                           const items = s.production_items.length === 0
                             ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, batch_code: null, tickets_unit: null as "tubs" | "bags" | null }]
-                            : s.production_items;
+                            : inRunOrder(s.production_items, s.shift);
                           // A data-linha do dia.
                           //
                           // A folha vem ordenada por dia e, dentro do dia, por linha —
@@ -1834,10 +1840,10 @@ export default function ShiftHistoryPage() {
                                   {weight ? weight.toLocaleString() : "—"}
                                 </td>
                                 <td className={cn("px-3 py-2", RULE)}>
-                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
+                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} shift={s.shift} field="started_at" value={i.started_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className="px-3 py-2">
-                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
+                                  {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} shift={s.shift} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
                                 <td className={cn("px-3 py-2", RULE)}>
                                   <div className="flex items-center justify-end gap-1">
@@ -1877,7 +1883,7 @@ export default function ShiftHistoryPage() {
                   {filtered.flatMap((s) => {
                     const items = s.production_items.length === 0
                       ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, batch_code: null, tickets_unit: null as "tubs" | "bags" | null }]
-                      : s.production_items;
+                      : inRunOrder(s.production_items, s.shift);
                     return items.map((i, idx) => {
                       const sku = skuMap.get(i.sku_id);
                       const code = sku?.code ?? "";
@@ -1976,10 +1982,10 @@ export default function ShiftHistoryPage() {
                           />
                           <TableCardField label="Blender" value={<span className="tabular-nums">{blenders.length ? blenders.join(", ") : "—"}</span>} />
                           {(i.sku_id || i.sku_code_text) && (
-                            <TableCardField label="Start" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="started_at" value={i.started_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
+                            <TableCardField label="Start" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} shift={s.shift} field="started_at" value={i.started_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
                           {(i.sku_id || i.sku_code_text) && (
-                            <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
+                            <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} shift={s.shift} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
                           )}
                           <TableCardField
                             label={blenders.length > 0 && !isAdmin ? "Qty (from blenders)" : "Qty"}
