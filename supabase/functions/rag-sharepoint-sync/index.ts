@@ -6,9 +6,12 @@ import { z } from "https://esm.sh/zod@3.23.8";
  * Reads the factory's Production RAG workbooks through the external SharePoint
  * reader API and hands the normalized per-line records back to the browser.
  *
- * The tunnel address changes whenever the reader restarts, so it lives in
- * `system_settings.rag_api_base_url` and an admin can edit it. The API key
- * never leaves the server.
+ * The reader now lives on a fixed Render host (https URLs saved in
+ * `system_settings.rag_api_base_url`, editable by an admin), so the address no
+ * longer changes on restart. Render's free tier sleeps when idle though, and
+ * the first request after a nap can take 60-100+ seconds while it wakes, so
+ * requests get a generous timeout and `week` mode warms the service up first.
+ * The API key never leaves the server.
  */
 
 const BodySchema = z.object({
@@ -95,10 +98,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Hosts that sleep when idle (Render free tier, for one) take the best part of a
-    // minute to wake, and the first request pays for the whole cold start. A 25s
-    // budget reported that as "unreachable" on a service that was merely asleep, so
-    // the first attempt is given room and a second one follows once it is awake.
+    // A sleeping Render host needs the best part of two minutes to wake, so the
+    // budget is generous; the warm-up below keeps that cost off the day fetches.
     const callOnce = async (path: string, timeoutMs: number) => {
       const res = await fetch(`${base}${path}`, {
         headers: { "x-api-key": apiKey, Accept: "application/json" },
@@ -111,55 +112,55 @@ Deno.serve(async (req) => {
       return await res.json();
     };
 
-    const call = async (path: string) => {
-      try {
-        return await callOnce(path, 70_000);
-      } catch (e) {
-        const msg = (e as Error).message ?? "";
-        // Only a wake-up timeout is worth repeating; a 4xx/5xx answer is a real reply.
-        if (!/timed out|timeout/i.test(msg)) throw e;
-        return await callOnce(path, 40_000);
-      }
-    };
-
     // An unavailable reader is an operational state the board knows how to display,
     // not a crash in this function. Return a structured 200 response so the preview
     // runtime does not turn an expected downstream outage into a blank-screen 502.
+    const unreachable = (details: string) =>
+      json({
+        error: "unreachable",
+        message: `The SharePoint RAG service at ${base} is not responding. It may be waking up — wait a minute and try again. If it keeps failing, check the service on Render or update the address in Settings.`,
+        details,
+      });
     if (mode === "health" || mode === "weeks") {
       try {
-        const payload = await call(mode === "health" ? "/health" : "/weeks");
+        const payload = await callOnce(mode === "health" ? "/health" : "/weeks", 110_000);
         return json(mode === "health" ? { ok: true, base, health: payload } : { ok: true, base, ...payload });
       } catch (e) {
-        return json({
-          error: "unreachable",
-          message: `Could not reach the SharePoint RAG service at ${base}. The address may have changed — update it in Settings.`,
-          details: (e as Error).message,
-        });
+        return unreachable((e as Error).message);
       }
     }
 
     const weekStart = parsed.data.week_start;
     if (!weekStart) return json({ error: "week_start is required" }, 400);
 
+    // Warm the sleeping host up first; once it is awake the day fetches answer
+    // quickly and keep a short timeout.
+    try {
+      await callOnce("/health", 110_000);
+    } catch (e) {
+      return unreachable((e as Error).message);
+    }
+
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
     const records: unknown[] = [];
     const errors: { date: string; error: string }[] = [];
 
-    for (const day of days) {
-      try {
-        const payload = await call(`/performance?date=${day}`);
-        for (const r of (payload?.records ?? [])) records.push(r);
-      } catch (e) {
-        errors.push({ date: day, error: (e as Error).message });
+    const settled = await Promise.allSettled(
+      days.map((day) => callOnce(`/performance?date=${day}`, 25_000)),
+    );
+    settled.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        for (const r of (result.value?.records ?? [])) records.push(r);
+      } else {
+        errors.push({
+          date: days[i],
+          error: (result.reason as Error)?.message ?? String(result.reason),
+        });
       }
-    }
+    });
 
     if (!records.length && errors.length === days.length) {
-      return json({
-        error: "unreachable",
-        message: `Could not reach the SharePoint RAG service at ${base}. The address may have changed — update it in Settings.`,
-        details: errors.slice(0, 3),
-      });
+      return unreachable(errors.slice(0, 3));
     }
 
     return json({ ok: true, week_start: weekStart, count: records.length, records, errors });
