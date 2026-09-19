@@ -1,3 +1,4 @@
+import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { blockOf } from "@/lib/headcountBlocks";
 import { useQueryClient } from "@tanstack/react-query";
@@ -59,6 +60,8 @@ import {
   type HeadcountEmployee,
 } from "@/hooks/useHeadcount";
 import { HeadcountSheetDialog } from "@/components/workforce/HeadcountSheetDialog";
+import { HeadcountPrintSheet } from "@/components/workforce/HeadcountPrintSheet";
+import { printSheetLayout } from "@/lib/headcountSheet";
 import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
@@ -624,7 +627,14 @@ function ShiftBoard({
   }
 
   return (
-    <div className="space-y-4">
+    <>
+    {/* What goes to the printer. The board below is `headcount-on-screen` and stays
+        there; see HeadcountPrintSheet for why paper gets the company's grid instead. */}
+    <HeadcountPrintSheet
+      title={`Production Headcount — ${shift} shift — ${format(parseISO(onDate), "EEEE dd.MM.yyyy")}`}
+      layout={printSheetLayout({ areas, allocations, employeeById })}
+    />
+    <div className="headcount-on-screen space-y-4">
       {/* Says whose board this is before a single column is read.
           It used to be a full-width colour slab in white type. The colour is doing
           real work — in Split the two boards are otherwise identical grids side by
@@ -1260,6 +1270,7 @@ function ShiftBoard({
       </div>
 
     </div>
+    </>
   );
 }
 

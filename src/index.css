@@ -261,6 +261,11 @@ select:-webkit-autofill {
   size: A4 landscape;
 }
 
+/* The headcount's printed sheet. Drawn only on paper — see HeadcountPrintSheet.tsx. */
+.headcount-print-sheet {
+  display: none;
+}
+
 @media print {
   body {
     padding: 10mm !important;
@@ -878,6 +883,78 @@ select:-webkit-autofill {
     margin-top: 3mm !important;
     margin-bottom: 1.5mm !important;
   }
+
+  /* ── The headcount prints as the company's sheet ───────────────────────────────
+     Paper gets the grid the factory already reads — `Production Headcount <month>.xlsx`
+     — and not the board. The board's own print rules above stay: they are what a
+     browser falls back to if this block is ever removed, and the margin rules among
+     them (`:has(.headcount-columns)`) still match, because the board is hidden here,
+     not unmounted.
+
+     The colours are the workbook's own fills, read from the file: FFFF00 headings,
+     D9D9D9 leader, 92D050 totals / Holidays / Overtime, FF0000 Absence, and the purple
+     of "Total staff in Production". `print-color-adjust: exact` is already set on the
+     whole sheet, without which a browser drops every one of them. */
+  .print-content .headcount-on-screen,
+  .print-content:has(.headcount-print-sheet) > .print-keep,
+  .print-content:has(.headcount-print-sheet) > nav {
+    display: none !important;
+  }
+
+  .print-content .headcount-print-sheet {
+    display: block !important;
+    break-inside: avoid;
+  }
+
+  /* Split view prints two sheets, Day then Night, one to a page. */
+  .print-content .headcount-print-sheet ~ .headcount-print-sheet {
+    break-before: page;
+  }
+
+  .hps-title {
+    font-size: 10.5pt !important;
+    font-weight: 700 !important;
+    margin: 0 0 2mm !important;
+    color: #000 !important;
+  }
+
+  .print-content table.hps-band {
+    table-layout: fixed !important;
+    margin: 0 0 3.5mm !important;
+    font-size: 8pt !important;
+    break-inside: avoid;
+  }
+
+  .print-content table.hps-band th,
+  .print-content table.hps-band td {
+    padding: 0.6mm 0.8mm !important;
+    border: 0.75pt solid #000 !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    font-weight: 400 !important;
+    color: #000 !important;
+    background: #fff !important;
+    line-height: 1.12 !important;
+    height: 4.7mm;
+  }
+
+  /* Smaller than the names: "Maintenance" has to fit a 21mm column in one piece, and
+     the global `overflow-wrap: break-word` would otherwise print it as "Maintenanc / e". */
+  .print-content table.hps-band th.hps-head { font-weight: 700 !important; font-size: 7.5pt !important; }
+  .print-content table.hps-band th.hps-area { background: #ffff00 !important; }
+  .print-content table.hps-band th.hps-absence { background: #ff0000 !important; color: #fff !important; }
+  .print-content table.hps-band th.hps-holiday,
+  .print-content table.hps-band th.hps-overtime { background: #92d050 !important; }
+  .print-content table.hps-band th.hps-training { background: #d9e1f2 !important; }
+  .print-content table.hps-band th.hps-total-staff { background: #7030a0 !important; color: #fff !important; }
+  .print-content table.hps-band td.hps-total-staff-figure {
+    font-size: 20pt !important;
+    font-weight: 700 !important;
+  }
+  .print-content table.hps-band td.hps-leader { background: #d9d9d9 !important; font-weight: 700 !important; }
+  .print-content table.hps-band td.hps-sum { background: #92d050 !important; }
+  .print-content table.hps-band td.hps-sum-figure { font-weight: 700 !important; }
+  .hps-note { font-size: 7pt; font-style: italic; }
 
   /* A section folded on screen still prints. See the note where the class is set. */
   .print-content .headcount-folded {

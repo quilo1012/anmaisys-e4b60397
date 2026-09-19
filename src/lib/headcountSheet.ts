@@ -158,6 +158,43 @@ export function parseSheetDate(name: string, fallbackYear: number): string | nul
   return null;
 }
 
+// Blocks follow `section`, the same rule the board draws by, so the sheet and the
+// screen cannot disagree about where Hygiene sits. The totals below still count by
+// `kind` — that is the other question, and the answer to it did not change.
+const sheetBandOf = (a: HeadcountArea): "production" | "support" => {
+  const sec = (a.section ?? "").toLowerCase();
+  // Sectors — hygiene, quality, maintenance, the warehouse — print with support on
+  // the company's sheet, which has two bands and not three. The screen shows them
+  // apart because that is the question a supervisor asks; the sheet keeps its own
+  // shape so an export still reads back the way it always did.
+  if (sec === "production") return "production";
+  if (sec === "sectors" || sec === "support") return "support";
+  return a.kind === "production" ? "production" : "support";
+};
+
+/**
+ * The columns the company's own sheet has, built from the data rather than a list
+ * in this file.
+ *
+ * `sheet_label` renames one — the system says "Line 5", the sheet says
+ * "Line 5 (A&B)". `sheet_group` merges several into one: Capsules Machine 1 and 2
+ * are two areas on the board and a single "Pill line" column on the sheet.
+ *
+ * Anything with neither keeps its own name and still gets a column. That is the
+ * point of doing it this way: a hard-coded column list would have dropped Gel Line
+ * for being empty today and silently lost whoever is put there tomorrow.
+ */
+const columnsOf = (areas: HeadcountArea[]) => {
+  const cols: { label: string; areas: HeadcountArea[] }[] = [];
+  for (const a of areas) {
+    const label = (a.sheet_group ?? a.sheet_label ?? a.name).trim();
+    const existing = cols.find((c) => c.label === label);
+    if (existing) existing.areas.push(a);
+    else cols.push({ label, areas: [a] });
+  }
+  return cols;
+};
+
 /**
  * The board for a range of days, one sheet per day, in the factory's own layout.
  *
@@ -173,45 +210,8 @@ export function buildHeadcountWorkbook(input: {
   allocationsFor: (date: string, shift: string) => Allocation[];
 }): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
-  // Blocks follow `section`, the same rule the board draws by, so the sheet and the
-  // screen cannot disagree about where Hygiene sits. The totals below still count by
-  // `kind` — that is the other question, and the answer to it did not change.
-  const block = (a: HeadcountArea) => {
-    const sec = (a.section ?? "").toLowerCase();
-    // Sectors — hygiene, quality, maintenance, the warehouse — print with support on
-    // the company's sheet, which has two bands and not three. The screen shows them
-    // apart because that is the question a supervisor asks; the sheet keeps its own
-    // shape so an export still reads back the way it always did.
-    if (sec === "production") return "production";
-    if (sec === "sectors" || sec === "support") return "support";
-    return a.kind === "production" ? "production" : "support";
-  };
-
-  /**
-   * The columns the company's own sheet has, built from the data rather than a list
-   * in this file.
-   *
-   * `sheet_label` renames one — the system says "Line 5", the sheet says
-   * "Line 5 (A&B)". `sheet_group` merges several into one: Capsules Machine 1 and 2
-   * are two areas on the board and a single "Pill line" column on the sheet.
-   *
-   * Anything with neither keeps its own name and still gets a column. That is the
-   * point of doing it this way: a hard-coded column list would have dropped Gel Line
-   * for being empty today and silently lost whoever is put there tomorrow.
-   */
-  const columnsOf = (areas: HeadcountArea[]) => {
-    const cols: { label: string; areas: HeadcountArea[] }[] = [];
-    for (const a of areas) {
-      const label = (a.sheet_group ?? a.sheet_label ?? a.name).trim();
-      const existing = cols.find((c) => c.label === label);
-      if (existing) existing.areas.push(a);
-      else cols.push({ label, areas: [a] });
-    }
-    return cols;
-  };
-
-  const production = columnsOf(input.areas.filter((a) => block(a) === "production"));
-  const support = columnsOf(input.areas.filter((a) => block(a) !== "production"));
+  const production = columnsOf(input.areas.filter((a) => sheetBandOf(a) === "production"));
+  const support = columnsOf(input.areas.filter((a) => sheetBandOf(a) !== "production"));
 
   for (const day of input.days) {
     const allocs = input.allocationsFor(day.date, day.shift);
@@ -275,6 +275,118 @@ export function buildHeadcountWorkbook(input: {
   }
 
   return wb;
+}
+
+/** One cell of a printed column: a name, and what the sheet says beside it. */
+export interface PrintSheetName {
+  name: string;
+  /** Printed grey on the first row, the way the sheet marks who runs the line. */
+  leader: boolean;
+  /** "Half day", "left 14:00" — what the office writes after the name by hand. */
+  note?: string;
+}
+
+export interface PrintSheetColumn {
+  label: string;
+  /** Picks the heading's colour: yellow for a place, red / green for a state. */
+  tone: "area" | "absence" | "holiday" | "overtime" | "training";
+  names: PrintSheetName[];
+}
+
+export interface PrintSheetLayout {
+  /** Line 1 … Runner: the top band of the company's sheet. */
+  top: PrintSheetColumn[];
+  /** Lab … Blender Team, then Absence, Holidays, Overtime staff. */
+  bottom: PrintSheetColumn[];
+  /** The purple cell: everyone working, both bands. The sheet's own SUM. */
+  totalStaff: number;
+}
+
+/**
+ * The day laid out the way the company's sheet lays it out — for paper.
+ *
+ * The board prints as the board: cards, chips, three sheets. What hangs by the lines
+ * every morning is `Production Headcount <month>.xlsx`, and a supervisor reads that
+ * shape without reading it. This is that shape, from the same two rules the workbook
+ * uses (`sheetBandOf`, `columnsOf`), so paper, export and import cannot disagree about
+ * which column a person is in.
+ *
+ * Two things differ from the board on purpose:
+ *
+ * - **One "Absence".** The board keeps Sickness and Unpaid apart because payroll needs
+ *   to. The sheet has never said which, and a page pinned up by the lines is not where
+ *   it should start.
+ * - **Training appears only when somebody is on it.** The company sheet has no such
+ *   column, and an empty one every day is a column nobody asked for.
+ */
+export function printSheetLayout(input: {
+  areas: HeadcountArea[];
+  allocations: Allocation[];
+  employeeById: Map<string, HeadcountEmployee>;
+}): PrintSheetLayout {
+  const known = input.allocations.filter((a) => input.employeeById.has(a.employee_id));
+
+  // First and last name, the way the line says it — a column is 23mm wide and
+  // "Felipe de Oliveira Nascimento" took three lines of it, which is what pushed the
+  // day onto a second sheet. Shortened only while it stays one person: if two people
+  // on today's sheet would both read "Maria Santos", both keep every name they have.
+  const shortOf = (full: string) => {
+    const w = full.trim().split(/\s+/);
+    return w.length > 2 ? `${w[0]} ${w[w.length - 1]}` : full.trim();
+  };
+  const wearers = new Map<string, Set<string>>();
+  for (const a of known) {
+    const k = shortOf(input.employeeById.get(a.employee_id)!.full_name).toLowerCase();
+    wearers.set(k, (wearers.get(k) ?? new Set()).add(a.employee_id));
+  }
+  const printed = (full: string) => (wearers.get(shortOf(full).toLowerCase())?.size ?? 0) > 1 ? full.trim() : shortOf(full);
+
+  const hhmm = (t: string | null | undefined) => (t ?? "").slice(0, 5);
+  const cell = (a: Allocation, leader = false): PrintSheetName => {
+    const notes = [
+      a.half_day ? "Half day" : "",
+      a.arrived_late_at ? `in ${hhmm(a.arrived_late_at)}` : "",
+      a.left_early_at ? `left ${hhmm(a.left_early_at)}` : "",
+    ].filter(Boolean);
+    return {
+      name: printed(input.employeeById.get(a.employee_id)!.full_name),
+      leader,
+      ...(notes.length ? { note: notes.join(", ") } : {}),
+    };
+  };
+  // Leader first, then by name — the first row of a column is who runs it.
+  const ordered = (cells: PrintSheetName[]) =>
+    cells.sort((x, y) => Number(y.leader) - Number(x.leader) || x.name.localeCompare(y.name));
+
+  const working = known.filter((a) => a.status === "assigned" || a.status === "overtime");
+  const place = (col: { label: string; areas: HeadcountArea[] }): PrintSheetColumn => {
+    const ids = new Set(col.areas.map((a) => a.id));
+    return {
+      label: col.label,
+      tone: "area",
+      names: ordered(working.filter((a) => a.area_id && ids.has(a.area_id)).map((a) => cell(a, a.is_leader ?? false))),
+    };
+  };
+  const state = (label: string, tone: PrintSheetColumn["tone"], statuses: AllocStatus[]): PrintSheetColumn => ({
+    label, tone, names: ordered(known.filter((a) => (statuses as string[]).includes(a.status)).map((a) => cell(a))),
+  });
+
+  const active = input.areas.filter((a) => a.active !== false);
+  const top = columnsOf(active.filter((a) => sheetBandOf(a) === "production")).map(place);
+  const support = columnsOf(active.filter((a) => sheetBandOf(a) !== "production")).map(place);
+  const training = state("Training", "training", ["training"]);
+
+  return {
+    top,
+    bottom: [
+      ...support,
+      state("Absence", "absence", ["sick", "unpaid"]),
+      state("Holidays", "holiday", ["holiday"]),
+      state("Overtime staff", "overtime", ["overtime"]),
+      ...(training.names.length ? [training] : []),
+    ],
+    totalStaff: [...top, ...support].reduce((n, c) => n + c.names.length, 0),
+  };
 }
 
 /**
