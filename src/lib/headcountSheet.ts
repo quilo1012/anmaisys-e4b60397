@@ -651,7 +651,10 @@ export function parseHeadcountWorkbook(
       const filled = row.filter(Boolean).length;
       if (filled > 0 && hits >= Math.max(1, Math.ceil(filled / 2))) {
         columns = asCols;
-        row.forEach((c, i) => { if (c && !asCols[i]) unknown.add(c); });
+        // "Total staff  in Production" heads a figure, not a list of people. Measured
+        // on the September workbook it was reported as an unknown column on every one of
+        // 23 tabs — a warning that teaches people to ignore the warnings.
+        row.forEach((c, i) => { if (c && !asCols[i] && !NOT_A_NAME.test(c.replace(/\s+/g, " "))) unknown.add(c); });
         continue;
       }
 

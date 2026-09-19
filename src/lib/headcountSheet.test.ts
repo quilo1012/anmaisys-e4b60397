@@ -530,6 +530,14 @@ describe("the sheets the office actually types", () => {
     expect(p.matched).toEqual([expect.objectContaining({ employeeId: "e1", date: "2026-08-04" })]);
   });
 
+  it("does not report the sheet's own total as a column nobody knows", () => {
+    const p = read(
+      wbOf({ "04.08": [["Line 1", "Line 5", "Total staff  in Production", "Canteen"], ["Ana Lima", "", 77, "Rui Paz"]] }),
+      [emp("e1", "Ana Lima")],
+    );
+    expect(p.unknownColumns).toEqual(["Canteen"]);
+  });
+
   it("does not write the night tab onto the day board", () => {
     const p = read(
       wbOf({
