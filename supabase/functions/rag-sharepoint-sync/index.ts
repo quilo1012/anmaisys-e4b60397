@@ -75,7 +75,12 @@ Deno.serve(async (req) => {
       .replace(/^RAG_API_KEY\s*=\s*/i, "")
       .replace(/^["']|["']$/g, "")
       .trim();
-    if (!apiKey) return json({ error: "RAG_API_KEY is not configured" }, 400);
+    if (!apiKey) {
+      return json({
+        error: "not_configured",
+        message: "The SharePoint RAG service access key is not configured.",
+      });
+    }
 
     const { data: settings } = await admin
       .from("system_settings")
@@ -87,7 +92,7 @@ Deno.serve(async (req) => {
       return json({
         error: "not_configured",
         message: "The SharePoint RAG service address is not set. An admin can set it in Settings.",
-      }, 400);
+      });
     }
 
     // Hosts that sleep when idle (Render free tier, for one) take the best part of a
