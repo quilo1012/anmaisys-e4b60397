@@ -498,6 +498,17 @@ describe("a sheet for one shift places that shift's people", () => {
     expect(p.matched.map((m) => m.employeeId).sort()).toEqual(["d1", "w1", "x1"]);
   });
 
+  it("says whose sheet it looks like, whichever board it was opened from", () => {
+    // The day sheet, opened on the Night board because it was five in the morning.
+    const crewD = ["Ana Lima", "Bia Reis", "Caio Vaz"].map((n, i) => ({ ...named(`d${i}`, n), shift_group: "Day" }) as HeadcountEmployee);
+    const onNight = parseHeadcountWorkbook(sheet([["Line 1"], ["Ana"], ["Bia"], ["Caio"], ["Marcio"]]),
+      { areas: AREAS, roster: [...crewD, nightP], shift: "Night", fallbackYear: 2026 });
+    expect(onNight.crews).toEqual({ Day: 3, Night: 1 });
+    const onDay = parseHeadcountWorkbook(sheet([["Line 1"], ["Ana"], ["Bia"], ["Caio"], ["Marcio"]]),
+      { areas: AREAS, roster: [...crewD, nightP], shift: "Day", fallbackYear: 2026 });
+    expect(onDay.crews).toEqual({ Day: 3, Night: 1 });
+  });
+
   it("works the other way round on the Night board", () => {
     const p = parseHeadcountWorkbook(sheet([["Line 1"], ["Ana"], ["Marcio"]]),
       { areas: AREAS, roster: [dayP, nightP], shift: "Night", fallbackYear: 2026 });

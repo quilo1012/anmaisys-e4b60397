@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 // The styled build: `writeFile` from plain `xlsx` drops every fill the workbook carries.
 import XLSX from "xlsx-js-style";
 import { toast } from "sonner";
@@ -136,13 +136,31 @@ export function HeadcountSheetDialog({
   const fileRef = useRef<HTMLInputElement>(null);
   const rotaCover = useRotaCover();
 
+  // Which board the import writes to. It starts as the board that is open, and the
+  // board that is open is the shift running NOW: before six in the morning that is
+  // Night. The company's day sheet, imported first thing, was written onto the Night
+  // board whole, and the only sign was "Night shift." at the end of a grey sentence.
+  // The file cannot say which shift it is — the tabs are dates — so the dialog shows
+  // the target where it cannot be missed, lets it be changed here, and checks it
+  // against the people the sheet names (`crewMismatch` below).
+  const [target, setTarget] = useState<"Day" | "Night">(shift === "Night" ? "Night" : "Day");
+  const [anyway, setAnyway] = useState(false);
+  useEffect(() => {
+    if (open) { setTarget(shift === "Night" ? "Night" : "Day"); setAnyway(false); }
+  }, [open, shift]);
+
   const preview: ImportPreview | null = useMemo(
     () => book ? parseHeadcountWorkbook(book, {
-      areas, roster, shift, fallbackYear: Number(date.slice(0, 4)),
+      areas, roster, shift: target, fallbackYear: Number(date.slice(0, 4)),
       assigned, absenceAs: absenceAs ?? undefined,
     }) : null,
-    [book, areas, roster, shift, date, assigned, absenceAs],
+    [book, areas, roster, target, date, assigned, absenceAs],
   );
+
+  // Most of the people this sheet names work the other shift: it is the other shift's
+  // sheet. Import waits until the board is switched or somebody says they mean it.
+  const other = target === "Day" ? "Night" : "Day";
+  const crewMismatch = !!preview && preview.crews[other] > preview.crews[target];
 
   const close = () => {
     setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true);
@@ -306,7 +324,7 @@ export function HeadcountSheetDialog({
 
       if (remember) await rememberSpellings();
 
-      toast.success(`Imported ${rows.length} allocation${rows.length === 1 ? "" : "s"}`);
+      toast.success(`Imported ${rows.length} allocation${rows.length === 1 ? "" : "s"} onto the ${target} board`);
       onImported();
       close();
     } catch (e) {
@@ -324,7 +342,7 @@ export function HeadcountSheetDialog({
           <DialogDescription>
             {mode === "export"
               ? `One sheet per day, in the factory's layout. ${shift} shift.`
-              : `Reads the same layout back. Nothing is saved until you confirm. ${shift} shift.`}
+              : "Reads the same layout back. Nothing is saved until you confirm."}
           </DialogDescription>
         </DialogHeader>
 
@@ -361,6 +379,46 @@ export function HeadcountSheetDialog({
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                 Choose a spreadsheet
               </Button>
+            )}
+
+            {preview && (
+              <div className={`rounded-md border p-2.5 ${crewMismatch ? "border-destructive/50 bg-destructive/5" : ""}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold">Import onto the board of</div>
+                  <div className="flex gap-1.5">
+                    {(["Day", "Night"] as const).map((k) => (
+                      <Button
+                        key={k}
+                        size="sm"
+                        variant={target === k ? "default" : "outline"}
+                        className="h-7 px-3 text-xs"
+                        onClick={() => { setTarget(k); setAnyway(false); }}
+                      >
+                        {k} shift
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <p className="mt-1 text-2xs text-muted-foreground">
+                  The people this sheet names: {preview.crews.Day} on the Day crew, {preview.crews.Night} on the Night crew.
+                </p>
+                {crewMismatch && (
+                  <div className="mt-2 space-y-1.5 text-2xs">
+                    <p className="font-semibold text-destructive">
+                      This looks like the {other} sheet, and it is about to be written onto the {target} board.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button size="sm" className="h-7 text-2xs" onClick={() => { setTarget(other); setAnyway(false); }}>
+                        Import onto {other} instead
+                      </Button>
+                      <label className="flex items-center gap-1.5 text-muted-foreground">
+                        <input type="checkbox" checked={anyway} onChange={(e) => setAnyway(e.target.checked)} />
+                        No — these people really are working {target}
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {preview?.absenceColumnFound && (
@@ -429,7 +487,7 @@ export function HeadcountSheetDialog({
                                     and this is the row that put the night crew on the day board. */}
                                 {u.otherShift && (
                                   <span className="ml-1 font-semibold text-warning-strong">
-                                    · only match is on the {shift === "Day" ? "Night" : "Day"} crew
+                                    · only match is on the {other} crew
                                   </span>
                                 )}
                               </span>
@@ -465,8 +523,8 @@ export function HeadcountSheetDialog({
                       <div>
                         <div className="font-semibold">Tabs for the other shift</div>
                         <div className="text-muted-foreground">
-                          {preview.otherShiftSheets.join(", ")} — open the {shift === "Day" ? "Night" : "Day"} board
-                          and import the same file there.
+                          {preview.otherShiftSheets.join(", ")} — switch to the {other} board above to
+                          import them.
                         </div>
                       </div>
                     )}
@@ -504,9 +562,9 @@ export function HeadcountSheetDialog({
 
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setBook(null)} className="flex-1">Choose another</Button>
-                  <Button onClick={commit} disabled={busy || !canManage || preview.matched.length === 0} className="flex-1">
+                  <Button onClick={commit} disabled={busy || !canManage || preview.matched.length === 0 || (crewMismatch && !anyway)} className="flex-1">
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Import {preview.matched.length}
+                    Import {preview.matched.length} onto {target}
                   </Button>
                 </div>
               </div>

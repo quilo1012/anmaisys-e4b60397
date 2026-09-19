@@ -68,6 +68,16 @@ export interface ImportPreview {
   unmatchedNames: UnmatchedName[];
   /** Column headings that are not an area on the board. */
   unknownColumns: string[];
+  /**
+   * Whose sheet this looks like: distinct people the names point at, by the board they
+   * belong to — those placed, and those refused for being on the other crew.
+   *
+   * The company's workbook never says which shift it is, and the board opens on the
+   * shift that is running, so the day sheet opened before six in the morning was
+   * written onto the Night board without a word. The file cannot say; the people in it
+   * can. The dialog reads this and refuses a board most of the sheet does not work on.
+   */
+  crews: { Day: number; Night: number };
   /** Sheets whose tab name is not a date we can read. */
   skippedSheets: string[];
   /**
@@ -664,6 +674,7 @@ export function parseHeadcountWorkbook(
 
   const out: ImportPreview = {
     matched: [], unmatchedNames: [], unknownColumns: [], skippedSheets: [], otherShiftSheets: [], days: [],
+    crews: { Day: 0, Night: 0 },
     absenceColumnFound: false,
   };
   const seen = new Set<string>();
@@ -775,6 +786,16 @@ export function parseHeadcountWorkbook(
   }
 
   out.unknownColumns = [...unknown];
+
+  const boardOf = new Map(ctx.roster.map((e) => [e.id, boardShiftFor(e.shift_group)]));
+  const pointedAt = new Set([
+    ...out.matched.map((m) => m.employeeId),
+    ...out.unmatchedNames.filter((u) => u.reason === "otherShift").map((u) => u.candidates[0]?.id),
+  ]);
+  for (const id of pointedAt) {
+    const board = id ? boardOf.get(id) : null;
+    if (board === "Day" || board === "Night") out.crews[board] += 1;
+  }
   return out;
 }
 
