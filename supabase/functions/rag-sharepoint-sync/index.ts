@@ -90,16 +90,31 @@ Deno.serve(async (req) => {
       }, 400);
     }
 
-    const call = async (path: string) => {
+    // Hosts that sleep when idle (Render free tier, for one) take the best part of a
+    // minute to wake, and the first request pays for the whole cold start. A 25s
+    // budget reported that as "unreachable" on a service that was merely asleep, so
+    // the first attempt is given room and a second one follows once it is awake.
+    const callOnce = async (path: string, timeoutMs: number) => {
       const res = await fetch(`${base}${path}`, {
         headers: { "x-api-key": apiKey, Accept: "application/json" },
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) {
         const body = await res.text();
         throw new Error(`RAG service replied ${res.status}: ${body.slice(0, 200)}`);
       }
       return await res.json();
+    };
+
+    const call = async (path: string) => {
+      try {
+        return await callOnce(path, 70_000);
+      } catch (e) {
+        const msg = (e as Error).message ?? "";
+        // Only a wake-up timeout is worth repeating; a 4xx/5xx answer is a real reply.
+        if (!/timed out|timeout/i.test(msg)) throw e;
+        return await callOnce(path, 40_000);
+      }
     };
 
     // A dead tunnel is the ordinary state of this service, not an internal fault: the
