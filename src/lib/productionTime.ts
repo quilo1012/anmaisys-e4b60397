@@ -185,3 +185,57 @@ export function inRunOrder<T extends RunOrdered>(
       || (a.id ?? "").localeCompare(b.id ?? "");
   });
 }
+
+/** O que um turno diz de cada corrida: o que ela demorou, e o que esteve antes dela. */
+export type RunTiming = {
+  /** Minutos de corrida — `null` quando o par não descreve uma (ver `runMinutes`). */
+  runMin: number | null;
+  /** Minutos desde o último fim registado. Negativo é sobreposição, não mudança. */
+  sinceMin: number | null;
+};
+
+/**
+ * O relógio de um turno, corrida a corrida.
+ *
+ * A folha tinha início e fim e mais nada: os minutos que uma corrida levou, e os que a
+ * linha esteve parada entre duas, faziam-se de cabeça fila a fila. São as duas
+ * perguntas que se fazem a esta folha — quanto tempo é que aquilo levou, e quanto se
+ * perdeu entre uma coisa e a seguinte.
+ *
+ * A **corrida** é o `runMinutes`, com as três recusas dele: o mesmo número que a
+ * Performance usa, para que os dois ecrãs não digam durações diferentes da mesma fila.
+ *
+ * O **intervalo** conta-se no relógio do turno (`shiftClockMinutes`) e não no instante,
+ * pela mesma razão que a ordem: é o intervalo entre os números que a folha mostra, e
+ * numa noite que atravessa a meia-noite 22:10 → 01:20 são 190 minutos e não menos vinte
+ * horas. Mede-se desde o **último fim registado** e não desde a fila de cima: uma
+ * corrida por fechar no meio do turno não apaga o intervalo da seguinte.
+ *
+ * Um negativo não é um intervalo curto — são duas corridas ao mesmo tempo na mesma
+ * linha. Ou uma hora está errada, ou o turno correu duas coisas de uma vez; as duas
+ * merecem ser vistas, e por isso o número sai com o sinal em vez de ser deitado fora.
+ *
+ * Espera a lista JÁ ordenada (`inRunOrder`) — é sobre a ordem do relógio que um
+ * intervalo quer dizer alguma coisa.
+ */
+export function runTimings<T extends RunOrdered>(
+  ordered: readonly T[],
+  shift: string | null | undefined,
+): RunTiming[] {
+  let lastFinish: number | null = null;
+  return ordered.map((i) => {
+    const start = shiftClockMinutes(i.started_at, shift);
+    const finish = shiftClockMinutes(i.finished_at, shift);
+    const sinceMin = start !== null && lastFinish !== null ? start - lastFinish : null;
+    if (finish !== null) lastFinish = finish;
+    return { runMin: runMinutes(i.started_at ?? null, i.finished_at ?? null), sinceMin };
+  });
+}
+
+/** Minutos como se dizem em voz alta: 47m, 1h00, 6h35. Sem número, um travessão. */
+export function formatRunMinutes(min: number | null | undefined): string {
+  if (min == null || !Number.isFinite(min)) return "—";
+  const whole = Math.round(Math.abs(min));
+  if (whole < 60) return `${whole}m`;
+  return `${Math.floor(whole / 60)}h${String(whole % 60).padStart(2, "0")}`;
+}

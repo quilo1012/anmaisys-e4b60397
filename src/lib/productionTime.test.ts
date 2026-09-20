@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shiftTimeToIso, runMinutes, inRunOrder } from "@/lib/productionTime";
+import { shiftTimeToIso, runMinutes, inRunOrder, runTimings, formatRunMinutes } from "@/lib/productionTime";
 
 /** A time on the session of 17/09/2026, as the app stores it. */
 const sameDay = (hm: string) => shiftTimeToIso(hm, "2026-09-17", "DAY")!;
@@ -162,5 +162,78 @@ describe("inRunOrder puts a shift's runs in the order they happened", () => {
       { id: "no-finish", started_at: sameDay("09:00"), finished_at: null, display_order: 1, created_at: "2026-09-17T09:00:00Z" },
     ];
     expect(inRunOrder(tied, "DAY").map((i) => i.id)).toEqual(["shorter", "longer", "no-finish"]);
+  });
+});
+
+describe("runTimings measures the shift, run by run and gap by gap", () => {
+  const item = (start: string | null, finish: string | null, shift: "DAY" | "NIGHT" = "DAY") => ({
+    started_at: start === null ? null : (shift === "DAY" ? sameDay(start) : nightOf(start)),
+    finished_at: finish === null ? null : (shift === "DAY" ? sameDay(finish) : nightOf(finish)),
+  });
+
+  it("gives each run its length and each gap its changeover", () => {
+    // A Tablet Line de 17/09, já pela ordem do relógio.
+    const t = runTimings([
+      item("06:20", "07:07"),
+      item("07:50", "14:25"),
+      item("14:45", "16:45"),
+    ], "DAY");
+    expect(t.map((x) => x.runMin)).toEqual([47, 395, 120]);
+    expect(t.map((x) => x.sinceMin)).toEqual([null, 43, 20]);
+  });
+
+  it("measures a changeover that crosses midnight", () => {
+    // 22:10 → 01:20 são 190 minutos, não menos vinte horas e cinquenta.
+    const t = runTimings([
+      item("22:10", "23:40", "NIGHT"),
+      item("01:20", "03:35", "NIGHT"),
+    ], "NIGHT");
+    expect(t[1].sinceMin).toBe(100);
+    expect(t[1].runMin).toBe(135);
+  });
+
+  it("calls an overlap by its negative, because it is not a changeover", () => {
+    // Duas corridas ao mesmo tempo na mesma linha: ou uma hora está errada, ou o
+    // turno correu duas coisas de uma vez. As duas merecem ser vistas.
+    const t = runTimings([item("06:00", "10:00"), item("09:35", "12:00")], "DAY");
+    expect(t[1].sinceMin).toBe(-25);
+  });
+
+  it("mede desde o último fim registado, e não desde uma fila sem fim", () => {
+    // A corrida do meio ficou por fechar. A seguinte não deixa de ter um intervalo
+    // por causa disso: conta-se desde a última que fechou, que é o que se sabe.
+    const t = runTimings([
+      item("06:00", "08:00"),
+      item("08:30", null),
+      item("10:00", "11:00"),
+    ], "DAY");
+    expect(t.map((x) => x.sinceMin)).toEqual([null, 30, 120]);
+    expect(t[1].runMin).toBeNull();
+  });
+
+  it("não inventa um intervalo quando não há hora", () => {
+    const t = runTimings([item("06:00", "08:00"), item(null, null)], "DAY");
+    expect(t[1].sinceMin).toBeNull();
+    expect(t[1].runMin).toBeNull();
+  });
+
+  it("herda as três recusas do runMinutes", () => {
+    // Zero não é uma corrida curta, e dezassete horas não são uma corrida lenta.
+    const t = runTimings([item("09:59", "09:59"), item("10:30", null)], "DAY");
+    expect(t[0].runMin).toBeNull();
+    expect(t[1].runMin).toBeNull();
+  });
+});
+
+describe("formatRunMinutes", () => {
+  it("writes an hour as an hour", () => {
+    expect(formatRunMinutes(47)).toBe("47m");
+    expect(formatRunMinutes(60)).toBe("1h00");
+    expect(formatRunMinutes(395)).toBe("6h35");
+    expect(formatRunMinutes(0)).toBe("0m");
+  });
+
+  it("has nothing to write when there is no number", () => {
+    expect(formatRunMinutes(null)).toBe("—");
   });
 });

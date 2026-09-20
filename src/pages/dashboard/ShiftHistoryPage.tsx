@@ -36,7 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 import XLSX from "xlsx-js-style";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
-import { inRunOrder, shiftTimeToIso } from "@/lib/productionTime";
+import { inRunOrder, shiftTimeToIso, runTimings, formatRunMinutes } from "@/lib/productionTime";
 
 /** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
 /** date "yyyy-mm-dd" → "MM/YY" for the compact batch mfg/expiry readout. */
@@ -575,13 +575,24 @@ function AgainstPlan({ qty, plan, pct }: { qty: number; plan: number; pct: numbe
  *    escrevia "LEADE R", "TE AM" e "Marci o". As colunas têm largura fixa e o
  *    cabeçalho não quebra; só a descrição é que pode passar à linha.
  */
+/** A banda de uma baía: o que a linha fez naquele dia, e o relógio que levou a fazê-lo. */
+export type BayBand = {
+  qty: number; plan: number; skus: number; shifts: Set<string>; noLeader: boolean;
+  /** Minutos a correr, somados das corridas que se conseguem ler. */
+  runMin: number;
+  /** Minutos entre corridas, dentro de cada turno. */
+  idleMin: number;
+  /** Corridas que começaram antes de a anterior acabar. */
+  overlaps: number;
+};
+
 export function ProductionControlPrintSheet({
   sessions, bands, summary, skuMap, leaders, periodLabel, shiftLabel, filtersLabel,
 }: {
   sessions: SessionRow[];
   bands: {
     day: Map<string, { qty: number; plan: number; lines: Set<string> }>;
-    bay: Map<string, { qty: number; plan: number; skus: number; shifts: Set<string>; noLeader: boolean }>;
+    bay: Map<string, BayBand>;
   };
   summary: { target: number; actual: number; days: number; lineCount: number; pct: number };
   skuMap: Map<string, { code: string; name: string; weight?: number | null }>;
@@ -643,6 +654,20 @@ export function ProductionControlPrintSheet({
                 <span className="text-[6.5pt] text-black/55">
                   {b?.skus ?? 0} SKU{b && b.shifts.size > 0 ? ` · ${[...b.shifts].join(" + ").toLowerCase()}` : ""}
                 </span>
+                {/* O relógio da linha. Vai na banda e não numa coluna: a régua da folha
+                    está cheia — as treze larguras fixas deixam 261 px à descrição e o
+                    chão dela são 260 — e uma banda é uma fila inteira, que não paga
+                    largura a ninguém. */}
+                {b && b.runMin > 0 && (
+                  <span className="font-figure text-[6.5pt] text-black/55">
+                    {formatRunMinutes(b.runMin)} running{b.idleMin > 0 ? ` · ${formatRunMinutes(b.idleMin)} between runs` : ""}
+                  </span>
+                )}
+                {b && b.overlaps > 0 && (
+                  <span className="border border-black px-1 text-[6pt] font-bold uppercase tracking-[0.08em]">
+                    {b.overlaps} overlap{b.overlaps === 1 ? "" : "s"}
+                  </span>
+                )}
                 {/* O andon da folha: a única palavra que aqui se escreve por não haver
                     algo. Vai a bold e com bordo, que é o que sobrevive à fotocópia. */}
                 {b?.noLeader && (
@@ -1172,10 +1197,17 @@ export default function ShiftHistoryPage() {
    * O plano vem da RAG, como no resto da página, e cai para o alvo do item quando a RAG
    * não cobre a sessão. Sem plano não há atingimento: uma percentagem contra zero é
    * precisão inventada.
+   *
+   * A baía conta também o RELÓGIO da linha naquele dia: os minutos a correr e os
+   * minutos entre corridas. Os intervalos somam-se DENTRO de cada sessão — entre o fim
+   * de uma corrida e o início da seguinte — e nunca de um turno para o outro: entre o
+   * fim do dia e o início da noite não há mudança de trabalho nenhuma, há um turno a
+   * acabar. Uma sobreposição (um intervalo negativo) não desconta tempo parado; conta-se
+   * à parte, porque o que ela é não é tempo, é um erro de leitura.
    */
   const bands = useMemo(() => {
     const day = new Map<string, { qty: number; plan: number; lines: Set<string> }>();
-    const bay = new Map<string, { qty: number; plan: number; skus: number; shifts: Set<string>; noLeader: boolean }>();
+    const bay = new Map<string, BayBand>();
     for (const s of filtered) {
       const qty = s.production_items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
       const itemPlan = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
@@ -1186,9 +1218,14 @@ export default function ShiftHistoryPage() {
       day.set(s.session_date, d);
 
       const k = `${s.session_date}|${s.line}`;
-      const b = bay.get(k) ?? { qty: 0, plan: 0, skus: 0, shifts: new Set<string>(), noLeader: false };
+      const b = bay.get(k) ?? { qty: 0, plan: 0, skus: 0, shifts: new Set<string>(), noLeader: false, runMin: 0, idleMin: 0, overlaps: 0 };
       b.qty += qty; b.plan += plan; b.skus += s.production_items.length;
       b.shifts.add(s.shift);
+      for (const t of runTimings(inRunOrder(s.production_items, s.shift), s.shift)) {
+        b.runMin += t.runMin ?? 0;
+        if (t.sinceMin != null && t.sinceMin > 0) b.idleMin += t.sinceMin;
+        if (t.sinceMin != null && t.sinceMin < 0) b.overlaps += 1;
+      }
       // Pela pergunta única, e não por `leader_id`: o tablet da nave grava o líder
       // pelo nome e não pela ligação, e a placa acusava "sem líder" numa baía cuja
       // fila, dois centímetros abaixo, tinha o nome dele escrito.
@@ -1577,6 +1614,7 @@ export default function ShiftHistoryPage() {
                         <th className="text-right px-3 py-2 border-b w-24">Weight (g)</th>
                         <th className={cn("text-left px-3 py-2 border-b", RULE)}>Start</th>
                         <th className="text-left px-3 py-2 border-b">Finish</th>
+                        <th className="text-right px-3 py-2 border-b w-20">Run</th>
                         <th className={cn("text-right px-3 py-2 border-b w-24", RULE)}>Actions</th>
                       </tr>
                     </thead>
@@ -1589,6 +1627,7 @@ export default function ShiftHistoryPage() {
                           const items = s.production_items.length === 0
                             ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, batch_code: null, tickets_unit: null as "tubs" | "bags" | null }]
                             : inRunOrder(s.production_items, s.shift);
+                          const timings = runTimings(items, s.shift);
                           // A data-linha do dia.
                           //
                           // A folha vem ordenada por dia e, dentro do dia, por linha —
@@ -1604,7 +1643,7 @@ export default function ShiftHistoryPage() {
                                     colunas a folha rola de lado, e um total encostado à
                                     direita de quinze colunas está fora do ecrã em quase
                                     toda a rolagem. A data-linha desliza com o olho. */}
-                                <td colSpan={15} className="border-y bg-foreground/[0.045] p-0">
+                                <td colSpan={16} className="border-y bg-foreground/[0.045] p-0">
                                   <div className="sticky left-0 flex w-fit flex-wrap items-baseline gap-x-4 gap-y-1 px-3 py-2">
                                     <span className="font-display text-sm font-bold uppercase tracking-[0.1em]">
                                       {format(parseISO(s.session_date), "EEE dd MMM")}
@@ -1640,7 +1679,7 @@ export default function ShiftHistoryPage() {
                             out.push(
                               <tr key={`bay-${s.session_date}-${s.line}`}>
                                 <td className="sticky left-0 z-10 w-[6px] min-w-[6px] p-0" style={{ backgroundColor: bayInk(s.line) }} aria-hidden />
-                                <td colSpan={14} className="border-b p-0" style={{ backgroundColor: bayWash(s.line) }}>
+                                <td colSpan={15} className="border-b p-0" style={{ backgroundColor: bayWash(s.line) }}>
                                   <div className="sticky left-[6px] flex w-fit flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-1.5">
                                     <span className="inline-block h-2.5 w-2.5 shrink-0 self-center rounded-[2px]" style={{ backgroundColor: bayInk(s.line) }} aria-hidden />
                                     <span className="font-display text-2xs font-bold uppercase tracking-[0.14em]">{lineLabel(s.line)}</span>
@@ -1658,6 +1697,20 @@ export default function ShiftHistoryPage() {
                                     )}
                                     {bayPct != null && (
                                       <span className={cn("font-figure text-2xs font-bold", pctTone(bayPct))}>{bayPct.toFixed(0)}%</span>
+                                    )}
+                                    {b && b.runMin > 0 && (
+                                      <>
+                                        <span className="h-3 w-px self-center bg-border" aria-hidden />
+                                        <span className="font-figure text-2xs text-muted-foreground">
+                                          {formatRunMinutes(b.runMin)} running
+                                          {b.idleMin > 0 ? ` · ${formatRunMinutes(b.idleMin)} between runs` : ""}
+                                        </span>
+                                      </>
+                                    )}
+                                    {b && b.overlaps > 0 && (
+                                      <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-warning-strong">
+                                        {b.overlaps} overlap{b.overlaps === 1 ? "" : "s"}
+                                      </span>
                                     )}
                                   </div>
                                 </td>
@@ -1694,6 +1747,31 @@ export default function ShiftHistoryPage() {
                             const field = noLeader
                               ? "hsl(var(--warning) / 0.12)"
                               : bayWash(s.line, isNight ? "full" : "soft");
+
+                            // O intervalo não é uma propriedade da fila: é o que há
+                            // ENTRE duas. Numa coluna teria de se chamar "desde a
+                            // anterior" e o leitor teria de guardar isso de cabeça —
+                            // escrito entre as duas filas não precisa de nome nenhum.
+                            // Só aparece quando se consegue medir; colado, não há nada
+                            // a dizer.
+                            const gap = timings[idx]?.sinceMin ?? null;
+                            if (gap != null && gap !== 0) {
+                              out.push(
+                                <tr key={`gap-${s.id}-${i.id ?? idx}`} className="bg-[var(--bay-field)]" style={{ "--bay-field": field } as React.CSSProperties}>
+                                  <td className="sticky left-0 z-10 w-[6px] min-w-[6px] p-0" style={{ backgroundColor: baySpine(s.line, isNight) }} aria-hidden />
+                                  <td colSpan={15} className="p-0">
+                                    <div className="sticky left-[6px] flex w-fit items-center gap-2 px-3 py-px">
+                                      <span className={cn("w-5 border-t", gap < 0 ? "border-warning-strong" : "border-dashed border-border")} aria-hidden />
+                                      <span className={cn("font-figure text-2xs", gap < 0 ? "font-semibold text-warning-strong" : "text-muted-foreground")}>
+                                        {gap < 0
+                                          ? `overlaps the run above by ${formatRunMinutes(gap)}`
+                                          : `${formatRunMinutes(gap)} changeover`}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            }
 
                             out.push(
                               <tr
@@ -1845,6 +1923,14 @@ export default function ShiftHistoryPage() {
                                 <td className="px-3 py-2">
                                   {(i.sku_id || i.sku_code_text) ? <InlineTimeCell itemId={i.id} sessionDate={s.session_date} shift={s.shift} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} /> : <span className="text-xs text-muted-foreground">—</span>}
                                 </td>
+                                {/* Quanto tempo aquilo levou. O mesmo `runMinutes` da
+                                    Performance, recusas incluídas: um travessão aqui é
+                                    um par de horas que não descreve corrida nenhuma —
+                                    e que também não está a contar para a velocidade da
+                                    linha em ecrã nenhum. */}
+                                <td className={cn("px-3 py-2 text-right font-figure text-xs", timings[idx]?.runMin == null && "text-muted-foreground")}>
+                                  {formatRunMinutes(timings[idx]?.runMin ?? null)}
+                                </td>
                                 <td className={cn("px-3 py-2", RULE)}>
                                   <div className="flex items-center justify-end gap-1">
                                     <UITooltip>
@@ -1884,6 +1970,7 @@ export default function ShiftHistoryPage() {
                     const items = s.production_items.length === 0
                       ? [{ id: `${s.id}-empty`, sku_id: "", target_qty: 0, planned_qty: 0, actual_qty: 0, notes: null, blender_ref: null, batch_code: null, tickets_unit: null as "tubs" | "bags" | null }]
                       : inRunOrder(s.production_items, s.shift);
+                    const timings = runTimings(items, s.shift);
                     return items.map((i, idx) => {
                       const sku = skuMap.get(i.sku_id);
                       const code = sku?.code ?? "";
@@ -1986,6 +2073,26 @@ export default function ShiftHistoryPage() {
                           )}
                           {(i.sku_id || i.sku_code_text) && (
                             <TableCardField label="Finish" value={<InlineTimeCell itemId={i.id} sessionDate={s.session_date} shift={s.shift} field="finished_at" value={i.finished_at} disabled={s.locked && !isAdmin} onSaved={() => qc.invalidateQueries({ queryKey: ["shift_history"] })} />} />
+                          )}
+                          {/* No telemóvel um cartão é uma fila: o intervalo, que no
+                              ecrã largo se escreve ENTRE duas, aqui só pode ser dito
+                              dentro de um — e por isso é que aqui leva nome. */}
+                          {(i.sku_id || i.sku_code_text) && (
+                            <TableCardField
+                              label="Run"
+                              value={
+                                <span className={cn("font-figure", timings[idx]?.runMin == null && "text-muted-foreground")}>
+                                  {formatRunMinutes(timings[idx]?.runMin ?? null)}
+                                  {timings[idx]?.sinceMin != null && timings[idx]!.sinceMin !== 0 && (
+                                    <span className={cn("ml-2 text-2xs", timings[idx]!.sinceMin! < 0 ? "font-semibold text-warning-strong" : "text-muted-foreground")}>
+                                      {timings[idx]!.sinceMin! < 0
+                                        ? `overlaps by ${formatRunMinutes(timings[idx]!.sinceMin)}`
+                                        : `${formatRunMinutes(timings[idx]!.sinceMin)} after the last`}
+                                    </span>
+                                  )}
+                                </span>
+                              }
+                            />
                           )}
                           <TableCardField
                             label={blenders.length > 0 && !isAdmin ? "Qty (from blenders)" : "Qty"}

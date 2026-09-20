@@ -75,7 +75,7 @@ function renderSheet() {
       bands={{
         day: new Map([["2026-08-26", { qty: 1059, plan: 1200, lines: new Set(["Line 3"]) }]]),
         bay: new Map([
-          ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false }],
+          ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false, runMin: 480, idleMin: 0, overlaps: 0 }],
         ]),
       }}
       summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}
@@ -115,6 +115,14 @@ describe("Production Control print sheet", () => {
     expect(screen.getAllByText("88%").length).toBeGreaterThan(0);
   });
 
+  it("carries the line's clock in the bay band, where no column has to pay for it", () => {
+    // A régua da folha está cheia: as treze larguras fixas deixam 261 px à descrição e
+    // o chão dela são 260. Uma coluna de duração não cabia — uma banda cabe, porque é
+    // uma fila inteira e não paga largura a coluna nenhuma.
+    renderSheet();
+    expect(screen.getByText(/8h00 running/)).toBeTruthy();
+  });
+
   it("leaves the customs code off the paper", () => {
     renderSheet();
     // O nome do catálogo traz o HS CODE agarrado. Em papel dobrava a altura de metade
@@ -148,7 +156,7 @@ describe("Production Control print sheet", () => {
         bands={{
           day: new Map([["2026-08-26", { qty: 1059, plan: 1200, lines: new Set(["Line 3"]) }]]),
           bay: new Map([
-            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 2, shifts: new Set(["DAY"]), noLeader: false }],
+            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 2, shifts: new Set(["DAY"]), noLeader: false, runMin: 630, idleMin: 60, overlaps: 0 }],
           ]),
         }}
         summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}
@@ -175,7 +183,7 @@ describe("Production Control print sheet", () => {
         bands={{
           day: new Map([["2026-08-26", { qty: 0, plan: 0, lines: new Set(["Line 3"]) }]]),
           bay: new Map([
-            ["2026-08-26|Line 3", { qty: 0, plan: 0, skus: 0, shifts: new Set(["DAY"]), noLeader: false }],
+            ["2026-08-26|Line 3", { qty: 0, plan: 0, skus: 0, shifts: new Set(["DAY"]), noLeader: false, runMin: 0, idleMin: 0, overlaps: 0 }],
           ]),
         }}
         summary={{ target: 0, actual: 0, days: 1, lineCount: 1, pct: 0 }}
@@ -249,7 +257,7 @@ describe("Production Control print sheet — a régua das colunas", () => {
         bands={{
           day: new Map([["2026-08-26", { qty: 1059, plan: 1200, lines: new Set(["Line 3"]) }]]),
           bay: new Map([
-            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false }],
+            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false, runMin: 480, idleMin: 0, overlaps: 0 }],
           ]),
         }}
         summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}
