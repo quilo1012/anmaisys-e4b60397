@@ -105,6 +105,28 @@ export function runMinutes(startIso: string | null, finishIso: string | null): n
 }
 
 /**
+ * A hora que o relógio da fábrica mostra — "HH:mm" em Londres, ou `null`.
+ *
+ * O ecrã escrevia as horas com `toTimeString()`, que é o fuso da máquina que está a
+ * mostrar o ecrã. Em Inglaterra e em Portugal dá o mesmo e por isso nunca se viu; num
+ * portátil noutro fuso a folha inteira anda umas horas, e o campo de edição anda com
+ * ela: mostrava a hora local e gravava a de Londres (`shiftTimeToIso`), por isso abrir
+ * uma fila e sair dela sem lhe tocar bastava para mudar a hora gravada.
+ *
+ * A coluna guarda um instante e a fábrica lê-o no relógio da parede. É esse o que se
+ * escreve, esteja quem está a ler onde estiver.
+ */
+export function wallClock(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  const hm = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", hour12: false, hour: "2-digit", minute: "2-digit",
+  }).format(at);
+  return hm === "24:00" ? "00:00" : hm;
+}
+
+/**
  * Where a run sits on the shift's own clock, in minutes from midnight.
  *
  * The sheet is read down the clock, so it has to be sorted by the number printed in
@@ -120,15 +142,10 @@ export function shiftClockMinutes(
   iso: string | null | undefined,
   shift: string | null | undefined,
 ): number | null {
-  if (!iso) return null;
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return null;
-  const hm = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London", hour12: false, hour: "2-digit", minute: "2-digit",
-  }).format(at);
-  const m = /^(\d{2}):(\d{2})$/.exec(hm === "24:00" ? "00:00" : hm);
+  const hm = wallClock(iso);
+  const m = /^(\d{2}):(\d{2})$/.exec(hm ?? "");
   if (!m) return null;
-  const hour = Number(m[1]) === 24 ? 0 : Number(m[1]);
+  const hour = Number(m[1]);
   const isNight = (shift ?? "").toUpperCase() === "NIGHT";
   const rollsOver = isNight && hour < NIGHT_ROLLS_OVER_BEFORE;
   return (rollsOver ? hour + 24 : hour) * 60 + Number(m[2]);

@@ -23,7 +23,10 @@ const FAKE_SESSION = {
     email: "fixture-admin@fixture.local", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" },
 };
 
-const iso = (d: string, hm: string) => new Date(`${d}T${hm}:00`).toISOString();
+// O relógio da fábrica, escrito por extenso: setembro é horário de verão britânico,
+// e a folha lê sempre Londres. Construir isto com `new Date(local)` punha o fixture a
+// depender do fuso da máquina que corre o teste — verde aqui, uma hora ao lado no CI.
+const iso = (d: string, hm: string) => `${d}T${hm}:00+01:00`;
 const item = (id: string, sku: string, batch: string, qty: number, start: string | null, finish: string | null, d = "2026-09-17") => ({
   id, sku_id: sku, sku_code_text: null, target_qty: 0, planned_qty: 0, actual_qty: qty,
   notes: null, blender_ref: null, batch_code: batch, manufacture_month: null, expiry_month: null,
@@ -123,4 +126,41 @@ test("escreve o intervalo ENTRE duas corridas, e acusa uma sobreposição", asyn
 test("a banda da baía soma o relógio da linha no dia", async ({ page }) => {
   await expect(page.getByText(/9h22 running · 1h03 between runs/)).toBeVisible();
   await expect(page.getByText("1 overlap")).toBeVisible();
+});
+
+
+test("escreve a data e a linha uma vez por bloco, e o turno onde ele muda", async ({ page }) => {
+  // Um bloco é, por construção, uma data e uma linha só — e estavam escritas em todas
+  // as filas dele. Continuam no DOM para quem ouve a folha; o que sai é a repetição.
+  const primeira = page.locator("tbody tr").filter({ hasText: "USSHREDCAPS" }).first();
+  const seguinte = page.locator("tbody tr").filter({ hasText: "CALCIUMK2" }).first();
+  await expect(primeira.locator("td").nth(1).locator("span.sr-only")).toHaveCount(0);
+  await expect(seguinte.locator("td").nth(1).locator("span.sr-only")).toHaveCount(1);
+  await expect(seguinte.locator("td").nth(3).locator("span.sr-only")).toHaveCount(1);
+  // A conta do fixture: oito filas, dois blocos (Tablet e Line 1) e três sessões
+  // (Tablet dia, Line 1 dia, Line 1 noite). A data e a linha escrevem-se uma vez por
+  // bloco — seis filas ficam caladas. O turno escreve-se onde muda, como o líder na
+  // coluna ao lado: três vezes, e cinco caladas.
+  await expect(page.locator("tbody tr > td:nth-child(2) > span.sr-only")).toHaveCount(6);
+  await expect(page.locator("tbody tr > td:nth-child(4) > span.sr-only")).toHaveCount(6);
+  await expect(page.locator("tbody tr > td:nth-child(3) > span.sr-only")).toHaveCount(5);
+});
+
+test("diz quantas corridas é que não têm hora que se leia", async ({ page }) => {
+  // A fila das 12:00 ficou por fechar: oito corridas, sete medidas.
+  await expect(page.getByText("1 without a readable time")).toBeVisible();
+  await expect(page.getByText("1 untimed")).toBeVisible();
+});
+
+test.describe("num portátil noutro fuso", () => {
+  test.use({ timezoneId: "America/New_York" });
+
+  test("a folha continua a dizer a hora do relógio da fábrica", async ({ page }) => {
+    // O ecrã escrevia as horas no fuso da máquina. Em Nova Iorque as 06:20 de Warrington
+    // passavam a 01:20 — e o campo, que grava sempre Londres, gravava-as de volta como
+    // 01:20 de Warrington a quem lhe tocasse.
+    const linha = page.locator("tbody tr").filter({ hasText: "USSHREDCAPS" }).first();
+    await expect(linha.locator('input[type="time"]').first()).toHaveValue("06:20");
+    await expect(linha).toContainText("47m");
+  });
 });

@@ -13,6 +13,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { shiftTimeToIso } from "@/lib/productionTime";
 
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 
@@ -24,9 +25,14 @@ import {
   PC_PRINTABLE_PX,
 } from "@/pages/dashboard/ShiftHistoryPage";
 
-// 06:00 e 14:00 locais, para que a folha diga as mesmas horas em qualquer fuso.
-const startedAt = new Date(2026, 7, 26, 6, 0).toISOString();
-const finishedAt = new Date(2026, 7, 26, 14, 0).toISOString();
+// 06:00 e 14:00 no relógio da fábrica. Eram construídas com `new Date(2026, 7, 26, 6, 0)`
+// — a hora LOCAL da máquina que corre o teste — e a folha lia-as também em local, por
+// isso o teste passava em qualquer fuso por as duas pontas andarem juntas. A folha
+// escreve agora Londres sempre (`wallClock`), e num runner em UTC as 06:00 locais são
+// 07:00 em Londres a 26 de agosto. A hora tem de entrar aqui pela porta por onde a
+// aplicação a grava.
+const startedAt = shiftTimeToIso("06:00", "2026-08-26", "DAY")!;
+const finishedAt = shiftTimeToIso("14:00", "2026-08-26", "DAY")!;
 
 const session = {
   id: "s1",
@@ -75,7 +81,7 @@ function renderSheet() {
       bands={{
         day: new Map([["2026-08-26", { qty: 1059, plan: 1200, lines: new Set(["Line 3"]) }]]),
         bay: new Map([
-          ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false, runMin: 480, idleMin: 0, overlaps: 0 }],
+          ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false, runMin: 480, idleMin: 0, overlaps: 0, untimed: 0 }],
         ]),
       }}
       summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}
@@ -147,8 +153,8 @@ describe("Production Control print sheet", () => {
     const late = {
       ...session.production_items[0],
       id: "i2", sku_id: "sku2", batch_code: "B4418", display_order: 1,
-      started_at: new Date(2026, 7, 26, 15, 0).toISOString(),
-      finished_at: new Date(2026, 7, 26, 17, 30).toISOString(),
+      started_at: shiftTimeToIso("15:00", "2026-08-26", "DAY")!,
+      finished_at: shiftTimeToIso("17:30", "2026-08-26", "DAY")!,
     };
     const { container } = render(
       <ProductionControlPrintSheet
@@ -156,7 +162,7 @@ describe("Production Control print sheet", () => {
         bands={{
           day: new Map([["2026-08-26", { qty: 1059, plan: 1200, lines: new Set(["Line 3"]) }]]),
           bay: new Map([
-            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 2, shifts: new Set(["DAY"]), noLeader: false, runMin: 630, idleMin: 60, overlaps: 0 }],
+            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 2, shifts: new Set(["DAY"]), noLeader: false, runMin: 630, idleMin: 60, overlaps: 0, untimed: 0 }],
           ]),
         }}
         summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}
@@ -183,7 +189,7 @@ describe("Production Control print sheet", () => {
         bands={{
           day: new Map([["2026-08-26", { qty: 0, plan: 0, lines: new Set(["Line 3"]) }]]),
           bay: new Map([
-            ["2026-08-26|Line 3", { qty: 0, plan: 0, skus: 0, shifts: new Set(["DAY"]), noLeader: false, runMin: 0, idleMin: 0, overlaps: 0 }],
+            ["2026-08-26|Line 3", { qty: 0, plan: 0, skus: 0, shifts: new Set(["DAY"]), noLeader: false, runMin: 0, idleMin: 0, overlaps: 0, untimed: 0 }],
           ]),
         }}
         summary={{ target: 0, actual: 0, days: 1, lineCount: 1, pct: 0 }}
@@ -257,7 +263,7 @@ describe("Production Control print sheet — a régua das colunas", () => {
         bands={{
           day: new Map([["2026-08-26", { qty: 1059, plan: 1200, lines: new Set(["Line 3"]) }]]),
           bay: new Map([
-            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false, runMin: 480, idleMin: 0, overlaps: 0 }],
+            ["2026-08-26|Line 3", { qty: 1059, plan: 1200, skus: 1, shifts: new Set(["DAY"]), noLeader: false, runMin: 480, idleMin: 0, overlaps: 0, untimed: 0 }],
           ]),
         }}
         summary={{ target: 1200, actual: 1059, days: 1, lineCount: 1, pct: 88.25 }}

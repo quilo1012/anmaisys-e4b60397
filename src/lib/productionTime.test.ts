@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shiftTimeToIso, runMinutes, inRunOrder, runTimings, formatRunMinutes } from "@/lib/productionTime";
+import { shiftTimeToIso, runMinutes, inRunOrder, runTimings, formatRunMinutes, wallClock } from "@/lib/productionTime";
 
 /** A time on the session of 17/09/2026, as the app stores it. */
 const sameDay = (hm: string) => shiftTimeToIso(hm, "2026-09-17", "DAY")!;
@@ -235,5 +235,27 @@ describe("formatRunMinutes", () => {
 
   it("has nothing to write when there is no number", () => {
     expect(formatRunMinutes(null)).toBe("—");
+  });
+});
+
+describe("wallClock reads the clock on the factory wall", () => {
+  it("is London and not the machine that happens to be showing the screen", () => {
+    // Verão britânico: UTC+1.
+    expect(wallClock("2026-08-06T05:10:00Z")).toBe("06:10");
+    // Inverno: UTC.
+    expect(wallClock("2026-01-06T05:10:00Z")).toBe("05:10");
+  });
+
+  it("devolve a hora que foi escrita, seja qual for o turno", () => {
+    // O ida-e-volta que importa: o campo mostra o que o `shiftTimeToIso` gravou.
+    for (const [hm, shift] of [["01:20", "NIGHT"], ["18:40", "NIGHT"], ["06:20", "DAY"], ["14:45", "DAY"]] as const) {
+      expect(wallClock(shiftTimeToIso(hm, "2026-09-17", shift))).toBe(hm);
+    }
+  });
+
+  it("não tem hora nenhuma para dar quando não há valor", () => {
+    expect(wallClock(null)).toBeNull();
+    expect(wallClock("")).toBeNull();
+    expect(wallClock("não é uma data")).toBeNull();
   });
 });

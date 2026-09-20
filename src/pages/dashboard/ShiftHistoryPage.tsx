@@ -36,7 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 import XLSX from "xlsx-js-style";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
-import { inRunOrder, shiftTimeToIso, runTimings, formatRunMinutes } from "@/lib/productionTime";
+import { inRunOrder, shiftTimeToIso, runTimings, formatRunMinutes, wallClock } from "@/lib/productionTime";
 
 /** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
 /** date "yyyy-mm-dd" → "MM/YY" for the compact batch mfg/expiry readout. */
@@ -273,7 +273,7 @@ function InlineTimeCell({ itemId, sessionDate, shift, field, value, disabled, on
   itemId: string; sessionDate: string; shift: string | null; field: "started_at" | "finished_at";
   value: string | null; disabled?: boolean; onSaved: () => void;
 }) {
-  const initial = value ? new Date(value).toTimeString().slice(0, 5) : "";
+  const initial = wallClock(value) ?? "";
   const [val, setVal] = useState(initial);
   useEffect(() => { setVal(initial); }, [initial]);
   const commit = async () => {
@@ -432,7 +432,7 @@ const isPlaceholderRow = (id: string | null | undefined) =>
   typeof id === "string" && id.endsWith("-empty");
 
 /** As horas como o ecrã as escreve — a folha e a fila têm de dizer o mesmo minuto. */
-const hhmm = (v: string | null | undefined) => (v ? new Date(v).toTimeString().slice(0, 5) : "—");
+const hhmm = (v: string | null | undefined) => wallClock(v) ?? "—";
 
 /**
  * A descrição sem o código pautal.
@@ -584,6 +584,8 @@ export type BayBand = {
   idleMin: number;
   /** Corridas que começaram antes de a anterior acabar. */
   overlaps: number;
+  /** Filas com SKU de que não sai duração nenhuma — sem hora, ou com um par que não se lê. */
+  untimed: number;
 };
 
 export function ProductionControlPrintSheet({
@@ -667,6 +669,9 @@ export function ProductionControlPrintSheet({
                   <span className="border border-black px-1 text-[6pt] font-bold uppercase tracking-[0.08em]">
                     {b.overlaps} overlap{b.overlaps === 1 ? "" : "s"}
                   </span>
+                )}
+                {b && b.untimed > 0 && (
+                  <span className="text-[6.5pt] text-black/55">{b.untimed} untimed</span>
                 )}
                 {/* O andon da folha: a única palavra que aqui se escreve por não haver
                     algo. Vai a bold e com bordo, que é o que sobrevive à fotocópia. */}
@@ -1208,6 +1213,8 @@ export default function ShiftHistoryPage() {
   const bands = useMemo(() => {
     const day = new Map<string, { qty: number; plan: number; lines: Set<string> }>();
     const bay = new Map<string, BayBand>();
+    // O mesmo para o período inteiro: quantas corridas há, e de quantas não sai número.
+    const clock = { runs: 0, untimed: 0 };
     for (const s of filtered) {
       const qty = s.production_items.reduce((a, i) => a + Number(i.actual_qty ?? 0), 0);
       const itemPlan = s.production_items.reduce((a, i) => a + Number(i.target_qty ?? i.planned_qty ?? 0), 0);
@@ -1218,21 +1225,27 @@ export default function ShiftHistoryPage() {
       day.set(s.session_date, d);
 
       const k = `${s.session_date}|${s.line}`;
-      const b = bay.get(k) ?? { qty: 0, plan: 0, skus: 0, shifts: new Set<string>(), noLeader: false, runMin: 0, idleMin: 0, overlaps: 0 };
+      const b = bay.get(k) ?? { qty: 0, plan: 0, skus: 0, shifts: new Set<string>(), noLeader: false, runMin: 0, idleMin: 0, overlaps: 0, untimed: 0 };
       b.qty += qty; b.plan += plan; b.skus += s.production_items.length;
       b.shifts.add(s.shift);
-      for (const t of runTimings(inRunOrder(s.production_items, s.shift), s.shift)) {
+      const ordered = inRunOrder(s.production_items, s.shift);
+      runTimings(ordered, s.shift).forEach((t, n) => {
         b.runMin += t.runMin ?? 0;
         if (t.sinceMin != null && t.sinceMin > 0) b.idleMin += t.sinceMin;
         if (t.sinceMin != null && t.sinceMin < 0) b.overlaps += 1;
-      }
+        // Uma fila sem produto não é uma corrida por temporizar, é uma fila em branco.
+        const real = ordered[n] && (ordered[n].sku_id || ordered[n].sku_code_text);
+        if (!real) return;
+        clock.runs += 1;
+        if (t.runMin == null) { b.untimed += 1; clock.untimed += 1; }
+      });
       // Pela pergunta única, e não por `leader_id`: o tablet da nave grava o líder
       // pelo nome e não pela ligação, e a placa acusava "sem líder" numa baía cuja
       // fila, dois centímetros abaixo, tinha o nome dele escrito.
       if (!hasLeader(s)) b.noLeader = true;
       bay.set(k, b);
     }
-    return { day, bay };
+    return { day, bay, clock };
   }, [filtered, ragPlanBySession]);
 
   /** A tinta do atingimento — os mesmos três degraus da régua, um só sítio. */
@@ -1314,7 +1327,7 @@ export default function ShiftHistoryPage() {
   const exportExcel = () => {
     // Mirrors the Production Control spreadsheet layout so the export pastes straight
     // in. The 5th column is intentionally unnamed there (it holds the description).
-    const hm = (iso: string | null | undefined) => (iso ? format(new Date(iso), "HH:mm") : "");
+    const hm = (iso: string | null | undefined) => wallClock(iso) ?? "";
     // session_date is a plain yyyy-mm-dd string — reformat to dd/MM/yyyy without
     // Date() so there's no timezone shift.
     const ddmmyyyy = (d: string) => {
@@ -1554,6 +1567,19 @@ export default function ShiftHistoryPage() {
                 value={Math.round(summary.actual).toLocaleString()}
                 against={summary.target > 0 ? Math.round(summary.target).toLocaleString() : undefined}
               />
+              {/* Quanto do que se vê é que tem hora. Uma folha com metade das corridas
+                  por temporizar continua a dizer "9h22 a correr" sem dizer que são nove
+                  horas de metade do turno, e é essa a pergunta que decide se o resto
+                  se lê ou não. */}
+              {bands.clock.runs > 0 && (
+                <ControlReadout
+                  label="Timed"
+                  value={(bands.clock.runs - bands.clock.untimed).toLocaleString()}
+                  against={bands.clock.runs.toLocaleString()}
+                  tone={bands.clock.untimed === 0 ? "text-foreground" : "text-muted-foreground"}
+                  hint={bands.clock.untimed === 0 ? "every run has a start and a finish" : `${bands.clock.untimed} without a readable time`}
+                />
+              )}
               <ControlReadout
                 label="Attainment"
                 value={summary.target > 0 ? `${summary.pct.toFixed(0)}%` : "—"}
@@ -1673,7 +1699,8 @@ export default function ShiftHistoryPage() {
                           // fez naquele dia. O total por linha já era contado pelo
                           // `summary` desde sempre — para o período inteiro, e ninguém o
                           // mostrava. Aqui é por dia, que é a pergunta que se faz à folha.
-                          if (s.line !== prevLine) {
+                          const bayOpens = s.line !== prevLine;
+                          if (bayOpens) {
                             const b = bands.bay.get(`${s.session_date}|${s.line}`);
                             const bayPct = b && b.plan > 0 ? (b.qty / b.plan) * 100 : null;
                             out.push(
@@ -1711,6 +1738,14 @@ export default function ShiftHistoryPage() {
                                       <span className="text-2xs font-semibold uppercase tracking-[0.1em] text-warning-strong">
                                         {b.overlaps} overlap{b.overlaps === 1 ? "" : "s"}
                                       </span>
+                                    )}
+                                    {/* O que a baía não conseguiu medir. Fica em letra
+                                        de fundo e não em âmbar: uma fila por temporizar
+                                        não é uma avaria, é trabalho por fazer — mas sem
+                                        este número o relógio ao lado parece o turno
+                                        inteiro quando é só a parte que tem horas. */}
+                                    {b && b.untimed > 0 && (
+                                      <span className="text-2xs text-muted-foreground">{b.untimed} untimed</span>
                                     )}
                                   </div>
                                 </td>
@@ -1787,8 +1822,23 @@ export default function ShiftHistoryPage() {
                                     rola, e é rolada que a pergunta "que linha é esta fila"
                                     se faz mais. */}
                                 <td className="sticky left-0 z-10 w-[6px] min-w-[6px] p-0" style={{ backgroundColor: baySpine(s.line, isNight) }} aria-hidden />
+                                {/* A data e a linha, uma vez por bloco.
+                                    Estavam escritas em todas as filas de um bloco que
+                                    já as diz no cabeçalho — a faixa do dia por fora, a
+                                    placa da baía por dentro — e um bloco é, por
+                                    construção, uma data e uma linha só. Oito filas da
+                                    Line 1 repetiam "17/09" e "LINE 1" oito vezes cada,
+                                    e o que varia dentro do bloco (o turno, o SKU, a
+                                    hora) lia-se entre duas colunas que nunca mudam.
+                                    É o gesto que a coluna do líder já fazia: escreve-se
+                                    onde muda.
+                                    Calada para o olho, dita para quem ouve a folha: uma
+                                    fila sem data nem linha não se lê fora do bloco, e um
+                                    leitor de ecrã lê fila a fila. */}
                                 <td className="px-3 py-2 whitespace-nowrap font-figure text-xs">
-                                  {s.session_date ? format(new Date(s.session_date), "dd/MM") : "—"}
+                                  {bayOpens && idx === 0
+                                    ? (s.session_date ? format(new Date(s.session_date), "dd/MM") : "—")
+                                    : <span className="sr-only">{s.session_date ? format(new Date(s.session_date), "dd/MM") : ""}</span>}
                                 </td>
                                 <td className="px-3 py-2">
                                   {/* O turno é tom, não matiz: chapa clara de dia,
@@ -1796,24 +1846,30 @@ export default function ShiftHistoryPage() {
                                       `purple-500` — uma cor de fora da paleta, a mesma
                                       que o `railEdge` foi escrito para acabar — e o
                                       violeta é agora a baía 7. */}
-                                  <Badge
-                                    variant="outline"
-                                    className={cn(
-                                      "px-1.5 py-0 font-display text-2xs font-bold uppercase tracking-[0.08em]",
-                                      s.shift === "DAY"
-                                        ? "border-border bg-background text-foreground"
-                                        : "border-transparent bg-foreground/85 text-background",
-                                    )}
-                                  >
-                                    {s.shift}
-                                  </Badge>
+                                  {idx === 0 ? (
+                                    <Badge
+                                      variant="outline"
+                                      className={cn(
+                                        "px-1.5 py-0 font-display text-2xs font-bold uppercase tracking-[0.08em]",
+                                        s.shift === "DAY"
+                                          ? "border-border bg-background text-foreground"
+                                          : "border-transparent bg-foreground/85 text-background",
+                                      )}
+                                    >
+                                      {s.shift}
+                                    </Badge>
+                                  ) : (
+                                    <span className="sr-only">{s.shift}</span>
+                                  )}
                                 </td>
                                 {/* O eco da faixa, à altura dos olhos: com a folha
                                     rolada de lado a faixa fica fora de vista, e a
                                     coluna é onde a linha se confirma pelo nome. Fica
                                     calada — quem grita é a faixa. */}
                                 <td className={cn("whitespace-nowrap px-3 py-2 font-display text-2xs font-bold uppercase tracking-[0.08em]", RULE)} style={{ color: bayInk(s.line) }}>
-                                  {lineLabel(s.line)}
+                                  {bayOpens && idx === 0
+                                    ? lineLabel(s.line)
+                                    : <span className="sr-only">{lineLabel(s.line)}</span>}
                                 </td>
 
                                 <td className="px-3 py-2">
