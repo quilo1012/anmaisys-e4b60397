@@ -227,6 +227,23 @@ describe("the admin PIN tires of being guessed", () => {
     );
   });
 
+  it("is carried byte for byte by the file a person pastes", () => {
+    // docs/apply-passo-3/APLICAR-57-58-pin-de-admin.sql exists because the full
+    // package is 58 blocks and 56 of them are already applied. A shortcut that
+    // paraphrases its migrations is a second source of truth for the schema, which is
+    // the thing this repository keeps failing on — so it is compared, not trusted.
+    const paste = readFileSync(
+      resolve(ROOT, "docs/apply-passo-3/APLICAR-57-58-pin-de-admin.sql"),
+      "utf8",
+    );
+    for (const f of [
+      "20260925090000_o_pin_de_admin_nao_se_le.sql",
+      "20260925091000_o_pin_de_admin_cansa_se_de_ser_adivinhado.sql",
+    ]) {
+      expect(paste).toContain(readFileSync(resolve(MIGRATIONS, f), "utf8").trimEnd());
+    }
+  });
+
   it("is what the screen and the edge function actually call", () => {
     // A ladder nothing climbs is a ladder that guards nothing.
     const fn = readFileSync(resolve(ROOT, "supabase/functions/verify-admin-pin/index.ts"), "utf8");
