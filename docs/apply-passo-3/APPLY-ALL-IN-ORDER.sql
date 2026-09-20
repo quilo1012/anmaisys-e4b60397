@@ -5797,6 +5797,251 @@ GRANT UPDATE (rag_api_base_url) ON public.system_settings TO authenticated;
 
 
 -- ================================================================
+-- BLOCO 38B
+-- 20260917135845_5b0b8206-5890-4557-9525-f75695902afb.sql
+-- ================================================================
+
+CREATE OR REPLACE FUNCTION public.distinct_rag_lines()
+RETURNS TABLE(line text)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT DISTINCT e.line FROM public.rag_weekly_entries e ORDER BY 1
+$$;
+
+REVOKE ALL ON FUNCTION public.distinct_rag_lines() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.distinct_rag_lines() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.distinct_rag_lines() TO service_role;
+
+-- ================================================================
+-- BLOCO 38C
+-- 20260917192851_bcadeef1-c9fe-4f1d-82f2-2e4079310ad4.sql
+-- ================================================================
+
+CREATE OR REPLACE FUNCTION public.import_rag_plan_workbook(
+  _updates jsonb DEFAULT '[]'::jsonb,
+  _inserts jsonb DEFAULT '[]'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  _updated integer := 0;
+  _created integer := 0;
+BEGIN
+  IF jsonb_typeof(COALESCE(_updates, '[]'::jsonb)) <> 'array'
+     OR jsonb_typeof(COALESCE(_inserts, '[]'::jsonb)) <> 'array' THEN
+    RAISE EXCEPTION 'import_rag_plan_workbook expects two JSON arrays';
+  END IF;
+
+  UPDATE public.rag_weekly_entries e
+     SET plan_qty = v.plan_qty
+    FROM jsonb_to_recordset(COALESCE(_updates, '[]'::jsonb)) AS v(id uuid, plan_qty numeric)
+   WHERE e.id = v.id
+     AND e.plan_qty IS DISTINCT FROM v.plan_qty;
+  GET DIAGNOSTICS _updated = ROW_COUNT;
+
+  INSERT INTO public.rag_weekly_entries (entry_date, line, shift, plan_qty, created_by)
+  SELECT n.entry_date, n.line, n.shift, n.plan_qty, auth.uid()
+    FROM jsonb_to_recordset(COALESCE(_inserts, '[]'::jsonb))
+      AS n(entry_date date, line text, shift text, plan_qty numeric)
+   ON CONFLICT (entry_date, line, shift) DO NOTHING;
+  GET DIAGNOSTICS _created = ROW_COUNT;
+
+  RETURN jsonb_build_object('updated', _updated, 'created', _created);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.import_rag_plan_workbook(jsonb, jsonb) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.import_rag_plan_workbook(jsonb, jsonb) FROM anon;
+GRANT EXECUTE ON FUNCTION public.import_rag_plan_workbook(jsonb, jsonb) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ================================================================
+-- BLOCO 38D
+-- 20260918042547_f8165fcc-6b64-40cc-a2be-de02578c34c8.sql
+-- ================================================================
+
+-- GUARDA, e não parte da migração: `rag_plan_history` muda de tipo de retorno no
+-- bloco 38E, e um CREATE OR REPLACE não pode mudar o tipo de retorno de uma função
+-- que já existe. Sem este DROP, colar isto numa base onde o 38E já correu — ou colar
+-- o ficheiro uma segunda vez — rebenta a meio da transação com "cannot change return
+-- type of existing function".
+DROP FUNCTION IF EXISTS public.rag_plan_history(uuid[]);
+
+CREATE OR REPLACE FUNCTION public.rag_plan_history(_entry_ids uuid[])
+RETURNS TABLE (
+  entry_id uuid,
+  changed_at timestamptz,
+  user_name text,
+  before_qty numeric,
+  after_qty numeric
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  -- Same condition as the rag_weekly_select_auth policy on rag_weekly_entries:
+  -- any signed-in user who can read the board can read its plan history.
+  SELECT
+    (a.entity_id)::uuid                       AS entry_id,
+    a.created_at                              AS changed_at,
+    a.user_name                               AS user_name,
+    NULLIF(a.details->>'before', '')::numeric  AS before_qty,
+    NULLIF(a.details->>'after', '')::numeric   AS after_qty
+  FROM public.audit_logs a
+  WHERE auth.uid() IS NOT NULL
+    AND a.action = 'update_rag_plan_qty'
+    AND a.entity_type = 'rag_weekly_entry'
+    AND a.entity_id IS NOT NULL
+    AND a.entity_id ~ '^[0-9a-fA-F-]{36}$'
+    AND (a.entity_id)::uuid = ANY (COALESCE(_entry_ids, ARRAY[]::uuid[]))
+  ORDER BY a.created_at DESC
+$$;
+
+REVOKE ALL ON FUNCTION public.rag_plan_history(uuid[]) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.rag_plan_history(uuid[]) FROM anon;
+GRANT EXECUTE ON FUNCTION public.rag_plan_history(uuid[]) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ================================================================
+-- BLOCO 38E
+-- 20260918074846_284f9669-bbc3-4e4d-a07d-005fb5edd8c1.sql
+-- ================================================================
+
+-- Target history: the line plan is not the only place a target moves. SKU-level
+-- edits log as update_target_qty on production_item and feed the line plan
+-- through sync_items_target_from_rag, so the panel must show both or it lies by
+-- omission. Still SECURITY DEFINER, still nothing but these two actions.
+DROP FUNCTION IF EXISTS public.rag_plan_history(uuid[]);
+
+CREATE FUNCTION public.rag_plan_history(_entry_ids uuid[])
+RETURNS TABLE (
+  entry_id uuid,
+  changed_at timestamptz,
+  user_name text,
+  before_qty numeric,
+  after_qty numeric,
+  kind text,
+  sku_code text,
+  sku_name text
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  -- Line/shift plan changes, keyed straight off the audited row id.
+  SELECT
+    (a.entity_id)::uuid                       AS entry_id,
+    a.created_at                              AS changed_at,
+    a.user_name                               AS user_name,
+    NULLIF(a.details->>'before', '')::numeric AS before_qty,
+    NULLIF(a.details->>'after', '')::numeric  AS after_qty,
+    'line'::text                              AS kind,
+    NULL::text                                AS sku_code,
+    NULL::text                                AS sku_name
+  FROM public.audit_logs a
+  WHERE auth.uid() IS NOT NULL
+    AND a.action = 'update_rag_plan_qty'
+    AND a.entity_type = 'rag_weekly_entry'
+    AND a.entity_id IS NOT NULL
+    AND a.entity_id ~ '^[0-9a-fA-F-]{36}$'
+    AND (a.entity_id)::uuid = ANY (COALESCE(_entry_ids, ARRAY[]::uuid[]))
+
+  UNION ALL
+
+  -- SKU-level target changes, matched to the cell by date, line and shift.
+  SELECT
+    e.id,
+    a.created_at,
+    a.user_name,
+    NULLIF(a.details->>'before', '')::numeric,
+    NULLIF(a.details->>'after', '')::numeric,
+    'sku'::text,
+    a.details->>'sku_code',
+    a.details->>'sku_name'
+  FROM public.audit_logs a
+  JOIN public.rag_weekly_entries e
+    ON e.id = ANY (COALESCE(_entry_ids, ARRAY[]::uuid[]))
+   AND e.entry_date = (a.details->>'session_date')::date
+   AND e.line = a.details->>'line'
+   AND e.shift = a.details->>'shift'
+  WHERE auth.uid() IS NOT NULL
+    AND a.action = 'update_target_qty'
+    AND a.entity_type = 'production_item'
+    AND a.details ? 'session_date'
+    AND a.details->>'session_date' ~ '^\d{4}-\d{2}-\d{2}$'
+    AND a.details ? 'line'
+    AND a.details ? 'shift'
+
+  ORDER BY changed_at DESC
+$function$;
+
+REVOKE ALL ON FUNCTION public.rag_plan_history(uuid[]) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.rag_plan_history(uuid[]) FROM anon;
+GRANT EXECUTE ON FUNCTION public.rag_plan_history(uuid[]) TO authenticated;
+
+-- The workbook carries the UPM target too. Only plan_qty and upm_target: the
+-- measured columns still belong to this system, not to the spreadsheet.
+CREATE OR REPLACE FUNCTION public.import_rag_plan_workbook(
+  _updates jsonb DEFAULT '[]'::jsonb,
+  _inserts jsonb DEFAULT '[]'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _updated integer := 0;
+  _created integer := 0;
+BEGIN
+  IF jsonb_typeof(COALESCE(_updates, '[]'::jsonb)) <> 'array'
+     OR jsonb_typeof(COALESCE(_inserts, '[]'::jsonb)) <> 'array' THEN
+    RAISE EXCEPTION 'import_rag_plan_workbook expects two JSON arrays';
+  END IF;
+
+  -- A NULL upm_target in the payload means "the file had nothing there" and the
+  -- stored value is kept. The DISTINCT FROM guard keeps the count honest and
+  -- stops the audit trigger firing for rows that did not actually move.
+  UPDATE public.rag_weekly_entries e
+     SET plan_qty   = COALESCE(v.plan_qty, e.plan_qty),
+         upm_target = COALESCE(v.upm_target, e.upm_target)
+    FROM jsonb_to_recordset(COALESCE(_updates, '[]'::jsonb))
+      AS v(id uuid, plan_qty numeric, upm_target numeric)
+   WHERE e.id = v.id
+     AND (
+       e.plan_qty IS DISTINCT FROM COALESCE(v.plan_qty, e.plan_qty)
+       OR e.upm_target IS DISTINCT FROM COALESCE(v.upm_target, e.upm_target)
+     );
+  GET DIAGNOSTICS _updated = ROW_COUNT;
+
+  INSERT INTO public.rag_weekly_entries (entry_date, line, shift, plan_qty, upm_target, created_by)
+  SELECT n.entry_date, n.line, n.shift, n.plan_qty, COALESCE(n.upm_target, 0), auth.uid()
+    FROM jsonb_to_recordset(COALESCE(_inserts, '[]'::jsonb))
+      AS n(entry_date date, line text, shift text, plan_qty numeric, upm_target numeric)
+   ON CONFLICT (entry_date, line, shift) DO NOTHING;
+  GET DIAGNOSTICS _created = ROW_COUNT;
+
+  RETURN jsonb_build_object('updated', _updated, 'created', _created);
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.import_rag_plan_workbook(jsonb, jsonb) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.import_rag_plan_workbook(jsonb, jsonb) FROM anon;
+GRANT EXECUTE ON FUNCTION public.import_rag_plan_workbook(jsonb, jsonb) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ================================================================
 -- BLOCO 50
 -- 20260918090000_the_engineer_may_edit_the_part_but_not_photograph_it.sql
 -- ================================================================
@@ -6180,6 +6425,37 @@ $function$;
 
 COMMENT ON FUNCTION public.sync_machine_status_from_wo() IS
   'Estado da máquina a partir das ordens que lhe tocam. As ordens de armazém (warehouse_service) não entram, nem para mudar o estado nem para o contar: esperar por embalagem não é manutenção feita.';
+
+-- ================================================================
+-- BLOCO 51B
+-- 20260920043132_29205a62-5c78-403c-93f6-557f22d257bd.sql
+-- ================================================================
+
+-- Headcount board areas only. Nothing in `lines` is touched: RAG, scorecards and
+-- downtime read those rows.
+
+-- Retired rather than deleted: daily_allocations rows point at them and the history
+-- of every board already drawn has to keep reading back.
+UPDATE public.headcount_areas
+   SET active = false, sheet_group = NULL
+ WHERE name IN ('Capsules Machine 1', 'Capsules Machine 2');
+
+-- The column the workbook calls "Pill line". line_id stays null: the Headcount board
+-- never reads it (areas such as Gel Room, Hygiene and Quality have none either), and
+-- inventing a link would tie a headcount column to a production line it is not.
+INSERT INTO public.headcount_areas (name, kind, section, department, sheet_label, sort_order, active)
+SELECT 'Pill Line', 'production', 'production', 'Production', 'Pill line', 80, true
+ WHERE NOT EXISTS (SELECT 1 FROM public.headcount_areas WHERE name = 'Pill Line');
+
+-- The night workbook has a Wrapping column.
+INSERT INTO public.headcount_areas (name, kind, section, department, sheet_label, sort_order, active)
+SELECT 'Wrapping', 'production', 'production', 'Production', 'Wrapping', 155, true
+ WHERE NOT EXISTS (SELECT 1 FROM public.headcount_areas WHERE name = 'Wrapping');
+
+-- The night workbook writes it "GELL ROOM". sheet_label takes a comma-separated list.
+UPDATE public.headcount_areas
+   SET sheet_label = 'Gel Room, GELL ROOM'
+ WHERE name = 'Gel Room' AND (sheet_label IS NULL OR sheet_label = 'Gel Room');
 
 -- A ordem do armazém não é da manutenção.
 --

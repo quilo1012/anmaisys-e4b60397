@@ -132,6 +132,47 @@ está no ramo, não em produção** — o preview corre o `main`, e o PR #417 ai
 fundido. Até lá o toast aparece na página de Quality Actions mesmo com o código correcto
 escrito.
 
+## Blocos 38B a 38E e 51B — cinco que ninguém tinha empacotado
+
+Cinco migrações do Lovable de 17 a 20/09/2026 estavam em `supabase/migrations/` e não
+estavam neste pacote. O teste `theApplyPackageStopsWhereTheErrorStarts` dizia-o desde
+que aterraram, e é a mesma falha que deixou a `scoring_version` por criar durante cinco
+semanas: um ficheiro que não existe não pode ser colado por ninguém.
+
+| bloco | migração | o que traz |
+|---|---|---|
+| 38B | `20260917135845` | `distinct_rag_lines()` — as linhas do quadro RAG |
+| 38C | `20260917192851` | `import_rag_plan_workbook()` — o import do plano semanal |
+| 38D | `20260918042547` | `rag_plan_history()` — quem mexeu no plano, e quando |
+| 38E | `20260918074846` | a mesma, a passar a mostrar também as edições ao SKU |
+| 51B | `20260920043132` | Pill Line e Wrapping no headcount; duas Capsules reformadas |
+
+Entraram pela posição cronológica, não no fim: o 38E deita abaixo e recria a função que
+o 38D cria, e fora de ordem a colagem deixa a base num estado sem nome.
+
+**O 38D leva um `DROP FUNCTION IF EXISTS` à cabeça que não está na migração.** É uma
+guarda, não uma correcção: `rag_plan_history` muda de tipo de retorno no 38E, e um
+`CREATE OR REPLACE` não pode mudar o tipo de retorno de uma função que já existe. Sem
+ela, colar isto numa base onde o 38E já correu — ou colar o ficheiro uma segunda vez —
+rebentava a meio com `cannot change return type of existing function`.
+
+**Podem já lá estar.** São migrações que o Lovable gera e costuma aplicar sozinho, ao
+contrário das escritas à mão. São todas repetíveis (`CREATE OR REPLACE`,
+`CREATE TABLE IF NOT EXISTS`, `INSERT … WHERE NOT EXISTS`), por isso colá-las outra vez
+não estraga nada — mas antes de colar vale a pena perguntar, porque se faltarem é
+porque o quadro RAG e o headcount estão a correr sem elas:
+
+```sql
+select to_regprocedure('public.distinct_rag_lines()')                     as linhas_rag,
+       to_regprocedure('public.import_rag_plan_workbook(jsonb, jsonb)')   as import_plano,
+       to_regprocedure('public.rag_plan_history(uuid[])')                 as historico,
+       (select count(*) from public.headcount_areas
+         where name in ('Pill Line','Wrapping'))                          as areas_novas;
+```
+
+`null` em qualquer uma das três funções, ou `areas_novas` abaixo de 2, é uma migração
+por aplicar.
+
 ## Blocos 57 e 58 — o PIN de admin
 
 Duas coisas que a sonda do esquema não vê, porque nenhuma delas cria uma tabela ou uma
