@@ -895,7 +895,7 @@ export default function DowntimePage() {
                 </Card>
                 <Card className={kpis.active > 0 ? "border-destructive" : ""}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active Stoppages</CardTitle>
+                    <CardTitle className="text-sm font-medium">Active Downtime</CardTitle>
                     <AlertTriangle className={`h-4 w-4 ${kpis.active > 0 ? "text-destructive-strong" : "text-muted-foreground"}`} />
                   </CardHeader>
                   <CardContent>

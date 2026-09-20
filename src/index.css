@@ -1136,15 +1136,19 @@ select:-webkit-autofill {
  * tablet — no browser chrome, no way to scroll the banner away — that left the
  * operator with no way out of the screen.
  *
- * AppUpdater sets `data-app-banner="1"` on <html> while it is showing; the shell
- * subtracts this from its own height and every other screen is pushed down by
- * the padding on #root.
+ * AppBanners sets `data-app-banner` on <html> to the number of bars it is showing;
+ * the shell subtracts this from its own height and every other screen is pushed down
+ * by the padding on #root.
  * =========================================================================== */
 :root {
   --app-banner-h: 0px;
 }
 :root[data-app-banner="1"] {
   --app-banner-h: 3.25rem;
+}
+/* Both at once — a deploy landed while the uplink was down. */
+:root[data-app-banner="2"] {
+  --app-banner-h: 6.5rem;
 }
 #root {
   padding-top: var(--app-banner-h);

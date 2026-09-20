@@ -401,7 +401,7 @@ export default function SKUProductsPage() {
                     )}
                   </div>
                   <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
-                  <div><Label>Weight</Label><Input type="number" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
+                  <div><Label>Weight</Label><Input type="number" inputMode="decimal" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
                 </div>
                 <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>Save</Button></DialogFooter>
               </DialogContent>

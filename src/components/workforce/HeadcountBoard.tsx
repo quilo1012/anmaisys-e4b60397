@@ -92,7 +92,7 @@ function EmployeeCard({
           <span
             title={role.label}
             className={cn(
-              "shrink-0 rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight tracking-wide",
+              "shrink-0 rounded-sm px-1 py-px text-2xs font-bold uppercase leading-tight tracking-wide",
               role.cls,
             )}
           >
@@ -117,7 +117,7 @@ function EmployeeCard({
         {offRota && (
           <span
             title="Working outside their own rota — an overtime day. Hours still come from the payroll sheet."
-            className="shrink-0 rounded border border-warning/50 bg-warning/15 px-1 py-px text-[9px] font-bold uppercase leading-tight text-warning-strong"
+            className="shrink-0 rounded border border-warning/50 bg-warning/15 px-1 py-px text-2xs font-bold uppercase leading-tight text-warning-strong"
           >
             OT day
           </span>
@@ -534,7 +534,7 @@ export function HeadcountBoard({
           <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
             {rolesPresent.map((r) => (
               <span key={r.label} className="flex items-center gap-1.5">
-                <span className={cn("rounded-sm px-1 py-px text-[9px] font-bold uppercase leading-tight", r.cls)}>
+                <span className={cn("rounded-sm px-1 py-px text-2xs font-bold uppercase leading-tight", r.cls)}>
                   {r.short}
                 </span>
                 {r.label}

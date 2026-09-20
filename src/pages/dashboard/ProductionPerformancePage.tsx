@@ -1396,7 +1396,7 @@ export default function ProductionPerformancePage() {
 
       {/* Print preview — look before printing/downloading. */}
       <Dialog open={!!previewUrl} onOpenChange={(o) => { if (!o) setPreviewUrl(null); }}>
-        <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
+        <DialogContent className="max-w-4xl w-[95vw] h-[85dvh] flex flex-col p-0 gap-0">
           <DialogHeader className="flex-row items-center justify-between gap-2 border-b px-4 py-3 space-y-0">
             <DialogTitle className="text-base">Report preview</DialogTitle>
             <div className="flex items-center gap-2 pr-6">

@@ -23,7 +23,21 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, language);
-    document.documentElement.lang = language;
+    /**
+     * `lang` is pinned to "en", not to `language`.
+     *
+     * This context translates nothing — there is no dictionary and no `t()`, and the
+     * one toggle that used to set it was removed from the header ("app stays in
+     * English"). What was left behind was a trap: anyone who had ever switched to
+     * Portuguese still had `"pt"` in localStorage, so this line kept writing
+     * `<html lang="pt">` over an English interface, with no way left to change it
+     * back. A screen reader then read English words with Portuguese phonetics,
+     * permanently.
+     *
+     * The preference is still stored, so nothing is lost if real translations ever
+     * arrive — but `lang` must describe the language actually on screen.
+     */
+    document.documentElement.lang = "en";
   }, [language]);
 
   const setLanguage = (lang: Language) => setLanguageState(lang);

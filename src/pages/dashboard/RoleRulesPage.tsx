@@ -64,7 +64,7 @@ function ActionLine({ entry, allowed }: { entry: RuleEntry; allowed: boolean }) 
           <>
             <Badge
               variant="outline"
-              className="ml-2 h-4 px-1 align-middle text-[10px] font-semibold uppercase print:border-black print:text-black"
+              className="ml-2 h-4 px-1 align-middle text-2xs font-semibold uppercase print:border-black print:text-black"
             >
               changed rule
             </Badge>

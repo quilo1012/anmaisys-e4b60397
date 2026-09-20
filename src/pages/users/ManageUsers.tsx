@@ -180,7 +180,7 @@ function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSave
     <div className="flex items-center gap-1">
       <span className="text-muted-foreground text-xs">£</span>
       <Input
-        type="number"
+        type="number" inputMode="decimal"
         min="0"
         step="0.01"
         value={value}

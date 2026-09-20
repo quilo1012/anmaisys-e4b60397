@@ -125,7 +125,7 @@ export function TeamActivityExclusions({ workOrderId, lineStopped }: Props) {
                   {activityLabel(e.activity)} · {format(new Date(e.started_at), "HH:mm")}–
                   {format(new Date(e.ended_at!), "HH:mm")}
                   {e.source === "intouch" && (
-                    <Badge variant="outline" className="shrink-0 text-[9px] leading-4" title="Recorded automatically from an iTouching planned stop code">
+                    <Badge variant="outline" className="shrink-0 text-2xs leading-4" title="Recorded automatically from an iTouching planned stop code">
                       iTouching
                     </Badge>
                   )}

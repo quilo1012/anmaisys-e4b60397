@@ -15,7 +15,15 @@ import { cn } from "@/lib/utils";
 export function ResponsiveTable({
   table,
   cards,
-  breakpoint = "md",
+  /**
+   * `lg` (1024px), not `md` (768px).
+   *
+   * Every one of the seven call sites left this at the default, and at `md` a tablet
+   * held in portrait is 800px wide — past the breakpoint — so it got the TABLE, which
+   * is the layout this component exists to avoid on a narrow screen. The cards are
+   * the right answer up to a laptop.
+   */
+  breakpoint = "lg",
   className,
   cardsClassName,
 }: {

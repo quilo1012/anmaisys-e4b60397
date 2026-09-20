@@ -189,7 +189,7 @@ export function ProductionInputCard({
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-destructive-strong hover:text-destructive-strong hover:bg-destructive/10"
+                    className="h-11 w-11 coarse:h-12 coarse:w-12 text-destructive-strong hover:text-destructive-strong hover:bg-destructive/10"
                     onClick={() => setConfirmDelete(it.id)}
                     aria-label={`Remove ${it.code}`}
                   >
@@ -203,32 +203,30 @@ export function ProductionInputCard({
                   <div className="text-sm">
                     Remove this SKU from this shift? This won't affect the schedule in iTouching.
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <Button
                       type="button"
-                      size="sm"
+                      variant="outline"
+                      className="h-11"
+                      disabled={deletingId === it.id}
+                      onClick={() => setConfirmDelete(null)}
+                    >
+                      <X className="h-4 w-4 mr-1" aria-hidden="true" />
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
                       variant="destructive"
-                      className="h-8"
+                      className="h-11"
                       disabled={deletingId === it.id}
                       onClick={() => deleteItem(it)}
                     >
                       {deletingId === it.id ? (
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" aria-hidden="true" />
                       ) : (
-                        <Check className="h-4 w-4 mr-1" />
+                        <Check className="h-4 w-4 mr-1" aria-hidden="true" />
                       )}
-                      Confirm
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-8"
-                      disabled={deletingId === it.id}
-                      onClick={() => setConfirmDelete(null)}
-                    >
-                      <X className="h-4 w-4 mr-1" />
-                      Cancel
+                      Remove SKU
                     </Button>
                   </div>
                 </div>

@@ -111,7 +111,7 @@ export function PeriodCalendar() {
           <CardContent className="p-3">
             <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((w) => (
-                <div key={w} className="pb-1 text-center text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div key={w} className="pb-1 text-center text-2xs font-bold uppercase tracking-wider text-muted-foreground">
                   {w}
                 </div>
               ))}

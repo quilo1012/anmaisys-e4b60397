@@ -21,7 +21,7 @@ import { londonHM } from "@/lib/shifts";
 import { LoggingShiftProvider, useLoggingShift } from "@/contexts/LoggingShiftContext";
 import { ShiftHandoverGate, CarriedOverShiftBanner } from "@/components/production/ShiftHandoverGate";
 import { shiftTimeToIso, runMinutes } from "@/lib/productionTime";
-import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil, Users } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil, Users, Check } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -638,6 +638,17 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
   const [startTime, setStartTime] = useState("");   // "HH:mm"
   const [finishTime, setFinishTime] = useState("");
   const [saving, setSaving] = useState(false);
+  /**
+   * What was last written, kept on screen.
+   *
+   * A 4-second sonner toast was the only confirmation this form gave, and the
+   * operator it is for stands a metre away looking at the machine rather than at
+   * the tablet. By the time they look back the toast is gone and the form is
+   * empty, which reads the same whether the entry saved or vanished — so the safe
+   * thing to do is enter it again, and that is how a quantity gets counted twice.
+   * This line stays until the next save replaces it.
+   */
+  const [lastSaved, setLastSaved] = useState<{ at: string; blender: string; qty: number; sku: string } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSkuDebounced(skuQuery.trim()), 300);
@@ -1030,6 +1041,12 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
 
       // 3) actual_qty is auto-synced by DB trigger from blender entries.
       toast.success(`Logged ${quantity} on Blender ${blenderLabel} for ${selectedSku?.code ?? skuText}`);
+      setLastSaved({
+        at: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
+        blender: blenderLabel,
+        qty: quantity,
+        sku: selectedSku?.code ?? skuText,
+      });
       if (opts?.keepProduct) resetRunFields();
       else reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
@@ -1045,6 +1062,18 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
   return (
     <Card>
       <CardContent className="p-4 md:p-6 space-y-4">
+        {lastSaved && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm font-medium text-success-strong"
+          >
+            <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>
+              Saved at {lastSaved.at} — {lastSaved.qty.toLocaleString()} on Blender {lastSaved.blender}
+              {lastSaved.sku ? ` · ${lastSaved.sku}` : ""}
+            </span>
+          </div>
+        )}
         {/* Warn before the window shuts. The database decides — its
             session_write_deadline() is the authority — so this never disables the
             form: a tablet with a wrong clock must not be able to block a shift from

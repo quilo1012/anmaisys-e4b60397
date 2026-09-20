@@ -52,10 +52,8 @@ import { PushOnboarding } from "@/components/PushOnboarding";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
-import { useOfflineDetection } from "@/hooks/useOfflineQueue";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { BackButton } from "@/components/BackButton";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { useDMUnreadCount, unlockDMAudio } from "@/hooks/useDirectMessages";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
 import type { Database } from "@/integrations/supabase/types";
@@ -462,7 +460,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                   aria-label={`${group.label} — open section`}
                   className="mx-auto flex w-full flex-col items-center gap-0.5 pt-1.5 pb-0.5 text-sidebar-foreground/50 hover:text-sidebar-foreground"
                 >
-                  <span className="text-[9px] font-bold uppercase tracking-[0.1em]">
+                  <span className="text-2xs font-bold uppercase tracking-[0.1em]">
                     {group.label.slice(0, 3)}
                   </span>
                   <div className="w-6 border-t border-sidebar-border/60" />
@@ -695,7 +693,7 @@ function SidebarStateControl({ uiState, onSelect }: { uiState: SidebarUiState; o
       <DropdownMenuContent align="start" className="w-52">
         <DropdownMenuLabel className="flex items-center justify-between text-2xs uppercase tracking-wider text-muted-foreground">
           <span>Menu layout</span>
-          <kbd className="rounded border px-1 font-mono text-[10px] normal-case">{SIDEBAR_SHORTCUT}</kbd>
+          <kbd className="rounded border px-1 font-mono text-2xs normal-case">{SIDEBAR_SHORTCUT}</kbd>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup value={uiState} onValueChange={(v) => onSelect(v as SidebarUiState)}>
@@ -717,9 +715,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const { dark, toggle: toggleDark } = useDarkMode();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isOnline } = useOfflineDetection();
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
-  const { language, toggle: toggleLanguage } = useLanguage();
   const { data: dmUnread = 0 } = useDMUnreadCount();
   const { data: crashCount = 0 } = useTelemetryCrashCount(role === "admin");
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
@@ -1007,11 +1003,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 {!isMobile && <LiveClock />}
               </div>
             </header>
-            {!isOnline && (
-              <div className="bg-destructive text-destructive-foreground text-center text-sm py-1 px-4 font-medium">
-                ⚠️ You are offline — changes won't save until you're back online
-              </div>
-            )}
+            {/* The offline notice moved to AppBanners, mounted once at the top of
+                the app: it lived here, and the two screens that need it most —
+                line-production and the wall display — do not use this layout. */}
             <div
               ref={contentRef}
               id="main-content"

@@ -294,7 +294,7 @@ export default function IntouchStopCodesPage() {
                               onChange={(e) => patch(r.id, { label: e.target.value })} />
                           </div>
                           {(labelCounts.get(normLabel(m.label)) ?? 0) > 1 && (
-                            <span className="mt-1 inline-block rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning-strong">
+                            <span className="mt-1 inline-block rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-2xs font-medium text-warning-strong">
                               iTouching has {labelCounts.get(normLabel(m.label))} codes with this name — saving keeps them identical
                             </span>
                           )}

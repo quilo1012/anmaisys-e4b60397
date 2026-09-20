@@ -92,7 +92,7 @@ export function StoppageRibbon({ spans, exclusions, corrections = [], exclusionL
           focusable="false"
           viewBox={`0 0 ${VB_W} ${VB_H}`}
           preserveAspectRatio="none"
-          className="h-11 w-full min-w-[280px]"
+          className="h-11 2xl:h-20 w-full min-w-[280px]"
         >
           <defs>{hatch(hatchId)}</defs>
 

@@ -680,7 +680,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
 
   const HSBlock = () => (
     <div className="min-w-0">
-      <span className="block truncate font-display text-[10px] font-bold uppercase tracking-[0.08em] text-white/60 print:text-black/50">
+      <span className="block truncate font-display text-2xs font-bold uppercase tracking-[0.08em] text-white/60 print:text-black/50">
         <span className="sm:hidden">H&amp;S</span>
         <span className="hidden sm:inline">Health &amp; Safety</span>
       </span>
@@ -819,7 +819,7 @@ export function LeaderScorecardBody({ leaderName, period, result, actionHref, on
                   {/* "Documentation" needs 99px and the narrow segment offers about 94
                       at 390px, so it clipped to "DOCUMENTATI…". The word is shortened
                       rather than the type, and only where the room runs out. */}
-                  <span className="block truncate font-display text-[10px] font-bold uppercase tracking-[0.08em] text-white/60 print:text-black/50">
+                  <span className="block truncate font-display text-2xs font-bold uppercase tracking-[0.08em] text-white/60 print:text-black/50">
                     <span className="sm:hidden">{label === "Documentation" ? "Docs" : label}</span>
                     <span className="hidden sm:inline">{label}</span>
                   </span>

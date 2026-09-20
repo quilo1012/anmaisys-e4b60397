@@ -1514,7 +1514,7 @@ function EditDialog({
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Plan</Label><Input type="number" value={plan} onChange={(e) => setPlan(Number(e.target.value))} /></div>
+            <div><Label>Plan</Label><Input type="number" inputMode="numeric" value={plan} onChange={(e) => setPlan(Number(e.target.value))} /></div>
             <div>
               <Label>Actual <span className="text-xs text-muted-foreground">(from My Production)</span></Label>
               {/* Not editable: the database derives this from what operators logged for
@@ -1526,9 +1526,9 @@ function EditDialog({
                 {actual ? actual.toLocaleString("en-GB") : "—"}
               </div>
             </div>
-            <div><Label>UPM Target</Label><Input type="number" value={upmT} onChange={(e) => setUpmT(Number(e.target.value))} /></div>
-            <div><Label>UPM Actual</Label><Input type="number" value={upmA} onChange={(e) => setUpmA(Number(e.target.value))} /></div>
-            <div className="col-span-2"><Label>Downtime (min)</Label><Input type="number" value={dt} onChange={(e) => setDt(Number(e.target.value))} /></div>
+            <div><Label>UPM Target</Label><Input type="number" inputMode="decimal" value={upmT} onChange={(e) => setUpmT(Number(e.target.value))} /></div>
+            <div><Label>UPM Actual</Label><Input type="number" inputMode="decimal" value={upmA} onChange={(e) => setUpmA(Number(e.target.value))} /></div>
+            <div className="col-span-2"><Label>Downtime (min)</Label><Input type="number" inputMode="numeric" value={dt} onChange={(e) => setDt(Number(e.target.value))} /></div>
           </div>
           <div>
             <Label>Notes</Label>
@@ -2096,7 +2096,7 @@ function DayNightTotalSummary({
                               {DAY_LABELS[i]}
                             </span>
                             {excluded && (
-                              <span className="rounded border border-warning/50 bg-warning/15 px-1 py-px text-[9px] font-bold leading-none text-warning-strong">
+                              <span className="rounded border border-warning/50 bg-warning/15 px-1 py-px text-2xs font-bold leading-none text-warning-strong">
                                 OFF
                               </span>
                             )}
@@ -2278,7 +2278,7 @@ function DayNightTotalSummary({
                     isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                   return (
                     <tr key={row.key} className="border-b hover:bg-muted/20">
-                      <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-1.5 py-1 font-display text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{row.label}</td>
+                      <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-1.5 py-1 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">{row.label}</td>
                       {weekDates.map((d, i) => {
                         const ds = format(d, "yyyy-MM-dd");
                         const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
@@ -2593,7 +2593,7 @@ function DowntimeBreakdownPopover({
       ["in_progress","arrived","received"].includes(s) ? "bg-primary/15 text-primary" :
       s === "open" ? "bg-destructive/15 text-destructive-strong" :
       "bg-muted text-muted-foreground";
-    return <span className={`ml-1 inline-block px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${tone}`}>{s.replace("_"," ")}</span>;
+    return <span className={`ml-1 inline-block px-1 py-0.5 rounded text-2xs font-bold uppercase tracking-wider ${tone}`}>{s.replace("_"," ")}</span>;
   };
   return (
     <Popover>

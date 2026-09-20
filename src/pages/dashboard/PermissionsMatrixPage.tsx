@@ -431,7 +431,7 @@ export default function PermissionsMatrixPage() {
                     <table className="w-full border-collapse text-sm">
                       <thead className="bg-muted/20">
                         <tr>
-                          <th className="sticky left-0 z-10 min-w-[220px] border-b bg-muted/20 p-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          <th className="sticky left-0 z-10 min-w-[140px] sm:min-w-[220px] border-b bg-muted/20 p-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Action
                           </th>
                           {rolesToShow.map((r) => (
@@ -447,7 +447,7 @@ export default function PermissionsMatrixPage() {
                             key={a}
                             className={`border-b last:border-0 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"} hover:bg-muted/30`}
                           >
-                            <td className="sticky left-0 z-10 min-w-[260px] bg-inherit p-2">
+                            <td className="sticky left-0 z-10 min-w-[140px] sm:min-w-[260px] bg-inherit p-2">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-medium">{ACTION_LABELS[a] ?? a.split(".").slice(1).join(".")}</span>
                                 {ACTION_DESCRIPTIONS[a] && (

@@ -411,8 +411,8 @@ export default function ControlCenterPage() {
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className={cn("font-bold flex items-center gap-2", tvMode ? "text-lg" : "text-2xl")}>
-              <Monitor className={tvMode ? "h-4 w-4" : "h-6 w-6"} /> Control Center
+            <h2 className={cn("font-bold flex items-center gap-2", tvMode ? "text-3xl" : "text-2xl")}>
+              <Monitor className={tvMode ? "h-8 w-8" : "h-6 w-6"} /> Control Center
               <span className="inline-flex items-center gap-1 text-xs font-normal text-success-strong ml-2">
                 <Radio className="h-3 w-3 animate-pulse" /> LIVE
               </span>
@@ -473,10 +473,10 @@ export default function ControlCenterPage() {
         {predictiveAlerts.length > 0 && (
           <Alert className="border-purple-500/50 bg-purple-500/10">
             <AlertTriangle className="h-5 w-5 text-purple-600" />
-            <AlertTitle className={tvMode ? "text-xs" : "text-sm font-bold"}>
+            <AlertTitle className={tvMode ? "text-base font-bold" : "text-sm font-bold"}>
               {predictiveAlerts.length} Predictive Alert(s)
             </AlertTitle>
-            <AlertDescription className={tvMode ? "text-2xs" : "text-xs"}>
+            <AlertDescription className={tvMode ? "text-sm" : "text-xs"}>
               {predictiveAlerts.slice(0, 3).map((a, i) => {
                 const cleanProblem = (a.problem ?? "").replace(/\|{2,}/g, "|").replace(/^[\s|¦]+|[\s|¦]+$/g, "").trim();
                 return (
@@ -584,7 +584,7 @@ export default function ControlCenterPage() {
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-3">
                             <span className={cn("inline-block h-3 w-3 rounded-full", sty.dot)} aria-hidden />
-                            <CardTitle className={tvMode ? "text-sm font-bold" : "text-lg"}>{zone}</CardTitle>
+                            <CardTitle className={tvMode ? "text-xl font-bold" : "text-lg"}>{zone}</CardTitle>
                             <Badge variant="outline" className={cn("text-2xs", sty.chip)}>
                               {sty.label}
                             </Badge>
@@ -612,7 +612,7 @@ export default function ControlCenterPage() {
                              limiares só desta página por cima. */
                           const band = attain === null ? null : clockBand(attain, elapsedPct);
                           return (
-                            <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5", tvMode ? "text-2xs" : "text-xs")}>
+                            <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5", tvMode ? "text-sm" : "text-xs")}>
                               {ls.leader && (
                                 <span className="inline-flex items-center gap-1 text-muted-foreground" title="Shift leader">
                                   <User className="h-3 w-3" /> {ls.leader}
@@ -670,14 +670,14 @@ export default function ControlCenterPage() {
                                       draggedMachine === m.id && "opacity-50 scale-95",
                                     )}
                                   >
-                                    <p className={cn("font-medium truncate", tvMode ? "text-2xs" : "text-xs")}>{m.name}</p>
+                                    <p className={cn("font-medium truncate", tvMode ? "text-sm" : "text-xs")}>{m.name}</p>
                                     <div className="flex items-center justify-between mt-1">
                                       {ms.woCount > 0 ? (
                                         <span className="text-2xs font-figure">{ms.woCount} WO</span>
                                       ) : (
                                         <span className="text-2xs opacity-70">OK</span>
                                       )}
-                                      <span className={cn("rounded px-1 font-figure font-bold flex items-center gap-0.5", getHealthColor(hs), tvMode ? "text-[8px]" : "text-2xs")}>
+                                      <span className={cn("rounded px-1 font-figure font-bold flex items-center gap-0.5", getHealthColor(hs), tvMode ? "text-sm" : "text-2xs")}>
                                         <Heart className="h-2.5 w-2.5" /> {hs}
                                       </span>
                                     </div>
@@ -745,8 +745,8 @@ export default function ControlCenterPage() {
               {/* Live feed */}
               <Card>
                 <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
-                  <CardTitle className={cn("flex items-center gap-2", tvMode ? "text-xs" : "text-base")}>
-                    <Activity className={tvMode ? "h-3 w-3 text-success-strong" : "h-4 w-4 text-success-strong"} />
+                  <CardTitle className={cn("flex items-center gap-2", tvMode ? "text-lg" : "text-base")}>
+                    <Activity className={tvMode ? "h-5 w-5 text-success-strong" : "h-4 w-4 text-success-strong"} />
                     Live Feed
                   </CardTitle>
                 </CardHeader>
@@ -768,9 +768,9 @@ export default function ControlCenterPage() {
                                 <span className="font-mono text-2xs font-bold">
                                   {formatWONumber(wo.wo_number, wo.created_at)}
                                 </span>
-                                <StatusBadge status={wo.status} label={sc.label} size="sm" className="text-[9px] py-0 px-1.5" />
+                                <StatusBadge status={wo.status} label={sc.label} size="sm" className="text-2xs py-0 px-1.5" />
                               </div>
-                              <p className={cn("truncate font-medium mt-0.5", tvMode ? "text-2xs" : "text-xs")}>
+                              <p className={cn("truncate font-medium mt-0.5", tvMode ? "text-sm" : "text-xs")}>
                                 {wo.machine || "—"}
                               </p>
                               <p className="text-2xs text-muted-foreground truncate">
@@ -799,8 +799,8 @@ export default function ControlCenterPage() {
               {/* Top 5 */}
               <Card>
                 <CardHeader className={tvMode ? "pb-1 p-2" : "pb-3"}>
-                  <CardTitle className={cn("flex items-center gap-2", tvMode ? "text-xs" : "text-base")}>
-                    <Trophy className={tvMode ? "h-3 w-3 text-warning-strong" : "h-4 w-4 text-warning-strong"} /> Top 5
+                  <CardTitle className={cn("flex items-center gap-2", tvMode ? "text-lg" : "text-base")}>
+                    <Trophy className={tvMode ? "h-5 w-5 text-warning-strong" : "h-4 w-4 text-warning-strong"} /> Top 5
                   </CardTitle>
                 </CardHeader>
                 <CardContent className={tvMode ? "p-2 pt-0" : "pt-0"}>
@@ -870,8 +870,8 @@ function KpiTile({
       <CardContent className={cn("flex items-center gap-3", tvMode ? "p-2" : "p-4")}>
         <div className="shrink-0 opacity-80">{icon}</div>
         <div className="min-w-0">
-          <p className={cn("uppercase tracking-wide opacity-70", tvMode ? "text-[9px]" : "text-2xs")}>{label}</p>
-          <p className={cn("font-bold", tvMode ? "text-lg" : "text-2xl")}>{value}</p>
+          <p className={cn("uppercase tracking-wide opacity-70", tvMode ? "text-base" : "text-2xs")}>{label}</p>
+          <p className={cn("font-bold", tvMode ? "text-5xl" : "text-2xl")}>{value}</p>
         </div>
       </CardContent>
     </Card>

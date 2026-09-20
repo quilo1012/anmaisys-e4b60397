@@ -144,7 +144,7 @@ export default function SuppliersPage() {
                           <TableCell><Badge variant={badge.variant}>{badge.label}</Badge></TableCell>
                           <TableCell className="text-right space-x-1">
                             {po.status === "draft" && (
-                              <Button size="sm" variant="outline" onClick={() => poM.setStatus.mutate({ id: po.id, status: "sent" })}>
+                              <Button size="sm" variant="outline" disabled={poM.setStatus.isPending} onClick={() => poM.setStatus.mutate({ id: po.id, status: "sent" })}>
                                 <Send className="h-3 w-3 mr-1" /> Send
                               </Button>
                             )}
@@ -154,7 +154,7 @@ export default function SuppliersPage() {
                               </Button>
                             )}
                             {po.status !== "received" && po.status !== "cancelled" && (
-                              <Button size="sm" variant="ghost" onClick={() => poM.setStatus.mutate({ id: po.id, status: "cancelled" })}>
+                              <Button size="sm" variant="ghost" aria-label="Cancel this purchase order" title="Cancel order" disabled={poM.setStatus.isPending} onClick={() => poM.setStatus.mutate({ id: po.id, status: "cancelled" })}>
                                 <XCircle className="h-3 w-3" />
                               </Button>
                             )}
@@ -372,7 +372,7 @@ function NewPoDialog({
                     </TableCell>
                     <TableCell>
                       <Input
-                        type="number"
+                        type="number" inputMode="numeric"
                         min={1}
                         value={it.quantity}
                         onChange={(e) => {
@@ -384,7 +384,7 @@ function NewPoDialog({
                     </TableCell>
                     <TableCell>
                       <Input
-                        type="number"
+                        type="number" inputMode="decimal"
                         step="0.01"
                         value={it.unit_price}
                         onChange={(e) => {

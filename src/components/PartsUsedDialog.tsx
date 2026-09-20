@@ -70,7 +70,7 @@ export function PartsUsedDialog({ open, onOpenChange, workOrderId, engineerName 
             </div>
             <div className="space-y-2">
               <Label htmlFor="qty">Quantity</Label>
-              <Input id="qty" type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="Enter quantity" />
+              <Input id="qty" type="number" inputMode="numeric" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="Enter quantity" />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

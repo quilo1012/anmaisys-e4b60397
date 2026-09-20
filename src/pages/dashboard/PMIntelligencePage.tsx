@@ -468,7 +468,7 @@ function AssetRow({
           {/* Um nome que não está nem em `machines` nem em `lines`. A ordem foi escrita
               à mão, e nada disto se liga ao registo de activos — quem lê deve saber. */}
           {row.kind === "unknown" && (
-            <Badge variant="outline" className="text-[9px] font-normal leading-4 text-muted-foreground" title="Not in the machine or line register">
+            <Badge variant="outline" className="text-2xs font-normal leading-4 text-muted-foreground" title="Not in the machine or line register">
               unregistered
             </Badge>
           )}
@@ -566,7 +566,7 @@ function CreatePlanDialog({
             <div>
               <Label className="text-xs">Every (days)</Label>
               <Input
-                type="number" min={1}
+                type="number" inputMode="numeric" min={1}
                 className="font-figure"
                 value={Number.isFinite(intervalDays) ? intervalDays : ""}
                 onChange={(e) => setIntervalDays(parseInt(e.target.value || "0", 10))}

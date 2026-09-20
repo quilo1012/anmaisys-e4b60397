@@ -519,10 +519,10 @@ export default function WorkOrdersPage() {
             <>
               {role === "admin" && (
                 <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)}>
-                  <AlertTriangle className="h-4 w-4 mr-2" /> Clear WOs
+                  <AlertTriangle className="h-4 w-4 mr-2" /> Clear orders
                 </Button>
               )}
-              <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> Create WO</Button>
+              <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> New order</Button>
             </>
           }
         />
@@ -552,7 +552,7 @@ export default function WorkOrdersPage() {
               <div className="relative flex-1 min-w-[240px] max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search WO#, requester, machine…"
+                  placeholder="Search order no., requester, machine…"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 h-9 bg-background"
@@ -904,7 +904,7 @@ export default function WorkOrdersPage() {
                 <Table className="hidden md:table print:table print:w-full">
                   <TableHeader>
                     <TableRow>
-                      {isCol("wo") && <TableHead>WO#</TableHead>}
+                      {isCol("wo") && <TableHead>Order no.</TableHead>}
                       {isCol("line") && <TableHead>Line</TableHead>}
                       {isCol("machine") && <TableHead>Machine</TableHead>}
                       {isCol("problem") && <TableHead>Problem</TableHead>}
@@ -1043,7 +1043,7 @@ export default function WorkOrdersPage() {
           </CardContent>
         </Card>
 
-        {/* Create WO Dialog */}
+        {/* New order dialog */}
         <Dialog open={showCreate} onOpenChange={(o) => { setShowCreate(o); if (!o) { setTouched({}); setSubmitAttempted(false); } }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Create Maintenance Order</DialogTitle><DialogDescription className="sr-only">Fill in maintenance order details</DialogDescription></DialogHeader>

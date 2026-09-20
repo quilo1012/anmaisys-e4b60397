@@ -944,12 +944,12 @@ export default function StockPage() {
                   <div className="space-y-1"><Label>Line</Label><Input value={productLine} onChange={(e) => setProductLine(e.target.value)} placeholder="e.g. Line A1" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
-                  {canPrice && <div className="space-y-1"><Label>Price (£)</Label><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">£</span><Input className="pl-7" type="number" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" /></div></div>}
+                  <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
+                  {canPrice && <div className="space-y-1"><Label>Price (£)</Label><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">£</span><Input className="pl-7" type="number" inputMode="decimal" step="0.01" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" /></div></div>}
                 </div>
                 <div className="space-y-1">
                   <Label>Minimum stock (reorder point)</Label>
-                  <Input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
+                  <Input type="number" inputMode="numeric" value={minStock} onChange={(e) => setMinStock(e.target.value)} />
                 </div>
               </div>
               <DialogFooter className="mt-4">
@@ -987,7 +987,7 @@ export default function StockPage() {
                 </div>
                 <div className="space-y-1">
                   <Label>Adjustment</Label>
-                  <Input type="number" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} placeholder="e.g. 10 to add, -5 to remove" required />
+                  <Input type="number" inputMode="numeric" value={adjustQty} onChange={(e) => setAdjustQty(e.target.value)} placeholder="e.g. 10 to add, -5 to remove" required />
                 </div>
                 {adjustTarget && (
                   <p className={`text-sm ${adjustResult !== null && adjustResult < 0 ? "text-destructive" : "text-muted-foreground"}`}>
@@ -1043,12 +1043,12 @@ export default function StockPage() {
                  <div className="space-y-1"><Label>Line</Label><Input value={editLine} onChange={(e) => setEditLine(e.target.value)} placeholder="e.g. Line A1" /></div>
                </div>
                <div className="grid grid-cols-2 gap-3">
-                 <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
-                 {canPrice && <div className="space-y-1"><Label>Price (£)</Label><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">£</span><Input className="pl-7" type="number" step="0.01" min="0" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="0.00" /></div></div>}
+                 <div className="space-y-1"><Label>Quantity in stock</Label><Input type="number" inputMode="numeric" value={editQty} onChange={(e) => setEditQty(e.target.value)} /></div>
+                 {canPrice && <div className="space-y-1"><Label>Price (£)</Label><div className="relative"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">£</span><Input className="pl-7" type="number" inputMode="decimal" step="0.01" min="0" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} placeholder="0.00" /></div></div>}
                </div>
                <div className="space-y-1">
                  <Label>Minimum stock (reorder point)</Label>
-                 <Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} />
+                 <Input type="number" inputMode="numeric" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} />
                </div>
               {/* Photo: same right as Edit and Delete — `stock.manage`, nothing new. */}
               {isManager && editProduct && (

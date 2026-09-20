@@ -164,7 +164,7 @@ export function VolumePillar({
             <Label htmlFor={`volume-${key}`} className="text-xs">{label}</Label>
             <Input
               id={`volume-${key}`}
-              type="number"
+              type="number" inputMode="numeric"
               min={min}
               step={1}
               value={draft[key] ?? ""}
