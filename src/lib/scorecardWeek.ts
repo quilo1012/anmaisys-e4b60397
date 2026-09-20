@@ -89,6 +89,37 @@ export function boardCounts(rows: ScorecardBoardRow[]) {
   };
 }
 
+/**
+ * A session in the week that has no leader at all — neither `leader_id` nor
+ * `leader_name`. The board never receives these: `scorecard_week_board` builds its rows
+ * from the sessions whose leader resolves, so an unled shift is not a blank row, it is
+ * an absence.
+ */
+export type UnledShiftRow = { line: string | null };
+
+export type UnledShifts = {
+  /** Every unled shift in the week, including any whose line is also missing. */
+  total: number;
+  /** The lines they happened on, each once, in a stable order. */
+  lines: string[];
+};
+
+/**
+ * How much of the week the board below is not showing.
+ *
+ * A shift with no line still counts towards `total` and simply does not appear in
+ * `lines`: dropping it would shrink the one number this exists to surface. The lines are
+ * sorted so the sentence reads the same twice for the same week.
+ */
+export function summariseUnledShifts(rows: UnledShiftRow[]): UnledShifts {
+  const lines = new Set<string>();
+  for (const r of rows) {
+    const name = r.line?.trim();
+    if (name) lines.add(name);
+  }
+  return { total: rows.length, lines: [...lines].sort() };
+}
+
 /** Maps Portuguese state values to English labels. */
 export function stateLabel(
   state: ScorecardBoardRow["state"]
