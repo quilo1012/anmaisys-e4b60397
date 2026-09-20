@@ -84,11 +84,18 @@ Deno.serve(async (req) => {
     }
     const pin = parsedBody.data.pin;
 
-    // Verify PIN using pgcrypto crypt() comparison.
-    // Must use the user-scoped client so auth.uid() resolves inside the SECURITY DEFINER function.
-    const { data: match, error: matchError } = await supabaseUser.rpc("verify_admin_pin", {
-      _pin: pin,
-    });
+    // Verify PIN using pgcrypto crypt() comparison, through the verifier that counts
+    // the failures. The plain boolean verify_admin_pin() still exists and still works,
+    // but it can only answer "no" — and "no" covers both a wrong PIN and a door that
+    // is shut for the next five minutes, which are not the same thing to say to
+    // somebody standing in front of it.
+    //
+    // Must use the user-scoped client so auth.uid() resolves inside the SECURITY
+    // DEFINER function: that is also the key the lockout counts against.
+    const { data: verdict, error: matchError } = await supabaseUser.rpc(
+      "verify_admin_pin_with_lockout",
+      { _pin: pin },
+    );
 
     if (matchError) {
       console.error("PIN verification error:", matchError.message);
@@ -98,11 +105,41 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!match) {
-      return new Response(JSON.stringify({ valid: false }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const result = (verdict ?? {}) as {
+      success?: boolean;
+      error?: string;
+      locked_seconds?: number;
+      remaining?: number;
+    };
+
+    if (result.error === "locked") {
+      // 429 and not 200, so a client that never learns about lockouts still fails
+      // loudly instead of reading the empty `valid: false` as a wrong PIN.
+      return new Response(
+        JSON.stringify({
+          valid: false,
+          locked: true,
+          locked_seconds: Math.max(1, Number(result.locked_seconds ?? 0)),
+        }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(Math.max(1, Number(result.locked_seconds ?? 0))),
+          },
+        },
+      );
+    }
+
+    if (!result.success) {
+      return new Response(
+        JSON.stringify({ valid: false, remaining: result.remaining ?? null }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     return new Response(JSON.stringify({ valid: true }), {
