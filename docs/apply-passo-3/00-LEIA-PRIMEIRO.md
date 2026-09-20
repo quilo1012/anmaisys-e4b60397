@@ -132,6 +132,46 @@ está no ramo, não em produção** — o preview corre o `main`, e o PR #417 ai
 fundido. Até lá o toast aparece na página de Quality Actions mesmo com o código correcto
 escrito.
 
+## Blocos 57 e 58 — o PIN de admin
+
+Duas coisas que a sonda do esquema não vê, porque nenhuma delas cria uma tabela ou uma
+coluna: `probe-schema.sh` responde `200` antes e depois.
+
+**Bloco 57 tira `system_settings.admin_pin` das vistas de quem está autenticado.** Em
+Abril isso esteve fechado por um `GRANT SELECT (…)` coluna a coluna; a 27/06 um
+`GRANT SELECT, INSERT, UPDATE, DELETE ON public.system_settings TO authenticated` —
+grant de tabela, que cobre todas as colunas — apagou-o sem que nada se queixasse. Desde
+então qualquer conta autenticada que a RLS deixasse ler a linha levava o bcrypt de um
+PIN de quatro dígitos para casa.
+
+**Bloco 58 dá ao PIN de admin a escada de bloqueio que o PIN de líder tem desde Junho.**
+`verify_admin_pin()` respondia tantas vezes quantas lhe perguntassem.
+
+**Esta migração tem de ser aplicada ANTES do merge do código.** O `AdminPinGate` e a
+edge function `verify-admin-pin` passam a chamar `verify_admin_pin_with_lockout()`; se o
+código entrar primeiro, a função ainda não existe e a porta do Attendance e do Finance
+Close deixa de abrir a ninguém.
+
+Verificar no SQL editor, que é onde isto se vê:
+
+```sql
+-- Tem de devolver ZERO linhas. Qualquer linha que apareça é a porta outra vez aberta.
+select grantee, privilege_type
+  from information_schema.column_privileges
+ where table_schema = 'public'
+   and table_name   = 'system_settings'
+   and column_name  = 'admin_pin'
+   and grantee in ('authenticated', 'anon');
+
+-- Tem de devolver a tabela e as duas funções.
+select to_regclass('public.admin_pin_attempts') as tabela,
+       to_regprocedure('public.verify_admin_pin_with_lockout(text)') as com_escada,
+       to_regprocedure('public.verify_admin_pin(text)') as booleana;
+```
+
+E depois, no ecrã: seis PINs errados seguidos no Attendance têm de acabar em
+`Too many attempts`, e não em `That PIN is not right` pela sexta vez.
+
 ## Rodar o `CRON_SECRET` — o passo que nenhuma migração pode dar
 
 O `x-cron-secret` partilhado pelo `intouch-poll` e pelo `calculate-shift-targets` está
