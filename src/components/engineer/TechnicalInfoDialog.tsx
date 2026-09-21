@@ -64,7 +64,8 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
 
   const showQr = async (topic: TechnicalTopic) => {
     try {
-      setQr((q) => ({ ...q, [topic.id]: await topicQrDataUrl(topic.id) }));
+      const url = await topicQrDataUrl(topic.id);
+      setQr((q) => ({ ...q, [topic.id]: url }));
     } catch {
       toast.error("Could not build the QR code.");
     }
