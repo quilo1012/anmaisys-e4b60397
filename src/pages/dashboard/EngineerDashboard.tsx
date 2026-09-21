@@ -1521,6 +1521,7 @@ function EngineerDashboardContent() {
       />
 
       <EngineerChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
+      <TechnicalInfoDialog open={techInfoOpen} onOpenChange={setTechInfoOpen} />
       <RejectWoDialog
         woId={rejectDialogWO?.id ?? null}
         woNumber={rejectDialogWO?.number ?? null}
