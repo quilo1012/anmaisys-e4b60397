@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      _grants_backup_fase1: {
+        Row: {
+          anon_exec: boolean
+          auth_exec: boolean
+          e_trigger: boolean
+          func_sig: string
+          svc_exec: boolean
+          tirada_em: string
+        }
+        Insert: {
+          anon_exec: boolean
+          auth_exec: boolean
+          e_trigger: boolean
+          func_sig: string
+          svc_exec: boolean
+          tirada_em?: string
+        }
+        Update: {
+          anon_exec?: boolean
+          auth_exec?: boolean
+          e_trigger?: boolean
+          func_sig?: string
+          svc_exec?: boolean
+          tirada_em?: string
+        }
+        Relationships: []
+      }
+      _grants_backup_fase4: {
+        Row: {
+          grantee: string
+          privilege_type: string
+          table_name: string
+          tirada_em: string
+        }
+        Insert: {
+          grantee: string
+          privilege_type: string
+          table_name: string
+          tirada_em?: string
+        }
+        Update: {
+          grantee?: string
+          privilege_type?: string
+          table_name?: string
+          tirada_em?: string
+        }
+        Relationships: []
+      }
       _line_stopped_backfill_bak: {
         Row: {
           backfilled_at: string | null
@@ -2295,6 +2343,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          employee_id: string | null
           id: string
           line: string | null
           name: string
@@ -2304,6 +2353,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          employee_id?: string | null
           id?: string
           line?: string | null
           name: string
@@ -2313,13 +2363,22 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          employee_id?: string | null
           id?: string
           line?: string | null
           name?: string
           shift?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "line_leaders_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       line_problem_descriptions: {
         Row: {
