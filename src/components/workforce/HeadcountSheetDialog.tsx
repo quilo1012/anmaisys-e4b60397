@@ -251,7 +251,7 @@ export function HeadcountSheetDialog({
   const readFile = async (file: File) => {
     setBusy(true);
     try {
-      setAssigned({}); setAbsenceAs(null);
+      setAssigned({}); setAbsenceAs(null); setSourceLine(null);
       setBook(XLSX.read(await file.arrayBuffer(), { type: "array" }));
     } catch (e) {
       toast.error(`Could not read the file: ${(e as Error).message}`);
@@ -412,10 +412,24 @@ export function HeadcountSheetDialog({
               onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); e.target.value = ""; }}
             />
             {!preview && (
-              <Button onClick={() => fileRef.current?.click()} disabled={busy} className="w-full">
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                Choose a spreadsheet
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={loadFromSharePoint} disabled={busy || pulling} className="w-full">
+                  {pulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudDownload className="mr-2 h-4 w-4" />}
+                  Load from SharePoint ({target} shift, {date})
+                </Button>
+                <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy || pulling} className="w-full">
+                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  Choose a spreadsheet
+                </Button>
+                <p className="text-2xs text-muted-foreground">
+                  SharePoint fills the preview only. Nothing is saved until you confirm, and the
+                  reader can be slow to wake — give it a minute.
+                </p>
+              </div>
+            )}
+
+            {preview && sourceLine && (
+              <p className="text-2xs text-muted-foreground">{sourceLine}</p>
             )}
 
             {preview && (
@@ -598,7 +612,13 @@ export function HeadcountSheetDialog({
                 </p>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setBook(null)} className="flex-1">Choose another</Button>
+                  <Button variant="outline" onClick={() => { setBook(null); setSourceLine(null); }} className="flex-1">
+                    Start again
+                  </Button>
+                  <Button variant="outline" onClick={loadFromSharePoint} disabled={busy || pulling} className="flex-1">
+                    {pulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudDownload className="mr-2 h-4 w-4" />}
+                    Refresh from SharePoint
+                  </Button>
                   <Button onClick={commit} disabled={busy || !canManage || preview.matched.length === 0 || (crewMismatch && !anyway)} className="flex-1">
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Import {preview.matched.length} onto {target}
