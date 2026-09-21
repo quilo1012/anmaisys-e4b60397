@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, FileText, MoreVertical, ChevronRight } from "lucide-react";
+import { ClipboardList, Play, CheckCircle, Loader2, Package, Activity, Timer, AlertTriangle, PenTool, Camera, Printer, Focus, Users, Pause, PlayCircle, PowerOff, Wrench, FileText, MoreVertical, ChevronRight, BookOpen } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +40,7 @@ import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
 import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResponse } from "@/hooks/useChecklists";
 import { EngineerAlertLineFilter } from "@/components/EngineerAlertLineFilter";
+import { TechnicalInfoDialog } from "@/components/engineer/TechnicalInfoDialog";
 import { clearAcknowledgedWOLocal } from "@/lib/woAck";
 
 
@@ -1049,6 +1050,9 @@ function EngineerDashboardContent() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setTechInfoOpen(true)}>
+                    <BookOpen className="mr-2 h-4 w-4" /> Technical Info
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleReport}>
                     <FileText className="mr-2 h-4 w-4" /> Report
                   </DropdownMenuItem>
@@ -1069,6 +1073,9 @@ function EngineerDashboardContent() {
             <EngineerAlertLineFilter />
             <Button variant={focusMode ? "default" : "outline"} size="sm" onClick={() => setFocusMode(!focusMode)} className="gap-1">
               <Focus className="h-4 w-4" /> {focusMode ? "Focus ON" : "Focus"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setTechInfoOpen(true)} className="gap-1">
+              <BookOpen className="h-4 w-4" /> Technical Info
             </Button>
             <Button variant="outline" size="sm" onClick={handleReport} className="gap-1">
               <FileText className="h-4 w-4" /> Report
