@@ -96,6 +96,7 @@ const EngineerDashboard = lazyWithReload(() => import("./pages/dashboard/Enginee
 const ManagerDashboard = lazyWithReload(() => import("./pages/dashboard/ManagerDashboard"));
 
 const MachineHistoryPage = lazyWithReload(() => import("./pages/dashboard/MachineHistoryPage"));
+const TechnicalInfoPage = lazyWithReload(() => import("./pages/dashboard/TechnicalInfoPage"));
 const ControlCenterPage = lazyWithReload(() => import("./pages/dashboard/ControlCenterPage"));
 const AnalyticsPage = lazyWithReload(() => import("./pages/dashboard/AnalyticsPage"));
 const WorkOrdersPage = lazyWithReload(() => import("./pages/dashboard/WorkOrdersPage"));
@@ -374,6 +375,22 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="dashboard.engineer">
                       <EngineerDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/technical-info"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.engineer">
+                      <TechnicalInfoPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/technical-info/:id"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.engineer">
+                      <TechnicalInfoPage />
                     </ProtectedRoute>
                   }
                 />

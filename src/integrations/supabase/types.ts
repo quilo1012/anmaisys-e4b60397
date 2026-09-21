@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      _funcdefs_backup_fase2: {
+        Row: {
+          definicao: string
+          proname: string
+          tirada_em: string
+        }
+        Insert: {
+          definicao: string
+          proname: string
+          tirada_em?: string
+        }
+        Update: {
+          definicao?: string
+          proname?: string
+          tirada_em?: string
+        }
+        Relationships: []
+      }
       _grants_backup_fase1: {
         Row: {
           anon_exec: boolean
@@ -5719,6 +5737,48 @@ export type Database = {
           status_code?: number | null
           success?: boolean
           title?: string | null
+        }
+        Relationships: []
+      }
+      technical_info_topics: {
+        Row: {
+          columns: Json
+          created_at: string
+          created_by: string | null
+          file_path: string | null
+          id: string
+          kind: string
+          note: string | null
+          rows: Json
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          created_by?: string | null
+          file_path?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          rows?: Json
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          created_by?: string | null
+          file_path?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          rows?: Json
+          sort_order?: number
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
