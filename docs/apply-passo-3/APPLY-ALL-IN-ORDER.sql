@@ -1974,6 +1974,35 @@ END $patch$;
 
 
 -- ================================================================
+-- BLOCO 17B
+-- 20260827120000_blender_number_ceiling.sql
+-- ================================================================
+
+-- The blend number is a running count, and 99 was a wall it reaches on its own.
+--
+-- `blender_number` is not the machine. It is the blend's number within its batch,
+-- and it climbs for as long as the batch runs: CRE250 on batch A26213 went 30 → 35
+-- across two days, and batch B26188 reached 69 in five. A batch running a fortnight
+-- walks through 99 with nobody mistyping anything, and the operator on shift that
+-- night would have met
+--   new row for relation "production_blender_entries" violates check constraint
+--   "production_blender_entries_blender_number_check"
+-- for doing the job correctly. That message was already filed twice as an API_ERROR
+-- against Line 4 on 26/08, from a batch code landing in the blender box.
+--
+-- 999 is three digits of headroom against a smallint that holds 32767, and it still
+-- catches a five-digit batch code — the mistake that actually happens. The ceiling
+-- is mirrored in src/lib/blenderLabel.ts, which now refuses out-of-range figures on
+-- the screen so this constraint stops being a user-facing error message.
+ALTER TABLE public.production_blender_entries
+  DROP CONSTRAINT IF EXISTS production_blender_entries_blender_number_check;
+
+ALTER TABLE public.production_blender_entries
+  ADD CONSTRAINT production_blender_entries_blender_number_check
+  CHECK (blender_number >= 1 AND blender_number <= 999);
+
+
+-- ================================================================
 -- BLOCO 18
 -- 20260828090000_maintenance_keeps_its_own_list_and_a_hazard_can_cost.sql
 -- ================================================================
@@ -2751,3 +2780,247 @@ $function$;
 
 COMMENT ON FUNCTION public.session_write_deadline(date, text) IS
   'Last moment an operator may write to a shift: 18:30 for DAY, 06:30 next day for NIGHT (Europe/London) — 30 minutes after the shift ends. Mirrored by SHIFT_GRACE_MINUTES in src/lib/shifts.ts; the two must move together.';
+
+
+-- ================================================================
+-- BLOCO 26
+-- 20260905090000_the_queue_that_swept_itself_slower_every_day.sql
+-- ================================================================
+
+-- The cleanup that got slower every day until it took the database with it.
+--
+-- On 26/08/2026, between 03:06 and 04:38 UTC (04:06–05:38 on the floor), every screen
+-- in the app timed out at once: production_items, work_orders, profiles,
+-- quality_options, rpc:get_user_role — tables with nothing in common. That pattern is
+-- never one slow query. It is the instance itself with no I/O left.
+--
+-- WHAT IT WAS. `pg_net` keeps every HTTP response it has made in `net._http_response`
+-- and sweeps the table on a timer, deleting anything past `pg_net.ttl` (6 hours,
+-- default). Measured on 26/08:
+--
+--   net._http_response      372 live rows
+--                        18585 pages, 52 MB heap        <- 1000x more than the rows need
+--                          664 kB index, for 372 rows
+--   sum(length(content))    0.1 MB                      <- the actual data
+--   last_autovacuum        (null)
+--   autovacuum_count            0
+--
+-- And in pg_stat_statements, the sweep itself:
+--
+--   WITH rows AS (SELECT ctid FROM net._http_response WHERE created < now() - $1
+--                 ORDER BY created LIMIT $2) DELETE ...
+--     calls 71322 · mean 323 ms · MAX 1227182 ms   <- 20.5 minutes, in one run
+--
+-- Each day it is slower than the day before: the same few rows, spread over more and
+-- more pages. At 20 minutes of random I/O it starves everything else, which is when
+-- pg_cron starts reporting `job startup timeout` (126 times that morning — it could not
+-- even open a connection) and a one-row `insert into cron.job_run_details` takes 99
+-- seconds.
+--
+-- =====================================================================
+-- WHY AUTOVACUUM CANNOT BE THE FIX HERE, measured rather than assumed
+-- =====================================================================
+--
+-- The obvious repair is a storage policy — absolute autovacuum thresholds, so the table
+-- stops depending on a percentage of a row count. It does not work, and the reason is
+-- worth writing down because it is invisible and it looks like it worked.
+--
+-- The statistics collector never sees what pg_net does to this table. Sampled three
+-- times on 26/08 (13:19, 13:31 and 13:53 UTC), with the newest response 20 seconds old
+-- each time — so the extension was demonstrably inserting and deleting every minute:
+--
+--   n_tup_ins    8          <- not moving
+--   n_tup_del    0          <- not moving
+--   n_dead_tup   0          <- not moving
+--   live rows  372          <- the truth, from count(*)
+--
+-- Autovacuum fires when `n_dead_tup > threshold + scale_factor * n_live_tup`. The left
+-- side is permanently zero, so NO threshold fires. Not 100, not 1, not 0. And ANALYZE
+-- does not rescue it: analyze re-counts live tuples, never dead ones.
+--
+-- The storage parameters are set below anyway — they cost nothing and they start
+-- working the day pg_net reports its own writes — but they are DEFENCE IN DEPTH AND
+-- NOTHING MORE. The cron job is the fix. src/__tests__/pgNetSweepHasACron.test.ts
+-- exists to stop somebody deleting it as redundant against the parameters above it,
+-- which is exactly the mistake this comment is here to prevent.
+--
+-- WHAT THIS STILL CANNOT DO. It cannot reclaim the 52 MB already lost. That needs
+-- `VACUUM FULL`, which takes an ACCESS EXCLUSIVE lock and cannot run inside a
+-- transaction, so it cannot live in a migration. Run it once, by hand:
+--
+--   VACUUM (FULL, ANALYZE) net._http_response;
+--
+-- On 372 rows it takes well under a second. Without it, this file prevents the next
+-- 52 MB but the sweep still walks today's.
+--
+-- WHY NOT JUST LOWER pg_net.ttl. It is a `configuration file` setting, so changing it
+-- needs a restart of a managed instance, and it treats the symptom: at 6 hours the
+-- table holds roughly a thousand rows, which is nothing. The table is not big. It is
+-- BLOATED, and a shorter TTL deletes more often into the same unreclaimed heap.
+--
+-- The table is UNLOGGED (relpersistence = 'u'), holds HTTP responses nobody reads back,
+-- and is emptied on any crash by design. Nothing here risks business data.
+
+-- =====================================================================
+-- 1. Defence in depth, inert today — see the note above before trusting it
+-- =====================================================================
+
+DO $$
+BEGIN
+  EXECUTE $ddl$
+    ALTER TABLE net._http_response SET (
+      autovacuum_enabled                  = true,
+      autovacuum_vacuum_threshold         = 100,
+      autovacuum_vacuum_scale_factor      = 0.0,
+      autovacuum_analyze_threshold        = 100,
+      autovacuum_analyze_scale_factor     = 0.0,
+      autovacuum_vacuum_cost_delay        = 0
+    )
+  $ddl$;
+EXCEPTION
+  -- A database without pg_net, or one where the extension's tables are not ours to
+  -- alter, is not a reason to fail the whole package.
+  WHEN undefined_table OR insufficient_privilege THEN
+    RAISE NOTICE 'net._http_response nao existe ou nao e alteravel aqui. Sem politica de armazenamento — o cron abaixo continua a ser a defesa real.';
+END $$;
+
+-- =====================================================================
+-- 2. The hourly VACUUM. THIS is the fix.
+--
+-- pg_cron runs its command OUTSIDE a transaction, which is the only place in this
+-- database a plain VACUUM can run from — there is no shell here, and the MCP wraps
+-- every call in a transaction.
+--
+-- Not VACUUM FULL: no exclusive lock, every hour, on a table pg_net writes to every
+-- minute. A plain VACUUM marks the pages reusable, which is all that is needed once the
+-- heap has been rebuilt by hand the first time.
+-- =====================================================================
+
+DO $$
+BEGIN
+  IF to_regclass('cron.job') IS NULL THEN
+    RAISE NOTICE 'pg_cron nao esta instalado. A varredura do pg_net fica sem defesa nenhuma.';
+    RETURN;
+  END IF;
+
+  -- Idempotent: unschedule by name first, so re-applying the package does not leave two.
+  PERFORM cron.unschedule('vacuum-pg-net-responses')
+    WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'vacuum-pg-net-responses');
+
+  PERFORM cron.schedule(
+    'vacuum-pg-net-responses',
+    '17 * * * *',   -- off the hour: every other job in this database fires on :00
+    'VACUUM (ANALYZE) net._http_response'
+  );
+END $$;
+
+COMMENT ON EXTENSION pg_net IS
+  'HTTP a partir do Postgres. net._http_response e varrida por TTL a cada minuto e a sua '
+  'autovacuum NUNCA dispara — o coletor de estatisticas nao ve as escritas da extensao, '
+  'por isso n_dead_tup fica sempre 0. Ver 20260905090000. Se as chamadas comecarem a '
+  'expirar em todas as tabelas ao mesmo tempo, medir pg_relation_size(''net._http_response'') '
+  'antes de procurar a query lenta: em 26/08/2026 eram 18585 paginas para 372 linhas.';
+
+
+-- ================================================================
+-- BLOCO 27
+-- 20260906090000_the_leader_the_tablet_wrote_but_never_linked.sql
+-- ================================================================
+
+-- The leader the tablet wrote down but never linked.
+--
+-- A shift leader lives in two columns on production_sessions: `leader_id`, a link to
+-- line_leaders, and `leader_name`, free text. The floor tablet only ever wrote the
+-- name — the operator types who they are and hits sync — while the Intouch import
+-- writes both. Measured on 27/08/2026:
+--
+--   production_sessions                          563 rows
+--     leader_id set                               81   (14%)
+--     leader_name only, no link                  344   (61%)   <- this migration
+--     neither                                    139   (25%)   <- genuinely nobody
+--
+-- WHAT IT COST. Production Control asked "does this session have a leader?" in three
+-- places by looking at the link, and answered the same question in the row itself by
+-- looking at the name. The same session read "Gill" in the leader column and
+-- "NO LEADER" on the bay plate two centimetres above it, and the amber no-leader
+-- andon was lit on 482 of 563 rows. A warning that is always on is not a warning.
+-- The reading was fixed in code (src/lib/sessionLeader.ts) and the tablet now
+-- resolves the name as it saves, so this backfill closes the set rather than opening
+-- a habit.
+--
+-- It also cost the leader as an entity: the weekly scorecards and the per-line
+-- assignment join on `leader_id`, so 61% of the shifts that had a leader were absent
+-- from every one of those numbers.
+--
+-- WHAT THIS DOES. Links the 344 by name, case-insensitively and with runs of
+-- whitespace collapsed — the same key `resolveLeader` uses in the app, so the two
+-- cannot drift into disagreeing. All 28 distinct names resolve to exactly one row of
+-- line_leaders; the count below is 344 of 344, with none ambiguous, and was measured
+-- before this was written.
+--
+-- WHAT IT REFUSES TO DO. A name matching two leaders is left exactly as it is:
+-- picking one at random would put half of one person's shifts on the other's account
+-- and nobody would ever notice, which is the worst way for a number to be wrong.
+-- There are none today; the guard is here so there are none tomorrow either. And
+-- sessions with no name at all are not touched — those 139 really did run without a
+-- leader recorded, and the andon should still light for them.
+--
+-- Idempotent: it only ever considers rows where leader_id is null.
+--
+-- UNDOING IT. The rows it is about to change are copied into a table first, so the
+-- undo is exact rather than a guess. It has to be exact: once leader_id is filled,
+-- "leader_id is null and leader_name is not null" no longer finds these rows, and
+-- there would be nothing left to tell them apart from the 81 that were already
+-- linked. To put them back:
+--
+--   update production_sessions s
+--      set leader_id   = b.leader_id_before,
+--          leader_name = b.leader_name_before
+--     from backfill_20260906_leader_id b
+--    where s.id = b.session_id;
+
+begin;
+
+create table if not exists backfill_20260906_leader_id (
+  session_id         uuid primary key references production_sessions(id) on delete cascade,
+  leader_id_before   uuid,
+  leader_name_before text,
+  backfilled_at      timestamptz not null default now()
+);
+
+-- Nobody reads this table from the app; it exists for a person with the SQL editor
+-- on the day something looks wrong. Locked down so it cannot become a side door.
+alter table backfill_20260906_leader_id enable row level security;
+
+insert into backfill_20260906_leader_id (session_id, leader_id_before, leader_name_before)
+select s.id, s.leader_id, s.leader_name
+  from production_sessions s
+ where s.leader_id is null
+   and s.leader_name is not null
+on conflict (session_id) do nothing;
+
+with matched as (
+  select
+    s.id                as session_id,
+    count(l.id)         as hits,
+    -- array_agg and not min(): Postgres has no min(uuid). With hits = 1 enforced
+    -- below there is exactly one row to take, so which one is not a question.
+    (array_agg(l.id))[1]   as leader_id,
+    (array_agg(l.name))[1] as leader_name
+  from production_sessions s
+  join line_leaders l
+    on lower(regexp_replace(btrim(l.name),        '\s+', ' ', 'g'))
+     = lower(regexp_replace(btrim(s.leader_name), '\s+', ' ', 'g'))
+  where s.leader_id is null
+    and s.leader_name is not null
+  group by s.id
+)
+update production_sessions s
+   set leader_id   = m.leader_id,
+       -- The roster's spelling wins, so one person is one name everywhere.
+       leader_name = m.leader_name
+  from matched m
+ where s.id = m.session_id
+   and m.hits = 1;
+
+commit;

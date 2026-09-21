@@ -1,4 +1,4 @@
-# Passo 3 — as onze migrações que o `docs/apply/` não carrega
+# Passo 3 — as dezanove migrações que o `docs/apply/` não carrega
 
 ## O erro que isto corrige
 
@@ -46,7 +46,7 @@ falha o teste.
 
 ## O que está no ficheiro
 
-`APPLY-ALL-IN-ORDER.sql`, blocos 09 a 25, reconstruídos **byte a byte** a partir de
+`APPLY-ALL-IN-ORDER.sql`, blocos 09 a 27, reconstruídos **byte a byte** a partir de
 `supabase/migrations/` — verificado pelo teste, não presumido.
 
 | bloco | migração | o que traz |
@@ -68,6 +68,8 @@ falha o teste.
 | 23 | `20260902090000` | `production_office_admin` — a migração de 28/07 tinha ficado a meio |
 | 24 | `20260903090000` | `description`, `machine`, `location` e `photo_url` em `products` |
 | 25 | `20260904090000` | a tolerância de fim de turno passa de 15 para 30 minutos |
+| 26 | `20260905090000` | a limpeza da fila `net._http_response`, que ficava mais lenta a cada dia |
+| 27 | `20260906090000` | o líder que o tablet escrevia mas nunca ligava a `line_leaders` |
 
 ## A ordem não é negociável
 
