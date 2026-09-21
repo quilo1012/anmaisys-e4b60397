@@ -349,6 +349,7 @@ function EngineerDashboardContent() {
   const { data: onlineEngineers } = useOnlineEngineers();
   const [focusMode, setFocusMode] = useState(false);
   const [changePinOpen, setChangePinOpen] = useState(false);
+  const [techInfoOpen, setTechInfoOpen] = useState(false);
 
   // When the sidebar's "My Tasks" / "History" items are clicked, scroll to the
   // matching section.
