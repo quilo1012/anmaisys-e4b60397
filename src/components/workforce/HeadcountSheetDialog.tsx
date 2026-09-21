@@ -14,7 +14,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
-import { Download, Upload, AlertTriangle, Loader2, ChevronsUpDown, Check } from "lucide-react";
+import { Download, Upload, AlertTriangle, Loader2, ChevronsUpDown, Check, CloudDownload } from "lucide-react";
+import { invokeFunction } from "@/lib/invokeFunction";
+import { headcountApiToWorkbook, headcountApiSource, type HeadcountApiResponse } from "@/lib/headcountApi";
 import {
   buildHeadcountWorkbook, parseHeadcountWorkbook, datesBetween, rowsToImport,
   type ImportPreview, type StandingLeader, type UnmatchedName,
@@ -134,6 +136,9 @@ export function HeadcountSheetDialog({
   const [absenceAs, setAbsenceAs] = useState<AllocStatus | null>(null);
   const [remember, setRemember] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Where the loaded sheet came from, when it came from SharePoint rather than a file.
+  const [sourceLine, setSourceLine] = useState<string | null>(null);
+  const [pulling, setPulling] = useState(false);
   const rotaCover = useRotaCover();
 
   // Which board the import writes to. It starts as the board that is open, and the
@@ -163,8 +168,40 @@ export function HeadcountSheetDialog({
   const crewMismatch = !!preview && preview.crews[other] > preview.crews[target];
 
   const close = () => {
-    setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true);
+    setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true); setSourceLine(null);
     onOpenChange(false);
+  };
+
+  /**
+   * The day/shift on the board, read out of the factory's SharePoint workbook by the
+   * reader service and dropped into this same preview. Nothing is saved here: the
+   * ordinary Confirm below still decides, so a saved board is never replaced quietly.
+   *
+   * A reader that is asleep, unreachable or has nothing for the day is said plainly
+   * and leaves the manual path exactly as it was.
+   */
+  const loadFromSharePoint = async () => {
+    if (pulling) return;
+    setPulling(true);
+    try {
+      const { data, error } = await invokeFunction<any>("headcount-sharepoint", {
+        mode: "date",
+        date,
+        shift: target === "Night" ? "night" : "day",
+      });
+      if (error) { toast.error(error.message ?? "Could not reach SharePoint"); return; }
+      if (data?.error) { toast.warning(data.message ?? data.error); return; }
+      const res = data?.headcount as HeadcountApiResponse | undefined;
+      if (!res) { toast.warning("SharePoint returned no headcount for that day."); return; }
+      setAssigned({}); setAbsenceAs(null);
+      setBook(headcountApiToWorkbook(res));
+      setSourceLine(headcountApiSource(res));
+      toast.success("Loaded from SharePoint — check it and confirm to save.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setPulling(false);
+    }
   };
 
   const runExport = async () => {
@@ -214,7 +251,7 @@ export function HeadcountSheetDialog({
   const readFile = async (file: File) => {
     setBusy(true);
     try {
-      setAssigned({}); setAbsenceAs(null);
+      setAssigned({}); setAbsenceAs(null); setSourceLine(null);
       setBook(XLSX.read(await file.arrayBuffer(), { type: "array" }));
     } catch (e) {
       toast.error(`Could not read the file: ${(e as Error).message}`);
@@ -375,10 +412,24 @@ export function HeadcountSheetDialog({
               onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f); e.target.value = ""; }}
             />
             {!preview && (
-              <Button onClick={() => fileRef.current?.click()} disabled={busy} className="w-full">
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                Choose a spreadsheet
-              </Button>
+              <div className="space-y-2">
+                <Button onClick={loadFromSharePoint} disabled={busy || pulling} className="w-full">
+                  {pulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudDownload className="mr-2 h-4 w-4" />}
+                  Load from SharePoint ({target} shift, {date})
+                </Button>
+                <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy || pulling} className="w-full">
+                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  Choose a spreadsheet
+                </Button>
+                <p className="text-2xs text-muted-foreground">
+                  SharePoint fills the preview only. Nothing is saved until you confirm, and the
+                  reader can be slow to wake — give it a minute.
+                </p>
+              </div>
+            )}
+
+            {preview && sourceLine && (
+              <p className="text-2xs text-muted-foreground">{sourceLine}</p>
             )}
 
             {preview && (
@@ -561,7 +612,13 @@ export function HeadcountSheetDialog({
                 </p>
 
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setBook(null)} className="flex-1">Choose another</Button>
+                  <Button variant="outline" onClick={() => { setBook(null); setSourceLine(null); }} className="flex-1">
+                    Start again
+                  </Button>
+                  <Button variant="outline" onClick={loadFromSharePoint} disabled={busy || pulling} className="flex-1">
+                    {pulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudDownload className="mr-2 h-4 w-4" />}
+                    Refresh from SharePoint
+                  </Button>
                   <Button onClick={commit} disabled={busy || !canManage || preview.matched.length === 0 || (crewMismatch && !anyway)} className="flex-1">
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Import {preview.matched.length} onto {target}
