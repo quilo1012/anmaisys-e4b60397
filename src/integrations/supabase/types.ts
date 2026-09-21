@@ -5740,6 +5740,48 @@ export type Database = {
         }
         Relationships: []
       }
+      technical_info_topics: {
+        Row: {
+          columns: Json
+          created_at: string
+          created_by: string | null
+          file_path: string | null
+          id: string
+          kind: string
+          note: string | null
+          rows: Json
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          created_by?: string | null
+          file_path?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          rows?: Json
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          created_by?: string | null
+          file_path?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          rows?: Json
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
