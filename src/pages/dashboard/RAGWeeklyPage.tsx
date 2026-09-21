@@ -56,6 +56,7 @@ function formatIsoDay(isoDay: string, withYear = false): string {
 }
 import { ragBoardLines } from "@/lib/ragBoardLines";
 import { PlanHistoryPopover } from "@/components/rag/PlanHistoryPopover";
+import { RagHeadcountBlock } from "@/components/rag/RagHeadcountBlock";
 import { useRagPlanHistory } from "@/hooks/useRagPlanHistory";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
@@ -1219,6 +1220,11 @@ export default function RAGWeeklyPage() {
             setEditing({ date, line, shift, entry: e });
           }}
         />
+
+        {/* Staffing beside the volumes: planned staff and actual headcount for the same
+            seven days, read from the SharePoint headcount sheet on request. */}
+        <RagHeadcountBlock weekDates={weekDates} />
+
 
 
 
