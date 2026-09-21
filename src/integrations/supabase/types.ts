@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      _funcdefs_backup_fase2: {
+        Row: {
+          definicao: string
+          proname: string
+          tirada_em: string
+        }
+        Insert: {
+          definicao: string
+          proname: string
+          tirada_em?: string
+        }
+        Update: {
+          definicao?: string
+          proname?: string
+          tirada_em?: string
+        }
+        Relationships: []
+      }
       _grants_backup_fase1: {
         Row: {
           anon_exec: boolean
