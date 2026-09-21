@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Loader2, Lock, ShieldCheck } from "lucide-react";
 import { shouldRelock } from "@/lib/adminPinGate";
+import { useAdminPin } from "@/contexts/AdminPinContext";
 
 /**
  * A second door in front of payroll data.
@@ -22,6 +23,12 @@ import { shouldRelock } from "@/lib/adminPinGate";
  *
  * Moving between the section's own tabs does not re-ask. A PIN typed four times an
  * hour stops being a lock and becomes a habit somebody works around.
+ *
+ * The answer is held by AdminPinProvider, in React state, and by nothing else. It was
+ * in `sessionStorage` until then, which meant the lock could be picked by writing its
+ * own answer into it — one line in the console, no PIN, no request, no trace. Now a
+ * refresh asks again, and so does a second tab; that is the cost of not writing it
+ * down, and it is the point rather than a side effect.
  *
  * The PIN is checked by the `verify-admin-pin` edge function — the same one Clear WOs
  * uses. Nothing here decides whether the PIN is right; it only asks.
@@ -54,14 +61,12 @@ export function AdminPinGate({
   description: string;
   children: React.ReactNode;
 }) {
-  const key = `pin-ok:${storageKey}`;
-  // Read on the first render, not in an effect. Reading it afterwards meant every
-  // navigation inside an already-unlocked section painted the keypad for a frame
-  // before replacing it — the section flashed locked on every tab change, which
-  // teaches somebody to start typing before looking.
-  const [unlocked, setUnlocked] = useState(() => {
-    try { return sessionStorage.getItem(key) === "1"; } catch { return false; }
-  });
+  // Read straight from the provider, which sits above the routes. There is no first
+  // render where this is unknown, so the section never flashes locked on the way into
+  // a screen it has already been opened for — a flicker that teaches somebody to start
+  // typing before looking.
+  const { isUnlocked, unlock, relock } = useAdminPin();
+  const unlocked = isUnlocked(storageKey);
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -80,12 +85,6 @@ export function AdminPinGate({
 
   const locked = lockoutLeft > 0;
 
-  // Still watched, because the key can change between screens and another tab can
-  // unlock the section while this one is open.
-  useEffect(() => {
-    try { setUnlocked(sessionStorage.getItem(key) === "1"); } catch { /* storage blocked */ }
-  }, [key]);
-
   // Lock behind you on the way out.
   //
   // Read at cleanup rather than at render: React Router has already committed the new
@@ -93,10 +92,8 @@ export function AdminPinGate({
   // they were. That is what makes it possible to tell a tab change inside the section
   // from actually leaving it.
   useEffect(() => () => {
-    try {
-      if (shouldRelock(storageKey, window.location.pathname)) sessionStorage.removeItem(key);
-    } catch { /* storage blocked */ }
-  }, [key, storageKey]);
+    if (shouldRelock(storageKey, window.location.pathname)) relock(storageKey);
+  }, [storageKey, relock]);
 
   const submit = useCallback(async () => {
     if (pin.length < 4 || locked) return;
@@ -147,9 +144,8 @@ export function AdminPinGate({
         setPin("");
         return;
       }
-      try { sessionStorage.setItem(key, "1"); } catch { /* storage blocked; unlock still holds for this render */ }
       setLockoutLeft(0);
-      setUnlocked(true);
+      unlock(storageKey);
     } catch (e) {
       // A network failure is not a wrong PIN either — the tablet's wi-fi drops.
       console.error("[AdminPinGate] verify threw", e);
@@ -157,7 +153,7 @@ export function AdminPinGate({
     } finally {
       setBusy(false);
     }
-  }, [pin, key, locked]);
+  }, [pin, locked, storageKey, unlock]);
 
   if (unlocked) return <>{children}</>;
 

@@ -10,6 +10,7 @@ import { reportQueryError, type QueryErrorMeta } from "@/lib/queryErrors";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
+import { AdminPinProvider } from "@/contexts/AdminPinContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -302,6 +303,9 @@ const App = () => (
         <AuthProvider>
           <LanguageProvider>
           <CriticalAlertProvider>
+          {/* Above the routes on purpose: the PIN-locked section is five screens, and
+              a provider inside any one of them would re-ask on every tab change. */}
+          <AdminPinProvider>
             <ErrorBoundary>
             <AppUpdater />
             <PermissionOverridesSync />
@@ -784,6 +788,7 @@ const App = () => (
               </Routes>
             </Suspense>
             </ErrorBoundary>
+          </AdminPinProvider>
           </CriticalAlertProvider>
           </LanguageProvider>
         </AuthProvider>
