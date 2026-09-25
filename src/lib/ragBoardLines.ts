@@ -7,8 +7,14 @@
  * verificar apodrece da mesma maneira.
  */
 
-/** Postos que o quadro tem mas a tabela `lines` não. */
-const BOARD_ONLY = ["Gel Packing"];
+/**
+ * Postos que o quadro tem mas a tabela `lines` não. Vazio de propósito: o
+ * "Gel Packing" viveu aqui e partiu a sincronia — o quadro dizia Gel Packing
+ * enquanto o Production Control e o operador diziam GEL Line, e o target de
+ * um nunca chegava ao outro. Um posto só entra no quadro se existir em
+ * `lines`, para que target e produção falem do mesmo nome.
+ */
+const BOARD_ONLY: string[] = [];
 
 /** Nunca são linhas de produção — são consumíveis que alguém pôs na tabela. */
 const EXCLUDED = ["sealer", "printer ink"];
@@ -36,7 +42,6 @@ function rank(name: string): [number, number] {
   const m = s.match(/line\s*0*(\d+)/);
   if (m) return [0, Number(m[1])];          // Filler Line 1..6
   if (s.includes("capsule") || s.includes("tablet")) return [1, 0];  // Tablet Line
-  if (s === "gel packing") return [2, 0];
   return [3, 0];                            // linha nova, acima das máquinas
 }
 
@@ -51,12 +56,6 @@ export function ragBoardLines(rows: { name: string; active?: boolean | null }[])
     .map((r) => r.name)
     .filter((n) => !EXCLUDED.includes(key(n)));
 
-  // O Gel Packing é uma máquina da GEL Line na tabela `lines`, não uma linha. Mas o RAG
-  // é lançado por posto e o packing do gel tem plano e output seus, por isso entra aqui
-  // sem passar a existir em `lines`: `rag_weekly_entries.line` é texto livre e sem chave
-  // estrangeira, os lançamentos gravam na mesma, e os outros ecrãs que listam linhas
-  // continuam a ver a fábrica como ela está registada. Se um dia for promovido a linha
-  // na base, o filtro abaixo evita a linha repetida.
   const missing = BOARD_ONLY.filter((b) => !fromDb.some((n) => key(n) === key(b)));
 
   return [...fromDb, ...missing].sort((a, b) => {
