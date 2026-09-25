@@ -25,7 +25,9 @@ const EXCLUDED = ["sealer", "printer ink"];
  * "gel line" e "gel machine" são o mesmo posto com duas grafias — a base diz a
  * primeira, a iTouching diz a segunda.
  */
-const TAIL = ["capsules machine 1", "capsules machine 2", "gel line", "gel machine"];
+const TAIL = ["capsules machine 1", "capsules machine 2"];
+// GEL Line vem logo depois da Tablet Line, antes das máquinas.
+const GEL = ["gel line", "gel machine"];
 
 const key = (n: string) => n.trim().toLowerCase();
 
@@ -39,6 +41,7 @@ function rank(name: string): [number, number] {
   const s = key(name);
   const tail = TAIL.indexOf(s);
   if (tail >= 0) return [4, tail];
+  if (GEL.includes(s)) return [1, 1];
   const m = s.match(/line\s*0*(\d+)/);
   if (m) return [0, Number(m[1])];          // Filler Line 1..6
   if (s.includes("capsule") || s.includes("tablet")) return [1, 0];  // Tablet Line

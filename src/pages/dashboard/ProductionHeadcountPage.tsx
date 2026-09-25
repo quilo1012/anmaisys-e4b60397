@@ -1,3 +1,5 @@
+import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
+import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { blockOf } from "@/lib/headcountBlocks";
@@ -1277,6 +1279,7 @@ function ShiftBoard({
 export default function ProductionHeadcountPage() {
   const qc = useQueryClient();
   const { can } = useRole();
+  const { role } = useAuth();
   const canManage = can("headcount.manage");
   // Opens on the board that is actually running. At 03:00 that is last night's, not an
   // empty Day board for a day that has not started — see `currentShift`. The controls
@@ -1335,6 +1338,7 @@ export default function ProductionHeadcountPage() {
         is the friction that makes somebody prop the door open — a PIN typed four times
         an hour stops being a lock and becomes a habit. */}
     <AdminPinGate
+      bypass={role === "admin" || role === "manager"}
       storageKey="workforce"
       title="Production Headcount"
       description="The board and the workforce screens behind it. Enter the admin PIN to open."
@@ -1497,6 +1501,14 @@ export default function ProductionHeadcountPage() {
           nobody asked for and a page of pay information left on a printer by the lines.
           Reading them is what the screen is for. */}
       <div className="no-print space-y-4">
+        {view === "Split" ? (
+          <>
+            <HeadcountHoursTable date={date} shift="Day" areas={areas} />
+            <HeadcountHoursTable date={date} shift="Night" areas={areas} />
+          </>
+        ) : (
+          <HeadcountHoursTable date={date} shift={view} areas={areas} />
+        )}
         <PeriodCalendar />
         <HeadcountOvertimePanel />
       </div>

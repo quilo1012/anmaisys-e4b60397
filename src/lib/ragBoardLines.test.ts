@@ -19,8 +19,8 @@ describe("ragBoardLines", () => {
   it("põe a fábrica por ordem: enchimento, packing, máquinas", () => {
     expect(ragBoardLines(PROD)).toEqual([
       "Line 1", "Line 2", "Line 3", "Line 4", "Line 5", "Line 6",
-      "Tablet Line",
-      "Capsules Machine 1", "Capsules Machine 2", "GEL Line",
+      "Tablet Line", "GEL Line",
+      "Capsules Machine 1", "Capsules Machine 2",
     ]);
   });
 
@@ -30,9 +30,9 @@ describe("ragBoardLines", () => {
     expect(out).toContain("GEL Line");
   });
 
-  it("acaba sempre nas três máquinas, por essa ordem", () => {
-    expect(ragBoardLines(PROD).slice(-3)).toEqual([
-      "Capsules Machine 1", "Capsules Machine 2", "GEL Line",
+  it("GEL Line vem logo depois da Tablet Line e acaba nas máquinas", () => {
+    expect(ragBoardLines(PROD).slice(-4)).toEqual([
+      "Tablet Line", "GEL Line", "Capsules Machine 1", "Capsules Machine 2",
     ]);
   });
 
@@ -51,11 +51,11 @@ describe("ragBoardLines", () => {
   it("uma linha nova entra acima das máquinas, não por baixo", () => {
     const out = ragBoardLines([...PROD, { name: "Sachet Line", active: true }]);
     expect(out.indexOf("Sachet Line")).toBeLessThan(out.indexOf("Capsules Machine 1"));
-    expect(out.slice(-3)).toEqual(["Capsules Machine 1", "Capsules Machine 2", "GEL Line"]);
+    expect(out.slice(-2)).toEqual(["Capsules Machine 1", "Capsules Machine 2"]);
   });
 
   it("aceita 'Gel Machine', a grafia da iTouching, no mesmo lugar da GEL Line", () => {
     const out = ragBoardLines(PROD.map((r) => (r.name === "GEL Line" ? { ...r, name: "Gel Machine" } : r)));
-    expect(out.slice(-1)).toEqual(["Gel Machine"]);
+    expect(out[out.indexOf("Tablet Line") + 1]).toBe("Gel Machine");
   });
 });
