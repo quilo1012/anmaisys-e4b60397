@@ -1,3 +1,4 @@
+import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
@@ -1500,6 +1501,14 @@ export default function ProductionHeadcountPage() {
           nobody asked for and a page of pay information left on a printer by the lines.
           Reading them is what the screen is for. */}
       <div className="no-print space-y-4">
+        {view === "Split" ? (
+          <>
+            <HeadcountHoursTable date={date} shift="Day" areas={areas} />
+            <HeadcountHoursTable date={date} shift="Night" areas={areas} />
+          </>
+        ) : (
+          <HeadcountHoursTable date={date} shift={view} areas={areas} />
+        )}
         <PeriodCalendar />
         <HeadcountOvertimePanel />
       </div>
