@@ -47,9 +47,21 @@ const KIND_LABEL: Record<Kind, string> = { holiday: "Holiday", unpaid: "Unpaid",
  */
 export default function LeavePage() {
   const qc = useQueryClient();
-  const { can } = useRole();
+  const { can, is } = useRole();
   const { user } = useAuth();
   const canDecide = can("workforce.manage");
+  // The database lets only admins write shift_patterns, so the form is theirs alone.
+  const isAdmin = is("admin");
+
+  const [showNewEnt, setShowNewEnt] = useState(false);
+  const [entName, setEntName] = useState("");
+  const [entDays, setEntDays] = useState<number[]>([1, 2, 3, 4]);
+  const [entStart, setEntStart] = useState("06:00");
+  const [entEnd, setEntEnd] = useState("18:00");
+  const [entBreak, setEntBreak] = useState("60");
+  const [entAnnual, setEntAnnual] = useState("");
+  const [entBankHols, setEntBankHols] = useState(true);
+  const [entBusy, setEntBusy] = useState(false);
 
   const [showNew, setShowNew] = useState(false);
   const [employeeId, setEmployeeId] = useState("");
