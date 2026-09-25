@@ -1430,10 +1430,23 @@ export default function ProductionHeadcountPage() {
               Export
             </Button>
             {canManage && (
-              <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setSheet("import")}>
-                <Upload className="mr-2 h-4 w-4" />
-                Import
-              </Button>
+              <>
+                {/* The sheet the office types every morning, one press away. It opens the
+                    same preview the file path uses — nothing is saved until it is confirmed. */}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="print:hidden"
+                  onClick={() => { setSyncing(true); setSheet("import"); }}
+                >
+                  <CloudDownload className="mr-2 h-4 w-4" />
+                  Sync from SharePoint
+                </Button>
+                <Button size="sm" variant="secondary" className="print:hidden" onClick={() => { setSyncing(false); setSheet("import"); }}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Import
+                </Button>
+              </>
             )}
             <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
