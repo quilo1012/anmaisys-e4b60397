@@ -622,7 +622,7 @@ export function HeadcountSheetDialog({
                               <NamePicker
                                 spelling={u.name}
                                 candidates={u.candidates}
-                                roster={roster}
+                                roster={people}
                                 value={assigned[u.name] ?? null}
                                 onChange={(id) => setAssigned((prev) => {
                                   const next = { ...prev };
