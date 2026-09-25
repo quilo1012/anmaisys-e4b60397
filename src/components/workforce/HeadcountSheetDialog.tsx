@@ -177,6 +177,7 @@ export function HeadcountSheetDialog({
 
   const close = () => {
     setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true); setSourceLine(null);
+    setCreated([]);
     onOpenChange(false);
   };
 
