@@ -143,6 +143,7 @@ const SafetyCultureSettingsPage = lazyWithReload(() => import("./pages/dashboard
 const LineProductionScreen = lazyWithReload(() => import("./pages/dashboard/LineProductionScreen"));
 const LineDisplayScreen = lazyWithReload(() => import("./pages/dashboard/LineDisplayScreen"));
 const LineHubScreen = lazyWithReload(() => import("./pages/dashboard/LineHubScreen"));
+const OperatorTeamPage = lazyWithReload(() => import("./pages/dashboard/OperatorTeamPage"));
 const IntouchMachineMapPage = lazyWithReload(() => import("./pages/dashboard/IntouchMachineMapPage"));
 const IntouchStopCodesPage = lazyWithReload(() => import("./pages/dashboard/IntouchStopCodesPage"));
 // DowntimeHeatmapPage consolidated into DowntimePage as the "Heatmap" tab.
@@ -331,6 +332,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="production.target.view">
                       <MyProductionPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/operator/team"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.operator">
+                      <OperatorTeamPage />
                     </ProtectedRoute>
                   }
                 />

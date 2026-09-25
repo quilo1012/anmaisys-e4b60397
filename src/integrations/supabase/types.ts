@@ -8220,6 +8220,18 @@ export type Database = {
           shift: string
         }[]
       }
+      line_team_board: {
+        Args: { p_line_id: string }
+        Returns: {
+          employee_name: string
+          half_day: boolean
+          is_leader: boolean
+          note: string
+          on_date: string
+          shift: string
+          status: string
+        }[]
+      }
       list_active_profile_names: {
         Args: never
         Returns: {

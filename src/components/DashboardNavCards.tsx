@@ -115,6 +115,7 @@ export function OperatorNavCards({ myOpenWOs }: { myOpenWOs?: number }) {
     { title: "New Maintenance Order", description: "Submit a maintenance request", url: "#wo-form-anchor", icon: Plus, accent: "bg-success/15 text-success-strong" },
     { title: "My Maintenance Orders", description: "Track your submitted orders", url: "/dashboard/operator", icon: ClipboardList, badge: myOpenWOs },
     { title: "My Production", description: "View today's line target and enter produced quantities", url: "/dashboard/operator/my-production", icon: Factory, accent: "bg-primary/15 text-primary" },
+    { title: "My Team", description: "Who is on your line this shift", url: "/dashboard/operator/team", icon: Users, accent: "bg-warning/15 text-warning-strong" },
   ];
   return <DashboardNavCards cards={cards} />;
 }
