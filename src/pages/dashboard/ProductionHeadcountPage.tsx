@@ -279,12 +279,19 @@ function Chip({
         // `headcount-chip` is what the print sheet takes that height back through —
         // paper has no thumbs, and 44px × eighty names is two pages of white space.
         "headcount-chip inline-flex min-h-[44px] w-full max-w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-medium",
-        leader ? "border-warning/60 bg-warning/15 font-semibold text-foreground"
+        // The leader of *this* line wears the line's own colour — border and wash from
+        // the bay, the way the column header already does — so scanning the board says
+        // which line they lead before the name is read. The plain amber mark stays for
+        // a Team Leader who is on a line that has not named them its leader.
+        lineLeader && lineName
+          ? "font-semibold text-foreground"
+          : leader ? "border-warning/60 bg-warning/15 font-semibold text-foreground"
           : overtime ? "border-primary/40 bg-primary/10"
           : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
         dimmed && "opacity-20",
       )}
+      style={lineLeader && lineName ? { borderColor: bayInk(lineName), backgroundColor: bayWash(lineName) } : undefined}
       title={name}
       onClick={onOpen}
       onKeyDown={(e) => { if (onOpen && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
