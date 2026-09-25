@@ -578,9 +578,16 @@ export default function LeavePage() {
 
         {byPattern.length > 0 && (
           <div>
-            <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
-              Entitlement by shift · {year.from} → {year.to}
-            </h2>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+                Entitlement by shift · {year.from} → {year.to}
+              </h2>
+              {isAdmin && (
+                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-2xs" onClick={() => setShowNewEnt(true)}>
+                  <Plus className="h-3.5 w-3.5" /> New entitlement
+                </Button>
+              )}
+            </div>
             <Card>
               <CardContent className="p-0">
                 <Table>
