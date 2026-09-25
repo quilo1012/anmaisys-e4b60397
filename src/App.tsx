@@ -336,6 +336,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/dashboard/operator/team"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.operator">
+                      <OperatorTeamPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/dashboard/operator/performance"
                   element={
                     <ProtectedRoute requiredAction="production.performance.view">
