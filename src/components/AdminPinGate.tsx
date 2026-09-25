@@ -46,8 +46,10 @@ type VerifyBody = {
 };
 
 export function AdminPinGate({
-  storageKey, title, description, children,
+  storageKey, title, description, children, bypass = false,
 }: {
+  /** Signed-in roles trusted to skip the PIN (checked by the caller from the server-side role). */
+  bypass?: boolean;
   /** Distinct per screen, so unlocking one does not silently unlock the other. */
   storageKey: string;
   title: string;
@@ -159,7 +161,7 @@ export function AdminPinGate({
     }
   }, [pin, key, locked]);
 
-  if (unlocked) return <>{children}</>;
+  if (unlocked || bypass) return <>{children}</>;
 
   return (
     <div className="flex min-h-[60vh] items-center justify-center p-4">

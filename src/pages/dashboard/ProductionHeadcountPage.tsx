@@ -1335,6 +1335,7 @@ export default function ProductionHeadcountPage() {
         is the friction that makes somebody prop the door open — a PIN typed four times
         an hour stops being a lock and becomes a habit. */}
     <AdminPinGate
+      bypass={role === "admin" || role === "manager"}
       storageKey="workforce"
       title="Production Headcount"
       description="The board and the workforce screens behind it. Enter the admin PIN to open."
