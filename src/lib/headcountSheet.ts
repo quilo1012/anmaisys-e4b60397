@@ -732,13 +732,15 @@ export function parseHeadcountWorkbook(
       const label = area ? area.name
         : "absence" in col ? ABSENCE_LABELS[0]
         : STATUS_BLOCKS.find((b) => b.status === col.status)!.label;
-      // The sheet's one Absence column against the board's two answers. Until the
-      // office says which, these names are held rather than filed under a guess.
+      // An explicit "(SICK)" in the source names the board status without a payroll
+      // guess. Strip only that suffix for matching; the source workbook stays intact.
+      const markedSick = "absence" in col && /\(\s*(?:sick|sickness)\s*\)$/i.test(cell);
+      // Unlabelled Absence still needs the office to choose sickness or unpaid.
       if ("absence" in col) {
         out.absenceColumnFound = true;
-        if (!ctx.absenceAs) return;
+        if (!markedSick && !ctx.absenceAs) return;
       }
-      const r = resolve(cell, area);
+      const r = resolve(markedSick ? cell.replace(/\(\s*(?:sick|sickness)\s*\)$/i, "").trim() : cell, area);
       if (!("emp" in r)) {
         out.unmatchedNames.push({
           name: cell, column: label, date, reason: r.reason,
@@ -752,7 +754,7 @@ export function parseHeadcountWorkbook(
       out.matched.push({
         date, shift: ctx.shift, employeeId: r.emp.id,
         areaId: area ? area.id : null,
-        status: area ? "assigned" : "absence" in col ? ctx.absenceAs! : col.status,
+        status: area ? "assigned" : "absence" in col ? (markedSick ? "sick" : ctx.absenceAs ?? "sick") : col.status,
       });
     };
 

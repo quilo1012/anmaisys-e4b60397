@@ -528,14 +528,13 @@ export function HeadcountSheetDialog({
             )}
 
             {preview?.absenceColumnFound && (
-              // One Absence column on the sheet, two answers on the board. Which one
-              // it is belongs to payroll, so it is asked rather than picked quietly —
-              // and until it is answered those names are held, not dropped.
+              // Explicit (SICK) marks are already placed as sickness; only unmarked
+              // absences need a payroll choice before they can be saved.
               <div className="rounded-md border border-warning/30 bg-warning/5 p-2.5">
                 <div className="text-2xs font-semibold">This sheet has an “Absence” column</div>
                 <p className="mt-0.5 text-2xs text-muted-foreground">
-                  The board keeps sickness and unpaid leave apart. Nobody under that column is
-                  imported until you say which it means.
+                   Names marked “(SICK)” are imported as sickness. For any other names
+                   in this column, choose whether they mean sickness or unpaid leave.
                 </p>
                 <div className="mt-2 flex gap-2">
                   {(["sick", "unpaid"] as AllocStatus[]).map((k) => (
