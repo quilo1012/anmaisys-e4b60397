@@ -36,11 +36,59 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
   const create = useCreateTechnicalTopic();
   const remove = useDeleteTechnicalTopic();
   const [qr, setQr] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<string | undefined>(undefined);
+  const [drafts, setDrafts] = useState<Record<string, TechnicalTopic>>({});
+  const draftsRef = useRef<Record<string, TechnicalTopic>>({});
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const queued = useRef(new Map<string, Promise<void>>());
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Keep edits visible immediately. Each topic's writes run in order so an older
+  // network reply cannot overwrite a newer cell or column change.
+  const persist = (id: string, draft: TechnicalTopic) => {
+    const prior = queued.current.get(id) ?? Promise.resolve();
+    const next = prior.catch(() => undefined).then(() =>
+      save.mutateAsync({ id, title: draft.title, note: draft.note, columns: draft.columns, rows: draft.rows }),
+    );
+    queued.current.set(id, next);
+    void next.catch((e: Error) => toast.error(`Could not save technical information: ${e.message}`));
+    return next;
+  };
+
+  const flush = async () => {
+    for (const [id, timer] of timers.current) {
+      clearTimeout(timer);
+      const draft = draftsRef.current[id];
+      if (draft) persist(id, draft);
+    }
+    timers.current.clear();
+    await Promise.all([...queued.current.values()]);
+  };
+
+  const close = async () => {
+    try {
+      await flush();
+      draftsRef.current = {};
+      setDrafts({});
+      setExpanded(undefined);
+      queued.current.clear();
+      onOpenChange(false);
+    } catch {
+      // Keep the unsaved draft visible for retry instead of claiming it was saved.
+    }
+  };
 
   const patch = (topic: TechnicalTopic, fields: Partial<TechnicalTopic>) => {
     setQr((q) => ({ ...q, [topic.id]: "" }));
-    save.mutate({ id: topic.id, ...fields });
+    const next = { ...topic, ...fields };
+    draftsRef.current[topic.id] = next;
+    setDrafts((current) => ({ ...current, [topic.id]: next }));
+    const timer = timers.current.get(topic.id);
+    if (timer) clearTimeout(timer);
+    timers.current.set(topic.id, setTimeout(() => {
+      timers.current.delete(topic.id);
+      persist(topic.id, next);
+    }, 450));
   };
 
   const setCell = (topic: TechnicalTopic, rowIdx: number, colIdx: number, value: string) => {
@@ -96,7 +144,7 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(value) => { if (value) onOpenChange(true); else void close(); }}>
       <DialogContent className="w-[98vw] max-w-[98vw] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className={dialogTitleResponsive}>
@@ -132,8 +180,10 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
         ) : topics.length === 0 ? (
           <p className="text-sm text-muted-foreground">No topics yet — add a table or a PDF document.</p>
         ) : (
-          <Accordion type="single" collapsible defaultValue={topics[0]?.id} className="w-full">
-            {topics.map((topic) => (
+          <Accordion type="single" collapsible value={expanded === undefined ? topics[0]?.id : expanded} onValueChange={setExpanded} className="w-full">
+            {topics.map((serverTopic) => {
+              const topic = drafts[serverTopic.id] ?? serverTopic;
+              return (
               <AccordionItem key={topic.id} value={topic.id}>
                 <AccordionTrigger className="text-left">
                   <span className="flex items-center gap-2">
@@ -271,12 +321,12 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
                   )}
                 </AccordionContent>
               </AccordionItem>
-            ))}
+            ); })}
           </Accordion>
         )}
 
         <p className="text-xs text-muted-foreground">
-          Changes are saved for everyone straight away. QR labels stay valid — they always show the latest version.
+          Changes are saved for everyone as you edit. QR labels stay valid — they always show the latest version.
         </p>
       </DialogContent>
     </Dialog>
