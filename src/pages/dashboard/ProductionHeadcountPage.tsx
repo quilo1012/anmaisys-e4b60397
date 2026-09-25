@@ -311,7 +311,7 @@ function Chip({
       )}>
         {leader ? "LEAD" : initials(name)}
       </span>
-      <span className="truncate">{name}</span>
+      <span className={cn("truncate", lineLeader && lineName && "font-bold")} style={lineLeader && lineName ? { color: bayInk(lineName) } : undefined}>{name}</span>
       {/* Day and the Fri–Mon crew share this board, so the card has to say which is
           which. Only the ones that are not the plain day shift are labelled — a badge
           on every card is a badge that stops being read. */}
