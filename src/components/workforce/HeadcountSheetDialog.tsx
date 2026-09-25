@@ -112,7 +112,7 @@ function bySpelling(unmatched: UnmatchedName[]) {
  * a board that is right.
  */
 export function HeadcountSheetDialog({
-  open, onOpenChange, mode, date, shift, areas, roster, canManage, onImported,
+  open, onOpenChange, mode, date, shift, areas, roster, canManage, onImported, autoLoad = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -124,6 +124,8 @@ export function HeadcountSheetDialog({
   roster: HeadcountEmployee[];
   canManage: boolean;
   onImported: () => void;
+  /** Opened by "Sync from SharePoint": read the day straight away, no second press. */
+  autoLoad?: boolean;
 }) {
   const [from, setFrom] = useState(date);
   const [to, setTo] = useState(date);
