@@ -112,7 +112,7 @@ function bySpelling(unmatched: UnmatchedName[]) {
  * a board that is right.
  */
 export function HeadcountSheetDialog({
-  open, onOpenChange, mode, date, shift, areas, roster, canManage, onImported,
+  open, onOpenChange, mode, date, shift, areas, roster, canManage, onImported, autoLoad = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -124,6 +124,8 @@ export function HeadcountSheetDialog({
   roster: HeadcountEmployee[];
   canManage: boolean;
   onImported: () => void;
+  /** Opened by "Sync from SharePoint": read the day straight away, no second press. */
+  autoLoad?: boolean;
 }) {
   const [from, setFrom] = useState(date);
   const [to, setTo] = useState(date);
@@ -139,7 +141,13 @@ export function HeadcountSheetDialog({
   // Where the loaded sheet came from, when it came from SharePoint rather than a file.
   const [sourceLine, setSourceLine] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
+  // People created from the sheet in this sitting. The parent's roster query does not
+  // know them yet, and a name settled onto somebody the parser cannot find is the same
+  // as not settling it — so they are carried here until the screen reloads.
+  const [created, setCreated] = useState<HeadcountEmployee[]>([]);
+  const [creating, setCreating] = useState(false);
   const rotaCover = useRotaCover();
+  const people = useMemo(() => [...roster, ...created], [roster, created]);
 
   // Which board the import writes to. It starts as the board that is open, and the
   // board that is open is the shift running NOW: before six in the morning that is
@@ -156,10 +164,10 @@ export function HeadcountSheetDialog({
 
   const preview: ImportPreview | null = useMemo(
     () => book ? parseHeadcountWorkbook(book, {
-      areas, roster, shift: target, fallbackYear: Number(date.slice(0, 4)),
+      areas, roster: people, shift: target, fallbackYear: Number(date.slice(0, 4)),
       assigned, absenceAs: absenceAs ?? undefined,
     }) : null,
-    [book, areas, roster, target, date, assigned, absenceAs],
+    [book, areas, people, target, date, assigned, absenceAs],
   );
 
   // Most of the people this sheet names work the other shift: it is the other shift's
@@ -169,6 +177,7 @@ export function HeadcountSheetDialog({
 
   const close = () => {
     setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true); setSourceLine(null);
+    setCreated([]);
     onOpenChange(false);
   };
 
@@ -201,6 +210,52 @@ export function HeadcountSheetDialog({
       toast.error((e as Error).message);
     } finally {
       setPulling(false);
+    }
+  };
+
+  // Opened straight from "Sync from SharePoint": read the day at once. Guarded by a ref
+  // rather than by state, so a second render cannot ask the sleeping reader twice.
+  const pulled = useRef(false);
+  useEffect(() => {
+    if (!open) { pulled.current = false; return; }
+    if (!autoLoad || mode !== "import" || pulled.current) return;
+    pulled.current = true;
+    void loadFromSharePoint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, autoLoad, mode]);
+
+  /**
+   * The names the sheet has and the payroll does not, added as people.
+   *
+   * Asked for, never automatic: the sheet is typed by hand and a misspelling created as
+   * a person is a duplicate somebody has to clean up. Created active, with no crew on
+   * file, and settled onto the spelling that made them so the preview places them at
+   * once.
+   */
+  const createMissing = async (names: string[]) => {
+    if (!names.length || creating) return;
+    setCreating(true);
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .insert(names.map((n) => ({ full_name: n.trim(), active: true, source: "sheet" })) as never)
+        .select("id,full_name,shift_group,department,shift_pattern_id,sheet_aliases");
+      if (error) throw error;
+      const made = (data ?? []) as unknown as HeadcountEmployee[];
+      setCreated((prev) => [...prev, ...made]);
+      setAssigned((prev) => {
+        const next = { ...prev };
+        for (const p of made) {
+          const spelling = names.find((n) => n.trim() === p.full_name);
+          if (spelling) next[spelling] = p.id;
+        }
+        return next;
+      });
+      toast.success(`Added ${made.length} ${made.length === 1 ? "person" : "people"} from the sheet`);
+    } catch (e) {
+      toast.error(`Could not add them: ${(e as Error).message}`);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -524,6 +579,28 @@ export function HeadcountSheetDialog({
                           Say who each one is and they go in with the rest. One row per spelling,
                           however many days it appears on.
                         </p>
+                        {canManage && (
+                          <div className="mt-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-2xs"
+                              disabled={creating}
+                              onClick={() => createMissing(
+                                bySpelling(preview.unmatchedNames)
+                                  .filter((u) => !assigned[u.name])
+                                  .map((u) => u.name),
+                              )}
+                            >
+                              {creating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+                              Add everyone still unnamed as new people
+                            </Button>
+                            <p className="mt-1 text-muted-foreground">
+                              Only for names that really are new starters — a misspelling added
+                              this way becomes a second record for somebody who is already here.
+                            </p>
+                          </div>
+                        )}
                         <ul className="mt-1.5 space-y-1">
                           {bySpelling(preview.unmatchedNames).map((u) => (
                             <li key={u.name} className="flex items-center justify-between gap-2">
@@ -545,7 +622,7 @@ export function HeadcountSheetDialog({
                               <NamePicker
                                 spelling={u.name}
                                 candidates={u.candidates}
-                                roster={roster}
+                                roster={people}
                                 value={assigned[u.name] ?? null}
                                 onChange={(id) => setAssigned((prev) => {
                                   const next = { ...prev };

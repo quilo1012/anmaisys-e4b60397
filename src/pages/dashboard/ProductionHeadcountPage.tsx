@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2 } from "lucide-react";
+import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1291,6 +1291,8 @@ export default function ProductionHeadcountPage() {
   // to be one shift per file for the import to know what it is reading back.
   const sheetShift: ShiftKey = view === "Split" ? "Day" : (view as ShiftKey);
   const [sheet, setSheet] = useState<"export" | "import" | null>(null);
+  /** Opened by "Sync from SharePoint", so the dialog reads the day without a second press. */
+  const [syncing, setSyncing] = useState(false);
   /**
    * Everybody active, not this board's crew.
    *
@@ -1430,10 +1432,23 @@ export default function ProductionHeadcountPage() {
               Export
             </Button>
             {canManage && (
-              <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setSheet("import")}>
-                <Upload className="mr-2 h-4 w-4" />
-                Import
-              </Button>
+              <>
+                {/* The sheet the office types every morning, one press away. It opens the
+                    same preview the file path uses — nothing is saved until it is confirmed. */}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="print:hidden"
+                  onClick={() => { setSyncing(true); setSheet("import"); }}
+                >
+                  <CloudDownload className="mr-2 h-4 w-4" />
+                  Sync from SharePoint
+                </Button>
+                <Button size="sm" variant="secondary" className="print:hidden" onClick={() => { setSyncing(false); setSheet("import"); }}>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Import
+                </Button>
+              </>
             )}
             <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
@@ -1495,7 +1510,12 @@ export default function ProductionHeadcountPage() {
         areas={areas}
         roster={sheetRoster}
         canManage={canManage}
-        onImported={() => qc.invalidateQueries({ queryKey: ["allocations"] })}
+        autoLoad={syncing}
+        onImported={() => {
+          qc.invalidateQueries({ queryKey: ["allocations"] });
+          qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
+          qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+        }}
       />
     </div>
     </AdminPinGate>
