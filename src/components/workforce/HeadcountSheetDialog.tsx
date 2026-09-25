@@ -213,6 +213,52 @@ export function HeadcountSheetDialog({
     }
   };
 
+  // Opened straight from "Sync from SharePoint": read the day at once. Guarded by a ref
+  // rather than by state, so a second render cannot ask the sleeping reader twice.
+  const pulled = useRef(false);
+  useEffect(() => {
+    if (!open) { pulled.current = false; return; }
+    if (!autoLoad || mode !== "import" || pulled.current) return;
+    pulled.current = true;
+    void loadFromSharePoint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, autoLoad, mode]);
+
+  /**
+   * The names the sheet has and the payroll does not, added as people.
+   *
+   * Asked for, never automatic: the sheet is typed by hand and a misspelling created as
+   * a person is a duplicate somebody has to clean up. Created active, with no crew on
+   * file, and settled onto the spelling that made them so the preview places them at
+   * once.
+   */
+  const createMissing = async (names: string[]) => {
+    if (!names.length || creating) return;
+    setCreating(true);
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .insert(names.map((n) => ({ full_name: n.trim(), active: true, source: "sheet" })) as never)
+        .select("id,full_name,shift_group,department,shift_pattern_id,sheet_aliases");
+      if (error) throw error;
+      const made = (data ?? []) as unknown as HeadcountEmployee[];
+      setCreated((prev) => [...prev, ...made]);
+      setAssigned((prev) => {
+        const next = { ...prev };
+        for (const p of made) {
+          const spelling = names.find((n) => n.trim() === p.full_name);
+          if (spelling) next[spelling] = p.id;
+        }
+        return next;
+      });
+      toast.success(`Added ${made.length} ${made.length === 1 ? "person" : "people"} from the sheet`);
+    } catch (e) {
+      toast.error(`Could not add them: ${(e as Error).message}`);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const runExport = async () => {
     setBusy(true);
     try {
