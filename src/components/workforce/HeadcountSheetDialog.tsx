@@ -579,6 +579,28 @@ export function HeadcountSheetDialog({
                           Say who each one is and they go in with the rest. One row per spelling,
                           however many days it appears on.
                         </p>
+                        {canManage && (
+                          <div className="mt-1.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-2xs"
+                              disabled={creating}
+                              onClick={() => createMissing(
+                                bySpelling(preview.unmatchedNames)
+                                  .filter((u) => !assigned[u.name])
+                                  .map((u) => u.name),
+                              )}
+                            >
+                              {creating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
+                              Add everyone still unnamed as new people
+                            </Button>
+                            <p className="mt-1 text-muted-foreground">
+                              Only for names that really are new starters — a misspelling added
+                              this way becomes a second record for somebody who is already here.
+                            </p>
+                          </div>
+                        )}
                         <ul className="mt-1.5 space-y-1">
                           {bySpelling(preview.unmatchedNames).map((u) => (
                             <li key={u.name} className="flex items-center justify-between gap-2">
