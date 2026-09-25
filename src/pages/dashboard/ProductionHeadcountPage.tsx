@@ -45,6 +45,7 @@ import { AreaPicker } from "@/components/workforce/AreaPicker";
 import { useShiftPatterns } from "@/hooks/useWorkforce";
 import { PersonDayDialog } from "@/components/workforce/PersonDayDialog";
 import { roleStripe } from "@/lib/workforceRoles";
+import { bayInk, bayWash } from "@/lib/lineBay";
 import {
   useHeadcountAreas,
   useShiftRoster,
@@ -551,8 +552,10 @@ function ShiftBoard({
         leader: a.is_leader ?? false,
       }))
       .sort((a, b) => {
-        const la = (a.leader || isLeader(a.person.department)) ? 0 : 1;
-        const lb = (b.leader || isLeader(b.person.department)) ? 0 : 1;
+        // The leader marked on this particular line and shift always takes the first
+        // position, even when another Team Leader is helping on the same line.
+        const la = a.leader ? 0 : isLeader(a.person.department) ? 1 : 2;
+        const lb = b.leader ? 0 : isLeader(b.person.department) ? 1 : 2;
         return la - lb || a.person.full_name.localeCompare(b.person.full_name);
       });
 
@@ -970,7 +973,8 @@ function ShiftBoard({
                   — e a barra à esquerda, neste sistema, é onde se diz o estado. */}
               <Card className="h-full overflow-hidden">
                 <CardHeader
-                  className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "bg-primary/5" : "bg-muted", canManage && "cursor-pointer hover:brightness-95")}
+                  className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "border-l-4" : "bg-muted", canManage && "cursor-pointer hover:brightness-95")}
+                  style={area.kind === "production" ? { backgroundColor: bayWash(area.name, "soft"), borderLeftColor: bayInk(area.name) } : undefined}
                   onClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
                   title={canManage ? `Add or remove people on ${area.name}` : undefined}
                 >
@@ -978,7 +982,7 @@ function ShiftBoard({
                   <CardTitle className="truncate text-sm font-bold">{area.name}</CardTitle>
                   <span className={cn(
                     "grid h-6 min-w-[1.75rem] shrink-0 place-items-center rounded-full border bg-background px-2 font-figure text-sm font-bold",
-                    people.length ? (area.kind === "production" ? "text-primary" : "text-foreground") : "text-muted-foreground/50",
+                    people.length ? "text-foreground" : "text-muted-foreground/50",
                   )}>
                     {people.length}
                   </span>
