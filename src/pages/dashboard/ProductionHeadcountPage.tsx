@@ -1010,6 +1010,8 @@ function ShiftBoard({
                         key={p.id}
                         name={p.full_name}
                         leader={leadsToday || isLeader(p.department)}
+                        lineLeader={leadsToday}
+                        lineName={area.name}
                         role={roleStripe(p.department)}
                         dimmed={isDimmed(p.full_name)}
                         overtime={isOt}
