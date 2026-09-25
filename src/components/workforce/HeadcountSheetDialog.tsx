@@ -141,7 +141,13 @@ export function HeadcountSheetDialog({
   // Where the loaded sheet came from, when it came from SharePoint rather than a file.
   const [sourceLine, setSourceLine] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
+  // People created from the sheet in this sitting. The parent's roster query does not
+  // know them yet, and a name settled onto somebody the parser cannot find is the same
+  // as not settling it — so they are carried here until the screen reloads.
+  const [created, setCreated] = useState<HeadcountEmployee[]>([]);
+  const [creating, setCreating] = useState(false);
   const rotaCover = useRotaCover();
+  const people = useMemo(() => [...roster, ...created], [roster, created]);
 
   // Which board the import writes to. It starts as the board that is open, and the
   // board that is open is the shift running NOW: before six in the morning that is
