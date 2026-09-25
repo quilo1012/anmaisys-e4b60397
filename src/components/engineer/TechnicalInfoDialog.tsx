@@ -36,6 +36,7 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
   const create = useCreateTechnicalTopic();
   const remove = useDeleteTechnicalTopic();
   const [qr, setQr] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, TechnicalTopic>>({});
   const draftsRef = useRef<Record<string, TechnicalTopic>>({});
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -69,6 +70,7 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
       await flush();
       draftsRef.current = {};
       setDrafts({});
+      setExpanded(null);
       queued.current.clear();
       onOpenChange(false);
     } catch {
@@ -178,7 +180,7 @@ export function TechnicalInfoDialog({ open, onOpenChange }: { open: boolean; onO
         ) : topics.length === 0 ? (
           <p className="text-sm text-muted-foreground">No topics yet — add a table or a PDF document.</p>
         ) : (
-          <Accordion type="single" collapsible defaultValue={topics[0]?.id} className="w-full">
+          <Accordion type="single" collapsible value={expanded ?? topics[0]?.id} onValueChange={setExpanded} className="w-full">
             {topics.map((serverTopic) => {
               const topic = drafts[serverTopic.id] ?? serverTopic;
               return (
