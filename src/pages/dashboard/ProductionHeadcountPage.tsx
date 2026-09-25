@@ -38,7 +38,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BackButton } from "@/components/BackButton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
-import { AdminPinGate } from "@/components/AdminPinGate";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
@@ -1350,19 +1349,6 @@ export default function ProductionHeadcountPage() {
     // kiosk tablet does not have. Everything the board draws is unchanged; it is simply
     // in the building now.
     <DashboardLayout>
-    {/* The whole workforce section behind one PIN. These four screens name every
-        employee beside their hours, their sickness and what they are owed, and the
-        board is now the way in to the other three.
-
-        One key, not four: they are tabs of one screen, and asking again on every tab
-        is the friction that makes somebody prop the door open — a PIN typed four times
-        an hour stops being a lock and becomes a habit. */}
-    <AdminPinGate
-      bypass
-      storageKey="workforce"
-      title="Production Headcount"
-      description="The board and the workforce screens behind it. Enter the admin PIN to open."
-    >
     {/* `print-content` is what the global print sheet hangs its rules off — without it
         a name clamped to a 200px column printed as "FELIPE DE …" and stayed clamped,
         because paper has no window to widen. `print-landscape` turns the paper: the
@@ -1511,10 +1497,6 @@ export default function ProductionHeadcountPage() {
           screen because the questions a supervisor asks after placing people — how long
           is this period, and who is running ahead of their rota — used to mean two
           other pages.
-          Both sit inside the PIN gate with the board, which is the point of the gate:
-          the shift balance is pay information and does not become less so for being
-          further down the page.
-
           `no-print` because the sheet that comes off this screen is the board and
           nothing else. Print took the whole page: a twenty-eight day calendar and a
           shift-balance table followed the board onto paper, which is two extra sheets
@@ -1550,7 +1532,6 @@ export default function ProductionHeadcountPage() {
         }}
       />
     </div>
-    </AdminPinGate>
     </DashboardLayout>
   );
 }

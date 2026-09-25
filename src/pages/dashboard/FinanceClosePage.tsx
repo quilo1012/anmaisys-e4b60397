@@ -5,7 +5,6 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
-import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -403,11 +402,6 @@ export default function FinanceClosePage() {
 
   return (
     <DashboardLayout>
-      <AdminPinGate
-        storageKey="workforce"
-        title="Finance Close"
-        description="Overtime and time off per person, for the pay period. Enter the admin PIN to open."
-      >
       {/* `print-content` é o que a folha de impressão global tem por gancho, e este ecrã
           nunca lha deu: sem ela nada em `@media print` toca nesta tabela, que sai com a
           largura do ecrã — 1506px numa folha A4 retrato de 794px. Present, Sick,
@@ -916,7 +910,6 @@ export default function FinanceClosePage() {
           />
         </div>
       </div>
-      </AdminPinGate>
     </DashboardLayout>
   );
 }
