@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CalendarDays, Check, X, Plus, Loader2 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
@@ -45,9 +47,21 @@ const KIND_LABEL: Record<Kind, string> = { holiday: "Holiday", unpaid: "Unpaid",
  */
 export default function LeavePage() {
   const qc = useQueryClient();
-  const { can } = useRole();
+  const { can, is } = useRole();
   const { user } = useAuth();
   const canDecide = can("workforce.manage");
+  // The database lets only admins write shift_patterns, so the form is theirs alone.
+  const isAdmin = is("admin");
+
+  const [showNewEnt, setShowNewEnt] = useState(false);
+  const [entName, setEntName] = useState("");
+  const [entDays, setEntDays] = useState<number[]>([1, 2, 3, 4]);
+  const [entStart, setEntStart] = useState("06:00");
+  const [entEnd, setEntEnd] = useState("18:00");
+  const [entBreak, setEntBreak] = useState("60");
+  const [entAnnual, setEntAnnual] = useState("");
+  const [entBankHols, setEntBankHols] = useState(true);
+  const [entBusy, setEntBusy] = useState(false);
 
   const [showNew, setShowNew] = useState(false);
   const [employeeId, setEmployeeId] = useState("");
@@ -78,6 +92,44 @@ export default function LeavePage() {
       return (data ?? []) as { id: string; name: string; days: number[]; annual_leave_days: number | null; leave_includes_bank_holidays: boolean | null }[];
     },
   });
+
+  /**
+   * A new entitlement is a new shift pattern: the days it works, its hours, and how
+   * many working days of leave a year on it carries. The entitlement belongs to the
+   * pattern, not to any one person — everybody moved onto it gets the same figure.
+   */
+  const createEntitlement = async () => {
+    const name = entName.trim();
+    if (!name) { toast.error("Give the pattern a name"); return; }
+    if (entDays.length === 0) { toast.error("Pick at least one working day"); return; }
+    const annual = entAnnual.trim() === "" ? null : Number(entAnnual);
+    if (annual != null && (!Number.isFinite(annual) || annual < 0)) {
+      toast.error("Annual total must be a number of days"); return;
+    }
+    setEntBusy(true);
+    try {
+      const { error } = await (supabase as any).from("shift_patterns").insert({
+        name,
+        days: [...entDays].sort((a, b) => a - b),
+        starts_at: entStart || null,
+        ends_at: entEnd || null,
+        break_minutes: Number(entBreak) || 0,
+        annual_leave_days: annual,
+        leave_includes_bank_holidays: entBankHols,
+        active: true,
+      });
+      if (error) throw error;
+      toast.success(`Entitlement "${name}" created`);
+      setShowNewEnt(false);
+      setEntName(""); setEntDays([1, 2, 3, 4]); setEntStart("06:00"); setEntEnd("18:00");
+      setEntBreak("60"); setEntAnnual(""); setEntBankHols(true);
+      await qc.invalidateQueries({ queryKey: ["leave-patterns"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not create the entitlement");
+    } finally {
+      setEntBusy(false);
+    }
+  };
 
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["leave-requests"],
@@ -526,9 +578,16 @@ export default function LeavePage() {
 
         {byPattern.length > 0 && (
           <div>
-            <h2 className="mb-2 text-2xs font-bold uppercase tracking-widest text-muted-foreground">
-              Entitlement by shift · {year.from} → {year.to}
-            </h2>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">
+                Entitlement by shift · {year.from} → {year.to}
+              </h2>
+              {isAdmin && (
+                <Button size="sm" variant="outline" className="h-8 gap-1.5 text-2xs" onClick={() => setShowNewEnt(true)}>
+                  <Plus className="h-3.5 w-3.5" /> New entitlement
+                </Button>
+              )}
+            </div>
             <Card>
               <CardContent className="p-0">
                 <Table>
@@ -575,6 +634,70 @@ export default function LeavePage() {
             </Card>
           </div>
         )}
+
+        <Dialog open={showNewEnt} onOpenChange={(o) => { if (!entBusy) setShowNewEnt(o); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>New entitlement by shift</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="ent-name">Pattern name</Label>
+                <Input id="ent-name" value={entName} onChange={(e) => setEntName(e.target.value)}
+                  placeholder="e.g. Mon–Thu days" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Working days</Label>
+                <div className="flex flex-wrap gap-2">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => {
+                    const day = i + 1; // ISO weekday: 1 = Monday … 7 = Sunday
+                    const on = entDays.includes(day);
+                    return (
+                      <button key={day} type="button"
+                        onClick={() => setEntDays((d) => on ? d.filter((x) => x !== day) : [...d, day])}
+                        className={`h-9 rounded-md border px-3 text-xs font-medium transition-colors ${
+                          on ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ent-start">Starts</Label>
+                  <Input id="ent-start" type="time" value={entStart} onChange={(e) => setEntStart(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ent-end">Ends</Label>
+                  <Input id="ent-end" type="time" value={entEnd} onChange={(e) => setEntEnd(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ent-break">Break (min)</Label>
+                  <Input id="ent-break" type="number" min={0} value={entBreak} onChange={(e) => setEntBreak(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ent-annual">Annual leave total (working days)</Label>
+                <Input id="ent-annual" type="number" min={0} step="0.5" value={entAnnual}
+                  onChange={(e) => setEntAnnual(e.target.value)} placeholder="e.g. 22.5" />
+                <p className="text-2xs text-muted-foreground">
+                  Counted in working days of this pattern, not calendar days — a week off Mon–Thu spends 4, not 7.
+                </p>
+              </div>
+              <label className="flex items-center gap-2.5 text-xs">
+                <Checkbox checked={entBankHols} onCheckedChange={(v) => setEntBankHols(v === true)} />
+                Bank holidays are included in the annual total
+              </label>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowNewEnt(false)} disabled={entBusy}>Cancel</Button>
+              <Button onClick={createEntitlement} disabled={entBusy}>
+                {entBusy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Create
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {uncovered.length > 0 && (
           <div>
