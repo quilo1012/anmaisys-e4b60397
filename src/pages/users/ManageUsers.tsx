@@ -210,6 +210,7 @@ export default function ManageUsers() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
+  const [shift, setShift] = useState<string>("none");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user: currentUser, role: currentRole } = useAuth();
@@ -221,6 +222,7 @@ export default function ManageUsers() {
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState<AppRole>("operator");
   const [editActive, setEditActive] = useState(true);
+  const [editShift, setEditShift] = useState<string>("none");
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
