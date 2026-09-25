@@ -8,7 +8,6 @@ import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { Figure, FigureRow } from "@/components/ui/Figure";
-import { AdminPinGate } from "@/components/AdminPinGate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/DateField";
@@ -288,11 +287,6 @@ export default function AttendancePage() {
 
   return (
     <DashboardLayout>
-      <AdminPinGate
-        storageKey="workforce"
-        title="Time &amp; Attendance"
-        description="Hours, balances and absence reasons for every employee. Enter the admin PIN to open."
-      >
       {/* `print-content` is what the global print sheet hangs its rules off; without it
           the table keeps its screen scroll container and the right-hand columns simply
           do not come out on paper.
@@ -620,7 +614,6 @@ export default function AttendancePage() {
         </Dialog>
 
       </div>
-      </AdminPinGate>
     </DashboardLayout>
   );
 }
