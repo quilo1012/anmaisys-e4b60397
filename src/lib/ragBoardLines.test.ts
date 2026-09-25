@@ -20,25 +20,20 @@ describe("ragBoardLines", () => {
     expect(ragBoardLines(PROD)).toEqual([
       "Line 1", "Line 2", "Line 3", "Line 4", "Line 5", "Line 6",
       "Tablet Line",
-      "Gel Packing",
       "Capsules Machine 1", "Capsules Machine 2", "GEL Line",
     ]);
+  });
+
+  it("não inventa postos fora da tabela `lines` — o quadro fala os mesmos nomes do Production Control", () => {
+    const out = ragBoardLines(PROD);
+    expect(out).not.toContain("Gel Packing");
+    expect(out).toContain("GEL Line");
   });
 
   it("acaba sempre nas três máquinas, por essa ordem", () => {
     expect(ragBoardLines(PROD).slice(-3)).toEqual([
       "Capsules Machine 1", "Capsules Machine 2", "GEL Line",
     ]);
-  });
-
-  it("acrescenta o Gel Packing, que a tabela `lines` não tem", () => {
-    expect(ragBoardLines(PROD)).toContain("Gel Packing");
-  });
-
-  it("não repete o Gel Packing se ele for promovido a linha na base", () => {
-    const out = ragBoardLines([...PROD, { name: "Gel Packing", active: true }]);
-    expect(out.filter((n) => n.toLowerCase() === "gel packing")).toHaveLength(1);
-    expect(out.slice(-3)).toEqual(["Capsules Machine 1", "Capsules Machine 2", "GEL Line"]);
   });
 
   it("deixa cair as inactivas e os consumíveis", () => {

@@ -98,6 +98,63 @@ export type Database = {
         }
         Relationships: []
       }
+      _policies_backup_fase4b: {
+        Row: {
+          cmd: string | null
+          permissive: string | null
+          policyname: unknown
+          qual: string | null
+          roles: string | null
+          schemaname: unknown
+          tablename: unknown
+          tirada_em: string | null
+          with_check: string | null
+        }
+        Insert: {
+          cmd?: string | null
+          permissive?: string | null
+          policyname?: unknown
+          qual?: string | null
+          roles?: string | null
+          schemaname?: unknown
+          tablename?: unknown
+          tirada_em?: string | null
+          with_check?: string | null
+        }
+        Update: {
+          cmd?: string | null
+          permissive?: string | null
+          policyname?: unknown
+          qual?: string | null
+          roles?: string | null
+          schemaname?: unknown
+          tablename?: unknown
+          tirada_em?: string | null
+          with_check?: string | null
+        }
+        Relationships: []
+      }
+      _rls_snapshot: {
+        Row: {
+          linhas: number | null
+          momento: string
+          tabela: string
+          user_id: string
+        }
+        Insert: {
+          linhas?: number | null
+          momento: string
+          tabela: string
+          user_id: string
+        }
+        Update: {
+          linhas?: number | null
+          momento?: string
+          tabela?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       _wo_linestop_fix_bak_20260804: {
         Row: {
           backed_up_at: string | null
@@ -8324,6 +8381,10 @@ export type Database = {
       restore_item_skus_from_backup: { Args: never; Returns: number }
       restore_remaining_null_skus: { Args: never; Returns: number }
       restore_sku_products_from_backup: { Args: never; Returns: Json }
+      rls_tirar_snapshot: {
+        Args: { _momento: string; _tabelas: string[] }
+        Returns: undefined
+      }
       save_production_items: {
         Args: { p_items: Json; p_session_id: string }
         Returns: Json
