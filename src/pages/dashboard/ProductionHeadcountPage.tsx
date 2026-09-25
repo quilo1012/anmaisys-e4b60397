@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { blockOf } from "@/lib/headcountBlocks";
@@ -1277,6 +1278,7 @@ function ShiftBoard({
 export default function ProductionHeadcountPage() {
   const qc = useQueryClient();
   const { can } = useRole();
+  const { role } = useAuth();
   const canManage = can("headcount.manage");
   // Opens on the board that is actually running. At 03:00 that is last night's, not an
   // empty Day board for a day that has not started — see `currentShift`. The controls
