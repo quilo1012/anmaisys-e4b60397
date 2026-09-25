@@ -93,6 +93,44 @@ export default function LeavePage() {
     },
   });
 
+  /**
+   * A new entitlement is a new shift pattern: the days it works, its hours, and how
+   * many working days of leave a year on it carries. The entitlement belongs to the
+   * pattern, not to any one person — everybody moved onto it gets the same figure.
+   */
+  const createEntitlement = async () => {
+    const name = entName.trim();
+    if (!name) { toast.error("Give the pattern a name"); return; }
+    if (entDays.length === 0) { toast.error("Pick at least one working day"); return; }
+    const annual = entAnnual.trim() === "" ? null : Number(entAnnual);
+    if (annual != null && (!Number.isFinite(annual) || annual < 0)) {
+      toast.error("Annual total must be a number of days"); return;
+    }
+    setEntBusy(true);
+    try {
+      const { error } = await (supabase as any).from("shift_patterns").insert({
+        name,
+        days: [...entDays].sort((a, b) => a - b),
+        starts_at: entStart || null,
+        ends_at: entEnd || null,
+        break_minutes: Number(entBreak) || 0,
+        annual_leave_days: annual,
+        leave_includes_bank_holidays: entBankHols,
+        active: true,
+      });
+      if (error) throw error;
+      toast.success(`Entitlement "${name}" created`);
+      setShowNewEnt(false);
+      setEntName(""); setEntDays([1, 2, 3, 4]); setEntStart("06:00"); setEntEnd("18:00");
+      setEntBreak("60"); setEntAnnual(""); setEntBankHols(true);
+      await qc.invalidateQueries({ queryKey: ["leave-patterns"] });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not create the entitlement");
+    } finally {
+      setEntBusy(false);
+    }
+  };
+
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["leave-requests"],
     queryFn: async () => {
