@@ -269,7 +269,7 @@ function Chip({
         // `headcount-chip` is what the print sheet takes that height back through —
         // paper has no thumbs, and 44px × eighty names is two pages of white space.
         "headcount-chip inline-flex min-h-[44px] w-full max-w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-medium",
-        leader ? "border-primary/40 bg-primary/10 font-semibold"
+        leader ? "border-warning/60 bg-warning/15 font-semibold text-foreground"
           : overtime ? "border-primary/40 bg-primary/10"
           : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
@@ -290,7 +290,7 @@ function Chip({
         // the name printed an inch to their right. The crew, the half day and the early
         // finish stay — those are the day's record, and a printed sheet is what somebody
         // checks the day against.
-        leader ? "w-11 bg-primary text-primary-foreground tracking-wide" : "headcount-chip-initials w-[26px] bg-background/70 text-muted-foreground",
+        leader ? "w-11 bg-warning text-warning-foreground tracking-wide" : "headcount-chip-initials w-[26px] bg-background/70 text-muted-foreground",
       )}>
         {leader ? "LEAD" : initials(name)}
       </span>
