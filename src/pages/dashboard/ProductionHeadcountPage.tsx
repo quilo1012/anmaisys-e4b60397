@@ -237,6 +237,11 @@ function Chip({
   leader?: boolean;
   /** Named role — LEAD, SUP, TEC, LAB, WH, OFF — when the department says one. */
   role?: { short: string; label: string; cls: string } | null;
+  /** True when this person is the leader *marked on this line* — their name wears
+      the line's own colour, not just the leader's amber. */
+  lineLeader?: boolean;
+  /** The column's name, for the leader's colour. Null keeps the plain amber mark. */
+  lineName?: string | null;
   /** Somebody is searching and it is not this person. */
   dimmed?: boolean;
   onOpen?: () => void;
