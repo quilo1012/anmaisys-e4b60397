@@ -164,10 +164,10 @@ export function HeadcountSheetDialog({
 
   const preview: ImportPreview | null = useMemo(
     () => book ? parseHeadcountWorkbook(book, {
-      areas, roster, shift: target, fallbackYear: Number(date.slice(0, 4)),
+      areas, roster: people, shift: target, fallbackYear: Number(date.slice(0, 4)),
       assigned, absenceAs: absenceAs ?? undefined,
     }) : null,
-    [book, areas, roster, target, date, assigned, absenceAs],
+    [book, areas, people, target, date, assigned, absenceAs],
   );
 
   // Most of the people this sheet names work the other shift: it is the other shift's
