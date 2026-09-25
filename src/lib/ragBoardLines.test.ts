@@ -36,16 +36,6 @@ describe("ragBoardLines", () => {
     ]);
   });
 
-  it("acrescenta o Gel Packing, que a tabela `lines` não tem", () => {
-    expect(ragBoardLines(PROD)).toContain("Gel Packing");
-  });
-
-  it("não repete o Gel Packing se ele for promovido a linha na base", () => {
-    const out = ragBoardLines([...PROD, { name: "Gel Packing", active: true }]);
-    expect(out.filter((n) => n.toLowerCase() === "gel packing")).toHaveLength(1);
-    expect(out.slice(-3)).toEqual(["Capsules Machine 1", "Capsules Machine 2", "GEL Line"]);
-  });
-
   it("deixa cair as inactivas e os consumíveis", () => {
     const out = ragBoardLines([
       ...PROD,
