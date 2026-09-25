@@ -1291,6 +1291,8 @@ export default function ProductionHeadcountPage() {
   // to be one shift per file for the import to know what it is reading back.
   const sheetShift: ShiftKey = view === "Split" ? "Day" : (view as ShiftKey);
   const [sheet, setSheet] = useState<"export" | "import" | null>(null);
+  /** Opened by "Sync from SharePoint", so the dialog reads the day without a second press. */
+  const [syncing, setSyncing] = useState(false);
   /**
    * Everybody active, not this board's crew.
    *
