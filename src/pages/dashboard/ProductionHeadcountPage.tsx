@@ -1510,7 +1510,11 @@ export default function ProductionHeadcountPage() {
         areas={areas}
         roster={sheetRoster}
         canManage={canManage}
-        onImported={() => qc.invalidateQueries({ queryKey: ["allocations"] })}
+        autoLoad={syncing}
+        onImported={() => {
+          qc.invalidateQueries({ queryKey: ["allocations"] });
+          qc.invalidateQueries({ queryKey: ["headcount-roster"] });
+        }}
       />
     </div>
     </AdminPinGate>
