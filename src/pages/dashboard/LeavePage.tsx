@@ -635,6 +635,70 @@ export default function LeavePage() {
           </div>
         )}
 
+        <Dialog open={showNewEnt} onOpenChange={(o) => { if (!entBusy) setShowNewEnt(o); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>New entitlement by shift</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="ent-name">Pattern name</Label>
+                <Input id="ent-name" value={entName} onChange={(e) => setEntName(e.target.value)}
+                  placeholder="e.g. Mon–Thu days" autoComplete="off" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Working days</Label>
+                <div className="flex flex-wrap gap-2">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((label, i) => {
+                    const day = i + 1; // ISO weekday: 1 = Monday … 7 = Sunday
+                    const on = entDays.includes(day);
+                    return (
+                      <button key={day} type="button"
+                        onClick={() => setEntDays((d) => on ? d.filter((x) => x !== day) : [...d, day])}
+                        className={`h-9 rounded-md border px-3 text-xs font-medium transition-colors ${
+                          on ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:bg-accent"}`}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ent-start">Starts</Label>
+                  <Input id="ent-start" type="time" value={entStart} onChange={(e) => setEntStart(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ent-end">Ends</Label>
+                  <Input id="ent-end" type="time" value={entEnd} onChange={(e) => setEntEnd(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="ent-break">Break (min)</Label>
+                  <Input id="ent-break" type="number" min={0} value={entBreak} onChange={(e) => setEntBreak(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ent-annual">Annual leave total (working days)</Label>
+                <Input id="ent-annual" type="number" min={0} step="0.5" value={entAnnual}
+                  onChange={(e) => setEntAnnual(e.target.value)} placeholder="e.g. 22.5" />
+                <p className="text-2xs text-muted-foreground">
+                  Counted in working days of this pattern, not calendar days — a week off Mon–Thu spends 4, not 7.
+                </p>
+              </div>
+              <label className="flex items-center gap-2.5 text-xs">
+                <Checkbox checked={entBankHols} onCheckedChange={(v) => setEntBankHols(v === true)} />
+                Bank holidays are included in the annual total
+              </label>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowNewEnt(false)} disabled={entBusy}>Cancel</Button>
+              <Button onClick={createEntitlement} disabled={entBusy}>
+                {entBusy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Create
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {uncovered.length > 0 && (
           <div>
             {/* Not a warning. The board is the day's plan and the fastest thing to
