@@ -486,7 +486,7 @@ export default function ManageUsers() {
     setLoading(true);
     try {
       const res = await Promise.race([
-        invokeFunction("create-user", { email: email.trim().toLowerCase(), password, name: name.trim(), role }),
+        invokeFunction("create-user", { email: email.trim().toLowerCase(), password, name: name.trim(), role, ...(shift !== "none" ? { shift } : {}) }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Request timed out after 15s. The server did not respond — check Edge Function logs for create-user.")), 15000)
         ),
@@ -496,7 +496,7 @@ export default function ManageUsers() {
       toast({ title: "User created", description: `${name} has been added as ${roleLabels[role]}` });
       logAuditEvent("user_created", "user", undefined, { name: name.trim(), email: email.trim().toLowerCase(), role });
       setOpen(false);
-      setEmail(""); setPassword(""); setPasswordError(null); setName(""); setRole(createRoleOptions[0] ?? "engineer");
+      setEmail(""); setPassword(""); setPasswordError(null); setName(""); setRole(createRoleOptions[0] ?? "engineer"); setShift("none");
       await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
       const message = describePasswordError(error.message);
@@ -514,6 +514,7 @@ export default function ManageUsers() {
     // A pending user (no role yet) opens ready to approve: default the login to Active.
     setEditActive(u.role ? u.active : true);
     setEditEmail(u.email);
+    setEditShift(u.shift ?? "none");
     setEditPassword("");
     setEditPasswordError(null);
   };
@@ -547,6 +548,7 @@ export default function ManageUsers() {
         userId: editUser.id,
         name: editName.trim(),
         active: editActive,
+        shift: editShift === "none" ? null : editShift,
       };
       if (editEmail.trim() !== editUser.email) {
         body.email = editEmail.trim().toLowerCase();
