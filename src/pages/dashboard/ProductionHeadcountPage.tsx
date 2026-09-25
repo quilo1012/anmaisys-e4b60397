@@ -221,6 +221,8 @@ function Chip({
   name,
   tone,
   leader,
+  lineLeader,
+  lineName,
   role,
   dimmed,
   overtime,
