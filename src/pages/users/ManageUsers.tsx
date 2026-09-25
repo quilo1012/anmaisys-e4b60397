@@ -795,6 +795,7 @@ export default function ManageUsers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Shift</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -816,6 +817,7 @@ export default function ManageUsers() {
                           </Badge>
                         </div>
                       </TableCell>
+                      <TableCell>{user.shift ?? "—"}</TableCell>
                       <TableCell>
                         <Badge variant={user.active ? "default" : "secondary"}>
                           {user.active ? "Active" : "Inactive"}
@@ -867,7 +869,7 @@ export default function ManageUsers() {
                 })}
                 {users.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">No users found</TableCell>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">No users found</TableCell>
                   </TableRow>
                 )}
               </TableBody>
