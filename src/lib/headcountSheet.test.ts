@@ -442,6 +442,18 @@ describe("the names the factory's own sheet actually writes", () => {
     expect(p.matched.find((m) => m.employeeId === "e2")).toMatchObject({ status: "unpaid", areaId: null });
   });
 
+  it("imports explicitly marked sickness even before the generic Absence choice", () => {
+    const roster = [emp("giovany", "Giovany Gava")];
+    const p = parseHeadcountWorkbook(sheet([["Absence"], ["GIOVANY(SICK)"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.absenceColumnFound).toBe(true);
+    expect(p.unmatchedNames).toEqual([]);
+    expect(p.matched).toMatchObject([{ employeeId: "giovany", status: "sick", areaId: null }]);
+    const withChoice = parseHeadcountWorkbook(sheet([["Absence"], ["GIOVANY(SICK)"]]),
+      { areas: AREAS, roster, shift: "Day", fallbackYear: 2026, absenceAs: "unpaid" });
+    expect(withChoice.matched[0].status).toBe("sick");
+  });
+
   it("prefers the person on this board when two share a first name across boards", () => {
     // Quality and Maintenance are on the Day sheet and on the night crew both. The
     // roster has to carry both, or "Toni" can never land — but a Day name must not
