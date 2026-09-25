@@ -763,9 +763,20 @@ export default function ManageUsers() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <RolePermissionPreview selectedRole={role} />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                   <RolePermissionPreview selectedRole={role} />
+                 </div>
+                 <div className="space-y-2">
+                   <Label>Shift</Label>
+                   <Select value={shift} onValueChange={setShift}>
+                     <SelectTrigger><SelectValue /></SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="none">No fixed shift</SelectItem>
+                       <SelectItem value="Day">Day</SelectItem>
+                       <SelectItem value="Night">Night</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
+                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creating..." : "Create User"}
                 </Button>
               </form>
@@ -1171,6 +1182,17 @@ export default function ManageUsers() {
                   </SelectContent>
                 </Select>
                 <RolePermissionPreview selectedRole={editRole} />
+              </div>
+              <div className="space-y-2">
+                <Label>Shift</Label>
+                <Select value={editShift} onValueChange={setEditShift}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No fixed shift</SelectItem>
+                    <SelectItem value="Day">Day</SelectItem>
+                    <SelectItem value="Night">Night</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex items-center justify-between">
                 <Label>Active</Label>
