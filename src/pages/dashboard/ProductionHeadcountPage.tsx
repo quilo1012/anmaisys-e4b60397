@@ -1513,7 +1513,8 @@ export default function ProductionHeadcountPage() {
         autoLoad={syncing}
         onImported={() => {
           qc.invalidateQueries({ queryKey: ["allocations"] });
-          qc.invalidateQueries({ queryKey: ["headcount-roster"] });
+          qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
+          qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
         }}
       />
     </div>
