@@ -45,6 +45,43 @@ export interface ImportedAllocation {
   employeeId: string;
   areaId: string | null;
   status: AllocStatus;
+  /** The name as the sheet writes it, without the time or the bracket. */
+  sheetName?: string | null;
+  /** "14:00" when the sheet writes a time beside the name. */
+  sheetStartTime?: string | null;
+  /** "training" when the sheet writes a bracket beside the name. */
+  sheetTag?: string | null;
+}
+
+/**
+ * "Gabriel 14:00" → Gabriel, 14:00. "WEBISTER ( training )" → WEBISTER, training.
+ * The name keeps the sheet's own capitals; the time is normalised to hh:mm and the
+ * bracket to lower case.
+ */
+export function splitSheetName(raw: string): { name: string; startTime: string | null; tag: string | null } {
+  let s = String(raw ?? "");
+  let tag: string | null = null;
+  const br = s.match(/\(([^)]*)\)/);
+  if (br) {
+    tag = br[1].trim().toLowerCase() || null;
+    s = s.replace(/\([^)]*\)/g, " ");
+  }
+  let startTime: string | null = null;
+  const t = s.match(/(^|\s)(\d{1,2})[:.](\d{2})(?=\s|$)/);
+  if (t && Number(t[2]) < 24 && Number(t[3]) < 60) {
+    startTime = `${t[2].padStart(2, "0")}:${t[3]}`;
+    s = s.replace(t[0], " ");
+  }
+  return { name: s.replace(/\s+/g, " ").trim(), startTime, tag };
+}
+
+/** Two different spellings on the sheet that point at the same person on the same day. */
+export interface NameConflict {
+  key: string;
+  date: string;
+  employeeId: string;
+  fullName: string;
+  spellings: string[];
 }
 
 /** A name on the sheet that was not written to the board, and why. */
