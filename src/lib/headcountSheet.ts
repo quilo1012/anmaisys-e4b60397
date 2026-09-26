@@ -129,6 +129,8 @@ export interface ImportPreview {
    * names were held back waiting for an answer, not that there were none.
    */
   absenceColumnFound: boolean;
+  /** Different spellings resolving to one person on one day — waiting for a choice. */
+  conflicts: NameConflict[];
 }
 
 /**
@@ -309,7 +311,7 @@ export function buildHeadcountWorkbook(input: {
 
   for (const day of input.days) {
     const allocs = input.allocationsFor(day.date, day.shift);
-    const nameOf = (id: string) => input.employeeById.get(id)?.full_name ?? "";
+    const nameOf = (a: Allocation) => a.sheet_name ?? input.employeeById.get(a.employee_id)?.full_name ?? "";
 
     const working = allocs.filter((a) => a.status === "assigned" || a.status === "overtime");
     // Leader first, then by name. The first row of a column on the company's sheet is
@@ -317,7 +319,7 @@ export function buildHeadcountWorkbook(input: {
     const inColumn = (col: { areas: HeadcountArea[] }) => {
       const ids = new Set(col.areas.map((a) => a.id));
       return working.filter((a) => a.area_id && ids.has(a.area_id))
-        .map((a) => ({ name: nameOf(a.employee_id), leader: a.is_leader ?? false }))
+        .map((a) => ({ name: nameOf(a), leader: a.is_leader ?? false }))
         .filter((x) => x.name)
         .sort((x, y) => Number(y.leader) - Number(x.leader) || x.name.localeCompare(y.name));
     };
@@ -484,7 +486,7 @@ export function printSheetLayout(input: {
       a.left_early_at ? `left ${hhmm(a.left_early_at)}` : "",
     ].filter(Boolean);
     return {
-      name: printed(input.employeeById.get(a.employee_id)!.full_name),
+      name: a.sheet_name ?? printed(input.employeeById.get(a.employee_id)!.full_name),
       leader,
       ...(notes.length ? { note: notes.join(", ") } : {}),
     };
@@ -568,6 +570,8 @@ export function parseHeadcountWorkbook(
     assigned?: Record<string, string>;
     /** What this sheet's single Absence column means. Unset holds those names back. */
     absenceAs?: AllocStatus;
+    /** For a conflict (`date|employeeId`), the spelling that really is that person. */
+    conflictChoice?: Record<string, string>;
   },
 ): ImportPreview {
   /**
@@ -713,8 +717,13 @@ export function parseHeadcountWorkbook(
     matched: [], unmatchedNames: [], unknownColumns: [], skippedSheets: [], otherShiftSheets: [], days: [],
     crews: { Day: 0, Night: 0 },
     absenceColumnFound: false,
+    conflicts: [],
   };
-  const seen = new Set<string>();
+  // Every placement, by day and person, so two spellings of one person are seen
+  // together rather than the second being dropped in silence.
+  type Pending = { alloc: ImportedAllocation; column: string; candidates: HeadcountEmployee[] };
+  const pending = new Map<string, Pending[]>();
+  const keyOrder: string[] = [];
   const unknown = new Set<string>();
 
   /** A heading, as this sheet writes it, to what it means. */
@@ -777,21 +786,29 @@ export function parseHeadcountWorkbook(
         out.absenceColumnFound = true;
         if (!markedSick && !ctx.absenceAs) return;
       }
-      const r = resolve(markedSick ? cell.replace(/\(\s*(?:sick|sickness)\s*\)$/i, "").trim() : cell, area);
+      const parts = splitSheetName(cell);
+      if (!parts.name) return;
+      const r = resolve(parts.name, area);
       if (!("emp" in r)) {
         out.unmatchedNames.push({
-          name: cell, column: label, date, reason: r.reason,
+          name: parts.name, column: label, date, reason: r.reason,
           candidates: r.candidates.map((e) => ({ id: e.id, full_name: e.full_name })),
         });
         return;
       }
       const key = `${date}|${r.emp.id}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      out.matched.push({
-        date, shift: ctx.shift, employeeId: r.emp.id,
-        areaId: area ? area.id : null,
-        status: area ? "assigned" : "absence" in col ? (markedSick ? "sick" : ctx.absenceAs ?? "sick") : col.status,
+      if (!pending.has(key)) { pending.set(key, []); keyOrder.push(key); }
+      pending.get(key)!.push({
+        column: label,
+        candidates: r.candidates ?? [],
+        alloc: {
+          date, shift: ctx.shift, employeeId: r.emp.id,
+          areaId: area ? area.id : null,
+          status: area ? "assigned" : "absence" in col ? (markedSick ? "sick" : ctx.absenceAs ?? "sick") : col.status,
+          sheetName: parts.name,
+          sheetStartTime: parts.startTime,
+          sheetTag: markedSick ? null : parts.tag,
+        },
       });
     };
 
@@ -826,6 +843,35 @@ export function parseHeadcountWorkbook(
 
   out.unknownColumns = [...unknown];
 
+  const spellingKey = (n: string | null | undefined) => normalise(n ?? "");
+  for (const key of keyOrder) {
+    const list = pending.get(key)!;
+    const spellings = [...new Map(list.map((p) => [spellingKey(p.alloc.sheetName), p.alloc.sheetName ?? ""])).values()];
+    if (spellings.length === 1) { out.matched.push(list[0].alloc); continue; }
+    const choice = ctx.conflictChoice?.[key];
+    const winner = choice ? list.find((p) => spellingKey(p.alloc.sheetName) === spellingKey(choice)) : undefined;
+    if (!winner) {
+      const emp = ctx.roster.find((e) => e.id === list[0].alloc.employeeId);
+      out.conflicts.push({
+        key, date: list[0].alloc.date, employeeId: list[0].alloc.employeeId,
+        fullName: emp?.full_name ?? "", spellings,
+      });
+      continue;
+    }
+    out.matched.push(winner.alloc);
+    // The other spellings are somebody else: back to the picker, never dropped.
+    const done = new Set([spellingKey(winner.alloc.sheetName)]);
+    for (const p of list) {
+      const k = spellingKey(p.alloc.sheetName);
+      if (done.has(k)) continue;
+      done.add(k);
+      out.unmatchedNames.push({
+        name: p.alloc.sheetName ?? "", column: p.column, date: p.alloc.date, reason: "ambiguous",
+        candidates: [],
+      });
+    }
+  }
+
   const boardOf = new Map(ctx.roster.map((e) => [e.id, boardShiftFor(e.shift_group)]));
   const pointedAt = new Set([
     ...out.matched.map((m) => m.employeeId),
@@ -846,6 +892,9 @@ export interface ImportRow {
   area_id: string | null;
   status: AllocStatus;
   is_leader: boolean;
+  sheet_name: string | null;
+  sheet_start_time: string | null;
+  sheet_tag: string | null;
 }
 
 /** Who holds a column on a day, as the board already has it. */
@@ -907,6 +956,9 @@ export function rowsToImport(input: {
         led.has(k) ? { area_id: led.get(k) ?? null, is_leader: true } : null,
         { areaId: area_id, status },
       ),
+      sheet_name: m.sheetName ?? null,
+      sheet_start_time: m.sheetStartTime ?? null,
+      sheet_tag: m.sheetTag ?? null,
     };
   });
 }
