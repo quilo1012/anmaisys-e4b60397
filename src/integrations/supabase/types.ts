@@ -671,6 +671,9 @@ export type Database = {
           left_early_at: string | null
           note: string | null
           on_date: string
+          sheet_name: string | null
+          sheet_start_time: string | null
+          sheet_tag: string | null
           shift: string
           status: string
           updated_at: string | null
@@ -686,6 +689,9 @@ export type Database = {
           left_early_at?: string | null
           note?: string | null
           on_date: string
+          sheet_name?: string | null
+          sheet_start_time?: string | null
+          sheet_tag?: string | null
           shift: string
           status?: string
           updated_at?: string | null
@@ -701,6 +707,9 @@ export type Database = {
           left_early_at?: string | null
           note?: string | null
           on_date?: string
+          sheet_name?: string | null
+          sheet_start_time?: string | null
+          sheet_tag?: string | null
           shift?: string
           status?: string
           updated_at?: string | null
@@ -8223,11 +8232,16 @@ export type Database = {
       line_team_board: {
         Args: { p_line_id: string }
         Returns: {
+          area_name: string
+          area_sort: number
+          display_name: string
           employee_name: string
           half_day: boolean
           is_leader: boolean
           note: string
           on_date: string
+          sheet_start_time: string
+          sheet_tag: string
           shift: string
           status: string
         }[]
