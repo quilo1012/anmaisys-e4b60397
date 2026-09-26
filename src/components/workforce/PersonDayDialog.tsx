@@ -44,7 +44,7 @@ const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[]
  * still ahead of them and is the thing somebody means by "he moved to nights".
  */
 export function PersonDayDialog({
-  open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
+  open, onOpenChange, name, fullName, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
   leftEarlyAt, onSetLeftEarlyAt,
   arrivedLateAt, onSetArrivedLateAt,
   patterns, patternId,
