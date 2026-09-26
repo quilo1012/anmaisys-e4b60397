@@ -44,7 +44,7 @@ const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[]
  * still ahead of them and is the thing somebody means by "he moved to nights".
  */
 export function PersonDayDialog({
-  open, onOpenChange, name, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
+  open, onOpenChange, name, fullName, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
   leftEarlyAt, onSetLeftEarlyAt,
   arrivedLateAt, onSetArrivedLateAt,
   patterns, patternId,
@@ -53,6 +53,8 @@ export function PersonDayDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   name: string;
+  /** The payroll name behind a sheet spelling, shown small under the title. */
+  fullName?: string;
   shiftGroup: string | null;
   /** Null when they are on the roster but not placed on the day. */
   status: AllocStatus | null;
@@ -106,6 +108,9 @@ export function PersonDayDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{name}</DialogTitle>
+          {fullName && fullName !== name && (
+            <p className="text-2xs text-muted-foreground">{fullName}</p>
+          )}
           <DialogDescription>
             {areaName ? `On ${areaName} today` : "Not on an area today"}
             {shiftGroup ? ` · ${shiftGroup} shift` : " · no shift recorded"}

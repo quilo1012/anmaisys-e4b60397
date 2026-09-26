@@ -12,6 +12,12 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export type LineTeamMember = {
   employee_name: string;
+  /** The name as the sheet writes it, falling back to the payroll name. */
+  display_name: string;
+  sheet_start_time: string | null;
+  sheet_tag: string | null;
+  area_name: string;
+  area_sort: number | null;
   status: string;
   is_leader: boolean;
   half_day: boolean;

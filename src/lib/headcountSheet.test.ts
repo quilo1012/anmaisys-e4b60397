@@ -754,3 +754,42 @@ describe("the exported sheet looks like the company's", () => {
     expect(back.unknownColumns).toEqual([]);
   });
 });
+
+import { splitSheetName as __split } from "./headcountSheet";
+describe("splitSheetName", () => {
+  it("separates time, tag and name", () => {
+    expect(__split("Gabriel 14:00")).toEqual({ name: "Gabriel", startTime: "14:00", tag: null });
+    expect(__split("Gabriel 14.00")).toEqual({ name: "Gabriel", startTime: "14:00", tag: null });
+    expect(__split("WEBISTER ( training )")).toEqual({ name: "WEBISTER", startTime: null, tag: "training" });
+    expect(__split("Luis F")).toEqual({ name: "Luis F", startTime: null, tag: null });
+  });
+});
+
+import XLSX_T from "xlsx-js-style";
+import { parseHeadcountWorkbook as __parse, rowsToImport as __rows } from "./headcountSheet";
+describe("sheet names reach the board as written", () => {
+  const area = { id: "a1", name: "Line 1", kind: "production", active: true, sort_order: 1 } as any;
+  const emp = (id: string, full_name: string) => ({ id, full_name, shift_group: "Day", department: null, sheet_aliases: null }) as any;
+  const book = (names: string[]) => {
+    const wb = XLSX_T.utils.book_new();
+    XLSX_T.utils.book_append_sheet(wb, XLSX_T.utils.aoa_to_sheet([["Line 1"], ...names.map((n) => [n])]), "2026-09-25 Day");
+    return wb;
+  };
+  const roster = [emp("g", "Gabriel Souza"), emp("l1", "Lucas Duarte"), emp("l2", "Lucas Gloor")];
+  it("keeps 'Gabriel' with its 14:00, and holds an ambiguous 'Lucas' for the picker", () => {
+    const p = __parse(book(["Gabriel 14 00".replace(" 00", ":00"), "Lucas"]), { areas: [area], roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched).toHaveLength(1);
+    expect(p.matched[0]).toMatchObject({ employeeId: "g", sheetName: "Gabriel", sheetStartTime: "14:00" });
+    expect(p.unmatchedNames.map((u) => u.name)).toEqual(["Lucas"]);
+    const rows = __rows({ matched: p.matched, cover: () => ({ covered: true }) as any, leaders: [] });
+    expect(rows[0]).toMatchObject({ sheet_name: "Gabriel", sheet_start_time: "14:00" });
+  });
+  it("shows two spellings of one person as a conflict instead of dropping one", () => {
+    const p = __parse(book(["Gabriel", "Gabriel Souza"]), { areas: [area], roster, shift: "Day", fallbackYear: 2026 });
+    expect(p.matched).toHaveLength(0);
+    expect(p.conflicts[0].spellings).toEqual(["Gabriel", "Gabriel Souza"]);
+    const chosen = __parse(book(["Gabriel", "Gabriel Souza"]), { areas: [area], roster, shift: "Day", fallbackYear: 2026, conflictChoice: { [p.conflicts[0].key]: "Gabriel" } });
+    expect(chosen.matched[0].sheetName).toBe("Gabriel");
+    expect(chosen.unmatchedNames.map((u) => u.name)).toEqual(["Gabriel Souza"]);
+  });
+});

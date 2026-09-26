@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
-import { Download, Upload, AlertTriangle, Loader2, ChevronsUpDown, Check, CloudDownload } from "lucide-react";
+import { Download, Upload, AlertTriangle, Loader2, ChevronsUpDown, Check, CloudDownload, UserPlus } from "lucide-react";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { headcountApiToWorkbook, headcountApiSource, type HeadcountApiResponse } from "@/lib/headcountApi";
 import {
@@ -31,13 +31,16 @@ import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "
  * "Crsitiano" offers two hundred and fifty, and the same control has to do both.
  */
 function NamePicker({
-  spelling, candidates, roster, value, onChange,
+  spelling, candidates, roster, value, onChange, onCreate, creating,
 }: {
   spelling: string;
   candidates: { id: string; full_name: string }[];
   roster: HeadcountEmployee[];
   value: string | null;
   onChange: (id: string | null) => void;
+  /** Explicit: create this spelling as a new employee. Absent when not allowed. */
+  onCreate?: () => void;
+  creating?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // The shortlist when there is one — the people who actually answer to the name —
@@ -64,6 +67,18 @@ function NamePicker({
           <CommandInput placeholder={`“${spelling}” is…`} className="h-8 text-xs" />
           <CommandList className="max-h-56">
             <CommandEmpty>Nobody by that name.</CommandEmpty>
+            {onCreate && (
+              <CommandGroup heading="New starter">
+                <CommandItem
+                  value={`__create__ ${spelling}`}
+                  disabled={creating}
+                  onSelect={() => { onCreate(); setOpen(false); }}
+                >
+                  <UserPlus className="mr-2 h-3 w-3" />
+                  Criar funcionário “{spelling}”
+                </CommandItem>
+              </CommandGroup>
+            )}
             {shortlist.length > 0 && (
               <CommandGroup heading="Answers to this name">
                 {shortlist.map((e) => (
@@ -136,6 +151,8 @@ export function HeadcountSheetDialog({
   const [book, setBook] = useState<XLSX.WorkBook | null>(null);
   const [assigned, setAssigned] = useState<Record<string, string>>({});
   const [absenceAs, setAbsenceAs] = useState<AllocStatus | null>(null);
+  // Two spellings on the sheet resolving to one person on one day: which one is them.
+  const [conflictChoice, setConflictChoice] = useState<Record<string, string>>({});
   const [remember, setRemember] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   // Where the loaded sheet came from, when it came from SharePoint rather than a file.
@@ -165,9 +182,9 @@ export function HeadcountSheetDialog({
   const preview: ImportPreview | null = useMemo(
     () => book ? parseHeadcountWorkbook(book, {
       areas, roster: people, shift: target, fallbackYear: Number(date.slice(0, 4)),
-      assigned, absenceAs: absenceAs ?? undefined,
+      assigned, absenceAs: absenceAs ?? undefined, conflictChoice,
     }) : null,
-    [book, areas, people, target, date, assigned, absenceAs],
+    [book, areas, people, target, date, assigned, absenceAs, conflictChoice],
   );
 
   // Most of the people this sheet names work the other shift: it is the other shift's
@@ -177,6 +194,7 @@ export function HeadcountSheetDialog({
 
   const close = () => {
     setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true); setSourceLine(null);
+    setConflictChoice({});
     setCreated([]);
     onOpenChange(false);
   };
@@ -202,7 +220,7 @@ export function HeadcountSheetDialog({
       if (data?.error) { toast.warning(data.message ?? data.error); return; }
       const res = data?.headcount as HeadcountApiResponse | undefined;
       if (!res) { toast.warning("SharePoint returned no headcount for that day."); return; }
-      setAssigned({}); setAbsenceAs(null);
+      setAssigned({}); setAbsenceAs(null); setConflictChoice({});
       setBook(headcountApiToWorkbook(res));
       setSourceLine(headcountApiSource(res));
       toast.success("Loaded from SharePoint — check it and confirm to save.");
@@ -306,7 +324,7 @@ export function HeadcountSheetDialog({
   const readFile = async (file: File) => {
     setBusy(true);
     try {
-      setAssigned({}); setAbsenceAs(null); setSourceLine(null);
+      setAssigned({}); setAbsenceAs(null); setSourceLine(null); setConflictChoice({});
       setBook(XLSX.read(await file.arrayBuffer(), { type: "array" }));
     } catch (e) {
       toast.error(`Could not read the file: ${(e as Error).message}`);
@@ -579,26 +597,10 @@ export function HeadcountSheetDialog({
                           however many days it appears on.
                         </p>
                         {canManage && (
-                          <div className="mt-1.5">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-2xs"
-                              disabled={creating}
-                              onClick={() => createMissing(
-                                bySpelling(preview.unmatchedNames)
-                                  .filter((u) => !assigned[u.name])
-                                  .map((u) => u.name),
-                              )}
-                            >
-                              {creating ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" /> : null}
-                              Add everyone still unnamed as new people
-                            </Button>
-                            <p className="mt-1 text-muted-foreground">
-                              Only for names that really are new starters — a misspelling added
-                              this way becomes a second record for somebody who is already here.
-                            </p>
-                          </div>
+                          <p className="mt-1 text-muted-foreground">
+                            Nobody is created automatically. For a real new starter, open the
+                            picker and choose “Criar funcionário”.
+                          </p>
                         )}
                         <ul className="mt-1.5 space-y-1">
                           {bySpelling(preview.unmatchedNames).map((u) => (
@@ -628,6 +630,8 @@ export function HeadcountSheetDialog({
                                   if (id) next[u.name] = id; else delete next[u.name];
                                   return next;
                                 })}
+                                onCreate={canManage ? () => createMissing([u.name]) : undefined}
+                                creating={creating}
                               />
                             </li>
                           ))}
@@ -655,6 +659,37 @@ export function HeadcountSheetDialog({
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {preview.conflicts.length > 0 && (
+                  <div className="max-h-52 space-y-2 overflow-y-auto rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-2xs">
+                    <div className="flex items-center gap-1.5 font-semibold text-destructive">
+                      <AlertTriangle className="h-3.5 w-3.5" /> Two names on the sheet point at the same person
+                    </div>
+                    <p className="text-muted-foreground">
+                      Choose which spelling really is them. The other goes back to the list above to be named.
+                    </p>
+                    <ul className="space-y-1.5">
+                      {preview.conflicts.map((c) => (
+                        <li key={c.key} className="space-y-1">
+                          <div><b>{c.fullName}</b> <span className="text-muted-foreground">· {c.date}</span></div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.spellings.map((sp) => (
+                              <Button
+                                key={sp}
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-2xs"
+                                onClick={() => setConflictChoice((prev) => ({ ...prev, [c.key]: sp }))}
+                              >
+                                “{sp}” is {c.fullName}
+                              </Button>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
@@ -695,7 +730,7 @@ export function HeadcountSheetDialog({
                     {pulling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudDownload className="mr-2 h-4 w-4" />}
                     Refresh from SharePoint
                   </Button>
-                  <Button onClick={commit} disabled={busy || !canManage || preview.matched.length === 0 || (crewMismatch && !anyway)} className="flex-1">
+                  <Button onClick={commit} disabled={busy || !canManage || preview.matched.length === 0 || preview.conflicts.length > 0 || (crewMismatch && !anyway)} className="flex-1">
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Import {preview.matched.length} onto {target}
                   </Button>

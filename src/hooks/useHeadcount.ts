@@ -63,6 +63,10 @@ export type Allocation = {
   note: string | null;
   /** Leads this area on this day. A line can lead differently tomorrow. */
   is_leader: boolean | null;
+  /** The name exactly as the SharePoint sheet writes it. Shown before full_name. */
+  sheet_name?: string | null;
+  sheet_start_time?: string | null;
+  sheet_tag?: string | null;
 };
 
 /**
@@ -279,7 +283,7 @@ export function useAllocations(onDate: string, shift: string) {
     queryFn: async (): Promise<Allocation[]> => {
       const { data, error } = await supabase
         .from("daily_allocations")
-        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,note,is_leader")
+        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,note,is_leader,sheet_name,sheet_start_time,sheet_tag")
         .eq("on_date", onDate)
         .eq("shift", shift);
       if (error) throw error;
