@@ -309,7 +309,19 @@ export function useMachineBackToWork() {
 
   return useMutation({
     mutationFn: async (woId: string) => {
-      const now = new Date().toISOString();
+      // line_resumed_at is copied onto the open downtime_events row by trigger, so a
+      // tablet clock that runs behind the stop gives that row a negative duration and
+      // downtime_events_duration_not_negative refuses the whole update. Never resume
+      // before the latest open stop (same rule as useResumeLine).
+      const { data: openStops } = await (supabase as any)
+        .from("downtime_events")
+        .select("stopped_at")
+        .eq("work_order_id", woId)
+        .is("resumed_at", null)
+        .order("stopped_at", { ascending: false })
+        .limit(1);
+      const stoppedMs = openStops?.[0]?.stopped_at ? new Date(openStops[0].stopped_at).getTime() : NaN;
+      const now = new Date(Number.isFinite(stoppedMs) ? Math.max(Date.now(), stoppedMs) : Date.now()).toISOString();
       const { error } = await supabase
         .from("work_orders")
         .update({
