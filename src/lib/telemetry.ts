@@ -65,7 +65,7 @@ export function logSystemError(
         user_role: ctxRole,
         error_type: errorType,
         message: msg,
-        stack_trace: opts?.stack ? String(opts.stack).slice(0, 6000) : null,
+        stack_trace: opts?.stack ? compactStack(String(opts.stack)) : null,
         route_path: route,
         metadata: opts?.metadata ?? null,
       })
@@ -76,6 +76,45 @@ export function logSystemError(
   } catch {
     inFlight = false;
   }
+}
+
+/**
+ * Fits a stack into the 6000-character column without losing the end of it.
+ *
+ * "RangeError: Maximum call stack size exceeded" on /dashboard/engineer (26/09,
+ * five times from the same tablet) arrived as a hundred lines of the same two
+ * React frames — the commit tearing down a tree — and nothing else. The frames
+ * that started the recursion are at the BOTTOM of a stack like that, and a plain
+ * `slice(0, 6000)` is exactly what cut them off.
+ *
+ * So: runs of a repeating frame pattern (period 1–4 lines) collapse to one copy
+ * plus a count, and if it still does not fit, the head and the tail are kept and
+ * the middle goes.
+ */
+export function compactStack(stack: string, max = 6000): string {
+  const lines = stack.split("\n");
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    let collapsed = false;
+    for (let p = 1; p <= 4 && !collapsed; p++) {
+      let reps = 1;
+      while (
+        i + (reps + 1) * p <= lines.length &&
+        lines.slice(i + reps * p, i + (reps + 1) * p).join("\n") === lines.slice(i, i + p).join("\n")
+      ) reps++;
+      if (reps >= 3) {
+        out.push(...lines.slice(i, i + p), `  … the ${p === 1 ? "frame" : `${p} frames`} above repeated ${reps}×`);
+        i += reps * p;
+        collapsed = true;
+      }
+    }
+    if (!collapsed) { out.push(lines[i]); i++; }
+  }
+  const text = out.join("\n");
+  if (text.length <= max) return text;
+  const half = Math.floor((max - 40) / 2);
+  return `${text.slice(0, half)}\n  … [${text.length - 2 * half} chars cut] …\n${text.slice(-half)}`;
 }
 
 /**
@@ -162,6 +201,15 @@ function isOpaqueCrossOriginError(e: ErrorEvent): boolean {
 /** Register global handlers for uncaught JS errors + unhandled promise rejections. */
 export function installTelemetryHandlers() {
   if (typeof window === "undefined") return;
+  // Safari (JavaScriptCore) and Chrome both keep only the newest frames of a stack
+  // — 100 and 10 by default. For a stack overflow those are all the same recursive
+  // frame, and the caller that started it is never recorded. A bigger limit only
+  // costs anything when an Error is created on a deep stack, which is the case we
+  // want to see; compactStack() above keeps what is stored small.
+  try {
+    const E = Error as unknown as { stackTraceLimit?: number };
+    if (typeof E.stackTraceLimit !== "number" || E.stackTraceLimit < 5000) E.stackTraceLimit = 5000;
+  } catch { /* read-only in some engines; nothing to do */ }
   window.addEventListener("error", (e) => {
     const m = e.message || (e.error as Error | undefined)?.message || "";
     if (!m || isKnownNoise(m) || isOpaqueCrossOriginError(e)) return;
@@ -171,8 +219,20 @@ export function installTelemetryHandlers() {
     });
   });
   window.addEventListener("unhandledrejection", (e) => {
-    const reason = e.reason as { message?: string; stack?: string } | string | undefined;
+    // The 26/09 rejections on /dashboard/engineer were filed with the message "La"
+    // and nothing else — too little to tell which error it was. Name, code and the
+    // constructor go in the metadata so the next one says what it is.
+    const reason = e.reason as { message?: string; stack?: string; name?: string; code?: unknown } | string | undefined;
     const m = (typeof reason === "string" ? reason : reason?.message) || "Unhandled promise rejection";
-    logSystemError("UNHANDLED_REJECTION", m, { stack: typeof reason === "object" ? reason?.stack : undefined });
+    const obj = reason && typeof reason === "object" ? reason : undefined;
+    logSystemError("UNHANDLED_REJECTION", m, {
+      stack: obj?.stack,
+      metadata: obj ? {
+        name: typeof obj.name === "string" ? obj.name : null,
+        code: typeof obj.code === "string" || typeof obj.code === "number" ? obj.code : null,
+        ctor: (obj as { constructor?: { name?: string } }).constructor?.name ?? null,
+        keys: Object.keys(obj).slice(0, 10),
+      } : { reasonType: typeof reason },
+    });
   });
 }

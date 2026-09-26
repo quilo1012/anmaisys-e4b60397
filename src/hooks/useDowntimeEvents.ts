@@ -172,7 +172,13 @@ export function useResumeLine() {
       if (findErr) throw findErr;
       if (!openEvt) throw new Error("No open downtime event found for this maintenance order");
 
-      const now = new Date().toISOString();
+      // The tablet's clock, not the server's. When it runs behind whoever wrote
+      // stopped_at (another tablet, iTouching, a server default) "now" can land
+      // before the stop, and downtime_events_duration_not_negative refuses the
+      // row — the operator on WO 9d22ad0e hit exactly that on 22/09 and could not
+      // resume the line. A stop cannot end before it began, so never earlier.
+      const stoppedMs = openEvt.stopped_at ? new Date(openEvt.stopped_at).getTime() : NaN;
+      const now = new Date(Number.isFinite(stoppedMs) ? Math.max(Date.now(), stoppedMs) : Date.now()).toISOString();
       const { data, error } = await (supabase as any)
         .from("downtime_events")
         .update({
