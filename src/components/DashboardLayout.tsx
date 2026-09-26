@@ -128,6 +128,7 @@ export const navItems: NavItem[] = [
   // Overview
   { title: "Operator Panel", shortTitle: "Panel", url: "/dashboard/operator", icon: LayoutDashboard, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
   { title: "My Production", shortTitle: "Production", url: "/dashboard/operator/my-production", icon: Factory, roles: ["operator"], group: "Overview", action: "production.target.view" },
+  { title: "My Team", shortTitle: "Team", url: "/dashboard/operator/team", icon: UsersRound, roles: ["operator"], group: "Overview", action: "dashboard.operator" },
   // "My Scorecard" used to sit here, third so it landed in the phone's bottom bar.
   // The operator's screen no longer offers it at all — neither here nor as a tile on
   // the line hub. /dashboard/leader/scorecard still exists and still asks for the PIN;
@@ -613,6 +614,7 @@ const roleBadgeClass: Record<string, string> = {
 export const routeTitles: Record<string, string> = {
   "/dashboard/operator": "Operator Panel",
   "/dashboard/operator/my-production": "My Production",
+  "/dashboard/operator/team": "My Team",
   "/dashboard/leader/scorecard": "My Scorecard",
   "/dashboard/engineer": "Engineer Console",
   "/dashboard/manager": "Dashboard",

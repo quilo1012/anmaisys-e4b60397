@@ -21,11 +21,12 @@ import { londonHM } from "@/lib/shifts";
 import { LoggingShiftProvider, useLoggingShift } from "@/contexts/LoggingShiftContext";
 import { ShiftHandoverGate, CarriedOverShiftBanner } from "@/components/production/ShiftHandoverGate";
 import { shiftTimeToIso, runMinutes } from "@/lib/productionTime";
-import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil } from "lucide-react";
+import { Factory, Target, Loader2, Search, Plus, Lock, Trash2, Play, Square, Repeat, Pencil, Users } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
+import { useLineTeamBoard } from "@/hooks/useLineTeamBoard";
 import { useConfirm } from "@/hooks/useConfirm";
 
 type Shift = "DAY" | "NIGHT";
@@ -126,7 +127,9 @@ export default function MyProductionPage() {
 }
 
 function MyProductionContent() {
-  const { selectedLineName: line } = useDeviceLineCtx();
+  const { selectedLineName: line, selectedLineId } = useDeviceLineCtx();
+  const teamQ = useLineTeamBoard(selectedLineId);
+  const onLineToday = (teamQ.data ?? []).filter((m) => m.status === "assigned" || m.status === "overtime").length;
   const { profile, role } = useAuth() as any;
   const navigate = useNavigate();
   const [targetUnlocked, setTargetUnlocked] = useState(false);
@@ -267,6 +270,23 @@ function MyProductionContent() {
             </Button>
             <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Who is on this line today — opens My Team. */}
+      <Card
+        role="button"
+        tabIndex={0}
+        className="cursor-pointer hover:bg-muted/40"
+        onClick={() => navigate("/dashboard/operator/team")}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate("/dashboard/operator/team"); } }}
+      >
+        <CardContent className="flex h-14 items-center gap-3 px-4 py-0">
+          <Users className="h-5 w-5 text-primary" />
+          <span className="font-semibold">My Team</span>
+          <span className="text-sm text-muted-foreground">
+            {teamQ.isLoading ? "…" : `${onLineToday} ${onLineToday === 1 ? "person" : "people"} on ${line || "the line"} today`}
+          </span>
         </CardContent>
       </Card>
 
