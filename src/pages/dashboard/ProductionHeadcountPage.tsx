@@ -229,11 +229,17 @@ function Chip({
   leftEarlyAt,
   arrivedLateAt,
   crew,
+  startTime,
+  tag,
   draggable,
   onOpen,
   onDragStart,
 }: {
   name: string;
+  /** "14:00" written beside the name on the sheet. */
+  startTime?: string | null;
+  /** "training" written in brackets on the sheet. */
+  tag?: string | null;
   tone: "production" | "support" | "away" | "overtime" | "roster" | "training";
   leader?: boolean;
   /** Named role — LEAD, SUP, TEC, LAB, WH, OFF — when the department says one. */
@@ -311,6 +317,16 @@ function Chip({
         {leader ? "LEAD" : initials(name)}
       </span>
       <span className={cn("truncate", lineLeader && lineName && "font-bold")} style={lineLeader && lineName ? { color: bayInk(lineName) } : undefined}>{name}</span>
+      {startTime && (
+        <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
+          {startTime}
+        </span>
+      )}
+      {tag && (
+        <span title={tag} className="shrink-0 rounded-sm border border-border bg-muted px-1 py-px text-[10px] font-bold capitalize leading-tight text-muted-foreground">
+          {tag}
+        </span>
+      )}
       {/* Day and the Fri–Mon crew share this board, so the card has to say which is
           which. Only the ones that are not the plain day shift are labelled — a badge
           on every card is a badge that stops being read. */}
@@ -559,6 +575,9 @@ function ShiftBoard({
         && a.area_id === areaId && employeeById.has(a.employee_id))
       .map((a) => ({
         person: employeeById.get(a.employee_id)!,
+        shown: a.sheet_name ?? employeeById.get(a.employee_id)!.full_name,
+        startTime: a.sheet_start_time ?? null,
+        tag: a.sheet_tag ?? null,
         overtime: a.status === "overtime",
         // The day's own leader wins. `department` is only the fallback, so a board
         // nobody has named a leader on still shows the Team Leaders it has.
@@ -569,14 +588,21 @@ function ShiftBoard({
         // position, even when another Team Leader is helping on the same line.
         const la = a.leader ? 0 : isLeader(a.person.department) ? 1 : 2;
         const lb = b.leader ? 0 : isLeader(b.person.department) ? 1 : 2;
-        return la - lb || a.person.full_name.localeCompare(b.person.full_name);
+        return la - lb || a.shown.localeCompare(b.shown);
       });
 
   const peopleWith = (status: AllocStatus) =>
     allocations
       .filter((a) => a.status === status && employeeById.has(a.employee_id))
-      .map((a) => employeeById.get(a.employee_id)!)
-      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+      .map((a) => {
+        const p = employeeById.get(a.employee_id)!;
+        return Object.assign({}, p, {
+          shown: a.sheet_name ?? p.full_name,
+          startTime: a.sheet_start_time ?? null,
+          tag: a.sheet_tag ?? null,
+        });
+      })
+      .sort((a, b) => a.shown.localeCompare(b.shown));
 
   const unassigned = roster.filter((e) => !byEmployee.has(e.id));
 
@@ -1004,15 +1030,17 @@ function ShiftBoard({
                     full one. Twenty areas at 76px of nothing is most of a screen. */}
                 <CardContent className={cn("p-2", people.length === 0 ? "min-h-[52px]" : "min-h-[80px]")}>
                   <div className="flex flex-col gap-1.5">
-                    {people.map(({ person: p, overtime: isOt, leader: leadsToday }) => (
+                    {people.map(({ person: p, shown, startTime, tag, overtime: isOt, leader: leadsToday }) => (
                       <Chip
                         key={p.id}
-                        name={p.full_name}
+                        name={shown}
+                        startTime={startTime}
+                        tag={tag}
                         leader={leadsToday || isLeader(p.department)}
                         lineLeader={leadsToday}
                         lineName={area.name}
                         role={roleStripe(p.department)}
-                        dimmed={isDimmed(p.full_name)}
+                        dimmed={isDimmed(shown) && isDimmed(p.full_name)}
                         overtime={isOt}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                         arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
@@ -1145,7 +1173,8 @@ function ShiftBoard({
           <PersonDayDialog
             open
             onOpenChange={(v) => !v && setEditing(null)}
-            name={person.full_name}
+            name={alloc?.sheet_name ?? person.full_name}
+            fullName={person.full_name}
             shiftGroup={person.shift_group}
             status={(alloc?.status as AllocStatus | undefined) ?? null}
             areaId={alloc?.area_id ?? null}
@@ -1265,9 +1294,11 @@ function ShiftBoard({
                     {people.map((p) => (
                       <Chip
                         key={p.id}
-                        name={p.full_name}
+                        name={p.shown}
+                        startTime={p.startTime}
+                        tag={p.tag}
                         onOpen={() => setEditing(p.id)}
-                        dimmed={isDimmed(p.full_name)}
+                        dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
                         role={roleStripe(p.department)}
                         tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
                         half={byEmployee.get(p.id)?.half_day === true}

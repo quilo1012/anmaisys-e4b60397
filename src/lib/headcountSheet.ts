@@ -365,7 +365,7 @@ export function buildHeadcountWorkbook(input: {
     rows.push([]);
     const states: [string, string[]][] = STATUS_BLOCKS.map((b) => [
       b.label,
-      allocs.filter((a) => a.status === b.status).map((a) => nameOf(a.employee_id)).filter(Boolean).sort(),
+      allocs.filter((a) => a.status === b.status).map((a) => nameOf(a)).filter(Boolean).sort(),
     ]);
     // The away columns sit in the second band, beside Office and Maintenance, which is
     // where the company's sheet has them. Beside the lines they made the top band
@@ -800,7 +800,7 @@ export function parseHeadcountWorkbook(
       if (!pending.has(key)) { pending.set(key, []); keyOrder.push(key); }
       pending.get(key)!.push({
         column: label,
-        candidates: r.candidates ?? [],
+        candidates: [],
         alloc: {
           date, shift: ctx.shift, employeeId: r.emp.id,
           areaId: area ? area.id : null,
