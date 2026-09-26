@@ -40,6 +40,14 @@ function OperatorTeamContent() {
   const shift = team?.[0]?.shift;
   const working = (team ?? []).filter((m) => m.status === "assigned" || m.status === "overtime");
   const away = (team ?? []).filter((m) => m.status !== "assigned" && m.status !== "overtime");
+  // One card per board area when the line has several (Line 5 A&B, Pill line…).
+  const areaGroups: { area: string; members: LineTeamMember[] }[] = [];
+  for (const m of working) {
+    const area = m.area_name ?? lineName;
+    let g = areaGroups.find((x) => x.area === area);
+    if (!g) { g = { area, members: [] }; areaGroups.push(g); }
+    g.members.push(m);
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -70,22 +78,22 @@ function OperatorTeamContent() {
         </Card>
       )}
 
-      {working.length > 0 && (
-        <Card style={{ borderLeft: `6px solid ${bayInk(lineName)}`, backgroundColor: bayWash(lineName, "soft") }}>
+      {areaGroups.map((g) => (
+        <Card key={g.area} style={{ borderLeft: `6px solid ${bayInk(lineName)}`, backgroundColor: bayWash(lineName, "soft") }}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Users className="h-5 w-5" style={{ color: bayInk(lineName) }} />
-              On the line
-              <Badge variant="outline" className="ml-1">{working.length}</Badge>
+              {areaGroups.length > 1 ? g.area : "On the line"}
+              <Badge variant="outline" className="ml-1">{g.members.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2">
-            {working.map((m) => (
-              <MemberChip key={m.employee_name} member={m} lineName={lineName} />
+            {g.members.map((m, i) => (
+              <MemberChip key={`${m.display_name}-${i}`} member={m} lineName={lineName} />
             ))}
           </CardContent>
         </Card>
-      )}
+      ))}
 
       {away.length > 0 && (
         <Card>
@@ -97,8 +105,8 @@ function OperatorTeamContent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2 sm:grid-cols-2">
-            {away.map((m) => (
-              <MemberChip key={m.employee_name} member={m} lineName={lineName} dim />
+            {away.map((m, i) => (
+              <MemberChip key={`${m.display_name}-${i}`} member={m} lineName={lineName} dim />
             ))}
           </CardContent>
         </Card>
@@ -126,8 +134,10 @@ function MemberChip({ member, lineName, dim }: { member: LineTeamMember; lineNam
         className={cn("truncate text-base", member.is_leader && "font-bold")}
         style={member.is_leader ? { color: ink } : undefined}
       >
-        {member.employee_name}
+        {member.display_name ?? member.employee_name}
       </span>
+      {member.sheet_start_time && <Badge variant="outline" className="text-[10px]">{member.sheet_start_time}</Badge>}
+      {member.sheet_tag && <Badge variant="outline" className="text-[10px] capitalize">{member.sheet_tag}</Badge>}
       <span className="ml-auto flex shrink-0 items-center gap-1">
         {member.is_leader && <Crown className="h-3.5 w-3.5" style={{ color: ink }} />}
         {member.half_day && <Badge variant="outline" className="text-[10px]">½ day</Badge>}

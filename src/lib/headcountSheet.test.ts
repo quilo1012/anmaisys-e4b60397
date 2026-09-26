@@ -754,3 +754,13 @@ describe("the exported sheet looks like the company's", () => {
     expect(back.unknownColumns).toEqual([]);
   });
 });
+
+import { splitSheetName as __split } from "./headcountSheet";
+describe("splitSheetName", () => {
+  it("separates time, tag and name", () => {
+    expect(__split("Gabriel 14:00")).toEqual({ name: "Gabriel", startTime: "14:00", tag: null });
+    expect(__split("Gabriel 14.00")).toEqual({ name: "Gabriel", startTime: "14:00", tag: null });
+    expect(__split("WEBISTER ( training )")).toEqual({ name: "WEBISTER", startTime: null, tag: "training" });
+    expect(__split("Luis F")).toEqual({ name: "Luis F", startTime: null, tag: null });
+  });
+});
