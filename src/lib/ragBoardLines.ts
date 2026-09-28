@@ -41,7 +41,8 @@ function rank(name: string): [number, number] {
   const s = key(name);
   const tail = TAIL.indexOf(s);
   if (tail >= 0) return [4, tail];
-  if (GEL.includes(s)) return [1, 1];
+  if (s === "gel line") return [1, 1];
+  if (s === "gel machine") return [1, 2];   // posto próprio, logo depois da GEL Line
   const m = s.match(/line\s*0*(\d+)/);
   if (m) return [0, Number(m[1])];          // Filler Line 1..6
   if (s.includes("capsule") || s.includes("tablet")) return [1, 0];  // Tablet Line
