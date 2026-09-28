@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "https://esm.sh/zod@3.23.8";
-import bcrypt from "npm:bcryptjs@2.4.3";
+import bcrypt from "https://esm.sh/bcryptjs@2.4.3";
 
 const MAX_BODY_BYTES = 8 * 1024; // 8 KB is plenty for the JSON payload
 const REQ_TIMEOUT_MS = 15_000;
