@@ -27,7 +27,7 @@ const EXCLUDED = ["sealer", "printer ink"];
  */
 const TAIL = ["capsules machine 1", "capsules machine 2"];
 // GEL Line vem logo depois da Tablet Line, antes das máquinas.
-const GEL = ["gel line", "gel machine"];
+// GEL Line e Gel Machine são postos diferentes (ver rank).
 
 const key = (n: string) => n.trim().toLowerCase();
 
