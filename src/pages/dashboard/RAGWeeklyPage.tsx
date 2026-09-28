@@ -64,9 +64,9 @@ function displayLineLabel(name: string): string {
   const s = (name ?? "").trim();
   const m = s.match(/^Line\s*0*(\d+)$/i);
   if (m) return `Filler Line ${m[1]}`;
-  // Um nome só em todo o sistema: a base, o Production Control e o operador
-  // dizem "GEL Line"; mostrar "GEL Machine" aqui fazia a linha parecer ausente.
-  if (/^gel machine$/i.test(s) || /^gel line$/i.test(s)) return "GEL Line";
+  // GEL Line e Gel Machine são postos diferentes, cada um com a sua linha.
+  if (/^gel line$/i.test(s)) return "GEL Line";
+  if (/^gel machine$/i.test(s)) return "Gel Machine";
   // A linha chama-se "Tablet Line" na base, nas Machines e na boca de quem lá trabalha.
   // "Capsules & Tablets" era o nome antigo do quadro em Excel e mais ninguém o usava,
   // o que punha duas etiquetas para o mesmo posto no mesmo sistema. Fica o nome real;

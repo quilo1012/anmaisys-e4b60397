@@ -54,8 +54,9 @@ describe("ragBoardLines", () => {
     expect(out.slice(-2)).toEqual(["Capsules Machine 1", "Capsules Machine 2"]);
   });
 
-  it("aceita 'Gel Machine', a grafia da iTouching, no mesmo lugar da GEL Line", () => {
-    const out = ragBoardLines(PROD.map((r) => (r.name === "GEL Line" ? { ...r, name: "Gel Machine" } : r)));
-    expect(out[out.indexOf("Tablet Line") + 1]).toBe("Gel Machine");
+  it("Gel Machine é uma linha própria, logo depois da GEL Line", () => {
+    const out = ragBoardLines([...PROD, { name: "Gel Machine", active: true }]);
+    expect(out[out.indexOf("GEL Line") + 1]).toBe("Gel Machine");
+    expect(out.slice(-2)).toEqual(["Capsules Machine 1", "Capsules Machine 2"]);
   });
 });
