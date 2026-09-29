@@ -242,7 +242,9 @@ const sheetBandOf = (a: HeadcountArea): "production" | "support" => {
 const columnsOf = (areas: HeadcountArea[]) => {
   const cols: { label: string; areas: HeadcountArea[] }[] = [];
   for (const a of areas) {
-    const label = (a.sheet_group ?? a.sheet_label ?? a.name).trim();
+    // sheet_label can be a comma list of spellings ("Runner, Wrapping"); the heading is
+    // the first one, so the exported file imports back through the same alias map.
+    const label = String(a.sheet_group ?? a.sheet_label ?? a.name).split(",")[0].trim() || a.name;
     const existing = cols.find((c) => c.label === label);
     if (existing) existing.areas.push(a);
     else cols.push({ label, areas: [a] });

@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
     );
 
     if (matchError) {
-      console.error("PIN verification error:", matchError.message);
+      console.error("PIN verification error:", matchError.code, matchError.message, matchError.details, matchError.hint);
       return new Response(JSON.stringify({ error: "Verification failed" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
