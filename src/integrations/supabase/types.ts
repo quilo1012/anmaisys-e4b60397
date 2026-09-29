@@ -206,6 +206,36 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_pin_attempts: {
+        Row: {
+          created_at: string
+          failures: number
+          last_attempt: string
+          locked_until: string | null
+          lockout_step: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          failures?: number
+          last_attempt?: string
+          locked_until?: string | null
+          lockout_step?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          failures?: number
+          last_attempt?: string
+          locked_until?: string | null
+          lockout_step?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       app_owner: {
         Row: {
           created_at: string
@@ -8635,6 +8665,7 @@ export type Database = {
             Returns: undefined
           }
       verify_admin_pin: { Args: { _pin: string }; Returns: boolean }
+      verify_admin_pin_with_lockout: { Args: { _pin: string }; Returns: Json }
       verify_engineer_pin: {
         Args: { _pin: string; _user_id: string }
         Returns: boolean
