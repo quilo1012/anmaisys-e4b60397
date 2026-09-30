@@ -519,6 +519,23 @@ function ShiftBoard({
   useEffect(() => {
     localStorage.setItem("headcount_open_sections", JSON.stringify(openSections));
   }, [openSections]);
+  /**
+   * Which blocks the board draws at all.
+   *
+   * Folding a section keeps it one tap away; this is for the day a supervisor only
+   * wants the lines — no Warehouse, no Support — and does not want to fold the same
+   * two headings every morning. All on by default, remembered in this browser, and
+   * screen-only: the printed sheet always carries the whole board, because paper
+   * missing fourteen people looks exactly like paper that is right.
+   */
+  const [visibleBlocks, setVisibleBlocks] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("headcount_visible_blocks") ?? "{}"); }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    localStorage.setItem("headcount_visible_blocks", JSON.stringify(visibleBlocks));
+  }, [visibleBlocks]);
+  const blockVisible = (key: string) => visibleBlocks[key] !== false;
   const changeShift = useChangeShift(onDate);
   const reorder = useReorderAreas();
   const setPattern = useSetShiftPattern(onDate);
@@ -693,6 +710,26 @@ function ShiftBoard({
           <div className="truncate text-2xs text-muted-foreground">{dayTypeLabel(onDate)}</div>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          {/* Sector filter: which blocks are drawn at all. Screen-only — the printed
+              sheet always carries the whole board. */}
+          <div className="flex items-center gap-1 print:hidden" role="group" aria-label="Show sectors">
+            {SECTIONS.map((s) => {
+              const on = blockVisible(s.key);
+              return (
+                <Button
+                  key={s.key}
+                  size="sm"
+                  variant={on ? "secondary" : "outline"}
+                  className={cn("h-8 px-2.5 text-2xs", !on && "text-muted-foreground")}
+                  aria-pressed={on}
+                  title={on ? `Hide ${s.label}` : `Show ${s.label}`}
+                  onClick={() => setVisibleBlocks((v) => ({ ...v, [s.key]: !on }))}
+                >
+                  {s.label}
+                </Button>
+              );
+            })}
+          </div>
           <Button
             size="sm"
             variant="outline"
@@ -960,6 +997,7 @@ function ShiftBoard({
       </div>
 
       {SECTIONS.map((section) => {
+        if (!blockVisible(section.key)) return null;
         const ofKind = areas.filter((a) => blockOf(a) === section.key);
         if (ofKind.length === 0) return null;
         const open = openSections[section.key] !== false;
