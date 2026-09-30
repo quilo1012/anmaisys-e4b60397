@@ -248,6 +248,7 @@ export function TabletProductionView() {
         </div>
         {!locked ? (
           <Button
+            size="tablet"
             onClick={() => submitShiftMutation.mutate()}
             disabled={submitShiftMutation.isPending}
             className="w-full font-bold"

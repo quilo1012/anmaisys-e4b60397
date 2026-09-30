@@ -835,7 +835,7 @@ export function QualityActionsView() {
                   {domainFilter === "safety" ? "Log occurrence" : "Log action"}
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
                 <DialogHeader><DialogTitle>{editingId ? "Edit action" : form.domain === "safety" ? "Log safety occurrence" : "Log quality action"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
                   {form.domain === "safety" ? (
@@ -1507,7 +1507,7 @@ export function QualityActionsView() {
 
         {canManage && (
           <Dialog open={listsOpen} onOpenChange={setListsOpen}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
               {/* Scoped to the tab it was opened from.
                   Opened from Safety, this dialog showed the severity weights, the three
                   pillar weights of the leader score and the quality label prices —
@@ -1590,7 +1590,7 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
   const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
   return (
     <Dialog open={!!action} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
         {action && (
           <>
             {/* The header keyed off `action_no`, which is NULL on all 66 SafetyCulture

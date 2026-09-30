@@ -737,7 +737,7 @@ export default function MachinesPage() {
 
         {/* Add Dialog */}
         <Dialog open={showAdd} onOpenChange={setShowAdd}>
-          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add Machine</DialogTitle>
               <DialogDescription className="sr-only">Add a new machine</DialogDescription>
@@ -764,7 +764,7 @@ export default function MachinesPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Machine</DialogTitle>
               <DialogDescription className="sr-only">Edit machine details</DialogDescription>
@@ -827,11 +827,27 @@ export default function MachinesPage() {
               <DialogDescription>Scan to open machine history or create a Maintenance Order</DialogDescription>
             </DialogHeader>
             <div className="flex flex-col items-center gap-4 py-4">
+              {/* This one encodes a URL, while the stock labels in `stockQrLabels.ts`
+                  deliberately encode only the part code so a printed label still reads
+                  years later. The difference is not an oversight and must not be
+                  "fixed" by copying the parts convention: nothing in this app scans a
+                  machine QR — a phone camera does, and a phone camera can only act on
+                  a URL. Encoding the machine name here would make the sticker inert.
+
+                  What the URL cannot survive is the app moving to another domain, and
+                  there is no canonical app URL configured to anchor it to. So the
+                  machine name is printed underneath in plain text: if the link ever
+                  dies, the sticker still says which asset it is on, which is the part
+                  a person needs. */}
               <QRCodeSVG
                 value={`${window.location.origin}/dashboard/machines/${encodeURIComponent(qrMachine?.name || "")}/history`}
                 size={200}
               />
-              <p className="text-xs text-muted-foreground text-center">Points to machine history page</p>
+              <p className="text-center text-base font-semibold">{qrMachine?.name}</p>
+              <p className="text-xs text-muted-foreground text-center">
+                Opens this machine&rsquo;s history. The name above identifies the asset even
+                if the link stops working.
+              </p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setQrMachine(null)}>

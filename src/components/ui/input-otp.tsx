@@ -32,7 +32,10 @@ const InputOTPSlot = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "relative flex h-10 w-10 items-center justify-center border-y border-r border-input text-sm transition-all first:rounded-l-md first:border-l last:rounded-r-md",
+        // A PIN pad on the line is driven by a gloved thumb, and the slots are
+        // glued together by design (shared borders), so each one has to be big
+        // enough on its own. 56px on touch, and the digit scales with it.
+        "relative flex h-10 w-10 coarse:h-14 coarse:w-14 items-center justify-center border-y border-r border-input text-sm coarse:text-xl coarse:font-semibold transition-all first:rounded-l-md first:border-l last:rounded-r-md",
         isActive && "z-10 ring-2 ring-ring ring-offset-background",
         className,
       )}

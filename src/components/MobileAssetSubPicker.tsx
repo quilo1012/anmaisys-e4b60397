@@ -79,7 +79,7 @@ export function MobileAssetSubPicker({ lineId, sealerId, printerId, onChange }: 
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-xs"
+              className="h-11 coarse:h-12 px-3 text-sm"
               onClick={clear}
             >
               <X className="h-3 w-3 mr-1" /> Clear

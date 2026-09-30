@@ -300,7 +300,7 @@ export function NotificationPanel() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-medium truncate">{n.title}</span>
-                          <span className={cn("text-[9px] px-1.5 py-0.5 rounded font-bold tracking-wider shrink-0", styles.badge)}>
+                          <span className={cn("text-2xs px-1.5 py-0.5 rounded font-bold tracking-wider shrink-0", styles.badge)}>
                             {styles.label}
                           </span>
                         </div>

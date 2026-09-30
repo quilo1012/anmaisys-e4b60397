@@ -191,7 +191,10 @@ export function AdminPinGate({
 
           {error && <p className="text-xs font-medium text-destructive-strong">{error}</p>}
 
-          <Button className="w-full" onClick={submit} disabled={busy || locked || pin.length < 4}>
+          {/* The field holds six digits and `onComplete` only fires at six, but the
+              button used to enable at four — so pressing it early always failed AND
+              burned one of the server's lockout attempts. */}
+          <Button className="w-full" onClick={submit} disabled={busy || locked || pin.length < 6}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
             {locked ? `Wait ${lockoutLeft}s` : "Unlock"}
           </Button>

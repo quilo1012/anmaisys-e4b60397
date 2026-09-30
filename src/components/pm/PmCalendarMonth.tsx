@@ -48,12 +48,12 @@ export function PmCalendarMonth({ schedules, canManage, onPickDay, onPickSchedul
   return (
     <div className="space-y-3 print:hidden">
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="icon" className="h-8 w-8"
+        <Button variant="outline" size="icon" className="h-11 w-11"
           aria-label="Previous month"
           onClick={() => setAnchor((a) => addMonths(a, -1))}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8"
+        <Button variant="outline" size="icon" className="h-11 w-11"
           aria-label="Next month"
           onClick={() => setAnchor((a) => addMonths(a, 1))}>
           <ChevronRight className="h-4 w-4" />

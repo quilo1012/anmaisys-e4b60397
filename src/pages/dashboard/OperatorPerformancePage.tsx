@@ -152,11 +152,17 @@ function OperatorPerformanceContent() {
     }
   }, [sessionQ.isSuccess, sessionQ.data?.leader_name]);
 
-  const submitShift = () => {
-    toast.success("Shift totals submitted", {
-      description: `${totalActual.toLocaleString()} of ${totalTarget.toLocaleString()} recorded for ${line} — ${shiftLabel}.`,
-    });
-  };
+  /**
+   * There is no "submit" step for a shift, and there never was. This screen used
+   * to carry a Submit Shift button whose entire body was a success toast saying
+   * the totals had been "recorded" — it wrote nothing, to no table. An operator
+   * read the confirmation and left, and the totals they thought they had sent
+   * were only ever the ones already saved line by line as they were typed.
+   *
+   * Rather than invent a write, the button is gone and the screen now says what
+   * is actually true. If a real sign-off step is wanted later, it needs a table
+   * and an RPC first.
+   */
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
@@ -238,10 +244,10 @@ function OperatorPerformanceContent() {
                   </Badge>
                 )}
               </div>
-              <Button size="lg" className="h-11" onClick={submitShift}>
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Submit Shift
-              </Button>
+              <div className="flex items-center gap-2 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm font-medium text-success-strong">
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Saved as you enter — nothing to submit</span>
+              </div>
             </div>
 
             {unlocked && totalTarget === 0 && (

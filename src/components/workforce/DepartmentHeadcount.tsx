@@ -97,7 +97,7 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
                     <TableCell className="text-right">
                       {canEdit ? (
                         <Input
-                          type="number"
+                          type="number" inputMode="numeric"
                           min={0}
                           value={draft[r.id] ?? String(r.budget)}
                           onChange={(e) => setDraft((d) => ({ ...d, [r.id]: e.target.value }))}

@@ -230,7 +230,7 @@ export function WarehousePatternMatrix() {
           .warehouse-print-root, .warehouse-print-root * { visibility: visible !important; }
           /* A casca fica invisível mas continua a ocupar o seu h-screen, e é essa
              página de nada que sai a seguir ao relatório. Colapsá-la tira-a. */
-          #root [class*="h-screen"], #root [class*="min-h-screen"], #root main {
+          #root [class*="h-screen"], #root [class*="min-h-screen"], #root [class*="100dvh"], #root main {
             height: auto !important; min-height: 0 !important; max-height: none !important;
           }
           .warehouse-print-root {

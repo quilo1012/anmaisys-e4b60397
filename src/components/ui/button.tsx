@@ -15,12 +15,24 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // The two states the WO flow needs and the six above don't carry. Every
+        // screen that wanted them wrote `className="bg-success"` over a variant,
+        // which is how `bg-purple-600` got in beside them and stayed.
+        success: "bg-success text-success-foreground hover:bg-success/90",
+        warning: "bg-warning text-warning-foreground hover:bg-warning/90",
       },
       size: {
-        default: "h-10 px-4 py-2 coarse:h-11",
-        sm: "h-9 rounded-md px-3 coarse:h-11",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10 coarse:h-11 coarse:w-11",
+        default: "h-10 px-4 py-2 coarse:h-12",
+        sm: "h-9 rounded-md px-3 coarse:h-12",
+        lg: "h-11 rounded-md px-8 coarse:h-12",
+        icon: "h-10 w-10 coarse:h-12 coarse:w-12",
+        /**
+         * The primary action on a screen an operator drives with gloves on.
+         * 56px is what the line asked for and what `h-14` was already being
+         * hand-written to reach, in five different places with five different
+         * paddings. Named here so it is one decision instead of five.
+         */
+        tablet: "h-12 rounded-md px-6 text-base font-semibold coarse:h-14",
       },
     },
     defaultVariants: {

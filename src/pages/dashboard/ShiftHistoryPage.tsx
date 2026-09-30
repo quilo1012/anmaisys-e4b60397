@@ -1991,7 +1991,14 @@ export default function ShiftHistoryPage() {
                                   <div className="flex items-center justify-end gap-1">
                                     <UITooltip>
                                       <TooltipTrigger asChild>
-                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-9 w-9"
+                                          aria-label={s.locked ? "Unlock this shift row" : "Lock this shift row"}
+                                          disabled={lockMut.isPending}
+                                          onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}
+                                        >
                                           {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                                         </Button>
                                       </TooltipTrigger>
@@ -2216,7 +2223,7 @@ export default function ShiftHistoryPage() {
                 </div>
                 <div>
                   <Label>Actual quantity ({editUnit})</Label>
-                  <Input type="number" value={editActual} onChange={(e) => setEditActual(e.target.value)} autoFocus />
+                  <Input type="number" inputMode="numeric" value={editActual} onChange={(e) => setEditActual(e.target.value)} autoFocus />
                 </div>
               </div>
             )}

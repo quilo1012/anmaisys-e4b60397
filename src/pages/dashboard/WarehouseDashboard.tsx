@@ -273,7 +273,7 @@ export default function WarehouseDashboard() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search WO#, location, asset, description or requester…"
+                  placeholder="Search order no., location, asset, description or requester…"
                   className="pl-9"
                   autoComplete="off"
                 />
@@ -366,7 +366,7 @@ export default function WarehouseDashboard() {
         {/* Warehouse machines / assets */}
         <Card>
           <CardHeader>
-            <CardTitle>Warehouse Machines / Assets</CardTitle>
+            <CardTitle>Warehouse Assets</CardTitle>
             <p className="text-sm text-muted-foreground">
               Assets currently registered at {WAREHOUSE_LOCATIONS.join(", ")}.
             </p>

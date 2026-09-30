@@ -163,7 +163,7 @@ export function CorrectDowntimeDialog({ event, workOrderId }: Props) {
             <div className="space-y-1">
               <Label htmlFor="corr-min" className="text-xs">Duration (min)</Label>
               <Input
-                id="corr-min" type="number" min={0} value={minutes}
+                id="corr-min" type="number" inputMode="numeric" min={0} value={minutes}
                 disabled={isOpenStop}
                 onChange={(e) => { setDriver("minutes"); setMinutes(e.target.value); }}
                 className="h-9"

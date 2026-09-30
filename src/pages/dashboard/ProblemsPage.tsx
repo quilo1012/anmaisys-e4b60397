@@ -264,8 +264,8 @@ export default function ProblemsPage() {
                         <TableCell>
                           <div className="flex gap-1">
                             <Button size="sm" variant="outline" onClick={() => openAssign(p)}>Lines</Button>
-                            <Button size="icon" variant="ghost" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                            <Button size="icon" variant="ghost" className="text-destructive-strong" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" aria-label="Edit this problem" title="Edit" onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" className="ml-2 text-destructive-strong" aria-label="Delete this problem" title="Delete" onClick={() => setDeleteId(p.id)}><Trash2 className="h-4 w-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>

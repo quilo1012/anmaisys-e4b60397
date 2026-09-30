@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * and makes responsive behavior testable in isolation.
  */
 export const dialogContentResponsive =
-  "w-[95vw] max-w-lg lg:max-w-xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 lg:p-8";
+  "w-[95vw] max-w-lg lg:max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:p-6 lg:p-8";
 
 export const dialogTitleResponsive =
   "text-lg sm:text-xl lg:text-2xl flex items-center gap-2";

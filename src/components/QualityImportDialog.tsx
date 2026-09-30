@@ -170,7 +170,7 @@ export function QualityImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) { setRows([]); setFileName(""); } }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-2xl overflow-y-auto">
         <DialogHeader><DialogTitle>Import quality actions from Excel</DialogTitle></DialogHeader>
 
         <div className="space-y-3">
@@ -220,7 +220,7 @@ export function QualityImportDialog({
                           <span className="ml-1 text-amber-600" title="No single leader answers to this name — the action will be imported without one">?</span>
                         )}
                       </td>
-                      <td className="px-2 py-1"><div className="flex flex-wrap gap-0.5">{r.labels.map((l) => <Badge key={l} variant="secondary" className="text-[9px]">{l}</Badge>)}</div></td>
+                      <td className="px-2 py-1"><div className="flex flex-wrap gap-0.5">{r.labels.map((l) => <Badge key={l} variant="secondary" className="text-2xs">{l}</Badge>)}</div></td>
                       <td className="max-w-[220px] truncate px-2 py-1">{r.description ?? "—"}</td>
                     </tr>
                   ))}

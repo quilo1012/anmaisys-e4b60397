@@ -128,8 +128,8 @@ export function PlannedStopExclusions() {
                     </div>
                     <div className="flex items-center gap-1 text-2xs text-muted-foreground">
                       <span>#{c.code_id}</span>
-                      {m && <Badge variant="outline" className="text-[9px] leading-4">{activityLabel(m.activity)}</Badge>}
-                      {!c.active && <Badge variant="outline" className="text-[9px] leading-4">inactive in iTouching</Badge>}
+                      {m && <Badge variant="outline" className="text-2xs leading-4">{activityLabel(m.activity)}</Badge>}
+                      {!c.active && <Badge variant="outline" className="text-2xs leading-4">inactive in iTouching</Badge>}
                     </div>
                   </div>
                   <Switch

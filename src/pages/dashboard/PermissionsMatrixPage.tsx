@@ -35,6 +35,7 @@ import {
   ACTION_GROUPS,
   ACTION_LABELS,
   ACTION_DESCRIPTIONS,
+  roleTitle,
   type Action,
   type Role,
 } from "@/lib/permissions";
@@ -430,7 +431,7 @@ export default function PermissionsMatrixPage() {
                     <table className="w-full border-collapse text-sm">
                       <thead className="bg-muted/20">
                         <tr>
-                          <th className="sticky left-0 z-10 min-w-[220px] border-b bg-muted/20 p-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          <th className="sticky left-0 z-10 min-w-[140px] sm:min-w-[220px] border-b bg-muted/20 p-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
                             Action
                           </th>
                           {rolesToShow.map((r) => (
@@ -446,7 +447,7 @@ export default function PermissionsMatrixPage() {
                             key={a}
                             className={`border-b last:border-0 ${idx % 2 === 0 ? "bg-background" : "bg-muted/10"} hover:bg-muted/30`}
                           >
-                            <td className="sticky left-0 z-10 min-w-[260px] bg-inherit p-2">
+                            <td className="sticky left-0 z-10 min-w-[140px] sm:min-w-[260px] bg-inherit p-2">
                               <div className="flex items-center gap-1.5">
                                 <span className="font-medium">{ACTION_LABELS[a] ?? a.split(".").slice(1).join(".")}</span>
                                 {ACTION_DESCRIPTIONS[a] && (
@@ -509,7 +510,11 @@ export default function PermissionsMatrixPage() {
                                       type="button"
                                       onClick={() => toggle(r, a)}
                                       disabled={!isAdmin}
-                                      aria-label={`${allowed ? "allowed" : "denied"} — toggle`}
+                                      // Every cell in an 8-role by ~100-action grid used to
+                                      // announce the identical "allowed — toggle", so a screen
+                                      // reader could not tell which cell was about to change —
+                                      // on the screen that decides who may close an order.
+                                      aria-label={`${roleTitle[r]} — ${a} — ${allowed ? "allowed" : "denied"}, toggle`}
                                       className={[
                                         "inline-flex h-9 w-9 items-center justify-center rounded-md border transition",
                                         allowed
@@ -519,12 +524,13 @@ export default function PermissionsMatrixPage() {
                                         !isAdmin ? "cursor-not-allowed opacity-70" : "cursor-pointer",
                                       ].join(" ")}
                                     >
-                                      {allowed ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                                      {allowed ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <X className="h-3.5 w-3.5" aria-hidden="true" />}
                                     </button>
                                     {isAdmin && differsFromDefault && (
                                       <button
                                         type="button"
                                         title="Reset to default"
+                                        aria-label={`Reset ${roleTitle[r]} — ${a} to its default`}
                                         onClick={() => resetCell(r, a)}
                                         className="absolute -right-3 -top-1 rounded-full bg-background text-2xs text-muted-foreground hover:text-foreground"
                                       >

@@ -18,7 +18,13 @@ describe("Responsive dialog tokens (Open Order / Maintenance)", () => {
     expect(dialogContentResponsive).toContain("w-[95vw]");
     expect(dialogContentResponsive).toContain("max-w-lg");
     expect(dialogContentResponsive).toContain("lg:max-w-xl");
-    expect(dialogContentResponsive).toContain("max-h-[90vh]");
+    // `dvh`, not `vh`: on mobile Safari and Chrome `90vh` is 90% of the LARGE
+    // viewport, so the shell could stand taller than the visible area — and because
+    // twMerge let this token REPLACE the base DialogContent's own
+    // `max-h-[calc(100dvh-2rem)]`, the one "responsive" shell in the app was the one
+    // that got it wrong.
+    expect(dialogContentResponsive).toContain("max-h-[calc(100dvh-2rem)]");
+    expect(dialogContentResponsive).not.toContain("max-h-[90vh]");
     expect(dialogContentResponsive).toContain("overflow-y-auto");
   });
 

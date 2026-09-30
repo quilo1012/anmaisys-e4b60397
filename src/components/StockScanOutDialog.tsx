@@ -312,7 +312,7 @@ export function StockScanOutDialog({
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             This session · {activeEntries.length} {activeEntries.length === 1 ? "part" : "parts"}
           </p>
-          <Button size="sm" variant="outline" onClick={undoLast} disabled={!canUndo}>
+          <Button size="default" variant="outline" onClick={undoLast} disabled={!canUndo}>
             <Undo2 className="mr-1 h-4 w-4" /> Undo last
           </Button>
         </div>

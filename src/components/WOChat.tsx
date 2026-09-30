@@ -31,7 +31,7 @@ function ChatPhoto({ storagePath }: { storagePath: string }) {
   return (
     <img
       src={url}
-      alt="Fotografia anexada à mensagem"
+      alt="Photo attached to the message"
       className="rounded max-h-32 mb-1 cursor-pointer"
       onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
     />
@@ -73,8 +73,8 @@ export function WOChat({ workOrderId }: { workOrderId: string }) {
       // Not silent. The upload can succeed and the insert still fail, which leaves a
       // file in the bucket and no message — it happened once in March and nobody could
       // have known, because this block said nothing.
-      toast.error("A fotografia não foi enviada", {
-        description: (err as { message?: string })?.message ?? "Tente novamente.",
+      toast.error("The photo was not sent", {
+        description: (err as { message?: string })?.message ?? "Try again.",
       });
     } finally {
       setUploading(false);
@@ -114,17 +114,28 @@ export function WOChat({ workOrderId }: { workOrderId: string }) {
           </div>
           <div className="flex gap-2 p-2 border-t">
             <input type="file" accept="image/*" ref={fileRef} className="hidden" onChange={handleImageUpload} />
-            <Button variant="ghost" size="icon" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Attach a photo"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+            >
               {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
             </Button>
             <Input
               placeholder="Type a message..."
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !sendMessage.isPending) handleSend(); }}
               className="flex-1"
             />
-            <Button size="icon" onClick={handleSend} disabled={!text.trim() || sendMessage.isPending}>
+            <Button
+              size="icon"
+              aria-label="Send message"
+              onClick={handleSend}
+              disabled={!text.trim() || sendMessage.isPending}
+            >
               <Send className="h-4 w-4" />
             </Button>
           </div>

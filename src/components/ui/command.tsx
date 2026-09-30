@@ -105,7 +105,9 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50",
+      // `--accent` measures 1.17:1 against the popover, so the tinted background
+      // alone does not tell anyone which item is selected. The ring does.
+      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 coarse:py-3 text-sm coarse:text-base outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[selected=true]:ring-2 data-[selected=true]:ring-inset data-[selected=true]:ring-ring data-[disabled=true]:opacity-50",
       className,
     )}
     {...props}

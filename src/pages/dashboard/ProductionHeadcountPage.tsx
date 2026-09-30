@@ -333,7 +333,7 @@ function Chip({
       {crew && (
         <span
           title={`${crew} crew`}
-          className="shrink-0 rounded-sm border border-muted-foreground/40 bg-muted px-1 py-px text-[10px] font-bold uppercase leading-tight tracking-wide text-muted-foreground"
+          className="shrink-0 rounded-sm border border-muted-foreground/40 bg-muted px-1 py-px text-2xs font-bold uppercase leading-tight tracking-wide text-muted-foreground"
         >
           {crew}
         </span>
@@ -343,7 +343,7 @@ function Chip({
       {half && (
         <span
           title="Half day — worked part of the shift"
-          className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-[10px] font-bold leading-tight text-muted-foreground"
+          className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-2xs font-bold leading-tight text-muted-foreground"
         >
           ½
         </span>
@@ -354,7 +354,7 @@ function Chip({
       {arrivedLateAt && (
         <span
           title={`Arrived late — came in at ${arrivedLateAt.slice(0, 5)}`}
-          className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-[10px] font-bold leading-tight text-warning-strong"
+          className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
         >
           {arrivedLateAt.slice(0, 5)}→
         </span>
@@ -365,7 +365,7 @@ function Chip({
       {leftEarlyAt && (
         <span
           title={`Left early — went home at ${leftEarlyAt.slice(0, 5)}`}
-          className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-[10px] font-bold leading-tight text-warning-strong"
+          className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
         >
           ←{leftEarlyAt.slice(0, 5)}
         </span>
@@ -375,7 +375,7 @@ function Chip({
       {role && !leader && (
         <span
           title={role.label}
-          className={cn("ml-auto shrink-0 rounded-sm px-1 py-px text-[10px] font-bold uppercase leading-tight", role.cls)}
+          className={cn("ml-auto shrink-0 rounded-sm px-1 py-px text-2xs font-bold uppercase leading-tight", role.cls)}
         >
           {role.short}
         </span>

@@ -83,13 +83,22 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
           leader_lines: linesArr,
         };
 
+        // The PIN was right; whether the ACTION behind it worked is a separate
+        // question. This used to close the dialog from a `finally`, so a failed
+        // action closed the dialog anyway, skipped the success toast, and left
+        // the rejected promise unhandled — the engineer saw the dialog close and
+        // assumed it had gone through. Now a failure keeps the dialog open and
+        // says so in the error box this component already renders.
         try {
           await onSuccess(engineer);
-          toast.success(`✅ ${engineer.name} verified`);
-        } finally {
-          resetState();
-          onOpenChange(false);
+        } catch (actionErr) {
+          const msg = (actionErr as { message?: string } | null)?.message;
+          setError(`❌ ${msg || "The PIN was accepted but the action did not complete. Try again."}`);
+          return;
         }
+        toast.success(`✅ ${engineer.name} verified`);
+        resetState();
+        onOpenChange(false);
       } else {
         setPin("");
         const lockedSeconds = Number(obj?.locked_seconds ?? 0);
@@ -105,8 +114,11 @@ export function PinDialog({ open, onOpenChange, onSuccess, title = "Enter PIN", 
         }
       }
     } catch (err: any) {
-      setError(`❌ ${err.message || "Verification failed. Contact your administrator."}`);
-      setPin("");
+      // Reaching here means the request itself failed, not that the PIN was
+      // wrong — so the digits stay where they are. Clearing them made a dropped
+      // connection look like a rejected PIN and forced a re-type on a tablet.
+      // AdminPinGate already distinguishes the two; this now matches it.
+      setError(`❌ ${err.message || "Could not reach the server. The PIN itself is fine — try again."}`);
       // Defensive cosmetic lockout if server didn't respond cleanly.
       if (!isLocked) setLockoutLeft(FALLBACK_LOCKOUT_SECONDS);
     } finally {

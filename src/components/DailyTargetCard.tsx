@@ -40,8 +40,17 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // What did NOT save. The old code reverted the field to the stored value on
+  // failure, so a dropped connection silently threw away what the operator had
+  // just typed and the only trace was a toast that had already gone. The typed
+  // number now stays on screen with a line saying it is not saved yet.
+  const [failed, setFailed] = useState<string | null>(null);
+  const [planFailed, setPlanFailed] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => { if (!editing) setVal(String(actual)); }, [actual, editing]);
+  // `failed` holds the field open: commit() clears `editing` before it writes, so
+  // without this the sync-back below would overwrite the number the operator just
+  // typed the moment a save failed — the very thing we are keeping.
+  useEffect(() => { if (!editing && !failed) setVal(String(actual)); }, [actual, editing, failed]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const [planVal, setPlanVal] = useState<string>(String(plan));
@@ -49,14 +58,21 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
   const [planSaving, setPlanSaving] = useState(false);
   const [planSaved, setPlanSaved] = useState(false);
   const planTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => { if (!planEditing) setPlanVal(String(plan)); }, [plan, planEditing]);
+  useEffect(() => { if (!planEditing && !planFailed) setPlanVal(String(plan)); }, [plan, planEditing, planFailed]);
   useEffect(() => () => { if (planTimer.current) clearTimeout(planTimer.current); }, []);
 
   const commit = async () => {
+    // Enter reached this without a guard while only the BUTTON was disabled, and
+    // when there is no row yet the write is an INSERT into rag_weekly_entries —
+    // a table with a non-unique index on (line, entry_date, shift). Two Enters
+    // with a glove made two rows for the same line, date and shift, and the RAG
+    // then counted that line twice.
+    if (saving) return;
     setEditing(false);
     const n = Number(val);
     if (!Number.isFinite(n) || n < 0) { setVal(String(actual)); return; }
     if (n === actual) return;
+    setFailed(null);
     setSaving(true);
     let error: any = null;
     if (rowId) {
@@ -70,7 +86,8 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
         .insert({ line, entry_date: entryDate, shift, plan_qty: 0, actual_qty: n }));
     }
     setSaving(false);
-    if (error) { toast.error(error.message); setVal(String(actual)); return; }
+    if (error) { toast.error(error.message); setFailed(error.message || "Not saved."); return; }
+    setFailed(null);
     setSaved(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setSaved(false), 2000);
@@ -78,10 +95,12 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
   };
 
   const commitPlan = async () => {
+    if (planSaving) return; // see commit() above — same duplicate-insert path
     setPlanEditing(false);
     const n = Number(planVal);
     if (!Number.isFinite(n) || n < 0) { setPlanVal(String(plan)); return; }
     if (n === plan) return;
+    setPlanFailed(null);
     setPlanSaving(true);
     let error: any = null;
     if (rowId) {
@@ -95,7 +114,8 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
         .insert({ line, entry_date: entryDate, shift, plan_qty: n, actual_qty: 0 }));
     }
     setPlanSaving(false);
-    if (error) { toast.error(error.message); setPlanVal(String(plan)); return; }
+    if (error) { toast.error(error.message); setPlanFailed(error.message || "Not saved."); return; }
+    setPlanFailed(null);
     setPlanSaved(true);
     if (planTimer.current) clearTimeout(planTimer.current);
     planTimer.current = setTimeout(() => setPlanSaved(false), 2000);
@@ -131,7 +151,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
                   onChange={(e) => setPlanVal(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") { e.preventDefault(); commitPlan(); }
-                    if (e.key === "Escape") { setPlanVal(String(plan)); setPlanEditing(false); (e.target as HTMLInputElement).blur(); }
+                    if (e.key === "Escape") { setPlanFailed(null); setPlanVal(String(plan)); setPlanEditing(false); (e.target as HTMLInputElement).blur(); }
                   }}
                   className="h-10 w-28 text-lg font-bold tabular-nums text-right px-2"
                 />
@@ -147,6 +167,11 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
                 </Button>
               </div>
             )}
+            {planFailed && (
+              <p role="alert" className="mt-1 text-xs font-medium text-destructive-strong">
+                Not saved — {planFailed} Your number is still here; press Save again.
+              </p>
+            )}
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Actual</div>
@@ -160,7 +185,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
                 onChange={(e) => setVal(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") { e.preventDefault(); commit(); }
-                  if (e.key === "Escape") { setVal(String(actual)); setEditing(false); (e.target as HTMLInputElement).blur(); }
+                  if (e.key === "Escape") { setFailed(null); setVal(String(actual)); setEditing(false); (e.target as HTMLInputElement).blur(); }
                 }}
                 className="h-10 w-28 text-lg font-bold tabular-nums text-right px-2"
               />
@@ -175,6 +200,11 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
                 <span className="ml-1">{saved ? "Saved" : "Save"}</span>
               </Button>
             </div>
+            {failed && (
+              <p role="alert" className="mt-1 text-xs font-medium text-destructive-strong">
+                Not saved — {failed} Your number is still here; press Save again.
+              </p>
+            )}
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Completion</div>

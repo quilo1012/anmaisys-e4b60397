@@ -401,7 +401,7 @@ export default function SKUProductsPage() {
                     )}
                   </div>
                   <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
-                  <div><Label>Weight</Label><Input type="number" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
+                  <div><Label>Weight</Label><Input type="number" inputMode="decimal" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
                 </div>
                 <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>Save</Button></DialogFooter>
               </DialogContent>
@@ -430,8 +430,8 @@ export default function SKUProductsPage() {
                     <TableCell>{p.weight ?? "—"}</TableCell>
                     <TableCell>{p.active ? <Badge className="bg-success hover:bg-success/90 text-success-foreground border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => { void confirm({ title: "Delete SKU?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(p.id); }); }}><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Edit this SKU" title="Edit" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete this SKU" title="Delete" className="ml-2" onClick={() => { void confirm({ title: "Delete SKU?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(p.id); }); }}><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}

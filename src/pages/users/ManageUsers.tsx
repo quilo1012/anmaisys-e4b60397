@@ -180,7 +180,7 @@ function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSave
     <div className="flex items-center gap-1">
       <span className="text-muted-foreground text-xs">£</span>
       <Input
-        type="number"
+        type="number" inputMode="decimal"
         min="0"
         step="0.01"
         value={value}
@@ -838,7 +838,7 @@ export default function ManageUsers() {
                           {!isCurrentUser && !managerBlockedTarget && (
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button size="icon" variant="ghost" className="text-destructive-strong hover:text-destructive-strong">
+                                <Button size="icon" variant="ghost" aria-label="Delete this record" title="Delete" className="text-destructive-strong hover:text-destructive-strong">
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -940,7 +940,7 @@ export default function ManageUsers() {
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button size="icon" variant="ghost" className="text-destructive-strong hover:text-destructive-strong">
+                            <Button size="icon" variant="ghost" aria-label="Delete this record" title="Delete" className="text-destructive-strong hover:text-destructive-strong">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
@@ -1078,7 +1078,7 @@ export default function ManageUsers() {
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button size="icon" variant="ghost" className="text-destructive-strong hover:text-destructive-strong">
+                              <Button size="icon" variant="ghost" aria-label="Delete this record" title="Delete" className="text-destructive-strong hover:text-destructive-strong">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>

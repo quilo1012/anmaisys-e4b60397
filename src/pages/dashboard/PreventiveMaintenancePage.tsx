@@ -218,7 +218,7 @@ export default function PreventiveMaintenancePage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Interval (days)</Label>
-                      <Input type="number" min={1} value={form.interval_days} onChange={(e) => setForm((f) => ({ ...f, interval_days: parseInt(e.target.value || "0", 10) }))} />
+                      <Input type="number" inputMode="numeric" min={1} value={form.interval_days} onChange={(e) => setForm((f) => ({ ...f, interval_days: parseInt(e.target.value || "0", 10) }))} />
                     </div>
                     <div>
                       <Label>Priority</Label>
@@ -430,7 +430,14 @@ function TasksEditor({ scheduleId, canManage }: { scheduleId: string; canManage:
           <span className="flex-1 text-sm">{t.title}</span>
           {t.required && <Badge variant="outline" className="text-2xs">required</Badge>}
           {canManage && (
-            <Button size="icon" variant="ghost" onClick={() => delTask.mutate({ id: t.id, schedule_id: scheduleId })}>
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={`Remove "${t.title}" from this checklist`}
+              title="Remove item"
+              disabled={delTask.isPending}
+              onClick={() => delTask.mutate({ id: t.id, schedule_id: scheduleId })}
+            >
               <Trash2 className="h-3.5 w-3.5 text-destructive-strong" />
             </Button>
           )}
@@ -444,8 +451,9 @@ function TasksEditor({ scheduleId, canManage }: { scheduleId: string; canManage:
           </label>
           <Button
             size="sm"
+            disabled={addTask.isPending || !newTitle.trim()}
             onClick={async () => {
-              if (!newTitle.trim()) return;
+              if (!newTitle.trim() || addTask.isPending) return;
               await addTask.mutateAsync({
                 schedule_id: scheduleId, title: newTitle.trim(), required, sort_order: (tasks?.length || 0) + 1,
               });
