@@ -710,6 +710,26 @@ function ShiftBoard({
           <div className="truncate text-2xs text-muted-foreground">{dayTypeLabel(onDate)}</div>
         </div>
         <div className="ml-auto flex items-center gap-3">
+          {/* Sector filter: which blocks are drawn at all. Screen-only — the printed
+              sheet always carries the whole board. */}
+          <div className="flex items-center gap-1 print:hidden" role="group" aria-label="Show sectors">
+            {SECTIONS.map((s) => {
+              const on = blockVisible(s.key);
+              return (
+                <Button
+                  key={s.key}
+                  size="sm"
+                  variant={on ? "secondary" : "outline"}
+                  className={cn("h-8 px-2.5 text-2xs", !on && "text-muted-foreground")}
+                  aria-pressed={on}
+                  title={on ? `Hide ${s.label}` : `Show ${s.label}`}
+                  onClick={() => setVisibleBlocks((v) => ({ ...v, [s.key]: !on }))}
+                >
+                  {s.label}
+                </Button>
+              );
+            })}
+          </div>
           <Button
             size="sm"
             variant="outline"
@@ -977,6 +997,7 @@ function ShiftBoard({
       </div>
 
       {SECTIONS.map((section) => {
+        if (!blockVisible(section.key)) return null;
         const ofKind = areas.filter((a) => blockOf(a) === section.key);
         if (ofKind.length === 0) return null;
         const open = openSections[section.key] !== false;
