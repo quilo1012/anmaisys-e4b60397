@@ -13,7 +13,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, QrCode, Printer, ChevronDown, MoreVertical, Languages } from "lucide-react";
+import { Package, Plus, Minus, Loader2, AlertTriangle, Pencil, Trash2, Tags, Search, FileText, FileSpreadsheet, ImageOff, Camera, SlidersHorizontal, QrCode, Printer, ChevronDown, MoreVertical, Languages, ArrowUpCircle, ArrowDownCircle, Circle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -121,6 +121,8 @@ export default function StockPage() {
   const [lowOnly, setLowOnly] = useState(false);
   // "Seven parts at zero" is a figure somebody then wants to see the names of.
   const [outOnly, setOutOnly] = useState(false);
+  const [highOnly, setHighOnly] = useState(false);
+  const [savingPriorityId, setSavingPriorityId] = useState<string | null>(null);
   // Searching by camera. Reading, not editing — open to anyone who can see this screen.
   const [photoSearchOpen, setPhotoSearchOpen] = useState(false);
   // Which row is mid-adjustment, so its two one-unit buttons cannot be double-tapped.
@@ -355,9 +357,43 @@ export default function StockPage() {
   // `stockList` what empty means instead of re-deciding it here — a second copy of the
   // rule is how the counter and the list start disagreeing.
   const visible = useMemo(
-    () => filterStock(rows, { query: search, category: catFilter, lowOnly, outOnly }),
-    [rows, search, catFilter, lowOnly, outOnly],
+    () => filterStock(rows, { query: search, category: catFilter, lowOnly, outOnly }).filter((r) => !highOnly || r.priority === "high"),
+    [rows, search, catFilter, lowOnly, outOnly, highOnly],
   );
+  const highPriorityCount = useMemo(() => rows.filter((r) => r.priority === "high").length, [rows]);
+
+  /** none → high → low → none. Only the priority column is written. */
+  const cyclePriority = async (p: Product) => {
+    if (!isManager || savingPriorityId) return;
+    const next = p.priority === "high" ? "low" : p.priority === "low" ? null : "high";
+    setSavingPriorityId(p.id);
+    const { error } = await supabase.from("products").update({ priority: next } as any).eq("id", p.id);
+    setSavingPriorityId(null);
+    if (error) { toast({ title: "Could not set priority", description: error.message, variant: "destructive" }); return; }
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+  };
+
+  const priorityButton = (p: Product) => {
+    const label = p.priority === "high" ? "High priority" : p.priority === "low" ? "Low priority" : "No priority";
+    const icon = p.priority === "high"
+      ? <ArrowUpCircle className="h-4 w-4 text-warning" />
+      : p.priority === "low"
+        ? <ArrowDownCircle className="h-4 w-4 text-muted-foreground" />
+        : <Circle className="h-4 w-4 text-muted-foreground/40" />;
+    if (!isManager) return p.priority ? <span title={label} aria-label={label} className="inline-flex">{icon}</span> : null;
+    return (
+      <button
+        type="button"
+        title={`${label} — tap to change`}
+        aria-label={`${label} for ${p.code}, tap to change`}
+        onClick={() => { void cyclePriority(p); }}
+        disabled={savingPriorityId === p.id}
+        className="inline-flex h-7 w-7 items-center justify-center rounded hover:bg-muted disabled:opacity-50"
+      >
+        {savingPriorityId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+      </button>
+    );
+  };
 
   const lowStockCount = totals.low;
 
@@ -405,10 +441,10 @@ export default function StockPage() {
     [categoryOptions, rows],
   );
 
-  const runExport = async (kind: "pdf" | "excel", low: boolean) => {
+  const runExport = async (kind: "pdf" | "excel", low: boolean, high = false) => {
     try {
-      if (kind === "pdf") await exportStockPDF(rows, { lowOnly: low, generatedBy: profile?.name || undefined });
-      else exportStockExcel(rows, { lowOnly: low });
+      if (kind === "pdf") await exportStockPDF(rows, { lowOnly: low, highOnly: high, generatedBy: profile?.name || undefined });
+      else exportStockExcel(rows, { lowOnly: low, highOnly: high });
     } catch (err) {
       toast({ title: "Export failed", description: err instanceof Error ? err.message : undefined, variant: "destructive" });
     }
@@ -421,7 +457,21 @@ export default function StockPage() {
           title="Stock"
           description="View and manage inventory"
           icon={<Package className="h-5 w-5" />}
-          badge={lowStockCount > 0 ? (
+          badge={(lowStockCount > 0 || highPriorityCount > 0) ? (
+            <div className="flex items-center gap-1">
+            {highPriorityCount > 0 && (
+              <button
+                type="button"
+                title="HIGH PRIORITY"
+                onClick={() => { setHighOnly((v) => !v); setLowOnly(false); setOutOnly(false); setSearch(""); setCatFilter("__all__"); }}
+                aria-pressed={highOnly}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${highOnly ? "bg-warning text-warning-foreground" : "bg-warning/15 text-warning hover:bg-warning/25"}`}
+              >
+                <ArrowUpCircle className="h-3 w-3" />
+                {highPriorityCount}
+              </button>
+            )}
+            {lowStockCount > 0 && (
             /* The four summary cards gave way to this one badge, so the parts list
                starts above the fold on a phone. It still opens the low-stock list. */
             <TooltipProvider delayDuration={0}>
@@ -429,7 +479,7 @@ export default function StockPage() {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    onClick={() => { setLowOnly((v) => !v); setSearch(""); setCatFilter("__all__"); setOutOnly(false); }}
+                    onClick={() => { setLowOnly((v) => !v); setSearch(""); setCatFilter("__all__"); setOutOnly(false); setHighOnly(false); }}
                     aria-pressed={lowOnly}
                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${lowOnly ? "bg-destructive text-destructive-foreground" : "bg-destructive/15 text-destructive-strong hover:bg-destructive/25"}`}
                   >
@@ -442,6 +492,8 @@ export default function StockPage() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            )}
+            </div>
           ) : undefined}
         />
 
@@ -538,6 +590,12 @@ export default function StockPage() {
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => runExport("excel", true)}>
                       <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel low stock
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => runExport("pdf", false, true)}>
+                      <ArrowUpCircle className="mr-2 h-4 w-4" /> PDF high priority
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => runExport("excel", false, true)}>
+                      <ArrowUpCircle className="mr-2 h-4 w-4" /> Excel high priority
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => { void printAllLabels(); }} disabled={printingLabels}>
                       {printingLabels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <QrCode className="mr-2 h-4 w-4" />} QR labels
@@ -655,6 +713,8 @@ export default function StockPage() {
                   <DropdownMenuItem onSelect={() => runExport("pdf", true)}><FileText className="mr-2 h-4 w-4" /> PDF low</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => runExport("excel", false)}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel list</DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => runExport("excel", true)}><FileSpreadsheet className="mr-2 h-4 w-4" /> Excel low</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("pdf", false, true)}><ArrowUpCircle className="mr-2 h-4 w-4" /> PDF high priority</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => runExport("excel", false, true)}><ArrowUpCircle className="mr-2 h-4 w-4" /> Excel high priority</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => { void printAllLabels(); }} disabled={printingLabels}>
                     <QrCode className="mr-2 h-4 w-4" /> QR labels
@@ -701,7 +761,7 @@ export default function StockPage() {
                       <div key={p.id} className={`rounded-lg border p-3 space-y-2 ${isLow ? "border-destructive/50 bg-destructive/5" : "bg-card"}`}>
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold truncate">{p.name}</p>
+                            <p className="font-semibold truncate flex items-center gap-1">{priorityButton(p)}<span className="truncate">{p.name}</span></p>
                             <p className="text-xs text-muted-foreground font-mono">{p.code}{p.line ? ` · ${p.line}` : ""}{p.location ? ` · ${p.location}` : ""}</p>
                             {p.description && <p className="truncate text-xs text-muted-foreground">{p.description}</p>}
                           </div>
@@ -796,7 +856,7 @@ export default function StockPage() {
                             </button>
                           ) : thumb}
                         </TableCell>
-                        <TableCell className="font-semibold">{p.code}</TableCell>
+                        <TableCell className="font-semibold"><div className="flex items-center gap-1">{priorityButton(p)}{p.code}</div></TableCell>
                         <TableCell><Badge variant="outline">{p.category}</Badge></TableCell>
                         <TableCell className="max-w-[280px] truncate" title={p.description ?? undefined}>{p.description}</TableCell>
                         <TableCell>{p.machine}</TableCell>
