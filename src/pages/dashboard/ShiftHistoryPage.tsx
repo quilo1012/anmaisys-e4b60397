@@ -1007,13 +1007,21 @@ export default function ShiftHistoryPage() {
       // No lock check here: Add Production is admin/manager/supervisor-only, and
       // those roles intentionally bypass the session lock (operators are still
       // blocked at the RLS level via is_session_locked). Lock/unlock still exists.
-      let sessionId = existing?.id;
+      let sessionId: string | undefined = existing?.id;
       if (!sessionId) {
         const { data: ins, error } = await supabase
           .from("production_sessions").insert({ session_date: addDate, shift: addShift, line: addLine })
           .select("id").single();
         if (error) throw error;
-        sessionId = ins.id;
+        sessionId = ins?.id;
+      }
+      // Sem isto, um `sessionId` por resolver seguia para o `.eq()` seguinte e o
+      // supabase-js escrevia-o na query como o literal "undefined" —
+      // `session_id=eq.undefined`, que o Postgres recusa com "invalid input syntax
+      // for type uuid". Foi o 400 que o Abner apanhou às 10:42 de 30/09: um pedido
+      // malformado apresentado como se a base de dados tivesse recusado a produção.
+      if (!sessionId) {
+        throw new Error(`Could not open the ${addShift} shift for ${addLine} on ${addDate}. Nothing was added.`);
       }
       // Add the SKU line, or top up if it's already on the shift.
       const { data: item } = await supabase

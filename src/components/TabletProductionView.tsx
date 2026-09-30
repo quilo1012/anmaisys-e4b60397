@@ -122,7 +122,7 @@ export function TabletProductionView() {
     mutationFn: async () => {
       if (!sessionData?.id) throw new Error("No active session for this shift.");
       const leader = resolveLeader(operatorName, leaders);
-      const { error } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("production_sessions")
         // O nome escrito passa a ser ligado à `line_leaders` quando lá está.
         //
@@ -132,8 +132,21 @@ export function TabletProductionView() {
         // semanais não as viam de todo. Quem não estiver na tabela continua a ficar
         // escrito — um líder novo não desaparece por ainda não estar registado.
         .update({ leader_id: leader.id, leader_name: leader.name, notes: operatorNotes })
-        .eq("id", sessionData.id);
+        .eq("id", sessionData.id)
+        // `.select()` porque uma recusa da RLS num UPDATE não é um erro: o Postgres
+        // filtra as linhas e devolve zero, sem `error`. Até 30/09 não existia
+        // política de UPDATE para o operador em `production_sessions`, por isso este
+        // botão gravava zero linhas e mostrava à mesma "Data synced successfully!" —
+        // o turno inteiro do tablet dizia que tinha sido enviado e não tinha. A
+        // política existe agora; isto é a rede que faz o ecrã dizer a verdade se ela
+        // voltar a mudar.
+        .select("id");
       if (error) throw error;
+      if (!data?.length) {
+        throw new Error(
+          "Not saved — this shift can no longer be written from the line. Ask a manager to record it.",
+        );
+      }
     },
     onSuccess: () => {
       toast.success("Data synced successfully!");
