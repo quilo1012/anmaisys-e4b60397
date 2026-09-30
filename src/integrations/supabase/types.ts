@@ -3929,6 +3929,7 @@ export type Database = {
           name: string
           photo_url: string | null
           price: number
+          priority: string | null
           quantity: number
           updated_at: string
         }
@@ -3945,6 +3946,7 @@ export type Database = {
           name: string
           photo_url?: string | null
           price?: number
+          priority?: string | null
           quantity?: number
           updated_at?: string
         }
@@ -3961,6 +3963,7 @@ export type Database = {
           name?: string
           photo_url?: string | null
           price?: number
+          priority?: string | null
           quantity?: number
           updated_at?: string
         }
