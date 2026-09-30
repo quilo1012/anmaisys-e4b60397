@@ -191,10 +191,12 @@ export function AdminPinGate({
 
           {error && <p className="text-xs font-medium text-destructive-strong">{error}</p>}
 
-          {/* The field holds six digits and `onComplete` only fires at six, but the
-              button used to enable at four — so pressing it early always failed AND
-              burned one of the server's lockout attempts. */}
-          <Button className="w-full" onClick={submit} disabled={busy || locked || pin.length < 6}>
+          {/* O campo tem seis casas e o `onComplete` só dispara às seis, mas o PIN
+              de admin em uso é de quatro dígitos. Pô-lo a exigir seis (auditoria de
+              19/09, entrada no main a 30/09) deixou o botão permanentemente
+              desativado: ninguém mais abriu o Attendance nem o Finance Close.
+              Volta a quatro, que é o mesmo mínimo que o `submit` exige. */}
+          <Button className="w-full" onClick={submit} disabled={busy || locked || pin.length < 4}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
             {locked ? `Wait ${lockoutLeft}s` : "Unlock"}
           </Button>
