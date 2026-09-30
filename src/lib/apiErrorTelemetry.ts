@@ -56,6 +56,14 @@ export function installApiErrorTelemetry(): void {
       const isSupabaseData = /\/rest\/v1\/|\/functions\/v1\//.test(url);
       if (!isSupabaseData || url.includes("system_telemetry_logs")) return res;
 
+      // The offline-detection probe (useOfflineQueue) sends a bare HEAD to the
+      // REST root with only the publishable key. PostgREST answers 401 there —
+      // that is the probe working (any answer means "server is there"), not a
+      // fault. Its resource would be empty, which is exactly the "HEAD → 401"
+      // noise this skips.
+      const probePath = new URL(url, window.location.origin).pathname;
+      if (probePath === "/rest/v1/" || probePath === "/rest/v1") return res;
+
       const { pathname } = new URL(url, window.location.origin);
       const resource = resourceFromPath(pathname);
       const method = (
