@@ -105,10 +105,16 @@ describe("sidebar", () => {
     // an item appended to the end of navItems lands at the bottom of its group.
     // Headcount spent a release declared among the admin screens for exactly that
     // reason, and read as an afterthought under Production.
+    //
+    // Stop Analysis sits right after Performance because the two are one question
+    // asked twice: Performance says how much the week made, Stop Analysis says why
+    // it was not more. Appended to the end it would have read as a footnote to
+    // Headcount, which is the mistake this test exists to catch.
     const order = navItems.filter((i) => i.group === "Production").map((i) => i.title);
     expect(order).toEqual([
       "RAG Weekly",
       "Performance",
+      "Stop Analysis",
       "SKU Products",
       "Production Control",
       "Headcount",

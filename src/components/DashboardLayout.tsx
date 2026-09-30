@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -184,6 +184,10 @@ export const navItems: NavItem[] = [
   // the only way to a leader's card, and the two people who approve the week had
   // one row in the whole sidebar — Quality.
   { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "quality_supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.performance.view" },
+  // Em Production e não em Maintenance de propósito: o Downtime & Reliability, ao lado
+  // das ordens, mede avarias — e as avarias são 4% das horas que a linha não anda. Os
+  // outros 96% são preparação, limpeza e espera, e a dona disso é a produção.
+  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "maintenance_manager", "engineer", "operator", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and
@@ -618,6 +622,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/manager": "Dashboard",
   "/dashboard/work-orders": "Maintenance Orders",
   "/dashboard/downtime": "Downtime",
+  "/dashboard/stop-analysis": "Stop Analysis",
   "/dashboard/downtime-map": "Downtime Heatmap",
   "/dashboard/pm-intelligence": "PM Intelligence",
   "/dashboard/control-center": "Control Center",
