@@ -22,10 +22,17 @@ const fieldBase =
 export const authField = `${fieldBase} px-4`;
 /** Campo com ícone à esquerda. */
 export const authFieldIconed = `${fieldBase} pl-10 pr-4`;
-/** Campo com ícone à esquerda e botão à direita (o olho do password). */
-export const authFieldIconedAction = `${fieldBase} pl-10 pr-11`;
+/**
+ * Campo com ícone à esquerda e botão à direita (o olho do password).
+ *
+ * `pr-14` em toque, não `pr-11`. A regra global `(pointer: coarse)` leva qualquer
+ * botão a 48px de lado, e o `authInlineBtn` é um botão — os 44px que este campo
+ * reservava deixavam de chegar, e o texto passava a correr por baixo do olho. Ao
+ * rato continua nos 44, que é o que o botão ocupa lá.
+ */
+export const authFieldIconedAction = `${fieldBase} pl-10 pr-11 coarse:pr-14`;
 /** Campo sem ícone mas com botão à direita. */
-export const authFieldAction = `${fieldBase} px-4 pr-11`;
+export const authFieldAction = `${fieldBase} px-4 pr-11 coarse:pr-14`;
 /** `<select>`: a seta nativa sai com `appearance-none`, o chevron entra desenhado. */
 export const authSelect = `${fieldBase} appearance-none pl-10 pr-9`;
 

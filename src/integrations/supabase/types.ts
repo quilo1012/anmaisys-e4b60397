@@ -8368,6 +8368,7 @@ export type Database = {
           id: string
           label: string
           line_ids: string[]
+          line_names: string[]
         }[]
       }
       log_audit_event: {

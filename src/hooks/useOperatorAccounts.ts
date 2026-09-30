@@ -18,6 +18,16 @@ export interface PublicTabletAccount {
   id: string;
   label: string;
   line_ids: string[];
+  /**
+   * The names of the lines this post writes to.
+   *
+   * The list used to show the label and nothing else, and the label is free text an
+   * admin types: "Capsules Line" points at Tablet Line, and nobody standing at the
+   * tablet could have known. It also made two posts sharing a label impossible to
+   * tell apart. `lines` is not readable before sign-in, so the name comes from
+   * `list_tablet_accounts_public()` itself.
+   */
+  line_names: string[];
   favicon_url?: string | null;
 }
 
@@ -29,10 +39,15 @@ export function usePublicTabletAccounts() {
       if (error) throw error;
       return (data ?? []) as PublicTabletAccount[];
     },
-    // Login screen must reflect newly uploaded per-tablet favicons on the
-    // very next visit — no stale cache, always refetch on mount.
-    staleTime: 0,
-    refetchOnMount: "always",
+    // Paint from cache, revalidate behind it.
+    //
+    // This was `staleTime: 0` + `refetchOnMount: "always"` so a newly uploaded
+    // per-tablet favicon showed on the very next visit. The cost was paid by the
+    // wrong person: the operator opening the app on factory wifi waited for a round
+    // trip before the list of posts existed at all. The posts change a few times a
+    // year; an icon that appears 200ms late costs nobody anything.
+    staleTime: 5 * 60_000,
+    refetchOnMount: true,
   });
 }
 

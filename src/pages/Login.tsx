@@ -104,7 +104,20 @@ export default function Login() {
   const [listOpen, setListOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
+  // Why the sign-in failed, kept on screen until the next attempt.
+  //
+  // Every failure path used to end in a toast and nothing else. A toast is gone in
+  // seconds, and a tablet bolted to a line is not being watched at the moment it
+  // appears — the operator comes back to a form that says nothing, with the password
+  // still typed in. `AdminPinGate` already does this the right way; this is the same
+  // box. The toast stays too, for whoever IS looking.
+  const [formError, setFormError] = useState<string | null>(null);
+  // Which row the keyboard is on. The field declares role="combobox" with
+  // aria-autocomplete="list", so the arrow keys have to work — they did not.
+  const [activeIndex, setActiveIndex] = useState(-1);
   const comboRef = useRef<HTMLDivElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const identity = useMemo(
     () => resolveIdentity<PublicTabletAccount>(identifier, tabletAccounts),
@@ -126,6 +139,12 @@ export default function Login() {
   // um painel de um item só tapava a linha que diz o que o sistema reconheceu e a
   // etiqueta do campo seguinte. Com dois "Line 3 …" na lista, continua a valer.
   const canChoose = suggestions.length > (matchedTablet ? 1 : 0);
+
+  // O convite para criar conta não pertence ao ecrã de um posto de chão de fábrica.
+  // A condição era só `!matchedTablet`, por isso o link ficava visível enquanto o
+  // operador escolhia da lista — que é exactamente quando ele está a olhar. Some
+  // assim que há postos e o que está escrito ainda não é um endereço.
+  const showCreateAccount = !matchedTablet && !(hasTablets && !isEmail);
 
   // ── Rate limit state ────────────────────────────────────────
   // Identity used as the rate-limit key (tablet account id or email).
@@ -159,7 +178,14 @@ export default function Login() {
       localStorage.removeItem(TABLET_TS_KEY);
       return;
     }
-    setIdentifier((prev) => (prev === "" ? acc.label : prev));
+    setIdentifier((prev) => {
+      if (prev !== "") return prev;
+      // O posto já está escrito, portanto o que falta é a password — e o foco ia
+      // para lado nenhum, obrigando a um toque no campo antes de escrever. Doze
+      // vezes por turno, de luva.
+      requestAnimationFrame(() => passwordRef.current?.focus());
+      return acc.label;
+    });
   }, [tabletAccounts]);
 
   // Redirect when authenticated
@@ -204,36 +230,73 @@ export default function Login() {
   const pickTablet = (acc: PublicTabletAccount) => {
     setIdentifier(acc.label);
     setListOpen(false);
+    setActiveIndex(-1);
+    setFormError(null);
+    // Escolher o posto é meia decisão; a outra metade é a password, e o teclado do
+    // tablet já está aberto. Levar o foco lá poupa um toque.
+    requestAnimationFrame(() => passwordRef.current?.focus());
+  };
+
+  /** Setas, Enter e Escape na lista de postos — o campo anuncia-se como combobox. */
+  const onIdentifierKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setListOpen(false);
+      setActiveIndex(-1);
+      return;
+    }
+    if (!hasTablets || suggestions.length === 0) return;
+
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!listOpen) {
+        setListOpen(true);
+        setActiveIndex(e.key === "ArrowDown" ? 0 : suggestions.length - 1);
+        return;
+      }
+      setActiveIndex((i) => {
+        const next = e.key === "ArrowDown"
+          ? (i + 1) % suggestions.length
+          : (i <= 0 ? suggestions.length - 1 : i - 1);
+        listRef.current?.querySelectorAll("li")[next]?.scrollIntoView({ block: "nearest" });
+        return next;
+      });
+      return;
+    }
+    if (e.key === "Enter" && listOpen && activeIndex >= 0) {
+      // Só intercepta o Enter quando há mesmo uma linha escolhida com as setas;
+      // caso contrário o Enter continua a submeter o formulário, como sempre.
+      e.preventDefault();
+      pickTablet(suggestions[activeIndex]);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
     if (!identifier.trim()) {
-      toast({ title: "Enter your email, or pick your tablet", variant: "destructive" });
+      const msg = "Enter your email, or pick your tablet.";
+      setFormError(msg);
+      toast({ title: msg, variant: "destructive" });
       return;
     }
     // Nem email nem tablet: dizer isso agora é melhor do que deixar o Supabase
     // devolver "Unable to validate email address: invalid format".
     if (unrecognised) {
-      toast({
-        title: "Not recognised",
-        description: hasTablets
-          ? "Use your work email, or pick your tablet from the list."
-          : "Use your work email address.",
-        variant: "destructive",
-      });
+      const msg = hasTablets
+        ? "Not recognised. Use your work email, or pick your tablet from the list."
+        : "Not recognised. Use your work email address.";
+      setFormError(msg);
+      toast({ title: "Not recognised", description: msg, variant: "destructive" });
       return;
     }
 
     // Block while locked out.
     const pre = getLoginLockout(rlId);
     if (pre.lockedMsLeft > 0) {
-      toast({
-        title: "Too many attempts",
-        description: `Try again in ${Math.ceil(pre.lockedMsLeft / 1000)}s`,
-        variant: "destructive",
-      });
+      const msg = `Too many attempts. Try again in ${Math.ceil(pre.lockedMsLeft / 1000)}s.`;
+      setFormError(msg);
+      toast({ title: "Too many attempts", description: msg, variant: "destructive" });
       return;
     }
 
@@ -314,11 +377,35 @@ export default function Login() {
       setLockedMsLeft(after.lockedMsLeft);
       setRemaining(after.remaining);
       const reason = error instanceof Error ? error.message : String(error);
+
+      // "Wrong password" and "I could not reach the server" used to read exactly the
+      // same, so an operator on a dropped uplink retyped a password that was never
+      // the problem — five times, and then the lockout. They are different problems
+      // with different answers, so they now say different things.
+      const lower = reason.toLowerCase();
+      const isNetwork = lower.includes("failed to fetch")
+        || lower.includes("networkerror")
+        || lower.includes("load failed")
+        || lower.includes("timeout")
+        || lower.includes("aborted");
+      const isCredentials = lower.includes("invalid credentials")
+        || lower.includes("invalid login")
+        || lower.includes("invalid_grant");
+
       const description = after.lockedMsLeft > 0
         ? `Too many attempts — locked for ${Math.ceil(after.lockedMsLeft / 1000)}s.`
-        : `${reason}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
+        : isNetwork
+          ? "No connection to the server. Your password is fine — check the wifi and try again."
+          : isCredentials
+            ? `That password is not right for ${matchedTablet ? `"${matchedTablet.label}"` : "this account"}.${after.remaining > 0 ? ` ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} left before it locks.` : ""}`
+            : `${reason}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
+
+      setFormError(description);
       toast({ title: "Sign-in failed", description, variant: "destructive" });
       setAuthed(false);
+      // A password errada é para reescrever; o posto não. Deixar o foco onde o erro
+      // é, em vez de obrigar a procurá-lo.
+      if (!isNetwork) requestAnimationFrame(() => passwordRef.current?.focus());
     } finally {
       setLoading(false);
     }
@@ -361,10 +448,15 @@ export default function Login() {
               value={identifier}
               onChange={(e) => {
                 setIdentifier(e.target.value);
+                setFormError(null);
+                setActiveIndex(-1);
+                // Só abre enquanto houver escolha por fazer. Abrir sempre punha um
+                // painel de doze linhas por cima do campo da password e do botão de
+                // entrar — a lista tapava precisamente o que vinha a seguir.
                 if (hasTablets) setListOpen(true);
               }}
               onFocus={() => { if (hasTablets && !identifier) setListOpen(true); }}
-              onKeyDown={(e) => { if (e.key === "Escape") setListOpen(false); }}
+              onKeyDown={onIdentifierKeyDown}
               placeholder={hasTablets ? "you@appliednutrition.com or Line 3" : "you@appliednutrition.com"}
               required
               autoComplete="username"
@@ -373,6 +465,9 @@ export default function Login() {
               aria-expanded={listOpen}
               aria-controls="tablet-list"
               aria-autocomplete="list"
+              aria-activedescendant={
+                listOpen && activeIndex >= 0 ? `tablet-option-${suggestions[activeIndex]?.id}` : undefined
+              }
               className={hasTablets && canChoose ? authFieldIconedAction : authFieldIconed}
             />
             {hasTablets && canChoose && (
@@ -390,6 +485,7 @@ export default function Login() {
             {listOpen && hasTablets && (accountsLoading || canChoose) && (
               <ul
                 id="tablet-list"
+                ref={listRef}
                 role="listbox"
                 aria-label="Tablets"
                 className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-auth-line bg-auth-paper py-1 shadow-lg"
@@ -397,20 +493,37 @@ export default function Login() {
                 {accountsLoading && (
                   <li className="px-4 py-2.5 text-sm text-auth-ink-muted">Loading tablets…</li>
                 )}
-                {suggestions.map((acc) => {
+                {suggestions.map((acc, i) => {
                   const active = matchedTablet?.id === acc.id;
+                  const onKey = i === activeIndex;
+                  // A linha a que o posto escreve, dita antes de alguém entrar nele.
+                  // O rótulo é texto livre: "Capsules Line" aponta para a Tablet Line,
+                  // e sem isto não havia como sabê-lo de pé ao lado do tablet.
+                  const lineText = acc.line_names?.length
+                    ? acc.line_names.join(" · ")
+                    : "No line assigned";
                   return (
-                    <li key={acc.id} role="option" aria-selected={active}>
+                    <li key={acc.id} id={`tablet-option-${acc.id}`} role="option" aria-selected={active}>
                       <button
                         type="button"
                         onClick={() => pickTablet(acc)}
-                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                          active ? "bg-auth-brand/[0.06]" : "hover:bg-auth-ink/[0.04]"
+                        onMouseEnter={() => setActiveIndex(i)}
+                        className={`flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                          active || onKey ? "bg-auth-brand/[0.06]" : "hover:bg-auth-ink/[0.04]"
                         }`}
                       >
                         <Tablet className="h-4 w-4 shrink-0 text-auth-ink-muted" />
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-auth-ink">
-                          {acc.label}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-auth-ink">
+                            {acc.label}
+                          </span>
+                          <span
+                            className={`block truncate text-2xs ${
+                              acc.line_names?.length ? "text-auth-ink-muted" : "text-warning-strong"
+                            }`}
+                          >
+                            {lineText}
+                          </span>
                         </span>
                       </button>
                     </li>
@@ -425,7 +538,12 @@ export default function Login() {
             {matchedTablet ? (
               <span className="flex items-center gap-1.5 text-auth-brand">
                 <Tablet className="h-3 w-3" />
-                Shared tablet · Operator access
+                {/* Diz a LINHA, não só que é um tablet. É a última oportunidade de
+                    alguém reparar que está prestes a escrever produção no sítio
+                    errado — e a única, porque depois de entrar o ecrã já assume. */}
+                {matchedTablet.line_names?.length
+                  ? `${matchedTablet.line_names.join(" · ")} · Operator access`
+                  : "Shared tablet · No line assigned"}
               </span>
             ) : isEmail ? (
               <span className="flex items-center gap-1.5 text-auth-ink-muted">
@@ -464,13 +582,16 @@ export default function Login() {
             <Lock className={authIcon} />
             <input
               id="password"
+              ref={passwordRef}
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); setFormError(null); }}
               placeholder="••••••••"
               minLength={6}
               required
               autoComplete="current-password"
+              aria-invalid={formError ? true : undefined}
+              aria-describedby={formError ? "login-error" : undefined}
               className={authFieldIconedAction}
             />
             <button
@@ -484,6 +605,20 @@ export default function Login() {
             </button>
           </div>
         </div>
+
+        {/* O que correu mal, dito onde ficou o problema — e que lá fica até à
+            tentativa seguinte. Um toast já tinha desaparecido quando o operador
+            voltou a olhar para o tablet. */}
+        {formError && (
+          <p
+            id="login-error"
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/[0.06] px-3 py-2.5 text-sm font-medium text-destructive-strong"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>{formError}</span>
+          </p>
+        )}
 
         {/* Submit */}
         <button
@@ -521,7 +656,7 @@ export default function Login() {
         )}
       </form>
 
-      {!matchedTablet && (
+      {showCreateAccount && (
         <p className="mt-6 text-sm text-auth-ink-muted">
           Don't have an account?{" "}
           <button
