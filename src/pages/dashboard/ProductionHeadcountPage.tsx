@@ -519,6 +519,23 @@ function ShiftBoard({
   useEffect(() => {
     localStorage.setItem("headcount_open_sections", JSON.stringify(openSections));
   }, [openSections]);
+  /**
+   * Which blocks the board draws at all.
+   *
+   * Folding a section keeps it one tap away; this is for the day a supervisor only
+   * wants the lines — no Warehouse, no Support — and does not want to fold the same
+   * two headings every morning. All on by default, remembered in this browser, and
+   * screen-only: the printed sheet always carries the whole board, because paper
+   * missing fourteen people looks exactly like paper that is right.
+   */
+  const [visibleBlocks, setVisibleBlocks] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("headcount_visible_blocks") ?? "{}"); }
+    catch { return {}; }
+  });
+  useEffect(() => {
+    localStorage.setItem("headcount_visible_blocks", JSON.stringify(visibleBlocks));
+  }, [visibleBlocks]);
+  const blockVisible = (key: string) => visibleBlocks[key] !== false;
   const changeShift = useChangeShift(onDate);
   const reorder = useReorderAreas();
   const setPattern = useSetShiftPattern(onDate);
