@@ -17,7 +17,11 @@ export interface StockRow {
   quantity: number;
   min_stock: number;
   price: number;
+  /** Importance set by hand: 'high', 'low', or null for none. */
+  priority?: "high" | "low" | null;
 }
+
+export const isHighPriority = (r: Pick<StockRow, "priority">) => r.priority === "high";
 
 /**
  * Empty is not low. It is worse, and it is counted apart.

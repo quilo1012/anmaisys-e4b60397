@@ -9,7 +9,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import logoUrl from "@/assets/appliedlogo.jpeg";
-import { isLowStock, type StockRow } from "@/lib/stockList";
+import { isLowStock, isHighPriority, type StockRow } from "@/lib/stockList";
 
 const NAVY: [number, number, number] = [30, 58, 138];
 const n = (v: number) => Math.round(v).toLocaleString("en-US");
@@ -18,7 +18,8 @@ const dash = (v: string | null | undefined) => (v ?? "").trim() || "—";
 export const HEADERS = ["Model", "Category", "Description", "Machine", "Line", "Location", "Price", "Qty", "Min"];
 
 /** The rows an export prints, in the order the screen shows them. */
-export function exportRows(rows: StockRow[], lowOnly: boolean): StockRow[] {
+export function exportRows(rows: StockRow[], lowOnly: boolean, highOnly = false): StockRow[] {
+  if (highOnly) return rows.filter(isHighPriority);
   return (lowOnly ? rows.filter(isLowStock) : rows);
 }
 
@@ -34,16 +35,17 @@ async function loadLogoDataUrl(): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function exportStockPDF(rows: StockRow[], opts: { lowOnly?: boolean; generatedBy?: string } = {}) {
+export async function exportStockPDF(rows: StockRow[], opts: { lowOnly?: boolean; highOnly?: boolean; generatedBy?: string } = {}) {
   const lowOnly = !!opts.lowOnly;
-  const list = exportRows(rows, lowOnly);
+  const highOnly = !!opts.highOnly;
+  const list = exportRows(rows, lowOnly, highOnly);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 12;
   const logo = await loadLogoDataUrl();
   const generatedOn = new Date().toLocaleString("en-GB");
-  const title = lowOnly ? "Spare Parts — Reorder List" : "Spare Parts Stock";
+  const title = highOnly ? "Spare Parts — High Priority" : lowOnly ? "Spare Parts — Reorder List" : "Spare Parts Stock";
 
   const drawHeader = () => {
     doc.setFillColor(...NAVY);
@@ -74,7 +76,7 @@ export async function exportStockPDF(rows: StockRow[], opts: { lowOnly?: boolean
           { content: n(r.quantity), styles: { halign: "right", fontStyle: "bold", textColor: isLowStock(r) ? [185, 28, 28] : [15, 23, 42] } },
           { content: n(r.min_stock), styles: { halign: "right" } },
         ])
-      : [[{ content: lowOnly ? "Nothing has reached its reorder point." : "No parts in stock yet.", colSpan: HEADERS.length, styles: { halign: "center", fontStyle: "italic", textColor: [100, 116, 139] } }]],
+      : [[{ content: highOnly ? "No parts marked high priority." : lowOnly ? "Nothing has reached its reorder point." : "No parts in stock yet.", colSpan: HEADERS.length, styles: { halign: "center", fontStyle: "italic", textColor: [100, 116, 139] } }]],
     styles: { fontSize: 8, cellPadding: 1.6, overflow: "linebreak", lineColor: [226, 232, 240], lineWidth: 0.1 },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold" },
     alternateRowStyles: { fillColor: [248, 250, 252] },
@@ -93,12 +95,13 @@ export async function exportStockPDF(rows: StockRow[], opts: { lowOnly?: boolean
     doc.text(`Page ${p} of ${pages}`, pageW - margin, pageH - 5, { align: "right" });
   }
 
-  doc.save(`${lowOnly ? "spare-parts-reorder" : "spare-parts-stock"}-${Date.now()}.pdf`);
+  doc.save(`${highOnly ? "spare-parts-high-priority" : lowOnly ? "spare-parts-reorder" : "spare-parts-stock"}-${Date.now()}.pdf`);
 }
 
-export function exportStockExcel(rows: StockRow[], opts: { lowOnly?: boolean } = {}) {
+export function exportStockExcel(rows: StockRow[], opts: { lowOnly?: boolean; highOnly?: boolean } = {}) {
   const lowOnly = !!opts.lowOnly;
-  const list = exportRows(rows, lowOnly);
+  const highOnly = !!opts.highOnly;
+  const list = exportRows(rows, lowOnly, highOnly);
   const header = HEADERS.map((h) => ({
     v: h,
     t: "s",
@@ -120,6 +123,6 @@ export function exportStockExcel(rows: StockRow[], opts: { lowOnly?: boolean } =
   ws["!cols"] = [{ wch: 18 }, { wch: 16 }, { wch: 40 }, { wch: 18 }, { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 8 }, { wch: 8 }];
   ws["!freeze"] = { xSplit: "0", ySplit: "1" };
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, lowOnly ? "Reorder" : "Stock");
-  XLSX.writeFile(wb, `${lowOnly ? "spare-parts-reorder" : "spare-parts-stock"}-${Date.now()}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, highOnly ? "High priority" : lowOnly ? "Reorder" : "Stock");
+  XLSX.writeFile(wb, `${highOnly ? "spare-parts-high-priority" : lowOnly ? "spare-parts-reorder" : "spare-parts-stock"}-${Date.now()}.xlsx`);
 }
