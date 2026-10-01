@@ -228,15 +228,16 @@ export default function ProductionPerformancePage() {
   }, [liveRows]);
 
   // Leaders by the shift they actually work (session history), register as fallback.
-  const { leaders, forShift } = useLeaderShifts();
+  const { leaders, forShift, ready } = useLeaderShifts();
   const shiftLeaders = useMemo(() => forShift(shift), [forShift, shift]);
   // A filter on someone no longer in the selector would leave the screen and the
-  // Scorecard button pointing at a leader who is not listed.
+  // Scorecard button pointing at a leader who is not listed. Held until both lists
+  // have arrived: a selector still mid-load is not yet the definitive one.
   useEffect(() => {
-    if (leaderFilter !== "__all__" && leaders.length > 0 && !shiftLeaders.some((l) => l.name === leaderFilter)) {
+    if (ready && leaderFilter !== "__all__" && leaders.length > 0 && !shiftLeaders.some((l) => l.name === leaderFilter)) {
       setLeaderFilter("__all__");
     }
-  }, [shiftLeaders, leaders.length, leaderFilter]);
+  }, [shiftLeaders, leaders.length, leaderFilter, ready]);
 
   // By id AND by code: half the rows on the board identify their product only by
   // the code as text, with `sku_id` never resolved by the import. See `lineSku.ts`.
