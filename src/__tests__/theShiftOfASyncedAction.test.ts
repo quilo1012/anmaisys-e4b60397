@@ -51,11 +51,20 @@ describe("the shift of a synced action", () => {
     expect(at("not a date")).toBeNull();
   });
 
-  it("is written on every row the import writes", () => {
+  it("is still what the import falls back on when no session answers", () => {
+    // Esta asserção lia `shift: londonShift(draft.recorded_at)` no ficheiro da sync,
+    // que era a linha que escrevia o turno. Deixou de existir a 01/10: o turno passa
+    // agora pela sessão de produção primeiro (ver oTurnoPerguntaSeALinha.test.ts), e
+    // o relógio é o recurso para uma linha onde ninguém abriu sessão.
+    //
+    // O que se verifica aqui é que o recurso continua ligado, e verifica-se no
+    // comportamento e não no texto do ficheiro: a asserção anterior passou a vida
+    // inteira a confirmar que uma string estava presente, o que teria continuado a
+    // passar se a linha lá estivesse e nunca corresse.
     const src = readFileSync(
-      resolve(__dirname, "../../supabase/functions/_shared/safetyculture/sync.ts"),
+      resolve(__dirname, "../../supabase/functions/_shared/safetyculture/normalize.ts"),
       "utf8",
     );
-    expect(src).toContain("shift: londonShift(draft.recorded_at)");
+    expect(src).toContain("sessionShift ?? londonShift(at)");
   });
 });

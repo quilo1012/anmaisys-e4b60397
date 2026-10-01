@@ -7,9 +7,9 @@
  */
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { buildRecord, londonDay, londonShift, type ClassificationRule, type ScAction } from "./normalize.ts";
+import { buildRecord, londonDay, type ClassificationRule, type ScAction } from "./normalize.ts";
 import type { Attendance } from "./classification.ts";
-import { sessionInCharge, type ProductionSession } from "./leaderOnDuty.ts";
+import { normaliseShift, sessionInCharge, type ProductionSession } from "./leaderOnDuty.ts";
 import { parseProductNote, resolveSkuFromNote } from "./productNote.ts";
 
 export function adminClient(): SupabaseClient {
@@ -55,6 +55,15 @@ export type LeaderSource = "session" | "session_unsigned" | "assignment" | "none
 export interface LeaderLookup {
   leader: { id: string; name: string } | null;
   source: LeaderSource;
+  /**
+   * The shift the session in charge recorded, when the answer came from a session.
+   *
+   * Null for every other source. An assignment has no shift — it is a standing row
+   * with open dates — and inventing one from the calendar would put the clock's
+   * answer back under a different name. The caller falls through to `londonShift`
+   * when this is null, and the two are kept apart so the row can say which it was.
+   */
+  shift: "DAY" | "NIGHT" | null;
 }
 
 export interface Context {
@@ -210,11 +219,12 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
   const leaderAt = (line: string, at?: string | null): LeaderLookup => {
     const session = sessionInCharge(line, at ?? null, sessions);
     if (session) {
+      const shift = normaliseShift(session.shift);
       const name = String(session.leader_name ?? "").trim();
-      if (!name) return { leader: null, source: "session_unsigned" };
+      if (!name) return { leader: null, source: "session_unsigned", shift };
       const id = leaderIdByName.get(foldName(name));
       // A name no leader row answers to is still the truth about who ran the line.
-      return { leader: { id: id || "", name }, source: "session" };
+      return { leader: { id: id || "", name }, source: "session", shift };
     }
 
     const key = line.trim().toLowerCase();
@@ -222,10 +232,10 @@ export async function loadContext(db: SupabaseClient): Promise<Context> {
     const held = windows.find(
       (w) => w.line === key && (!w.from || w.from <= day) && (!w.to || w.to >= day),
     );
-    if (held) return { leader: { id: held.id, name: held.name }, source: "assignment" };
+    if (held) return { leader: { id: held.id, name: held.name }, source: "assignment", shift: null };
     const standingLeader = standing.get(key);
-    if (standingLeader) return { leader: standingLeader, source: "assignment" };
-    return { leader: null, source: "none" };
+    if (standingLeader) return { leader: standingLeader, source: "assignment", shift: null };
+    return { leader: null, source: "none", shift: null };
   };
 
   const leaderFor = (line: string, at?: string | null) => leaderAt(line, at).leader;
@@ -403,10 +413,11 @@ export async function applyActions(
   const identities = await identifyProducts(db, drafts);
 
   // `sku, batch` are read back so an update can tell a row that has never carried a
-  // product from one somebody has already filled in by hand.
+  // product from one somebody has already filled in by hand. `shift_source` is read
+  // back for the same reason and the stronger one: see `keepsItsShift`.
   const { data: existingRows, error: findErr } = await db
     .from("quality_actions")
-    .select("id, external_id, external_updated_at, validation_status, sku, batch")
+    .select("id, external_id, external_updated_at, validation_status, sku, batch, shift_source")
     .eq("source", "safetyculture")
     .in("external_id", actions.map((a) => a.id));
   if (findErr) throw findErr;
@@ -432,6 +443,26 @@ export async function applyActions(
     }
     // Only a row with neither takes the note's word for it. See `rowFor`.
     const blank = !String(prev.sku ?? "").trim() && !String(prev.batch ?? "").trim();
+    /**
+     * A shift somebody corrected by hand outranks anything this function derives.
+     *
+     * `rowFor` has always written `shift` on every update, which means a correction
+     * survived exactly until the next time SafetyCulture touched the Action — and
+     * SafetyCulture touches them often, because closing or reassigning one moves
+     * `modified_at`. So the field looked editable and was not, which is worse than
+     * being read-only: the floor fixes it, the hour passes, the number moves back,
+     * and nobody connects the two. `validation_status` was overwritten this same way
+     * once already, and the comment below is the scar.
+     *
+     * 'manual' is written by a person, never here. Anything else — 'session',
+     * 'clock', or the NULL carried by every row imported before this column existed
+     * — is a derivation, and a better derivation is allowed to replace it.
+     */
+    const keepsItsShift = String(prev.shift_source ?? "") === "manual";
+    /** The row holds a guess this run can improve on. See the healing branch below. */
+    const shiftImproves = !keepsItsShift &&
+      draft.shift_source === "session" &&
+      String(prev.shift_source ?? "") !== "session";
 
     if (
       prev.external_updated_at &&
@@ -443,11 +474,18 @@ export async function applyActions(
       // and SafetyCulture will never touch them again, so no later sync would ever
       // reach them. A re-read of the period (`full`, or `since`) heals them here,
       // by the same resolver that fills a new row, and writes nothing else.
-      if (blank && identity) {
-        const { error } = await db
-          .from("quality_actions")
-          .update({ sku: identity.sku, batch: identity.batch })
-          .eq("id", prev.id);
+      //
+      // The shift is the same shape of problem: 123 rows were stamped off the clock
+      // before the session was consulted, and a closed Action never moves again. A
+      // re-read corrects those too, and only those — a hand-set shift is excluded
+      // above, and a row the session cannot answer for is left exactly as it is
+      // rather than being rewritten with the guess it already holds.
+      const heal: Record<string, unknown> = {};
+      if (blank && identity) Object.assign(heal, { sku: identity.sku, batch: identity.batch });
+      if (shiftImproves) Object.assign(heal, { shift: draft.shift, shift_source: "session" });
+
+      if (Object.keys(heal).length > 0) {
+        const { error } = await db.from("quality_actions").update(heal).eq("id", prev.id);
         if (error) {
           summary.errors++;
         } else {
@@ -459,7 +497,7 @@ export async function applyActions(
       continue;
     }
 
-    const payload = rowFor(draft, blank ? identity : undefined);
+    const payload = rowFor(draft, blank ? identity : undefined, keepsItsShift);
 
     // A manual correction is respected: once someone has classified the record,
     // a later sync does not push it back into "needs classification".
@@ -511,13 +549,33 @@ export async function applyActions(
  * a row that already carries one. Someone who corrects a SKU by hand must not find
  * it rewritten on the hour, which is exactly what happened to `validation_status`
  * once already. The caller decides; `identity` is simply absent when it must not.
+ *
+ * `shift` is the third of those, and it took longer to notice because the column
+ * looked like it belonged here: SafetyCulture has no shift and this function made
+ * one up, so it felt like an imported field. It is not. It is a derivation over an
+ * imported field, and the moment a person overrides it the derivation is the junior
+ * answer. `keepShift` is how the caller says so.
  */
 function rowFor(
   draft: ReturnType<typeof buildRecord>["draft"],
   identity?: ProductIdentity,
+  keepShift = false,
 ): Record<string, unknown> {
   return {
     ...(identity ? { sku: identity.sku, batch: identity.batch } : {}),
+    // O turno da acção: o da sessão de produção que estava aberta na linha naquele
+    // instante e, só quando nenhuma estava, o do relógio da fábrica.
+    //
+    // Durante meses foi sempre o relógio — `londonShift(recorded_at)` — e o relógio
+    // mede a hora em que a acção foi ESCRITA, não aquela em que o problema
+    // aconteceu. Uma falha apanhada às 02:00 e registada às 07:15 saía DAY, com o
+    // líder do dia ao lado, numa linha que já tinha ido para casa. O log está cheio
+    // delas, com "(L6/night shift)" no próprio título.
+    //
+    // `shift_source` diz qual das duas respondeu, para que uma correcção à mão
+    // ('manual') possa valer mais do que ambas — e para que a próxima sync saiba
+    // que não a pode reescrever. Ver `keepsItsShift` em applyActions.
+    ...(keepShift ? {} : { shift: draft.shift, shift_source: draft.shift_source }),
     source: draft.source,
     external_id: draft.external_id,
     external_url: draft.external_url,
@@ -537,15 +595,6 @@ function rowFor(
     assignee_name: draft.assignee_name,
     due_date: draft.due_date,
     recorded_at: draft.recorded_at,
-    // O turno em que a acção foi levantada, lido do instante em que o foi.
-    //
-    // SafetyCulture não tem campo de turno e esta função nunca escreveu um, portanto
-    // as 123 acções vivas estavam todas com `shift` NULL — e a Production Performance,
-    // que abre fixada no turno a correr e filtra `.eq("shift", …)` no servidor,
-    // derrubava-as a todas: zero pontos de qualidade em todas as linhas, todos os dias.
-    // A regra é a mesma do ecrã (src/lib/shifts.ts) e a mesma que workOrdersInPeriod()
-    // já aplica a uma ordem de trabalho, que também não tem coluna de turno.
-    shift: londonShift(draft.recorded_at),
     status: draft.status,
     line: draft.line,
     leader_id: draft.leader_id,

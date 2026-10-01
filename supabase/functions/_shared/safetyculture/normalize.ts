@@ -292,6 +292,10 @@ export interface RecordDraft {
   assignee_name: string | null;
   due_date: string | null;
   recorded_at: string;
+  /** DAY / NIGHT, from the session in charge or, failing that, the factory clock. */
+  shift: "DAY" | "NIGHT" | null;
+  /** Which of the two answered. Never "manual" — this module does not ask a person. */
+  shift_source: "session" | "clock" | null;
   status: "todo" | "in_progress" | "complete";
   line: string | null;
   leader_id: string | null;
@@ -334,6 +338,8 @@ export function buildRecord(
     leaderAt?: (line: string, at?: string | null) => {
       leader: { id: string; name: string } | null;
       source: "session" | "session_unsigned" | "assignment" | "none";
+      /** The shift the session in charge recorded, when there was one. */
+      shift?: "DAY" | "NIGHT" | null;
     };
     /** Defaults to "nothing recorded", which reports rather than blocks. */
     attendance?: (worker: string, day: string) => Attendance;
@@ -363,6 +369,43 @@ export function buildRecord(
     : { leader: null, source: "none" as const };
   const leader = lookup.leader;
   if (line && !leader) problems.push("leader_not_found");
+
+  /**
+   * Which shift the finding belongs to, asked of the line before it is asked of the
+   * clock.
+   *
+   * A SafetyCulture Action carries no shift, so this import read one off the hour it
+   * was raised — DAY 06:00–17:59, NIGHT 18:00–05:59. `production_sessions` is the
+   * better witness: somebody opened the line and wrote the shift down, and
+   * `sessionInCharge` already finds that row for this instant because it is how the
+   * leader on the row is decided. Asking it costs nothing, is already loaded, and
+   * makes the shift agree with the name beside it — two derivations that could
+   * previously disagree about the same finding.
+   *
+   * What it buys, concretely: a handover is not instantaneous and `finished_at` is
+   * null on every session in the table, so a night that runs past 06:00 is still the
+   * open session while the clock has already turned over. The session knows; the
+   * clock cannot.
+   *
+   * WHAT IT DOES NOT FIX, and no derivation over `created_at` can. A fault found at
+   * 02:00 and typed up at 07:15 still comes out DAY — not because of the clock now,
+   * but because the day session legitimately opened at 06:02 and IS the session in
+   * charge at 07:15. `created_at` is when somebody wrote it down; when it happened,
+   * nobody wrote anything. The log carries rows whose own title says "(L6/night
+   * shift)" filed under Day, and this leaves them that way.
+   *
+   * There are two ways out and both are outside this function: a shift (or an
+   * occurrence-time) field on the SafetyCulture template, which makes it a recorded
+   * fact instead of a deduction; or a human correction — which is why `shift_source`
+   * exists and why `applyActions` will not overwrite 'manual'.
+   */
+  const sessionShift = lookup.shift ?? null;
+  const shift = sessionShift ?? londonShift(at);
+  const shift_source: "session" | "clock" | null = shift === null
+    ? null
+    : sessionShift
+    ? "session"
+    : "clock";
 
   const cls = classify(action, opts.rules);
   if (!cls.matched) problems.push("error_type_not_identified");
@@ -442,6 +485,8 @@ export function buildRecord(
       assignee_name: action.assignee ?? null,
       due_date: action.due_at ?? null,
       recorded_at: action.created_at ?? now,
+      shift,
+      shift_source,
       status,
       line,
       leader_id: leader?.id ?? null,

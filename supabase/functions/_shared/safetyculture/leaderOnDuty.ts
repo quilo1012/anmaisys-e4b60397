@@ -34,6 +34,25 @@ const MAX_HOURS = 16;
 
 const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
 
+/**
+ * A shift as the production tables spell it, or nothing.
+ *
+ * `production_sessions.shift` is DAY/NIGHT on all 736 rows, and this still folds
+ * case and whitespace rather than trusting that: a third spelling arriving from an
+ * import would otherwise be written into `quality_actions.shift`, where every screen
+ * filters `.eq("shift", …)` and a row nobody can match is a row nobody can see.
+ *
+ * It lives here rather than in `sync.ts` for a dull but load-bearing reason: this
+ * module is pure, and `sync.ts` opens with `npm:@supabase/supabase-js@2` and reads
+ * `Deno.env`. A test under `src/` that imports from `sync.ts` drags both into the
+ * browser build's typecheck, which has neither — fourteen errors, none of them about
+ * the change being tested. See the alias note in vitest.config.ts.
+ */
+export function normaliseShift(value: unknown): "DAY" | "NIGHT" | null {
+  const v = String(value ?? "").trim().toUpperCase();
+  return v === "DAY" || v === "NIGHT" ? v : null;
+}
+
 const ms = (iso: string | null | undefined): number | null => {
   if (!iso) return null;
   const t = new Date(iso).getTime();
