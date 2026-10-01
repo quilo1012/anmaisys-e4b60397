@@ -474,7 +474,7 @@ export function useSaveMatrix(onDate: string, shift: string) {
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["headcount-matrix", shift] });
-      toast.success(`${shift} ${r.label} matrix saved — ${r.count} people, from ${onDate}`, { id: "headcount-matrix" });
+      toast.success(`${shift} ${r.label} matrix saved — ${r.count} people from ${onDate}; other crews already in it were kept`, { id: "headcount-matrix" });
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not save the matrix", { id: "headcount-matrix" }),
   });
