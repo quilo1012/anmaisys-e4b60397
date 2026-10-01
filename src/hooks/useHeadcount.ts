@@ -7,7 +7,8 @@ import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from 
 import { dropReceipt, readReceipt, saveReceipt, type CopyReceipt } from "@/lib/copyUndo";
 import { keepsLeadership } from "@/lib/leaderMark";
 import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
-import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn } from "./useWorkforce";
+import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftPosition } from "./useWorkforce";
+import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
 
 export type HeadcountArea = {
   id: string;
@@ -434,22 +435,46 @@ export function useSaveMatrix(onDate: string, shift: string) {
         );
       if (upErr) throw upErr;
 
-      // Only this kind is cleared. The other standard of the same board is a separate
-      // answer to a separate day and must survive a save it had no part in.
-      const { error: delErr } = await matrixTable()
-        .delete()
-        .eq("shift", shift)
-        .eq("kind", kind)
-        .not("employee_id", "in", `(${rows.map((r) => r.employee_id).join(",")})`);
-      // Not fatal: the standard is saved, it just still names people this board no
-      // longer has. Saying so is better than undoing the part that worked.
-      if (delErr) toast.warning(`Matrix saved, but the people who left it are still on it: ${delErr.message}`);
+      // Only this kind, and only the crews that were on this board today. A day never
+      // holds everybody — Monday and Friday are different changeover crews — so the
+      // other crews' rows stay. Also drops anyone no longer an active employee.
+      const [{ data: existing, error: exErr }, { data: people, error: pErr }, { data: hist, error: hErr }] =
+        await Promise.all([
+          matrixTable().select("employee_id").eq("shift", shift).eq("kind", kind),
+          supabase.from("employees").select("id,active,shift_group,shift_pattern_id"),
+          (supabase as any)
+            .from("employee_shift_history")
+            .select("employee_id, shift_group, shift_pattern_id, effective_from, note")
+            .order("effective_from", { ascending: false }),
+        ]);
+      const lookupErr = exErr ?? pErr ?? hErr;
+      if (lookupErr) {
+        toast.warning(`Matrix saved, but the people who left it are still on it: ${lookupErr.message}`);
+      } else {
+        const toDelete = planMatrixDelete({
+          onDate,
+          boardEmployeeIds: rows.map((r) => r.employee_id),
+          existingMatrixIds: ((existing ?? []) as Array<{ employee_id: string }>).map((r) => r.employee_id),
+          people: (people ?? []) as MatrixSavePerson[],
+          history: (hist ?? []) as ShiftPosition[],
+        });
+        if (toDelete.length > 0) {
+          const { error: delErr } = await matrixTable()
+            .delete()
+            .eq("shift", shift)
+            .eq("kind", kind)
+            .in("employee_id", toDelete);
+          // Not fatal: the standard is saved, it just still names people this board no
+          // longer has. Saying so is better than undoing the part that worked.
+          if (delErr) toast.warning(`Matrix saved, but the people who left it are still on it: ${delErr.message}`);
+        }
+      }
 
       return { count: rows.length, label: MATRIX_KINDS.find((k) => k.kind === kind)?.label ?? kind };
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["headcount-matrix", shift] });
-      toast.success(`${shift} ${r.label} matrix saved — ${r.count} people, from ${onDate}`, { id: "headcount-matrix" });
+      toast.success(`${shift} ${r.label} matrix saved — ${r.count} people from ${onDate}; other crews already in it were kept`, { id: "headcount-matrix" });
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not save the matrix", { id: "headcount-matrix" }),
   });

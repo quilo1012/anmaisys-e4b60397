@@ -868,8 +868,9 @@ function ShiftBoard({
                   <AlertDialogTitle>What is this board the standard for?</AlertDialogTitle>
                   <AlertDialogDescription>
                     {assignedCount} people, as they stand on {formatWeekday(onDate)}, become one of the two standards
-                    the {shift.toLowerCase()} board is copied from. Days already planned are not touched, and the other
-                    standard is left alone.
+                    the {shift.toLowerCase()} board is copied from. Only the crews working today are replaced — people
+                    from other crews already in that matrix stay there. Days already planned are not touched, and the
+                    other standard is left alone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-2">
