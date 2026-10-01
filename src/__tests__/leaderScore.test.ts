@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, rankLeadersByScore, DEFAULT_WEIGHTS, MIN_RANK_WEEKS } from "@/lib/leaderScore";
 import { setLabelPoints } from "@/lib/qualityConstants";
 
 const noActions: never[] = [];
@@ -136,10 +136,11 @@ describe("displayScore", () => {
 });
 
 describe("rankLeadersByScore", () => {
+  // A full month each, so these cases are about the score and nothing else.
   const rows = [
-    { leader: "Ana", score: 74 },
-    { leader: "Bruno", score: 91 },
-    { leader: "Carla", score: 83 },
+    { leader: "Ana", score: 74, weeks: 4 },
+    { leader: "Bruno", score: 91, weeks: 5 },
+    { leader: "Carla", score: 83, weeks: 4 },
   ];
 
   it("ranks by score, best first", () => {
@@ -170,7 +171,7 @@ describe("rankLeadersByScore", () => {
   });
 
   it("leaves a leader with nothing measurable unranked, rather than last", () => {
-    const rank = rankLeadersByScore([...rows, { leader: "Dinis", score: null }]);
+    const rank = rankLeadersByScore([...rows, { leader: "Dinis", score: null, weeks: 4 }]);
     expect(rank.get("Dinis")).toBeNull();
     // And an unranked leader must not push anybody down the list.
     expect(rank.get("Ana")).toBe(3);
@@ -179,17 +180,54 @@ describe("rankLeadersByScore", () => {
   it("shares a rank between equal scores, and skips the one they used up", () => {
     // Two leaders on 91 are both first. Nobody is second; the next is third.
     const rank = rankLeadersByScore([
-      { leader: "Ana", score: 91 },
-      { leader: "Bruno", score: 91 },
-      { leader: "Carla", score: 70 },
+      { leader: "Ana", score: 91, weeks: 4 },
+      { leader: "Bruno", score: 91, weeks: 4 },
+      { leader: "Carla", score: 70, weeks: 4 },
     ]);
     expect(rank.get("Ana")).toBe(1);
     expect(rank.get("Bruno")).toBe(1);
     expect(rank.get("Carla")).toBe(3);
   });
 
+  /**
+   * The September 2026 regression.
+   *
+   * Izildo read 100 off three shifts in two weeks and sat second in the factory,
+   * above Marcelo's 98 over twenty shifts. Worse, Sandro — one shift, one action
+   * worth 5 points, the heaviest charge per shift of anybody that month — came
+   * eighth of twenty-five. Three chances to be caught is not the same test as
+   * twenty, and a table that does not say so ranks absence.
+   */
+  it("does not rank a leader with too few weeks to compare", () => {
+    const rank = rankLeadersByScore([...rows, { leader: "Izildo", score: 100, weeks: 2 }]);
+    expect(rank.get("Izildo")).toBeNull();
+    // And the thin sample must not consume the place Bruno earned over a full month.
+    expect(rank.get("Bruno")).toBe(1);
+    expect(rank.get("Carla")).toBe(2);
+    expect(rank.get("Ana")).toBe(3);
+  });
+
+  it("ranks a leader who is exactly at the threshold", () => {
+    // Four weeks is enough, not one short of it — an off-by-one here silently
+    // unranks a leader who worked the whole month.
+    const rank = rankLeadersByScore([{ leader: "Ana", score: 80, weeks: MIN_RANK_WEEKS }]);
+    expect(rank.get("Ana")).toBe(1);
+  });
+
+  it("takes a caller's own threshold when it is given one", () => {
+    const thin = [{ leader: "Ana", score: 80, weeks: 2 }];
+    expect(rankLeadersByScore(thin).get("Ana")).toBeNull();
+    expect(rankLeadersByScore(thin, 2).get("Ana")).toBe(1);
+  });
+
+  it("keeps the SQL ranking's threshold, which is four weeks", () => {
+    // Mirrors THR_MinWeeks in leader_scorecard_threshold. The two rankings must not
+    // disagree about who is comparable; see the note on MIN_RANK_WEEKS.
+    expect(MIN_RANK_WEEKS).toBe(4);
+  });
+
   it("ranks nobody when nobody has a score", () => {
-    const rank = rankLeadersByScore([{ leader: "Ana", score: null }, { leader: "Bruno", score: null }]);
+    const rank = rankLeadersByScore([{ leader: "Ana", score: null, weeks: 4 }, { leader: "Bruno", score: null, weeks: 4 }]);
     expect(rank.get("Ana")).toBeNull();
     expect(rank.get("Bruno")).toBeNull();
   });

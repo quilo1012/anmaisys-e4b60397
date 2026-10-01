@@ -558,10 +558,37 @@ export function computeLeaderScore(
   };
 }
 
-/** Anything with a name and a score can be ranked; the table row carries far more. */
+/**
+ * Weeks a leader must have worked in the period before a rank means anything.
+ *
+ * Mirrors `THR_MinWeeks` in `leader_scorecard_threshold`, which the SQL rankings
+ * (`v_scorecard_ranking_leader`) have excluded small samples by since 20260815140000.
+ * This score is computed in TypeScript over a date range while that one is computed in
+ * SQL over weeks, and the two must not disagree about who is comparable. Change it
+ * there, change it here — the same contract `GATE_CAP` keeps with `CAP_Gate`.
+ *
+ * The arithmetic it guards against: somebody who worked three shifts had three chances
+ * to raise an action, and somebody who worked twenty had twenty. Measured on September
+ * 2026, four of the five leaders reading 100 had fewer than four weeks, and the one
+ * with the worst error rate in the factory — a single action worth 5 points, in a
+ * single shift — came eighth of twenty-five. A ranking that puts absence at the top is
+ * not measuring performance.
+ */
+export const MIN_RANK_WEEKS = 4;
+
+/**
+ * Anything with a name, a score and an exposure can be ranked; the row carries more.
+ *
+ * `weeks` is required, and deliberately not optional, for the reason `excludedLabels`
+ * is required over in `LeaderScoreInput`: an absent exposure would have to be read as
+ * "rank them anyway", which is the bug, and a caller that forgot the field would get
+ * the broken behaviour silently.
+ */
 export interface RankableLeader {
   leader: string;
   score: number | null;
+  /** Distinct calendar weeks the leader worked in the period. */
+  weeks: number;
 }
 
 /**
@@ -586,10 +613,21 @@ export interface RankableLeader {
  * nothing measurable in the period, and ordering that below a genuine 40 would turn
  * "we have no reading" into "the worst reading", which is the failure this file's
  * `final: number | null` exists to prevent.
+ *
+ * A sample under {@link MIN_RANK_WEEKS} is unranked for the same reason, and it is the
+ * same kind of statement: not "this leader did badly" but "there is not enough here to
+ * say". Their score still shows — the caller decides how to label it — it simply wins
+ * no medal and takes no place, so a leader with a full month behind them is never
+ * pushed down the list by somebody who worked one shift and happened not to be caught.
  */
-export function rankLeadersByScore(rows: readonly RankableLeader[]): Map<string, number | null> {
+export function rankLeadersByScore(
+  rows: readonly RankableLeader[],
+  minWeeks: number = MIN_RANK_WEEKS,
+): Map<string, number | null> {
   const out = new Map<string, number | null>();
-  const scored = rows.filter((r): r is RankableLeader & { score: number } => r.score !== null);
+  const scored = rows.filter(
+    (r): r is RankableLeader & { score: number } => r.score !== null && r.weeks >= minWeeks,
+  );
   const descending = [...scored].sort((a, b) => b.score - a.score);
 
   let rank = 0;

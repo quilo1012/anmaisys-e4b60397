@@ -37,7 +37,7 @@ import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
 import { NoCeilingNotice } from "@/components/leader/NoCeilingNotice";
 import { PointsPending } from "@/components/quality/PointsPending";
-import { computeLeaderScore, displayScore, rankLeadersByScore } from "@/lib/leaderScore";
+import { computeLeaderScore, displayScore, rankLeadersByScore, MIN_RANK_WEEKS } from "@/lib/leaderScore";
 import { canPrintReport } from "@/lib/permissions";
 import { useLeaderWeighting } from "@/hooks/useLeaderScoreWeights";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
@@ -339,8 +339,24 @@ export default function AnalyticsPage() {
       const k = key(r.entry_date, r.shift, r.line);
       ragMap.set(k, (ragMap.get(k) ?? 0) + Number(r.plan_qty ?? 0));
     }
-    type Agg = { leader: string; sessions: number; target: number; actual: number; lines: Set<string>; shifts: Set<string> };
+    /**
+     * `weeks` is the exposure the ranking is allowed to judge on — see MIN_RANK_WEEKS.
+     * A Set of ISO week keys rather than a count, because a leader who worked Monday
+     * and Thursday of the same week has been on the floor for one week, not two.
+     */
+    type Agg = { leader: string; sessions: number; target: number; actual: number; lines: Set<string>; shifts: Set<string>; weeks: Set<string> };
     const map = new Map<string, Agg>();
+    // Monday of the session's week, as a plain key. Built from the yyyy-MM-dd string
+    // in UTC so a session_date never slides into the previous week on a BST evening.
+    const weekKey = (iso: string) => {
+      const [y, m, d] = iso.split("-").map(Number);
+      const t = Date.UTC(y, (m ?? 1) - 1, d ?? 1);
+      if (!Number.isFinite(t)) return iso;
+      const dt = new Date(t);
+      // getUTCDay(): 0 = Sunday, which belongs to the week that started six days back.
+      dt.setUTCDate(dt.getUTCDate() - ((dt.getUTCDay() + 6) % 7));
+      return dt.toISOString().slice(0, 10);
+    };
     for (const s of leaderRows) {
       // Grouped by the forgiving key, labelled with the name the row carries. The log
       // spells five of these people in capitals and the tablet does not; keying on the
@@ -349,10 +365,11 @@ export default function AnalyticsPage() {
       const name = (s.leader_name || "").trim();
       const leader = leaderNameKey(name);
       if (!leader) continue;
-      const cur = map.get(leader) ?? { leader: name, sessions: 0, target: 0, actual: 0, lines: new Set<string>(), shifts: new Set<string>() };
+      const cur = map.get(leader) ?? { leader: name, sessions: 0, target: 0, actual: 0, lines: new Set<string>(), shifts: new Set<string>(), weeks: new Set<string>() };
       cur.sessions += 1;
       if (s.line) cur.lines.add(s.line);
       if (s.shift) cur.shifts.add(s.shift);
+      if (s.session_date) cur.weeks.add(weekKey(s.session_date));
       // One RAG target per session (line+date+shift), not per production item.
       cur.target += ragMap.get(key(s.session_date, s.shift, s.line)) ?? 0;
       for (const i of s.production_items ?? []) {
@@ -401,6 +418,7 @@ export default function AnalyticsPage() {
         );
         return {
           leader: a.leader, sessions: a.sessions, target: a.target, actual: a.actual,
+          weeks: a.weeks.size,
           score: score.final,
           docErrors: acts.filter(isValidatedPaperwork).length,
           // null (not 0) when there's no RAG plan for any of this leader's sessions —
@@ -895,7 +913,17 @@ export default function AnalyticsPage() {
                         <tr key={r.leader} className="border-t">
                           <td className="p-2 tabular-nums">
                             {rank === null ? (
-                              <span className="text-muted-foreground" title="Nothing measurable in this period — unranked, not last">—</span>
+                              /* Two different silences, and a leader reads them very
+                                 differently. "Nothing measurable" says the period had
+                                 no numbers; "too few weeks" says it had numbers and
+                                 too little of the month behind them to compare. Saying
+                                 which is what stops the dash reading as a verdict. */
+                              <span
+                                className="text-muted-foreground"
+                                title={r.weeks < MIN_RANK_WEEKS
+                                  ? `Only ${r.weeks} week${r.weeks === 1 ? "" : "s"} worked in this period — unranked, because ${MIN_RANK_WEEKS} are needed to compare fairly. The score still stands.`
+                                  : "Nothing measurable in this period — unranked, not last"}
+                              >—</span>
                             ) : medal ? (
                               // The emoji is the whole cell, so it needs a name a screen
                               // reader can say. "🥇" on its own is announced as nothing.
