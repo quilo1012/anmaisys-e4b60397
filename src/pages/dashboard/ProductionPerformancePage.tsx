@@ -21,6 +21,7 @@ import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { aggregateLines, buildDailyHistory } from "@/lib/productionHistory";
 import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange } from "@/lib/shifts";
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
+import { useLeaderShifts } from "@/hooks/useLeaderShifts";
 import { actionsInReportPeriod, actionShift, shiftWasRecorded } from "@/lib/performanceActions";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { useLineLiveStatus } from "@/hooks/useLineLiveStatus";
@@ -97,7 +98,7 @@ export default function ProductionPerformancePage() {
     }
     setSavingLeaderFor(lineName);
     try {
-      const { error } = await supabase.from("line_leaders").insert({ name, shift: "BOTH", active: true });
+      const { error } = await supabase.from("line_leaders").insert({ name, shift: shift === "all" ? "BOTH" : shift, active: true });
       if (error && !/duplicate|unique/i.test(error.message)) throw error;
       await qc.invalidateQueries({ queryKey: ["line_leaders_active"] });
       setAddingLeaderFor(null);
@@ -226,14 +227,16 @@ export default function ProductionPerformancePage() {
     return m;
   }, [liveRows]);
 
-  const { data: leaders = [] } = useQuery({
-    queryKey: ["line_leaders_active"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("line_leaders").select("name").eq("active", true).order("name");
-      if (error) throw error;
-      return (data ?? []) as { name: string }[];
-    },
-  });
+  // Leaders by the shift they actually work (session history), register as fallback.
+  const { leaders, forShift } = useLeaderShifts();
+  const shiftLeaders = useMemo(() => forShift(shift), [forShift, shift]);
+  // A filter on someone no longer in the selector would leave the screen and the
+  // Scorecard button pointing at a leader who is not listed.
+  useEffect(() => {
+    if (leaderFilter !== "__all__" && leaders.length > 0 && !shiftLeaders.some((l) => l.name === leaderFilter)) {
+      setLeaderFilter("__all__");
+    }
+  }, [shiftLeaders, leaders.length, leaderFilter]);
 
   // By id AND by code: half the rows on the board identify their product only by
   // the code as text, with `sku_id` never resolved by the import. See `lineSku.ts`.
@@ -778,7 +781,7 @@ export default function ProductionPerformancePage() {
                 <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="All leaders" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All leaders</SelectItem>
-                  {leaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
+                  {shiftLeaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </ControlField>
@@ -1335,7 +1338,11 @@ export default function ProductionPerformancePage() {
                         {l.leader && !leaders.some((ld) => ld.name === l.leader) && (
                           <SelectItem value={l.leader}>{l.leader} (inactive)</SelectItem>
                         )}
-                        {leaders.map((ld) => (
+                        {/* Active, but works the other shift — still the one assigned here. */}
+                        {l.leader && leaders.some((ld) => ld.name === l.leader) && !shiftLeaders.some((ld) => ld.name === l.leader) && (
+                          <SelectItem value={l.leader}>{l.leader} (outro turno)</SelectItem>
+                        )}
+                        {shiftLeaders.map((ld) => (
                           <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
                         ))}
                         <SelectItem value="__new__">+ Add new leader…</SelectItem>
