@@ -62,11 +62,21 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
   useEffect(() => () => { if (planTimer.current) clearTimeout(planTimer.current); }, []);
 
   const commit = async () => {
-    // Enter reached this without a guard while only the BUTTON was disabled, and
-    // when there is no row yet the write is an INSERT into rag_weekly_entries —
-    // a table with a non-unique index on (line, entry_date, shift). Two Enters
-    // with a glove made two rows for the same line, date and shift, and the RAG
-    // then counted that line twice.
+    // Enter reached this without a guard while only the BUTTON was disabled, so a
+    // gloved double-press fired two writes for the same line, date and shift.
+    //
+    // CORRECTION (01/10/2026). The comment that stood here said the table has a
+    // NON-unique index on (line, entry_date, shift), and that two Enters therefore
+    // made two rows and the RAG counted the line twice. That is wrong, and nobody
+    // should act on it. `rag_weekly_entries` has carried a UNIQUE constraint on
+    // (entry_date, line, shift) since the migration of 26/06/2026
+    // (`rag_weekly_entries_entry_date_line_shift_key`), and production holds zero
+    // duplicate combinations. The second INSERT was always refused by the database.
+    //
+    // The guard still earns its place: without it the second press costs a wasted
+    // round trip and surfaces a unique-violation message that says nothing useful
+    // to an operator. But it is a UX guard, not a data-integrity one — the data was
+    // never at risk.
     if (saving) return;
     setEditing(false);
     const n = Number(val);
@@ -95,7 +105,7 @@ export function DailyTargetCard({ line, entryDate, shift, canEdit = true }: Prop
   };
 
   const commitPlan = async () => {
-    if (planSaving) return; // see commit() above — same duplicate-insert path
+    if (planSaving) return; // see commit() above — same double-press path
     setPlanEditing(false);
     const n = Number(planVal);
     if (!Number.isFinite(n) || n < 0) { setPlanVal(String(plan)); return; }
