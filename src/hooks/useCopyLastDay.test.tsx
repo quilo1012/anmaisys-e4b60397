@@ -483,11 +483,53 @@ describe("useSaveMatrix", () => {
     expect(matrixWrite()?.options).toMatchObject({ onConflict: "shift,kind,employee_id" });
   });
 
+  /**
+   * The board has two people and the matrix still names a third, who is the only
+   * reason there is a delete to look at. Without somebody to drop, the save issues no
+   * delete at all — see the test below — and there would be no scoping to assert.
+   */
+  const boardWithStaleMatrix = () => (r: Recorded) => {
+    if (r.table === "daily_allocations" && r.op === "read") {
+      return [
+        { employee_id: "ana", area_id: "line-1" },
+        { employee_id: "bruno", area_id: null },
+      ];
+    }
+    // Carlos is on the saved standard and not on today's board, and is no longer an
+    // active employee — `employees` answers empty — so he is dropped.
+    if (r.table === "headcount_matrix" && r.op === "read") return [{ employee_id: "carlos" }];
+    return [];
+  };
+
   it("clears only that kind, never the board's other standard", async () => {
-    // The two answer different days. A save of one must not empty the other.
+    // The two answer different days. A save of one must not empty the other, so the
+    // delete carries BOTH the shift and the kind — and only the people it means.
+    answer = boardWithStaleMatrix();
+    await save("normal");
+    expect(matrixClear()?.filters).toMatchObject({
+      shift: "Night",
+      kind: "normal",
+      "in:employee_id": ["carlos"],
+    });
+  });
+
+  /**
+   * The behaviour the audit of 01/10 put in, and the reason the test above had to be
+   * given somebody to drop.
+   *
+   * The old code always issued the delete, and with nothing to drop it built
+   * `.not("employee_id", "in", "()")` — invalid SQL on an empty list, so the save's
+   * last step failed every time it had nothing to do. Now there is simply no delete.
+   * It had no test, which is how the change arrived looking like a regression in the
+   * test above rather than like the fix it is.
+   */
+  it("issues no delete at all when nobody has left the standard", async () => {
     answer = board();
     await save("normal");
-    expect(matrixClear()?.filters).toMatchObject({ shift: "Night", kind: "normal" });
+    expect(matrixClear()).toBeUndefined();
+    // And the save itself still happened — the point is that nothing was removed,
+    // not that nothing was written.
+    expect(matrixWrite()?.payload).toHaveLength(2);
   });
 
   it("refuses to save an empty board", async () => {

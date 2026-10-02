@@ -56,7 +56,7 @@
 
 
 -- ================================================================
--- BLOCO 09
+-- BLOCO 1
 -- 20260821090000_action_guard_work_orders.sql
 -- ================================================================
 
@@ -156,7 +156,7 @@ CREATE TRIGGER wo_guard_force
 
 
 -- ================================================================
--- BLOCO 10
+-- BLOCO 2
 -- 20260822090000_a_score_is_frozen_at_the_scale_of_its_day.sql
 -- ================================================================
 
@@ -648,7 +648,7 @@ CREATE POLICY "Anyone signed in can read versioned exclusions"
 
 
 -- ================================================================
--- BLOCO 11
+-- BLOCO 3
 -- 20260822093000_the_leaders_own_card_reads_the_frozen_figure.sql
 -- ================================================================
 
@@ -729,7 +729,7 @@ END $patch$;
 
 
 -- ================================================================
--- BLOCO 12
+-- BLOCO 4
 -- 20260823090000_a_label_may_aggravate_never_soften.sql
 -- ================================================================
 
@@ -893,7 +893,7 @@ COMMENT ON FUNCTION public.action_points_at(text, text, text[], text, bigint) IS
 
 
 -- ================================================================
--- BLOCO 13
+-- BLOCO 5
 -- 20260824090000_a_failed_ccp_is_a_ceiling_too.sql
 -- ================================================================
 
@@ -1017,7 +1017,7 @@ END $$;
 
 
 -- ================================================================
--- BLOCO 14
+-- BLOCO 6
 -- 20260826090000_the_weekly_row_learns_about_the_actions.sql
 -- ================================================================
 
@@ -1460,7 +1460,7 @@ USING (
 
 
 -- ================================================================
--- BLOCO 15
+-- BLOCO 7
 -- 20260827090000_the_evidence_gate_outlived_the_place_to_attach_it.sql
 -- ================================================================
 
@@ -1547,7 +1547,7 @@ $function$;
 
 
 -- ================================================================
--- BLOCO 16
+-- BLOCO 8
 -- 20260827093000_a_department_can_be_someone_elses.sql
 -- ================================================================
 
@@ -1861,7 +1861,7 @@ COMMIT;
 
 
 -- ================================================================
--- BLOCO 17
+-- BLOCO 9
 -- 20260827113000_the_ceiling_cannot_see_the_injury.sql
 -- ================================================================
 
@@ -1974,7 +1974,7 @@ END $patch$;
 
 
 -- ================================================================
--- BLOCO 18
+-- BLOCO 10
 -- 20260828090000_maintenance_keeps_its_own_list_and_a_hazard_can_cost.sql
 -- ================================================================
 
@@ -2228,7 +2228,7 @@ END $$;
 
 
 -- ================================================================
--- BLOCO 19
+-- BLOCO 11
 -- 20260829090000_seed_leader_line_assignments.sql
 -- ================================================================
 
@@ -2306,7 +2306,7 @@ END $$;
 
 
 -- ================================================================
--- BLOCO 20
+-- BLOCO 12
 -- 20260830090000_the_first_plan_for_a_cell_never_reached_the_planner.sql
 -- ================================================================
 
@@ -2396,7 +2396,7 @@ COMMENT ON FUNCTION public.sync_items_target_from_rag() IS
 
 
 -- ================================================================
--- BLOCO 21
+-- BLOCO 13
 -- 20260831090000_a_price_is_not_the_same_right_as_a_quantity.sql
 -- ================================================================
 
@@ -2470,7 +2470,7 @@ CREATE TRIGGER trg_products_pricing_permission
 
 
 -- ================================================================
--- BLOCO 22
+-- BLOCO 14
 -- 20260901090000_the_verdict_asks_the_matrix_who_may_give_it.sql
 -- ================================================================
 
@@ -2581,7 +2581,7 @@ COMMENT ON FUNCTION public.enforce_quality_validation() IS
 
 
 -- ================================================================
--- BLOCO 23
+-- BLOCO 15
 -- 20260902090000_the_office_admin_migration_stopped_halfway.sql
 -- ================================================================
 
@@ -2681,7 +2681,7 @@ CREATE POLICY "products update by matrix" ON public.products
          ARRAY['admin','manager','supervisor','maintenance_manager','production_office_admin']::app_role[]));
 
 -- ================================================================
--- BLOCO 24
+-- BLOCO 16
 -- 20260903090000_a_part_the_screen_cannot_say_where_to_find.sql
 -- ================================================================
 
@@ -2713,7 +2713,7 @@ create index if not exists products_category_idx on public.products (category);
 
 
 -- ================================================================
--- BLOCO 25
+-- BLOCO 17
 -- 20260904090000_a_shift_that_ends_at_six_is_written_up_after_six.sql
 -- ================================================================
 
@@ -2754,7 +2754,7 @@ COMMENT ON FUNCTION public.session_write_deadline(date, text) IS
 
 
 -- ================================================================
--- BLOCO 26
+-- BLOCO 18
 -- 20260905090000_the_queue_that_swept_itself_slower_every_day.sql
 -- ================================================================
 
@@ -2898,10 +2898,10 @@ COMMENT ON EXTENSION pg_net IS
 
 
 -- ================================================================
--- BLOCO 27
+-- BLOCO 19
 -- 20260906090000_the_line_alias_that_was_not_a_line.sql
 -- ================================================================
--- BLOCO 37
+-- BLOCO 20
 -- 20260906085832_a2c099fd-0327-4168-ba58-6b5206d823b7.sql
 -- ================================================================
 
@@ -2910,7 +2910,7 @@ ALTER TABLE public.system_settings
 
 
 -- ================================================================
--- BLOCO 38
+-- BLOCO 21
 -- 20260906090000_the_leader_the_tablet_wrote_but_never_linked.sql
 -- ================================================================
 
@@ -3160,10 +3160,10 @@ COMMENT ON COLUMN public.leader_pins.line IS
 
 
 -- ================================================================
--- BLOCO 28
+-- BLOCO 22
 -- 20260907090000_the_cron_log_nobody_ever_swept.sql
 -- ================================================================
--- BLOCO 39
+-- BLOCO 23
 -- 20260906192425_5e111a04-958b-4a14-87e9-2915c5ef1300.sql
 -- ================================================================
 
@@ -3317,7 +3317,7 @@ ON CONFLICT DO NOTHING;
 
 
 -- ================================================================
--- BLOCO 40
+-- BLOCO 24
 -- 20260906195247_31631f78-262f-4f97-9ea7-626bf324a398.sql
 -- ================================================================
 
@@ -3327,7 +3327,7 @@ ALTER TABLE public.sc_sync_state
 
 
 -- ================================================================
--- BLOCO 41
+-- BLOCO 25
 -- 20260906200607_29a80c21-8a99-412f-a18c-22e0052e91fe.sql
 -- ================================================================
 
@@ -3339,7 +3339,7 @@ COMMENT ON COLUMN public.sc_classification_rules.line_name IS
 
 
 -- ================================================================
--- BLOCO 42
+-- BLOCO 26
 -- 20260906203101_937d7927-00f5-4621-a8ad-38df9729b4e0.sql
 -- ================================================================
 
@@ -3381,7 +3381,7 @@ ALTER TABLE public.sc_sync_state
 
 
 -- ================================================================
--- BLOCO 43
+-- BLOCO 27
 -- 20260906203957_3f671e37-e0d2-45b0-9e42-237f374b2961.sql
 -- ================================================================
 
@@ -3428,7 +3428,7 @@ values
 
 
 -- ================================================================
--- BLOCO 44
+-- BLOCO 28
 -- 20260906221500_an_action_belongs_to_a_line_only_if_someone_was_there.sql
 -- ================================================================
 
@@ -3536,10 +3536,10 @@ WHERE source = 'safetyculture'
 
 
 -- ================================================================
--- BLOCO 45
+-- BLOCO 29
 -- 20260907090000_a_priority_uuid_is_not_a_priority.sql
 -- ================================================================
--- BLOCO 46
+-- BLOCO 30
 -- 20260907080000_the_leader_is_whoever_opened_the_line_that_shift.sql
 -- ================================================================
 
@@ -3887,10 +3887,10 @@ END $$;
 
 
 -- ================================================================
--- BLOCO 29
+-- BLOCO 31
 -- 20260908090000_a_photo_in_the_chat_was_never_going_to_load.sql
 -- ================================================================
--- BLOCO 47
+-- BLOCO 32
 -- 20260907103222_81e475e2-3d35-4404-92cf-06d8cb3ef665.sql
 -- ================================================================
 
@@ -3922,7 +3922,7 @@ $function$;
 
 
 -- ================================================================
--- BLOCO 48
+-- BLOCO 33
 -- 20260907103552_c97d06c7-fbdf-4358-80fb-3d28387b56b5.sql
 -- ================================================================
 
@@ -4037,7 +4037,7 @@ COMMENT ON COLUMN public.direct_messages.image_url IS
 
 
 -- ================================================================
--- BLOCO 49
+-- BLOCO 34
 -- 20260908142852_14750ae8-98dd-4b3a-8814-88e507854557.sql
 -- ================================================================
 
@@ -4182,7 +4182,7 @@ END $patch$;
 
 
 -- ================================================================
--- BLOCO 30
+-- BLOCO 35
 -- 20260909090000_a_stoppage_cannot_last_less_than_nothing.sql
 -- ================================================================
 
@@ -4337,7 +4337,7 @@ WHERE active
 
 
 -- ================================================================
--- BLOCO 31
+-- BLOCO 36
 -- 20260910090000_the_permissions_screen_only_bound_six_tables.sql
 -- ================================================================
 
@@ -4958,7 +4958,7 @@ SELECT cron.unschedule('refresh-site-banner')
 WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'refresh-site-banner');
 
 -- ================================================================
--- BLOCO 32
+-- BLOCO 37
 -- 20260911090000_the_hr_roster_four_people_could_read_without_a_screen.sql
 -- ================================================================
 
@@ -5393,7 +5393,7 @@ update public.employees set sheet_aliases = 'Welligton'   where full_name = 'Wel
 update public.employees set sheet_aliases = 'Russo'       where full_name = 'Carlos Russo'       and sheet_aliases is null;
 
 -- ================================================================
--- BLOCO 33
+-- BLOCO 38
 -- 20260912090000_two_leader_functions_and_a_column_nobody_filled.sql
 -- ================================================================
 
@@ -5460,7 +5460,7 @@ COMMENT ON TABLE public.line_leaders IS
 
 
 -- ================================================================
--- BLOCO 34
+-- BLOCO 39
 -- 20260913090000_nineteen_backups_out_of_the_way_but_not_gone.sql
 -- ================================================================
 
@@ -5560,7 +5560,7 @@ END $$;
 
 
 -- ================================================================
--- BLOCO 35
+-- BLOCO 40
 -- 20260914090000_the_leaders_with_no_pin_and_the_key_between_the_two_tables.sql
 -- ================================================================
 
@@ -5663,7 +5663,7 @@ COMMENT ON FUNCTION public.leaders_without_pin() IS
 
 
 -- ================================================================
--- BLOCO 36
+-- BLOCO 41
 -- 20260915090000_the_engineer_who_could_read_the_plan_but_not_write_it.sql
 -- ================================================================
 
@@ -5769,7 +5769,7 @@ COMMENT ON FUNCTION public.touch_last_seen() IS
 
 
 -- ================================================================
--- BLOCO 38
+-- BLOCO 42
 -- 20260917090000_o_endereco_do_tunel_que_ninguem_podia_gravar.sql
 -- ================================================================
 
@@ -6042,7 +6042,7 @@ GRANT EXECUTE ON FUNCTION public.import_rag_plan_workbook(jsonb, jsonb) TO authe
 NOTIFY pgrst, 'reload schema';
 
 -- ================================================================
--- BLOCO 50
+-- BLOCO 43
 -- 20260918090000_the_engineer_may_edit_the_part_but_not_photograph_it.sql
 -- ================================================================
 
@@ -6146,7 +6146,7 @@ WITH CHECK (
 );
 
 -- ================================================================
--- BLOCO 51
+-- BLOCO 44
 -- 20260919090000_a_espera_do_armazem_abre_a_sua_propria_ordem.sql
 -- ================================================================
 
@@ -6513,7 +6513,7 @@ USING (
 
 
 -- ================================================================
--- BLOCO 52
+-- BLOCO 45
 -- 20260920090000_o_numero_da_accao_vive_no_outro_sistema.sql
 -- ================================================================
 
@@ -6593,7 +6593,7 @@ BEGIN
 END $$;
 
 -- ================================================================
--- BLOCO 53
+-- BLOCO 46
 -- 20260921090000_a_causa_raiz_tinha_de_mexer_o_numero.sql
 -- ================================================================
 
@@ -6764,10 +6764,65 @@ UPDATE public.quality_actions
       WHERE lower(btrim(l)) = 'maintenance'
    );
 
+-- ================================================================
+-- BLOCO 47
+-- 20260921122320_63d476d1-9e39-45ce-b5d0-579113ca4fc0.sql
+-- ================================================================
+
+CREATE TABLE public.technical_info_topics (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  title text NOT NULL,
+  kind text NOT NULL DEFAULT 'table' CHECK (kind IN ('table','pdf')),
+  columns jsonb NOT NULL DEFAULT '[]'::jsonb,
+  rows jsonb NOT NULL DEFAULT '[]'::jsonb,
+  note text,
+  file_path text,
+  sort_order integer NOT NULL DEFAULT 100,
+  created_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.technical_info_topics TO authenticated;
+GRANT ALL ON public.technical_info_topics TO service_role;
+
+ALTER TABLE public.technical_info_topics ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "technical_info_select_auth" ON public.technical_info_topics
+  FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
+CREATE POLICY "technical_info_insert_auth" ON public.technical_info_topics
+  FOR INSERT TO authenticated WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "technical_info_update_auth" ON public.technical_info_topics
+  FOR UPDATE TO authenticated USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "technical_info_delete_auth" ON public.technical_info_topics
+  FOR DELETE TO authenticated USING (auth.uid() IS NOT NULL);
+
+CREATE TRIGGER technical_info_topics_updated_at
+  BEFORE UPDATE ON public.technical_info_topics
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE POLICY "technical_docs_read" ON storage.objects
+  FOR SELECT TO authenticated USING (bucket_id = 'technical-docs');
+CREATE POLICY "technical_docs_insert" ON storage.objects
+  FOR INSERT TO authenticated WITH CHECK (bucket_id = 'technical-docs');
+CREATE POLICY "technical_docs_delete" ON storage.objects
+  FOR DELETE TO authenticated USING (bucket_id = 'technical-docs');
+
+INSERT INTO public.technical_info_topics (title, kind, columns, rows, note, sort_order)
+VALUES (
+  'Palletiser Robot — Pallet configuration',
+  'table',
+  '["Prog","Pallet","Tub","Boxes per layer","Total layers","Total tubes"]'::jsonb,
+  '[["1","EURO","750","6","11","792"],["2","EURO","1000","6","8","576"],["3","STANDARD","750","8","15","1500"],["4","STANDARD","750","8","10","960"],["5","STANDARD","1000","8","13","1248"],["6","STANDARD","750","16","11","792"],["7","STANDARD","750","8","8","768"]]'::jsonb,
+  '6 tubes per box',
+  10
+);
+
+
 
 
 -- ================================================================
--- BLOCO 54
+-- BLOCO 48
 -- 20260922090000_um_dia_de_formacao_nao_e_um_dia_de_falta.sql
 -- ================================================================
 
@@ -6794,7 +6849,7 @@ ALTER TABLE public.daily_allocations ADD CONSTRAINT daily_allocations_status_che
 
 
 -- ================================================================
--- BLOCO 55
+-- BLOCO 49
 -- 20260923090000_o_zero_que_ninguem_mediu_e_o_turno_que_ninguem_escreveu.sql
 -- ================================================================
 
@@ -6900,7 +6955,7 @@ REVOKE ALL ON FUNCTION public.factory_shift_of(timestamptz) FROM PUBLIC, anon, a
 REVOKE ALL ON FUNCTION public.quality_action_stamp_shift() FROM PUBLIC, anon, authenticated;
 
 -- ================================================================
--- BLOCO 56
+-- BLOCO 50
 -- 20260924090000_a_ordem_do_armazem_tem_a_sua_propria_serie.sql
 -- ================================================================
 
@@ -7004,7 +7059,27 @@ SELECT setval(
 );
 
 -- ================================================================
--- BLOCO 57
+-- BLOCO 51
+-- 20260925073955_7d0e31d0-3b72-4ec1-84a9-72e46c71bb0a.sql
+-- ================================================================
+
+-- Use the existing Runner area and its history; Wrapping was an alternate label for that Headcount position.
+UPDATE public.headcount_areas
+SET active = true, kind = 'production', section = 'production', department = 'Production',
+    sheet_label = 'Runner, Wrapping', sort_order = 130
+WHERE name = 'Runner';
+
+-- Retain all six saved Wrapping placements by moving them to the same Runner board area.
+UPDATE public.daily_allocations
+SET area_id = (SELECT id FROM public.headcount_areas WHERE name = 'Runner')
+WHERE area_id = (SELECT id FROM public.headcount_areas WHERE name = 'Wrapping');
+
+UPDATE public.headcount_areas SET active = false, sheet_label = NULL
+WHERE name = 'Wrapping';
+
+
+-- ================================================================
+-- BLOCO 52
 -- 20260925090000_o_pin_de_admin_nao_se_le.sql
 -- ================================================================
 
@@ -7064,7 +7139,7 @@ COMMENT ON COLUMN public.system_settings.admin_pin IS
   'Hash bcrypt do PIN de admin. Sem SELECT nem UPDATE para authenticated: lê-se por verify_admin_pin() e escreve-se por set_admin_pin(), ambas SECURITY DEFINER. Um GRANT de tabela em system_settings volta a abri-la.';
 
 -- ================================================================
--- BLOCO 58
+-- BLOCO 53
 -- 20260925091000_o_pin_de_admin_cansa_se_de_ser_adivinhado.sql
 -- ================================================================
 
@@ -7219,3 +7294,380 @@ GRANT  EXECUTE ON FUNCTION public.verify_admin_pin(text) TO authenticated;
 
 COMMENT ON FUNCTION public.verify_admin_pin(text) IS
   'Delega em verify_admin_pin_with_lockout(). Mantida com a assinatura booleana porque set_intouch_sync_enabled() a chama. Bloqueado e errado respondem ambos false.';
+
+-- ================================================================
+-- BLOCO 54
+-- 20260925133748_afff8d32-e1b1-4493-976b-f11a1e81c376.sql
+-- ================================================================
+
+create or replace function public.line_team_board(p_line_id uuid)
+returns table(
+  employee_name text,
+  status text,
+  is_leader boolean,
+  half_day boolean,
+  note text,
+  shift text,
+  on_date date
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_caller uuid := auth.uid();
+  v_line_name text;
+  v_area_id uuid;
+  v_now timestamp := now() at time zone 'Europe/London';
+  v_shift text;
+  v_date date;
+begin
+  if v_caller is null then
+    raise exception 'not authenticated';
+  end if;
+
+  -- An operator account may only read the team of a line its login is bound to.
+  -- Staff roles that already run the headcount board may read any line.
+  if not (
+    exists (
+      select 1 from public.operator_line_accounts ola
+      where ola.user_id = v_caller and p_line_id = any(ola.line_ids)
+    )
+    or public.has_any_role(v_caller, array['admin','manager','maintenance_manager','supervisor','planner','production_office_admin']::app_role[])
+  ) then
+    raise exception 'not allowed to read this line''s team';
+  end if;
+
+  select l.name into v_line_name from public.lines l where l.id = p_line_id;
+  if v_line_name is null then
+    raise exception 'unknown line';
+  end if;
+
+  -- The headcount board draws its columns from headcount_areas; the line and the
+  -- area share a name (Line 6 = Line 6). sheet_label is the spreadsheet spelling,
+  -- tried as a fallback so a renamed column still resolves.
+  select a.id into v_area_id
+  from public.headcount_areas a
+  where a.active
+    and (lower(a.name) = lower(v_line_name) or lower(coalesce(a.sheet_label,'')) = lower(v_line_name))
+  order by a.sort_order
+  limit 1;
+
+  -- Factory clock: Day runs 06:00-18:00 London; before 06:00 is still last
+  -- night's board, the same rule the rest of the system applies.
+  if v_now::time >= time '06:00' and v_now::time < time '18:00' then
+    v_shift := 'Day';
+    v_date := v_now::date;
+  elsif v_now::time >= time '18:00' then
+    v_shift := 'Night';
+    v_date := v_now::date;
+  else
+    v_shift := 'Night';
+    v_date := v_now::date - 1;
+  end if;
+
+  return query
+  select
+    e.full_name,
+    da.status,
+    coalesce(da.is_leader, false),
+    coalesce(da.half_day, false),
+    da.note,
+    da.shift,
+    da.on_date
+  from public.daily_allocations da
+  join public.employees e on e.id = da.employee_id
+  where da.on_date = v_date
+    and da.shift = v_shift
+    and da.area_id = v_area_id
+  order by coalesce(da.is_leader, false) desc, e.full_name;
+end;
+$$;
+
+revoke all on function public.line_team_board(uuid) from public;
+grant execute on function public.line_team_board(uuid) to authenticated;
+
+
+-- ================================================================
+-- BLOCO 55
+-- 20260925133810_9acd3f88-cbdf-4074-88df-e5741e37ff88.sql
+-- ================================================================
+
+revoke execute on function public.line_team_board(uuid) from public, anon;
+grant execute on function public.line_team_board(uuid) to authenticated;
+
+
+-- ================================================================
+-- BLOCO 56
+-- 20260926074139_f12a50a4-9d37-4e1a-a20e-125dd47882cc.sql
+-- ================================================================
+
+alter table public.daily_allocations
+  add column if not exists sheet_name text null,
+  add column if not exists sheet_start_time text null,
+  add column if not exists sheet_tag text null;
+
+drop function if exists public.line_team_board(uuid);
+
+create function public.line_team_board(p_line_id uuid)
+returns table(
+  employee_name text,
+  display_name text,
+  status text,
+  is_leader boolean,
+  half_day boolean,
+  note text,
+  shift text,
+  on_date date,
+  sheet_start_time text,
+  sheet_tag text,
+  area_name text,
+  area_sort integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_caller uuid := auth.uid();
+  v_line_name text;
+  v_area_ids uuid[];
+  v_now timestamp := now() at time zone 'Europe/London';
+  v_shift text;
+  v_date date;
+begin
+  if v_caller is null then
+    raise exception 'not authenticated';
+  end if;
+
+  if not (
+    exists (
+      select 1 from public.operator_line_accounts ola
+      where ola.user_id = v_caller and p_line_id = any(ola.line_ids)
+    )
+    or public.has_any_role(v_caller, array['admin','manager','maintenance_manager','supervisor','planner','production_office_admin']::app_role[])
+  ) then
+    raise exception 'not allowed to read this line''s team';
+  end if;
+
+  select l.name into v_line_name from public.lines l where l.id = p_line_id;
+  if v_line_name is null then
+    raise exception 'unknown line';
+  end if;
+
+  -- Areas linked to the line by FK; all of them (a line can have several columns).
+  select array_agg(a.id) into v_area_ids
+  from public.headcount_areas a
+  where a.active and a.line_id = p_line_id;
+
+  -- Fallback: no area carries line_id, match by name / sheet_label.
+  if v_area_ids is null then
+    select array_agg(a.id) into v_area_ids
+    from public.headcount_areas a
+    where a.active
+      and (lower(a.name) = lower(v_line_name)
+        or exists (
+          select 1 from unnest(string_to_array(coalesce(a.sheet_label,''), ',')) s
+          where lower(trim(s)) = lower(v_line_name)
+        ));
+  end if;
+
+  if v_now::time >= time '06:00' and v_now::time < time '18:00' then
+    v_shift := 'Day';  v_date := v_now::date;
+  elsif v_now::time >= time '18:00' then
+    v_shift := 'Night'; v_date := v_now::date;
+  else
+    v_shift := 'Night'; v_date := v_now::date - 1;
+  end if;
+
+  return query
+  select
+    e.full_name,
+    coalesce(da.sheet_name, e.full_name),
+    da.status,
+    coalesce(da.is_leader, false),
+    coalesce(da.half_day, false),
+    da.note,
+    da.shift,
+    da.on_date,
+    da.sheet_start_time,
+    da.sheet_tag,
+    a.name,
+    a.sort_order
+  from public.daily_allocations da
+  join public.employees e on e.id = da.employee_id
+  join public.headcount_areas a on a.id = da.area_id
+  where da.on_date = v_date
+    and da.shift = v_shift
+    and da.area_id = any(coalesce(v_area_ids, array[]::uuid[]))
+  order by a.sort_order, coalesce(da.is_leader, false) desc, coalesce(da.sheet_name, e.full_name);
+end;
+$$;
+
+revoke all on function public.line_team_board(uuid) from public, anon;
+grant execute on function public.line_team_board(uuid) to authenticated;
+
+
+-- ================================================================
+-- BLOCO 57
+-- 20260929122209_702cb5c3-bc21-43f2-beea-96f0ad050146.sql
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS public.admin_pin_attempts (
+  user_id uuid PRIMARY KEY,
+  failures integer NOT NULL DEFAULT 0,
+  lockout_step integer NOT NULL DEFAULT 0,
+  locked_until timestamptz,
+  last_attempt timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+GRANT ALL ON public.admin_pin_attempts TO service_role;
+ALTER TABLE public.admin_pin_attempts ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.verify_admin_pin_with_lockout(_pin text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  _uid uuid := auth.uid();
+  _now timestamptz := now();
+  _row public.admin_pin_attempts%ROWTYPE;
+  _ok boolean; _step integer; _wait integer;
+  _max_free constant integer := 5;
+  _ladder constant integer[] := ARRAY[30, 60, 120, 300];
+BEGIN
+  IF _uid IS NULL OR NOT public.has_role(_uid, 'admin'::app_role) THEN
+    RAISE EXCEPTION 'Forbidden: admin role required';
+  END IF;
+  SELECT * INTO _row FROM public.admin_pin_attempts WHERE user_id = _uid FOR UPDATE;
+  IF _row.locked_until IS NOT NULL AND _row.locked_until > _now THEN
+    RETURN jsonb_build_object('success', false, 'error', 'locked',
+      'locked_seconds', GREATEST(1, CEIL(EXTRACT(EPOCH FROM (_row.locked_until - _now)))::int), 'remaining', 0);
+  END IF;
+  SELECT EXISTS (SELECT 1 FROM public.system_settings WHERE admin_pin = extensions.crypt(_pin, admin_pin)) INTO _ok;
+  IF _ok THEN
+    DELETE FROM public.admin_pin_attempts WHERE user_id = _uid;
+    RETURN jsonb_build_object('success', true);
+  END IF;
+  INSERT INTO public.admin_pin_attempts (user_id, failures, lockout_step, last_attempt, updated_at)
+  VALUES (_uid, 1, 0, _now, _now)
+  ON CONFLICT (user_id) DO UPDATE SET failures = admin_pin_attempts.failures + 1, last_attempt = _now, updated_at = _now
+  RETURNING * INTO _row;
+  IF _row.failures > _max_free THEN
+    _step := LEAST(_row.failures - _max_free, array_length(_ladder, 1));
+    _wait := _ladder[_step];
+    UPDATE public.admin_pin_attempts SET locked_until = _now + make_interval(secs => _wait), lockout_step = _step WHERE user_id = _uid;
+    RETURN jsonb_build_object('success', false, 'error', 'locked', 'locked_seconds', _wait, 'remaining', 0);
+  END IF;
+  RETURN jsonb_build_object('success', false, 'error', 'invalid_pin', 'remaining', GREATEST(0, _max_free - _row.failures));
+END;
+$function$;
+
+REVOKE EXECUTE ON FUNCTION public.verify_admin_pin_with_lockout(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.verify_admin_pin_with_lockout(text) TO authenticated;
+
+
+-- ================================================================
+-- BLOCO 58
+-- 20260930062811_e5dc5147-de5f-4dde-b09a-96e55a1101d0.sql
+-- ================================================================
+
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS priority text CHECK (priority IN ('high','low'));
+
+
+-- ================================================================
+-- BLOCO 59
+-- 20260930064203_58f720b2-4b51-4199-97c4-0b46c9109667.sql
+-- ================================================================
+
+-- Set minimum replenishment alert for all belts to 2 units
+UPDATE public.products
+SET min_stock = 2
+WHERE lower(coalesce(name, '')) LIKE '%belt%'
+   OR lower(coalesce(code, '')) LIKE '%belt%';
+
+
+-- ================================================================
+-- BLOCO 60
+-- 20261001203000_pontualidade_tem_o_seu_proprio_alvo.sql
+-- ================================================================
+
+-- Pontualidade passa a ter o seu proprio alvo, ao lado da assiduidade.
+--
+-- O scorecard semanal ja guardava `leader_lateness_incidents` e
+-- `team_lateness_incidents`, mas contagens soltas: nada dizia quantos atrasos sao
+-- demais, por isso o numero aparecia e nao significava nada. A assiduidade tinha
+-- THR_AttendTarget desde o inicio; a pontualidade nao tinha par nenhum.
+--
+-- Uma contagem de atrasos nao se compara com um alvo sem denominador -- duas faltas
+-- de pontualidade em cinco entradas e outra coisa que duas em cinquenta -- por isso o
+-- que entra aqui e a FRACCAO de entradas sem atraso, espelhando exactamente
+-- leader_attendance_pct / team_attendance_pct: mesmo tipo, mesma escala, mesmo CHECK.
+-- As contagens ficam onde estao; medem o volume, estas medem a taxa.
+--
+-- Monitorado, NAO pontua, pela mesma razao que a assiduidade nao pontua -- e porque a
+-- fonte (daily_allocations.arrived_late_at) esta hoje com 1 registo em 6.640. Um alvo
+-- que pontuasse agora daria nota cheia a toda a gente por ninguem marcar nada, que e
+-- a leitura exactamente ao contrario da verdade.
+
+alter table leader_weekly_scorecard
+  add column if not exists leader_punctuality_pct numeric(5,4)
+    check (leader_punctuality_pct >= 0 and leader_punctuality_pct <= 1),
+  add column if not exists team_punctuality_pct numeric(5,4)
+    check (team_punctuality_pct >= 0 and team_punctuality_pct <= 1);
+
+comment on column leader_weekly_scorecard.leader_punctuality_pct is
+  'Fraccao das entradas do lider sem atraso na semana. Monitorado, NAO pontua -- par de leader_attendance_pct. Julgado contra THR_PunctualTarget.';
+comment on column leader_weekly_scorecard.team_punctuality_pct is
+  'Fraccao das entradas da equipa sem atraso na semana. Monitorado, NAO pontua -- par de team_attendance_pct.';
+
+-- O limiar, com vigencia como todos os outros. Alterar e fechar esta linha e abrir a
+-- seguinte, nunca um UPDATE do valor: isso reescreveria o julgamento de todas as
+-- semanas ja registadas.
+insert into leader_scorecard_threshold (name, value, pillar, valid_from, valid_to, note)
+select 'THR_PunctualTarget', 0.980, 'Monitorado', date '2000-01-01', null,
+       'Alvo de pontualidade: fraccao de entradas sem atraso. Monitorado, NAO pontua em nenhum RAG. Fonte: daily_allocations.arrived_late_at, hoje quase sempre vazio.'
+where not exists (
+  select 1 from leader_scorecard_threshold where name = 'THR_PunctualTarget' and valid_to is null
+);
+
+-- A view, alterada a partir da sua propria definicao em vez de reescrita por extenso.
+--
+-- Deliberado: uma copia da definicao inteira dentro de uma migracao congela um retrato
+-- de um objecto que continua a mudar, e a proxima migracao que o reescreva por extenso
+-- apaga em silencio o que esta tiver acrescentado. Assim a alteracao e cirurgica e
+-- ABORTA em vez de adivinhar, se a ancora que espera ja nao estiver la.
+--
+-- As colunas novas vao para o FIM da lista para que CREATE OR REPLACE chegue: trocar a
+-- ordem obrigaria a um DROP, e isso leva atras v_leader_weekly_scorecard_periods e os
+-- rollups todos.
+do $$
+declare d text; antes int;
+begin
+  d := pg_get_viewdef('v_leader_weekly_scorecard'::regclass, true);
+
+  antes := length(d);
+  d := replace(d,
+    'max(th.value) FILTER (WHERE th.name = ''THR_AttendTarget''::text) AS attend_target,',
+    'max(th.value) FILTER (WHERE th.name = ''THR_AttendTarget''::text) AS attend_target,
+            max(th.value) FILTER (WHERE th.name = ''THR_PunctualTarget''::text) AS punctual_target,');
+  if length(d) = antes then
+    raise exception 'v_leader_weekly_scorecard: nao encontrei THR_AttendTarget no lateral dos limiares';
+  end if;
+
+  antes := length(d);
+  d := replace(d,
+    '    s.volume_source' || chr(10) || '   FROM leader_weekly_scorecard s',
+    '    s.volume_source,
+    s.leader_punctuality_pct,
+    s.team_punctuality_pct,
+    s.leader_punctuality_pct IS NOT NULL AND s.leader_punctuality_pct < t.punctual_target AS leader_punctuality_below_target
+   FROM leader_weekly_scorecard s');
+  if length(d) = antes then
+    raise exception 'v_leader_weekly_scorecard: nao encontrei o fim da lista de colunas (s.volume_source)';
+  end if;
+
+  execute 'CREATE OR REPLACE VIEW v_leader_weekly_scorecard AS ' || d;
+end $$;
+
