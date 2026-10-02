@@ -50,6 +50,9 @@ vi.mock("@/integrations/supabase/client", () => {
       gte: () => chain,
       lte: () => chain,
       limit: () => chain,
+      order: () => chain,
+      // Paged reads: one page holds everything, so the second page is empty.
+      range: (from: number) => Promise.resolve(from === 0 ? result : { data: [], error: null }),
       maybeSingle: async () => ({ data: null, error: null }),
       upsert: (...args: unknown[]) => upsert(...(args as [])),
       then: (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) =>

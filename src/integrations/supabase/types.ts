@@ -2206,6 +2206,7 @@ export type Database = {
           leader_attendance_pct: number | null
           leader_id: string
           leader_lateness_incidents: number | null
+          leader_punctuality_pct: number | null
           line_id: string | null
           lost_time_injuries: number | null
           month_start: string | null
@@ -2224,6 +2225,7 @@ export type Database = {
           submitted_by: string | null
           team_attendance_pct: number | null
           team_lateness_incidents: number | null
+          team_punctuality_pct: number | null
           toolbox_talks_done: number | null
           unplanned_downtime_minutes: number | null
           updated_at: string
@@ -2262,6 +2264,7 @@ export type Database = {
           leader_attendance_pct?: number | null
           leader_id: string
           leader_lateness_incidents?: number | null
+          leader_punctuality_pct?: number | null
           line_id?: string | null
           lost_time_injuries?: number | null
           month_start?: string | null
@@ -2280,6 +2283,7 @@ export type Database = {
           submitted_by?: string | null
           team_attendance_pct?: number | null
           team_lateness_incidents?: number | null
+          team_punctuality_pct?: number | null
           toolbox_talks_done?: number | null
           unplanned_downtime_minutes?: number | null
           updated_at?: string
@@ -2318,6 +2322,7 @@ export type Database = {
           leader_attendance_pct?: number | null
           leader_id?: string
           leader_lateness_incidents?: number | null
+          leader_punctuality_pct?: number | null
           line_id?: string | null
           lost_time_injuries?: number | null
           month_start?: string | null
@@ -2336,6 +2341,7 @@ export type Database = {
           submitted_by?: string | null
           team_attendance_pct?: number | null
           team_lateness_incidents?: number | null
+          team_punctuality_pct?: number | null
           toolbox_talks_done?: number | null
           unplanned_downtime_minutes?: number | null
           updated_at?: string
@@ -7492,6 +7498,8 @@ export type Database = {
           leader_id: string | null
           leader_lateness_incidents: number | null
           leader_name: string | null
+          leader_punctuality_below_target: boolean | null
+          leader_punctuality_pct: number | null
           line_id: string | null
           line_name: string | null
           lost_time_injuries: number | null
@@ -7523,6 +7531,7 @@ export type Database = {
           submitted_by: string | null
           team_attendance_pct: number | null
           team_lateness_incidents: number | null
+          team_punctuality_pct: number | null
           toolbox_talks_done: number | null
           unplanned_downtime_minutes: number | null
           updated_at: string | null
