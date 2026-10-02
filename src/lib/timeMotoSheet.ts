@@ -267,3 +267,67 @@ export function matchNames(
   }
   return { matched, unmatched };
 }
+
+/** A row of the clock import, after the sheet names have been resolved to people. */
+export interface ClockRow {
+  employee_id: string;
+  on_date: string;
+  worked_minutes: number | null;
+  balance_minutes: number | null;
+  scheduled_minutes: number | null;
+  overtime_adj_minutes: number | null;
+  start_time: string | null;
+  end_time: string | null;
+  absence_name: string | null;
+  remarks: string | null;
+  source: string;
+}
+
+/**
+ * One row per person per day, however many times the sheet named them.
+ *
+ * The sheet is matched by NAME and the match is a `Map<name, employeeId>`, so nothing
+ * stopped two spellings of one person — "J. Silva" and "Joao Silva" — resolving to the
+ * same id. Two rows for the same `(employee_id, on_date)` then reached an upsert keyed
+ * on exactly that pair, and Postgres refused the whole import with "ON CONFLICT DO
+ * UPDATE command cannot affect row a second time". The import failed entirely, and the
+ * message named nobody.
+ *
+ * The minutes are SUMMED, because two entries for one person on one day is what a
+ * split shift looks like coming out of this sheet — someone who clocked out for an
+ * appointment and back in. Dropping the second would quietly shorten their day.
+ *
+ * The times are the outer edges: earliest in, latest out. The texts join, so whatever
+ * the office wrote on either entry survives.
+ */
+export function mergeClockRowsPerDay(rows: ReadonlyArray<ClockRow>): ClockRow[] {
+  const by = new Map<string, ClockRow>();
+  const addMins = (a: number | null, b: number | null) =>
+    a === null && b === null ? null : (a ?? 0) + (b ?? 0);
+  const joinText = (a: string | null, b: string | null) => {
+    const parts = [a, b].map((v) => (v ?? "").trim()).filter(Boolean);
+    const unique = [...new Set(parts)];
+    return unique.length ? unique.join(" · ") : null;
+  };
+
+  for (const r of rows) {
+    const key = `${r.employee_id}|${r.on_date}`;
+    const cur = by.get(key);
+    if (!cur) { by.set(key, { ...r }); continue; }
+    by.set(key, {
+      ...cur,
+      worked_minutes: addMins(cur.worked_minutes, r.worked_minutes),
+      balance_minutes: addMins(cur.balance_minutes, r.balance_minutes),
+      overtime_adj_minutes: addMins(cur.overtime_adj_minutes, r.overtime_adj_minutes),
+      // NOT summed: what the contract said the day should be is a property of the day,
+      // not of how many times somebody passed the door. Doubling it would turn a split
+      // shift into a day owed twice over.
+      scheduled_minutes: cur.scheduled_minutes ?? r.scheduled_minutes,
+      start_time: [cur.start_time, r.start_time].filter(Boolean).sort()[0] ?? null,
+      end_time: [cur.end_time, r.end_time].filter(Boolean).sort().slice(-1)[0] ?? null,
+      absence_name: joinText(cur.absence_name, r.absence_name),
+      remarks: joinText(cur.remarks, r.remarks),
+    });
+  }
+  return [...by.values()];
+}

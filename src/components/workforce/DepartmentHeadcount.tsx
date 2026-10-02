@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -105,8 +106,40 @@ export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; 
                           value={draft[r.id] ?? String(r.budget)}
                           onChange={(e) => setDraft((d) => ({ ...d, [r.id]: e.target.value }))}
                           onBlur={(e) => {
-                            const n = Math.max(0, Number(e.target.value) || 0);
-                            if (n !== r.budget) setBudget.mutate({ id: r.id, budget: n });
+                            const typed = e.target.value.trim();
+                            // An empty box is not a budget of nought. `Number("") || 0`
+                            // made the two the same, so clearing the field to retype it
+                            // wrote 0 — which renders as "no budget set", so the write
+                            // looked like the field had simply gone back to empty. The
+                            // draft is dropped so the box shows what is actually saved.
+                            if (typed === "") {
+                              setDraft((d) => { const { [r.id]: _drop, ...rest } = d; return rest; });
+                              return;
+                            }
+                            const parsed = Number(typed);
+                            if (!Number.isFinite(parsed) || parsed < 0) {
+                              setDraft((d) => { const { [r.id]: _drop, ...rest } = d; return rest; });
+                              toast.error(`"${typed}" is not a headcount. The budget for ${r.name} is unchanged.`);
+                              return;
+                            }
+                            const n = Math.round(parsed);
+                            if (n === r.budget) {
+                              setDraft((d) => { const { [r.id]: _drop, ...rest } = d; return rest; });
+                              return;
+                            }
+                            setBudget.mutate(
+                              { id: r.id, budget: n },
+                              {
+                                // Without this the box kept the number the save never
+                                // made, and the screen agreed with the typing instead
+                                // of with the database.
+                                onSuccess: () => setDraft((d) => { const { [r.id]: _drop, ...rest } = d; return rest; }),
+                                onError: (err: unknown) => {
+                                  setDraft((d) => { const { [r.id]: _drop, ...rest } = d; return rest; });
+                                  toast.error(`The budget for ${r.name} was not saved: ${err instanceof Error ? err.message : "unknown error"}`);
+                                },
+                              },
+                            );
                           }}
                           className="ml-auto h-8 w-20 text-right font-mono text-xs"
                         />

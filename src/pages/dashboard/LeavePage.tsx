@@ -24,7 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarDays, Check, X, Plus, Loader2 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf, countSpells } from "@/lib/leaveDays";
+import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf, countSpells, leaveRangeProblem, leaveSpellsInWindow } from "@/lib/leaveDays";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import { boardShiftForPerson } from "@/lib/boardForPerson";
 
@@ -229,6 +229,7 @@ export default function LeavePage() {
     () => (employeeId && start && end ? leaveDays(start, end, patternOf(employeeId)) : null),
     [employeeId, start, end, patterns, roster],
   );
+  const rangeProblem = useMemo(() => leaveRangeProblem(start, end, draft), [start, end, draft]);
 
   // Entitlement is per shift pattern, in working days of that pattern — 22.5 for
   // Mon–Thu, 21.5 for Tue–Fri. A flat 28 for everybody would hand the Tue–Fri crew a
@@ -315,14 +316,21 @@ export default function LeavePage() {
   }, [patterns, roster, holidayDays, today]);
 
   /** Approved leave running now or starting within a fortnight. */
+  /**
+   * From the days on the record, like every other number on this screen.
+   *
+   * This panel was the last thing here still reading `leave_requests`, and it is the
+   * split the KPIs below were moved off: 7 requests on file against 169 holiday days,
+   * because nearly every day off in this factory is marked straight onto the board and
+   * raises no request at all. The panel showed almost nobody while the table under it
+   * showed everybody, on one screen, about the same fortnight.
+   */
   const whosOff = useMemo(() => {
     const horizon = new Date(`${today}T00:00:00Z`);
     horizon.setUTCDate(horizon.getUTCDate() + 14);
     const until = horizon.toISOString().slice(0, 10);
-    return requests
-      .filter((r) => r.status === "approved" && r.end_date >= today && r.start_date <= until)
-      .sort((a, b) => a.start_date.localeCompare(b.start_date));
-  }, [requests, today]);
+    return leaveSpellsInWindow([...holidayDays, ...otherDays], today, until);
+  }, [holidayDays, otherDays, today]);
 
   /**
    * Counted from the days on the record, not from the requests behind them.
@@ -428,8 +436,31 @@ export default function LeavePage() {
    * So the form writes the booking and the two records in one go. Nothing is created
    * pending any more.
    */
+  /**
+   * Everything a booking moves, in one place.
+   *
+   * `create()` listed five keys and `decide()` listed two, while both write the same
+   * two tables. Approving or cancelling a request therefore left the balances and the
+   * day counts on screen exactly as they were — the numbers a person is about to act
+   * on, stale, with nothing to say so. Two lists of the same thing is how they came to
+   * disagree; there is one now.
+   */
+  const refreshLeaveViews = () => {
+    for (const key of [
+      "leave-requests", "leave-holiday-days", "leave-sick-unpaid-days",
+      "leave-board-only", "headcount-allocations",
+    ]) {
+      qc.invalidateQueries({ queryKey: [key] });
+    }
+  };
+
   const create = async () => {
-    if (!employeeId || !start || !end || !draft) return;
+    if (!employeeId) return;
+    // Checked here and not only on the button, because this is where the row is
+    // written. A range nobody can take used to insert an APPROVED request, write
+    // nothing to the board, and report "Booked and written to the board".
+    const problem = leaveRangeProblem(start, end, draft);
+    if (problem) { toast.error(problem); return; }
     setBusy(true);
     try {
       const { data, error } = await (supabase as any).from("leave_requests").insert({
@@ -453,11 +484,7 @@ export default function LeavePage() {
 
       toast.success("Booked and written to the board");
       setShowNew(false); setEmployeeId(""); setStart(""); setEnd(""); setNote("");
-      qc.invalidateQueries({ queryKey: ["leave-requests"] });
-      qc.invalidateQueries({ queryKey: ["leave-holiday-days"] });
-      qc.invalidateQueries({ queryKey: ["leave-sick-unpaid-days"] });
-      qc.invalidateQueries({ queryKey: ["leave-board-only"] });
-      qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+      refreshLeaveViews();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -472,8 +499,7 @@ export default function LeavePage() {
         .eq("id", r.id);
       if (error) throw error;
       toast.success(approve ? "Approved and written to the board" : "Rejected");
-      qc.invalidateQueries({ queryKey: ["leave-requests"] });
-      qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+      refreshLeaveViews();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };
 
@@ -564,7 +590,13 @@ export default function LeavePage() {
                     {describeLeaveDays(draft)} · {draft.calendarDays} calendar day{draft.calendarDays === 1 ? "" : "s"}
                   </p>
                 )}
-                <Button onClick={create} disabled={busy || !employeeId || !start || !end}>
+                {/* The reason is on screen before the press, not in a toast after
+                    it: the commonest of these is a year typed wrong, and a disabled
+                    button that does not say why reads as the app being broken. */}
+                {rangeProblem && employeeId && start && end && (
+                  <p className="text-2xs text-destructive">{rangeProblem}</p>
+                )}
+                <Button onClick={create} disabled={busy || !employeeId || !!rangeProblem}>
                   {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Book leave
                 </Button>
               </div>
@@ -758,7 +790,7 @@ export default function LeavePage() {
             <Card>
               <CardContent className="divide-y p-0">
                 {whosOff.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2.5 px-3 py-2 text-xs">
+                  <div key={`${r.employee_id}|${r.kind}|${r.start_date}`} className="flex items-center gap-2.5 px-3 py-2 text-xs">
                     <span className={`h-2 w-2 shrink-0 rounded-full ${
                       r.kind === "sick" ? "bg-destructive" : r.kind === "unpaid" ? "bg-warning" : "bg-primary"}`} />
                     <span className="font-medium">{person.get(r.employee_id)?.full_name ?? "Unknown"}</span>

@@ -27,7 +27,7 @@ import { currentShift } from "@/lib/operationalShift";
 import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { ClockReconciliation } from "@/components/workforce/ClockReconciliation";
-import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/timeMotoSheet";
+import { parseTimeMotoWorkbook, matchNames, mergeClockRowsPerDay, type TimeMotoParse } from "@/lib/timeMotoSheet";
 import { splitAbsences } from "@/lib/absenceKind";
 
 
@@ -259,7 +259,12 @@ export default function AttendancePage() {
     setBusy(true);
     try {
       const idOf = new Map(match.matched.map((m) => [m.name, m.employeeId]));
-      const rows = preview.rows
+      // Merged per person per day before it goes anywhere near the upsert: two
+      // spellings of one name both resolve here, and the upsert is keyed on
+      // (on_date, employee_id) — two rows for one pair and Postgres refuses the whole
+      // import. See mergeClockRowsPerDay for why the minutes add up rather than one
+      // winning.
+      const rows = mergeClockRowsPerDay(preview.rows
         .filter((r) => idOf.has(r.name))
         .map((r) => ({
           employee_id: idOf.get(r.name)!,
@@ -276,7 +281,7 @@ export default function AttendancePage() {
           overtime_adj_minutes: r.overtimeAdjMinutes,
           remarks: r.remarks,
           source: "timemoto",
-        }));
+        })));
       if (rows.length === 0) { toast.error("Nothing to import — no name in the file is settled on somebody"); return; }
       const { error } = await (supabase as any)
         .from("attendance_days")
@@ -286,7 +291,11 @@ export default function AttendancePage() {
       // then failed to write does not come back pre-approved next week.
       writeAssigned(assigned);
       toast.success(`Imported ${rows.length} day${rows.length === 1 ? "" : "s"}`);
-      if (preview.from) setFrom(preview.from);
+      // Marked as chosen: the default-period query writes `from`/`to` from a
+      // `periodTouched` it captured in its own closure, and without this the next
+      // refetch-on-focus jumped the range back to the current payroll period —
+      // silently, right after an import of a different one.
+      if (preview.from) { setPeriodTouched(true); setFrom(preview.from); }
       if (preview.to) setTo(preview.to);
       qc.invalidateQueries({ queryKey: ["attendance-days"] });
       setPreview(null);

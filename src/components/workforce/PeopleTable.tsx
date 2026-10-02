@@ -108,21 +108,39 @@ export function PeopleTable({
     });
   }, [people, q, dept, shift, status, type]);
 
+  /** Sorts after every real string, so a gap is never the answer to a sort. */
+  const MISSING = "\uFFFF";
+
   const sorted = useMemo(() => {
     const val = (p: PersonRow): string => {
       switch (sort) {
-        case "employee_ref": return p.employee_ref ?? "￿";
-        case "department": return p.department ?? "￿";
-        case "shift_group": return p.shift_group ?? "￿";
-        case "position": return p.position ?? "￿";
+        case "employee_ref": return p.employee_ref ?? MISSING;
+        case "department": return p.department ?? MISSING;
+        case "shift_group": return p.shift_group ?? MISSING;
+        case "position": return p.position ?? MISSING;
         case "manager": return managerName(p.manager_id);
-        case "started_on": return p.started_on ?? "￿";
+        case "started_on": return p.started_on ?? MISSING;
         case "status": return statusOf(p).label;
         default: return p.full_name;
       }
     };
-    const s = [...filtered].sort((a, b) => val(a).localeCompare(val(b), undefined, { numeric: true }));
-    return dir === "asc" ? s : s.reverse();
+    // Sorted in the direction asked for, rather than sorted one way and flipped.
+    //
+    // A missing value is "￿" above, which is U+FFFF and sorts after every real string
+    // — so ascending puts the blanks at the bottom, which is what anybody wants.
+    // Reversing that list put them all at the TOP of descending: sorting by Department
+    // the other way opened with every person who has no department, which is the one
+    // thing nobody is looking for. The blanks stay last both ways, so the direction
+    // changes the order of the ANSWERS and not where the gaps live.
+    const sign = dir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const x = val(a);
+      const y = val(b);
+      const xMissing = x === MISSING;
+      const yMissing = y === MISSING;
+      if (xMissing !== yMissing) return xMissing ? 1 : -1;
+      return sign * x.localeCompare(y, undefined, { numeric: true });
+    });
   }, [filtered, sort, dir, managerName]);
 
   const pages = Math.max(1, Math.ceil(sorted.length / size));
