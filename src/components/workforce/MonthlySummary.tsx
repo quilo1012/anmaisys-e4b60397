@@ -1,3 +1,4 @@
+import { currentShift } from "@/lib/operationalShift";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ interface Props {
  * memory is how the wrong fortnight gets reported.
  */
 export function MonthlySummary({ employees }: Props) {
-  const opening = useMemo(() => monthBounds(new Date()), []);
+  const opening = useMemo(() => monthBounds(new Date(`${currentShift().operationalDate}T12:00:00`)), []);
   const [from, setFrom] = useState(opening.from);
   const [to, setTo] = useState(opening.to);
   const { data: periods } = useOvertimePeriods();

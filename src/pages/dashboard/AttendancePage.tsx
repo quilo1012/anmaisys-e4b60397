@@ -28,7 +28,6 @@ import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/timeMotoSheet";
 import { splitAbsences } from "@/lib/absenceKind";
 
-const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /** `13/07/2026`. The factory reads dates day-first, and a printed sheet is read here. */
 const fmtDate = (d: string) => (d ? d.split("-").reverse().join("/") : "—");

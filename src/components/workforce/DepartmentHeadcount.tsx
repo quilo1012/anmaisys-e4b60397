@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronRight } from "lucide-react";
+import { currentShift } from "@/lib/operationalShift";
 import { cn } from "@/lib/utils";
 import { useAllocatedByDepartment, useDepartments, useSetDepartmentBudget, worksOn } from "@/hooks/useWorkforce";
 import type { PersonRow } from "./PeopleTable";
@@ -20,8 +21,10 @@ import type { PersonRow } from "./PeopleTable";
  */
 export function DepartmentHeadcount({ people, canEdit }: { people: PersonRow[]; canEdit: boolean }) {
   const { data: departments = [] } = useDepartments();
-  const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  // The operational date: at half past midnight the night crew is still on yesterday.
+  // Memoised on the key so the per-department filter does not re-run on every render.
+  const todayKey = currentShift().operationalDate;
+  const today = useMemo(() => new Date(`${todayKey}T12:00:00`), [todayKey]);
   const { data: allocated = {} } = useAllocatedByDepartment(todayKey);
   const setBudget = useSetDepartmentBudget();
   const [open, setOpen] = useState(false);
