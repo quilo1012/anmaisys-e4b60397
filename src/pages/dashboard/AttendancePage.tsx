@@ -26,6 +26,7 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { currentShift } from "@/lib/operationalShift";
 import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
+import { ClockReconciliation } from "@/components/workforce/ClockReconciliation";
 import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/timeMotoSheet";
 import { splitAbsences } from "@/lib/absenceKind";
 
@@ -368,6 +369,11 @@ export default function AttendancePage() {
           <TabsList className="no-print">
             <TabsTrigger value="clocks">Clocks (TimeMoto)</TabsTrigger>
             <TabsTrigger value="marks">Board marks</TabsTrigger>
+            {/* The third tab is where the two above are put side by side. It belongs
+                here and not on the board: this is the screen that already holds both
+                records, and the comparison is a reading of them rather than a third
+                record of its own. */}
+            <TabsTrigger value="compare">Board vs clock</TabsTrigger>
           </TabsList>
 
           <TabsContent value="clocks" className="space-y-4">
@@ -522,6 +528,12 @@ export default function AttendancePage() {
                 — the statuses marked on the headcount board — which no other screen
                 shows month by month. */}
             <MonthlySummary employees={allEmployees ?? []} />
+          </TabsContent>
+
+          <TabsContent value="compare">
+            {/* Shares the period pickers with the Clocks tab, so moving between the
+                two does not silently change the days being talked about. */}
+            <ClockReconciliation from={from} to={to} nameById={nameById} />
           </TabsContent>
         </Tabs>
 

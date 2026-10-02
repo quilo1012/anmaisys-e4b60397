@@ -76,3 +76,69 @@ export function boardClockTitle(v: BoardClockVerdict): string {
       return `${v.differs} of ${v.compared} comparable ${v.compared === 1 ? "person" : "people"} disagree between the board and the clock — either planned and did not clock, or clocked and are not on the board.`;
   }
 }
+
+/**
+ * The three ways a board and the clock can fail to line up, and what each one means.
+ *
+ * Two of them are disagreements and the third is not, which is the whole reason the
+ * third exists. `not_comparable` is somebody on the board the clock has never seen —
+ * 113 of 211 active people, and 62 of the 64 on the night crew. Counting them as
+ * disagreements would accuse somebody of missing work on the strength of a row that
+ * was never written; leaving them out entirely would let "zero disagreements" on the
+ * night board read as "the board was right", when it means there was nobody to check.
+ *
+ * So they are shown, and kept out of the count. The two that ARE counted sum exactly
+ * to `v_board_clock_status.differs` — verified across all 123 (date, board) pairs,
+ * 712 against 712 — because a detail screen that disagrees with the badge above it is
+ * the failure this module has already made twice.
+ */
+export type ReconciliationKind = "planned_not_clocked" | "clocked_not_planned" | "not_comparable";
+
+export interface ReconciliationKindMeta {
+  kind: ReconciliationKind;
+  label: string;
+  /** One sentence, for the reader who is about to ask somebody about it. */
+  meaning: string;
+  /** False for the kind that is context rather than a finding. */
+  counts: boolean;
+}
+
+export const RECONCILIATION_KINDS: ReconciliationKindMeta[] = [
+  {
+    kind: "planned_not_clocked",
+    label: "Planned, not clocked",
+    meaning: "On the board for the day, known to the clock, and no hours recorded against them.",
+    counts: true,
+  },
+  {
+    kind: "clocked_not_planned",
+    label: "Clocked, not planned",
+    meaning: "Hours recorded on a day this board does not have them on it.",
+    counts: true,
+  },
+  {
+    kind: "not_comparable",
+    label: "No clock record at all",
+    meaning:
+      "On the board, and the clock has never seen this person on any day. Not a disagreement — there is nothing to compare, and it is why a board can show no disagreements without having been checked.",
+    counts: false,
+  },
+];
+
+export function reconciliationMeta(kind: string): ReconciliationKindMeta | null {
+  return RECONCILIATION_KINDS.find((k) => k.kind === kind) ?? null;
+}
+
+/** Counts per kind, and the total that is actually a disagreement. */
+export function summariseReconciliation(rows: ReadonlyArray<{ kind: string }>) {
+  const byKind = new Map<string, number>();
+  for (const r of rows) byKind.set(r.kind, (byKind.get(r.kind) ?? 0) + 1);
+  const count = (k: ReconciliationKind) => byKind.get(k) ?? 0;
+  return {
+    plannedNotClocked: count("planned_not_clocked"),
+    clockedNotPlanned: count("clocked_not_planned"),
+    notComparable: count("not_comparable"),
+    /** What the badge would show for the same period. `not_comparable` is NOT in it. */
+    disagreements: count("planned_not_clocked") + count("clocked_not_planned"),
+  };
+}

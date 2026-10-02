@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  boardClockLabel, boardClockTitle, boardClockVerdict, type BoardClockRow,
+  boardClockLabel, boardClockTitle, boardClockVerdict, reconciliationMeta,
+  summariseReconciliation, RECONCILIATION_KINDS, type BoardClockRow,
 } from "@/lib/boardClockStatus";
 
 const row = (p: Partial<BoardClockRow>): BoardClockRow => ({
@@ -84,5 +85,62 @@ describe("boardClockVerdict", () => {
       expect(boardClockLabel(v).length).toBeGreaterThan(0);
       expect(boardClockTitle(v).length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("summariseReconciliation", () => {
+  const rows = [
+    { kind: "planned_not_clocked" }, { kind: "planned_not_clocked" },
+    { kind: "clocked_not_planned" },
+    { kind: "not_comparable" }, { kind: "not_comparable" }, { kind: "not_comparable" },
+  ];
+
+  /**
+   * The invariant the whole screen rests on: the detail must add up to the number the
+   * day badge shows, or the two disagree about the same day — which this module has
+   * already got wrong twice. `not_comparable` is deliberately outside the sum.
+   */
+  it("counts only the two kinds that are actually disagreements", () => {
+    const t = summariseReconciliation(rows);
+    expect(t.disagreements).toBe(3);
+    expect(t.plannedNotClocked).toBe(2);
+    expect(t.clockedNotPlanned).toBe(1);
+    expect(t.notComparable).toBe(3);
+  });
+
+  /**
+   * Somebody the clock has never seen is not somebody who missed work. 113 of the 211
+   * active people are in this state, and 62 of the 64 on nights — counting them would
+   * accuse the whole night crew of absence on the strength of rows nobody ever wrote.
+   */
+  it("never lets a missing clock record become a disagreement", () => {
+    expect(summariseReconciliation([{ kind: "not_comparable" }]).disagreements).toBe(0);
+  });
+
+  it("has nothing to report about an empty period", () => {
+    expect(summariseReconciliation([])).toEqual({
+      plannedNotClocked: 0, clockedNotPlanned: 0, notComparable: 0, disagreements: 0,
+    });
+  });
+
+  it("ignores a kind it does not know rather than counting it", () => {
+    // A kind added to the view and not here must not quietly inflate the total the
+    // badge is checked against.
+    expect(summariseReconciliation([{ kind: "something_new" }]).disagreements).toBe(0);
+  });
+
+  it("gives every kind a label and a meaning, and marks which ones count", () => {
+    expect(RECONCILIATION_KINDS).toHaveLength(3);
+    for (const k of RECONCILIATION_KINDS) {
+      expect(reconciliationMeta(k.kind)).toEqual(k);
+      expect(k.label.length).toBeGreaterThan(0);
+      expect(k.meaning.length).toBeGreaterThan(0);
+    }
+    expect(RECONCILIATION_KINDS.filter((k) => k.counts).map((k) => k.kind))
+      .toEqual(["planned_not_clocked", "clocked_not_planned"]);
+  });
+
+  it("says nothing about a kind that does not exist", () => {
+    expect(reconciliationMeta("nope")).toBeNull();
   });
 });
