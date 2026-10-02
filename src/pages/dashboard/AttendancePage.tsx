@@ -22,6 +22,9 @@ import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
 import { MonthlySummary } from "@/components/workforce/MonthlySummary";
 import { useEmployees } from "@/hooks/useWorkforce";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import { currentShift } from "@/lib/operationalShift";
+import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/timeMotoSheet";
 import { splitAbsences } from "@/lib/absenceKind";
 
@@ -78,10 +81,11 @@ export default function AttendancePage() {
   const { can } = useRole();
   const canManage = can("workforce.manage");
 
-  const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const [from, setFrom] = useState(iso(monthStart));
-  const [to, setTo] = useState(iso(today));
+  // The operational date, not the calendar's: at half past midnight the night crew is
+  // still on yesterday, and on 1 January at 02:00 the TimeMoto year would be wrong.
+  const todayKey = currentShift().operationalDate;
+  const [from, setFrom] = useState(`${todayKey.slice(0, 7)}-01`);
+  const [to, setTo] = useState(todayKey);
   const [periodTouched, setPeriodTouched] = useState(false);
 
   /**
@@ -95,7 +99,7 @@ export default function AttendancePage() {
   useQuery({
     queryKey: ["attendance-default-period"],
     queryFn: async () => {
-      const d = iso(new Date());
+      const d = currentShift().operationalDate;
       const { data } = await (supabase as any)
         .from("workforce_payroll_periods")
         .select("start_date, end_date")
@@ -131,7 +135,7 @@ export default function AttendancePage() {
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const { data: roster = [] } = useQuery({
+  const { data: roster = [], isError: rosterErr, refetch: refetchRoster } = useQuery({
     queryKey: ["attendance-roster"],
     queryFn: async () => {
       const { data, error } = await supabase.from("employees").select("id, full_name, department").eq("active", true);
@@ -140,15 +144,19 @@ export default function AttendancePage() {
     },
   });
 
-  const { data: days = [], isLoading } = useQuery({
+  const { data: days = [], isLoading, isError: daysErr, refetch: refetchDays } = useQuery({
     queryKey: ["attendance-days", from, to],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("attendance_days")
-        .select("employee_id, on_date, worked_minutes, balance_minutes, absence_name")
-        .gte("on_date", from).lte("on_date", to);
-      if (error) throw error;
-      return (data ?? []) as { employee_id: string; on_date: string; worked_minutes: number | null; balance_minutes: number | null; absence_name: string | null }[];
+      // Paged: one row per person per day clears a thousand rows inside a fortnight,
+      // and the totals below go onto the printed payroll sheet.
+      return await fetchAllRows<{ employee_id: string; on_date: string; worked_minutes: number | null; balance_minutes: number | null; absence_name: string | null }>({
+        range: (a, b) => (supabase as any)
+          .from("attendance_days")
+          .select("employee_id, on_date, worked_minutes, balance_minutes, absence_name")
+          .gte("on_date", from).lte("on_date", to)
+          .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+          .range(a, b),
+      });
     },
   });
 
@@ -229,10 +237,13 @@ export default function AttendancePage() {
   }, [preview, match.unmatched, assigned]);
 
   const readFile = async (file: File) => {
+    // Without the roster every name would read as unknown and the import would block
+    // for a reason that is not in the file.
+    if (rosterErr) { toast.error("The employee list could not be read, so the file cannot be matched. Try again."); return; }
     setBusy(true);
     try {
       const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      const parsed = parseTimeMotoWorkbook(wb, today.getFullYear());
+      const parsed = parseTimeMotoWorkbook(wb, Number(currentShift().operationalDate.slice(0, 4)));
       setAssigned(readAssigned());
       setPreview(parsed);
     } catch (e) {
@@ -362,6 +373,10 @@ export default function AttendancePage() {
           <div><Label className="text-xs">To</Label><DateField aria-label="To" value={to} min={from} onChange={(v) => { setPeriodTouched(true); setTo(v); }} className="mt-1 h-8 w-40" /></div>
         </div>
 
+        {rosterErr || daysErr ? (
+          <ReadFailed what="The attendance record" onRetry={() => { refetchRoster(); refetchDays(); }} />
+        ) : (
+        <>
         {/* Hours worked leads: this screen exists to say what the clocks recorded, and
             the other three are how to read that number. */}
         <FigureRow>
@@ -483,6 +498,8 @@ export default function AttendancePage() {
             )}
           </CardContent>
         </Card>
+        </>
+        )}
 
         {/* Do lado das horas, e não da página: fala do que este separador é e de como
             se importa para ele. Na folha das marcas do quadro dizia a uma sala que

@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { currentShift } from "@/lib/operationalShift";
+import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
@@ -71,7 +73,7 @@ export default function LeavePage() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const { data: roster = [] } = useQuery({
+  const { data: roster = [], isError: rosterErr, isLoading: rosterLoading, refetch: refetchRoster } = useQuery({
     queryKey: ["leave-roster"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -83,7 +85,7 @@ export default function LeavePage() {
     },
   });
 
-  const { data: patterns = [] } = useQuery({
+  const { data: patterns = [], isError: patternsErr, isLoading: patternsLoading, refetch: refetchPatterns } = useQuery({
     queryKey: ["leave-patterns"],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
@@ -131,13 +133,15 @@ export default function LeavePage() {
     }
   };
 
-  const { data: requests = [], isLoading } = useQuery({
+  const { data: requests = [], isLoading, isError: requestsErr, refetch: refetchRequests } = useQuery({
     queryKey: ["leave-requests"],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("leave_requests").select("*").order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Req[];
+      return await fetchAllRows<Req>({
+        range: (a, b) => (supabase as any)
+          .from("leave_requests").select("*")
+          .order("created_at", { ascending: true }).order("id", { ascending: true })
+          .range(a, b),
+      });
     },
   });
 
@@ -156,7 +160,7 @@ export default function LeavePage() {
    * this screen say 3 where the close said 4, because a day marked on the board has
    * no request behind it. One source, one number.
    */
-  const { data: holidayDays = [] } = useQuery({
+  const { data: holidayDays = [], isError: holidayErr, isLoading: holidayLoading, refetch: refetchHoliday } = useQuery({
     queryKey: ["leave-holiday-days"],
     queryFn: async () => {
       // Paged, not capped. A hand-set ceiling is the same failure as PostgREST's own:
@@ -181,7 +185,7 @@ export default function LeavePage() {
    * finance close both said otherwise. One source, one number — the same reason the
    * holiday balance stopped reading requests.
    */
-  const { data: otherDays = [] } = useQuery({
+  const { data: otherDays = [], isError: otherErr, isLoading: otherLoading, refetch: refetchOther } = useQuery({
     queryKey: ["leave-sick-unpaid-days"],
     queryFn: async () => {
       return await fetchAllRows<{ employee_id: string; on_date: string; status: string }>({
@@ -195,7 +199,7 @@ export default function LeavePage() {
     },
   });
 
-  const { data: boardOnly = [] } = useQuery({
+  const { data: boardOnly = [], isError: boardErr, isLoading: boardLoading, refetch: refetchBoard } = useQuery({
     queryKey: ["leave-board-only"],
     queryFn: async () => {
       // This sat at 197 rows against a ceiling of 200. Three more days marked off on
@@ -228,8 +232,15 @@ export default function LeavePage() {
   // Entitlement is per shift pattern, in working days of that pattern — 22.5 for
   // Mon–Thu, 21.5 for Tue–Fri. A flat 28 for everybody would hand the Tue–Fri crew a
   // day they do not have, and short the others.
-  const today = new Date().toISOString().slice(0, 10);
+  // The operational date, not the calendar's: at half past midnight the night crew is
+  // still on yesterday.
+  const today = currentShift().operationalDate;
   const year = leaveYearOf(today);
+  const readFailed = rosterErr || patternsErr || requestsErr || holidayErr || otherErr || boardErr;
+  const reading = isLoading || rosterLoading || patternsLoading || holidayLoading || otherLoading || boardLoading;
+  const retryAll = () => {
+    refetchRoster(); refetchPatterns(); refetchRequests(); refetchHoliday(); refetchOther(); refetchBoard();
+  };
   const balances = useMemo(() => {
     return roster
       .map((e) => {
@@ -560,6 +571,12 @@ export default function LeavePage() {
           </Card>
         )}
 
+        {readFailed ? (
+          <ReadFailed what="The leave record" onRetry={retryAll} />
+        ) : reading ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
+        ) : (
+        <>
         {/* Booked ahead leads: it is the commitment nobody can take back, and the one
             figure that decides whether next month's board can be planned. */}
         <FigureRow>
@@ -926,6 +943,8 @@ export default function LeavePage() {
               </CardContent>
             </Card>
           </div>
+        )}
+        </>
         )}
 
         <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">

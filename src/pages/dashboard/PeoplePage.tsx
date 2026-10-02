@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddEmployeeDialog } from "@/components/workforce/AddEmployeeDialog";
 import { DepartmentHeadcount } from "@/components/workforce/DepartmentHeadcount";
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
+import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { PeopleTable } from "@/components/workforce/PeopleTable";
 import { useEmployees, useShiftPatterns } from "@/hooks/useWorkforce";
 import { useRole } from "@/hooks/useRole";
@@ -35,8 +36,8 @@ const SHIFT_BADGE: Record<string, string> = {
  * date corrected, and the board, Leave and Finance Close all read what is set here.
  */
 export default function PeoplePage() {
-  const { data: employees, isLoading } = useEmployees();
-  const { data: patterns } = useShiftPatterns();
+  const { data: employees, isLoading, isError: employeesErr, refetch: refetchEmployees } = useEmployees();
+  const { data: patterns, isError: patternsErr, isLoading: patternsLoading, refetch: refetchPatterns } = useShiftPatterns();
   const { can } = useRole();
   const canEdit = can("workforce.manage");
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -83,7 +84,9 @@ export default function PeoplePage() {
           </TabsList>
 
           <TabsContent value="people" className="space-y-4">
-            {isLoading ? (
+            {employeesErr || patternsErr ? (
+              <ReadFailed what="The employee record" onRetry={() => { refetchEmployees(); refetchPatterns(); }} />
+            ) : isLoading || patternsLoading ? (
               <Skeleton className="h-96" />
             ) : (
               <>
