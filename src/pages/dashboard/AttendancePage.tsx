@@ -25,6 +25,7 @@ import { useEmployees } from "@/hooks/useWorkforce";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { currentShift } from "@/lib/operationalShift";
 import { ReadFailed } from "@/components/workforce/ReadFailed";
+import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { parseTimeMotoWorkbook, matchNames, type TimeMotoParse } from "@/lib/timeMotoSheet";
 import { splitAbsences } from "@/lib/absenceKind";
 
@@ -350,6 +351,11 @@ export default function AttendancePage() {
             </>
           )}
         </ModuleHeader>
+
+        {/* Prominent here, and not compact, because this is the screen that gives the
+            wrong impression: the Clocks tab says "Nothing clocked in this period" over
+            a period nobody has imported, and the sentence reads as a quiet month. */}
+        <ClockCoverageNote todayIso={currentShift().operationalDate} className="no-print" />
 
         {/* Two records of the same days, kept apart. The clocks are what TimeMoto
             saw; the board marks are what a supervisor wrote down. Merging them would

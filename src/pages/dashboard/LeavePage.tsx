@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { currentShift } from "@/lib/operationalShift";
 import { ReadFailed } from "@/components/workforce/ReadFailed";
+import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
@@ -577,6 +578,11 @@ export default function LeavePage() {
           <div className="p-6 text-center text-sm text-muted-foreground">Loading…</div>
         ) : (
         <>
+        {/* Compact, beside the figures rather than above them. Leave balances come off
+            the board and never off the clock, so the gap matters here as provenance
+            rather than as a warning about these numbers. */}
+        <ClockCoverageNote todayIso={today} compact className="no-print" />
+
         {/* Booked ahead leads: it is the commitment nobody can take back, and the one
             figure that decides whether next month's board can be planned. */}
         <FigureRow>

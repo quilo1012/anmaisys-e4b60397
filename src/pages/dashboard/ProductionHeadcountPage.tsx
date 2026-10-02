@@ -68,6 +68,8 @@ import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
 import { currentShift } from "@/lib/operationalShift";
+import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
+import { DayClockBadge } from "@/components/workforce/DayClockBadge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 
 /** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
@@ -97,7 +99,19 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
   { status: "sick", label: "Sickness", accent: "border-destructive/40 bg-destructive/5" },
   { status: "unpaid", label: "Unpaid", accent: "border-warning/40 bg-warning/5" },
   { status: "holiday", label: "Holidays", accent: "border-warning/40 bg-warning/5" },
-  { status: "overtime", label: "Overtime", accent: "border-primary/40 bg-primary/5" },
+  // "Called in" and not "Overtime", here and in the two places below. The board's
+  // `overtime` means ONE thing: somebody was called in on a day their rota does not
+  // cover. It is a planning fact, written in the morning. Timesheet overtime — hours
+  // worked beyond contract, `balance_minutes` in the clock — is a different number
+  // from a different source, and the two were sharing a word on a screen that shows
+  // both. The stored status stays `overtime`: it is the value in `daily_allocations`
+  // and renaming it would break the base. Only the reading changes.
+  //
+  // NOT renamed in `lib/headcountSheet.ts`, deliberately: the "Overtime" and
+  // "Overtime staff" there are the company spreadsheet's own column headings, matched
+  // on the way in and written on the way out. That word is an interface with a file,
+  // not a label this screen chose.
+  { status: "overtime", label: "Called in", accent: "border-primary/40 bg-primary/5" },
   { status: "training", label: "Training", accent: "border-purple-500/40 bg-purple-500/5" },
 ];
 
@@ -994,7 +1008,9 @@ function ShiftBoard({
         <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
         <KpiPill icon={Wrench} label="Support" value={support} tone="" />
         <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
-        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
+        {/* The most misleading of the five: it sits in a row of timesheet-shaped
+            numbers, where "Overtime" reads as hours rather than as people called in. */}
+        <KpiPill icon={Clock3} label="Called in" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
       </div>
 
       {SECTIONS.map((section) => {
@@ -1288,7 +1304,7 @@ function ShiftBoard({
         );
       })()}
 
-      <SectionLabel>Away, overtime &amp; training</SectionLabel>
+      <SectionLabel>Away, called in &amp; training</SectionLabel>
       {/* auto-*fit*, not auto-fill, and not a fixed column count either.
           auto-fill was what left an empty track on anything wider than a laptop: cards
           against the left edge with a hole beside them. auto-fit collapses that track
@@ -1432,6 +1448,11 @@ export default function ProductionHeadcountPage() {
       <BackButton className="no-print" />
       <WorkforceTabs />
 
+      {/* Where the clock is, before any figure below is read against it. Compact here:
+          this screen is the board, and the clock is context for it rather than its
+          subject. */}
+      <ClockCoverageNote todayIso={opened.operationalDate} compact className="no-print" />
+
       <ModuleHeader
         title="Production Headcount"
         description="Daily allocation of people to production and support areas"
@@ -1500,6 +1521,18 @@ export default function ProductionHeadcountPage() {
               </Button>
             )}
             <Badge variant="outline" className="border-white/40 text-white print:text-black">{dayTypeLabel(date)}</Badge>
+            {/* Whether the day being viewed is a plan or a record. One badge per board,
+                because the two boards answer differently on the same day — see
+                DayClockBadge. In Split both are named, so neither can be read as
+                covering the other. */}
+            {view === "Split" ? (
+              <>
+                <DayClockBadge onDate={date} shift="Day" boardLabel="Day" />
+                <DayClockBadge onDate={date} shift="Night" boardLabel="Night" />
+              </>
+            ) : (
+              <DayClockBadge onDate={date} shift={view as ShiftKey} />
+            )}
             {/* A board showing yesterday is right at 03:00 and baffling unsaid. Drops
                 away the moment the reader moves off it, so it never becomes furniture. */}
             {opened.carriedOver && date === opened.operationalDate && view === opened.shift && (
