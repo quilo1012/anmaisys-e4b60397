@@ -176,26 +176,32 @@ export function AdminPinGate({
           </div>
 
           <div className="flex justify-center">
+            {/* Quatro casas, como o PIN que existe e como todos os outros campos de
+                PIN da aplicação (PinDialog, EngineerChangePinDialog, ManageUsers,
+                LeaderMyScorecardPage). Estava a seis: o campo mostrava seis caixas
+                para um PIN de quatro, e foi essa incoerência que levou a auditoria
+                de 19/09 a pôr o botão a exigir seis dígitos — o Unlock ficou
+                permanentemente desativado e ninguém abriu o Attendance nem o
+                Finance Close até se reverter a 30/09.
+
+                Sem `onComplete`: às seis casas nunca disparava, e a quatro passaria
+                a submeter sozinho ao quarto dígito. O servidor conta tentativas e
+                tranca, por isso submeter sem o utilizador ter pedido gastaria uma
+                tentativa por engano. O PinDialog faz o mesmo — digitar e carregar. */}
             <InputOTP
-              maxLength={6}
+              maxLength={4}
               value={pin}
               onChange={(v) => { setPin(v); setError(""); }}
-              onComplete={submit}
               disabled={busy || locked}
             >
               <InputOTPGroup>
-                {[0, 1, 2, 3, 4, 5].map((i) => <InputOTPSlot key={i} index={i} />)}
+                {[0, 1, 2, 3].map((i) => <InputOTPSlot key={i} index={i} />)}
               </InputOTPGroup>
             </InputOTP>
           </div>
 
           {error && <p className="text-xs font-medium text-destructive-strong">{error}</p>}
 
-          {/* O campo tem seis casas e o `onComplete` só dispara às seis, mas o PIN
-              de admin em uso é de quatro dígitos. Pô-lo a exigir seis (auditoria de
-              19/09, entrada no main a 30/09) deixou o botão permanentemente
-              desativado: ninguém mais abriu o Attendance nem o Finance Close.
-              Volta a quatro, que é o mesmo mínimo que o `submit` exige. */}
           <Button className="w-full" onClick={submit} disabled={busy || locked || pin.length < 4}>
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
             {locked ? `Wait ${lockoutLeft}s` : "Unlock"}
