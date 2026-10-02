@@ -55,6 +55,16 @@ describe("boardClockVerdict", () => {
       .toEqual({ kind: "no_clock" });
   });
 
+  /**
+   * The view has no row for a day nobody was allocated to. The badge substitutes an
+   * all-zero row rather than rendering nothing, so a day with no board still says what
+   * it is — and that substitution has to come out as "Planned only", not as agreement.
+   */
+  it("reads an all-zero day as a plan", () => {
+    expect(boardClockVerdict({ status: "planned", clock_rows: 0, covered_people: 0, differs: 0 }))
+      .toEqual({ kind: "no_clock" });
+  });
+
   it("has nothing to say about a day it was given nothing for", () => {
     expect(boardClockVerdict(null)).toBeNull();
     expect(boardClockVerdict(undefined)).toBeNull();
