@@ -18,6 +18,7 @@ export type Action =
   // Downtime
   | "downtime.view"
   | "downtime.manage"
+  | "stopanalysis.view"
   // Machines / Problems
   | "machines.view"
   | "machines.manage"
@@ -149,6 +150,10 @@ const MATRIX: Record<Action, Role[]> = {
 
   "downtime.view": [...ALL, "production_office_admin"],
   "downtime.manage": ["admin", "manager", "engineer", "production_office_admin"],
+  // Mais largo do que `downtime.view` de propósito: isto não é o registo de avarias,
+  // é para onde vão as horas da linha — e 96% dessas horas são preparação, limpeza e
+  // espera, que pertencem a quem corre a produção e à qualidade, não à manutenção.
+  "stopanalysis.view": [...ALL, "production_office_admin", "quality_supervisor"],
 
   "machines.view": [...ALL, "warehouse", "production_office_admin"],
   "machines.manage": ["admin", "manager", "production_office_admin"],
@@ -509,7 +514,7 @@ export function canPrintReport(role: Role | null | undefined): boolean {
  */
 export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] = [
   { key: "wo", label: "Maintenance Orders", actions: ["wo.view", "wo.create", "wo.update", "wo.close", "wo.delete", "wo.force", "wo.print"] },
-  { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage", "downtime.adjust", "downtime.correct"] },
+  { key: "downtime", label: "Downtime", actions: ["downtime.view", "downtime.manage", "downtime.adjust", "downtime.correct", "stopanalysis.view"] },
   { key: "machines", label: "Machines & Problems", actions: ["machines.view", "machines.manage", "problems.view", "problems.manage"] },
   { key: "stock", label: "Stock", actions: ["stock.view", "stock.manage", "stock.pricing"] },
   { key: "production", label: "Production", actions: ["production.view", "production.manage", "production.target.view", "production.target.manage", "production.performance.view"] },
@@ -546,6 +551,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "wo.force": "Force-close a WO bypassing normal flow (admin action).",
   "wo.print": "Print or export Maintenance Orders to PDF.",
   "downtime.view": "See downtime events and history.",
+  "stopanalysis.view": "See where the hours go when a line is not running, by reason and line.",
   "downtime.manage": "Create, edit and close downtime events.",
   "downtime.adjust": "Adjust downtime records (exclusions, corrections).",
   "downtime.correct": "Correct a recorded stoppage's start, end or duration (logged with the corrector's name).",
