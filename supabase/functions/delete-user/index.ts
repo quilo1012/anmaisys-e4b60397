@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "https://esm.sh/zod@3.23.8";
+import { isProtectedRole, protectedRolesMessage } from "../_shared/managerLimits.ts";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const REQ_TIMEOUT_MS = 15_000;
@@ -71,8 +72,10 @@ Deno.serve(async (req) => {
     }
 
     const { data: targetRole } = await supabaseAdmin.rpc("get_user_role", { _user_id: userId });
-    if (isManager && !isAdmin && ["manager", "admin", "maintenance_manager"].includes(targetRole ?? "")) {
-      return jsonResponse({ error: "Managers cannot delete Manager, Maintenance Manager or Admin users" }, 403);
+    // A mesma lista que o `update-user` usa. Eram duas, e a desta rota era mais curta:
+    // um manager que não podia renomear um quality_supervisor conseguia apagá-lo.
+    if (isManager && !isAdmin && isProtectedRole(targetRole)) {
+      return jsonResponse({ error: protectedRolesMessage("delete") }, 403);
     }
 
     await supabaseAdmin.from("work_orders").update({ operator_id: null }).eq("operator_id", userId);

@@ -1,31 +1,31 @@
 project_id = "ybtrzqzliepknpzqdajx"
 
 [functions.create-user]
-verify_jwt = false
+verify_jwt = true
 
 [functions.update-user]
-verify_jwt = false
+verify_jwt = true
 
 [functions.delete-user]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-engineer]
-verify_jwt = false
+verify_jwt = true
 
 [functions.update-engineer]
-verify_jwt = false
+verify_jwt = true
 
 [functions.delete-engineer]
-verify_jwt = false
+verify_jwt = true
 
 [functions.list-engineers]
-verify_jwt = false
+verify_jwt = true
 
 [functions.create-operator-account]
-verify_jwt = false
+verify_jwt = true
 
 [functions.reset-operator-password]
-verify_jwt = false
+verify_jwt = true
 
 [functions.wallboard-lines]
 verify_jwt = false
