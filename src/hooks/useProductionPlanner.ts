@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { toast } from "sonner";
 
 export type Shift = "DAY" | "NIGHT";
@@ -96,16 +97,25 @@ export function useSessionsRange(from: string, to: string, line?: string) {
   return useQuery({
     queryKey: ["production_sessions", from, to, line ?? "all"],
     queryFn: async () => {
-      let q = supabase
-        .from("production_sessions")
-        .select("*")
-        .gte("session_date", from)
-        .lte("session_date", to)
-        .order("session_date", { ascending: false });
-      if (line) q = q.eq("line", line);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as ProductionSession[];
+      // Paged: `from`/`to` are whatever the caller asks for, and the table holds 998
+      // rows against PostgREST's cap of 1000. A wide range was about to come back
+      // short, and a missing session here is a shift that never happened as far as
+      // every caller of this hook is concerned.
+      const data = await fetchAllRows<ProductionSession>({
+        range: (a, b) => {
+          let q = supabase
+            .from("production_sessions")
+            .select("*")
+            .gte("session_date", from)
+            .lte("session_date", to)
+            // `id` breaks the tie, or two sessions on one date can swap between pages.
+            .order("session_date", { ascending: false })
+            .order("id", { ascending: false });
+          if (line) q = q.eq("line", line);
+          return q.range(a, b) as any;
+        },
+      });
+      return data as ProductionSession[];
     },
   });
 }

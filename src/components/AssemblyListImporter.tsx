@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Sparkles, Download, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useLines, useSkuProducts } from "@/hooks/useProductionPlanner";
@@ -139,12 +140,22 @@ export function AssemblyListImporter({
     const skuIds = Array.from(new Set(targets.map((r) => r.sku_id!)));
     const since = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
 
-    const { data, error } = await supabase
-      .from("production_items")
-      .select("sku_id, production_sessions!inner(line, session_date)")
-      .in("sku_id", skuIds)
-      .gte("production_sessions.session_date", since);
-    if (error) { if (!silent) toast.error(error.message); return; }
+    // Chunked and paged: an assembly list can name hundreds of SKUs, which is both
+    // more ids than belong in one query string and more item rows than one read is
+    // given. A short answer here does not fail — it just suggests the wrong line.
+    let data: Array<{ sku_id: string | null; production_sessions: { line: string | null; session_date: string } | null }>;
+    try {
+      data = await fetchRowsByIds(skuIds, (chunk, a, b) => supabase
+        .from("production_items")
+        .select("sku_id, production_sessions!inner(line, session_date)")
+        .in("sku_id", chunk)
+        .gte("production_sessions.session_date", since)
+        .order("id", { ascending: true })
+        .range(a, b) as any);
+    } catch (err: any) {
+      if (!silent) toast.error(err?.message ?? "Could not read the production history.");
+      return;
+    }
 
     // sku_id -> Map<line, weight>  (weight = recency-decayed count)
     const lineNames = new Set(lines.map((l) => l.name));

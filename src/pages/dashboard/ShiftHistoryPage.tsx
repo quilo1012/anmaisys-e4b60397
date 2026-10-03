@@ -1052,14 +1052,21 @@ export default function ShiftHistoryPage() {
   const { data: sessions = [] } = useQuery({
     queryKey: ["shift_history", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("production_sessions")
-        .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, batch_code, manufacture_month, expiry_month, started_at, finished_at, display_order, created_at, tickets_unit, production_blender_entries(blender_number, quantity))")
-        .gte("session_date", from).lte("session_date", to)
-        .order("session_date", { ascending: false });
-      if (error) throw error;
+      // Paged. The history is the one screen with no narrow default — pick a year and
+      // this asks for every session there is, 998 of them against a cap of 1000, and
+      // each row dropped takes its whole item list with it. A shift simply would not
+      // be in the list, which on a history nobody can tell from a shift never run.
+      const data = await fetchAllRows<unknown>({
+        range: (a, b) => supabase
+          .from("production_sessions")
+          .select("id, session_date, shift, line, leader_id, leader_name, staff_planned, staff_actual, tickets, tickets_unit, locked, notes, production_items(id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty, notes, blender_ref, batch_code, manufacture_month, expiry_month, started_at, finished_at, display_order, created_at, tickets_unit, production_blender_entries(blender_number, quantity))")
+          .gte("session_date", from).lte("session_date", to)
+          // `id` after the date, so two sessions on one day cannot swap between pages.
+          .order("session_date", { ascending: false }).order("id", { ascending: false })
+          .range(a, b),
+      });
       // manufacture_month/expiry_month aren't in the generated types yet; cast.
-      return (data ?? []) as unknown as SessionRow[];
+      return data as unknown as SessionRow[];
     },
   });
 

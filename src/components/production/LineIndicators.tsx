@@ -11,6 +11,7 @@ import { shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 import { selectOptionalDomain } from "@/lib/optionalDomain";
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columns newer than the generated types
 const db = supabase as any;
@@ -82,14 +83,23 @@ export function LineIndicators({
   const { data: items = [] } = useQuery({
     queryKey: ["line-ind-scrap", from, to, shift, leader],
     queryFn: async () => {
-      let q = db.from("production_items")
-        .select("actual_qty, scrap_qty, production_sessions!inner(line, session_date, shift, staff_actual)")
-        .gte("production_sessions.session_date", from)
-        .lte("production_sessions.session_date", to);
-      if (shift && shift !== "ALL") q = q.eq("production_sessions.shift", shift);
-      if (leader) q = q.ilike("production_sessions.leader_name", leaderNamePattern(leader));
-      const { data, error } = await q;
-      if (error) throw error;
+      // Paged. With no leader chosen and the shift on ALL, this is every item in the
+      // window: 1367 rows over ninety days against a cap of 1000, so the scrap and
+      // output figures below were built on whatever the server happened to send.
+      // The embedded filter narrows the sessions, not the number of item rows returned.
+      const data = await fetchAllRows<any>({
+        range: (a, b) => {
+          let q = db.from("production_items")
+            .select("actual_qty, scrap_qty, production_sessions!inner(line, session_date, shift, staff_actual)")
+            .gte("production_sessions.session_date", from)
+            .lte("production_sessions.session_date", to);
+          if (shift && shift !== "ALL") q = q.eq("production_sessions.shift", shift);
+          if (leader) q = q.ilike("production_sessions.leader_name", leaderNamePattern(leader));
+          // Ordered on this table's own key: an embedded column cannot settle the order
+          // of the rows being paged, and two unordered pages repeat and skip.
+          return q.order("id", { ascending: true }).range(a, b);
+        },
+      });
       return (data ?? []) as Array<{
         actual_qty: number | null; scrap_qty: number | null;
         production_sessions: { line: string | null; staff_actual: number | null } | null;

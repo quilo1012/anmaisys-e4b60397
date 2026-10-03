@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Trophy, AlertTriangle, Download, Search, Gauge } from "lucide-react";
 import { useSkuProducts } from "@/hooks/useProductionPlanner";
 import { buildSkuCatalogue, identifyItemSku } from "@/lib/lineSku";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
 
 type Row = {
   /** The grouping key from `identifyItemSku` — a catalogue id or the typed text. */
@@ -59,23 +61,37 @@ export default function SKUEfficiencyPage() {
     queryKey: ["sku-efficiency", days, skus.length],
     queryFn: async () => {
       const since = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10);
-      const { data: sessions, error: sErr } = await supabase
-        .from("production_sessions")
-        .select("id, line, session_date")
-        .gte("session_date", since);
-      if (sErr) throw sErr;
-      const sessionMap = new Map((sessions ?? []).map((s) => [s.id, s]));
+      // Paged, because 90 days is 956 sessions against a cap of 1000 and the headroom
+      // is forty rows. Unpaged, the sessions that fell off took their items with them.
+      const sessions = await fetchAllRows<{ id: string; line: string; session_date: string }>({
+        range: (a, b) => supabase
+          .from("production_sessions")
+          .select("id, line, session_date")
+          .gte("session_date", since)
+          .order("session_date", { ascending: true })
+          .order("id", { ascending: true })
+          .range(a, b),
+      });
+      const sessionMap = new Map(sessions.map((s) => [s.id, s]));
       const ids = Array.from(sessionMap.keys());
       if (ids.length === 0) return [] as Row[];
 
-      const { data: items, error: iErr } = await supabase
+      // The ranking's numerator. One `.in(...)` over these ids asked for 1367 rows and
+      // was answered with 1000, oldest first — so September and October, 949.759 units,
+      // were not in any figure on this page, and the 35kB of UUIDs in the query string
+      // was a 414 waiting for the next few sessions to arrive.
+      const items = await fetchRowsByIds<{
+        session_id: string; sku_id: string | null; sku_code_text: string | null;
+        target_qty: number | null; planned_qty: number | null; actual_qty: number | null;
+      }>(ids, (chunk, a, b) => supabase
         .from("production_items")
         .select("session_id, sku_id, sku_code_text, target_qty, planned_qty, actual_qty")
-        .in("session_id", ids);
-      if (iErr) throw iErr;
+        .in("session_id", chunk)
+        .order("id", { ascending: true })
+        .range(a, b));
 
       const agg = new Map<string, Row>();
-      for (const it of items ?? []) {
+      for (const it of items) {
         const s = sessionMap.get(it.session_id);
         if (!s) continue;
         // The product came from the embedded `sku_products` join, so anything the

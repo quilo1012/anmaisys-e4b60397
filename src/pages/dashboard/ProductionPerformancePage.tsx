@@ -308,12 +308,33 @@ export default function ProductionPerformancePage() {
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     queryFn: async () => {
-      let q = supabase.from("production_sessions")
-        .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, sku_code_text, target_qty, planned_qty, actual_qty, started_at, finished_at)")
-        .gte("session_date", range.from).lte("session_date", range.to);
-      if (shift !== "all") q = q.eq("shift", shift);
-      if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
-      if (leaderFilter !== "__all__") q = q.ilike("leader_name", leaderNamePattern(leaderFilter));
+      /**
+       * The other half of the same read, and the same cap.
+       *
+       * This one is the NUMERATOR. `production_sessions` holds 998 rows against a cap
+       * of 1000, and the factory opens about twelve a day — so a Year period was days
+       * away from dropping sessions, each one taking its whole embedded item list with
+       * it. Output short against a plan read in full is the mirror of the RAG bug
+       * below: the same screen, the same period, the error pointing the other way.
+       *
+       * Paged before it happened rather than after, which is the only reason there is
+       * no figure to quote here.
+       */
+      const sessionRows = await fetchAllRows<{
+        id: string; session_date: string; shift: string; line: string;
+        leader_name: string | null; locked: boolean;
+        production_items: { sku_id: string | null; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; started_at: string | null; finished_at: string | null }[];
+      }>({
+        range: (a, b) => {
+          let q = supabase.from("production_sessions")
+            .select("id, session_date, shift, line, leader_name, locked, production_items(sku_id, sku_code_text, target_qty, planned_qty, actual_qty, started_at, finished_at)")
+            .gte("session_date", range.from).lte("session_date", range.to);
+          if (shift !== "all") q = q.eq("shift", shift);
+          if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
+          if (leaderFilter !== "__all__") q = q.ilike("leader_name", leaderNamePattern(leaderFilter));
+          return q.order("session_date", { ascending: true }).order("id", { ascending: true }).range(a, b);
+        },
+      });
 
       /**
        * Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
@@ -345,9 +366,6 @@ export default function ProductionPerformancePage() {
         },
       });
 
-      const { data, error } = await q;
-      if (error) throw error;
-
       const ragRows: RagRow[] = (ragData as { entry_date: string; line: string; shift: string; plan_qty: number | null; actual_qty: number | null }[])
         .map((r) => ({ entry_date: r.entry_date, line: r.line, shift: r.shift, plan_qty: Number(r.plan_qty ?? 0), actual_qty: Number(r.actual_qty ?? 0) }));
 
@@ -359,7 +377,7 @@ export default function ProductionPerformancePage() {
         ragActualMap.set(k, r.actual_qty);
       }
 
-      const sessions: SessionAgg[] = (data ?? []).map((s: { id: string; session_date: string; shift: string; line: string; leader_name: string | null; locked: boolean; production_items: { sku_id: string | null; sku_code_text: string | null; target_qty: number | null; planned_qty: number | null; actual_qty: number | null; started_at: string | null; finished_at: string | null }[] }) => {
+      const sessions: SessionAgg[] = sessionRows.map((s) => {
         const items = s.production_items ?? [];
         const key = `${s.session_date}|${s.line}|${s.shift}`;
         const target = ragPlanMap.get(key) ?? 0;
