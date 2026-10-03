@@ -72,6 +72,47 @@ describe("the warning that travels with the figures", () => {
   });
 });
 
+/**
+ * The figure that was not keeping to the convention its own warning states.
+ *
+ * `overtime_entries` is empty across all 29 periods — the office has never keyed a
+ * payroll overtime hour, in any of them. The Δ already said "—" for that, and the
+ * warning text already said "a dash means that side reported nothing, which is not
+ * zero", but the Payroll OT figure itself printed `0.00`. On the document finance pays
+ * from, that reads as overtime checked and found to be none, rather than as a column
+ * nobody has ever filled in.
+ */
+describe("Payroll OT when the office has keyed nothing", () => {
+  const empty = () => {
+    const rows = buildClose([person({ payrollOtHours: null })], PERIOD.from, PERIOD.to);
+    return { rows, totals: closeTotals(rows) };
+  };
+
+  it("knows the difference between nothing keyed and nothing owed", () => {
+    expect(empty().totals.payrollEmpty).toBe(true);
+    // A real zero is a measurement, and must not be mistaken for the absence of one.
+    const zero = buildClose([person({ payrollOtHours: 0 })], PERIOD.from, PERIOD.to);
+    expect(closeTotals(zero).payrollEmpty).toBe(false);
+  });
+
+  it("leaves the cell empty in the workbook rather than writing a nought", () => {
+    const wb = buildCloseWorkbook(input({ ...empty(), byCrew: [{ crew: "Weekend", totals: empty().totals }] }));
+    const rows = sheetAoa(wb, wb.SheetNames[0]);
+    const line = rows.find((r) => r.some((c) => c === "Payroll OT"));
+    expect(line).toBeDefined();
+    // null, not 0 — a spreadsheet sums a nought and ignores a blank, and this figure
+    // is one somebody will total a column of.
+    expect(line!.some((c) => c === 0)).toBe(false);
+  });
+
+  it("still prints a real figure when one was keyed", () => {
+    const rows = buildClose([person({ payrollOtHours: 4 })], PERIOD.from, PERIOD.to);
+    const t = closeTotals(rows);
+    expect(t.payrollEmpty).toBe(false);
+    expect(t.payrollOtHours).toBe(4);
+  });
+});
+
 describe("the subtitle both formats carry", () => {
   it("names the period and the filter, so a printed sheet says what it covers", () => {
     expect(closeSubtitle(input())).toContain("August 2026");

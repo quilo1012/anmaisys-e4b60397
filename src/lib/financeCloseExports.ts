@@ -131,7 +131,7 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     { label: "Overtime paid", value: hrs(t.overtimeHours), color: GREEN_TX, accent: GREEN_TX },
     { label: "Hours deducted", value: hrs(t.owedHours), color: t.owedHours > 0 ? AMBER_TX : INK },
     { label: "Part day", value: hrs(t.partDayHours), color: t.partDayHours > 0 ? AMBER_TX : INK },
-    { label: "Payroll OT", value: hrs(t.payrollOtHours) },
+    { label: "Payroll OT", value: t.payrollEmpty ? "—" : hrs(t.payrollOtHours) },
     // A dash, never "0.00 h" — see closeWarningText.
     { label: "Gap to settle", value: t.payrollEmpty ? "—" : hrs(t.deltaHours), color: !t.payrollEmpty && Math.abs(t.deltaHours) >= 1 ? AMBER_TX : INK },
     { label: "Shifts over rota", value: String(t.overtimeShifts) },
@@ -163,7 +163,7 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
       head: [["Crew", "People", "Overtime paid", "Hours deducted", "Payroll OT", "Gap to settle"]],
       body: input.byCrew.map(({ crew, totals }) => [
         crew, totals.people, hrs(totals.overtimeHours), hrs(totals.owedHours),
-        hrs(totals.payrollOtHours),
+        totals.payrollEmpty ? "—" : hrs(totals.payrollOtHours),
         totals.payrollEmpty ? "not comparable" : hrs(totals.deltaHours),
       ]),
       theme: "grid",
@@ -268,7 +268,7 @@ export function buildCloseWorkbook(input: CloseExportInput) {
     ["Overtime paid", t.overtimeHours, "h"],
     ["Hours deducted", t.owedHours, "h"],
     ["Part day", t.partDayHours, "h"],
-    ["Payroll OT", t.payrollOtHours, "h"],
+    ["Payroll OT", t.payrollEmpty ? null : t.payrollOtHours, "h"],
     // Null, not 0 — an empty cell is the only honest way to write "nothing to compare"
     // in a column somebody might sum.
     ["Gap to settle", t.payrollEmpty ? null : t.deltaHours, "h"],
@@ -294,7 +294,8 @@ export function buildCloseWorkbook(input: CloseExportInput) {
   const s2: any[][] = [
     ["Crew", "People", "Overtime paid (h)", "Hours deducted (h)", "Payroll OT (h)", "Gap to settle (h)"],
     ...input.byCrew.map(({ crew, totals }) => [
-      crew, totals.people, totals.overtimeHours, totals.owedHours, totals.payrollOtHours,
+      crew, totals.people, totals.overtimeHours, totals.owedHours,
+      totals.payrollEmpty ? null : totals.payrollOtHours,
       totals.payrollEmpty ? null : totals.deltaHours,
     ]),
   ];
