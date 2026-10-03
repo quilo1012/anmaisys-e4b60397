@@ -334,7 +334,7 @@ export function OperatorAccountsSection({ isAdmin }: Props) {
     }
     setAPasswordError(null);
     try {
-      const res = await resetPwd.mutateAsync({ password: aPwd });
+      const res = await resetPwd.mutateAsync({ password: aPwd, all: true });
       toast({
         title: "All passwords reset",
         description: `${res.updated}/${res.total} operator account(s) updated.`,

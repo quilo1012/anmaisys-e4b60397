@@ -135,7 +135,17 @@ export function useUpdateOperatorAccountFavicon() {
 
 export function useResetOperatorPassword() {
   return useMutation({
-    mutationFn: async (input: { password: string; user_id?: string }) => {
+    /**
+     * Ou `user_id` (um posto), ou `all: true` (todos). A função recusa se vierem
+     * os dois, e recusa se não vier nenhum — antes, não vir nenhum significava
+     * silenciosamente "repõe todos", e um campo perdido numa refactorização tirava
+     * o acesso à fábrica inteira.
+     */
+    mutationFn: async (
+      input:
+        | { password: string; user_id: string }
+        | { password: string; all: true },
+    ) => {
       const { data, error } = await invokeFunction("reset-operator-password", input);
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
