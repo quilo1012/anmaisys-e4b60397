@@ -1,18 +1,21 @@
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Figure, FigureRow } from "@/components/ui/Figure";
 import { EmptyState } from "@/components/EmptyState";
 import { DateRangeFilter, type DateRangePreset, getPresetRange } from "@/components/DateRangeFilter";
-import { ShiftFilter as ShiftPills } from "@/components/ShiftFilter";
-import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
+import { ShiftFilter as ShiftPills, type ShiftValue } from "@/components/ShiftFilter";
+import { useOpsShift } from "@/hooks/useOpsFilters";
 import { resolveReportRange } from "@/lib/reportRange";
 import { useProductionStops } from "@/hooks/useProductionStops";
 import { useLines } from "@/hooks/useMachines";
+import { getCurrentFactoryShift, rowMatchesShift } from "@/lib/shifts";
+import { currentShift } from "@/lib/operationalShift";
 import { formatMinutes } from "@/lib/formatDuration";
 import { cn } from "@/lib/utils";
 import {
@@ -52,6 +55,36 @@ import { AlertTriangle, Timer } from "lucide-react";
  * o total diz quem pára mais horas, a média diz quem é mais lento de cada vez. Uma
  * linha com o dobro das mudanças de SKU pára mais sem ser pior a fazê-las — e é a
  * média, não o total, que aponta para quem tem o método que vale a pena copiar.
+ *
+ * ABRE NO TURNO A DECORRER, NÃO EM TRINTA DIAS.
+ *
+ * O ecrã abria em trinta dias e "ALL shifts". Quem o abre a meio de um turno quer
+ * saber o que está a acontecer agora, e o motivo maior de um mês inteiro não é o
+ * motivo maior deste turno — mas o número grande no topo tem o mesmo aspecto nos dois
+ * casos, e quem o lê não tem como saber a diferença. Agora abre no turno a decorrer,
+ * e alargar está a um clique.
+ *
+ * O período por omissão é o preset `shift` do DateRangeFilter, que já existia e já é
+ * calculado com getCurrentFactoryShift + londonWallToUtc.
+ *
+ * O QUE TORNA ISTO CORRECTO, E NÃO SÓ MAIS ESTREITO.
+ *
+ * `production_downtimes.occurred_date` é a data OPERACIONAL, não a do relógio: uma
+ * paragem às 02:00 pertence à noite do dia anterior e é assim que está gravada. Está
+ * verificado contra `started_at` — 2 857 registos entre a meia-noite e as 06:00, todos
+ * datados com o dia anterior, zero excepções. `getCurrentFactoryShift()` recua o dia
+ * exactamente da mesma maneira, por isso os dois concordam sem precisar de ajuste
+ * nenhum. Acrescentar aqui um recuo "por segurança" aplicava-o duas vezes e mostrava
+ * a noite errada.
+ *
+ * O turno sai da coluna `shift` via `rowMatchesShift`, nunca do relógio. Uma paragem
+ * da noite lançada às 07:00 responde DAY ao relógio e NIGHT à coluna, e a coluna é a
+ * que uma pessoa preencheu.
+ *
+ * O selector de linha continua a ser o de sempre, com "All lines". O operador não
+ * chega aqui — `stopanalysis.view` está negado a esse perfil em
+ * `role_permission_overrides` — e nenhuma das outras contas está ligada a uma linha,
+ * por isso não há "a minha linha" para fixar.
  */
 
 const BUCKET_COLOR: Record<StopBucket, string> = {
@@ -72,10 +105,12 @@ const BUCKET_BADGE: Record<StopBucket, string> = {
 const hours = (min: number) => Math.round((min / 60) * 10) / 10;
 
 export default function StopAnalysisPage() {
-  const initial = getPresetRange("30d");
+  // Abre no turno a decorrer. O preset `shift` já traz a madrugada agarrada à noite
+  // do dia anterior, tal como o occurred_date faz na base de dados.
+  const initial = getPresetRange("shift");
   const [startDate, setStartDate] = useState<Date>(initial.from ?? new Date());
   const [endDate, setEndDate] = useState<Date>(initial.to ?? new Date());
-  const [datePreset, setDatePreset] = useState<DateRangePreset>("30d");
+  const [datePreset, setDatePreset] = useState<DateRangePreset>("shift");
   const [filterLine, setFilterLine] = useState("all");
   const [opsShift, setOpsShift] = useOpsShift();
   // O planeado fora por omissão — ver a nota no topo do ficheiro.
@@ -84,8 +119,23 @@ export default function StopAnalysisPage() {
   const { data, isLoading } = useProductionStops(startDate, endDate);
   const { data: lines = [] } = useLines();
 
+  /**
+   * O turno a decorrer, uma vez, à entrada.
+   *
+   * Escreve na chave partilhada `ops:shift`, de propósito: o valor viaja para o
+   * Downtime e para as Ordens, e dois ecrãs abertos lado a lado com turnos diferentes
+   * é precisamente o que essa chave existe para evitar. A partir daqui, o que o
+   * utilizador escolher nas pastilhas manda.
+   */
+  const shiftDefaulted = useRef(false);
+  useEffect(() => {
+    if (shiftDefaulted.current) return;
+    shiftDefaulted.current = true;
+    setOpsShift(getCurrentFactoryShift().shiftCode === "night" ? "NIGHT" : "DAY");
+  }, [setOpsShift]);
+
   const lineOptions = useMemo(
-    () => [...new Set((lines as { name: string }[]).map((l) => l.name))].sort(),
+    () => [...new Set(lines.map((l) => l.name))].sort(),
     [lines],
   );
 
@@ -94,7 +144,8 @@ export default function StopAnalysisPage() {
     const all = data?.stops ?? [];
     return all.filter((s) => {
       if (filterLine !== "all" && s.line !== filterLine) return false;
-      if (opsShift !== "ALL" && (s.shift ?? "").toUpperCase() !== opsShift) return false;
+      // Pela coluna, não pelo relógio — ver a nota no topo do ficheiro.
+      if (!rowMatchesShift(s.shift, opsShift as ShiftValue)) return false;
       return true;
     });
   }, [data, filterLine, opsShift]);
@@ -130,6 +181,27 @@ export default function StopAnalysisPage() {
 
   const days = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000));
 
+  /**
+   * O que se está a ver, dito por extenso.
+   *
+   * O `carriedOver` é o que impede o telefonema das duas da manhã: entre a meia-noite
+   * e as 06:00 o ecrã mostra a data de ONTEM, correctamente, e sem uma frase a
+   * dizê-lo isso lê-se como avaria.
+   */
+  const op = currentShift();
+  const where = filterLine === "all" ? "all lines" : filterLine;
+  const when = opsShift === "ALL" ? "all shifts" : opsShift === "DAY" ? "day shift" : "night shift";
+  const isNarrowed = datePreset === "shift" || opsShift !== "ALL" || filterLine !== "all";
+
+  const widen = () => {
+    const r = getPresetRange("30d");
+    setStartDate(r.from ?? new Date());
+    setEndDate(r.to ?? new Date());
+    setDatePreset("30d");
+    setOpsShift("ALL");
+    setFilterLine("all");
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -140,10 +212,14 @@ export default function StopAnalysisPage() {
           icon={<Timer className="h-5 w-5" />}
           actions={
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* Sem storageKey, de propósito: o efeito de restauro do DateRangeFilter
+                  corre ao montar e sobrepunha-se ao preset `shift` sempre que houvesse
+                  um período guardado de outra visita, o que tornava o período de
+                  abertura dependente do que estivesse em localStorage. O turno
+                  continua partilhado por `ops:shift`; só o período deixa de ser. */}
               <DateRangeFilter
                 value={{ from: startDate, to: endDate }}
                 preset={datePreset}
-                storageKey={OPS_RANGE_KEY}
                 onChange={(range, preset) => {
                   setDatePreset(preset);
                   const resolved = resolveReportRange(range);
@@ -164,13 +240,38 @@ export default function StopAnalysisPage() {
           }
         />
 
+        {/* O âmbito, antes dos números. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span>
+            Showing <strong className="text-foreground">{where}</strong>,{" "}
+            <strong className="text-foreground">{when}</strong>
+            {datePreset === "shift" && (
+              <>
+                , {op.operationalDate}
+                {op.carriedOver && <> — the night that started yesterday evening and is still running</>}
+              </>
+            )}
+            .
+          </span>
+          {isNarrowed && (
+            <Button variant="link" className="h-auto p-0 text-sm" onClick={widen}>
+              Show all lines and shifts, last 30 days
+            </Button>
+          )}
+        </div>
+
         {isLoading ? (
           <Skeleton className="h-96" />
         ) : scoped.length === 0 ? (
           <EmptyState
             icon={Timer}
-            title="No stoppages recorded for this period"
-            description="These come from iTouching. If a line is missing, check that it is mapped under System → iTouching Machines."
+            title={`No stoppages on ${where} for the ${when}`}
+            description={
+              `A shift with no stoppages is a real result, not a missing one — ${
+                datePreset === "shift" ? `this is ${op.operationalDate}` : "this is the period you chose"
+              }. Widen the period or the shift to compare it with the days around it. ` +
+              `If a line never shows stoppages, whatever the period, then it is not mapped — check System → iTouching Machines.`
+            }
           />
         ) : (
           <>
@@ -284,7 +385,9 @@ export default function StopAnalysisPage() {
               </CardContent>
             </Card>
 
-            {/* Quem é mais lento a fazer a coisa que mais custa. */}
+            {/* Quem é mais lento a fazer a coisa que mais custa. Com uma linha só no
+                âmbito este cartão não aparece — uma comparação de um não é uma
+                comparação. */}
             {topReason && topReasonByLine.length > 1 && (
               <Card>
                 <CardHeader className="pb-2">
@@ -335,7 +438,8 @@ export default function StopAnalysisPage() {
               </Card>
             )}
 
-            {/* A matriz. É aqui que se vê a linha que destoa. */}
+            {/* A matriz. É aqui que se vê a linha que destoa — e por isso só faz
+                sentido com mais do que uma. */}
             {matrix.lines.length > 1 && (
               <Card>
                 <CardHeader className="pb-2">
