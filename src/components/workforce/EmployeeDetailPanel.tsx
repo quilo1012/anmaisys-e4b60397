@@ -13,7 +13,8 @@ import { format } from "date-fns";
 import { ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements, useShiftPatterns,
+  describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements,
+  useOvertimeEverImported, useShiftPatterns,
   useUpdateEmployee, type Employee,
 } from "@/hooks/useWorkforce";
 
@@ -37,6 +38,7 @@ export function EmployeeDetailPanel({
   const { data: areas } = useHeadcountAreas();
   const { data: movements, isLoading: loadingMoves } = useMovements(employee?.id ?? null);
   const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
+  const { data: overtimeEverImported } = useOvertimeEverImported();
   const { data: colleagues } = useEmployees();
   const update = useUpdateEmployee();
 
@@ -155,6 +157,17 @@ export function EmployeeDetailPanel({
           </TabsList>
 
           <TabsContent value="details" className="space-y-3 pt-3">
+            {/* Dito, em vez de deduzido dos campos cinzentos.
+                Sem permissao, cada campo fica `disabled`, o botao Save desaparece e o
+                bloco de saida tambem — e nada dizia porque. Um formulario inteiro
+                apagado sem explicacao nao se le como "nao tens permissao", le-se como
+                ecra partido, e foi assim que foi reportado. O board do Headcount ja
+                diz a sua versao desta frase; esta e a mesma. */}
+            {!canEdit && (
+              <p className="rounded border bg-muted/30 p-2 text-xs text-muted-foreground">
+                Read-only view — you don't have permission to change employee records.
+              </p>
+            )}
             <div>
               <Label className="text-xs">Email</Label>
               <p className="text-sm text-muted-foreground">{employee.email || "—"}</p>
@@ -414,7 +427,13 @@ export function EmployeeDetailPanel({
             {loadingOT ? (
               <Skeleton className="h-24" />
             ) : (overtime ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No overtime recorded for this person.</p>
+              <p className="text-sm text-muted-foreground">
+                {overtimeEverImported === false
+                  // Nao e sobre esta pessoa: a tabela esta vazia para toda a gente.
+                  // Dizer "for this person" fazia parecer que os outros tinham.
+                  ? "No payroll overtime has ever been imported, for anybody. This tab fills in once the office imports a period."
+                  : "No overtime recorded for this person."}
+              </p>
             ) : (
               <>
                 <div className="rounded border p-2">

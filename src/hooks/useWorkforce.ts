@@ -508,6 +508,28 @@ export function useHeadcountAreas() {
 }
 
 /** Every period this person has a balance for, newest first. */
+/**
+ * Alguma vez foi importado overtime de folha, para alguem.
+ *
+ * O painel do empregado dizia "No overtime recorded for this person", o que atira a
+ * culpa para o registo DELE e da a entender que os outros tem. Nao tem: a 03/10/2026
+ * `overtime_entries` esta vazia — 0 linhas em 29 periodos, nunca foi usada. A frase
+ * acusava 211 pessoas de nao ter horas quando o que nao ha e a importacao.
+ *
+ * Uma linha chega para responder, e a resposta e a mesma para toda a gente, por isso a
+ * chave nao leva o empregado e o resultado serve o painel inteiro.
+ */
+export function useOvertimeEverImported() {
+  return useQuery({
+    queryKey: ["overtime_entries_any"],
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await db.from("overtime_entries").select("id").limit(1);
+      if (error) throw error;
+      return (data ?? []).length > 0;
+    },
+  });
+}
+
 export function useEmployeeOvertime(employeeId: string | null) {
   return useQuery({
     queryKey: ["employee_overtime", employeeId],
