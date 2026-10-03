@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { blockOf } from "@/lib/headcountBlocks";
+import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
@@ -72,13 +73,19 @@ import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { DayClockBadge } from "@/components/workforce/DayClockBadge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 
-/** Employee id currently being dragged (HTML5 dataTransfer isn't readable on dragover). */
-let draggedEmployeeId: string | null = null;
-
 /**
- * The boards there are. Weekend is one of them: `daily_allocations.shift` accepts it,
- * the Fri–Mon crew is forty people, and without a tab their allocations were saved
- * and then invisible — 37 of them, on a board that could only show Day and Night.
+ * The boards there are. Two, and Weekend is not one of them.
+ *
+ * This comment used to say the opposite — that Weekend was a third board and that
+ * without a tab for it 37 allocations were saved and then invisible. That was true
+ * once and the fix went the other way: `boardShiftFor` sends every crew except Night
+ * to the Day board, and the card says which crew with `crewBadge` ("FRI–MON" for the
+ * weekend forty). `daily_allocations` holds 6 696 rows across Day and Night and
+ * **none** on any third value, so nothing is hidden by there being two tabs.
+ *
+ * Left stale, the old comment read as a live bug report against a screen that is
+ * behaving, which is worse than no comment: the next person to touch this starts by
+ * hunting for 37 rows that are not there.
  */
 type ShiftKey = "Day" | "Night";
 type ViewKey = ShiftKey | "Split";
@@ -212,11 +219,16 @@ function initials(name: string) {
  * The colour is what makes the split view work: two boards of identical grey columns
  * side by side are one board twice the size, and the eye has to read a heading to
  * know which factory it is looking at.
+ *
+ * Keyed by `ShiftKey`, not by `string`. There was a third entry here for Weekend and
+ * `LOOK[shift]` could never reach it — `shift` is a ShiftKey and Weekend is not one.
+ * Typing the key is what makes a fourth one impossible to add by accident: a board
+ * with no look falls back to Day silently, which on the split view means two boards
+ * the same colour and no way to tell them apart.
  */
-const LOOK: Record<string, { icon: typeof Sun; rule: string; chip: string; soft: string; ink: string }> = {
+const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; soft: string; ink: string }> = {
   Day: { icon: Sun, rule: "border-l-warning", chip: "bg-warning/15 text-warning-strong", soft: "bg-warning/10", ink: "text-warning-strong" },
   Night: { icon: Moon, rule: "border-l-primary", chip: "bg-primary/15 text-primary", soft: "bg-primary/10", ink: "text-primary" },
-  Weekend: { icon: CalendarDays, rule: "border-l-success", chip: "bg-success/15 text-success-strong", soft: "bg-success/10", ink: "text-success-strong" },
 };
 
 /**
@@ -292,6 +304,10 @@ function Chip({
     <span
       draggable={draggable}
       onDragStart={onDragStart}
+      // Fires however the drag ends — dropped, cancelled with Escape, released over
+      // nothing. Without it a cancelled drag left the id set and the next drop on any
+      // zone placed that person.
+      onDragEnd={clearDrag}
       className={cn(
         // 44px tall and a 26px square: this board is used on a tablet, on the floor,
         // by somebody wearing gloves. A 30px row is a row you miss.
@@ -441,7 +457,8 @@ function DropZone({
   className,
 }: {
   children: React.ReactNode;
-  onDrop: () => void;
+  /** Given the employee the browser says was dropped. Empty means "not one of ours". */
+  onDrop: (employeeId: string) => void;
   disabled: boolean;
   className?: string;
 }) {
@@ -458,7 +475,12 @@ function DropZone({
         if (disabled) return;
         e.preventDefault();
         setOver(false);
-        onDrop();
+        // The event first, the module global only if it is empty. `dataTransfer` IS
+        // readable here — it is only `dragover` that hides it — and it is the one
+        // answer that belongs to THIS drop rather than to the last one that started.
+        // Anything dragged in from outside the board carries no id of ours and the
+        // caller is handed an empty string, which it ignores.
+        onDrop(takeDrag(e.dataTransfer.getData("text/plain")));
       }}
       className={cn("rounded-lg transition-colors", over && "ring-2 ring-primary/60 bg-primary/5", className)}
     >
@@ -531,7 +553,11 @@ function ShiftBoard({
     catch { return {}; }
   });
   useEffect(() => {
-    localStorage.setItem("headcount_open_sections", JSON.stringify(openSections));
+    // Guarded like the read above it. A folded section is a convenience, and in a
+    // private window or with the quota full `setItem` throws — which from inside an
+    // effect takes the whole board down over somebody having collapsed Support.
+    try { localStorage.setItem("headcount_open_sections", JSON.stringify(openSections)); }
+    catch { /* not remembered this time; the board still draws */ }
   }, [openSections]);
   /**
    * Which blocks the board draws at all.
@@ -547,7 +573,8 @@ function ShiftBoard({
     catch { return {}; }
   });
   useEffect(() => {
-    localStorage.setItem("headcount_visible_blocks", JSON.stringify(visibleBlocks));
+    try { localStorage.setItem("headcount_visible_blocks", JSON.stringify(visibleBlocks)); }
+    catch { /* same bargain as the sections above */ }
   }, [visibleBlocks]);
   const blockVisible = (key: string) => visibleBlocks[key] !== false;
   const changeShift = useChangeShift(onDate);
@@ -600,27 +627,56 @@ function ShiftBoard({
    * The leader is forced to the top rather than sorted alphabetically, because the
    * first thing anybody asks of a column is whether it has one.
    */
-  const peopleIn = (areaId: string) =>
-    allocations
-      .filter((a) => (a.status === "assigned" || a.status === "overtime")
-        && a.area_id === areaId && employeeById.has(a.employee_id))
-      .map((a) => ({
-        person: employeeById.get(a.employee_id)!,
-        shown: a.sheet_name ?? employeeById.get(a.employee_id)!.full_name,
+  /**
+   * Everybody working, bucketed by area once.
+   *
+   * This used to be a function that walked every allocation per column. The board
+   * draws about twenty columns and asks again in the `inSection` reduce, so one pass
+   * over ~80 allocations became forty — and it ran on EVERY render, including every
+   * keystroke in "Find a person…", because that box is state in this same component.
+   * Roughly 3 200 comparisons and twenty sorts per letter typed, on a tablet, through
+   * gloves. The search only dims cards; it has no business re-bucketing the board.
+   *
+   * Keyed on the two things that actually change it. `find` is deliberately not a
+   * dependency.
+   */
+  const peopleByArea = useMemo(() => {
+    const byArea = new Map<string, {
+      person: HeadcountEmployee; shown: string; startTime: string | null;
+      tag: string | null; overtime: boolean; leader: boolean;
+    }[]>();
+    for (const a of allocations) {
+      if (a.status !== "assigned" && a.status !== "overtime") continue;
+      if (!a.area_id) continue;
+      const person = employeeById.get(a.employee_id);
+      if (!person) continue;
+      const list = byArea.get(a.area_id) ?? [];
+      list.push({
+        person,
+        shown: a.sheet_name ?? person.full_name,
         startTime: a.sheet_start_time ?? null,
         tag: a.sheet_tag ?? null,
         overtime: a.status === "overtime",
         // The day's own leader wins. `department` is only the fallback, so a board
         // nobody has named a leader on still shows the Team Leaders it has.
         leader: a.is_leader ?? false,
-      }))
-      .sort((a, b) => {
+      });
+      byArea.set(a.area_id, list);
+    }
+    for (const list of byArea.values()) {
+      list.sort((a, b) => {
         // The leader marked on this particular line and shift always takes the first
         // position, even when another Team Leader is helping on the same line.
         const la = a.leader ? 0 : isLeader(a.person.department) ? 1 : 2;
         const lb = b.leader ? 0 : isLeader(b.person.department) ? 1 : 2;
         return la - lb || a.shown.localeCompare(b.shown);
       });
+    }
+    return byArea;
+  }, [allocations, employeeById]);
+
+  /** Same answer as before, now a lookup. Empty areas keep returning a fresh []. */
+  const peopleIn = (areaId: string) => peopleByArea.get(areaId) ?? [];
 
   const peopleWith = (status: AllocStatus) =>
     allocations
@@ -668,7 +724,6 @@ function ShiftBoard({
     e.dataTransfer.setData("text/plain", employeeId);
     e.dataTransfer.effectAllowed = "move";
   };
-  const readDrag = () => draggedEmployeeId;
 
   const handleDrop = (target: { areaId: string | null; status: AllocStatus } | "roster") => (employeeId: string) => {
     if (!employeeId) return;
@@ -1059,12 +1114,12 @@ function ShiftBoard({
             {(grip) => (
             <DropZone
               disabled={!canManage}
-              onDrop={() => handleDrop({ areaId: area.id, status: "assigned" })(readDrag() ?? "")}
+              onDrop={(employeeId) => handleDrop({ areaId: area.id, status: "assigned" })(employeeId)}
             >
-              {/* A barra saiu: o cabeçalho logo por baixo já é tingido pelo mesmo
-                  `area.kind`, e dizê-lo duas vezes a um centímetro de distância não
-                  acrescenta nada. Produção contra apoio é uma categoria, não um estado
-                  — e a barra à esquerda, neste sistema, é onde se diz o estado. */}
+              {/* The stripe came off: the header an inch below is already tinted from
+                  the same `area.kind`, and saying it twice that close adds nothing.
+                  Production against support is a category, not a state — and a bar down
+                  the left edge, in this system, is where a state is said. */}
               <Card className="h-full overflow-hidden">
                 <CardHeader
                   className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "border-l-4" : "bg-muted", canManage && "cursor-pointer hover:brightness-95")}
@@ -1104,7 +1159,7 @@ function ShiftBoard({
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
                         onDragStart={(e) => {
-                          draggedEmployeeId = p.id;
+                          holdDrag(p.id);
                           dragStart(e, p.id);
                         }}
                       />
@@ -1326,7 +1381,7 @@ function ShiftBoard({
             <DropZone
               key={block.status}
               disabled={!canManage}
-              onDrop={() => handleDrop({ areaId: null, status: block.status })(readDrag() ?? "")}
+              onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
             >
               <Card className={cn("h-full", block.accent)}>
                 {/* Clickable like an area column. These blocks only took a drag
@@ -1362,7 +1417,7 @@ function ShiftBoard({
                         crew={crewBadge(p.shift_group)}
                         draggable={canManage}
                         onDragStart={(e) => {
-                          draggedEmployeeId = p.id;
+                          holdDrag(p.id);
                           dragStart(e, p.id);
                         }}
                       />
