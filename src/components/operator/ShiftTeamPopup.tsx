@@ -154,6 +154,7 @@ export function ShiftTeamPopup() {
                             <Clock3 className="h-4 w-4" /> {member.sheet_start_time}
                           </Badge>
                         )}
+                        {member.sheet_tag && <Badge variant="outline">{member.sheet_tag}</Badge>}
                         {member.half_day && <Badge variant="outline">½ day</Badge>}
                         {member.status !== "assigned" && (
                           <Badge variant={member.status === "overtime" ? "secondary" : "destructive"}>
