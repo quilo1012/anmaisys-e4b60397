@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useDeviceLineCtx } from "@/contexts/DeviceLineContext";
 import { useLineTeamBoard, type LineTeamMember } from "@/hooks/useLineTeamBoard";
-import { getCurrentFactoryShift, getCurrentShiftStart, SHIFT_LABEL } from "@/lib/shifts";
+import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, SHIFT_LABEL } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 
 const TEAM_WINDOW_MINUTES = 15;
@@ -61,13 +61,13 @@ export function ShiftTeamPopup() {
   }, [shiftStartMs]);
 
   useEffect(() => {
-    if (!inWindow) return;
+    const nextChangeMs = inWindow ? windowEndMs : getCurrentShiftEnd(now).getTime();
     const timer = window.setTimeout(
       () => setNow(new Date()),
-      Math.max(1_000, windowEndMs - Date.now() + 250),
+      Math.max(1_000, nextChangeMs - Date.now() + 250),
     );
     return () => window.clearTimeout(timer);
-  }, [inWindow, windowEndMs]);
+  }, [inWindow, now, windowEndMs]);
 
   const groups = useMemo(() => {
     const byArea = new Map<string, { name: string; sort: number; members: LineTeamMember[] }>();
@@ -142,7 +142,7 @@ export function ShiftTeamPopup() {
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn("text-lg font-semibold", member.is_leader && "text-warning-strong")}> 
+                        <span className={cn("text-lg font-semibold", member.is_leader && "text-warning-strong")}>
                           {member.display_name || member.employee_name}
                         </span>
                         {member.is_leader && <Crown className="h-5 w-5 text-warning-strong" />}
