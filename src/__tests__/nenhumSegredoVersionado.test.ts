@@ -32,15 +32,16 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /**
  * Excepção datada, não permanente.
  *
- * `.env.production` carrega um token de pagamentos `live_` que **não é lido por uma
- * única linha de código** — procurado em todo o repositório, zero ocorrências. Rodá-lo
- * e apagar o ficheiro não parte nada; é só preciso que alguém com acesso ao fornecedor
- * o rode primeiro, porque apagar antes de rodar apaga a prova e mantém o risco.
+ * **Está vazia, e é assim que deve ficar.** Teve `.env.production` enquanto lá esteve
+ * um token de pagamentos `live_`; foi removido do repositório a 03/10 e a excepção saiu
+ * com ele.
  *
- * O `.env.development` tem o mesmo nome de variável com prefixo `test_`, e por isso
- * não entra aqui: a regra procura a forma de uma credencial viva, não o nome dela.
- * Também não devia estar versionado, mas um token de teste não é uma emergência e
- * misturá-lo com esta faria a excepção parecer maior do que é.
+ * O teste abaixo recusa um nome que já não corresponda a nenhum ficheiro versionado —
+ * sem isso uma excepção fica aqui a dar cobertura a um ficheiro que voltou, e foi
+ * exactamente o que quase aconteceu: assim que o `.env.production` deixou de ser
+ * versionado, nenhum caso de teste passou a ser gerado para ele e a excepção ficou
+ * morta sem ninguém reparar. Uma lista de excepções que não se limpa sozinha é a
+ * próxima falha a dormir.
  *
  * ESTA LISTA É A TAREFA. Quando o token estiver rodado e os ficheiros removidos,
  * apaga-se esta constante e o teste passa a ser absoluto. Está aqui em vez de o teste
@@ -48,7 +49,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * lida ao terceiro dia — e isto não se resolve em minutos, resolve-se no painel do
  * fornecedor de pagamentos.
  */
-const POR_RODAR = new Set([".env.production"]);
+const POR_RODAR = new Set<string>([]);
 
 /** Sem valores, ou com valores que são claramente exemplos. */
 const SEM_SEGREDOS = new Set([".env.example"]);
@@ -87,6 +88,17 @@ function temSegredo(rel: string): boolean {
 
 describe("ficheiros de ambiente num repositório público", () => {
   const versionados = ficheirosDeAmbienteVersionados();
+
+  it("nao guarda excepcoes mortas", () => {
+    // Uma excepcao so se justifica enquanto o ficheiro que ela cobre existir. Quando o
+    // ficheiro sai, nenhum caso e gerado para ele e a excepcao deixaria de ser vista.
+    const bases = new Set(versionados.map((p) => p.split("/").pop()!));
+    const mortas = [...POR_RODAR].filter((n) => !bases.has(n));
+    expect(
+      mortas,
+      `Estas excepcoes ja nao cobrem nada e devem sair de POR_RODAR: ${mortas.join(", ")}.`,
+    ).toEqual([]);
+  });
 
   it("encontra ficheiros de ambiente para verificar", () => {
     // Sem isto, um `git ls-files` que falhe faz o resto passar sem ter visto nada.
