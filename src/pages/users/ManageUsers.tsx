@@ -18,6 +18,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { SignupSettingsCard } from "@/components/SignupSettingsCard";
+import { LeaderLinePicker } from "@/components/LeaderLinePicker";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
@@ -249,13 +250,13 @@ export default function ManageUsers() {
   const [ldOpen, setLdOpen] = useState(false);
   const [ldName, setLdName] = useState("");
   const [ldPin, setLdPin] = useState("");
-  const [ldLine, setLdLine] = useState("");
+  const [ldLines, setLdLines] = useState<string[]>([]);
   const [ldLoading, setLdLoading] = useState(false);
   const [editLd, setEditLd] = useState<Leader | null>(null);
   const [editLdName, setEditLdName] = useState("");
   const [editLdPin, setEditLdPin] = useState("");
   const [editLdActive, setEditLdActive] = useState(true);
-  const [editLdLine, setEditLdLine] = useState("");
+  const [editLdLines, setEditLdLines] = useState<string[]>([]);
   const [editLdLoading, setEditLdLoading] = useState(false);
   const [deleteLdLoading, setDeleteLdLoading] = useState<string | null>(null);
 
@@ -298,21 +299,22 @@ export default function ManageUsers() {
     setLeaders((data as Leader[]) ?? []);
   };
 
-  // Normalize a single line label: trim, collapse inner whitespace,
-  // Title-case the "line" word so "line 1" / "LINE  1" both become "Line 1".
-  const normalizeLine = (raw: string): string => {
-    const clean = raw.replace(/\s+/g, " ").trim();
-    if (!clean) return "";
-    return clean.replace(/^line\s+/i, "Line ");
-  };
-
-  // Accept comma OR semicolon separated input, normalize each value,
-  // dedupe case-insensitively while preserving first-seen casing.
-  const parseLines = (raw: string): string[] => {
+  /**
+   * Lines come from the picker now, so they are already catalogue names. This is
+   * only the last tidy: collapse whitespace and drop a repeat, case-insensitively,
+   * keeping the casing that was picked first.
+   *
+   * What used to be here — normalizeLine/parseLines over a comma-separated text
+   * field — was the bug. "Gel Packing" is a line name nobody can spell correctly
+   * by guessing, because the catalogue calls that line "GEL Line", and the only
+   * feedback was a P0001 toast after the save. A value that must match a
+   * catalogue is picked, not typed.
+   */
+  const cleanLines = (raw: string[]): string[] => {
     const seen = new Set<string>();
     const out: string[] = [];
-    for (const part of raw.split(/[,;]/)) {
-      const norm = normalizeLine(part);
+    for (const part of raw) {
+      const norm = part.replace(/\s+/g, " ").trim();
       if (!norm) continue;
       const key = norm.toLowerCase();
       if (seen.has(key)) continue;
@@ -325,9 +327,9 @@ export default function ManageUsers() {
   const handleCreateLeader = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ldName.trim() || ldPin.length !== 4) return;
-    const lines = parseLines(ldLine);
+    const lines = cleanLines(ldLines);
     if (lines.length === 0) {
-      toast({ title: "Lines required", description: "Enter at least one line (comma-separated).", variant: "destructive" });
+      toast({ title: "Lines required", description: "Pick at least one line from the list.", variant: "destructive" });
       return;
     }
     setLdLoading(true);
@@ -336,7 +338,7 @@ export default function ManageUsers() {
       if (error) throw error;
       toast({ title: "Leader created", description: `${ldName} · ${lines.join(", ")}` });
       setLdOpen(false);
-      setLdName(""); setLdPin(""); setLdLine("");
+      setLdName(""); setLdPin(""); setLdLines([]);
       fetchLeaders();
       fetchLeadersWithoutPin();
     } catch (err: any) {
@@ -351,14 +353,14 @@ export default function ManageUsers() {
     setEditLdName(l.name);
     setEditLdPin("");
     setEditLdActive(l.is_active);
-    setEditLdLine((l.lines && l.lines.length > 0 ? l.lines : (l.line ? [l.line] : [])).join(", "));
+    setEditLdLines(l.lines && l.lines.length > 0 ? l.lines : (l.line ? [l.line] : []));
   };
 
   const handleEditLeader = async () => {
     if (!editLd) return;
-    const lines = parseLines(editLdLine);
+    const lines = cleanLines(editLdLines);
     if (lines.length === 0) {
-      toast({ title: "Lines required", description: "Enter at least one line (comma-separated).", variant: "destructive" });
+      toast({ title: "Lines required", description: "Pick at least one line from the list.", variant: "destructive" });
       return;
     }
     setEditLdLoading(true);
@@ -997,16 +999,23 @@ export default function ManageUsers() {
                   <form onSubmit={handleCreateLeader} className="space-y-4" autoComplete="off">
                     <div className="space-y-2"><Label>Leader Name <span className="text-destructive-strong">*</span></Label><Input value={ldName} onChange={(e) => setLdName(e.target.value)} required /></div>
                     <div className="space-y-2">
-                      <Label>Lines</Label>
-                      <Input value={ldLine} onChange={(e) => setLdLine(e.target.value)} placeholder="e.g. Line 1, Line 2" />
-                      <p className="text-xs text-muted-foreground">Comma-separated. Leader will unlock Target for any of these lines.</p>
+                      <Label htmlFor="ld-lines">Lines <span className="text-destructive-strong">*</span></Label>
+                      <LeaderLinePicker id="ld-lines" value={ldLines} onChange={setLdLines} />
+                      <p className="text-xs text-muted-foreground">Leader will unlock Target for any of these lines. Only lines in the catalogue can be picked — if the area you want is not here, add it under Lines first.</p>
                     </div>
 
                     <div className="space-y-2">
                       <Label>PIN (4 digits) <span className="text-destructive-strong">*</span></Label>
                       <Input type="password" value={ldPin} onChange={(e) => setLdPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="e.g. 1234" minLength={4} maxLength={4} required />
                     </div>
-                    <Button type="submit" className="w-full" disabled={ldLoading || ldPin.length < 4}>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={ldLoading || ldPin.length < 4 || ldLines.length === 0}
+                      /* Says why it is disabled. A dead button with no reason is the
+                         same dead end as the toast this change removed. */
+                      title={ldLines.length === 0 ? "Pick at least one line" : ldPin.length < 4 ? "Enter the 4-digit PIN" : undefined}
+                    >
                       {ldLoading ? "Creating..." : "Create Leader"}
                     </Button>
                   </form>
@@ -1123,9 +1132,9 @@ export default function ManageUsers() {
             <div className="space-y-4">
               <div className="space-y-2"><Label>Leader Name</Label><Input value={editLdName} onChange={(e) => setEditLdName(e.target.value)} /></div>
               <div className="space-y-2">
-                <Label>Lines</Label>
-                <Input value={editLdLine} onChange={(e) => setEditLdLine(e.target.value)} placeholder="e.g. Line 1, Line 2" />
-                <p className="text-xs text-muted-foreground">Comma-separated. Leader will unlock Target for any of these lines.</p>
+                <Label htmlFor="edit-ld-lines">Lines <span className="text-destructive-strong">*</span></Label>
+                <LeaderLinePicker id="edit-ld-lines" value={editLdLines} onChange={setEditLdLines} />
+                <p className="text-xs text-muted-foreground">Leader will unlock Target for any of these lines. Only lines in the catalogue can be picked — if the area you want is not here, add it under Lines first.</p>
               </div>
 
               <div className="space-y-2">
@@ -1139,7 +1148,11 @@ export default function ManageUsers() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditLd(null)}>Cancel</Button>
-              <Button onClick={handleEditLeader} disabled={editLdLoading}>
+              <Button
+                onClick={handleEditLeader}
+                disabled={editLdLoading || editLdLines.length === 0}
+                title={editLdLines.length === 0 ? "Pick at least one line" : undefined}
+              >
                 {editLdLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
               </Button>
             </DialogFooter>
