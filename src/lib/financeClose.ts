@@ -480,3 +480,35 @@ export function countDaysAway(
 
   return counted;
 }
+
+export interface PeriodLike { id: string; name: string; start_date: string; end_date: string }
+
+/**
+ * Qual periodo o fecho abre, e se teve de recuar.
+ *
+ * Isto era uma linha dentro do ecra: `periods.find(cobre hoje) ?? periods[0] ?? null`.
+ * A lista vem ordenada por `start_date` DESCENDENTE, logo `periods[0]` e o periodo
+ * MAIS FUTURO que existe — hoje seria Janeiro de 2028. Quando nenhum periodo cobria
+ * hoje, o ecra de folha abria dois anos a frente, a mostrar zeros, sem dizer nada. E
+ * zeros num fecho leem-se como periodo tranquilo, nao como periodo errado.
+ *
+ * Nao e hipotetico: **84 dias de 2026 nao estao em periodo nenhum** — um buraco de 28
+ * dias entre 12/01 e 08/02, e um de 56 entre 13/04 e 07/06.
+ *
+ * Continua a recuar, porque um ecra em branco nao ajuda ninguem, mas para o ultimo
+ * periodo que ja COMECOU, e devolve `isFallback` para que o ecra o possa dizer.
+ */
+export function pickClosePeriod(
+  periods: ReadonlyArray<PeriodLike>,
+  today: string,
+  chosenId?: string,
+): { period: PeriodLike | null; isFallback: boolean } {
+  if (chosenId) {
+    return { period: periods.find((p) => p.id === chosenId) ?? null, isFallback: false };
+  }
+  const covering = periods.find((p) => p.start_date <= today && p.end_date >= today);
+  if (covering) return { period: covering, isFallback: false };
+  // Descendente, por isso o primeiro que ja comecou e o mais recente.
+  const started = periods.find((p) => p.start_date <= today) ?? null;
+  return { period: started, isFallback: !!started };
+}

@@ -24,13 +24,14 @@ import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
   closeCrews, filterByCrew, crewLabel, NO_CREW,
-  closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT, countDaysAway,
+  closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 import { plannedBoardDates, periodElapsedTo } from "@/lib/shiftBalance";
 import { partDay } from "@/lib/partDay";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { Figure, FigureRow } from "@/components/ui/Figure";
+import { currentShift } from "@/lib/operationalShift";
 
 /** `10/08/2026`. A fábrica lê as datas ao contrário, e esta folha lê-se lá. */
 const fmtDate = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
@@ -70,12 +71,31 @@ export default function FinanceClosePage() {
     },
   });
 
-  // The period covering today, so the screen opens on the one being closed.
-  const period = useMemo(() => {
-    if (periodId) return periods.find((p) => p.id === periodId) ?? null;
-    const today = new Date().toISOString().slice(0, 10);
-    return periods.find((p) => p.start_date <= today && p.end_date >= today) ?? periods[0] ?? null;
-  }, [periods, periodId]);
+  /**
+   * The period covering today, so the screen opens on the one being closed.
+   *
+   * Two things this used to get wrong, and both of them quietly.
+   *
+   * The date was `new Date()`, the calendar's. At half past midnight the night crew is
+   * still on yesterday, and on the first or last day of a period that is the difference
+   * between opening on the period being closed and opening on the next one.
+   *
+   * And when no period covered today it fell through to `periods[0]`. The list is
+   * ordered by start_date DESCENDING, so that is the period FURTHEST IN THE FUTURE —
+   * today it would be January 2028. The screen opened on a period two years out,
+   * showing zeros, and zeros on a close screen read as a quiet period rather than as
+   * the wrong period. 84 days of 2026 are in no period at all, so this is reachable.
+   *
+   * It still falls back, because a blank screen helps nobody, but to the last period
+   * that has actually STARTED — and it says so.
+   */
+  const today = currentShift().operationalDate;
+  // A regra mora no `financeClose.ts`, com testes. Aqui era uma linha e foi assim que
+  // ficou errada em silencio durante meses.
+  const { period, periodIsFallback } = useMemo(() => {
+    const r = pickClosePeriod(periods, today, periodId || undefined);
+    return { period: r.period, periodIsFallback: r.isFallback };
+  }, [periods, periodId, today]);
 
   // The register reads the same period as everything else on the page.
   const { data: otEntries } = useOvertimeEntries(period?.id ?? null);
@@ -95,7 +115,9 @@ export default function FinanceClosePage() {
    * is unchanged. It only bites on the period being watched while it runs, which is the
    * only one this screen ever opens on.
    */
-  const today = new Date().toISOString().slice(0, 10);
+  // Mesmo `today` operacional de cima, e pela mesma razao: a meia-noite e meia a noite
+  // de ontem ainda esta a correr, logo ontem ainda nao aconteceu por inteiro. Eram duas
+  // declaracoes com a mesma intencao e fontes diferentes.
   const to = periodEnd ? periodElapsedTo(periodEnd, today) : "";
   const stillRunning = !!periodEnd && to !== periodEnd;
 
@@ -413,6 +435,18 @@ export default function FinanceClosePage() {
       <div className="space-y-4 print-content print-landscape print-dense close-sheet">
         <BackButton className="print:hidden" />
         <WorkforceTabs />
+
+        {/* Dito quando o ecra abriu num periodo que nao e o de hoje.
+            Sem isto o fecho abria noutro periodo sem o declarar, e um ecra de folha a
+            mostrar o periodo errado com numeros certos e pior do que um vazio: le-se
+            como se fosse sobre agora. Imprime, porque a folha que sai daqui e arquivada
+            e tem de dizer que nao e a do periodo corrente. */}
+        {periodIsFallback && period && (
+          <p className="print-keep rounded border border-warning/50 bg-warning/5 p-2 text-xs">
+            Today is not inside any pay period, so this opened on the last one that had
+            started — <b>{period.name}</b>. Pick another above if that is not the one you want.
+          </p>
+        )}
 
         <ModuleHeader
           title="Finance Close"

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, closeCrews, filterByCrew, NO_CREW,
-  closeDepartments, filterClose, departmentLabel, NO_DEPARTMENT, countDaysAway,
+  closeDepartments, filterClose, departmentLabel, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 
@@ -527,5 +527,47 @@ describe("payrollEmpty — a coluna por preencher não é uma coluna de zeros", 
     const lancado = closeOf(person({ payrollOtHours: 0 }));
     expect(vazio.payrollOtHours).toBe(lancado.payrollOtHours);
     expect(vazio.payrollEmpty).not.toBe(lancado.payrollEmpty);
+  });
+});
+
+describe("pickClosePeriod — abrir no periodo errado e pior do que abrir vazio", () => {
+  // Ordenados por start_date DESCENDENTE, como o hook os devolve.
+  const PERIODOS = [
+    { id: "p2028", name: "January 2028", start_date: "2028-01-10", end_date: "2028-02-06" },
+    { id: "pSet", name: "September 2026", start_date: "2026-09-07", end_date: "2026-10-11" },
+    { id: "pMar", name: "March 2026", start_date: "2026-02-09", end_date: "2026-03-08" },
+  ];
+
+  it("abre no periodo que cobre o dia", () => {
+    const r = pickClosePeriod(PERIODOS, "2026-10-03");
+    expect(r.period?.id).toBe("pSet");
+    expect(r.isFallback).toBe(false);
+  });
+
+  it("num dia sem periodo, NAO salta para o mais futuro", () => {
+    // 12/01 a 08/02/2026 e um dos dois buracos reais. A versao antiga devolvia aqui
+    // `periods[0]` — January 2028 — e o ecra abria dois anos a frente sem o dizer.
+    const r = pickClosePeriod(PERIODOS, "2026-01-20");
+    expect(r.period?.id).not.toBe("p2028");
+    expect(r.period).toBeNull(); // nenhum comecou ainda nesta amostra
+  });
+
+  it("recua para o ultimo periodo ja comecado, e assume que recuou", () => {
+    // 09/03 a 06/09/2026: depois do March 2026 e antes do September 2026.
+    const r = pickClosePeriod(PERIODOS, "2026-05-01");
+    expect(r.period?.id).toBe("pMar");
+    expect(r.isFallback).toBe(true);
+  });
+
+  it("uma escolha explicita manda, e nunca e um recuo", () => {
+    const r = pickClosePeriod(PERIODOS, "2026-10-03", "p2028");
+    expect(r.period?.id).toBe("p2028");
+    expect(r.isFallback).toBe(false);
+  });
+
+  it("um id que ja nao existe nao cai em periodo nenhum por engano", () => {
+    const r = pickClosePeriod(PERIODOS, "2026-10-03", "apagado");
+    expect(r.period).toBeNull();
+    expect(r.isFallback).toBe(false);
   });
 });
