@@ -631,7 +631,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
   const [batch, setBatch] = useState("");        // stored in batch_code — used by Quality to pull the SKU
   const [mfgMonth, setMfgMonth] = useState("");  // "YYYY-MM" — parsed from the batch field
   const [expMonth, setExpMonth] = useState("");  // "YYYY-MM" — parsed from the batch field
-  const [destination, setDestination] = useState("");
   const [notForEu, setNotForEu] = useState(false);
   const [blender, setBlender] = useState<string>("");
   const [qty, setQty] = useState<string>("");
@@ -848,7 +847,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     setBatch("");
     setMfgMonth("");
     setExpMonth("");
-    setDestination("");
     setNotForEu(false);
     resetRunFields();
   };
@@ -880,7 +878,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     if (batchClean !== batch) setBatch(batchClean);
     if (parsed.mfg && parsed.mfg !== mfgMonth) setMfgMonth(parsed.mfg);
     if (parsed.exp && parsed.exp !== expMonth) setExpMonth(parsed.exp);
-    const destClean = destination.trim();
     if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
     if (!batchClean) { toast.error("Enter the batch code"); return; }
     if (!blenderLabel || !Number.isFinite(blenderNum) || blenderNum < 1) { toast.error("Enter the blender (e.g. 3 or 7/8)"); return; }
@@ -941,7 +938,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
             batch_code: batchClean,
             manufacture_month: mfgClean ? `${mfgClean}-01` : null,
             expiry_month: expClean ? `${expClean}-01` : null,
-            destination: destClean || null,
             not_for_eu: notForEu,
             started_at: hmToIso(startTime, logDate, logShift),
             finished_at: hmToIso(finishTime, logDate, logShift),
@@ -980,7 +976,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
         if (batchClean) timePatch.batch_code = batchClean;
         if (mfgClean) timePatch.manufacture_month = `${mfgClean}-01`;
         if (expClean) timePatch.expiry_month = `${expClean}-01`;
-        timePatch.destination = destClean || null;
         timePatch.not_for_eu = notForEu;
         if (Object.keys(timePatch).length) {
           // .select() so a locked-session RLS no-op (0 rows, no error) surfaces
@@ -1294,24 +1289,6 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
           </div>
         </div>
 
-        {/* Send to (destination) — optional, with common suggestions */}
-        <div className="space-y-1.5">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Send to <span className="normal-case text-muted-foreground/60">(destination)</span></div>
-          <Input
-            list="log-prod-destinations"
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            placeholder="e.g. B&M, Stock, Applied..."
-            className="h-11"
-            autoComplete="off"
-          />
-          <datalist id="log-prod-destinations">
-            {["Stock","Applied","Australia","B&M","Basix","Body & Fit","Capsules","Free Soul","Gel","Gymshark","H&B","Homebargains","Laperva / Body Builder","Lazer","LIDL","Peru","USA","V Health"].map((d) => (
-              <option key={d} value={d} />
-            ))}
-          </datalist>
-        </div>
-
         {/* SKU not for EU */}
         <label className="flex items-center gap-2 select-none cursor-pointer">
           <Checkbox
@@ -1499,7 +1476,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_blender_entries")
-        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, batch_code, manufacture_month, expiry_month, destination, not_for_eu, sku_code_text, sku:sku_products(code, name))")
+        .select("id, blender_number, blender_label, quantity, started_at, finished_at, created_at, production_item_id, production_items!inner(blender_ref, batch_code, manufacture_month, expiry_month, not_for_eu, sku_code_text, sku:sku_products(code, name))")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -1520,7 +1497,7 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("production_items")
-        .select("id, actual_qty, batch_code, blender_ref, manufacture_month, expiry_month, destination, not_for_eu, created_at, sku_code_text, sku:sku_products(code, name), production_blender_entries(id)")
+        .select("id, actual_qty, batch_code, blender_ref, manufacture_month, expiry_month, not_for_eu, created_at, sku_code_text, sku:sku_products(code, name), production_blender_entries(id)")
         .eq("session_id", sessionId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -1593,7 +1570,6 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
               const mm = (d?: string | null) => (d ? `${String(d).slice(5, 7)}/${String(d).slice(2, 4)}` : "");
               const mfg = mm(pi.manufacture_month);
               const exp = mm(pi.expiry_month);
-              const dest = pi.destination;
               const nfe = !!pi.not_for_eu;
               return (
                 <li key={e.id} className="flex items-center gap-3 p-2">
@@ -1611,9 +1587,6 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                       </span>
                       {assembly && (
                         <span className="text-2xs text-muted-foreground">Assembly {assembly}</span>
-                      )}
-                      {dest && (
-                        <span className="inline-flex items-center rounded bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary px-1.5 py-0.5 text-2xs font-medium">→ {dest}</span>
                       )}
                       {nfe && (
                         <span className="inline-flex items-center rounded bg-warning/10 text-warning-strong dark:bg-warning/15 dark:text-warning-strong px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
@@ -1676,9 +1649,6 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
                           ? `  ${it.manufacture_month ? `${String(it.manufacture_month).slice(5, 7)}/${String(it.manufacture_month).slice(2, 4)}` : "—"} → ${it.expiry_month ? `${String(it.expiry_month).slice(5, 7)}/${String(it.expiry_month).slice(2, 4)}` : "—"}`
                           : ""}
                       </span>
-                    )}
-                    {it.destination && (
-                      <span className="inline-flex items-center rounded bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary px-1.5 py-0.5 text-2xs font-medium">→ {it.destination}</span>
                     )}
                     {it.not_for_eu && (
                       <span className="inline-flex items-center rounded bg-warning/10 text-warning-strong dark:bg-warning/15 dark:text-warning-strong px-1.5 py-0.5 text-2xs font-medium">Not for EU</span>
