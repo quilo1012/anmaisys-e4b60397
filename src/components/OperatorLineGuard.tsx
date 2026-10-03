@@ -8,6 +8,7 @@ import { useOperatorAccounts } from "@/hooks/useOperatorAccounts";
 import { useLines } from "@/hooks/useMachines";
 import { DeviceLineProvider, useDeviceLineCtx, AllowedLine } from "@/contexts/DeviceLineContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { ShiftTeamPopup } from "@/components/operator/ShiftTeamPopup";
 
 /**
  * Hard gate for operator screens. Resolves the operator-account → allowed-lines binding and:
@@ -101,6 +102,7 @@ export function OperatorLineGuard({ children }: { children: ReactNode }) {
       label={account.label}
     >
       <LineSelector />
+      <ShiftTeamPopup />
       {children}
     </DeviceLineProvider>
   );
