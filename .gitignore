@@ -27,6 +27,12 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+# `.env.*.local` acima não cobre `.env.production` nem `.env.development`,
+# e foi assim que um token com prefixo `live_` ficou num repositório público
+# durante 18 dias (commit 70432f0, 15/09/2026).
+.env.production
+.env.development
+.env.staging
 
 # accidental nested clone + stray files
 anmaisys-e4b60397/
