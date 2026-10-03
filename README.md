@@ -71,3 +71,21 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+
+## Two files that change on their own
+
+`npm install` and `npm run build` both rewrite files nobody edited. Three commits in
+three days nearly carried one of them by accident, through a `git add -A`:
+
+| File | Rewritten by | What changes |
+|---|---|---|
+| `supabase/functions/mcp/index.ts` | `vite build`, `npm install` | The pinned `@lovable.dev/mcp-js` version in its imports |
+| `package-lock.json` | `npm install` | Dependency resolution, hundreds of lines |
+
+Neither is yours. **Check `git status` before staging**, and `git checkout --` them
+unless bumping that dependency is what you actually set out to do — `index.ts` is a
+deployed edge function, so it reaching a commit as a passenger deploys a version bump
+nobody chose.
+
+Neither can simply be gitignored: both are tracked on purpose, and the edge function
+has to be in the repository to be deployed at all.
