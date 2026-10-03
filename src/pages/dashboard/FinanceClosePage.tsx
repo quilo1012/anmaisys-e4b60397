@@ -528,7 +528,7 @@ export default function FinanceClosePage() {
                 <td className="text-right font-figure">{t.deficitShifts || "—"}</td>
                 <td className="border-l text-right font-figure">{t.overtimeHours.toFixed(2)}</td>
                 <td className="text-right font-figure">{t.owedHours ? t.owedHours.toFixed(2) : "—"}</td>
-                <td className="text-right font-figure">{t.payrollOtHours.toFixed(2)}</td>
+                <td className="text-right font-figure">{t.payrollEmpty ? "—" : t.payrollOtHours.toFixed(2)}</td>
                 <td className="text-right font-figure">
                   {t.payrollEmpty ? "—" : t.deltaHours.toFixed(2)}
                 </td>
@@ -546,7 +546,7 @@ export default function FinanceClosePage() {
               <td className="text-right font-figure">{totals.deficitShifts || "—"}</td>
               <td className="border-l text-right font-figure">{totals.overtimeHours.toFixed(2)}</td>
               <td className="text-right font-figure">{totals.owedHours ? totals.owedHours.toFixed(2) : "—"}</td>
-              <td className="text-right font-figure">{totals.payrollOtHours.toFixed(2)}</td>
+              <td className="text-right font-figure">{totals.payrollEmpty ? "—" : totals.payrollOtHours.toFixed(2)}</td>
               <td className="text-right font-figure">
                 {totals.payrollEmpty ? "—" : totals.deltaHours.toFixed(2)}
               </td>
@@ -583,7 +583,7 @@ export default function FinanceClosePage() {
                       <TableCell className="text-right font-figure text-xs tabular-nums">{t.people}</TableCell>
                       <TableCell className="text-right font-figure text-xs tabular-nums">{t.overtimeHours.toFixed(2)} h</TableCell>
                       <TableCell className="text-right font-figure text-xs tabular-nums">{t.owedHours.toFixed(2)} h</TableCell>
-                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.payrollOtHours.toFixed(2)} h</TableCell>
+                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.payrollEmpty ? "—" : `${t.payrollOtHours.toFixed(2)} h`}</TableCell>
                       <TableCell className="text-right font-figure text-xs tabular-nums">
                         {t.payrollEmpty ? <span className="text-muted-foreground">not comparable</span> : `${t.deltaHours.toFixed(2)} h`}
                       </TableCell>
@@ -620,7 +620,19 @@ export default function FinanceClosePage() {
             unit="h"
             tone={totals.partDayHours > 0 ? "owed" : "neutral"}
           />
-          <Figure label="Payroll OT" value={totals.payrollOtHours.toFixed(2)} unit="h" />
+          {/* "—", not "0.00", when nothing was ever keyed.
+              The figure beside this one already drew that line and this one did not,
+              so the same emptiness read two ways a centimetre apart: "Gap to settle"
+              said there was nothing to compare while "Payroll OT" said the office had
+              entered zero hours. `overtime_entries` is empty in all 29 periods — it
+              has never been used — so the honest answer is that nobody has keyed
+              anything, not that they keyed nothing. */}
+          <Figure
+            label="Payroll OT"
+            value={totals.payrollEmpty ? "—" : totals.payrollOtHours.toFixed(2)}
+            unit={totals.payrollEmpty ? undefined : "h"}
+            hint={totals.payrollEmpty ? "Nothing keyed for this period" : undefined}
+          />
           <Figure
             label="Gap to settle"
             // Nothing keyed means nothing to compare, and saying "0.00 h" would tell

@@ -495,3 +495,37 @@ describe("countDaysAway", () => {
     expect(counted.get("b")!.daysPresent).toBe(1);
   });
 });
+
+describe("payrollEmpty — a coluna por preencher não é uma coluna de zeros", () => {
+  // `overtime_entries` tem 0 linhas nos 29 períodos: nunca foi lançado overtime de
+  // folha, em período nenhum. Por isso esta não é uma condição rara — é a condição
+  // permanente até alguém começar a lançar, e o ecrã tem de a saber dizer.
+  const closeOf = (...people: ClosePersonInput[]) =>
+    closeTotals(buildClose(people, PERIOD.from, PERIOD.to));
+
+  it("é verdade quando ninguém tem figura de folha", () => {
+    expect(closeOf(person({ payrollOtHours: null }), person({ employeeId: "e2", payrollOtHours: null })).payrollEmpty)
+      .toBe(true);
+  });
+
+  it("é falsa assim que alguém tem, mesmo que o valor seja zero", () => {
+    // Zero lançado é uma afirmação do escritório; nada lançado é a ausência dela.
+    expect(closeOf(person({ payrollOtHours: 0 })).payrollEmpty).toBe(false);
+    expect(closeOf(person({ payrollOtHours: null }), person({ employeeId: "e2", payrollOtHours: 0 })).payrollEmpty)
+      .toBe(false);
+  });
+
+  it("é falsa num fecho sem gente, que não é a mesma coisa que uma coluna vazia", () => {
+    // Sem linhas não há afirmação nenhuma a fazer sobre a folha.
+    expect(closeTotals([]).payrollEmpty).toBe(false);
+  });
+
+  it("a soma de zero e o nada ficam distinguíveis", () => {
+    // O perigo concreto: `payrollOtHours` soma 0.00 nos dois casos. Só o
+    // `payrollEmpty` separa "o escritório lançou zero" de "o escritório não lançou".
+    const vazio = closeOf(person({ payrollOtHours: null }));
+    const lancado = closeOf(person({ payrollOtHours: 0 }));
+    expect(vazio.payrollOtHours).toBe(lancado.payrollOtHours);
+    expect(vazio.payrollEmpty).not.toBe(lancado.payrollEmpty);
+  });
+});
