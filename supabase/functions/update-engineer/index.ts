@@ -34,6 +34,14 @@ Deno.serve(async (req) => {
     if (!isAdmin && !isManager) throw new Error("Only managers and admins can update engineers");
 
     const { engineerId, name, active, pin, laborRate } = schema.parse(await req.json());
+
+    // Mesma regra que o `update-user`, que já dizia "Only admins can modify labor
+    // rates". Aqui o manager escrevia-o sem restrição nenhuma, por isso quem era
+    // barrado numa rota passava pela outra. Uma regra, dois sítios, agora iguais.
+    if (laborRate !== undefined && !isAdmin) {
+      throw new Error("Only admins can modify labor rates");
+    }
+
     const update: Record<string, unknown> = {};
     if (name !== undefined) update.name = name;
     if (active !== undefined) update.is_active = active;
