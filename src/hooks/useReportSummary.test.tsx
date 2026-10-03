@@ -33,7 +33,9 @@ vi.mock("@/integrations/supabase/client", () => {
       if (fail.has(table)) {
         return { data: null, error: { message: `permission denied for ${table}`, code: "42501" } };
       }
-      return { data: ROWS[table] ?? [], error: null };
+      const all = ROWS[table] ?? [];
+      const r = rec.filters.range as [number, number] | undefined;
+      return { data: r ? all.slice(r[0], r[1] + 1) : all, error: null };
     };
     const b: Record<string, unknown> = {};
     Object.assign(b, {
@@ -44,6 +46,11 @@ vi.mock("@/integrations/supabase/client", () => {
       lte: (c: string, v: unknown) => { rec.filters[`lte:${c}`] = v; return b; },
       in: (c: string, v: unknown) => { rec.filters[`in:${c}`] = v; return b; },
       limit: () => b,
+      order: () => b,
+      // `fetchAllRows` pages with `.range()`, so the fake has to know it or the
+      // builder returns undefined mid-chain. Slicing is what makes the loop stop:
+      // one short page and it is done.
+      range: (lo: number, hi: number) => { rec.filters.range = [lo, hi]; return b; },
       then: (resolve: (r: unknown) => unknown, reject?: (e: unknown) => unknown) =>
         Promise.resolve(finish()).then(resolve, reject),
     });

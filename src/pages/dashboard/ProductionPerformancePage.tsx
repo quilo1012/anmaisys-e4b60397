@@ -21,6 +21,7 @@ import { generatePerformanceReportPDF } from "@/lib/performanceReport";
 import { aggregateLines, buildDailyHistory } from "@/lib/productionHistory";
 import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange } from "@/lib/shifts";
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useLeaderShifts } from "@/hooks/useLeaderShifts";
 import { actionsInReportPeriod, actionShift, shiftWasRecorded } from "@/lib/performanceActions";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
@@ -314,18 +315,40 @@ export default function ProductionPerformancePage() {
       if (lineFilter !== "__all__") q = q.eq("line", lineFilter);
       if (leaderFilter !== "__all__") q = q.ilike("leader_name", leaderNamePattern(leaderFilter));
 
-      // Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
-      let rq = supabase.from("rag_weekly_entries")
-        .select("entry_date, line, shift, plan_qty, actual_qty")
-        .gte("entry_date", range.from).lte("entry_date", range.to);
-      if (shift !== "all") rq = rq.eq("shift", shift);
-      if (lineFilter !== "__all__") rq = rq.eq("line", lineFilter);
+      /**
+       * Target comes from RAG Weekly (plan_qty), NOT from SKU per-item targets.
+       *
+       * PAGED, and the reason is the sharper one — the same Analytics states about its
+       * own copy of this read. A truncated target set does not lose a row visibly: it
+       * divides a full period's output by a PARTIAL period's plan and prints the
+       * result as efficiency, so every line reads better than it ran.
+       *
+       * It is not hypothetical. `rag_weekly_entries` passed PostgREST's thousand-row
+       * cap during 2026 — 1068 rows against a cap of 1000 — so a Year period drops 68
+       * of them and shows 80.9% where the truth is 76.4%. Four and a half points, in
+       * the flattering direction. And with no ORDER BY the thousand that come back are
+       * whichever the server felt like, so the figure moves between refreshes.
+       */
+      const ragData = await fetchAllRows<{
+        entry_date: string; line: string; shift: string;
+        plan_qty: number | null; actual_qty: number | null;
+      }>({
+        range: (a, b) => {
+          let rq = supabase.from("rag_weekly_entries")
+            .select("entry_date, line, shift, plan_qty, actual_qty")
+            .gte("entry_date", range.from).lte("entry_date", range.to);
+          if (shift !== "all") rq = rq.eq("shift", shift);
+          if (lineFilter !== "__all__") rq = rq.eq("line", lineFilter);
+          // Ordered, because two pages of an unordered result can repeat a row and
+          // skip another — which on a plan is a target counted twice and one lost.
+          return rq.order("entry_date", { ascending: true }).order("id", { ascending: true }).range(a, b);
+        },
+      });
 
-      const [{ data, error }, { data: ragData, error: ragErr }] = await Promise.all([q, rq]);
+      const { data, error } = await q;
       if (error) throw error;
-      if (ragErr) throw ragErr;
 
-      const ragRows: RagRow[] = ((ragData ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number | null; actual_qty: number | null }[])
+      const ragRows: RagRow[] = (ragData as { entry_date: string; line: string; shift: string; plan_qty: number | null; actual_qty: number | null }[])
         .map((r) => ({ entry_date: r.entry_date, line: r.line, shift: r.shift, plan_qty: Number(r.plan_qty ?? 0), actual_qty: Number(r.actual_qty ?? 0) }));
 
       const ragPlanMap = new Map<string, number>();

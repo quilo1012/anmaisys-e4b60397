@@ -39,6 +39,8 @@ const calls: Array<{ table: string; method: string; args: unknown[] }> = [];
  */
 function builder(table: string) {
   let columns = "";
+  /** The window `.range()` last asked for, or null when the read was unpaged. */
+  let window: [number, number] | null = null;
   const settle = () => {
     if (failing.has(table)) {
       return Promise.resolve({
@@ -61,7 +63,14 @@ function builder(table: string) {
         error: { code: "42703", message: `column ${table}.is_gate does not exist` },
       });
     }
-    return Promise.resolve({ data: rows.get(table) ?? [], error: null });
+    const all = rows.get(table) ?? [];
+    // A paged read has to come back SHORT at some point or `fetchAllRows` keeps
+    // asking. Serving the same full array to every `.range()` would loop until its
+    // 100,000-row ceiling, so the window is honoured here as PostgREST honours it.
+    return Promise.resolve({
+      data: window ? all.slice(window[0], window[1] + 1) : all,
+      error: null,
+    });
   };
 
   const chain: Record<string, unknown> = {
@@ -75,6 +84,14 @@ function builder(table: string) {
   for (const m of ["eq", "in", "gte", "lte", "ilike", "order", "limit", "not", "or"]) {
     chain[m] = (...args: unknown[]) => { calls.push({ table, method: m, args }); return chain; };
   }
+  // Separate from the rest because it is the one filter that changes what comes back.
+  // The RAG plan is read through `fetchAllRows` now — a builder without `.range()`
+  // returned undefined mid-chain and the card drew "this scorecard could not be read".
+  chain.range = (from: number, to: number) => {
+    calls.push({ table, method: "range", args: [from, to] });
+    window = [from, to];
+    return chain;
+  };
   return chain;
 }
 

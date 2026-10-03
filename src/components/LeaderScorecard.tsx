@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { useProfileNames } from "@/hooks/useProfileNames";
 import { useLeaderWeighting } from "@/hooks/useLeaderScoreWeights";
 import { shiftDateFetchRange } from "@/lib/shifts";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { leaderNamePattern, escapeLikePattern } from "@/lib/leaderNameMatch";
 import { selectOptionalDomain } from "@/lib/optionalDomain";
 import {
@@ -204,16 +205,28 @@ export function LeaderScorecard({ leaderName, from, to, shift = "all" }: {
   const { data: ragRows = [], isError: eRag } = useQuery({
     queryKey: ["ls_rag", leaderName, from, to, shift],
     enabled,
-    queryFn: async () => {
-      let qy = supabase
-        .from("rag_weekly_entries")
-        .select("entry_date, line, shift, plan_qty")
-        .gte("entry_date", from).lte("entry_date", to);
-      if (shift !== "all") qy = qy.eq("shift", shift);
-      const { data, error } = await qy;
-      if (error) throw error;
-      return (data ?? []) as unknown as LSRagRow[];
-    },
+    /**
+     * Paged, and on this card it matters more than anywhere else it is read.
+     *
+     * This plan is the DENOMINATOR of the Production pillar, which is 40% of a score
+     * a person is appraised on. `rag_weekly_entries` passed PostgREST's thousand-row
+     * cap during 2026 — 1068 rows — so a quarter is already near it and a year is
+     * over: the read comes back short, the output is divided by a partial plan, and
+     * the leader reads BETTER than they ran. A flattering wrong number is the one
+     * nobody reports, which is the same reasoning as `readFailed` below.
+     *
+     * Ordered, so two pages cannot repeat one line-shift's target and drop another.
+     */
+    queryFn: async () => fetchAllRows<LSRagRow>({
+      range: (a, b) => {
+        let qy = supabase
+          .from("rag_weekly_entries")
+          .select("entry_date, line, shift, plan_qty")
+          .gte("entry_date", from).lte("entry_date", to);
+        if (shift !== "all") qy = qy.eq("shift", shift);
+        return qy.order("entry_date", { ascending: true }).order("id", { ascending: true }).range(a, b);
+      },
+    }),
   });
 
   const { data: items = [], isError: eItems } = useQuery({

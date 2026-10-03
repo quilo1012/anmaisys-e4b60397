@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -91,15 +92,34 @@ export function SharePointWorkbookImportDialog({ open, onOpenChange, lineLabel, 
         throw new WorkbookShapeError("No dated plan columns were found in the weekly sheets.");
       }
 
-      const { data: rows, error: rowsErr } = await supabase
-        .from("rag_weekly_entries")
-        .select("id, entry_date, line, shift, plan_qty, actual_qty, upm_target, upm_actual, downtime_min, notes, actual_source")
-        .gte("entry_date", result.dateRange.from)
-        .lte("entry_date", result.dateRange.to);
-      if (rowsErr) throw rowsErr;
+      /**
+       * Paged, and here a short read does not merely mislead — it writes.
+       *
+       * These rows are one side of `diffPlans`. Anything the workbook has that is
+       * MISSING from them is classified as a new row and inserted when "create
+       * missing" is on. So a read that stops at PostgREST's thousand-row cap does not
+       * show fewer rows: it reports plan lines that already exist as new, and the
+       * import duplicates them on the plan table.
+       *
+       * The range is the workbook's own, not a week the screen controls — a sheet
+       * covering a quarter is ordinary, and `rag_weekly_entries` passed 1000 rows
+       * during 2026.
+       */
+      // Cast at the edge, as the previous `(rows ?? []) as ExistingRow[]` did: the
+      // generated types make these columns nullable and `ExistingRow` does not.
+      const rows = await fetchAllRows<ExistingRow>({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generated column types are wider than ExistingRow
+        range: (a, b) => (supabase as any)
+          .from("rag_weekly_entries")
+          .select("id, entry_date, line, shift, plan_qty, actual_qty, upm_target, upm_actual, downtime_min, notes, actual_source")
+          .gte("entry_date", result.dateRange!.from)
+          .lte("entry_date", result.dateRange!.to)
+          .order("entry_date", { ascending: true }).order("id", { ascending: true })
+          .range(a, b),
+      });
 
       setParsed(result);
-      setDiff(diffPlans(result.plans, (rows ?? []) as ExistingRow[]));
+      setDiff(diffPlans(result.plans, rows));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);

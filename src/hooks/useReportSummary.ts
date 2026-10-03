@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { supabase } from "@/integrations/supabase/client";
 import { shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 
@@ -31,11 +32,28 @@ export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" 
       const window = shiftDateFetchRange(from, to);
       const inShift = (s: string | null) => shift === "ALL" || (s ?? "").toUpperCase() === shift;
 
-      const [rag, wos, quality] = await Promise.all([
-        // Plan and actual come from RAG Weekly, which is where the plan is agreed —
-        // not from per-item targets, matching what Performance shows.
-        db.from("rag_weekly_entries").select("entry_date, line, shift, plan_qty, actual_qty")
-          .gte("entry_date", from).lte("entry_date", to),
+      const [ragRowsAll, wos, quality] = await Promise.all([
+        /**
+         * Plan and actual come from RAG Weekly, which is where the plan is agreed —
+         * not from per-item targets, matching what Performance shows.
+         *
+         * Paged, unlike the two reads beside it, which are capped at 2000 and are
+         * counts rather than denominators. This one is the DENOMINATOR of the
+         * attainment this hook returns: short by a few hundred rows of plan and the
+         * report reads better than the factory ran, with nothing on the page to say
+         * so. The table passed the thousand-row cap during 2026 — 1068 rows — so a
+         * report over the year was already losing 68 of them.
+         */
+        fetchAllRows<{
+          entry_date: string; line: string; shift: string;
+          plan_qty: number | null; actual_qty: number | null;
+        }>({
+          range: (a, b) => db.from("rag_weekly_entries")
+            .select("entry_date, line, shift, plan_qty, actual_qty")
+            .gte("entry_date", from).lte("entry_date", to)
+            .order("entry_date", { ascending: true }).order("id", { ascending: true })
+            .range(a, b),
+        }),
         db.from("work_orders")
           .select("id, wo_number, status, created_at, closed_at, line_stopped_at, line_at_time, line:lines!work_orders_line_id_fkey(name)")
           .neq("wo_type", "warehouse_service")
@@ -43,11 +61,10 @@ export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" 
         db.from("quality_actions").select("id, severity, closed_at, recorded_at, shift")
           .gte("recorded_at", window.gte).lte("recorded_at", window.lte).limit(2000),
       ]);
-      if (rag.error) throw rag.error;
       if (wos.error) throw wos.error;
       if (quality.error) throw quality.error;
 
-      const ragRows = (rag.data ?? []).filter((r: any) => inShift(r.shift));
+      const ragRows = ragRowsAll.filter((r: any) => inShift(r.shift));
       const plan = ragRows.reduce((s: number, r: any) => s + Number(r.plan_qty ?? 0), 0);
       const actual = ragRows.reduce((s: number, r: any) => s + Number(r.actual_qty ?? 0), 0);
 

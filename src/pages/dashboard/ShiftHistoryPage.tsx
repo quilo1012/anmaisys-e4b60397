@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { shiftRank } from "@/lib/operationalShift";
@@ -1068,13 +1069,23 @@ export default function ShiftHistoryPage() {
   const { data: ragTargets = [] } = useQuery({
     queryKey: ["shift_history_rag", from, to, fShift, fLine],
     queryFn: async () => {
-      let q = supabase.from("rag_weekly_entries").select("entry_date, line, shift, plan_qty")
-        .gte("entry_date", from).lte("entry_date", to);
-      if (fShift !== "__all__") q = q.eq("shift", fShift);
-      if (fLine !== "__all__") q = q.eq("line", fLine);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as { entry_date: string; line: string; shift: string; plan_qty: number }[];
+      /**
+       * Paged. `rag_weekly_entries` is past PostgREST's thousand-row cap — 1068 rows
+       * in 2026 — and this is the plan the attainment above is divided BY. A short
+       * read does not look short: it divides a full period's output by a partial
+       * period's plan, which is the 191% this very query was written to fix, arriving
+       * by another door. Ordered, so two pages cannot repeat one target and drop
+       * another.
+       */
+      return await fetchAllRows<{ entry_date: string; line: string; shift: string; plan_qty: number }>({
+        range: (a, b) => {
+          let q = supabase.from("rag_weekly_entries").select("entry_date, line, shift, plan_qty")
+            .gte("entry_date", from).lte("entry_date", to);
+          if (fShift !== "__all__") q = q.eq("shift", fShift);
+          if (fLine !== "__all__") q = q.eq("line", fLine);
+          return q.order("entry_date", { ascending: true }).order("id", { ascending: true }).range(a, b);
+        },
+      });
     },
   });
   // RAG has no leader/SKU breakdown, so when either filter is active we can't map
