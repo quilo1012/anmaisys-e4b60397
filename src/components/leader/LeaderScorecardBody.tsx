@@ -483,9 +483,19 @@ function ActionsBlock({ actions, charges, actionHref, onGrade }: {
           ) : (
             <>
               <p className="font-figure text-sm leading-none text-muted-foreground/50">—</p>
-              <p className="mt-0.5 text-2xs leading-tight text-muted-foreground">
-                {NOT_COUNTED[charge.reason as Exclude<ChargeReason, "counted">]}
-              </p>
+              {/* Que área é, e não só "não é dele" — a pergunta seguinte do líder é sempre essa. */}
+              {charge.reason === "not_theirs" && effectiveRootCause(a) ? (
+                <p
+                  className="mt-0.5 text-2xs leading-tight text-muted-foreground"
+                  title="Root cause set automatically from the title — Quality can change it"
+                >
+                  {NOT_COUNTED.not_theirs} · {effectiveRootCause(a)}
+                </p>
+              ) : (
+                <p className="mt-0.5 text-2xs leading-tight text-muted-foreground">
+                  {NOT_COUNTED[charge.reason as Exclude<ChargeReason, "counted">]}
+                </p>
+              )}
             </>
           )}
         </div>
