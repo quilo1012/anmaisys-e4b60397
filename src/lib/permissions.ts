@@ -150,10 +150,19 @@ const MATRIX: Record<Action, Role[]> = {
 
   "downtime.view": [...ALL, "production_office_admin"],
   "downtime.manage": ["admin", "manager", "engineer", "production_office_admin"],
-  // Mais largo do que `downtime.view` de propósito: isto não é o registo de avarias,
-  // é para onde vão as horas da linha — e 96% dessas horas são preparação, limpeza e
-  // espera, que pertencem a quem corre a produção e à qualidade, não à manutenção.
-  "stopanalysis.view": [...ALL, "production_office_admin", "quality_supervisor"],
+  // Mais largo do que `downtime.view` no escritório e na qualidade: isto não é o
+  // registo de avarias, é para onde vão as horas da linha — e 96% dessas horas são
+  // preparação, limpeza e espera, que pertencem a quem corre a produção e à
+  // qualidade, não à manutenção.
+  //
+  // O OPERADOR ESTÁ FORA, por decisão de 03/10/2026. Antes estava dentro, por o
+  // argumento acima valer também para quem está na linha; foi revertido a pedido.
+  //
+  // Não escrever `...ALL` aqui. O ALL inclui `operator`, e usá-lo devolve o ecrã ao
+  // operador sem ninguém dar por isso — foi assim que esta linha e o menu passaram a
+  // dizer o contrário do que a fábrica tinha decidido. A lista vai por extenso
+  // exactamente por essa razão.
+  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin", "quality_supervisor"],
 
   "machines.view": [...ALL, "warehouse", "production_office_admin"],
   "machines.manage": ["admin", "manager", "production_office_admin"],

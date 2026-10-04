@@ -187,7 +187,12 @@ export const navItems: NavItem[] = [
   // Em Production e não em Maintenance de propósito: o Downtime & Reliability, ao lado
   // das ordens, mede avarias — e as avarias são 4% das horas que a linha não anda. Os
   // outros 96% são preparação, limpeza e espera, e a dona disso é a produção.
-  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "maintenance_manager", "engineer", "operator", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
+  //
+  // Sem `operator`, por decisão de 03/10/2026. Tem de bater com a MATRIX em
+  // `permissions.ts`: o `navItemShows()` cruza esta lista com o `can()`, por isso um
+  // `operator` escrito aqui não devolve o ecrã sozinho — mas deixa as duas listas a
+  // dizer coisas diferentes, que é como este ecrã apareceu a quem não o devia ver.
+  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and

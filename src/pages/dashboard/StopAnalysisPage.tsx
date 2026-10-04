@@ -82,9 +82,14 @@ import { AlertTriangle, Timer } from "lucide-react";
  * que uma pessoa preencheu.
  *
  * O selector de linha continua a ser o de sempre, com "All lines". O operador não
- * chega aqui — `stopanalysis.view` está negado a esse perfil em
- * `role_permission_overrides` — e nenhuma das outras contas está ligada a uma linha,
- * por isso não há "a minha linha" para fixar.
+ * chega aqui: `stopanalysis.view` não lhe é concedido pela MATRIX em
+ * `src/lib/permissions.ts`, e há ainda uma linha em `role_permission_overrides` a
+ * negá-lo — posta a 03/10/2026, quando o código ainda concedia. As duas dizem agora
+ * o mesmo; o override fica como rede, porque é ele que vale em produção enquanto
+ * este código não for publicado.
+ *
+ * Nenhuma das outras contas está ligada a uma linha, por isso não há "a minha linha"
+ * para fixar.
  */
 
 const BUCKET_COLOR: Record<StopBucket, string> = {
