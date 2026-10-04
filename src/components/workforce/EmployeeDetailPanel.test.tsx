@@ -27,6 +27,7 @@ const EMPLOYEE = {
 };
 
 let overtimeAlgumaVez = false;
+const guardar = vi.fn();
 
 vi.mock("@/hooks/useWorkforce", () => ({
   useEmployees: () => ({ data: [EMPLOYEE] }),
@@ -35,7 +36,7 @@ vi.mock("@/hooks/useWorkforce", () => ({
   useMovements: () => ({ data: [], isLoading: false }),
   useEmployeeOvertime: () => ({ data: [], isLoading: false }),
   useOvertimeEverImported: () => ({ data: overtimeAlgumaVez }),
-  useUpdateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateEmployee: () => ({ mutate: guardar, isPending: false }),
   describeDays: () => "",
   describeSchedule: () => "",
 }));
@@ -59,7 +60,7 @@ beforeEach(() => {
   Element.prototype.hasPointerCapture = vi.fn(() => false);
   Element.prototype.releasePointerCapture = vi.fn();
 });
-afterEach(() => { cleanup(); overtimeAlgumaVez = false; });
+afterEach(() => { cleanup(); overtimeAlgumaVez = false; guardar.mockClear(); });
 
 /**
  * O Radix em `activationMode="automatic"` — o padrao — troca de separador no FOCO,
@@ -103,5 +104,62 @@ describe("o separador Overtime nao culpa a pessoa por uma tabela vazia", () => {
     mount(true);
     await abrirSeparador("Overtime");
     await waitFor(() => expect(screen.getByText(/No overtime recorded for this person/i)).toBeTruthy());
+  });
+});
+
+/**
+ * O nome, que ate 04/10/2026 so se podia corrigir na base de dados.
+ *
+ * Reportado assim: *"nao consigo editar nome dele, as informacoes nao bate com o que
+ * esta no sistema"*. O `full_name` era o titulo do painel e mais nada — o dialogo de
+ * "Add employee" pedia-o na criacao e nenhum ecra o corrigia depois. Quinze dos 211
+ * activos estao em MAIUSCULAS e vinte e tres tem so um nome, todos do import.
+ */
+describe("o nome e o email corrigem-se aqui", () => {
+  it("abre o nome num campo, nao so no titulo", async () => {
+    mount(true);
+    const campo = (await screen.findByLabelText(/Full name/i)) as HTMLInputElement;
+    expect(campo.value).toBe("Ana Silva");
+    expect(campo.disabled).toBe(false);
+  });
+
+  it("manda o nome e o email no mesmo save", async () => {
+    mount(true);
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Ana Silva Souza" } });
+    fireEvent.change(screen.getByLabelText(/^Email$/i), { target: { value: "ana@appliednutrition.uk" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+
+    expect(guardar).toHaveBeenCalledTimes(1);
+    expect(guardar.mock.calls[0][0].patch).toMatchObject({
+      full_name: "Ana Silva Souza",
+      email: "ana@appliednutrition.uk",
+    });
+  });
+
+  it("guarda a grafia antiga para a folha de headcount nao perder a pessoa", async () => {
+    mount(true);
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Ana Silva Souza" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+    expect(guardar.mock.calls[0][0].patch.sheet_aliases).toBe("Ana Silva");
+  });
+
+  it("nao inventa um alias quando so mudaram as maiusculas", async () => {
+    mount(true);
+    // O `normalise()` do import ja trata as duas como a mesma pessoa.
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "ANA SILVA" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+    expect(guardar.mock.calls[0][0].patch).not.toHaveProperty("sheet_aliases");
+  });
+
+  it("nao deixa gravar um nome vazio", async () => {
+    mount(true);
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "   " } });
+    expect(screen.getByText(/A name is required/i)).toBeTruthy();
+    expect((screen.getByRole("button", { name: /Save/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("fecha o campo a quem nao pode editar", async () => {
+    mount(false);
+    expect(((await screen.findByLabelText(/Full name/i)) as HTMLInputElement).disabled).toBe(true);
   });
 });

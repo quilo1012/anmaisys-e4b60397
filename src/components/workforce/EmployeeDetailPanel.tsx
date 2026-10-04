@@ -42,6 +42,8 @@ export function EmployeeDetailPanel({
   const { data: colleagues } = useEmployees();
   const update = useUpdateEmployee();
 
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
   const [position, setPosition] = useState("");
   const [managerId, setManagerId] = useState<string>("__none__");
@@ -53,6 +55,8 @@ export function EmployeeDetailPanel({
   // Reset when a different person is opened, so the form never shows the last one's
   // values against this one's name.
   useEffect(() => {
+    setFullName(employee?.full_name ?? "");
+    setEmail(employee?.email ?? "");
     setDepartment(employee?.department ?? "");
     setPosition(employee?.position ?? "");
     setManagerId(employee?.manager_id ?? "__none__");
@@ -61,7 +65,8 @@ export function EmployeeDetailPanel({
     setStartedOn(employee?.started_on ?? "");
     setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
   }, [
-    employee?.id, employee?.department, employee?.shift_pattern_id,
+    employee?.id, employee?.full_name, employee?.email,
+    employee?.department, employee?.shift_pattern_id,
     employee?.started_on, employee?.left_on,
     employee?.position, employee?.manager_id, employee?.employment_type,
   ]);
@@ -69,6 +74,8 @@ export function EmployeeDetailPanel({
   if (!employee) return null;
 
   const dirty =
+    fullName !== (employee.full_name ?? "") ||
+    email !== (employee.email ?? "") ||
     department !== (employee.department ?? "") ||
     patternId !== (employee.shift_pattern_id ?? "__none__") ||
     startedOn !== (employee.started_on ?? "") ||
@@ -79,11 +86,48 @@ export function EmployeeDetailPanel({
   const startsAfterLeaving =
     startedOn !== "" && employee.left_on !== null && startedOn > employee.left_on;
 
+  // `full_name` e NOT NULL e e por ele que a folha de headcount encontra a pessoa.
+  // Um campo limpo por engano apagaria as duas coisas de uma vez.
+  const nameIsBlank = fullName.trim() === "";
+
+  /**
+   * A grafia antiga guardada quando o nome muda.
+   *
+   * A folha de headcount que a fabrica carrega todos os meses encontra as pessoas pelo
+   * nome, e o `parseHeadcountWorkbook` le `sheet_aliases` para as grafias que nao
+   * batem certo. Corrigir "Dias" para "Rodrigo Dias" aqui, sem mais nada, fazia com
+   * que a folha do mes seguinte deixasse de o encontrar e ele caisse em silencio —
+   * exactamente os 61 nomes que ja se perderam uma vez por esta razao.
+   *
+   * Nao guarda nada quando a correccao e so de maiusculas ou de acentos: o
+   * `normalise()` do import ja trata "FELIPE ARAUJO" e "Felipe Araújo" como o mesmo,
+   * e um alias igual ao nome nao e um alias. Acrescenta, nunca substitui — a mesma
+   * regra do dialogo de import, porque quem ja tem duas grafias nao pode perder uma
+   * para ganhar a terceira.
+   */
+  const aliasesKeepingOldSpelling = (): string | undefined => {
+    const was = (employee.full_name ?? "").trim();
+    const now = fullName.trim();
+    const key = (x: string) =>
+      x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (was === "" || key(was) === key(now)) return undefined;
+
+    const already = String(employee.sheet_aliases ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    if (already.some((a) => key(a) === key(was))) return undefined;
+    return [...already, was].join(", ");
+  };
+
   const save = () => {
+    const keptSpelling = aliasesKeepingOldSpelling();
     update.mutate(
       {
         id: employee.id,
         patch: {
+          full_name: fullName.trim(),
+          // Vazio limpa: um email em branco e a verdade para 186 das 211 pessoas, e
+          // uma cadeia vazia guardada no lugar de null le-se como um email que existe.
+          email: email.trim() || null,
+          ...(keptSpelling ? { sheet_aliases: keptSpelling } : {}),
           department: department.trim() || null,
           shift_pattern_id: patternId === "__none__" ? null : patternId,
           // Empty clears it back to null. A blank start date means nobody recorded
@@ -96,7 +140,12 @@ export function EmployeeDetailPanel({
         },
       },
       {
-        onSuccess: () => toast.success("Saved"),
+        onSuccess: () =>
+          toast.success(
+            keptSpelling
+              ? `Saved. The headcount sheet can still find them as "${(employee.full_name ?? "").trim()}".`
+              : "Saved",
+          ),
         onError: (e) => toast.error((e as Error).message || "Could not save"),
       },
     );
@@ -169,8 +218,39 @@ export function EmployeeDetailPanel({
               </p>
             )}
             <div>
-              <Label className="text-xs">Email</Label>
-              <p className="text-sm text-muted-foreground">{employee.email || "—"}</p>
+              {/* O nome era so o titulo do painel, e nao havia mais nenhum sitio na app
+                  para lhe tocar: o dialogo de "Add employee" pede-o, nenhum ecra o
+                  corrige. Quinze dos 211 activos estao em MAIUSCULAS e vinte e tres tem
+                  so um nome, todos vindos do import — e cada um deles so se podia
+                  corrigir na base de dados. */}
+              <Label className="text-xs" htmlFor="wf-name">Full name</Label>
+              <Input
+                id="wf-name"
+                value={fullName}
+                disabled={!canEdit}
+                onChange={(e) => setFullName(e.target.value)}
+                className="text-sm"
+              />
+              {nameIsBlank && (
+                <p className="mt-1 text-2xs text-destructive-strong">
+                  A name is required — it is how the headcount sheet finds this person.
+                </p>
+              )}
+            </div>
+            <div>
+              {/* Tambem editavel, pela mesma razao: 186 das 211 pessoas nao tem email
+                  nesta tabela, e varias delas tem conta na app com o email a vista no
+                  ecra de utilizadores. O campo mostrava "—" e nao havia como o encher. */}
+              <Label className="text-xs" htmlFor="wf-email">Email</Label>
+              <Input
+                id="wf-email"
+                type="email"
+                value={email}
+                disabled={!canEdit}
+                placeholder="Not recorded"
+                onChange={(e) => setEmail(e.target.value)}
+                className="text-sm"
+              />
             </div>
             <div>
               <Label className="text-xs" htmlFor="wf-started">Start date</Label>
@@ -324,7 +404,7 @@ export function EmployeeDetailPanel({
               <p className="rounded border bg-muted/30 p-2 text-xs text-muted-foreground">{employee.notes}</p>
             )}
             {canEdit && (
-              <Button size="sm" onClick={save} disabled={!dirty || startsAfterLeaving || update.isPending}>
+              <Button size="sm" onClick={save} disabled={!dirty || nameIsBlank || startsAfterLeaving || update.isPending}>
                 <Save className="mr-1 h-4 w-4" /> {update.isPending ? "Saving…" : "Save"}
               </Button>
             )}
