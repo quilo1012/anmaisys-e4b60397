@@ -32,10 +32,14 @@ vi.mock("@/integrations/supabase/client", () => {
     const filters: Record<string, unknown> = {};
     let op: Call["op"] = "read";
     let payload: unknown = null;
+    // `update(...).select(...)` devolve as linhas que a RLS deixou escrever, e o
+    // `useUpdateEmployee` conta-as para saber se a gravacao passou. Zero linhas e uma
+    // gravacao recusada, nao uma gravacao vazia.
+    let readsBackTheWrite = false;
     const record = () => calls.push({ table, op, payload, filters });
     const builder: Record<string, unknown> = {};
     Object.assign(builder, {
-      select: () => builder,
+      select: () => { if (op !== "read") readsBackTheWrite = true; return builder; },
       eq: (c: string, v: unknown) => { filters[c] = v; return builder; },
       gte: (c: string, v: unknown) => { filters[`gte:${c}`] = v; return builder; },
       in: (c: string, v: unknown) => { filters[`in:${c}`] = v; return builder; },
@@ -45,7 +49,10 @@ vi.mock("@/integrations/supabase/client", () => {
       maybeSingle: async () => { record(); return { data: employeeRow, error: null }; },
       then: (resolve: (r: unknown) => unknown) => {
         record();
-        const data = table === "daily_allocations" && op === "read" ? allocationRows : [];
+        const data =
+          table === "daily_allocations" && op === "read" ? allocationRows
+          : readsBackTheWrite ? [{ id: String(filters.id ?? "row") }]
+          : [];
         return resolve({ data, error: null });
       },
     });
