@@ -226,8 +226,19 @@ describe("LeaderScorecard, matching the leader's name", () => {
 
     const bounds = calls.filter((c) => c.table === "work_orders" && c.method === "lte");
     expect(bounds.length).toBeGreaterThan(0);
-    // 2026-08-17 + 1 day, to 06:59 UTC — the end of that night shift.
-    expect(bounds.some((c) => String(c.args[1]).startsWith("2026-08-18T06:59:59"))).toBe(true);
+    /**
+     * Asserted as the call-out, not as a UTC literal. This used to pin
+     * `2026-08-18T06:59:59`, which was the window's old upper bound written in UTC
+     * while every rule that reads it reads the London hour — see shiftDateFetchRange.
+     * August is BST, so the end of that night is 06:00 London = 05:00Z, and a test
+     * that spells the bound cannot tell a correction from a regression.
+     *
+     * 02:00 on the 18th in London is 01:00Z, and belongs to the 17th's night.
+     */
+    const callOutAtTwoAm = "2026-08-18T01:00:00.000Z";
+    expect(bounds.some((c) => String(c.args[1]) >= callOutAtTwoAm)).toBe(true);
+    // And it stops before the day crew: 06:00 London on the 18th is 05:00Z, exclusive.
+    expect(bounds.every((c) => String(c.args[1]) < "2026-08-18T05:00:00.000Z")).toBe(true);
   });
 
   it("looks the leader up on every table that holds their name", async () => {

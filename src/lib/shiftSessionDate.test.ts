@@ -46,18 +46,59 @@ describe("shiftSessionDate", () => {
 describe("shiftDateFetchRange", () => {
   it("reaches into the morning after so a closing night is not cut off", () => {
     const w = shiftDateFetchRange("2026-07-28", "2026-07-28");
-    expect(w.gte).toBe("2026-07-28T00:00:00.000Z");
-    expect(w.lte).toBe("2026-07-29T06:59:59.999Z");
+    // Both ends are London wall-clock, and July is BST: midnight on the 28th is
+    // 23:00 UTC on the 27th, and 06:00 on the 29th is 05:00 UTC.
+    expect(w.gte).toBe("2026-07-27T23:00:00.000Z");
+    expect(w.lte).toBe("2026-07-29T04:59:59.999Z");
   });
 
-  it("covers every action that can belong to the range", () => {
+  it("is the same window in winter, when London is UTC", () => {
+    const w = shiftDateFetchRange("2026-01-15", "2026-01-15");
+    expect(w.gte).toBe("2026-01-15T00:00:00.000Z");
+    expect(w.lte).toBe("2026-01-16T05:59:59.999Z");
+  });
+
+  /**
+   * The hour the old window could not see.
+   *
+   * It opened at `${from}T00:00:00.000Z`, which under BST is 01:00 in London. An action
+   * stamped 23:30 UTC on the 27th is 00:30 on the 28th in London, and with a DAY shift
+   * column `shiftSessionDate` files it on the 28th — the day the period asked for.
+   * It was never fetched, and nothing on any screen said a row was missing.
+   */
+  it("opens at London midnight, not at UTC midnight", () => {
+    const w = shiftDateFetchRange("2026-07-28", "2026-07-28");
+    const earlyHours = "2026-07-27T23:30:00.000Z";
+    expect(shiftSessionDate(earlyHours, "DAY")).toBe("2026-07-28");
+    expect(w.gte <= earlyHours).toBe(true);
+  });
+
+  it("covers every action that can belong to the range, and nothing that cannot", () => {
     const w = shiftDateFetchRange("2026-07-27", "2026-07-29");
-    // The last night of the range writes up to 05:59 on the 30th.
-    expect(w.lte >= "2026-07-30T06:00:00.000Z").toBe(true);
-    expect(w.gte <= "2026-07-27T00:00:00.000Z").toBe(true);
+    // The last night of the range writes up to 05:59 in London on the 30th, which is
+    // 04:59 UTC — the comment this test has always carried, now asserted in the zone
+    // it was written about.
+    const lastOfTheNight = "2026-07-30T04:59:00.000Z";
+    expect(shiftSessionDate(lastOfTheNight, "NIGHT")).toBe("2026-07-29");
+    expect(w.lte >= lastOfTheNight).toBe(true);
+
+    // One minute later London says 06:00, the day crew has it, and its session date is
+    // the 30th — outside the range however the fetch is written.
+    const firstOfTheDay = "2026-07-30T05:00:00.000Z";
+    expect(shiftSessionDate(firstOfTheDay, "NIGHT")).toBe("2026-07-30");
+    expect(w.lte < firstOfTheDay).toBe(true);
   });
 
   it("steps over a month end", () => {
     expect(shiftDateFetchRange("2026-07-31", "2026-07-31").lte).toContain("2026-08-01");
+  });
+
+  it("gets both ends right across the BST/GMT switch", () => {
+    // Clocks go back at 02:00 on 25/10/2026: the near end is still BST, the far end is
+    // already GMT, so a window built by adding a fixed offset would be an hour out at
+    // one of them.
+    const w = shiftDateFetchRange("2026-10-24", "2026-10-25");
+    expect(w.gte).toBe("2026-10-23T23:00:00.000Z");
+    expect(w.lte).toBe("2026-10-26T05:59:59.999Z");
   });
 });
