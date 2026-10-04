@@ -36,7 +36,6 @@ const DONE_STATUSES = ["completed", "closed", "finished", "force_closed"];
 export default function ManagerDashboard() {
   const { role, loading: authLoading } = useAuth();
 
-  // Defense-in-depth role guard — redirect unauthorized roles before any data hooks fire
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -44,12 +43,18 @@ export default function ManagerDashboard() {
       </div>
     );
   }
-  // ProtectedRoute already enforces role access; if role is missing transiently, just wait
+  // `ProtectedRoute requiredAction="dashboard.manager"` is the gate; this only waits out
+  // the moment before the role has loaded.
+  //
+  // There used to be a second list here — ALLOWED — naming the six roles that could see
+  // this screen. A list of role names next to a system that decides by action drifts the
+  // moment either side moves, and it had drifted both ways: it carried `supervisor`,
+  // `planner` and `viewer`, retired on 10/09/2026 and holding no action at all, and it
+  // left out `production_office_admin`, which DOES hold `dashboard.manager`. That account
+  // passed the route and was then handed `null` by this component — a blank screen with
+  // nothing to explain it, and the role designed to take the admin overflow is exactly
+  // the one it locked out.
   if (!role) return null;
-  const ALLOWED = ["admin", "manager", "maintenance_manager", "supervisor", "planner", "viewer"];
-  if (!ALLOWED.includes(role)) {
-    return null;
-  }
 
   return <ManagerDashboardContent />;
 }
