@@ -1,3 +1,4 @@
+import { RootCauseKeywordsEditor } from "@/components/quality/RootCauseKeywordsEditor";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { writeOptionalDomain } from "@/lib/writeOptionalDomain";
@@ -1521,6 +1522,7 @@ export function QualityActionsView() {
               {domainFilter !== "safety" && <SeverityPointsEditor />}
               {domainFilter !== "safety" && <LeaderScoreWeightsEditor />}
               <QualityListsManager domain={domainFilter === "safety" ? "safety" : "quality"} />
+              {domainFilter !== "safety" && canSetRootCause && <RootCauseKeywordsEditor />}
             </DialogContent>
           </Dialog>
         )}
