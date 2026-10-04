@@ -97,6 +97,31 @@ describe("pointsBreakdown", () => {
     expect(b.explanation).toBe("No priced label and no grade — this scores 0.");
   });
 
+  /**
+   * 51 of the 380 actions carry no severity. 35 of them charge points — 118 in all —
+   * and 33 are against a named leader.
+   *
+   * The receipt said "4 points — Label 4" and stopped, which reads as a settled price,
+   * so the obvious thing to think is that grading it is the step that settles it. It is
+   * not: `points_at_creation` froze when the action was logged and `actionPoints`
+   * prefers the frozen figure forever, so a grade added next week moves nothing. That
+   * is the sentence that tells Quality the grading has to happen before the save.
+   */
+  it("says when nobody graded it, and that grading it later will not move the charge", () => {
+    setLabelPoints({ label: 4 });
+    const b = pointsBreakdown(action(["Label"], { severity: null }), EXCLUDED);
+    expect(b.points).toBe(4);
+    expect(b.basis).toBe("labels");
+    expect(b.explanation).toContain("Nobody graded it");
+    expect(b.explanation).toContain("froze when the action was logged");
+  });
+
+  it("keeps quiet about grading on an action that was graded", () => {
+    setLabelPoints({ label: 4 });
+    const b = pointsBreakdown(action(["Label"], { severity: "low" }), EXCLUDED);
+    expect(b.explanation).not.toContain("Nobody graded it");
+  });
+
   it("never disagrees with actionPoints, which is the number everyone is measured on", () => {
     setLabelPoints({ "batch code": 2, maintenance: 3, "foreign body": 5 });
     const cases = [
