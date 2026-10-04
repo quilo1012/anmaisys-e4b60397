@@ -29,8 +29,11 @@ const EMPLOYEE = {
 let overtimeAlgumaVez = false;
 const guardar = vi.fn();
 
+/** O registo todo, para o aviso de nome duplicado ter em que bater. */
+const OUTRO = { ...EMPLOYEE, id: "e2", full_name: "Felipe De Araujo", shift_group: "Night" };
+
 vi.mock("@/hooks/useWorkforce", () => ({
-  useEmployees: () => ({ data: [EMPLOYEE] }),
+  useEmployees: () => ({ data: [EMPLOYEE, OUTRO] }),
   useShiftPatterns: () => ({ data: [] }),
   useHeadcountAreas: () => ({ data: [] }),
   useMovements: () => ({ data: [], isLoading: false }),
@@ -161,5 +164,35 @@ describe("o nome e o email corrigem-se aqui", () => {
   it("fecha o campo a quem nao pode editar", async () => {
     mount(false);
     expect(((await screen.findByLabelText(/Full name/i)) as HTMLInputElement).disabled).toBe(true);
+  });
+});
+
+/**
+ * Renomear tambem faz duplicados.
+ *
+ * O "Add employee" ja pergunta desde 04/10 — foi dele que vieram o FELIPE DE ARAUJO e
+ * o FELIPE ARAUJO, duas fichas e um homem. Abrir o nome a edicao sem o mesmo aviso
+ * chegava ao mesmo sitio pela porta do lado.
+ */
+describe("o campo do nome avisa antes de criar um segundo Felipe", () => {
+  it("mostra quem ja esta no registo com esse nome", async () => {
+    mount(true);
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Felipe Araujo" } });
+    expect(screen.getByText(/already on the record/i)).toBeTruthy();
+    expect(screen.getByText("Felipe De Araujo")).toBeTruthy();
+    // E diz o que fazer, porque renomear nao funde fichas nenhumas.
+    expect(screen.getByText(/does not merge two records/i)).toBeTruthy();
+  });
+
+  it("avisa e nao recusa — dois irmaos na mesma linha e coisa real", async () => {
+    mount(true);
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Felipe Araujo" } });
+    expect((screen.getByRole("button", { name: /Save/i }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("nao se avisa a si propria quando o nome nao mudou", async () => {
+    mount(true);
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Ana Silva" } });
+    expect(screen.queryByText(/already on the record/i)).toBeNull();
   });
 });
