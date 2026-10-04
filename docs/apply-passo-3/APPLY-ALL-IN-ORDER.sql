@@ -8055,3 +8055,323 @@ ALTER TABLE public.workforce_payroll_periods
 COMMENT ON CONSTRAINT workforce_payroll_periods_sem_sobreposicao
   ON public.workforce_payroll_periods IS
   'Um dia so pode estar num periodo. Dois periodos a cobrir o mesmo dia e trabalho contado duas vezes num documento de onde se paga.';
+
+-- ================================================================
+-- BLOCO 65
+-- 20261004200000_o_titulo_tambem_diz_de_quem_e.sql
+-- ================================================================
+
+-- O título também diz de quem é a culpa.
+--
+-- Até aqui só o rótulo Maintenance declarava a causa raiz. Uma acção chamada
+-- "Wrong box label/Pallet label (Office)." carregava 4 pontos ao líder da linha, e
+-- havia 28 assim (~93 pontos): o erro era do Office, do Warehouse, do fornecedor ou
+-- do Lab, e o título dizia-o. Regra do negócio: se o título nomeia outra área, o
+-- líder não é cobrado, mesmo que nomeie também a linha ("L2/Lab").
+--
+-- Três regras que não mudam:
+--   * um valor escrito pela Qualidade nunca é sobrescrito;
+--   * numa UPDATE só se deriva quando o título ou os rótulos mudaram — senão limpar a
+--     causa (devolver os pontos ao líder) era desfeito no save seguinte;
+--   * o gatilho continua a ser trg_b_: depois do guard, antes do freeze.
+
+-- 1. A tabela de palavras-chave --------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.root_cause_area_keyword (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  area text NOT NULL,
+  pattern text NOT NULL,
+  active boolean NOT NULL DEFAULT true,
+  note text,
+  sort integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.root_cause_area_keyword TO authenticated;
+GRANT ALL ON public.root_cause_area_keyword TO service_role;
+
+ALTER TABLE public.root_cause_area_keyword ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated can read root cause keywords"
+  ON public.root_cause_area_keyword FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Quality manages root cause keywords"
+  ON public.root_cause_area_keyword FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'quality_supervisor'))
+  WITH CHECK (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'quality_supervisor'));
+
+-- Uma expressão inválida gravada pela UI partia todas as escritas em quality_actions.
+CREATE OR REPLACE FUNCTION public.root_cause_keyword_valid_pattern()
+RETURNS trigger LANGUAGE plpgsql SET search_path TO 'public' AS $$
+BEGIN
+  PERFORM '' ~* NEW.pattern;
+  RETURN NEW;
+EXCEPTION WHEN invalid_regular_expression THEN
+  RAISE EXCEPTION 'Invalid pattern: %', NEW.pattern USING ERRCODE = '22023';
+END $$;
+
+CREATE TRIGGER trg_root_cause_keyword_valid
+BEFORE INSERT OR UPDATE ON public.root_cause_area_keyword
+FOR EACH ROW EXECUTE FUNCTION public.root_cause_keyword_valid_pattern();
+
+INSERT INTO public.root_cause_area_keyword (area, pattern, sort, note) VALUES
+  ('Office',      '\moffice\M',                   10, NULL),
+  ('Warehouse',   '\mwarehouse\M',                20, NULL),
+  ('Supplier',    '\msuppliers?\M|\mgoods? in\M', 30, 'Supplier or Goods In'),
+  ('Lab',         '\mlab\M',                      40, 'Word boundary: must not match "label"'),
+  ('Maintenance', '\mmaintenance\M',              50, NULL);
+
+-- 2. As áreas novas têm de existir como causa que não conta ao líder -------------
+-- action_points_at só zera quando encontra a área com counts_against_leader = false;
+-- uma área desconhecida cobra (de propósito). Office e Lab não estavam na lista.
+INSERT INTO public.quality_options (kind, value, counts_against_leader, sort)
+SELECT 'root_cause', v, false,
+       (SELECT coalesce(max(sort), 0) FROM public.quality_options WHERE kind = 'root_cause') + n
+  FROM (VALUES ('Office', 1), ('Lab', 2)) AS t(v, n)
+ WHERE NOT EXISTS (
+   SELECT 1 FROM public.quality_options
+    WHERE kind = 'root_cause' AND lower(btrim(value)) = lower(v));
+
+-- 3. O gatilho ------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.default_root_cause_from_label()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _area text;
+BEGIN
+  -- Uma causa raiz escrita pela Qualidade manda sempre.
+  IF NEW.root_cause_area IS NOT NULL THEN RETURN NEW; END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    -- A Qualidade limpou-a: os pontos voltam ao líder e ficam lá.
+    IF OLD.root_cause_area IS NOT NULL THEN RETURN NEW; END IF;
+    -- Nada que a derivação leia mudou; validar ou fechar não re-deriva.
+    IF NEW.title IS NOT DISTINCT FROM OLD.title
+       AND NEW.labels IS NOT DISTINCT FROM OLD.labels THEN
+      RETURN NEW;
+    END IF;
+  END IF;
+
+  IF coalesce(NEW.domain, 'quality') = 'safety' THEN RETURN NEW; END IF;
+
+  -- (a) O rótulo Maintenance, como antes.
+  IF EXISTS (
+    SELECT 1 FROM unnest(coalesce(NEW.labels, ARRAY[]::text[])) AS l
+     WHERE lower(btrim(l)) = 'maintenance'
+  ) THEN
+    NEW.root_cause_area := 'Maintenance';
+    RETURN NEW;
+  END IF;
+
+  -- (b) A primeira palavra-chave activa que o título nomeia.
+  IF NEW.title IS NOT NULL AND btrim(NEW.title) <> '' THEN
+    SELECT k.area INTO _area
+      FROM public.root_cause_area_keyword k
+     WHERE k.active AND NEW.title ~* k.pattern
+     ORDER BY k.sort, k.area
+     LIMIT 1;
+    IF _area IS NOT NULL THEN NEW.root_cause_area := _area; END IF;
+  END IF;
+
+  RETURN NEW;
+END $function$;
+
+COMMENT ON FUNCTION public.default_root_cause_from_label() IS
+  'Preenche root_cause_area vazio a partir do rotulo Maintenance ou de uma palavra-chave '
+  'de root_cause_area_keyword no titulo. Nunca sobrescreve; numa UPDATE so deriva se o '
+  'titulo ou os rotulos mudaram e a causa ja estava vazia. Corre como trg_b_: depois do '
+  'guard, antes do trg_quality_action_freeze_points_*.';
+
+
+-- Os dois gatilhos, recriados iguais, para que uma base nova fique com a ordem certa:
+-- trg_a_ (guard) -> trg_b_ (esta derivação) -> trg_quality_action_freeze_points_*.
+DROP TRIGGER IF EXISTS trg_b_quality_root_cause_default ON public.quality_actions;
+CREATE TRIGGER trg_b_quality_root_cause_default
+BEFORE INSERT OR UPDATE ON public.quality_actions
+FOR EACH ROW
+EXECUTE FUNCTION public.default_root_cause_from_label();
+
+--
+-- One line — `root_cause_area` — and without it nothing else in this file matters.
+
+DROP TRIGGER IF EXISTS trg_quality_action_freeze_points_upd ON public.quality_actions;
+
+CREATE TRIGGER trg_quality_action_freeze_points_upd
+BEFORE UPDATE ON public.quality_actions
+FOR EACH ROW
+WHEN (
+  old.severity          IS DISTINCT FROM new.severity
+  OR old.labels            IS DISTINCT FROM new.labels
+  OR old.validation_status IS DISTINCT FROM new.validation_status
+  OR old.domain            IS DISTINCT FROM new.domain
+  OR old.root_cause_area   IS DISTINCT FROM new.root_cause_area
+)
+EXECUTE FUNCTION public.quality_action_freeze_points();
+
+
+-- 4. As acções que já existem ---------------------------------------------------
+-- Sem auth.uid() o guard deixa passar; o freeze repreca porque root_cause_area muda;
+-- o histórico regista a mudança.
+UPDATE public.quality_actions q
+   SET root_cause_area = m.area
+  FROM (
+    SELECT a.id, (
+      SELECT k.area FROM public.root_cause_area_keyword k
+       WHERE k.active AND a.title ~* k.pattern
+       ORDER BY k.sort, k.area LIMIT 1
+    ) AS area
+      FROM public.quality_actions a
+     WHERE a.root_cause_area IS NULL
+       AND coalesce(a.domain, 'quality') <> 'safety'
+       AND a.title IS NOT NULL
+  ) m
+ WHERE q.id = m.id AND m.area IS NOT NULL;
+
+-- ================================================================
+-- BLOCO 66
+-- 20261004210000_a_rls_de_employees_le_a_matriz.sql
+-- ================================================================
+
+-- A RLS de `employees` passa a ler a matriz de permissões, como o ecrã já lê.
+--
+-- O painel do empregado abre o formulário a quem tem `workforce.manage`. O
+-- `production_office_admin` TEM, por override gravado no ecrã de Permissões
+-- (`role_permission_overrides`), e são cinco contas reais. A RLS, no entanto, só tinha
+-- a policy `employees admin` (ALL, has_role('admin')): essas cinco pessoas abriam o
+-- formulário, escreviam, e o PATCH do PostgREST devolvia 204 com zero linhas e sem
+-- erro. O toast dizia "Saved" e o painel voltava ao valor antigo.
+--
+-- Isto só ACRESCENTA policies. A `employees admin` fica como está, e o DELETE continua
+-- a ser só de admin de propósito: `employee_attendance` e `overtime_entries` fazem
+-- cascade, portanto apagar alguém leva a assiduidade e as horas com ele. O caminho
+-- para uma saída é o `active = false` com `left_on`, que é um UPDATE.
+--
+-- `has_action` é SECURITY DEFINER e lê `user_roles` + `role_permission_overrides`,
+-- nunca `employees` — não há recursão. É a mesma função que a policy de SELECT já usa,
+-- com o mesmo baseline, para que o ecrã e a base não possam voltar a discordar.
+
+DROP POLICY IF EXISTS "employees update by matrix" ON public.employees;
+CREATE POLICY "employees update by matrix"
+  ON public.employees
+  FOR UPDATE
+  TO authenticated
+  USING (public.has_action((SELECT auth.uid()), 'workforce.manage', ARRAY['admin']::app_role[]))
+  WITH CHECK (public.has_action((SELECT auth.uid()), 'workforce.manage', ARRAY['admin']::app_role[]));
+
+DROP POLICY IF EXISTS "employees insert by matrix" ON public.employees;
+CREATE POLICY "employees insert by matrix"
+  ON public.employees
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.has_action((SELECT auth.uid()), 'workforce.manage', ARRAY['admin']::app_role[]));
+
+-- ================================================================
+-- BLOCO 67
+-- 20261005090000_o_cartao_do_lider_nao_sabia_de_quem_era_a_culpa.sql
+-- ================================================================
+
+-- O cartão do líder não sabia de quem era a culpa.
+--
+-- `leader_self_scorecard` é a única porta pela qual o tablet lê o cartão: as linhas
+-- vêm de uma projecção FIXA, e uma coluna que a lista não nomeia chega ao cliente
+-- como `undefined`. Todos os predicados deste repositório leem `undefined` como "não
+-- há motivo para excluir" — é o mesmo defeito que `20260822093000` (domain) e
+-- `20260908170000` (classification) já vieram fechar, pela terceira vez.
+--
+-- Medido na base viva a 04/10/2026, com pg_get_functiondef. A projecção acaba em
+-- `qa.points_at_creation` e NÃO nomeia três colunas que o select do gestor nomeia:
+--
+--   root_cause_area   77 acções com líder têm uma causa que não lhe é cobrada
+--                     (Maintenance 49, Lab 12, Warehouse 9, Office 5, Supplier 2)
+--   classification    0 linhas afectadas hoje — nenhuma `excluded`/`quality_error`
+--                     tem leader_name — mas `20260908170000` foi escrita para a
+--                     acrescentar e nunca chegou a correr nesta base
+--   source            separa as duas origens do log; o gestor lê-a, o tablet não
+--
+-- O que isto estragava, e não é o total. As 77 têm todas `points_at_creation = 0`,
+-- e `actionPoints` prefere a figura congelada, portanto o NÚMERO no tablet está
+-- certo. O que está errado é a RAZÃO. Sem `root_cause_area`, `livePoints` recalcula
+-- 4 para uma acção congelada a 0, e `pointsBreakdown` entra no ramo "frozen":
+--
+--   "0 points — the scale in force when this was logged. Today's scale would make
+--    it 4; past actions keep the scale of their own day."
+--
+-- O cartão do gestor, com a coluna, diz a verdade na mesma acção:
+--
+--   "0 points — root cause is Office, so this is not charged to the leader."
+--
+-- A um líder que abre o seu próprio cartão a primeira frase diz que houve uma tabela
+-- de preços que mudou. Não houve: a Qualidade atribuiu aquilo ao Office. Duas frases
+-- diferentes para a mesma linha é o que `leaderScorecard.ts` abre a proibir — "Two
+-- fetch paths, one arithmetic" — e aqui as duas vias davam razões contraditórias.
+--
+-- PORQUE É QUE ISTO REMENDA EM VEZ DE SUBSTITUIR: a mesma razão que `20260822093000`
+-- e `20260908170000` dão. A função é longa, nada neste repositório aplica migrações,
+-- e por isso o repositório é o registo da INTENÇÃO e a base é o registo do FACTO. Lê
+-- a definição viva, confirma que tem a forma que espera, e reescreve só a projecção.
+-- Se a função tiver divergido, LEVANTA em vez de adivinhar.
+
+DO $patch$
+DECLARE
+  _src text;
+  -- A cauda da projecção. Ancorar na última coluna, e não na lista inteira, é o que
+  -- mantém isto a funcionar quando uma coluna foi acrescentada à frente entretanto —
+  -- foi exactamente o que aconteceu a `domain` e `safety_kind` depois de 20260822093000.
+  _anchor constant text := 'qa.points_at_creation';
+  -- Por ordem de quanto custa a sua ausência. Cada uma é acrescentada só se faltar,
+  -- para que isto e `20260908170000` possam correr em qualquer ordem, ou duas vezes.
+  --
+  -- Escritas com o prefixo `qa.` à letra, e não montadas com `'qa.' || _col`:
+  -- theTwoCardsProjectTheSameRow.test.ts procura `qa.<coluna>` nos ficheiros desta
+  -- pasta, e uma lista montada em tempo de execução não aparece a quem lê o texto.
+  _wanted constant text[] := ARRAY['qa.root_cause_area', 'qa.classification', 'qa.source'];
+  _missing text[] := '{}';
+  _col text;
+  _hits integer;
+BEGIN
+  SELECT pg_get_functiondef(p.oid) INTO _src
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public'
+     AND p.proname = 'leader_self_scorecard';
+
+  IF _src IS NULL THEN
+    RAISE NOTICE 'leader_self_scorecard nao existe nesta base. Nada a corrigir.';
+    RETURN;
+  END IF;
+
+  FOREACH _col IN ARRAY _wanted LOOP
+    IF position(_col IN _src) = 0 THEN
+      _missing := _missing || _col;
+    END IF;
+  END LOOP;
+
+  -- Idempotente: voltar a correr uma migração não pode ser uma maneira de estragar algo.
+  IF cardinality(_missing) = 0 THEN
+    RAISE NOTICE 'leader_self_scorecard ja projecta as tres colunas. Sem alteracao.';
+    RETURN;
+  END IF;
+
+  _hits := (length(_src) - length(replace(_src, _anchor, ''))) / length(_anchor);
+
+  IF _hits <> 1 THEN
+    RAISE EXCEPTION
+      'A projeccao de leader_self_scorecard nao tem a forma esperada (% ocorrencias de "%"). '
+      'A funcao viva divergiu do que esta migracao conhece: comparar com '
+      'pg_get_functiondef antes de aplicar, e acrescentar % a mao. Um cartao que diz '
+      'ao lider que o preco mudou, quando o que mudou foi a area culpada, e o defeito '
+      'que isto corrige.',
+      _hits, _anchor, array_to_string(_missing, ', ')
+      USING ERRCODE = 'raise_exception';
+  END IF;
+
+  EXECUTE replace(
+    _src,
+    _anchor,
+    _anchor || ', ' || array_to_string(_missing, ', ')
+  );
+
+  RAISE NOTICE 'leader_self_scorecard passa a projectar %.', array_to_string(_missing, ', ');
+END $patch$;
