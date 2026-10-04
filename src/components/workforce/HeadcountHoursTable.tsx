@@ -1,48 +1,33 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAllocations, type Allocation, type HeadcountArea } from "@/hooks/useHeadcount";
-
-/** Shifts are 06–18 / 18–06: 12h. A half day counts 6h. */
-const SHIFT_H = 12;
-
-const toMin = (t: string) => {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + (m || 0);
-};
-
-/** Hours worked by one placement, from the shift length, half day and late/early times. */
-export function allocationHours(a: Allocation, shift: string): number {
-  if (a.half_day) return SHIFT_H / 2;
-  const start = shift === "Night" ? 18 * 60 : 6 * 60;
-  const rel = (t: string) => ((toMin(t) - start) + 1440) % 1440;
-  const from = a.arrived_late_at ? rel(a.arrived_late_at) : 0;
-  const to = a.left_early_at ? rel(a.left_early_at) : SHIFT_H * 60;
-  return Math.max(0, Math.min(SHIFT_H * 60, to) - from) / 60;
-}
+import { useAllocations, useAllAreaNames, type HeadcountArea } from "@/hooks/useHeadcount";
+import { hoursByArea, SHIFT_H } from "@/lib/headcountHours";
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
+/**
+ * What the shift cost, by line.
+ *
+ * The grouping is in `@/lib/headcountHours` and counts every placement, including the
+ * ones with no column on the board. This table used to walk the board's areas and
+ * total up the rows it had drawn, so a placement on a switched-off line or with no
+ * area at all was in neither — and the Total said so without saying so. Pill Line is
+ * inactive and still took 2 to 4 people a day into October; 100 placements have no
+ * area recorded, eight of them on one Day shift of forty people.
+ */
 export function HeadcountHoursTable({ date, shift, areas }: { date: string; shift: string; areas: HeadcountArea[] }) {
   const { data: allocations = [], isLoading } = useAllocations(date, shift);
+  // Every area ever, the switched-off ones included, so an off-board row can name the
+  // line instead of pointing at a gap.
+  const { data: areaNameById } = useAllAreaNames();
 
-  const rows = useMemo(() => {
-    const by = new Map<string, { people: number; hours: number; otPeople: number; ot: number }>();
-    for (const a of allocations) {
-      if (!a.area_id || (a.status !== "assigned" && a.status !== "overtime")) continue;
-      const r = by.get(a.area_id) ?? { people: 0, hours: 0, otPeople: 0, ot: 0 };
-      const h = allocationHours(a, shift);
-      if (a.status === "overtime") { r.otPeople++; r.ot += h; } else { r.people++; r.hours += h; }
-      by.set(a.area_id, r);
-    }
-    return areas
-      .filter((ar) => by.has(ar.id))
-      .map((ar) => ({ area: ar.name, ...by.get(ar.id)! }));
-  }, [allocations, areas, shift]);
-
-  const tot = rows.reduce(
-    (s, r) => ({ people: s.people + r.people, hours: s.hours + r.hours, otPeople: s.otPeople + r.otPeople, ot: s.ot + r.ot }),
-    { people: 0, hours: 0, otPeople: 0, ot: 0 },
+  const { rows, totals } = useMemo(
+    () => hoursByArea({ allocations, shift, areas, areaNameById }),
+    [allocations, areas, shift, areaNameById],
   );
+
+  const offBoard = rows.filter((r) => r.offBoard);
+  const offBoardPeople = offBoard.reduce((n, r) => n + r.people + r.otPeople, 0);
 
   return (
     <Card>
@@ -58,6 +43,7 @@ export function HeadcountHoursTable({ date, shift, areas }: { date: string; shif
         ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nobody placed on this day and shift yet.</p>
         ) : (
+          <>
           <table className="w-full text-sm tabular-nums">
             <thead className="text-muted-foreground">
               <tr className="border-b border-border text-left">
@@ -71,8 +57,13 @@ export function HeadcountHoursTable({ date, shift, areas }: { date: string; shif
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.area} className="border-b border-border/50">
-                  <td className="py-1.5 pr-3">{r.area}</td>
+                <tr key={r.key} className="border-b border-border/50">
+                  <td className="py-1.5 pr-3">
+                    {r.area}
+                    {/* Said on the row, not only in the footnote: somebody reading one
+                        line of this table needs to know this one has no column. */}
+                    {r.offBoard && <span className="ml-1.5 text-2xs text-warning-strong">not on the board</span>}
+                  </td>
                   <td className="py-1.5 px-3 text-right">{r.people}</td>
                   <td className="py-1.5 px-3 text-right">{fmt(r.hours)}</td>
                   <td className="py-1.5 px-3 text-right">{r.otPeople || "—"}</td>
@@ -82,14 +73,22 @@ export function HeadcountHoursTable({ date, shift, areas }: { date: string; shif
               ))}
               <tr className="font-semibold">
                 <td className="py-2 pr-3">Total</td>
-                <td className="py-2 px-3 text-right">{tot.people}</td>
-                <td className="py-2 px-3 text-right">{fmt(tot.hours)}</td>
-                <td className="py-2 px-3 text-right">{tot.otPeople || "—"}</td>
-                <td className="py-2 px-3 text-right text-warning">{tot.ot ? fmt(tot.ot) : "—"}</td>
-                <td className="py-2 pl-3 text-right">{fmt(tot.hours + tot.ot)}</td>
+                <td className="py-2 px-3 text-right">{totals.people}</td>
+                <td className="py-2 px-3 text-right">{fmt(totals.hours)}</td>
+                <td className="py-2 px-3 text-right">{totals.otPeople || "—"}</td>
+                <td className="py-2 px-3 text-right text-warning">{totals.ot ? fmt(totals.ot) : "—"}</td>
+                <td className="py-2 pl-3 text-right">{fmt(totals.hours + totals.ot)}</td>
               </tr>
             </tbody>
           </table>
+          {offBoardPeople > 0 && (
+            <p className="mt-2 text-2xs text-muted-foreground">
+              {offBoardPeople === 1 ? "One person is" : `${offBoardPeople} people are`} placed where
+              the board has no column — a line that has been switched off, or no area recorded on the
+              placement. They worked the shift, so they are counted in the Total.
+            </p>
+          )}
+          </>
         )}
       </CardContent>
     </Card>
