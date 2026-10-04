@@ -51,6 +51,12 @@ export interface ClassificationRuleV2 {
   match_mode: "equals" | "contains" | "regex";
   /** What a match asserts. A rule that names no class only tags; it does not decide. */
   classification?: ActionClass | null;
+  /**
+   * The production line a match attributes the action to, when the rule is an alias
+   * rule ("L3" → "Line 3"). `resolveLine` in normalize.ts is what acts on it; it is
+   * carried here so the line gate can see when two sources name two different lines.
+   */
+  line_name?: string | null;
   priority: number;
   active?: boolean;
 }
@@ -298,7 +304,37 @@ export function classifyAction(
   if (worker.reason) reasons.push(worker.reason);
 
   // ── 4. Line ────────────────────────────────────────────────────────────────────
-  if (input.line) {
+  /**
+   * When the title names a different line than the one that was chosen, nobody gets
+   * to be right by precedence.
+   *
+   * `resolveLine` runs the alias rules in priority order, and the L1–L6 rules on the
+   * inspection custom field sit at priority 5 while the identical rules on the title
+   * sit at 10. So the inspection always wins and the title is never consulted — which
+   * is correct when they agree and a silent guess when they do not. AC-6706, "Wrong
+   * label version used (L3/warehouse)", was filed on Line 2 and charged to that line's
+   * leader, with `checks.line` reading "ok".
+   *
+   * This is the rule the Rules gate below already states for classifications — "two
+   * rules that disagree do not get resolved by priority: whichever won would be a
+   * guess, and the point of the priority field is ordering, not arbitration" — applied
+   * to the line, which is the field a leader is actually charged on.
+   *
+   * Only the TITLE, and deliberately: it is what a person wrote about what happened,
+   * and the one source that can contradict the template an inspection was filed under.
+   * Measured on 04/10/2026 over the 311 synced actions: 161 titles name a line, and
+   * exactly ONE disagrees with the line on the record. This is not a flood into the
+   * review queue; it is the one row nothing was saying anything about.
+   */
+  const titleLine = (rules ?? [])
+    .filter((r) => r.active !== false && r.match_field === "title" && r.line_name)
+    .sort((a, b) => (a.priority ?? 100) - (b.priority ?? 100))
+    .find((r) => haystacks(input, r).some((h) => hit(h, r)))?.line_name;
+
+  if (input.line && titleLine && norm(titleLine) !== norm(input.line)) {
+    checks.line = "failed";
+    reasons.push("line_conflict");
+  } else if (input.line) {
     if (input.leader) {
       checks.line = "ok";
     } else if (input.leaderSource === "session_unsigned") {
@@ -350,6 +386,9 @@ export function classifyAction(
     reasons.includes("leader_not_found_for_line") ||
     reasons.includes("leader_session_unsigned") ||
     reasons.includes("line_not_identified") ||
+    // Two sources naming two lines. Charging either one is a coin toss about whose
+    // week it lands on, and the line is the field the charge hangs off.
+    reasons.includes("line_conflict") ||
     conflict !== null;
 
   const outcome = (classification: ActionClass): ClassificationOutcome => ({

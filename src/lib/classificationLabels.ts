@@ -37,6 +37,7 @@ export const REASON_TEXT: Record<string, string> = {
   leader_not_found_for_line: "No leader held that line on that day.",
   leader_session_unsigned: "The shift was opened on that line but nobody signed for it.",
   line_not_identified: "No line and no department could be identified.",
+  line_conflict: "The title names a different line than the inspection it was filed under.",
   rule_conflict: "Two rules disagree about what this is.",
 };
 
