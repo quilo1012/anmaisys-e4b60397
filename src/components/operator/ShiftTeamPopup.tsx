@@ -23,21 +23,41 @@ const STATUS_LABEL: Record<string, string> = {
   training: "Training",
 };
 
+const KEY_PREFIX = "an_shift_team_seen_";
+
 function dismissalKey(shiftStart: Date) {
-  return `an_shift_team_seen_${shiftStart.toISOString()}`;
+  return `${KEY_PREFIX}${shiftStart.toISOString()}`;
 }
 
+/**
+ * The acknowledgement outlives the tab.
+ *
+ * This was `sessionStorage`, which a kiosk tablet empties every time the app is closed
+ * and reopened — so a tablet restarted at nine in the morning asked again about a crew
+ * acknowledged at six. `localStorage` is per-device and survives that, which is what
+ * "once a shift" was always meant to mean. The dedicated team page is still there for
+ * anyone who wants the roster again mid-shift.
+ */
 function wasDismissed(shiftStart: Date) {
   try {
-    return sessionStorage.getItem(dismissalKey(shiftStart)) === "1";
+    return localStorage.getItem(dismissalKey(shiftStart)) === "1";
   } catch {
     return false;
   }
 }
 
 function rememberDismissal(shiftStart: Date) {
+  const key = dismissalKey(shiftStart);
   try {
-    sessionStorage.setItem(dismissalKey(shiftStart), "1");
+    // Keep exactly one. `sessionStorage` used to do this pruning by being wiped; a
+    // per-device store would otherwise accumulate a key for every shift ever worked.
+    for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+      const existing = localStorage.key(i);
+      if (existing && existing !== key && existing.startsWith(KEY_PREFIX)) {
+        localStorage.removeItem(existing);
+      }
+    }
+    localStorage.setItem(key, "1");
   } catch {
     // The acknowledgement remains closed in React state for this visit.
   }
