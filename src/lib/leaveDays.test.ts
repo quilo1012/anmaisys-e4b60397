@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leaveDays, eachDate, describeLeaveDays, leaveBalance, leaveYearOf, countSpells } from "@/lib/leaveDays";
+import { leaveDays, eachDate, describeLeaveDays, describeLeaveWrite, leaveBalance, leaveYearOf, countSpells } from "@/lib/leaveDays";
 
 // ISO weekdays: 1 = Monday … 7 = Sunday.
 const MON_THU = [1, 2, 3, 4];
@@ -155,5 +155,41 @@ describe("countSpells", () => {
 
   it("starts a new spell after a gap of a single day", () => {
     expect(countSpells(["2026-08-03", "2026-08-05"])).toBe(2);
+  });
+});
+
+describe("describeLeaveWrite", () => {
+  it("says both records when both were written", () => {
+    const r = describeLeaveWrite({ attendanceDays: 4, boardDays: 4, boardShift: "Day" });
+    expect(r.ok).toBe(true);
+    expect(r.message).toContain("4 days");
+    expect(r.message).toContain("Day board");
+  });
+
+  it("does not claim the board when there was no board to draw on", () => {
+    // `boardShiftFor(null)` is null and one active person has no crew recorded, so
+    // `applyToRecords` returned after writing attendance and the screen still said
+    // "Booked and written to the board".
+    const r = describeLeaveWrite({ attendanceDays: 4, boardDays: 0, boardShift: null });
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain("payroll record");
+    expect(r.message).toContain("not drawn on any board");
+  });
+
+  it("names the board that was missed when one was known", () => {
+    const r = describeLeaveWrite({ attendanceDays: 2, boardDays: 0, boardShift: "Night" });
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain("Night board");
+  });
+
+  it("refuses to call writing nothing a booking", () => {
+    const r = describeLeaveWrite({ attendanceDays: 0, boardDays: 0, boardShift: "Day" });
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain("Nothing was written");
+  });
+
+  it("counts one day in the singular", () => {
+    const r = describeLeaveWrite({ attendanceDays: 1, boardDays: 1, boardShift: "Day" });
+    expect(r.message).toContain("1 day on");
   });
 });
