@@ -10,6 +10,12 @@ const corsHeaders = {
 // anywhere — not to `part-photos`, not to a table, not to a log.
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 const MAX_CANDIDATES = 5;
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+// Visão mais correspondência de catálogo: a precisão vale mais que a latência.
+const MODEL = "claude-sonnet-5-5";
+// Os únicos tipos de imagem que o Claude aceita.
+const ALLOWED_MEDIA = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 interface Candidate {
   code: string;
@@ -43,8 +49,16 @@ Deno.serve(async (req) => {
       return json({ error: "image is too large — take the photo again" }, 400);
     }
 
-    const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_KEY) return json({ error: "LOVABLE_API_KEY missing" }, 500);
+    // O gateway aceitava a data: URL inteira; o Claude quer o media_type e o
+    // base64 em campos separados, por isso a URL é partida aqui.
+    const parsedImage = parseDataUrl(image);
+    if (!parsedImage) return json({ error: "image must be a base64 data:image/... URL" }, 400);
+    if (!ALLOWED_MEDIA.includes(parsedImage.mediaType)) {
+      return json({ error: "image must be JPEG, PNG, GIF or WebP" }, 400);
+    }
+
+    const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500);
 
     // The catalogue is read with the caller's own rights: whoever can see the Stock
     // screen can search it, and nobody sees more here than there.
@@ -68,30 +82,39 @@ Deno.serve(async (req) => {
       )
       .join("\n");
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const resp = await fetch(ANTHROPIC_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": LOVABLE_KEY },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+      },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: MODEL,
+        max_tokens: 1024,
+        system:
+          "You identify maintenance spare parts from a photograph, matching them against a fixed catalogue.\n" +
+          "Reply with JSON only, no prose and no code fences, shaped exactly:\n" +
+          '{"description":"what the part in the photo appears to be, one short sentence",' +
+          '"candidates":[{"code":"<catalogue code, verbatim>","confidence":0.0,"reason":"why this matches, one short sentence"}]}\n' +
+          `Rules: at most ${MAX_CANDIDATES} candidates, ordered most to least likely. ` +
+          "Use only codes present in the catalogue — never invent one. " +
+          "confidence is 0..1. If nothing in the catalogue plausibly matches, return an empty candidates array " +
+          "but still fill description. Answer in English.",
         messages: [
-          {
-            role: "system",
-            content:
-              "You identify maintenance spare parts from a photograph, matching them against a fixed catalogue.\n" +
-              "Reply with JSON only, no prose and no code fences, shaped exactly:\n" +
-              '{"description":"what the part in the photo appears to be, one short sentence",' +
-              '"candidates":[{"code":"<catalogue code, verbatim>","confidence":0.0,"reason":"why this matches, one short sentence"}]}\n' +
-              `Rules: at most ${MAX_CANDIDATES} candidates, ordered most to least likely. ` +
-              "Use only codes present in the catalogue — never invent one. " +
-              "confidence is 0..1. If nothing in the catalogue plausibly matches, return an empty candidates array " +
-              "but still fill description. Answer in English.",
-          },
           {
             role: "user",
             content: [
               { type: "text", text: `Catalogue (one part per line):\n${catalogue}` },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: parsedImage.mediaType,
+                  data: parsedImage.data,
+                },
+              },
               { type: "text", text: "Identify the part in this photograph and list the catalogue candidates." },
-              { type: "image_url", image_url: { url: image } },
             ],
           },
         ],
@@ -101,13 +124,14 @@ Deno.serve(async (req) => {
     if (!resp.ok) {
       const txt = await resp.text();
       if (resp.status === 429) return json({ error: "AI is rate limited — try again in a moment." }, 429);
-      if (resp.status === 402) return json({ error: "AI credits exhausted — ask the workspace owner to top up." }, 402);
-      if (resp.status === 403) return json({ error: "AI access is blocked for this workspace." }, 403);
-      return json({ error: `AI gateway error: ${txt.slice(0, 300)}` }, 502);
+      if (resp.status === 401 || resp.status === 403) {
+        return json({ error: "AI key rejected — check ANTHROPIC_API_KEY and billing." }, 502);
+      }
+      return json({ error: `AI error: ${txt.slice(0, 300)}` }, 502);
     }
 
     const aiJson = await resp.json();
-    const raw: string = aiJson?.choices?.[0]?.message?.content ?? "";
+    const raw: string = extractText(aiJson);
     const parsed = parseJson(raw);
     if (!parsed) return json({ error: "The model did not return a readable answer. Try another angle." }, 502);
 
@@ -140,6 +164,23 @@ Deno.serve(async (req) => {
     return json({ error: (e as Error).message }, 500);
   }
 });
+
+/** Parte uma data: URL em media_type e payload base64. */
+function parseDataUrl(url: string): { mediaType: string; data: string } | null {
+  const match = /^data:([^;,]+);base64,(.+)$/s.exec(url);
+  if (!match) return null;
+  return { mediaType: match[1].trim().toLowerCase(), data: match[2] };
+}
+
+/** A resposta do Claude vem em content[]; o texto está nos blocos de type "text". */
+function extractText(aiJson: unknown): string {
+  const blocks = (aiJson as { content?: Array<{ type?: string; text?: string }> })?.content;
+  if (!Array.isArray(blocks)) return "";
+  return blocks
+    .filter((b) => b?.type === "text" && typeof b.text === "string")
+    .map((b) => b.text as string)
+    .join("");
+}
 
 /** The model is asked for bare JSON; some answers still arrive fenced. */
 function parseJson(text: string): { description?: unknown; candidates?: unknown } | null {
