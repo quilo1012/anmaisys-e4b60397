@@ -7,6 +7,9 @@ const corsHeaders = {
 };
 
 const MIN_DAYS = 90;
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+const MODEL = "claude-sonnet-5-5";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -144,23 +147,22 @@ Deno.serve(async (req) => {
       session_count: rows.length,
     };
 
-    const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_KEY) return json({ error: "LOVABLE_API_KEY missing" }, 500);
+    const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500);
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const resp = await fetch(ANTHROPIC_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Lovable-API-Key": LOVABLE_KEY,
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: MODEL,
+        max_tokens: 1024,
+        system:
+          "You are a manufacturing performance analyst. Given historical production data for a single SKU on a single production line, produce a concise executive analysis (max 250 words). Structure: 1) Overall performance summary, 2) Shift-level insights, 3) Trends or anomalies, 4) 2-3 actionable recommendations. Use plain text with short paragraphs and bullet points where useful. Be specific with numbers.",
         messages: [
-          {
-            role: "system",
-            content:
-              "You are a manufacturing performance analyst. Given historical production data for a single SKU on a single production line, produce a concise executive analysis (max 250 words). Structure: 1) Overall performance summary, 2) Shift-level insights, 3) Trends or anomalies, 4) 2-3 actionable recommendations. Use plain text with short paragraphs and bullet points where useful. Be specific with numbers.",
-          },
           {
             role: "user",
             content: `Analyze this SKU-line historical performance:\n\n${JSON.stringify(summary, null, 2)}`,
@@ -172,12 +174,14 @@ Deno.serve(async (req) => {
     if (!resp.ok) {
       const txt = await resp.text();
       if (resp.status === 429) return json({ error: "AI rate limit exceeded, try again shortly." }, 429);
-      if (resp.status === 402) return json({ error: "AI credits exhausted. Please add credits in Settings." }, 402);
-      return json({ error: `AI gateway error: ${txt}` }, 500);
+      if (resp.status === 401 || resp.status === 403) {
+        return json({ error: "AI key rejected — check ANTHROPIC_API_KEY and billing." }, 502);
+      }
+      return json({ error: `AI error: ${txt.slice(0, 300)}` }, 502);
     }
 
     const aiJson = await resp.json();
-    const analysis: string = aiJson?.choices?.[0]?.message?.content ?? "";
+    const analysis: string = extractText(aiJson);
 
     return json({
       available: true,
@@ -191,6 +195,16 @@ Deno.serve(async (req) => {
     return json({ error: (e as Error).message }, 500);
   }
 });
+
+/** A resposta do Claude vem em content[]; o texto está nos blocos de type "text". */
+function extractText(aiJson: unknown): string {
+  const blocks = (aiJson as { content?: Array<{ type?: string; text?: string }> })?.content;
+  if (!Array.isArray(blocks)) return "";
+  return blocks
+    .filter((b) => b?.type === "text" && typeof b.text === "string")
+    .map((b) => b.text as string)
+    .join("");
+}
 
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
