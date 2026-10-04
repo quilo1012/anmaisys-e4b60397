@@ -15,8 +15,6 @@ import { useLineTeamBoard, type LineTeamMember } from "@/hooks/useLineTeamBoard"
 import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, SHIFT_LABEL } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 
-const TEAM_WINDOW_MINUTES = 15;
-
 const STATUS_LABEL: Record<string, string> = {
   overtime: "Overtime",
   sick: "Sick",
@@ -45,29 +43,38 @@ function rememberDismissal(shiftStart: Date) {
   }
 }
 
-/** The start-of-shift team acknowledgement shown only inside operator line screens. */
+/**
+ * The start-of-shift team acknowledgement shown only inside operator line screens.
+ *
+ * It opens the first time the operator reaches a line screen in a shift, not inside a
+ * window after the shift bell. It used to insist on the first fifteen minutes, which
+ * tied the roster to a wall clock rather than to somebody arriving: a tablet switched
+ * on at 06:20, a login at 07:00, or a crew held back while the line was cleaned down
+ * all got a first screen with no team on it and no error either. `an_shift_team_seen_
+ * <shift start>` is what keeps this from nagging, and it always did.
+ */
 export function ShiftTeamPopup() {
   const { selectedLineId, selectedLineName } = useDeviceLineCtx();
   const teamQuery = useLineTeamBoard(selectedLineId);
   const [now, setNow] = useState(() => new Date());
   const shiftStart = useMemo(() => getCurrentShiftStart(now), [now]);
   const shiftStartMs = shiftStart.getTime();
-  const windowEndMs = shiftStartMs + TEAM_WINDOW_MINUTES * 60_000;
-  const inWindow = now.getTime() >= shiftStartMs && now.getTime() < windowEndMs;
   const [dismissed, setDismissed] = useState(() => wasDismissed(shiftStart));
 
   useEffect(() => {
     setDismissed(wasDismissed(new Date(shiftStartMs)));
   }, [shiftStartMs]);
 
+  // One re-render per shift, at the handover. That is the only moment both the roster
+  // and the acknowledgement change; there is no window left to expire.
   useEffect(() => {
-    const nextChangeMs = inWindow ? windowEndMs : getCurrentShiftEnd(now).getTime();
+    const endMs = getCurrentShiftEnd(now).getTime();
     const timer = window.setTimeout(
       () => setNow(new Date()),
-      Math.max(1_000, nextChangeMs - Date.now() + 250),
+      Math.max(1_000, endMs - Date.now() + 250),
     );
     return () => window.clearTimeout(timer);
-  }, [inWindow, now, windowEndMs]);
+  }, [now]);
 
   const groups = useMemo(() => {
     const byArea = new Map<string, { name: string; sort: number; members: LineTeamMember[] }>();
@@ -98,7 +105,7 @@ export function ShiftTeamPopup() {
     rememberDismissal(new Date(shiftStartMs));
   };
 
-  const open = inWindow && !dismissed && teamQuery.isSuccess && (teamQuery.data?.length ?? 0) > 0;
+  const open = !dismissed && teamQuery.isSuccess && (teamQuery.data?.length ?? 0) > 0;
   if (!open) return null;
 
   const currentShift = getCurrentFactoryShift(now);
