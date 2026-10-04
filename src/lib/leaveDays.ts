@@ -256,3 +256,47 @@ export function leaveSpellsInWindow(
   }
   return out.sort((a, b) => a.start_date.localeCompare(b.start_date) || a.employee_id.localeCompare(b.employee_id));
 }
+
+/** What a booking actually managed to write. */
+export interface LeaveWriteResult {
+  /** Days written to `employee_attendance`, which is what the finance close counts. */
+  attendanceDays: number;
+  /** Days drawn on the headcount board. */
+  boardDays: number;
+  /** The board they were drawn on, or null when there was no way to tell which. */
+  boardShift: string | null;
+}
+
+/**
+ * The sentence a booking is allowed to say about itself.
+ *
+ * A day off has to land in two places — `employee_attendance` for the close and
+ * `daily_allocations` for the board — and the screen said "Booked and written to the
+ * board" whichever of them had happened. `applyToRecords` returns early, with no
+ * error, in two cases: no working dates in the range, and no board to draw on for
+ * somebody who has never been placed and whose crew is not recorded
+ * (`boardShiftFor(null)` is null, and one active person is in exactly that state).
+ * Both reported success. One of them had written nothing at all.
+ *
+ * So the message is built from what came back, not from reaching the end of the
+ * function. The repo has been here before: "deixar de dizer que gravou quando não
+ * gravou".
+ */
+export function describeLeaveWrite(r: LeaveWriteResult): { ok: boolean; message: string } {
+  if (r.attendanceDays === 0 && r.boardDays === 0) {
+    return {
+      ok: false,
+      message: "Nothing was written: none of those days is a day this person was due in.",
+    };
+  }
+  const days = `${r.attendanceDays} day${r.attendanceDays === 1 ? "" : "s"}`;
+  if (r.boardDays === 0) {
+    return {
+      ok: false,
+      message: r.boardShift
+        ? `${days} are on the payroll record, but nothing reached the ${r.boardShift} board — the board will not show this person as off.`
+        : `${days} are on the payroll record. They are not drawn on any board: this person has never been placed and their crew is not recorded, so there is no board to put them on.`,
+    };
+  }
+  return { ok: true, message: `Booked: ${days} on the payroll record and on the ${r.boardShift} board.` };
+}

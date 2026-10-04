@@ -24,7 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarDays, Check, X, Plus, Loader2 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { leaveDays, describeLeaveDays, leaveBalance, leaveYearOf, countSpells, leaveRangeProblem, leaveSpellsInWindow } from "@/lib/leaveDays";
+import { leaveDays, describeLeaveDays, describeLeaveWrite, leaveBalance, leaveYearOf, countSpells, leaveRangeProblem, leaveSpellsInWindow, type LeaveWriteResult } from "@/lib/leaveDays";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import { boardShiftForPerson } from "@/lib/boardForPerson";
 
@@ -286,7 +286,13 @@ export default function LeavePage() {
           // Spells, not days. Five days in one go is one illness; five single days
           // scattered across the year is the pattern a manager is looking for, and
           // counting days alone cannot tell those apart.
-          sickSpells: countSpells(mine.filter((d) => d.status === "sick" && d.on_date >= yearAgo).map((d) => d.on_date)),
+          // Bounded at both ends, like the two counts beside it. Without the upper
+          // bound a day marked sick for tomorrow — the board is a plan, so they
+          // exist — added a spell to a row whose day counts stop at today, and the
+          // Spells column could tip to amber above a "12 months" count of three.
+          sickSpells: countSpells(
+            mine.filter((d) => d.status === "sick" && d.on_date >= yearAgo && d.on_date <= today).map((d) => d.on_date),
+          ),
         };
       })
       .filter((r) => r.sickRolling > 0 || r.unpaidRolling > 0)
@@ -378,12 +384,14 @@ export default function LeavePage() {
    * `daily_allocations`, and doing one without the other is how the two screens come
    * to disagree about the same day.
    */
-  const applyToRecords = async (r: Pick<Req, "id" | "employee_id" | "kind" | "start_date" | "end_date">) => {
+  const applyToRecords = async (
+    r: Pick<Req, "id" | "employee_id" | "kind" | "start_date" | "end_date">,
+  ): Promise<LeaveWriteResult> => {
     const days = leaveDays(r.start_date, r.end_date, patternOf(r.employee_id));
     if (days.workingDays == null) {
       throw new Error("No rota on file for this person — set their working pattern first");
     }
-    if (days.workingDates.length === 0) return;
+    if (days.workingDates.length === 0) return { attendanceDays: 0, boardDays: 0, boardShift: null };
 
     const status = r.kind === "sick" ? "sick" : r.kind === "unpaid" ? "unpaid" : "holiday";
     const { error: attErr } = await (supabase as any).from("employee_attendance").upsert(
@@ -411,7 +419,10 @@ export default function LeavePage() {
       today,
       boardShiftFor(person.get(r.employee_id)?.shift_group),
     );
-    if (!shift) return;
+    // No board to draw on: never placed, and no crew recorded either. The attendance
+    // record above still carries the days — it is the board drawing that is missing,
+    // and the caller has to say so rather than report a booking that reached the board.
+    if (!shift) return { attendanceDays: days.workingDates.length, boardDays: 0, boardShift: null };
     const { error: allocErr } = await (supabase as any).from("daily_allocations").upsert(
       days.workingDates.map((d) => ({
         on_date: d, shift, employee_id: r.employee_id, area_id: null, status,
@@ -419,6 +430,7 @@ export default function LeavePage() {
       { onConflict: "on_date,shift,employee_id" },
     );
     if (allocErr) throw allocErr;
+    return { attendanceDays: days.workingDates.length, boardDays: days.workingDates.length, boardShift: shift };
   };
 
   /**
@@ -474,15 +486,19 @@ export default function LeavePage() {
       // If this throws, the booking row is already saved. Said out loud rather than
       // rolled back, because the row is the record of intent and losing it silently is
       // worse than a warning to press Re-apply.
+      let written: LeaveWriteResult;
       try {
-        await applyToRecords(data as Req);
+        written = await applyToRecords(data as Req);
       } catch (e) {
         toast.warning(`Booked, but the board and payroll records did not save: ${(e as Error).message}`);
         qc.invalidateQueries({ queryKey: ["leave-requests"] });
         return;
       }
 
-      toast.success("Booked and written to the board");
+      // Built from what came back, not from having reached this line.
+      const said = describeLeaveWrite(written);
+      if (said.ok) toast.success(said.message);
+      else toast.warning(said.message);
       setShowNew(false); setEmployeeId(""); setStart(""); setEnd(""); setNote("");
       refreshLeaveViews();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
@@ -493,12 +509,23 @@ export default function LeavePage() {
     try {
       // Only reachable for rows raised before booking became immediate. Kept so the
       // handful still sitting pending can be cleared rather than stranded.
-      if (approve) await applyToRecords(r);
+      let said: { ok: boolean; message: string } | null = null;
+      if (approve) {
+        // The same guard the form has. Approving an old row never had one, so a range
+        // nobody can take could be marked approved with nothing written anywhere and
+        // "Approved and written to the board" on screen.
+        const days = leaveDays(r.start_date, r.end_date, patternOf(r.employee_id));
+        const problem = leaveRangeProblem(r.start_date, r.end_date, days);
+        if (problem) { toast.error(problem); return; }
+        said = describeLeaveWrite(await applyToRecords(r));
+      }
       const { error } = await (supabase as any).from("leave_requests")
         .update({ status: approve ? "approved" : "rejected", decided_by: user?.id ?? null, decided_at: new Date().toISOString() })
         .eq("id", r.id);
       if (error) throw error;
-      toast.success(approve ? "Approved and written to the board" : "Rejected");
+      if (!approve) toast.success("Rejected");
+      else if (said?.ok) toast.success(said.message);
+      else toast.warning(said?.message ?? "Approved, but nothing was written.");
       refreshLeaveViews();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   };

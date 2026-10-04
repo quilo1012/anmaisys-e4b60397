@@ -102,6 +102,28 @@ export function useHeadcountAreas() {
 }
 
 /**
+ * Every area's name by id, the switched-off ones included.
+ *
+ * `useHeadcountAreas` is the board's columns and so reads `active = true`, which is
+ * right for drawing a board and wrong for reading one back: Pill Line is inactive and
+ * still holds 101 placements, 2 to 4 of them a day into October. A screen counting
+ * what was worked needs to be able to name an area it would never offer.
+ */
+export function useAllAreaNames() {
+  return useQuery({
+    queryKey: ["headcount-area-names"],
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await supabase
+        .from("headcount_areas")
+        .select("id,name");
+      if (error) throw error;
+      return new Map(((data ?? []) as { id: string; name: string }[]).map((a) => [a.id, a.name]));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
  * Who is due in on this shift, on this day.
  *
  * It used to be `shift_group = 'Day'` and nothing else — the date was on the screen
