@@ -450,4 +450,19 @@ describe("a grant made on the Permissions page reaches the menu", () => {
     const others = navItems.filter((i) => i.action === "production.target.view" && !(i.roles as string[]).includes("operator"));
     for (const row of others) expect(navItemShows(row, "operator", "desktop")).toBe(false);
   });
+
+  it("has no row that can only be reached by naming a role", () => {
+    // The grant above works through `item.action`. A row without one is outside it
+    // entirely: its role list is the only key, and that list is not editable on the
+    // Permissions page. Two rows were like that — Warehouse's "Dashboard" and
+    // "System" — while the routes behind them asked for `dashboard.warehouse` and
+    // `system.hub`, so the same door was described two ways and only one of them
+    // could be changed.
+    const semAccao = navItems.filter((i) => !i.action).map((i) => `${i.title} (${i.url})`);
+    expect(
+      semAccao,
+      "A menu row without an action cannot be granted or revoked on the Permissions " +
+        "page, and drifts from the route behind it. Give it the action the route asks for.",
+    ).toEqual([]);
+  });
 });

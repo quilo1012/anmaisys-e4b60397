@@ -2,20 +2,28 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronRight } from "lucide-react";
-import { navItems } from "@/components/DashboardLayout";
+import { navItems, navItemShows, SIDEBAR_GROUPS } from "@/components/DashboardLayout";
 import { SectionHeading } from "@/components/ui/SectionHeading";
-import { canForDevice } from "@/lib/permissions";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
-/** Sidebar order, so the landing screen and the menu agree on where things live. */
-const GROUP_ORDER = [
-  "Overview", "Maintenance", "Production", "Quality",
-  "Reports", "Communication", "Administration", "System",
-];
+/*
+ * The order lives in `SIDEBAR_GROUPS` and is imported, not copied.
+ *
+ * There was a `GROUP_ORDER` here with the same intent — "sidebar order, so the landing
+ * screen and the menu agree" — written out by hand. It had drifted: it omitted
+ * "Warehouse", which `navItems` uses, so the whole Warehouse block fell through the
+ * "groups I do not recognise" tail and was drawn after System, in a different order
+ * from the sidebar the same person had just been looking at. It also still carried
+ * "Reports" and "Communication", which no row uses at all.
+ *
+ * A second copy of an order is a second thing to remember to update, and nobody
+ * remembers. The sidebar's own list is the one the sidebar obeys, so it is the one
+ * this grid obeys too.
+ */
 
 /**
  * Every screen this role can open on this device, grouped exactly as the sidebar
@@ -33,16 +41,26 @@ export function RoleShortcutGrid() {
   const effectiveRole = (role === "co_engineer" ? "engineer" : role) as AppRole | null;
 
   const groups = useMemo(() => {
-    const items = navItems.filter(
-      (i) => effectiveRole && i.roles.includes(effectiveRole) && (!i.action || canForDevice(effectiveRole, i.action, device)),
-    );
+    // `navItemShows` is what the sidebar asks, so it is what this asks. The filter
+    // written out here before was the same question missing a branch: it checked the
+    // row's own role list and the device, and skipped the one that reads the overrides.
+    // A permission granted on the Permissions page therefore added the line to the
+    // sidebar and left the shortcut card out — the two surfaces disagreeing about the
+    // same screen, on the landing page where somebody looks first.
+    const items = effectiveRole
+      ? navItems.filter((i) => navItemShows(i, effectiveRole, device))
+      : [];
     const map = new Map<string, typeof items>();
     for (const it of items) {
       map.set(it.group, [...(map.get(it.group) ?? []), it]);
     }
+    // `SIDEBAR_GROUPS` is `as const`, so its element type is the union of the ten
+    // literals; widening it here is what lets a group string from `navItems` be
+    // looked up in it at all.
+    const ordem = SIDEBAR_GROUPS as readonly string[];
     return [
-      ...GROUP_ORDER.filter((g) => map.has(g)),
-      ...Array.from(map.keys()).filter((g) => !GROUP_ORDER.includes(g)),
+      ...ordem.filter((g) => map.has(g)),
+      ...Array.from(map.keys()).filter((g) => !ordem.includes(g)),
     ].map((g) => ({ group: g, items: map.get(g)! }));
   }, [effectiveRole, device]);
 

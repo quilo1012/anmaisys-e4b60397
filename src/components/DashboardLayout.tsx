@@ -137,7 +137,10 @@ export const navItems: NavItem[] = [
   // three doors into one room — and clicking Dashboard from either of them appeared to
   // do nothing, because the page was already open.
   { title: "Dashboard", url: "/dashboard/manager", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Overview", action: "dashboard.manager" },
-  { title: "Dashboard", url: "/dashboard/warehouse", icon: LayoutDashboard, roles: ["warehouse"], group: "Overview" },
+  // The route asks for `dashboard.warehouse`; without the action here the row was the
+  // one thing in the menu filtered by role name alone. Two models for the same door,
+  // and the role list is the one that cannot be edited on the Permissions page.
+  { title: "Dashboard", url: "/dashboard/warehouse", icon: LayoutDashboard, roles: ["warehouse"], group: "Overview", action: "dashboard.warehouse" },
   // Control Center is OFF the menu, and only off the menu. Nobody is using the wall
   // map today — it exists for a screen on the maintenance floor that is not up — so
   // it was costing a row in the Overview of five roles to be scrolled past.
@@ -276,7 +279,9 @@ export const navItems: NavItem[] = [
   // engineer, and that decision is exactly why WO-639 and WO-640 were ever raised.
   //
   // Every route still exists and is still reachable directly; only the way in moved.
-  { title: "System", url: "/dashboard/system", icon: SettingsIcon, roles: ["admin"], group: "System" },
+  // Same as the Warehouse row above: the route asks for `system.hub`, so the menu asks
+  // for it too.
+  { title: "System", url: "/dashboard/system", icon: SettingsIcon, roles: ["admin"], group: "System", action: "system.hub" },
 
   // Users stays in the sidebar for managers, who can reach it but have no business
   // in the rest of the hub. Folding it in would have cost them the link or given
