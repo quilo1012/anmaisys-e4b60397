@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Check, X, ShieldCheck, Info, Save, RotateCcw, Loader2, Search, Filter, Eye, Smartphone, Monitor, Tablet } from "lucide-react";
+import { Check, X, ShieldCheck, Info, AlertTriangle, Save, RotateCcw, Loader2, Search, Filter, Eye, Smartphone, Monitor, Tablet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -391,11 +391,33 @@ export default function PermissionsMatrixPage() {
         </div>
       </div>
 
-      <Alert className="py-2">
-        <Info className="h-4 w-4" />
-        <AlertTitle className="text-sm">Overrides</AlertTitle>
+      {/*
+        This used to read "Toggling a cell writes a database override" — true to the
+        letter and misleading in the way that matters. A row does get written. What it
+        governs is this app's screens, and nothing else.
+
+        Counted against production on 04/10/2026: 407 RLS policies, of which 322 decide
+        by role through `has_role()` and NONE consults `role_permission_overrides` as an
+        authorisation rule. The single policy that names that table is the table's own
+        SELECT — who may read the overrides, not who may act on them.
+
+        So a grant made here shows a menu line and a button, and the save can still be
+        refused by the database; a deny hides the button while the API goes on allowing
+        the operation. Somebody reading the old sentence would reasonably believe they
+        had closed a door. Until `action_allowed()` exists and the policies call it —
+        Lote 1.2(a) of `claude/plano-profissionalizacao-2026-10-03.md` — this page
+        decides what is shown, and it should say so where the toggling happens.
+      */}
+      <Alert className="py-2" variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle className="text-sm">These toggles change what is shown, not what is allowed</AlertTitle>
         <AlertDescription className="text-xs">
-          Toggling a cell writes a database override. Use ↺ to reset to the code default.
+          Toggling a cell writes a row that this app reads to decide which menu lines,
+          buttons and pages appear. The database does not read it: row-level security
+          still decides by role, so a grant here can show a button whose save is refused,
+          and a deny here hides a button while the operation stays possible through the
+          API. Treat this page as the visible surface, not as a security boundary. Use ↺
+          to reset a cell to the code default.
         </AlertDescription>
       </Alert>
 

@@ -172,6 +172,26 @@ function RoleSheet({ role, generatedOn }: { role: Role; generatedOn: string }) {
           <p className="mt-1 text-sm print:text-black">
             <span className="font-medium">Entra em:</span> {routeTitles[landing] ?? landing}
           </p>
+          {/*
+            This sheet prints, and a printed "Regras do perfil" is the kind of page that
+            gets filed as the answer to "who could do what". It has to say what it is
+            evidence OF.
+
+            The list below is derived from the permission matrix, which governs the menu
+            lines, buttons and pages this app draws. The database decides separately: of
+            the 407 RLS policies in production on 04/10/2026, 322 resolve by role through
+            `has_role()` and none reads the matrix's overrides. A row customised on the
+            Permissions page therefore moves this list and leaves the database where it
+            was — which is fine as long as the paper does not claim otherwise.
+
+            When `action_allowed()` lands and the policies call it (Lote 1.2(a) of
+            `claude/plano-profissionalizacao-2026-10-03.md`), this line is the one to
+            change.
+          */}
+          <p className="mt-1 text-xs text-muted-foreground print:text-black">
+            Âmbito: o que este sistema mostra a este perfil. O acesso à base de dados é
+            decidido à parte, pelo papel.
+          </p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 print:grid-cols-2">
@@ -215,7 +235,7 @@ export default function RoleRulesPage() {
         <PageHeader
           module="System · Access"
           title="Role rules"
-          description="What each role can and cannot do. Generated from the permission matrix in force — it changes when the matrix changes."
+          description="What each role sees in this system. Generated from the permission matrix, which governs menus, buttons and pages — database access is decided separately, by role."
           icon={<ShieldCheck className="h-5 w-5" />}
           actions={
             <div className="flex items-center gap-2 print:hidden">
