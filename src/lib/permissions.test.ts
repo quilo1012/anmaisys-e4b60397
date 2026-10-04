@@ -62,7 +62,10 @@ const EXPECTED: Record<Action, Role[]> = {
   "attendance.manage": ["admin", "manager"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   "downtime.correct": ["admin", "maintenance_manager"],
-  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "production_office_admin", "quality_supervisor"],
+  // `operator` fora desde 03/10/2026, por decisão. Se este teste voltar a falhar em
+  // `operator cannot stopanalysis.view`, alguém devolveu o ecrã à linha — confirmar
+  // que foi de propósito antes de mexer nesta lista.
+  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin", "quality_supervisor"],
   "reports.export": ["admin", "manager", "production_office_admin"],
   "pm.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
   "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
