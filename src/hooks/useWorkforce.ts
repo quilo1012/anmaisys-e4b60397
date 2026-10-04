@@ -57,6 +57,13 @@ export interface Employee {
   source: string;
   notes: string | null;
   current_line_id: string | null;
+  /**
+   * Como a folha de headcount da fabrica escreve esta pessoa, separado por virgulas,
+   * quando nao e como ela esta escrita aqui. Lido pelo `parseHeadcountWorkbook` e
+   * escrito pelo dialogo de import; esta aqui tambem porque corrigir um nome tem de
+   * guardar a grafia antiga, ou a folha deixa de encontrar a pessoa no mes seguinte.
+   */
+  sheet_aliases?: string | null;
 }
 
 export type AttendanceStatus = "present" | "absent" | "sick" | "holiday" | "training" | "unpaid";
@@ -596,8 +603,24 @@ export function useUpdateEmployee() {
         held = data as { shift_group: string | null; shift_pattern_id: string | null };
       }
 
-      const { error } = await db.from("employees").update(patch).eq("id", id);
+      // `select("id")` nao e para ler o resultado: e para a gravacao poder falhar.
+      // Um PATCH do PostgREST que a RLS esvazia devolve 204 e `error: null`, por isso
+      // um update sem `select` dava-se por bem sucedido sem ter escrito nada — o toast
+      // dizia "Saved" e o painel, depois do refetch, voltava ao valor antigo. As
+      // policies de `employees` sao `employees admin` (ALL) e `select by matrix`:
+      // quem tem `workforce.manage` por override — o `production_office_admin` tem, e
+      // sao cinco contas — abria o formulario e nao escrevia uma linha.
+      const { data: written, error } = await db
+        .from("employees")
+        .update(patch)
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!written || written.length === 0) {
+        throw new Error(
+          "Nothing was saved — changing employee records needs the admin role. Ask an admin to make the change, or to grant the role.",
+        );
+      }
 
       if (movesPosition) {
         const { error: histErr } = await db.from("employee_shift_history").upsert(
