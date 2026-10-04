@@ -1,3 +1,4 @@
+import { RootCauseKeywordsEditor } from "@/components/quality/RootCauseKeywordsEditor";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { writeOptionalDomain } from "@/lib/writeOptionalDomain";
@@ -1521,6 +1522,7 @@ export function QualityActionsView() {
               {domainFilter !== "safety" && <SeverityPointsEditor />}
               {domainFilter !== "safety" && <LeaderScoreWeightsEditor />}
               <QualityListsManager domain={domainFilter === "safety" ? "safety" : "quality"} />
+              {domainFilter !== "safety" && canSetRootCause && <RootCauseKeywordsEditor />}
             </DialogContent>
           </Dialog>
         )}
@@ -1675,7 +1677,9 @@ function QualityIssueDetail({ action, canManage, onOpenChange, onDelete, onEdit 
                 {/* Named even when it is empty: "not established" is a fact about the
                     action, and a blank row is what lets a leader ask for one. */}
                 {domainOf(action) !== "safety" && (
-                  <DetailMeta label="Root cause" value={action.root_cause_area ?? "Not established"} />
+                  <span title={action.root_cause_area ? "Root cause set automatically from the title — Quality can change it" : undefined}>
+                    <DetailMeta label="Root cause" value={action.root_cause_area ?? "Not established"} />
+                  </span>
                 )}
                 <DetailMeta label="Logged" value={format(new Date(action.recorded_at), "dd/MM/yyyy HH:mm")} />
               </div>

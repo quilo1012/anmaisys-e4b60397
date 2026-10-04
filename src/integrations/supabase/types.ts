@@ -4409,6 +4409,36 @@ export type Database = {
         }
         Relationships: []
       }
+      root_cause_area_keyword: {
+        Row: {
+          active: boolean
+          area: string
+          created_at: string
+          id: string
+          note: string | null
+          pattern: string
+          sort: number
+        }
+        Insert: {
+          active?: boolean
+          area: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          pattern: string
+          sort?: number
+        }
+        Update: {
+          active?: boolean
+          area?: string
+          created_at?: string
+          id?: string
+          note?: string | null
+          pattern?: string
+          sort?: number
+        }
+        Relationships: []
+      }
       sc_classification_rules: {
         Row: {
           active: boolean
