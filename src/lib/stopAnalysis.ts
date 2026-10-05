@@ -63,7 +63,6 @@ export interface ProductionStop {
   line: string | null;
   reason: string | null;
   duration_minutes: number | null;
-  machine: string | null;
 }
 
 /**
