@@ -12,6 +12,39 @@ import type { Attendance } from "./classification.ts";
 import { sessionInCharge, type ProductionSession } from "./leaderOnDuty.ts";
 import { parseProductNote, resolveSkuFromNote } from "./productNote.ts";
 
+/**
+ * Whether two timestamps are the same INSTANT, which is not the same question as
+ * whether they are the same string.
+ *
+ * `external_updated_at` is a `timestamptz`. What SafetyCulture sends is
+ * `"2026-09-01T14:14:01.277Z"`; what PostgREST hands back after a round trip through
+ * the column is `"2026-09-01T14:14:01.277+00:00"`, and sometimes with microseconds
+ * Postgres kept and the API never sent. Compared with `===` those are never equal, so
+ * the no-change short-circuit below could not fire on a single real row.
+ *
+ * Measured on 05/10/2026: **303 of the 312 synced actions were rewritten in the last
+ * sweep**, on an hour when nothing changed upstream — `updated: 302, unchanged: 0` in
+ * `sc_sync_logs`, every sweep, twice a day. `unchanged: 0` was the tell: a sync that
+ * re-reads the whole history and finds nothing unchanged is not comparing anything.
+ *
+ * It cost more than wasted writes. The short-circuit is the thing that was supposed to
+ * protect a manual correction to `line` or `leader_name` — those columns are not in
+ * `trg_log_quality_action_change`, so an overwrite leaves no audit row and nobody could
+ * see it happen.
+ *
+ * Returns false when either side is missing: an unknown timestamp must mean "write it",
+ * never "assume it matches".
+ */
+export function sameInstant(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const ta = Date.parse(a);
+  const tb = Date.parse(b);
+  // An unparseable timestamp falls back to the strings. Guessing they are equal would
+  // skip a row forever; guessing they differ only costs one write.
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return a === b;
+  return ta === tb;
+}
+
 export function adminClient(): SupabaseClient {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -433,11 +466,7 @@ export async function applyActions(
     // Only a row with neither takes the note's word for it. See `rowFor`.
     const blank = !String(prev.sku ?? "").trim() && !String(prev.batch ?? "").trim();
 
-    if (
-      prev.external_updated_at &&
-      draft.external_updated_at &&
-      prev.external_updated_at === draft.external_updated_at
-    ) {
+    if (sameInstant(prev.external_updated_at as string | null, draft.external_updated_at)) {
       // Nothing changed at SafetyCulture's end — but the rows imported before this
       // function learned to read a product note still carry NULL in both columns,
       // and SafetyCulture will never touch them again, so no later sync would ever
