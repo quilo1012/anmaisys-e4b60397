@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { startOfDay, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
+import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
 
 export interface DowntimeRecord {
   id: string;
@@ -52,29 +54,41 @@ export function useDowntime(since?: Date) {
     queryKey: ["downtime", sinceIso],
     queryFn: async () => {
       const since = sinceIso;
-      const [
-        { data: manualData, error: manualError },
-        { data: eventData, error: eventError },
-        { data: woData, error: woError },
-      ] = await Promise.all([
+      // As duas leituras grandes vão por páginas.
+      //
+      // O intervalo é do chamador — por omissão 90 dias, e há ecrãs que pedem mais —
+      // e tanto as ordens como os eventos crescem cerca de sete por dia. A mil linhas
+      // o PostgREST corta a resposta sem dizer nada, e este ecrã é uma LISTA: faltarem
+      // linhas no fim não se vê, lê-se como "não houve mais paragens".
+      //
+      // O `id` vai na ordenação a seguir à data porque a data empata — duas paragens
+      // no mesmo instante, e duas páginas repetem uma linha e saltam outra.
+      const [manual, eventData, woData] = await Promise.all([
         supabase.from("downtime").select("*").gte("started_at", since).order("started_at", { ascending: false }),
-        (supabase as any)
-          .from("downtime_events")
-          .select("*, work_order:work_orders!inner(wo_number, wo_type, machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
-          .neq("work_order.wo_type", "warehouse_service")
-          .gte("stopped_at", since)
-          .order("stopped_at", { ascending: false }),
-        (supabase as any)
-          .from("work_orders")
-          .select("id, wo_type, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at, description, line:lines!work_orders_line_id_fkey(name)")
-          .neq("wo_type", "warehouse_service")
-          .not("line_stopped_at", "is", null)
-          .gte("line_stopped_at", since)
-          .order("line_stopped_at", { ascending: false }),
+        fetchAllRows<any>({
+          range: (a, b) => (supabase as any)
+            .from("downtime_events")
+            .select("*, work_order:work_orders!inner(wo_number, wo_type, machine, line_at_time, line:lines!work_orders_line_id_fkey(name))")
+            .neq("work_order.wo_type", "warehouse_service")
+            .gte("stopped_at", since)
+            .order("stopped_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(a, b),
+        }),
+        fetchAllRows<any>({
+          range: (a, b) => (supabase as any)
+            .from("work_orders")
+            .select("id, wo_type, machine, line_at_time, line_stopped_at, line_stopped_by, line_resumed_at, line_resumed_by, created_at, description, line:lines!work_orders_line_id_fkey(name)")
+            .neq("wo_type", "warehouse_service")
+            .not("line_stopped_at", "is", null)
+            .gte("line_stopped_at", since)
+            .order("line_stopped_at", { ascending: false })
+            .order("id", { ascending: true })
+            .range(a, b),
+        }),
       ]);
+      const { data: manualData, error: manualError } = manual;
       if (manualError) throw manualError;
-      if (eventError) throw eventError;
-      if (woError) throw woError;
 
       const prettifyLine = (raw: unknown): string => {
         const v = (raw ?? "").toString().trim();
@@ -125,11 +139,21 @@ export function useDowntime(since?: Date) {
       const candidateIds = (woData || []).map((w: any) => w.id);
       let idsWithAnyEvent = woIdsWithEvents;
       if (candidateIds.length > 0) {
-        const { data: anyEv } = await (supabase as any)
-          .from("downtime_events").select("work_order_id").in("work_order_id", candidateIds);
+        // Por lotes de ids e por páginas: a lista de candidatos é agora tão comprida
+        // quanto o período pedir, e um `.in(...)` com mil UUIDs é ao mesmo tempo uma
+        // resposta cortada e um pedido demasiado longo para caber na query string.
+        const anyEv = await fetchRowsByIds<{ work_order_id: string }>(
+          candidateIds,
+          (chunk, a, b) => (supabase as any)
+            .from("downtime_events")
+            .select("work_order_id")
+            .in("work_order_id", chunk)
+            .order("work_order_id", { ascending: true })
+            .range(a, b),
+        );
         idsWithAnyEvent = new Set([
           ...woIdsWithEvents,
-          ...((anyEv || []) as { work_order_id: string }[]).map((e) => e.work_order_id),
+          ...anyEv.map((e) => e.work_order_id),
         ]);
       }
 

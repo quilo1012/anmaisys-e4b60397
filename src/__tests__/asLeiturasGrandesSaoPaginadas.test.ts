@@ -42,11 +42,7 @@ import { resolve } from "node:path";
  * prose is a claim about code nobody re-checks; the map is the only part of this file
  * the guard actually reads. Measure, do not reassure.
  *
- * NEXT TO CROSS, measured the same day: `downtime_events` at 784 and `work_orders` at
- * 774, both growing about seven rows a day — a month of headroom. They are not
- * enforced here yet because their reads have not been audited one by one, and a guard
- * with an unexamined allowlist is worse than no guard. When they are, they belong in
- * this map.
+ * The tables on their way here live in `APPROACHING` below, under the same rules.
  */
 const AT_THE_CAP: Record<string, number> = {
   // Fifteen times the cap, and the only table here that has already printed a wrong
@@ -61,6 +57,31 @@ const AT_THE_CAP: Record<string, number> = {
   // which is the only reason there is no wrong figure to quote for this one.
   production_sessions: 1_007,
 };
+
+/**
+ * The tables that have NOT crossed yet, watched anyway. Counts measured on 2026-10-05.
+ *
+ * Every table in the map above arrived here the same way: by being under the cap on
+ * the day somebody wrote a read of it, and over the cap on the day the server started
+ * cutting that read's answer. Nobody is told when it happens. There is no error, no
+ * log line, no changed behaviour on the screen — only a smaller number, on a page that
+ * has always shown numbers.
+ *
+ * So the guard starts BEFORE the crossing. A read written against 774 rows is read by
+ * the server against however many rows there are the day it runs, and a month is not
+ * enough warning to find three hooks and rewrite them calmly.
+ *
+ * An entry graduates to `AT_THE_CAP` when it crosses; it does not linger here. The
+ * test below holds both ends of that, so this map cannot quietly become a second,
+ * softer rule.
+ */
+const APPROACHING: Record<string, number> = {
+  // Seven rows a day, about a month of headroom on the day this was written.
+  work_orders: 774,
+  downtime_events: 784,
+};
+
+const WATCHED: Record<string, number> = { ...AT_THE_CAP, ...APPROACHING };
 
 /**
  * Reads that are narrow by CONSTRUCTION, keyed `table @ path`, with the measurement
@@ -100,6 +121,33 @@ const NARROW: Record<string, string> = {
     + "— at most one row per action, against 379 actions in the whole table.",
   "quality_action_history @ src/hooks/useQualityIssue.ts":
     "The audit trail of ONE action. The most-edited action in the table has 26 rows.",
+  "work_orders @ src/components/LeaderScorecard.tsx":
+    "Filtered to one leader by `requester_name`. The busiest requester in the table has "
+    + "34 orders of all time, against a cap of a thousand.",
+  "work_orders @ src/components/MissingDowntimeAlert.tsx":
+    "Closed orders that never recorded a stop — `line_stopped_at is null` and a finished "
+    + "status. That is 59 rows in the WHOLE table, and the alert exists to drive the "
+    + "number down, not up. The date range narrows it further.",
+  "downtime_events @ src/components/MissingDowntimeAlert.tsx":
+    "`.in(...)` over the ids the read above returned — at most those 59, and in practice "
+    + "a handful from one period.",
+  "work_orders @ src/hooks/useShiftDowntime.ts":
+    "ONE shift. The busiest day the factory has had put 27 orders into `line_stopped_at`, "
+    + "across both shifts.",
+  "downtime_events @ src/hooks/useShiftDowntime.ts":
+    "Same single shift, and the `.in(...)` that follows it is keyed on the ids that read "
+    + "returned. The busiest day in the table has 42 events, across both shifts.",
+  "work_orders @ src/lib/mcp/tools/list-work-orders.ts":
+    "The MCP tool's own schema bounds it: `z.number().int().min(1).max(100).default(25)`. "
+    + "A caller cannot ask for more than 100 rows, so the server's thousand never binds.",
+  "work_orders @ src/pages/dashboard/RAGWeeklyPage.tsx":
+    "The week board, bounded by `line_stopped_at` inside the chosen week plus a day of "
+    + "padding. The busiest week in the table has 83 such orders.",
+  "downtime_events @ src/pages/dashboard/RAGWeeklyPage.tsx":
+    "Same week picker, by `stopped_at`. The busiest week in the table has 123 events.",
+  "downtime_events @ src/pages/dashboard/EngineerDashboard.tsx":
+    "`.in(...)` over the ids of the history list above, which is itself `.limit(200)` — "
+    + "so at most 200 orders' worth of events, and the busiest day has 42.",
   "audit_logs @ src/hooks/useAuditLogs.ts":
     "Two reads, both bounded. The log viewer pages with `.range()` and an exact count. "
     + "`useStockAdjustmentHistory` takes the newest N of `action = adjust_stock` — 89 "
@@ -175,7 +223,7 @@ function readsOf(body: string, file: string, table: string): Read[] {
 const reads: Read[] = sourceFiles(SRC).flatMap((full) => {
   const body = readFileSync(full, "utf8");
   const file = full.slice(full.indexOf("/src/") + 1);
-  return Object.keys(AT_THE_CAP).flatMap((t) => readsOf(body, file, t));
+  return Object.keys(WATCHED).flatMap((t) => readsOf(body, file, t));
 });
 
 /** Paging, however it was reached: `.range()` in the chain, or a helper wrapping it. */
@@ -235,7 +283,7 @@ describe("the big tables are never read short", () => {
     // Without this, a renamed table or a wrong path makes every assertion below
     // vacuously true — the failure mode of every test that walks a directory.
     expect(reads.length).toBeGreaterThan(20);
-    for (const t of Object.keys(AT_THE_CAP)) {
+    for (const t of Object.keys(WATCHED)) {
       expect(reads.some((r) => r.table === t), `no read of ${t} found — renamed?`).toBe(true);
     }
   });
@@ -245,6 +293,21 @@ describe("the big tables are never read short", () => {
     // this guard, and listing one here would make the reasons below untrue.
     for (const [table, rows] of Object.entries(AT_THE_CAP)) {
       expect(rows, `${table} is listed but under the cap`).toBeGreaterThan(950);
+    }
+  });
+
+  it("keeps the approaching list a waiting room, not a softer rule", () => {
+    // Both ends matter. Under 500 and the table is years away, and watching it now
+    // buys nothing but noise in this file. At 950 it has effectively arrived and
+    // belongs in AT_THE_CAP, where the reason written beside it is the measurement
+    // that it IS past the cap — leaving it here would make that reason untrue.
+    for (const [table, rows] of Object.entries(APPROACHING)) {
+      expect(rows, `${table} is too far out to watch yet`).toBeGreaterThan(500);
+      expect(
+        rows,
+        `${table} has arrived — move it to AT_THE_CAP with its new count`,
+      ).toBeLessThanOrEqual(950);
+      expect(AT_THE_CAP[table], `${table} is in both maps`).toBeUndefined();
     }
   });
 
@@ -282,7 +345,7 @@ describe("the big tables are never read short", () => {
     it(`pages the wide read of ${r.table} in ${r.file}`, () => {
       expect(
         isPaged(r),
-        `${r.file} reads ${r.table} (${AT_THE_CAP[r.table]} rows) across a range without `
+        `${r.file} reads ${r.table} (${WATCHED[r.table]} rows) across a range without `
           + "paging it. PostgREST answers with 1000 rows and no warning — see the note at "
           + "the top of this file. Wrap it in fetchAllRows, or fetchRowsByIds when the "
           + "filter is a list of ids, and order it. If the read is narrow by "

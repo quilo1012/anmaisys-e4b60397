@@ -37,12 +37,11 @@ export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" 
          * Plan and actual come from RAG Weekly, which is where the plan is agreed —
          * not from per-item targets, matching what Performance shows.
          *
-         * Paged, unlike the two reads beside it, which are capped at 2000 and are
-         * counts rather than denominators. This one is the DENOMINATOR of the
-         * attainment this hook returns: short by a few hundred rows of plan and the
-         * report reads better than the factory ran, with nothing on the page to say
-         * so. The table passed the thousand-row cap during 2026 — 1068 rows — so a
-         * report over the year was already losing 68 of them.
+         * This one is the DENOMINATOR of the attainment this hook returns: short by a
+         * few hundred rows of plan and the report reads better than the factory ran,
+         * with nothing on the page to say so. The table passed the thousand-row cap
+         * during 2026 — 1068 rows — so a report over the year was already losing 68
+         * of them.
          */
         fetchAllRows<{
           entry_date: string; line: string; shift: string;
@@ -54,14 +53,28 @@ export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" 
             .order("entry_date", { ascending: true }).order("id", { ascending: true })
             .range(a, b),
         }),
-        db.from("work_orders")
-          .select("id, wo_number, status, created_at, closed_at, line_stopped_at, line_at_time, line:lines!work_orders_line_id_fkey(name)")
-          .neq("wo_type", "warehouse_service")
-          .gte("created_at", window.gte).lte("created_at", window.lte).limit(2000),
+        /**
+         * Paged too, since 05/10/2026. `.limit(2000)` was never a bound — PostgREST
+         * answers with 1000 and says nothing — and this is a COUNT on a report: a
+         * number that is quietly too small reads exactly like a quiet month.
+         *
+         * 774 orders on the day this was written, growing about seven a day. A report
+         * over a year would have crossed inside a month of it.
+         */
+        fetchAllRows<any>({
+          range: (a, b) => db.from("work_orders")
+            .select("id, wo_number, status, created_at, closed_at, line_stopped_at, line_at_time, line:lines!work_orders_line_id_fkey(name)")
+            .neq("wo_type", "warehouse_service")
+            .gte("created_at", window.gte).lte("created_at", window.lte)
+            .order("created_at", { ascending: true }).order("id", { ascending: true })
+            .range(a, b),
+        }),
+        // `quality_actions` fica por paginar de propósito: 380 linhas na tabela
+        // inteira, medidas a 05/10/2026. Entra na mesma regra no dia em que se
+        // aproximar das mil, e é por isso que o guarda tem uma lista de espera.
         db.from("quality_actions").select("id, severity, closed_at, recorded_at, shift")
           .gte("recorded_at", window.gte).lte("recorded_at", window.lte).limit(2000),
       ]);
-      if (wos.error) throw wos.error;
       if (quality.error) throw quality.error;
 
       const ragRows = ragRowsAll.filter((r: any) => inShift(r.shift));
@@ -70,7 +83,7 @@ export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" 
 
       // Orders are filed under the shift the line went down in, not when the order was
       // typed — the rule the rest of the factory uses.
-      const woRows = (wos.data ?? []).filter((w: any) => {
+      const woRows = wos.filter((w: any) => {
         const anchor = w.line_stopped_at ?? w.created_at;
         const hour = Number(new Intl.DateTimeFormat("en-GB", {
           timeZone: "Europe/London", hour: "2-digit", hour12: false,

@@ -26,7 +26,6 @@ const stop = (p: Partial<ProductionStop>): ProductionStop => ({
   line: "Line 1",
   reason: "Alarm",
   duration_minutes: 10,
-  machine: null,
   ...p,
 });
 

@@ -53,6 +53,11 @@ export function useProductionStops(from: Date, to: Date) {
   return useQuery({
     queryKey: ["production_stops", fromDay, toDay],
     queryFn: async (): Promise<ProductionStopsResult> => {
+      // Sem `machine`: a coluna existe, o ecrã nunca a leu, e o poll não a escreve —
+      // `machine` é NULL nas 15 290 linhas da tabela, porque o `intouch-poll` põe o
+      // nome da máquina em `notes` e omite a coluna no insert. Era uma leitura morta
+      // de uma coluna que ninguém preenche, e agora são menos 15 mil campos a viajar.
+      //
       // Ordenado por `id`, que é único. O `occurred_date` repete-se centenas de vezes
       // por dia, e uma ordem com empates não é uma ordem: entre duas páginas o
       // servidor pode devolver a mesma linha outra vez e saltar outra.
@@ -61,7 +66,7 @@ export function useProductionStops(from: Date, to: Date) {
           range: (lo, hi) =>
             (supabase as any)
               .from("production_downtimes")
-              .select("id, occurred_date, shift, line, reason, duration_minutes, machine")
+              .select("id, occurred_date, shift, line, reason, duration_minutes")
               .gte("occurred_date", fromDay)
               .lte("occurred_date", toDay)
               .order("id", { ascending: true })

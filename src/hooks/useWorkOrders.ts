@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { WAREHOUSE_WO_TYPE } from "@/lib/woKinds";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
@@ -147,41 +148,59 @@ export function useWorkOrders(filter?: {
   const query = useQuery({
     queryKey: ["work_orders", filter],
     queryFn: async () => {
-      const ranged = !!(filter?.from || filter?.to);
-      let q = supabase
-        .from("work_orders")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(ranged ? 5000 : 200);
-      if (filter?.from) q = q.gte("created_at", filter.from.toISOString());
-      if (filter?.to) q = q.lte("created_at", filter.to.toISOString());
-
-      // No servidor e não no cliente: sem intervalo esta consulta trava nas 200
-      // ordens mais recentes, e uma ordem de armazém filtrada já do lado de cá
-      // teria gasto na mesma um dos 200 lugares.
+      // Com intervalo, por páginas; sem intervalo, as 200 mais recentes.
       //
-      // `neq` chega porque `wo_type` é `NOT NULL DEFAULT 'production'` — não há
-      // nulos para o comparador deixar cair.
-      if (!filter?.includeWarehouse) q = q.neq("wo_type", WAREHOUSE_WO_TYPE);
+      // São duas leituras com formas diferentes e tinham um `.limit()` só: 5000 com
+      // intervalo, 200 sem. O 200 é uma decisão — a lista abre nas mais recentes e
+      // ninguém rola duzentas — mas o 5000 nunca foi um limite. O PostgREST responde
+      // com mil linhas e não diz nada, e com 774 ordens a crescer sete por dia esse
+      // tecto chega dentro de um mês, a um ecrã que conta ordens por período.
+      //
+      // O `id` entra na ordenação com intervalo porque `created_at` empata, e uma
+      // ordem com empates faz duas páginas repetirem uma linha e saltarem outra.
+      const ranged = !!(filter?.from || filter?.to);
+      const build = (lo?: number, hi?: number) => {
+        let q = supabase
+          .from("work_orders")
+          .select("*")
+          .order("created_at", { ascending: false });
+        if (ranged) q = q.order("id", { ascending: true });
+        if (filter?.from) q = q.gte("created_at", filter.from.toISOString());
+        if (filter?.to) q = q.lte("created_at", filter.to.toISOString());
 
-      // Device line scoping (operator tablets) — takes precedence over operatorOnly self-filter
-      if (filter?.lineId) {
-        q = q.eq("line_id", filter.lineId);
-      } else if (filter?.operatorOnly && user) {
-        q = q.eq("operator_id", user.id);
+        // No servidor e não no cliente: sem intervalo esta consulta trava nas 200
+        // ordens mais recentes, e uma ordem de armazém filtrada já do lado de cá
+        // teria gasto na mesma um dos 200 lugares.
+        //
+        // `neq` chega porque `wo_type` é `NOT NULL DEFAULT 'production'` — não há
+        // nulos para o comparador deixar cair.
+        if (!filter?.includeWarehouse) q = q.neq("wo_type", WAREHOUSE_WO_TYPE);
+
+        // Device line scoping (operator tablets) — takes precedence over operatorOnly self-filter
+        if (filter?.lineId) {
+          q = q.eq("line_id", filter.lineId);
+        } else if (filter?.operatorOnly && user) {
+          q = q.eq("operator_id", user.id);
+        }
+        if (filter?.statusIn && filter.statusIn.length > 0) {
+          q = q.in("status", filter.statusIn);
+        }
+        return lo === undefined ? q.limit(200) : q.range(lo, hi as number);
+      };
+
+      let rows: WorkOrder[];
+      if (ranged) {
+        rows = (await fetchAllRows<unknown>({
+          range: (lo, hi) => build(lo, hi) as never,
+        })) as unknown as WorkOrder[];
+      } else {
+        const { data, error } = await build();
+        if (error) {
+          console.error("[useWorkOrders] query error:", error);
+          throw error;
+        }
+        rows = (data || []) as unknown as WorkOrder[];
       }
-      if (filter?.statusIn && filter.statusIn.length > 0) {
-        q = q.in("status", filter.statusIn);
-      }
-
-      const { data, error } = await q;
-      if (error) {
-
-        console.error("[useWorkOrders] query error:", error);
-        throw error;
-      }
-
-      const rows = (data || []) as unknown as WorkOrder[];
       const [profilesRes, engineersRes] = await Promise.all([
         supabase.rpc("list_active_profile_names"),
         supabase.rpc("list_engineer_names"),
