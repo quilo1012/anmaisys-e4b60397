@@ -13,10 +13,15 @@
  * from nagging: `an_shift_team_seen_<shift start>` does that, and does it correctly.
  * Dropping the window therefore costs nothing and buys the whole shift.
  *
+ * The key also moved from `sessionStorage` to `localStorage`, because a kiosk tablet
+ * empties the former every time the app is reopened — a restart at nine asked again
+ * about a crew acknowledged at six. Being per-device, it now has to prune itself: one
+ * key, not one for every shift the line has ever worked.
+ *
  * What has to hold: it opens the first time the operator sees an operator screen in a
- * shift, whenever that is; it stays shut for the rest of that shift once acknowledged;
- * the next shift asks again; and a shift with nobody recorded on the line stays quiet
- * rather than opening an empty box.
+ * shift, whenever that is; it stays shut for the rest of that shift once acknowledged,
+ * app restart included; the next shift asks again; and a shift with nobody recorded on
+ * the line stays quiet rather than opening an empty box.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -124,5 +129,34 @@ describe("ShiftTeamPopup", () => {
     render(<ShiftTeamPopup />);
 
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("survives the tablet app being closed and reopened mid-shift", () => {
+    vi.setSystemTime(FORTY_MINUTES_IN);
+    const first = render(<ShiftTeamPopup />);
+    fireEvent.click(screen.getByRole("button", { name: /got it/i }));
+    first.unmount();
+
+    // A kiosk restart empties sessionStorage and keeps localStorage. The crew was
+    // acknowledged at 06:40; reopening the app at 09:00 must not ask again.
+    sessionStorage.clear();
+    vi.setSystemTime(new Date("2026-10-05T08:00:00Z"));
+    render(<ShiftTeamPopup />);
+
+    expect(screen.queryByText("Carlos Russo")).toBeNull();
+  });
+
+  it("keeps one acknowledgement, not one for every shift ever worked", () => {
+    vi.setSystemTime(FORTY_MINUTES_IN);
+    const day = render(<ShiftTeamPopup />);
+    fireEvent.click(screen.getByRole("button", { name: /got it/i }));
+    day.unmount();
+
+    vi.setSystemTime(NIGHT_HALF_HOUR_IN);
+    render(<ShiftTeamPopup />);
+    fireEvent.click(screen.getByRole("button", { name: /got it/i }));
+
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith("an_shift_team_seen_"));
+    expect(keys).toHaveLength(1);
   });
 });
