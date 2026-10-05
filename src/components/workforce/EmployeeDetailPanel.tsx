@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,8 @@ import { DEPARTMENTS, POSITIONS } from "@/lib/orgNames";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
+import { AlertTriangle, ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
+import { similarNames } from "@/lib/similarNames";
 import { cn } from "@/lib/utils";
 import {
   describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements,
@@ -70,6 +71,24 @@ export function EmployeeDetailPanel({
     employee?.started_on, employee?.left_on,
     employee?.position, employee?.manager_id, employee?.employment_type,
   ]);
+
+  /**
+   * Renomear tambem faz duplicados, e faz os piores.
+   *
+   * O "Add employee" ja pergunta — foi assim que o FELIPE DE ARAUJO e o FELIPE ARAUJO
+   * se tornaram dois homens com metade do trabalho cada um. Corrigir um nome aqui
+   * chega ao mesmo sitio pela porta do lado: escrever "Felipe Araujo" por cima de
+   * "Felipe De Araujo" nao funde as duas fichas, poe o mesmo nome em duas. Mesmo
+   * `similarNames`, mesma regra: avisa, nunca recusa, e conta os saidos porque um
+   * regresso e uma ficha para reabrir.
+   *
+   * Acima do `return null` de proposito: um hook a seguir a uma saida antecipada deixa
+   * de ser chamado assim que o painel fecha, e a ordem dos hooks muda entre renders.
+   */
+  const lookalikes = useMemo(() => {
+    if (!employee || fullName.trim() === (employee.full_name ?? "").trim()) return [];
+    return similarNames(fullName, (colleagues ?? []).filter((c) => c.id !== employee.id)).slice(0, 4);
+  }, [fullName, colleagues, employee]);
 
   if (!employee) return null;
 
@@ -235,6 +254,32 @@ export function EmployeeDetailPanel({
                 <p className="mt-1 text-2xs text-destructive-strong">
                   A name is required — it is how the headcount sheet finds this person.
                 </p>
+              )}
+              {lookalikes.length > 0 && (
+                <div className="mt-2 rounded-md border border-warning/40 bg-warning/5 p-2.5">
+                  <p className="flex items-start gap-1.5 text-2xs font-medium text-warning-strong">
+                    <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+                    {lookalikes[0].strength === "same"
+                      ? "Somebody else is already on the record under this name."
+                      : "This is close to somebody else already on the record."}
+                  </p>
+                  <ul className="mt-1.5 space-y-0.5">
+                    {lookalikes.map((m) => (
+                      <li key={m.id} className="text-2xs">
+                        <span className="font-medium">{m.full_name}</span>
+                        <span className="text-muted-foreground">
+                          {m.shift_group ? ` · ${m.shift_group}` : ""}
+                          {m.department ? ` · ${m.department}` : ""}
+                          {m.active ? "" : m.left_on ? ` · left ${m.left_on}` : " · left"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-1.5 text-2xs text-muted-foreground">
+                    Renaming does not merge two records. If this is the same person twice,
+                    the second one has to be marked as left, not renamed.
+                  </p>
+                </div>
               )}
             </div>
             <div>
