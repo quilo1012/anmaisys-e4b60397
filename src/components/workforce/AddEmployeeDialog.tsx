@@ -51,7 +51,17 @@ export function AddEmployeeDialog() {
   const trimmed = name.trim();
 
   const lookalikes = useMemo(() => similarNames(trimmed, onFile).slice(0, 4), [trimmed, onFile]);
-  const blocked = lookalikes.length > 0 && !notTheSame;
+  /**
+   * Only `same` and `close` are worth stopping somebody over.
+   *
+   * A `maybe` is a one-word name found inside a longer one. It finds `Ketlyn` inside
+   * `Ketlyn Amorin`, who is one woman on two active rows — and it finds `Dias` inside
+   * `Alex Dias`, who are two different workers. A gate on evidence that weak would be
+   * a tick box somebody learns to tick, which costs the warning its meaning on the
+   * day it is right.
+   */
+  const strongHits = lookalikes.filter((m) => m.strength !== "maybe");
+  const blocked = strongHits.length > 0 && !notTheSame;
 
   const reset = () => {
     setName(""); setShift("Day"); setArea("__none__");
@@ -113,7 +123,9 @@ export function AddEmployeeDialog() {
                   <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
                   {lookalikes[0].strength === "same"
                     ? "This name is already on the record."
-                    : "This looks like somebody already on the record."}
+                    : lookalikes[0].strength === "close"
+                    ? "This looks like somebody already on the record."
+                    : "Somebody on the record has this word in their name."}
                 </p>
                 <ul className="mt-1.5 space-y-0.5">
                   {lookalikes.map((m) => (
@@ -131,10 +143,13 @@ export function AddEmployeeDialog() {
                   Adding a second row for the same person splits their attendance,
                   their holiday balance and their overtime between the two.
                 </p>
-                <label className="mt-2 flex items-center gap-2 text-2xs">
-                  <Checkbox checked={notTheSame} onCheckedChange={(v) => setNotTheSame(v === true)} />
-                  This is a different person
-                </label>
+                {/* The tick is only asked for when the evidence is worth a tick. */}
+                {strongHits.length > 0 && (
+                  <label className="mt-2 flex items-center gap-2 text-2xs">
+                    <Checkbox checked={notTheSame} onCheckedChange={(v) => setNotTheSame(v === true)} />
+                    This is a different person
+                  </label>
+                )}
               </div>
             )}
           </div>
@@ -192,7 +207,7 @@ export function AddEmployeeDialog() {
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
           <Button onClick={submit} disabled={!trimmed || blocked || create.isPending}>
-            {create.isPending ? "Adding…" : lookalikes.length > 0 ? "Add anyway" : "Add"}
+            {create.isPending ? "Adding…" : strongHits.length > 0 ? "Add anyway" : "Add"}
           </Button>
         </DialogFooter>
       </DialogContent>

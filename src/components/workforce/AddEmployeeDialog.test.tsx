@@ -18,6 +18,7 @@ vi.mock("@/hooks/useWorkforce", () => ({
     data: [
       { id: "1", full_name: "FELIPE DE ARAUJO", active: true, shift_group: "Night", department: "Production", left_on: null },
       { id: "2", full_name: "Ezaquiel Santos", active: false, shift_group: "Day", department: null, left_on: "2026-08-04" },
+      { id: "3", full_name: "Ketlyn Amorin", active: true, shift_group: "Weekend", department: "Hygiene", left_on: null },
     ],
   }),
   useHeadcountAreas: () => ({ data: [] }),
@@ -86,6 +87,30 @@ describe("AddEmployeeDialog", () => {
     expect(addButton()).toBeEnabled();
 
     fireEvent.change(name, { target: { value: "Ezaquiel Santos" } });
+    expect(addButton()).toBeDisabled();
+  });
+});
+
+describe("AddEmployeeDialog, the one-word name", () => {
+  it("names the longer record but does not stand in the way", () => {
+    // `Ketlyn` and `Ketlyn Amorin` are one woman on two active rows. The same rule
+    // also pairs `Dias` with `Alex Dias`, who are two workers — so this is shown and
+    // never gated, and no tick box is asked for.
+    const name = open();
+    fireEvent.change(name, { target: { value: "Ketlyn" } });
+
+    expect(screen.getByText(/has this word in their name/i)).toBeInTheDocument();
+    expect(screen.getByText("Ketlyn Amorin")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /different person/i })).not.toBeInTheDocument();
+    expect(addButton()).toBeEnabled();
+
+    fireEvent.click(addButton());
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the gate for the names that earn it", () => {
+    const name = open();
+    fireEvent.change(name, { target: { value: "Felipe Araujo" } });
     expect(addButton()).toBeDisabled();
   });
 });
