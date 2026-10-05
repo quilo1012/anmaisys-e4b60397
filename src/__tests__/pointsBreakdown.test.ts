@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { actionPoints, pointsBreakdown, setLabelPoints } from "@/lib/qualityConstants";
+import { actionPoints, pointsBreakdown, setLabelPoints, setRootCauseAttribution } from "@/lib/qualityConstants";
 
 /**
  * Why a number needs to carry its own arithmetic.
@@ -28,7 +28,10 @@ const action = (labels: string[], over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-afterEach(() => setLabelPoints({}));
+afterEach(() => {
+  setLabelPoints({});
+  setRootCauseAttribution({});
+});
 
 describe("pointsBreakdown", () => {
   it("names each label that priced the action, and adds them up", () => {
@@ -120,6 +123,58 @@ describe("pointsBreakdown", () => {
     setLabelPoints({ label: 4 });
     const b = pointsBreakdown(action(["Label"], { severity: "low" }), EXCLUDED);
     expect(b.explanation).not.toContain("Nobody graded it");
+  });
+
+  /**
+   * The frozen branch names a cause it cannot know.
+   *
+   * Measured on 04/10/2026 across all three rows of `scoring_version`: every label
+   * price and every severity weight is identical in all three, the labels v2 added are
+   * priced 0, and the one substantive change — the Maintenance department exclusion,
+   * opened 26/08 — applies to none of the 69 actions that predate it. In this database
+   * the scale has never moved a single charge, so "the scale in force when this was
+   * logged" was wrong every time the branch fired.
+   *
+   * It fired, too: the tablet was missing `root_cause_area`, `livePoints` recomputed 4
+   * against a frozen 0, and a leader was told a price list had moved.
+   */
+  describe("when the frozen figure and the live one disagree", () => {
+    it("names both and says which is charged, without blaming the scale", () => {
+      setLabelPoints({ label: 4 });
+      const b = pointsBreakdown(
+        action(["Label"], { severity: null, points_at_creation: 0 }),
+        EXCLUDED,
+      );
+      expect(b.points).toBe(0);
+      expect(b.basis).toBe("frozen");
+      expect(b.explanation).toContain("0 points");
+      expect(b.explanation).toContain("4 today");
+      expect(b.explanation).not.toContain("scale");
+    });
+
+    it("names the root cause, which is the one cause the row can prove", () => {
+      // Quality settled the cause after the action was saved: the live figure drops to
+      // zero and the frozen charge stays. The sentence a leader needs is which area it
+      // went to, not an invented story about pricing.
+      setLabelPoints({ label: 4 });
+      setRootCauseAttribution({ office: false });
+      const b = pointsBreakdown(
+        action(["Label"], { points_at_creation: 4, root_cause_area: "Office" }),
+        EXCLUDED,
+      );
+      expect(b.basis).toBe("frozen");
+      expect(b.explanation).toContain("Office");
+      expect(b.explanation).toContain("does not reach back into the charge");
+    });
+
+    it("keeps quiet when the two agree, which is almost every action", () => {
+      setLabelPoints({ label: 4 });
+      const b = pointsBreakdown(
+        action(["Label"], { severity: null, points_at_creation: 4 }),
+        EXCLUDED,
+      );
+      expect(b.basis).toBe("labels");
+    });
   });
 
   it("never disagrees with actionPoints, which is the number everyone is measured on", () => {

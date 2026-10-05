@@ -872,7 +872,7 @@ export function pointsBreakdown(
   const base = { points, charged, spared };
 
   /**
-   * The scale moved after this action was logged, so every sentence below would be
+   * The frozen figure and the live one disagree, so every sentence below would be
    * arithmetic about a total that is no longer this action's.
    *
    * This is the failure mode the whole module keeps closing, arriving through a new
@@ -881,17 +881,37 @@ export function pointsBreakdown(
    * it wrong, and stops believing the number rather than the explanation. Both figures
    * are named instead, and which one is being charged is said outright.
    *
-   * Only when they actually DIFFER. An action whose scale has not moved gets its
-   * ordinary explanation, which is almost every action almost all of the time.
+   * WHAT THIS NO LONGER CLAIMS. It used to say "the scale in force when this was
+   * logged… past actions keep the scale of their own day", which names a cause it
+   * cannot know. Measured on 04/10/2026 across all three rows of `scoring_version`:
+   * every label price and every severity weight is IDENTICAL in all three, the labels
+   * v2 added are priced 0, and the one substantive change — the Maintenance department
+   * exclusion, opened 26/08 — applies to none of the 69 actions that predate it. In
+   * this database the scale has never moved a single charge, so whenever this branch
+   * fires the stated reason is the one thing it is not.
+   *
+   * What it actually is, every time: something about the ACTION changed after it was
+   * logged, or a select forgot a column. The second of those is how this sentence was
+   * found — the tablet was missing `root_cause_area`, `livePoints` recomputed 4 against
+   * a frozen 0, and a leader was told a price list had moved. See 20261005090000 and
+   * theTwoCardsProjectTheSameRow.test.ts.
+   *
+   * The root cause is the one case that IS knowable from the row, and it is the one a
+   * leader most needs, so it is named. Everything else gets both figures and no story.
+   *
+   * Only when they actually DIFFER, which is almost no action almost all of the time.
    */
   const live = livePoints(action, excluded);
   if (points !== live) {
+    const settledLater = !countsAgainstLeaderRootCause(action) ? effectiveRootCause(action) : null;
     return {
       ...base,
       basis: "frozen",
       explanation:
-        `${points} points — the scale in force when this was logged. ` +
-        `Today's scale would make it ${live}; past actions keep the scale of their own day.`,
+        `${points} points — the figure frozen when this was logged, and the one that is charged. ` +
+        (settledLater
+          ? `Its root cause is ${settledLater}, which would make it ${live} today: a cause settled after the action was saved does not reach back into the charge.`
+          : `Its labels and grade would make it ${live} today.`),
     };
   }
 
