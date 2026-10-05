@@ -18,20 +18,31 @@
  * eles que carregam a informação, e é a partir deles que se classifica aqui — no
  * cliente, sem tocar na base, e com o mapa declarado em vez de adivinhado.
  *
- * TRÊS BALDES, E A RAZÃO DE SEREM TRÊS
+ * QUATRO BALDES, E A RAZÃO DE SEREM QUATRO
  *
  * Cada balde tem um dono diferente na fábrica, e é isso que os separa — não a
  * gravidade:
  *
  *   `fault`   — avaria. A linha devia estar a andar e não anda. É o que a manutenção
- *               combate, e é o que o módulo de ordens de trabalho já mede. Quatro por
- *               cento das horas.
+ *               combate, e é o que o módulo de ordens de trabalho já mede.
  *   `process`  — preparação, mudança de SKU, enchimento de blender, limpeza, esperas
  *               por aprovação. Trabalho necessário que ninguém está a cronometrar.
  *               É o balde grande, e é onde está o dinheiro.
- *   `planned`  — pausas, mudança de turno, turno não planeado. É o calendário, não é
- *               uma perda. Aparece para as contas fecharem, e sai de todas as
- *               comparações entre linhas.
+ *   `planned`  — pausas e mudança de turno. É o calendário, não é uma perda. Aparece
+ *               para as contas fecharem, e sai de todas as comparações entre linhas.
+ *   `unscheduled` — o turno em que a linha não estava escalada.
+ *
+ * O QUARTO BALDE NASCEU DE UM NÚMERO QUE AFOGAVA OS OUTROS.
+ *
+ * `No Planned Shift` valia 96 025 minutos em 90 dias — mais do que qualquer paragem
+ * real, e em blocos de 720 minutos, que é um turno inteiro de uma linha que ninguém
+ * escalou. Enquanto esteve em `planned` era 30,6% de todos os minutos do ecrã, e
+ * empurrava para baixo a percentagem de tudo o que é mesmo uma paragem.
+ *
+ * Uma linha que não foi escalada não parou: nunca arrancou. Isso é capacidade por
+ * usar, que é uma pergunta de planeamento e não de manutenção, e por isso tem cartão
+ * próprio e fica FORA do tempo parado. Continua visível — esconder noventa e seis mil
+ * minutos seria trocar um número errado por um número que falta.
  *
  * MOTIVO DESCONHECIDO NÃO É `process`.
  *
@@ -42,7 +53,7 @@
  * classificar visível a uma percentagem errada invisível.
  */
 
-export type StopBucket = "fault" | "process" | "planned" | "unknown";
+export type StopBucket = "fault" | "process" | "planned" | "unscheduled" | "unknown";
 
 /** Uma paragem, como vem de `production_downtimes`. */
 export interface ProductionStop {
@@ -68,6 +79,14 @@ const REASON_BUCKETS: Record<string, StopBucket> = {
   "breakdown": "fault",
   "machine failure": "fault",
   "fault": "fault",
+  // Avarias de componente, acrescentadas a 05/10/2026. Estavam todas em `unknown`:
+  // 15 motivos por mapear valiam 3 700 minutos em 90 dias, e `Alarm` era literalmente
+  // o único motivo no balde das avarias.
+  "sealer issue": "fault",
+  "foil issue": "fault",
+  "robotics issue": "fault",
+  "mechanical stop": "fault",
+  "label issue": "fault",
 
   // Processo — trabalho necessário, cronometrável, melhorável.
   "line preparation": "process",
@@ -84,15 +103,30 @@ const REASON_BUCKETS: Record<string, StopBucket> = {
   "changeover": "process",
   "set up": "process",
   "setup": "process",
+  // Trocas e acertos de consumível, e as reanálises que obrigam a remisturar. Trabalho
+  // necessário e cronometrável, que é o que define este balde.
+  "change ibc": "process",
+  "change foil": "process",
+  "segment alignment": "process",
+  "foil alignment": "process",
+  "metal detector checks": "process",
+  "over ran on drill clean": "process",
+  "reblend more mixing required": "process",
+  "reblend silicon dioxide required": "process",
+  // A linha anda, o armazém é que não chegou a tempo. Espera, não avaria.
+  "warehouse/awaiting packaging": "process",
 
   // Planeado — o calendário.
   "breaks": "planned",
   "break": "planned",
-  "no planned shift": "planned",
   "shift change over": "planned",
   "shift changeover": "planned",
   "planned maintenance": "planned",
   "training": "planned",
+
+  // Não escalado — a linha nem chegou a arrancar. Ver a nota do balde acima.
+  "no planned shift": "unscheduled",
+  "no requirement": "unscheduled",
 };
 
 export function classifyStopReason(reason: string | null | undefined): StopBucket {
@@ -100,20 +134,27 @@ export function classifyStopReason(reason: string | null | undefined): StopBucke
   return REASON_BUCKETS[reason.trim().toLowerCase()] ?? "unknown";
 }
 
-/** Rótulos e a ordem por que os baldes se leem. `planned` por último: não é perda. */
-export const BUCKET_ORDER: StopBucket[] = ["process", "fault", "unknown", "planned"];
+/**
+ * Rótulos e a ordem por que os baldes se leem.
+ *
+ * `planned` penúltimo porque não é perda, e `unscheduled` por último porque nem sequer
+ * é tempo da linha.
+ */
+export const BUCKET_ORDER: StopBucket[] = ["process", "fault", "unknown", "planned", "unscheduled"];
 
 export const BUCKET_LABEL: Record<StopBucket, string> = {
   process: "Process",
   fault: "Faults",
   planned: "Planned",
+  unscheduled: "Not scheduled",
   unknown: "Unclassified",
 };
 
 export const BUCKET_HINT: Record<StopBucket, string> = {
   process: "Changeover, blending, cleaning, waiting for approval — necessary work nobody is timing.",
   fault: "The line should have been running and was not. What maintenance fights.",
-  planned: "Breaks, shift changes, unplanned shifts. The calendar, not a loss.",
+  planned: "Breaks and shift changes. The calendar, not a loss.",
+  unscheduled: "Shifts the line was never rostered for. Spare capacity, not stopped time.",
   unknown: "Reasons not yet mapped to a bucket. Classify them so the percentages stay honest.",
 };
 
