@@ -96,6 +96,10 @@ const BUCKET_COLOR: Record<StopBucket, string> = {
   process: "hsl(var(--warning))",
   fault: "hsl(var(--destructive))",
   planned: "hsl(var(--muted-foreground))",
+  // Nunca chega a desenhar-se: o `unscheduled` sai do conjunto analisado antes de
+  // qualquer gráfico. Está aqui porque o Record exige todas as chaves, e porque uma
+  // cor em falta é um crash e não um buraco.
+  unscheduled: "hsl(var(--muted-foreground))",
   unknown: "hsl(var(--primary))",
 };
 
@@ -103,6 +107,7 @@ const BUCKET_BADGE: Record<StopBucket, string> = {
   process: "bg-warning/15 text-warning-strong border-warning/30",
   fault: "bg-destructive/15 text-destructive-strong border-destructive/30",
   planned: "bg-muted text-muted-foreground border-border",
+  unscheduled: "bg-muted text-muted-foreground border-border",
   unknown: "bg-primary/10 text-primary border-primary/30",
 };
 
@@ -155,9 +160,21 @@ export default function StopAnalysisPage() {
     });
   }, [data, filterLine, opsShift]);
 
-  /** O conjunto que o ecrã analisa. O planeado sai daqui a não ser que o peçam. */
+  /**
+   * O conjunto que o ecrã analisa.
+   *
+   * O `unscheduled` sai SEMPRE, e não tem interruptor: uma linha que não foi escalada
+   * não parou, nunca arrancou. Enquanto contou como paragem valia 30,6% de todos os
+   * minutos e empurrava para baixo a percentagem de tudo o que é mesmo uma paragem.
+   * O planeado sai também, mas esse volta se o pedirem.
+   */
   const stops = useMemo(
-    () => (includePlanned ? scoped : scoped.filter((s) => classifyStopReason(s.reason) !== "planned")),
+    () =>
+      scoped.filter((s) => {
+        const b = classifyStopReason(s.reason);
+        if (b === "unscheduled") return false;
+        return includePlanned || b !== "planned";
+      }),
     [scoped, includePlanned],
   );
 
@@ -166,6 +183,10 @@ export default function StopAnalysisPage() {
   const totalMinutes = useMemo(() => reasons.reduce((a, r) => a + r.minutes, 0), [reasons]);
   const plannedMinutes = useMemo(
     () => buckets.find((b) => b.bucket === "planned")?.minutes ?? 0,
+    [buckets],
+  );
+  const unscheduled = useMemo(
+    () => buckets.find((b) => b.bucket === "unscheduled"),
     [buckets],
   );
   const unknown = useMemo(() => reasons.filter((r) => r.bucket === "unknown"), [reasons]);
@@ -302,6 +323,7 @@ export default function StopAnalysisPage() {
                 tone="owed"
               />
               {buckets
+                .filter((b) => b.bucket !== "unscheduled")
                 .filter((b) => includePlanned || b.bucket !== "planned")
                 .map((b) => (
                   <Figure
@@ -312,6 +334,22 @@ export default function StopAnalysisPage() {
                   />
                 ))}
             </FigureRow>
+
+            {/*
+              O tempo que a linha não tinha para dar.
+              Fora da linha dos cartões de propósito: aquela soma o tempo parado, e isto
+              não é tempo parado. Tem cartão próprio para a capacidade por usar não
+              desaparecer do ecrã só por ter saído da conta.
+            */}
+            {unscheduled && unscheduled.minutes > 0 && (
+              <FigureRow>
+                <Figure
+                  label={BUCKET_LABEL.unscheduled}
+                  value={formatMinutes(unscheduled.minutes)}
+                  hint={`${unscheduled.count.toLocaleString("en-US")} shift${unscheduled.count === 1 ? "" : "s"} the line was never rostered for — spare capacity, not stopped time. Left out of every figure above.`}
+                />
+              </FigureRow>
+            )}
 
             {/* O interruptor do planeado, dito por extenso em vez de um rótulo mudo. */}
             {plannedMinutes > 0 && (
@@ -324,13 +362,13 @@ export default function StopAnalysisPage() {
                   {includePlanned ? (
                     <>
                       Planned time is <strong className="text-foreground">included</strong> —{" "}
-                      {formatMinutes(plannedMinutes)} of breaks, shift changes and unplanned shifts.
+                      {formatMinutes(plannedMinutes)} of breaks and shift changes.
                       That is the calendar, not a loss. <span className="underline">Leave it out</span>.
                     </>
                   ) : (
                     <>
-                      {formatMinutes(plannedMinutes)} of planned time (breaks, shift changes,
-                      unplanned shifts) is <strong className="text-foreground">left out</strong> of
+                      {formatMinutes(plannedMinutes)} of planned time (breaks and shift
+                      changes) is <strong className="text-foreground">left out</strong> of
                       the figures above. <span className="underline">Include it</span>.
                     </>
                   )}

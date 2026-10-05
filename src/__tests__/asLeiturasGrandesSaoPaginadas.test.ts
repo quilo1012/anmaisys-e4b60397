@@ -33,23 +33,33 @@ import { resolve } from "node:path";
  */
 
 /**
- * The tables at or past the cap, with the count measured on 2026-10-03.
+ * The tables at or past the cap, with the counts measured on 2026-10-05.
  *
- * NEXT TO CROSS, measured the same day: `downtime_events` at 774 and `work_orders` at
- * 768, both growing about seven rows a day — a month of headroom. They are not
+ * `production_downtimes` AND `audit_logs` WERE MISSING FROM THIS MAP, and the sentence
+ * that kept them out said they were "read through the workforce paging helpers
+ * already". That was true of the reads that existed when it was written and stopped
+ * being true the day a new screen read the table its own way. An exemption written as
+ * prose is a claim about code nobody re-checks; the map is the only part of this file
+ * the guard actually reads. Measure, do not reassure.
+ *
+ * NEXT TO CROSS, measured the same day: `downtime_events` at 784 and `work_orders` at
+ * 774, both growing about seven rows a day — a month of headroom. They are not
  * enforced here yet because their reads have not been audited one by one, and a guard
  * with an unexamined allowlist is worse than no guard. When they are, they belong in
- * this map. The bigger tables above them — `attendance_days`, `employee_attendance`,
- * `daily_allocations`, `production_downtimes`, `audit_logs` — are read through the
- * workforce paging helpers already.
+ * this map.
  */
 const AT_THE_CAP: Record<string, number> = {
-  production_items: 1367,
-  quality_action_history: 1086,
-  rag_weekly_entries: 1068,
-  // Two rows of headroom at twelve sessions a day. Paged before it happened, which is
-  // the only reason there is no figure to quote for this one.
-  production_sessions: 998,
+  // Fifteen times the cap, and the only table here that has already printed a wrong
+  // number on a screen somebody read. One stoppage per machine per stop, about 6700
+  // rows a month, and nothing about it slows down.
+  production_downtimes: 15_263,
+  audit_logs: 7_415,
+  production_items: 1_374,
+  quality_action_history: 1_161,
+  rag_weekly_entries: 1_125,
+  // Had two rows of headroom on 2026-10-03 and has none now. Paged before it crossed,
+  // which is the only reason there is no wrong figure to quote for this one.
+  production_sessions: 1_007,
 };
 
 /**
@@ -90,6 +100,13 @@ const NARROW: Record<string, string> = {
     + "— at most one row per action, against 379 actions in the whole table.",
   "quality_action_history @ src/hooks/useQualityIssue.ts":
     "The audit trail of ONE action. The most-edited action in the table has 26 rows.",
+  "audit_logs @ src/hooks/useAuditLogs.ts":
+    "Two reads, both bounded. The log viewer pages with `.range()` and an exact count. "
+    + "`useStockAdjustmentHistory` takes the newest N of `action = adjust_stock` — 89 "
+    + "rows in the whole table, and its one caller asks for 10. Neither sums anything: "
+    + "the panel is a list of the most recent, where a short answer is the answer. Note "
+    + "this key excuses the FILE, so a wide new read of audit_logs added here would "
+    + "inherit the exemption — split the read out if that day comes.",
 };
 
 const SRC = resolve(__dirname, "..");
@@ -167,9 +184,35 @@ const isPaged = (r: Read) =>
   || /fetchAllRows\s*[<(]/.test(r.before)
   || /fetchRowsByIds\s*[<(]/.test(r.before);
 
-/** A read that cannot come back short however many rows match. */
+/** What PostgREST answers with when nobody bounds the read. */
+const SERVER_CAP = 1000;
+
+/**
+ * A `.limit(n)` that the server will honour: a literal, at or under the cap.
+ *
+ * Above the cap a limit is a wish, not a bound. The server answers with 1000 rows
+ * either way, and the `.limit()` left in the chain reads like a deliberate decision
+ * somebody already checked. A limit that is not a literal cannot be checked from here
+ * at all — `.limit(ranged ? 5000 : 200)` is two reads wearing one coat — so it is not
+ * a defence either.
+ */
+function limitedUnderTheCap(chain: string): boolean {
+  const m = /\.limit\(\s*([0-9][0-9_]*)\s*\)/.exec(chain);
+  return m !== null && Number(m[1].replace(/_/g, "")) <= SERVER_CAP;
+}
+
+/**
+ * A read that cannot come back short however many rows match.
+ *
+ * THIS USED TO ACCEPT ANY `.limit(`, and that is how the Stop Analysis screen shipped
+ * summing five days under the words "last 30 days". It read `production_downtimes`
+ * — 15 263 rows — with `.limit(20_000)`, which the server cut to 1000 without a word,
+ * and this guard waved it through because the chain contained a limit. 226h34m of
+ * stopped time where the factory had stopped 2 679h. The limit was the symptom the
+ * guard had been told to read as the cure.
+ */
 const cannotBeShort = (r: Read) =>
-  /\.limit\(/.test(r.chain)
+  limitedUnderTheCap(r.chain)
   || /\.(maybeSingle|single)\s*\(/.test(r.chain)
   || /head:\s*true/.test(r.chain);
 
@@ -203,6 +246,22 @@ describe("the big tables are never read short", () => {
     for (const [table, rows] of Object.entries(AT_THE_CAP)) {
       expect(rows, `${table} is listed but under the cap`).toBeGreaterThan(950);
     }
+  });
+
+  it("counts a `.limit()` as a bound only when the server would honour it", () => {
+    // The hole this guard shipped with. Without these four lines the exemption can be
+    // widened back to "any limit at all" by one deleted condition, and the next screen
+    // that asks for twenty thousand rows passes on the way to printing five days as
+    // thirty.
+    expect(limitedUnderTheCap(".limit(1)"), "a limit of one is a bound").toBe(true);
+    expect(limitedUnderTheCap(".limit(1000)"), "the cap itself is a bound").toBe(true);
+    expect(limitedUnderTheCap(".limit(1001)"), "one past the cap is a wish").toBe(false);
+    expect(limitedUnderTheCap(".limit(20_000)"), "twenty thousand is a wish").toBe(false);
+    expect(
+      limitedUnderTheCap(".limit(ranged ? 5000 : 200)"),
+      "a limit that is not a literal cannot be checked from here",
+    ).toBe(false);
+    expect(limitedUnderTheCap(".limit(pageSize)"), "nor can a variable").toBe(false);
   });
 
   it("keeps every exception explained, and every explanation pointing at a read", () => {

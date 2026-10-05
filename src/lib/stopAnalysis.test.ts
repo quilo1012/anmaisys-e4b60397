@@ -38,7 +38,38 @@ describe("classifyStopReason", () => {
     expect(classifyStopReason("Deep Clean")).toBe("process");
     expect(classifyStopReason("Awaiting Sample Approval")).toBe("process");
     expect(classifyStopReason("Breaks")).toBe("planned");
-    expect(classifyStopReason("No Planned Shift")).toBe("planned");
+  });
+
+  it("o turno que ninguém escalou não é tempo parado", () => {
+    // 96 025 minutos em 90 dias, em blocos de 720 — um turno inteiro de cada vez.
+    // Enquanto esteve em `planned` valia 30,6% de todos os minutos do ecrã e empurrava
+    // para baixo a percentagem de tudo o que é mesmo uma paragem. Uma linha que não foi
+    // escalada não parou: nunca arrancou.
+    expect(classifyStopReason("No Planned Shift")).toBe("unscheduled");
+    expect(classifyStopReason("No Requirement")).toBe("unscheduled");
+  });
+
+  it("uma avaria de componente é uma avaria, não um motivo por classificar", () => {
+    // Antes de 05/10/2026 o balde das avarias continha um único motivo — `Alarm` — e
+    // estes cinco caíam todos em `unknown`.
+    expect(classifyStopReason("Sealer Issue")).toBe("fault");
+    expect(classifyStopReason("Foil Issue")).toBe("fault");
+    expect(classifyStopReason("Robotics Issue")).toBe("fault");
+    expect(classifyStopReason("Mechanical Stop")).toBe("fault");
+    // A base emite as duas grafias; a comparação é em minúsculas, e tem de continuar a sê-lo.
+    expect(classifyStopReason("Label Issue")).toBe("fault");
+    expect(classifyStopReason("Label issue")).toBe("fault");
+  });
+
+  it("trocas, acertos e remisturas são processo", () => {
+    for (const r of [
+      "Change IBC", "Change Foil", "Segment Alignment", "Foil Alignment",
+      "Metal Detector Checks", "Over ran on drill clean",
+      "Reblend More Mixing Required", "Reblend Silicon Dioxide Required",
+      "Warehouse/Awaiting Packaging",
+    ]) {
+      expect(classifyStopReason(r), `${r} devia ser processo`).toBe("process");
+    }
   });
 
   it("ignora maiúsculas e espaços à volta", () => {
@@ -54,12 +85,21 @@ describe("classifyStopReason", () => {
     expect(classifyStopReason("")).toBe("unknown");
   });
 
-  it("cobre os dez motivos que a fábrica emitiu em Setembro de 2026", () => {
+  it("cobre os 29 motivos que a fábrica emitiu nos 90 dias até 05/10/2026", () => {
+    // A lista inteira, medida na base. Um motivo novo do iTouching cai em `unknown` e
+    // aparece pelo nome no ecrã — é esse o desenho. Esta lista é o que já foi visto e
+    // decidido, e serve para que nenhuma dessas decisões se perca numa reescrita do mapa.
     const reais = [
-      "No Planned Shift", "Breaks", "Line Preparation", "Filling Blender/ Blending",
+      "No Planned Shift", "Line Preparation", "Breaks", "Filling Blender/ Blending",
       "Brushing and Cleaning", "Deep Clean", "Alarm", "Awaiting Sample Approval",
       "Waiting", "Awaiting Line Approval", "Drill Cleaning", "Shift Change Over",
+      "Warehouse/Awaiting Packaging", "Label Issue", "Reblend More Mixing Required",
+      "Change IBC", "Sealer Issue", "Segment Alignment", "Foil Issue", "Foil Alignment",
+      "Robotics Issue", "No Requirement", "Reblend Silicon Dioxide Required",
+      "Change Foil", "Mechanical Stop", "Metal Detector Checks", "Label issue",
+      "Over ran on drill clean", "Changeover",
     ];
+    expect(reais).toHaveLength(29);
     const porClassificar = reais.filter((r) => classifyStopReason(r) === "unknown");
     expect(porClassificar).toEqual([]);
   });
