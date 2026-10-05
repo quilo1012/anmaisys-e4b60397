@@ -547,8 +547,26 @@ export function computeLeaderScore(
     documentation,
     final,
     cap,
+    /**
+     * Says what it can see, and no longer a consequence it cannot.
+     *
+     * It counts version IDS, because the ids are all an action carries — the prices
+     * themselves live in `scoring_version_label` and never reach this function. So
+     * "the figures inside it were not all measured with the same ruler" was a claim
+     * about contents it has never read. Measured on 04/10/2026 over all three rows of
+     * `scoring_version`: every label price and every severity weight is identical in
+     * all three, and the one substantive change (the Maintenance department exclusion,
+     * 26/08) touches none of the 69 actions that predate it. Every period this fires on
+     * today was measured with exactly the same ruler.
+     *
+     * Kept rather than deleted: a period really does span two versions, that really is
+     * worth knowing before anyone compares two cards, and the day a price does move
+     * this is the only thing on the card that would say so. It just stops promising
+     * that the day has come. Same correction as the "frozen" branch in
+     * pointsBreakdown, which named the scale as a cause it could not know.
+     */
     scales: versions.size > 1
-      ? `This period spans ${versions.size} scoring versions. Each action is scored on the scale in force on its own date, so the figures inside it were not all measured with the same ruler.`
+      ? `This period spans ${versions.size} scoring versions — each action is scored on the scale in force on its own date. Whether that changes any figure here depends on what moved between them; the card cannot tell from the actions alone.`
       : null,
     applied: {
       production_pct: production.value === null ? 0 : Math.round(weights.production_pct * scale),
