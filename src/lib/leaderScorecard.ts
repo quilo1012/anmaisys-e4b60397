@@ -87,6 +87,18 @@ export interface LSAction {
    *  run, or a select forgot to ask — and `actionPoints` falls back to today's scale.
    *  See frozenPointsInSelects.test.ts for why the second case needs guarding. */
   points_at_creation?: number | null;
+  /**
+   * Whose failure it was — `Maintenance`, `Lab`, `Warehouse`, `Office`, `Supplier`.
+   * Voids the charge outright when `quality_options.counts_against_leader` is false.
+   *
+   * Undefined is read as "nobody else's, so the leader's", which is right for an
+   * action whose cause Quality has not settled and was wrong for the whole tablet
+   * until 20261005090000: 77 actions with a leader carry a sparing cause. It moved no
+   * total — all 77 froze at 0 — but it changed the SENTENCE under the figure from
+   * "root cause is Office, so this is not charged to the leader" into a claim that a
+   * price scale had moved. See theTwoCardsProjectTheSameRow.test.ts.
+   */
+  root_cause_area?: string | null;
 }
 
 export interface LSWorkOrder {

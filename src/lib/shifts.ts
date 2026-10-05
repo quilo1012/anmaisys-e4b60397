@@ -94,11 +94,45 @@ export function rowMatchesShift(
  * the fetch has to reach a day past the range and let {@link shiftSessionDate} throw
  * back what does not belong. Narrowing this to the range itself is what made a
  * leader's last night disappear from their own day.
+ *
+ * Both ends are LONDON wall-clock, resolved through {@link londonWallToUtc}, and that
+ * is the correction. They used to be written as UTC literals — `${from}T00:00:00.000Z`
+ * — while every rule they feed ({@link shiftSessionDate}, `actionShift`, `getShift`)
+ * reads the London hour. Eight months of the year the two agree. Under BST they are an
+ * hour apart, and the near end was the hour that cost something:
+ *
+ *   `2026-07-28T00:00:00Z` is 01:00 in London, so an action recorded between 00:00 and
+ *   00:59 on the 28th — stamped 23:xx UTC on the 27th — fell outside the fetch. If its
+ *   shift column said NIGHT it belonged to the 27th anyway and lost nothing. If it said
+ *   DAY, `shiftSessionDate` files it on the 28th, the period asked for the 28th, and
+ *   the row was simply never fetched. No error, no empty state: one action quietly
+ *   absent from a leader's day.
+ *
+ * Nothing is lost at the far end by resolving it properly either, and an hour of
+ * over-fetching is saved: a row at London 06:00 or later on `to + 1` has a session
+ * date of `to + 1` whatever its shift column says, so `shiftSessionDate` was throwing
+ * all of them back regardless.
+ *
+ * Measured against production on 04/10/2026: all 48 actions recorded before 07:00
+ * London carry a shift column that agrees with the clock — 37 NIGHT before 06:00,
+ * 11 DAY from 06:00 — so no row is moved by this today. It is the hour the next one
+ * would have fallen into.
  */
 export function shiftDateFetchRange(from: string, to: string): { gte: string; lte: string } {
-  const end = new Date(`${to}T00:00:00Z`);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { gte: `${from}T00:00:00.000Z`, lte: `${end.toISOString().slice(0, 10)}T06:59:59.999Z` };
+  const [fy, fm, fd] = from.split("-").map(Number);
+  // Stepping the day in UTC and then asking for its London midnight: the date
+  // arithmetic cannot drift, and the offset is resolved at the boundary it lands on,
+  // so a range that steps across the BST/GMT switch gets both ends right.
+  const after = new Date(`${to}T00:00:00Z`);
+  after.setUTCDate(after.getUTCDate() + 1);
+  return {
+    gte: new Date(londonWallToUtc(fy, fm, fd, 0)).toISOString(),
+    // 06:00 is the instant the day crew takes over, and it is exclusive — the last
+    // moment that can still belong to `to` is the millisecond before it.
+    lte: new Date(
+      londonWallToUtc(after.getUTCFullYear(), after.getUTCMonth() + 1, after.getUTCDate(), 6) - 1,
+    ).toISOString(),
+  };
 }
 
 /** How far Europe/London local is ahead of UTC (ms) at the given instant. */

@@ -965,10 +965,29 @@ export function pointsBreakdown(
           `${capNote}${sparedNote(spared)}`,
       };
     }
+    /**
+     * Nobody graded it, and the charge stands anyway.
+     *
+     * 51 of the 380 actions carry no severity; 35 of those charge points, 118 of them
+     * in all, and 33 are against a named leader. The receipt said "4 points — Label 4"
+     * and stopped, which reads as a settled price — so the obvious thing to think is
+     * that grading it is the step that settles it. It is not: `points_at_creation`
+     * froze when the action was logged, and `actionPoints` prefers the frozen figure
+     * forever, so a grade added next week moves nothing.
+     *
+     * Worth saying on the receipt rather than in a release note, because it is the
+     * sentence that tells Quality the grading step has to happen BEFORE the action is
+     * saved, and tells a leader reading their own card why a charge they expected to
+     * be provisional is not. `chargeSummary` has said "ungraded" on the log form since
+     * it was written; this is the same fact on the other three surfaces that show it.
+     */
+    const ungraded = !severityMeta(action.severity)
+      ? " Nobody graded it: the charge is its labels alone, and it froze when the action was logged — grading it now would not move it."
+      : "";
     return {
       ...base,
       basis: "labels",
-      explanation: `${points} points — ${sumInWords(charged)}.${capNote}${sparedNote(spared)}`,
+      explanation: `${points} points — ${sumInWords(charged)}.${capNote}${sparedNote(spared)}${ungraded}`,
     };
   }
 

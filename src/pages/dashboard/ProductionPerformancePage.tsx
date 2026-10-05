@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
@@ -35,10 +35,15 @@ import { pickLineSku, resolveItemSku, type LineSkuItem, type LiveJob } from "@/l
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { EmptyState } from "@/components/EmptyState";
 import { wideBoardColumns, WIDE_BOARD_GRID } from "@/lib/lineBoardColumns";
-import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
+import { format, parseISO, addDays, subDays, addMonths, addQuarters, addYears } from "date-fns";
 import { toast } from "sonner";
+import {
+  parsePerfFilters, perfFiltersToParams, resolvePerfRange,
+  withAnchor, withFarEnd, withPeriod,
+  type PerfFilters, type PerfPeriod,
+} from "@/lib/performanceFilters";
 
-type Period = "day" | "week" | "month" | "quarter" | "year" | "custom";
+type Period = PerfPeriod;
 
 /**
  * The three carriers of a band, in one place, so a card cannot say GO in the
@@ -76,15 +81,44 @@ export default function ProductionPerformancePage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { profile } = useAuth();
+  /**
+   * The plate lives in the address, not in six `useState` calls.
+   *
+   * Which it did, seeded from the clock — and that is invisible until you leave.
+   * The Scorecard button beside the Leader select is a LINK, deliberately, so the
+   * card has an address of its own (see scorecardRoute.ts); press Back from it and
+   * this page remounted on today, on the running shift, on All leaders. Nothing said
+   * so, so it read as the screen having reset rather than the period having moved —
+   * and the next number read off it answered a question nobody had asked. Comparing
+   * two leaders over September is that walk, once per leader.
+   *
+   * `replace`, not push: the plate is one screen being tuned, not a trail of
+   * screens. Pushing would make Back step backwards through every date typed on the
+   * way here instead of leaving for where you came from.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
   // Open on the CURRENT factory shift, not just the calendar day — at 02:00 the
   // running shift is the previous day's NIGHT, so getCurrentFactoryShift() gives
-  // the right session_date + shift.
-  const [date, setDate] = useState(() => getCurrentFactoryShift().sessionDate);
-  const [endDate, setEndDate] = useState(() => getCurrentFactoryShift().sessionDate);
-  const [period, setPeriod] = useState<Period>("day");
-  const [shift, setShift] = useState<"all" | "DAY" | "NIGHT">(() => getCurrentFactoryShift().shiftCode === "night" ? "NIGHT" : "DAY");
-  const [lineFilter, setLineFilter] = useState<string>("__all__");
-  const [leaderFilter, setLeaderFilter] = useState<string>("__all__");
+  // the right session_date + shift. Resolved once per mount: a plate that re-seeded
+  // itself when the clock crossed 18:00 would move the period under the reader.
+  const openOn = useRef<{ date: string; shift: "all" | "DAY" | "NIGHT" }>(null!);
+  if (!openOn.current) {
+    const cur = getCurrentFactoryShift();
+    openOn.current = { date: cur.sessionDate, shift: cur.shiftCode === "night" ? "NIGHT" : "DAY" };
+  }
+  const filters = useMemo(
+    () => parsePerfFilters(searchParams, openOn.current),
+    [searchParams],
+  );
+  const setFilters = useCallback(
+    (next: PerfFilters) => setSearchParams(perfFiltersToParams(next, openOn.current), { replace: true }),
+    [setSearchParams],
+  );
+  const { date, endDate, period, shift, line: lineFilter, leader: leaderFilter } = filters;
+  const setLineFilter = useCallback((v: string) => setFilters({ ...filters, line: v }), [filters, setFilters]);
+  const setLeaderFilter = useCallback((v: string) => setFilters({ ...filters, leader: v }), [filters, setFilters]);
+  const setShift = useCallback((v: "all" | "DAY" | "NIGHT") => setFilters({ ...filters, shift: v }), [filters, setFilters]);
+  const setAnchor = useCallback((v: string) => setFilters(withAnchor(filters, v)), [filters, setFilters]);
   const [savingLeaderFor, setSavingLeaderFor] = useState<string | null>(null);
   const [addingLeaderFor, setAddingLeaderFor] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -145,18 +179,11 @@ export default function ProductionPerformancePage() {
   };
 
 
-  const range = useMemo(() => {
-    const d = parseISO(date);
-    if (period === "day") return { from: date, to: date };
-    if (period === "week") return { from: format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd"), to: format(endOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd") };
-    if (period === "month") return { from: format(startOfMonth(d), "yyyy-MM-dd"), to: format(endOfMonth(d), "yyyy-MM-dd") };
-    if (period === "quarter") return { from: format(startOfQuarter(d), "yyyy-MM-dd"), to: format(endOfQuarter(d), "yyyy-MM-dd") };
-    if (period === "year") return { from: format(startOfYear(d), "yyyy-MM-dd"), to: format(endOfYear(d), "yyyy-MM-dd") };
-    // custom
-    const from = date <= endDate ? date : endDate;
-    const to = date <= endDate ? endDate : date;
-    return { from, to };
-  }, [date, endDate, period]);
+  // In `lib/performanceFilters.ts`, with the rest of the plate's arithmetic, because
+  // it is what a month of readings turned out to have been argued about: the period
+  // OWNS the two dates, and outside `custom` the far box was being drawn from a state
+  // nobody had updated. See resolvePerfRange.
+  const range = useMemo(() => resolvePerfRange(filters), [filters]);
 
   const { data: lines = [] } = useQuery({
     queryKey: ["lines"],
@@ -736,49 +763,52 @@ export default function ProductionPerformancePage() {
           <ControlPlate className="gap-x-3">
             <ControlField label="Date range" className="w-full lg:w-auto">
             <div className="flex items-center gap-1.5">
-              <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
+              <Button variant="outline" size="icon" aria-label="Previous period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
                   const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
-                  setDate(format(subDays(from, days), "yyyy-MM-dd"));
-                  setEndDate(format(subDays(to, days), "yyyy-MM-dd"));
+                  setFilters({ ...filters, date: format(subDays(from, days), "yyyy-MM-dd"), endDate: format(subDays(to, days), "yyyy-MM-dd") });
                   return;
                 }
                 const d = parseISO(date);
                 const step = period === "week" ? subDays(d, 7) : period === "month" ? addMonths(d, -1) : period === "quarter" ? addQuarters(d, -1) : period === "year" ? addYears(d, -1) : subDays(d, 1);
-                setDate(format(step, "yyyy-MM-dd"));
+                setAnchor(format(step, "yyyy-MM-dd"));
               }}><ChevronLeft className="h-4 w-4" /></Button>
+              {/* Typing a date RE-ANCHORS the period instead of throwing it away. It
+                  used to force `custom` and leave the far end wherever it was, which
+                  was today: moving From to 01/09 asked for 01/09 → today, five weeks,
+                  and a night action from 03/10 answered a question somebody believed
+                  was about September. The arrows either side have always re-anchored;
+                  the boxes now agree with them. See withAnchor. */}
               <DateField
                 aria-label="From"
-                value={date}
-                onChange={(v) => {
-                  setDate(v);
-                  if (period !== "custom") { setPeriod("custom"); if (endDate < v) setEndDate(v); }
-                }}
+                value={range.from}
+                onChange={setAnchor}
                 className="min-w-0 flex-1 sm:w-[7.75rem] sm:flex-none"
               />
               <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">to</span>
+              {/* `range.to`, not `endDate`. On a week or a month the far end is DERIVED,
+                  and this box used to show a state those periods never wrote — so a
+                  monthly board sat there reading "04 Oct" while reporting on September.
+                  The one box on the plate that answers "where does it stop" was the one
+                  that could not be believed. */}
               <DateField
                 aria-label="To"
-                value={endDate}
-                min={date}
-                onChange={(v) => {
-                  setEndDate(v);
-                  if (period !== "custom") setPeriod("custom");
-                }}
+                value={range.to}
+                min={range.from}
+                onChange={(v) => setFilters(withFarEnd(filters, v))}
                 className="min-w-0 flex-1 sm:w-[7.75rem] sm:flex-none"
               />
-              <Button variant="outline" size="icon" className="shrink-0" onClick={() => {
+              <Button variant="outline" size="icon" aria-label="Next period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
                   const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86400000) + 1);
-                  setDate(format(addDays(from, days), "yyyy-MM-dd"));
-                  setEndDate(format(addDays(to, days), "yyyy-MM-dd"));
+                  setFilters({ ...filters, date: format(addDays(from, days), "yyyy-MM-dd"), endDate: format(addDays(to, days), "yyyy-MM-dd") });
                   return;
                 }
                 const d = parseISO(date);
                 const step = period === "week" ? addDays(d, 7) : period === "month" ? addMonths(d, 1) : period === "quarter" ? addQuarters(d, 1) : period === "year" ? addYears(d, 1) : addDays(d, 1);
-                setDate(format(step, "yyyy-MM-dd"));
+                setAnchor(format(step, "yyyy-MM-dd"));
               }}><ChevronRight className="h-4 w-4" /></Button>
             </div>
             </ControlField>
@@ -786,12 +816,7 @@ export default function ProductionPerformancePage() {
             <ControlDivider />
 
             <ControlField label="Period" className="min-w-[8.5rem] flex-1 sm:flex-none">
-              <Select value={period} onValueChange={(v) => {
-                const p = v as Period;
-                if (p === "custom" && endDate < date) setEndDate(date);
-                if (p !== "custom") setEndDate(date);
-                setPeriod(p);
-              }}>
+              <Select value={period} onValueChange={(v) => setFilters(withPeriod(filters, v as Period))}>
                 <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="day">Day</SelectItem>
@@ -852,6 +877,18 @@ export default function ProductionPerformancePage() {
                 cabeçalho à parte: imprime-se ESTE período, e o comando pertence à
                 placa onde o período foi afinado. */}
             <div className="flex items-end gap-3 self-end sm:ml-auto">
+              {/* O período resolvido, por extenso. Este canto prometia-o em comentário
+                  e nunca o desenhou — `rangeLabel` existia e só era lido dentro do
+                  veredicto de ritmo, umas centenas de linhas abaixo. É a única coisa
+                  na placa que responde à pergunta que as duas caixas de data não
+                  respondem sozinhas quando o período é uma semana ou um mês: onde é
+                  que isto começa, e onde é que acaba. Um cartão lido como sendo de
+                  Setembro, que ia até hoje, é o que custa não a ter. */}
+              <ControlField label="Showing">
+                <p className="whitespace-nowrap pt-1 font-figure text-sm tabular-nums">
+                  {rangeLabel}
+                </p>
+              </ControlField>
               {/* "Print", e não "Print report": o botão vive dentro da placa que afina
                   o período, e o que ele imprime é o que a placa está a mostrar. A
                   palavra a mais custava a fila inteira num portátil de 1440. */}

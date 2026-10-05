@@ -405,6 +405,9 @@ export function buildRecord(
         match_value: r.match_value,
         match_mode: r.match_mode,
         classification: r.classification ?? null,
+        // Carried so the line gate can see a title naming a line other than the one
+        // `resolveLine` picked. See the Line section of classifyAction.
+        line_name: r.line_name ?? null,
         priority: r.priority,
         active: r.active,
       })),

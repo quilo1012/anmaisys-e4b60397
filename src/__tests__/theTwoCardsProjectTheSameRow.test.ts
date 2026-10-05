@@ -20,9 +20,22 @@ import { resolve } from "node:path";
  *     `belongsToProduction` keeps a row whose verdict is undefined, so the tablet
  *     would count findings the manager's card drops. It changes no figure only
  *     because no `excluded` row currently carries a leader_name.
+ *   - `root_cause_area`, found on 04/10/2026 and the third time round. 77 actions
+ *     with a leader carry a cause that is not charged to them. The TOTAL was right
+ *     — all 77 froze at 0 and `actionPoints` prefers the frozen figure — so what
+ *     drifted was the REASON: `livePoints` recomputed 4 without the column, the two
+ *     figures differed, and `pointsBreakdown` fell into its "frozen" branch and told
+ *     the leader a price scale had changed. The manager's card, one column richer,
+ *     said "root cause is Office, so this is not charged to the leader".
  *
  * So the check is static and on both artefacts at once: whatever the manager asks for,
  * the function has to project, or a migration in this repo has to be adding it.
+ *
+ * What it CANNOT see, and what found all three of these: the live function. Nothing
+ * here applies migrations, so a column named by a migration file is a column somebody
+ * INTENDED to project — `20260908170000` has been in this directory since September
+ * and `qa.classification` was still absent from `pg_get_functiondef` on 04/10. Read
+ * the function off the database before believing this test about production.
  */
 
 const root = resolve(__dirname, "../..");
@@ -59,6 +72,9 @@ function projectedByMigrations(): Set<string> {
 const MUST_MATCH = [
   "domain", "safety_kind", "severity", "labels", "validation_status",
   "points_at_creation", "classification", "title", "error_type", "action_no", "source",
+  // Voids the charge outright, and `countsAgainstLeaderRootCause` reads an absent
+  // cause as "nobody else's, so the leader's" — the loudest of the three absences.
+  "root_cause_area",
 ];
 
 describe("the manager's card and the leader's tablet ask for the same row", () => {
