@@ -16,6 +16,12 @@
  *
  * It warns and never blocks. Two brothers on the same line is a real thing in this
  * factory, and a screen that refuses a real name is worse than one that asks.
+ *
+ * Three strengths, because the evidence has three qualities. `same` and `close` are
+ * worth stopping a typist over; `maybe` — a one-word name found inside a longer one —
+ * is worth showing and nothing more. The sweep of 05/10/2026 is why: the same rule
+ * that finds `Ketlyn` inside `Ketlyn Amorin`, who is one person twice, also finds
+ * `Dias` inside `Alex Dias`, who are two people.
  */
 
 /**
@@ -57,8 +63,13 @@ export function nameKey(raw: string): string {
   return nameTokens(raw).slice().sort().join(" ");
 }
 
-/** How sure we are. `same` is the same name; `close` wants a human to look. */
-export type NameMatchStrength = "same" | "close";
+/**
+ * How sure we are.
+ *
+ * `same` is the same name. `close` wants a human to look. `maybe` is the one-word
+ * case, and it is deliberately weaker than both — see `compareNames`.
+ */
+export type NameMatchStrength = "same" | "close" | "maybe";
 
 /** Edit distance, but it stops caring past one. Two typos is a different name. */
 function differsByAtMostOne(a: string, b: string): boolean {
@@ -106,6 +117,23 @@ export function compareNames(typed: string, existing: string): NameMatchStrength
   const [small, large] = a.length <= b.length ? [a, b] : [b, a];
   if (small.length >= 2 && isSubsetOf(small.slice().sort(), large.slice().sort())) return "close";
 
+  /**
+   * One word, and the record holds it inside a longer name.
+   *
+   * The `>= 2` rule above has a blind spot the size of the problem: the record holds
+   * 26 names of a single word, and none of them could ever match a compound one.
+   * `Ketlyn` could not match `Ketlyn Amorin` however obvious it looks — and those two
+   * are one woman, both rows active, both Weekend/Hygiene, with work on each (16
+   * placements against 2). A full sweep of the 244 records on 05/10/2026 found her
+   * only by crossing the one-word names against the compounds by hand.
+   *
+   * It is `maybe` and never `close` because the same rule says yes to pairs that are
+   * two different workers: `Dias` (Day/Quality) and `Alex Dias` (Night/Warehouse),
+   * `Jessika` (Weekend) and `JESSIKA FRANCA` (Night). So it informs and must not be
+   * allowed to gate a save — one surname in common is a question, not a finding.
+   */
+  if (small.length === 1 && large.includes(small[0])) return "maybe";
+
   return null;
 }
 
@@ -121,7 +149,7 @@ export function similarNames<T extends { full_name: string }>(
   onFile: ReadonlyArray<T>,
 ): (T & { strength: NameMatchStrength })[] {
   if (nameTokens(typed).length === 0) return [];
-  const rank: Record<NameMatchStrength, number> = { same: 0, close: 1 };
+  const rank: Record<NameMatchStrength, number> = { same: 0, close: 1, maybe: 2 };
   return onFile
     .map((row, i) => ({ row, i, strength: compareNames(typed, row.full_name) }))
     .filter((m): m is { row: T; i: number; strength: NameMatchStrength } => m.strength !== null)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nameKey, similarNames } from "@/lib/similarNames";
+import { compareNames, nameKey, similarNames } from "@/lib/similarNames";
 
 /**
  * The two pairs in the real employee record on 04/10/2026. Both are one person
@@ -80,5 +80,51 @@ describe("similarNames", () => {
       { id: "b", full_name: "Ailton Carlos Rigoto Junior", active: true },
     ]);
     expect(hits.map((h) => h.id)).toEqual(["b", "a"]);
+  });
+});
+
+/**
+ * The one-word names: the blind spot found by sweeping all 244 records on 05/10/2026,
+ * not by the matcher itself. 26 of the names on file are a single word, and the
+ * `>= 2` shared-words rule meant none of them could ever match a compound name.
+ */
+describe("similarNames, one word against a longer name", () => {
+  const ON_FILE_ONE_WORD = [
+    { id: "k1", full_name: "Ketlyn", active: true },
+    { id: "k2", full_name: "Ketlyn Amorin", active: true },
+    { id: "d1", full_name: "Dias", active: true },
+    { id: "d2", full_name: "Alex Dias", active: true },
+    { id: "f1", full_name: "FELIPE DE ARAUJO", active: true },
+  ];
+
+  it("finds the Ketlyn the >= 2 rule could never see", () => {
+    // Both rows active, both Weekend/Hygiene, 16 placements against 2. One woman.
+    const hits = similarNames("Ketlyn", ON_FILE_ONE_WORD);
+    expect(hits.map((h) => h.id)).toEqual(["k1", "k2"]);
+    expect(hits.find((h) => h.id === "k2")?.strength).toBe("maybe");
+  });
+
+  it("finds it from the other direction too", () => {
+    const hits = similarNames("Ketlyn Amorin", ON_FILE_ONE_WORD);
+    expect(hits.map((h) => h.id)).toEqual(["k2", "k1"]);
+    expect(hits.find((h) => h.id === "k1")?.strength).toBe("maybe");
+  });
+
+  it("marks a shared surname as maybe and never as close", () => {
+    // Dias (Day/Quality) and Alex Dias (Night/Warehouse) are two different workers.
+    // The rule cannot tell them from Ketlyn, so the strength has to.
+    expect(compareNames("Dias", "Alex Dias")).toBe("maybe");
+  });
+
+  it("still says nothing about two different compound names sharing one word", () => {
+    expect(compareNames("Rodrigo Dias", "Alex Dias")).toBeNull();
+  });
+
+  it("puts same and close above maybe", () => {
+    const hits = similarNames("Felipe Araujo", [
+      { id: "m", full_name: "Araujo", active: true },
+      { id: "s", full_name: "FELIPE DE ARAUJO", active: true },
+    ]);
+    expect(hits.map((h) => [h.id, h.strength])).toEqual([["s", "same"], ["m", "maybe"]]);
   });
 });

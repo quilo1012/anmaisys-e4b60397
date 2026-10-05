@@ -26,9 +26,25 @@ export interface ClockCoverage {
    * Days between the last clocked day and the operational date the caller is on.
    *
    * Null when nothing has ever been clocked — "infinitely behind" is not a number, and
-   * printing a huge one would read as a bug rather than as an empty table.
+   * printing a huge one would read as a bug rather than as an empty table. Null too
+   * when the stored date cannot be read as a date: a zero there would read as
+   * "imported today", which is the one thing this hook exists to stop.
+   *
+   * NEGATIVE when the clock carries days ahead of today. It is signed on purpose —
+   * see `daysAhead`.
    */
   daysBehind: number | null;
+  /**
+   * How far the clock runs PAST today, or null when it does not.
+   *
+   * On 05/10/2026 the view's `last_on_date` was 11/10 — six days ahead, because
+   * `attendance_days` holds 210 rows dated after today. The gap was clamped with
+   * `Math.max(0, …)`, so the note read "last imported 11 Oct 2026 — today" on three
+   * screens, untroubled, about days nobody can have worked yet. A clock that runs
+   * ahead misleads in the opposite direction from one that runs late, and both have
+   * to be sayable.
+   */
+  daysAhead: number | null;
   /** Past a week behind, the gap is the story rather than a footnote. */
   stale: boolean;
 }
@@ -44,11 +60,37 @@ interface CoverageRow {
   rows_total: number | null;
 }
 
-function wholeDaysBetween(fromIso: string, toIso: string): number {
+/** Null rather than nought when either date is unreadable: nought is a claim. */
+function wholeDaysBetween(fromIso: string, toIso: string): number | null {
   const a = Date.parse(`${fromIso}T00:00:00Z`);
   const b = Date.parse(`${toIso}T00:00:00Z`);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
   return Math.round((b - a) / 86_400_000);
+}
+
+/**
+ * The view's row, read into the shape the screens use.
+ *
+ * Pulled out of the hook so the arithmetic can be tested without a query client: the
+ * clamp that hid a clock dated in the future lived in here, unreachable by any test.
+ */
+export function coverageFrom(row: CoverageRow | null, todayIso: string): ClockCoverage | null {
+  if (!row) return null;
+  const lastOnDate = row.last_on_date ?? null;
+  const daysBehind = lastOnDate ? wholeDaysBetween(lastOnDate, todayIso) : null;
+  return {
+    lastOnDate,
+    firstOnDate: row.first_on_date ?? null,
+    employeesCovered: Number(row.employees_covered ?? 0),
+    activeEmployees: Number(row.active_employees ?? 0),
+    rowsTotal: Number(row.rows_total ?? 0),
+    daysBehind,
+    daysAhead: daysBehind !== null && daysBehind < 0 ? -daysBehind : null,
+    // Never stale on a table nobody has filled: that is not a late import, it is
+    // no import, and the note says so in its own words. Nor on a clock that runs
+    // ahead — that is a different fault with a different sentence.
+    stale: daysBehind !== null && daysBehind > CLOCK_STALE_DAYS,
+  };
 }
 
 /**
@@ -74,23 +116,7 @@ export function useClockCoverage(todayIso: string) {
     },
   });
 
-  const row = q.data ?? null;
-  const lastOnDate = row?.last_on_date ?? null;
-  const daysBehind = lastOnDate ? Math.max(0, wholeDaysBetween(lastOnDate, todayIso)) : null;
-
-  const coverage: ClockCoverage | null = row
-    ? {
-        lastOnDate,
-        firstOnDate: row.first_on_date ?? null,
-        employeesCovered: Number(row.employees_covered ?? 0),
-        activeEmployees: Number(row.active_employees ?? 0),
-        rowsTotal: Number(row.rows_total ?? 0),
-        daysBehind,
-        // Never stale on a table nobody has filled: that is not a late import, it is
-        // no import, and the note says so in its own words.
-        stale: daysBehind !== null && daysBehind > CLOCK_STALE_DAYS,
-      }
-    : null;
+  const coverage = coverageFrom(q.data ?? null, todayIso);
 
   return {
     coverage,

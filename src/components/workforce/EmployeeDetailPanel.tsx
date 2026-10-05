@@ -261,7 +261,9 @@ export function EmployeeDetailPanel({
                     <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
                     {lookalikes[0].strength === "same"
                       ? "Somebody else is already on the record under this name."
-                      : "This is close to somebody else already on the record."}
+                      : lookalikes[0].strength === "close"
+                      ? "This is close to somebody else already on the record."
+                      : "Somebody else on the record has this word in their name."}
                   </p>
                   <ul className="mt-1.5 space-y-0.5">
                     {lookalikes.map((m) => (
