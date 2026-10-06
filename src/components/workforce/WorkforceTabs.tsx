@@ -1,6 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Users, Contact, CalendarDays, Clock, Calculator } from "lucide-react";
+import { Users, Contact, CalendarDays, Clock, Calculator, HandCoins } from "lucide-react";
 
 /**
  * The screens that are all about the same people, joined at the top.
@@ -21,6 +21,7 @@ const TABS = [
   { to: "/dashboard/people", label: "Employee", icon: Contact },
   { to: "/dashboard/leave", label: "Annual Leave", icon: CalendarDays },
   { to: "/dashboard/attendance", label: "Attendance", icon: Clock },
+  { to: "/dashboard/overtime", label: "Overtime", icon: HandCoins },
   { to: "/dashboard/finance-close", label: "Finance Close", icon: Calculator },
 ];
 
