@@ -3,7 +3,6 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// @ts-expect-error — script .mjs sem tipos, importado de propósito
 import { exportarTabela, listarRecursivo } from "../../scripts/exportar-tudo.mjs";
 
 /**
