@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  countResponses, reliabilityTone, reliabilityLabel, attendedLabel,
+  countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
   type Reliability, type OvertimeResponse, type Candidate,
 } from "./overtimeRequests";
@@ -62,6 +62,15 @@ describe("labels", () => {
 
   it("trims seconds off a Postgres time", () => {
     expect(windowLabel("14:00:00", "22:00:00")).toBe("14:00–22:00");
+  });
+});
+
+describe("blockedLabel", () => {
+  it("names the day, and says nothing once it has passed", () => {
+    expect(blockedLabel(rel({ blocked_until: "2026-10-20" }), "2026-10-06")).toBe("Blocked until 20/10");
+    expect(blockedLabel(rel({ blocked_until: "2026-10-06" }), "2026-10-06")).toBe("");
+    expect(blockedLabel(rel({ blocked_until: null }), "2026-10-06")).toBe("");
+    expect(blockedLabel(undefined)).toBe("");
   });
 });
 

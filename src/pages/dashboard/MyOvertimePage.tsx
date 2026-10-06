@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, X, Clock, Loader2 } from "lucide-react";
+import { Check, X, Clock, Loader2, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useMyEmployee, useUnlinkedEmployees, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
+  useMyOvertimeBlock,
 } from "@/hooks/useOvertimeRequests";
 import { requestIsForEmployee, myStatusLabel, windowLabel } from "@/lib/overtimeRequests";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
@@ -93,7 +94,9 @@ function LinkMyself() {
 function AsksForMe({ me }: { me: { id: string; full_name: string; department: string | null; shift_group: string | null } }) {
   const { data: requests = [], isLoading } = useOvertimeRequests();
   const { data: responses = [] } = useOvertimeResponses();
+  const { data: block } = useMyOvertimeBlock(true);
   const { answer } = useOvertimeMutations();
+  const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
   const mine = useMemo(() => new Map(responses.filter((r) => r.employee_id === me.id).map((r) => [r.request_id, r])), [responses, me.id]);
   const today = new Date().toISOString().slice(0, 10);
@@ -122,6 +125,20 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   return (
     <div className="space-y-3">
       <div className="text-xs text-muted-foreground">Signed in as {me.full_name}{me.shift_group ? ` · ${me.shift_group}` : ""}</div>
+      {block && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 py-4 text-sm">
+            <Ban className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <div>
+              <div className="font-medium">You can't sign up until {fmtShort(block.blocked_until)}</div>
+              <div className="mt-0.5 text-muted-foreground">
+                {block.reason === "no_show" ? "You didn't turn up for" : "You cancelled late for"} overtime on {fmtShort(block.on_date)}.
+                You can still see what's on offer, and you can still say no.
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
@@ -152,7 +169,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   <Button
                     size="lg" variant={my?.answer === "yes" ? "default" : "outline"}
                     className={cn("h-12", my?.answer === "yes" && "bg-success text-success-foreground hover:bg-success/90")}
-                    disabled={answer.isPending} onClick={() => reply(r.id, "yes")}
+                    disabled={answer.isPending || !!block} onClick={() => reply(r.id, "yes")}
                   >
                     <Check className="mr-2 h-5 w-5" /> Yes, I can
                   </Button>

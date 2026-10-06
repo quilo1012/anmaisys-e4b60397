@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { newAskMessage, decisionMessage, type PushMessage } from "@/lib/overtimePush";
 import type {
-  OvertimeRequest, OvertimeResponse, OvertimeDecision, OvertimeOutcome, Reliability,
+  OvertimeRequest, OvertimeResponse, OvertimeDecision, OvertimeOutcome, Reliability, OvertimeRules,
 } from "@/lib/overtimeRequests";
 
 /**
@@ -69,6 +69,35 @@ export function useOvertimeOutcomes(requestId: string, responseIds: string[]) {
         .in("response_id", responseIds);
       if (error) throw error;
       return (data ?? []) as OutcomeRow[];
+    },
+  });
+}
+
+/** The two rules the floor can read. One row; both off until a manager turns them on. */
+export function useOvertimeRules() {
+  return useQuery({
+    queryKey: ["overtime_rules"],
+    staleTime: 60_000,
+    queryFn: async (): Promise<OvertimeRules> => {
+      const { data, error } = await db.from("overtime_rules")
+        .select("no_show_block_days, late_cancel_hours, late_cancel_blocks").eq("id", true).maybeSingle();
+      if (error) throw error;
+      return data ?? { no_show_block_days: 0, late_cancel_hours: 0, late_cancel_blocks: false };
+    },
+  });
+}
+
+export interface MyBlock { blocked_until: string; reason: string; on_date: string }
+
+/** Until when the signed-in person may not say yes, and why. Null when they may. */
+export function useMyOvertimeBlock(enabled: boolean) {
+  return useQuery({
+    queryKey: ["my_overtime_block"],
+    enabled,
+    queryFn: async (): Promise<MyBlock | null> => {
+      const { data, error } = await db.rpc("my_overtime_block");
+      if (error) throw error;
+      return (data as MyBlock[] | null)?.[0] ?? null;
     },
   });
 }
@@ -188,6 +217,7 @@ export function useOvertimeMutations() {
     void qc.invalidateQueries({ queryKey: ["overtime_responses"] });
     void qc.invalidateQueries({ queryKey: ["overtime_outcomes"] });
     void qc.invalidateQueries({ queryKey: KEYS.reliability });
+    void qc.invalidateQueries({ queryKey: ["my_overtime_block"] });
   };
 
   const createRequest = useMutation({
@@ -281,6 +311,19 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  const saveRules = useMutation({
+    mutationFn: async (rules: OvertimeRules) => {
+      const { error } = await db.from("overtime_rules")
+        .update({ ...rules, updated_at: new Date().toISOString(), updated_by: user!.id }).eq("id", true);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["overtime_rules"] });
+      void qc.invalidateQueries({ queryKey: KEYS.reliability });
+      void qc.invalidateQueries({ queryKey: ["my_overtime_block"] });
+    },
+  });
+
   const linkMe = useMutation({
     mutationFn: async (employeeId: string) => {
       const { error } = await db.rpc("link_me_to_employee", { p_employee_id: employeeId });
@@ -293,5 +336,5 @@ export function useOvertimeMutations() {
     },
   });
 
-  return { createRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, linkMe };
+  return { createRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, linkMe, saveRules };
 }

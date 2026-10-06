@@ -17,9 +17,10 @@ import {
   useOvertimeMutations, useOvertimeRoster, type RosterName,
 } from "@/hooks/useOvertimeRequests";
 import {
-  countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel,
+  countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   windowLabel, type OvertimeRequest, type OvertimeOutcome, type Candidate,
 } from "@/lib/overtimeRequests";
+import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
 
 const fmtDate = (d: string) => d.split("-").reverse().join("/");
 const iso = (d: Date) =>
@@ -35,9 +36,13 @@ const OUTCOMES: { value: OvertimeOutcome; label: string }[] = [
   { value: "attended", label: "Turned up" },
   { value: "called_sick", label: "Called sick" },
   { value: "no_show", label: "No show" },
-  { value: "cancelled_in_time", label: "Cancelled in time" },
-  { value: "cancelled_late", label: "Cancelled late" },
+  // One "Cancelled": the clock and the rule decide whether it was in time or late.
+  { value: "cancelled", label: "Cancelled" },
 ];
+// What the database stored, when it was one of the two it decides between.
+const STORED_LABEL: Record<string, string> = {
+  cancelled_in_time: "Cancelled in time", cancelled_late: "Cancelled late",
+};
 
 /**
  * The supervisor's side of overtime: ask, choose, then say what happened.
@@ -66,6 +71,7 @@ export function OvertimeRequestsPanel() {
           Overtime asks — who was asked, who said yes, who was picked.
         </div>
         <div className="flex items-center gap-2">
+          <OvertimeRulesDialog />
           <Button variant="ghost" size="sm" onClick={() => setShowPast((v) => !v)}>
             {showPast ? "Hide past" : "Show past 14 days"}
           </Button>
@@ -277,7 +283,12 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
                       <TableCell className="font-medium">{employee.full_name}</TableCell>
                       <TableCell className="text-muted-foreground">{employee.shift_group ?? "—"}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={cn("font-normal", TONE_CLASS[tone])}>{reliabilityLabel(rel)}</Badge>
+                        <div className="flex flex-wrap gap-1">
+                          <Badge variant="outline" className={cn("font-normal", TONE_CLASS[tone])}>{reliabilityLabel(rel)}</Badge>
+                          {blockedLabel(rel) && (
+                            <Badge variant="outline" className="border-destructive/40 bg-destructive/10 font-normal text-destructive">{blockedLabel(rel)}</Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{attendedLabel(rel)}</TableCell>
                       <TableCell className="text-muted-foreground">
@@ -310,6 +321,8 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
                               </SelectTrigger>
                               <SelectContent>
                                 {OUTCOMES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                                {(() => { const v = outcomeById.get(response.id); return v && STORED_LABEL[v]
+                                  ? <SelectItem value={v} disabled>{STORED_LABEL[v]}</SelectItem> : null; })()}
                               </SelectContent>
                             </Select>
                             {request.status === "open" && !outcomeById.has(response.id) && (

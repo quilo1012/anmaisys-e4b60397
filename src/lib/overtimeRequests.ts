@@ -10,8 +10,9 @@
 
 export type OvertimeAnswer = "yes" | "no";
 export type OvertimeDecision = "accepted" | "reserve" | "declined";
+/** `cancelled` is what the manager records; the database turns it into in_time or late by the rule. */
 export type OvertimeOutcome =
-  | "attended" | "no_show" | "called_sick" | "cancelled_in_time" | "cancelled_late";
+  | "attended" | "no_show" | "called_sick" | "cancelled" | "cancelled_in_time" | "cancelled_late";
 
 export interface OvertimeRequest {
   id: string;
@@ -45,6 +46,8 @@ export interface Reliability {
   absent_this_month: number;
   ot_accepted_60d: number;
   ot_attended_60d: number;
+  /** yyyy-mm-dd until which self-sign-up is refused by the rules, or null. */
+  blocked_until?: string | null;
 }
 
 export interface RequestCounts {
@@ -83,6 +86,19 @@ export function countResponses(
 }
 
 export type ReliabilityTone = "good" | "warn" | "bad";
+
+export interface OvertimeRules {
+  no_show_block_days: number;
+  late_cancel_hours: number;
+  late_cancel_blocks: boolean;
+}
+
+/** "Blocked until 20/10", for the badge beside a name. Empty when not blocked. */
+export function blockedLabel(r: Pick<Reliability, "blocked_until"> | undefined, today: string = new Date().toISOString().slice(0, 10)): string {
+  if (!r?.blocked_until || r.blocked_until <= today) return "";
+  const [, m, d] = r.blocked_until.split("-");
+  return `Blocked until ${d}/${m}`;
+}
 
 /**
  * The colour beside the name, and nothing else decides it.
