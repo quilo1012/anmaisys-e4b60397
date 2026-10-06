@@ -12,4 +12,5 @@ union all
 select 'rls ' || c.relname,
        case when c.relrowsecurity then 'ok' else 'OFF' end
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
- where n.nspname = 'public' and c.relname like 'overtime_%' and c.relname <> 'overtime_entries';
+ where n.nspname = 'public' and c.relkind = 'r'
+   and c.relname in ('overtime_requests','overtime_responses','overtime_outcomes');

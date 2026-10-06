@@ -6,15 +6,10 @@ import type {
 } from "@/lib/overtimeRequests";
 
 /**
- * Reads and writes for the overtime ask.
- *
- * `as any` on the client because the generated types in
- * `src/integrations/supabase/types.ts` do not know these tables until Lovable
- * regenerates them after the migration lands. The row shapes are typed on the way
- * out, in `@/lib/overtimeRequests`, so the screens still get a real type.
+ * Reads and writes for the overtime ask. Typed against the generated client; the
+ * row shapes the screens use are declared in `@/lib/overtimeRequests`.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const db = supabase as any;
+const db = supabase;
 
 const KEYS = {
   requests: ["overtime_requests"] as const,
@@ -37,7 +32,7 @@ export function useOvertimeRequests() {
         .order("on_date", { ascending: true })
         .order("starts_at", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as OvertimeRequest[];
     },
   });
 }
@@ -50,7 +45,7 @@ export function useOvertimeResponses(requestId?: string) {
       if (requestId) q = q.eq("request_id", requestId);
       const { data, error } = await q.order("answered_at", { ascending: true });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as OvertimeResponse[];
     },
   });
 }
@@ -71,7 +66,7 @@ export function useOvertimeOutcomes(requestId: string, responseIds: string[]) {
         .select("response_id, outcome, note")
         .in("response_id", responseIds);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as OutcomeRow[];
     },
   });
 }

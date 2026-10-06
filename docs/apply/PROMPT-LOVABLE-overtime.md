@@ -1,5 +1,9 @@
 # Overtime asks — o que enviar ao Lovable
 
+> **Aplicado em produção a 06/10/2026** via `query_database`, VERIFY todo `ok`, fluxo
+> testado ponta a ponta numa transacção com rollback. A migração está em
+> `supabase/migrations/20261006180000_…`. Este prompt fica para uma base nova.
+
 Um único bloco: `10-20260913120000_overtime_is_offered_before_it_is_worked.sql`.
 É idempotente — pode correr duas vezes sem partir nada. Não depende dos blocos 01–09.
 
