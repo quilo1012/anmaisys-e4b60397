@@ -5064,18 +5064,21 @@ export type Database = {
           enabled: boolean
           id: boolean
           invite_code: string | null
+          invite_expires_at: string | null
           updated_at: string
         }
         Insert: {
           enabled?: boolean
           id?: boolean
           invite_code?: string | null
+          invite_expires_at?: string | null
           updated_at?: string
         }
         Update: {
           enabled?: boolean
           id?: boolean
           invite_code?: string | null
+          invite_expires_at?: string | null
           updated_at?: string
         }
         Relationships: []
