@@ -7147,6 +7147,10 @@ export type Database = {
           shift_group: string
         }[]
       }
+      overtime_push_targets: {
+        Args: { p_employee_ids?: string[]; p_request_id: string }
+        Returns: string[]
+      }
       overtime_reliability: {
         Args: { p_month?: string }
         Returns: {

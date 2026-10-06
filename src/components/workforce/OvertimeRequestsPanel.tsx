@@ -121,7 +121,12 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
         note: note.trim() || null,
       },
       {
-        onSuccess: () => { toast.success(`Asked for ${n} on ${fmtDate(onDate)}`); onOpenChange(false); setNote(""); },
+        onSuccess: ({ push }) => {
+          if (push.error) toast.warning(`Asked for ${n} on ${fmtDate(onDate)} — but the notification didn't go: ${push.error}`);
+          else if (push.notified === 0) toast.success(`Asked for ${n} on ${fmtDate(onDate)}. Nobody has a login yet, so nobody was notified.`);
+          else toast.success(`Asked for ${n} on ${fmtDate(onDate)} · ${push.notified} notified`);
+          onOpenChange(false); setNote("");
+        },
         onError: (e) => toast.error((e as Error).message || "Could not create the ask"),
       },
     );

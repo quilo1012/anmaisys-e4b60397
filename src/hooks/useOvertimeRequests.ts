@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { invokeFunction } from "@/lib/invokeFunction";
+import { newAskMessage, decisionMessage, type PushMessage } from "@/lib/overtimePush";
 import type {
   OvertimeRequest, OvertimeResponse, OvertimeDecision, OvertimeOutcome, Reliability,
 } from "@/lib/overtimeRequests";
@@ -135,6 +137,30 @@ export function useUnlinkedEmployees() {
   });
 }
 
+/**
+ * Tell some logins about an ask. Best effort, on purpose.
+ *
+ * The ask is already saved by the time this runs. If the push fails — VAPID not set,
+ * the function down, nobody linked yet — the ask still stands and the supervisor is
+ * told the message did not go, not that the ask did not. A notification is a
+ * courtesy; the row is the record.
+ */
+async function pushTo(
+  requestId: string,
+  message: PushMessage,
+  employeeIds: string[] | null,
+): Promise<{ notified: number; error: string | null }> {
+  const { data: ids, error: tErr } = await db.rpc("overtime_push_targets", {
+    p_request_id: requestId,
+    ...(employeeIds ? { p_employee_ids: employeeIds } : {}),
+  });
+  if (tErr) return { notified: 0, error: tErr.message };
+  const userIds = (ids ?? []) as string[];
+  if (userIds.length === 0) return { notified: 0, error: null };
+  const { error } = await invokeFunction("send-push", { user_ids: userIds, ...message });
+  return { notified: error ? 0 : userIds.length, error: error ? String(error.message ?? error) : null };
+}
+
 export function useOvertimeMutations() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -149,9 +175,16 @@ export function useOvertimeMutations() {
     mutationFn: async (input: {
       on_date: string; starts_at: string; ends_at: string; headcount: number;
       department: string | null; shift_group: string | null; note: string | null;
-    }) => {
-      const { error } = await db.from("overtime_requests").insert({ ...input, created_by: user!.id });
+    }): Promise<{ request: OvertimeRequest; push: { notified: number; error: string | null } }> => {
+      const { data, error } = await db
+        .from("overtime_requests")
+        .insert({ ...input, created_by: user!.id })
+        .select("*")
+        .single();
       if (error) throw error;
+      const request = data as OvertimeRequest;
+      const push = await pushTo(request.id, newAskMessage(request), null);
+      return { request, push };
     },
     onSuccess: refresh,
   });
@@ -189,12 +222,17 @@ export function useOvertimeMutations() {
 
   const decide = useMutation({
     mutationFn: async ({ responseId, decision }: { responseId: string; decision: OvertimeDecision | null }) => {
-      const { error } = await db.from("overtime_responses").update({
+      const { data, error } = await db.from("overtime_responses").update({
         decision,
         decided_at: decision ? new Date().toISOString() : null,
         decided_by: decision ? user!.id : null,
-      }).eq("id", responseId);
+      }).eq("id", responseId).select("request_id, employee_id").single();
       if (error) throw error;
+      if (!decision) return;
+      const { data: req } = await db.from("overtime_requests")
+        .select("id, on_date, starts_at, ends_at").eq("id", data.request_id).single();
+      const message = req ? decisionMessage(req, decision) : null;
+      if (message) await pushTo(data.request_id, message, [data.employee_id]);
     },
     onSuccess: refresh,
   });
