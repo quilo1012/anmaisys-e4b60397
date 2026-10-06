@@ -122,9 +122,12 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
       },
       {
         onSuccess: ({ push }) => {
-          if (push.error) toast.warning(`Asked for ${n} on ${fmtDate(onDate)} — but the notification didn't go: ${push.error}`);
-          else if (push.notified === 0) toast.success(`Asked for ${n} on ${fmtDate(onDate)}. Nobody has a login yet, so nobody was notified.`);
-          else toast.success(`Asked for ${n} on ${fmtDate(onDate)} · ${push.notified} notified`);
+          const head = `Asked for ${n} on ${fmtDate(onDate)}`;
+          if (push.error) toast.warning(`${head} — but the notification didn't go: ${push.error}`);
+          else if (push.notified === 0) toast.success(`${head}. Nobody has a login yet, so nobody was notified.`);
+          else if (push.note) toast.warning(`${head} · ${push.notified} told in-app, no phones buzzed: ${push.note}`);
+          else if (push.pushed === 0) toast.success(`${head} · ${push.notified} told in-app · nobody has turned on phone notifications yet`);
+          else toast.success(`${head} · ${push.notified} told · ${push.pushed ?? 0} phone${push.pushed === 1 ? "" : "s"} buzzed`);
           onOpenChange(false); setNote("");
         },
         onError: (e) => toast.error((e as Error).message || "Could not create the ask"),
