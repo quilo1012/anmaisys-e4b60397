@@ -2630,6 +2630,33 @@ export type Database = {
           },
         ]
       }
+      overtime_rules: {
+        Row: {
+          id: boolean
+          late_cancel_blocks: boolean
+          late_cancel_hours: number
+          no_show_block_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          late_cancel_blocks?: boolean
+          late_cancel_hours?: number
+          no_show_block_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          late_cancel_blocks?: boolean
+          late_cancel_hours?: number
+          no_show_block_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       overtime_requests: {
         Row: {
           closed_at: string | null
@@ -7144,6 +7171,14 @@ export type Database = {
         Returns: undefined
       }
       my_employee_id: { Args: never; Returns: string }
+      my_overtime_block: {
+        Args: never
+        Returns: {
+          blocked_until: string
+          on_date: string
+          reason: string
+        }[]
+      }
       my_overtime_identity: {
         Args: never
         Returns: {
@@ -7151,6 +7186,14 @@ export type Database = {
           full_name: string
           id: string
           shift_group: string
+        }[]
+      }
+      overtime_block_for: {
+        Args: { p_employee_id: string }
+        Returns: {
+          blocked_until: string
+          on_date: string
+          reason: string
         }[]
       }
       overtime_push_targets: {
@@ -7163,6 +7206,7 @@ export type Database = {
           absent_this_month: number
           employee_id: string
           ot_accepted_60d: number
+          blocked_until: string | null
           ot_attended_60d: number
           sick_this_month: number
         }[]
