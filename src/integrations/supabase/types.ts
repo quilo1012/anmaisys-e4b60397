@@ -7215,6 +7215,13 @@ export type Database = {
         }[]
       }
       receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
+      record_overtime_outcome: {
+        Args: { p_note?: string; p_outcome: string; p_response_id: string }
+        Returns: {
+          promoted_employee_id: string
+          promoted_response_id: string
+        }[]
+      }
       refresh_site_banner: { Args: never; Returns: undefined }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
       reopen_wo_as_recurrence: {

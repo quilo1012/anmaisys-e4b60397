@@ -266,7 +266,7 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
                   <TableHead>This month</TableHead>
                   <TableHead>Last 60 days</TableHead>
                   <TableHead>Answered</TableHead>
-                  <TableHead className="text-right">{isPast ? "Outcome" : "Decision"}</TableHead>
+                  <TableHead className="text-right">Decision</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -284,17 +284,41 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
                         {new Date(response.answered_at).toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </TableCell>
                       <TableCell className="text-right">
-                        {isPast && response.decision && response.decision !== "declined" ? (
-                          <Select
-                            value={outcomeById.get(response.id) ?? ""}
-                            onValueChange={(v) => recordOutcome.mutate({ responseId: response.id, outcome: v as OvertimeOutcome },
-                              { onError: (e) => toast.error((e as Error).message) })}
-                          >
-                            <SelectTrigger className="ml-auto h-8 w-[160px]"><SelectValue placeholder="What happened?" /></SelectTrigger>
-                            <SelectContent>
-                              {OUTCOMES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                        {/* Once somebody is in (or on reserve), what matters is whether they turn up —
+                            and that is known before the day as often as after: "I can't make it
+                            Saturday" arrives on Thursday. So the outcome is recordable the moment
+                            the decision is made, not only once the date has passed. A drop-out on
+                            an open ask promotes the reserve by itself. */}
+                        {response.decision === "accepted" || response.decision === "reserve" ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <Select
+                              value={outcomeById.get(response.id) ?? ""}
+                              onValueChange={(v) => recordOutcome.mutate(
+                                { responseId: response.id, outcome: v as OvertimeOutcome },
+                                {
+                                  onSuccess: ({ promotedEmployeeId, push }) => {
+                                    if (!promotedEmployeeId) return;
+                                    const who = byId.get(promotedEmployeeId)?.full_name ?? "the reserve";
+                                    toast.success(`${who} moved up from reserve${push?.notified ? " and was told" : ""}.`);
+                                  },
+                                  onError: (e) => toast.error((e as Error).message),
+                                },
+                              )}
+                            >
+                              <SelectTrigger className="h-8 w-[150px]">
+                                <SelectValue placeholder={isPast ? "What happened?" : response.decision === "accepted" ? "In · still coming" : "Reserve"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {OUTCOMES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {request.status === "open" && !outcomeById.has(response.id) && (
+                              <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground" title="Undo decision"
+                                disabled={decide.isPending} onClick={() => onDecide(response.id, null)}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         ) : (
                           <DecisionButtons
                             decision={response.decision}

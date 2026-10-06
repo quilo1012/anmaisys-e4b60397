@@ -256,13 +256,27 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * Record what happened. Through the RPC, because that is where the reserve steps in:
+   * when an accepted person drops out of an open ask, the longest-waiting reserve is
+   * promoted and comes back here, and the push tells them their place opened.
+   */
   const recordOutcome = useMutation({
-    mutationFn: async ({ responseId, outcome, note }: { responseId: string; outcome: OvertimeOutcome; note?: string }) => {
-      const { error } = await db.from("overtime_outcomes").upsert(
-        { response_id: responseId, outcome, note: note ?? null, recorded_by: user!.id, recorded_at: new Date().toISOString() },
-        { onConflict: "response_id" },
-      );
+    mutationFn: async ({ responseId, outcome, note }: { responseId: string; outcome: OvertimeOutcome; note?: string })
+      : Promise<{ promotedEmployeeId: string | null; push: PushOutcome | null }> => {
+      const { data, error } = await db.rpc("record_overtime_outcome", {
+        p_response_id: responseId, p_outcome: outcome, ...(note ? { p_note: note } : {}),
+      });
       if (error) throw error;
+      const promoted = (data as { promoted_response_id: string; promoted_employee_id: string }[] | null)?.[0];
+      if (!promoted) return { promotedEmployeeId: null, push: null };
+      const { data: resp } = await db.from("overtime_responses").select("request_id").eq("id", responseId).single();
+      const { data: req } = resp
+        ? await db.from("overtime_requests").select("id, on_date, starts_at, ends_at").eq("id", resp.request_id).single()
+        : { data: null };
+      const message = req ? decisionMessage(req, "accepted") : null;
+      const push = message && req ? await pushTo(req.id, message, [promoted.promoted_employee_id]) : null;
+      return { promotedEmployeeId: promoted.promoted_employee_id, push };
     },
     onSuccess: refresh,
   });
