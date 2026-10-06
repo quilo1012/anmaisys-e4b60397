@@ -10,7 +10,9 @@ import {
   authLink,
   authPrimaryBtn,
 } from "@/components/auth/authStyles";
-import { Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { Loader2, CheckCircle2, Eye, EyeOff, BadgeCheck, Mail } from "lucide-react";
+import { invokeFunction } from "@/lib/invokeFunction";
+import { looksLikeEmployeeRef } from "@/lib/loginIdentity";
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -31,6 +33,41 @@ export default function SignUp() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+
+  /**
+   * Two doors. The badge is the default: everybody on the floor has one, few have an
+   * email, and a badge number keys the account to the roster row in one step — no
+   * confirmation mail, no approval queue, no "pick your name". Email stays for the
+   * office and for anyone whose badge has no number on record yet.
+   */
+  const [door, setDoor] = useState<"badge" | "email">("badge");
+  const [employeeRef, setEmployeeRef] = useState("");
+
+  const submitBadge = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    const ref = employeeRef.trim().toUpperCase();
+    if (!looksLikeEmployeeRef(ref)) { setError("Enter the ID on your badge, like E045."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (!code.trim()) { setError("Enter the invite code."); return; }
+    setSubmitting(true);
+    try {
+      const { data, error: fnErr } = await invokeFunction<{ access_token: string; refresh_token: string; full_name: string | null }>(
+        "employee-signin", { mode: "register", employee_ref: ref, password, invite_code: code.trim() },
+      );
+      if (fnErr) throw fnErr;
+      if (!data?.access_token || !data?.refresh_token) throw new Error("Could not create the account.");
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token: data.access_token, refresh_token: data.refresh_token,
+      });
+      if (setErr) throw setErr;
+      // Signed in and linked. Straight to the one screen this account is for.
+      window.location.href = "/dashboard/my-overtime";
+    } catch (err) {
+      setError((err as Error).message || "Could not create the account.");
+      setSubmitting(false);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +131,53 @@ export default function SignUp() {
   }
 
   return (
-    <AuthShell title="Create account" subtitle="Register and wait for admin approval">
+    <AuthShell title="Create account" subtitle={door === "badge" ? "Use the ID on your badge" : "Register with your email"}>
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-auth-line bg-auth-field p-1 text-sm">
+        <button type="button" onClick={() => { setDoor("badge"); setError(""); }}
+          className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 ${door === "badge" ? "bg-auth-paper font-medium text-auth-ink shadow-sm" : "text-auth-ink-muted"}`}>
+          <BadgeCheck className="h-4 w-4" /> Employee ID
+        </button>
+        <button type="button" onClick={() => { setDoor("email"); setError(""); }}
+          className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 ${door === "email" ? "bg-auth-paper font-medium text-auth-ink shadow-sm" : "text-auth-ink-muted"}`}>
+          <Mail className="h-4 w-4" /> Email
+        </button>
+      </div>
+
+      {door === "badge" ? (
+      <form onSubmit={submitBadge} className="space-y-4" noValidate>
+        <div className="space-y-1.5">
+          <label htmlFor="su-ref" className={authLabel}>Employee ID</label>
+          <input id="su-ref" value={employeeRef} onChange={(e) => setEmployeeRef(e.target.value)} autoComplete="username"
+            placeholder="E045" autoCapitalize="characters" spellCheck={false} className={`${authField} font-mono uppercase`} />
+          <p className="text-xs text-auth-ink-muted">The number on your badge. Your name and shift are already in the system.</p>
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="su-pass-b" className={authLabel}>Choose a password</label>
+          <div className="relative">
+            <input id="su-pass-b" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
+              className={authFieldAction} />
+            <button type="button" onClick={() => setShowPassword((s) => !s)} className={authInlineBtn} aria-label={showPassword ? "Hide password" : "Show password"}>
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="su-code-b" className={authLabel}>Invite code</label>
+          <input id="su-code-b" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off"
+            placeholder="From your supervisor" className={authField} />
+        </div>
+
+        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
+
+        <button type="submit" disabled={submitting} className={authPrimaryBtn}>
+          {submitting && <Loader2 className="h-4 w-4 animate-spin" />} Create account and sign in
+        </button>
+
+        <p className="text-center text-sm text-auth-ink-muted">
+          Already have an account? <Link to="/login" className={authLink}>Sign in</Link> with your ID.
+        </p>
+      </form>
+      ) : (
       <form onSubmit={submit} className="space-y-4" noValidate>
         <div className="space-y-1.5">
           <label htmlFor="su-name" className={authLabel}>Full name</label>
@@ -134,6 +217,7 @@ export default function SignUp() {
           Already have an account? <Link to="/login" className={authLink}>Sign in</Link>
         </p>
       </form>
+      )}
     </AuthShell>
   );
 }
