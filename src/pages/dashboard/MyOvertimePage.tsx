@@ -11,6 +11,7 @@ import {
   useMyEmployee, useUnlinkedEmployees, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
 } from "@/hooks/useOvertimeRequests";
 import { requestIsForEmployee, myStatusLabel, windowLabel } from "@/lib/overtimeRequests";
+import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -39,7 +40,10 @@ export default function MyOvertimePage() {
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
         ) : me ? (
-          <AsksForMe me={me} />
+          <>
+            <OvertimePushNudge />
+            <AsksForMe me={me} />
+          </>
         ) : (
           <LinkMyself />
         )}

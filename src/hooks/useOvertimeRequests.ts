@@ -145,20 +145,39 @@ export function useUnlinkedEmployees() {
  * told the message did not go, not that the ask did not. A notification is a
  * courtesy; the row is the record.
  */
+export interface PushOutcome {
+  /** Logins that got the in-app bell. */
+  notified: number;
+  /** Phones that actually got a push. Null when the function did not say. */
+  pushed: number | null;
+  /** Why no phone could get one — "VAPID not configured", for instance. */
+  note: string | null;
+  error: string | null;
+}
+
 async function pushTo(
   requestId: string,
   message: PushMessage,
   employeeIds: string[] | null,
-): Promise<{ notified: number; error: string | null }> {
+): Promise<PushOutcome> {
+  const none: PushOutcome = { notified: 0, pushed: null, note: null, error: null };
   const { data: ids, error: tErr } = await db.rpc("overtime_push_targets", {
     p_request_id: requestId,
     ...(employeeIds ? { p_employee_ids: employeeIds } : {}),
   });
-  if (tErr) return { notified: 0, error: tErr.message };
+  if (tErr) return { ...none, error: tErr.message };
   const userIds = (ids ?? []) as string[];
-  if (userIds.length === 0) return { notified: 0, error: null };
-  const { error } = await invokeFunction("send-push", { user_ids: userIds, ...message });
-  return { notified: error ? 0 : userIds.length, error: error ? String(error.message ?? error) : null };
+  if (userIds.length === 0) return none;
+  const { data, error } = await invokeFunction<{ sent?: number; in_app?: number; note?: string }>(
+    "send-push", { user_ids: userIds, ...message },
+  );
+  if (error) return { ...none, error: String(error.message ?? error) };
+  return {
+    notified: data?.in_app ?? userIds.length,
+    pushed: typeof data?.sent === "number" ? data.sent : null,
+    note: data?.note ?? null,
+    error: null,
+  };
 }
 
 export function useOvertimeMutations() {
@@ -175,7 +194,7 @@ export function useOvertimeMutations() {
     mutationFn: async (input: {
       on_date: string; starts_at: string; ends_at: string; headcount: number;
       department: string | null; shift_group: string | null; note: string | null;
-    }): Promise<{ request: OvertimeRequest; push: { notified: number; error: string | null } }> => {
+    }): Promise<{ request: OvertimeRequest; push: PushOutcome }> => {
       const { data, error } = await db
         .from("overtime_requests")
         .insert({ ...input, created_by: user!.id })
