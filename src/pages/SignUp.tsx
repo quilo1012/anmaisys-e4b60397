@@ -39,7 +39,7 @@ export default function SignUp() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
       const { data: ok, error: rpcErr } = await (supabase.rpc as any)("check_invite_code", { code: code.trim() });
       if (rpcErr) throw rpcErr;
-      if (!ok) { setError("Invalid invite code, or sign-up is currently closed. Ask your admin."); setSubmitting(false); return; }
+      if (!ok) { setError("That invite code isn't valid any more — it may have expired, or sign-up is closed. Ask your supervisor for a new one."); setSubmitting(false); return; }
 
       // 2) Create the account. Lands PENDING (active=false, no role) via the DB trigger.
       const { error: signErr } = await supabase.auth.signUp({

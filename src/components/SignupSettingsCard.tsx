@@ -5,8 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, UserPlus, RefreshCw, Copy, Send } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, UserPlus, RefreshCw, Copy, Send, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  EXPIRY_CHOICES, DEFAULT_EXPIRY, expiryFromChoice, expiryLabel, isExpired, type ExpiryChoice,
+} from "@/lib/inviteExpiry";
 
 /** Random, easy-to-read invite code (no ambiguous chars). */
 function generateCode(): string {
@@ -24,15 +30,19 @@ const cfg = () => supabase.from("signup_config");
 export function SignupSettingsCard() {
   const [code, setCode] = useState("");
   const [enabled, setEnabled] = useState(false);
+  // When the code stops working. Null is "never" — today's behaviour, kept for whoever
+  // wants it; a freshly generated code proposes a week.
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let ok = true;
-    cfg().select("invite_code, enabled").eq("id", true).maybeSingle().then(({ data }: any) => {
+    cfg().select("invite_code, enabled, invite_expires_at").eq("id", true).maybeSingle().then(({ data }: any) => {
       if (!ok || !data) { setLoading(false); return; }
       setCode(data.invite_code ?? "");
       setEnabled(!!data.enabled);
+      setExpiresAt(data.invite_expires_at ?? null);
       setLoading(false);
     });
     return () => { ok = false; };
@@ -40,7 +50,9 @@ export function SignupSettingsCard() {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await cfg().update({ invite_code: code.trim() || null, enabled, updated_at: new Date().toISOString() }).eq("id", true);
+    const { error } = await cfg().update({
+      invite_code: code.trim() || null, enabled, invite_expires_at: expiresAt, updated_at: new Date().toISOString(),
+    }).eq("id", true);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Sign-up settings saved");
@@ -67,7 +79,8 @@ export function SignupSettingsCard() {
               <Label htmlFor="invite-code" className="text-sm">Invite code</Label>
               <div className="flex gap-2">
                 <Input id="invite-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. AN-2026" autoComplete="off" className="font-mono" />
-                <Button type="button" variant="outline" onClick={() => setCode(generateCode())} title="Generate a random code">
+                <Button type="button" variant="outline" title="Generate a random code"
+                  onClick={() => { setCode(generateCode()); setExpiresAt(expiryFromChoice(DEFAULT_EXPIRY)); }}>
                   <RefreshCw className="mr-1 h-4 w-4" /> Generate
                 </Button>
                 <Button type="button" variant="outline" size="icon" disabled={!code.trim()} title="Copy code"
@@ -76,6 +89,26 @@ export function SignupSettingsCard() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">Share this code with people you want to let register. Click <b>Generate</b> for a random one, then <b>Save</b>. Change it anytime to revoke access.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Code stops working after</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select onValueChange={(v) => setExpiresAt(expiryFromChoice(v as ExpiryChoice))}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Set a limit…" /></SelectTrigger>
+                  <SelectContent>
+                    {EXPIRY_CHOICES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Badge variant="outline" className={cn("font-normal", isExpired(expiresAt) && "border-destructive/40 bg-destructive/10 text-destructive")}>
+                  <Clock className="mr-1 h-3 w-3" />
+                  {expiryLabel(expiresAt)}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A code pasted into a group chat gets forwarded. Give it a week; generate a new one when somebody joins.
+                {isExpired(expiresAt) && <> <b>This code has expired</b> — nobody can register with it until you pick a new limit and save.</>}
+              </p>
             </div>
 
             {code.trim() && (() => {
