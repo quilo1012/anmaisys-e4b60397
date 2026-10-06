@@ -5065,6 +5065,7 @@ export type Database = {
           id: boolean
           invite_code: string | null
           invite_expires_at: string | null
+          self_signup_role: Database["public"]["Enums"]["app_role"] | null
           updated_at: string
         }
         Insert: {
@@ -5072,6 +5073,7 @@ export type Database = {
           id?: boolean
           invite_code?: string | null
           invite_expires_at?: string | null
+          self_signup_role?: Database["public"]["Enums"]["app_role"] | null
           updated_at?: string
         }
         Update: {
@@ -5079,6 +5081,7 @@ export type Database = {
           id?: boolean
           invite_code?: string | null
           invite_expires_at?: string | null
+          self_signup_role?: Database["public"]["Enums"]["app_role"] | null
           updated_at?: string
         }
         Relationships: []
@@ -7405,6 +7408,7 @@ export type Database = {
         Args: { _version_id: number }
         Returns: undefined
       }
+      self_signup_role: { Args: never; Returns: string }
       session_write_deadline: {
         Args: { _session_date: string; _shift: string }
         Returns: string

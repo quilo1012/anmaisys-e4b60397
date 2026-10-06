@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -17,6 +17,13 @@ export default function SignUp() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Whether accounts from this link are active on creation (an operator who can answer
+  // overtime) or wait for an admin. Read once, anonymously; it only changes the words.
+  const [autoRole, setAutoRole] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
+    (supabase.rpc as any)("self_signup_role").then(({ data }: { data: string | null }) => setAutoRole(data ?? null));
+  }, []);
   const [code, setCode] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("code")?.trim() ?? ""; } catch { return ""; }
   });
@@ -47,7 +54,10 @@ export default function SignUp() {
         password,
         options: {
           data: { name: name.trim(), self_signup: "true" },
-          emailRedirectTo: `${window.location.origin}/login`,
+          // An operator account is for one thing; land it there after the email click.
+          emailRedirectTo: autoRole
+            ? `${window.location.origin}/login?next=${encodeURIComponent("/dashboard/my-overtime")}`
+            : `${window.location.origin}/login`,
         },
       });
       if (signErr) throw signErr;
@@ -67,8 +77,9 @@ export default function SignUp() {
         <div className="space-y-4 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-success-strong" />
           <p className="text-sm text-auth-ink">
-            Check your email to confirm your address, then wait for an administrator to approve your
-            account and assign your role. You'll be able to sign in once approved.
+            {autoRole
+              ? <>Check your email and tap the confirmation link. Then sign in, pick your name once, and you're set — you'll be told whenever overtime opens.</>
+              : <>Check your email to confirm your address, then wait for an administrator to approve your account and assign your role. You'll be able to sign in once approved.</>}
           </p>
           <button
             type="button"
