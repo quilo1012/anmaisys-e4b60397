@@ -30,28 +30,41 @@ END $$;
 
 DO $$
 DECLARE
+  v_creator uuid;
   u_a uuid := gen_random_uuid();
   u_b uuid := gen_random_uuid();
-  e_a uuid; e_b uuid; e_manual uuid;
+  e_a uuid; e_b uuid; e_manual uuid; e_booked uuid;
   ask_1 uuid; ask_2 uuid;
   resp_a uuid; resp_b uuid; resp_2 uuid;
   the_shift text;
   n int;
 BEGIN
+  -- `overtime_requests.created_by` is `not null references auth.users(id)`, so the
+  -- ask needs a real owner. Any existing login will do — the tests never read it, and
+  -- borrowing one is cheaper than creating an auth identity that must then be undone.
+  -- This is the ONE thing in this file that depends on data already in the database.
+  SELECT id INTO v_creator FROM auth.users LIMIT 1;
+  IF v_creator IS NULL THEN
+    RAISE EXCEPTION 'No auth.users row exists to own the test ask';
+  END IF;
+
   INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
   VALUES ('ZZ Bridge A', 'Production', 'Day', true, u_a) RETURNING id INTO e_a;
   INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
   VALUES ('ZZ Bridge B', 'Production', 'Day', true, u_b) RETURNING id INTO e_b;
   INSERT INTO public.employees (full_name, department, shift_group, active)
   VALUES ('ZZ Bridge Manual', 'Production', 'Day', true) RETURNING id INTO e_manual;
+  INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
+  VALUES ('ZZ Bridge Booked Off', 'Production', 'Day', true, gen_random_uuid())
+  RETURNING id INTO e_booked;
 
   INSERT INTO public.overtime_requests
     (on_date, starts_at, ends_at, headcount, department, shift_group, status, created_by)
-  VALUES (current_date + 30, '06:00', '14:00', 4, NULL, NULL, 'open', u_a)
+  VALUES (current_date + 30, '06:00', '14:00', 4, NULL, NULL, 'open', v_creator)
   RETURNING id INTO ask_1;
   INSERT INTO public.overtime_requests
     (on_date, starts_at, ends_at, headcount, department, shift_group, status, created_by)
-  VALUES (current_date + 30, '06:00', '14:00', 4, NULL, NULL, 'open', u_a)
+  VALUES (current_date + 30, '06:00', '14:00', 4, NULL, NULL, 'open', v_creator)
   RETURNING id INTO ask_2;
 
   the_shift := public.overtime_board_shift(current_date + 30, '06:00');
@@ -143,6 +156,59 @@ BEGIN
    WHERE employee_id = e_b AND on_date = current_date + 30 AND status = 'assigned'
      AND overtime_request_id IS NULL;
   PERFORM pg_temp.expect_true('and it is still the planner''s row, unstamped', n = 1);
+
+  -- ── employee_attendance: what the overtime flow may and may not do to payroll ──
+  -- The board can be rewritten all morning; a payroll record is a statement somebody
+  -- made about a person's day, and the only safe automatic action on one is to add
+  -- the one that is missing.
+
+  -- (2) An attendance row that already exists is left exactly as it was. A booked
+  -- holiday is not this trigger's to overwrite — somebody both booked off and
+  -- accepted for overtime is a question for a human, not a silent 'present'.
+  INSERT INTO public.employee_attendance (employee_id, on_date, status)
+  VALUES (e_booked, current_date + 30, 'holiday');
+
+  INSERT INTO public.overtime_responses (request_id, employee_id, answer)
+  VALUES (ask_2, e_booked, 'yes');
+  UPDATE public.overtime_responses SET decision = 'accepted'
+   WHERE request_id = ask_2 AND employee_id = e_booked;
+
+  SELECT count(*) INTO n FROM public.employee_attendance
+   WHERE employee_id = e_booked AND on_date = current_date + 30 AND status = 'holiday';
+  PERFORM pg_temp.expect_true('an existing attendance row is left exactly as it was', n = 1);
+  SELECT count(*) INTO n FROM public.employee_attendance
+   WHERE employee_id = e_booked AND on_date = current_date + 30;
+  PERFORM pg_temp.expect_true('and it is still the only one', n = 1);
+
+  -- (3) Coming off the board does not take the payroll record with it. Deleting one
+  -- automatically is how an audited figure disappears with nobody's name on the act.
+  UPDATE public.overtime_responses SET decision = 'declined'
+   WHERE request_id = ask_2 AND employee_id = e_a;
+  SELECT count(*) INTO n FROM public.daily_allocations
+   WHERE overtime_request_id = ask_2 AND employee_id = e_a;
+  PERFORM pg_temp.expect_true('declining takes the allocation', n = 0);
+  SELECT count(*) INTO n FROM public.employee_attendance
+   WHERE employee_id = e_a AND on_date = current_date + 30 AND status = 'present';
+  PERFORM pg_temp.expect_true('but the attendance row stays for a human to settle', n = 1);
+
+  -- (4) A promoted reserve gets their own attendance, like anybody else accepted.
+  UPDATE public.overtime_responses SET decision = 'reserve'
+   WHERE request_id = ask_2 AND employee_id = e_a;
+  UPDATE public.overtime_responses SET decision = 'accepted'
+   WHERE request_id = ask_2 AND employee_id = e_a;
+  SELECT count(*) INTO n FROM public.employee_attendance
+   WHERE employee_id = e_a AND on_date = current_date + 30 AND status = 'present';
+  PERFORM pg_temp.expect_true('a promoted reserve has their attendance', n = 1);
+
+  -- (5) Nothing the overtime flow does touches an attendance row belonging to another
+  -- day or another person. Cancelling the whole ask is the widest action it has.
+  UPDATE public.overtime_requests SET status = 'cancelled' WHERE id = ask_2;
+  SELECT count(*) INTO n FROM public.employee_attendance
+   WHERE employee_id = e_booked AND on_date = current_date + 30 AND status = 'holiday';
+  PERFORM pg_temp.expect_true('cancelling the ask leaves another context''s attendance', n = 1);
+  SELECT count(*) INTO n FROM public.employee_attendance
+   WHERE employee_id = e_a AND on_date = current_date + 30;
+  PERFORM pg_temp.expect_true('and leaves the accepted person''s attendance too', n = 1);
 END $$;
 
 SELECT 'ALL TESTS PASSED' AS result;

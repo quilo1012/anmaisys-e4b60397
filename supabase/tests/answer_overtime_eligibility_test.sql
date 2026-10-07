@@ -41,6 +41,7 @@ END $$;
 
 DO $$
 DECLARE
+  v_creator uuid;
   u_day_prod   uuid := gen_random_uuid();   -- Day crew, Production
   u_night_prod uuid := gen_random_uuid();   -- Night crew, Production
   u_day_wh     uuid := gen_random_uuid();   -- Day crew, Warehouse
@@ -52,6 +53,15 @@ DECLARE
   ask_cancelled uuid;
   n int;
 BEGIN
+  -- `overtime_requests.created_by` is `not null references auth.users(id)`, so the
+  -- ask needs a real owner. Any existing login will do — the tests never read it, and
+  -- borrowing one is cheaper than creating an auth identity that must then be undone.
+  -- This is the ONE thing in this file that depends on data already in the database.
+  SELECT id INTO v_creator FROM auth.users LIMIT 1;
+  IF v_creator IS NULL THEN
+    RAISE EXCEPTION 'No auth.users row exists to own the test ask';
+  END IF;
+
   INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
   VALUES ('ZZ Test Day Production',   'Production', 'Day',   true, u_day_prod)
   RETURNING id INTO e_day_prod;
@@ -64,17 +74,17 @@ BEGIN
 
   INSERT INTO public.overtime_requests
     (on_date, starts_at, ends_at, headcount, department, shift_group, status, created_by)
-  VALUES (current_date + 1, '06:00', '14:00', 4, 'Production', 'Day', 'open', u_day_prod)
+  VALUES (current_date + 1, '06:00', '14:00', 4, 'Production', 'Day', 'open', v_creator)
   RETURNING id INTO ask_both;
 
   INSERT INTO public.overtime_requests
     (on_date, starts_at, ends_at, headcount, department, shift_group, status, created_by)
-  VALUES (current_date + 1, '06:00', '14:00', 4, NULL, NULL, 'open', u_day_prod)
+  VALUES (current_date + 1, '06:00', '14:00', 4, NULL, NULL, 'open', v_creator)
   RETURNING id INTO ask_open;
 
   INSERT INTO public.overtime_requests
     (on_date, starts_at, ends_at, headcount, department, shift_group, status, created_by)
-  VALUES (current_date + 1, '06:00', '14:00', 4, NULL, NULL, 'cancelled', u_day_prod)
+  VALUES (current_date + 1, '06:00', '14:00', 4, NULL, NULL, 'cancelled', v_creator)
   RETURNING id INTO ask_cancelled;
 
   -- The person the ask is for gets in.
