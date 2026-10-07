@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -208,12 +208,6 @@ export const navItems: NavItem[] = [
   // still an import. The route, the screen, the hooks and the data all remain —
   // /dashboard/workforce still opens for an admin who types it.
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
-  // Overtime is asked for before it is worked, and the ask is the manager's: it is
-  // the one Workforce screen a manager reaches without the admin-only board, so it
-  // gets a row of its own rather than living only on the board's tab bar.
-  { title: "Overtime", url: "/dashboard/overtime", icon: HandCoins, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
-  // The floor's side of the same thing: the asks that apply to you, and Yes / No.
-  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor"], group: "Production", action: "overtime.respond" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
@@ -662,8 +656,6 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/roles": "Role rules",
   "/dashboard/people": "Employee",
   "/dashboard/headcount": "Production Headcount",
-  "/dashboard/overtime": "Overtime",
-  "/dashboard/my-overtime": "My Overtime",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",

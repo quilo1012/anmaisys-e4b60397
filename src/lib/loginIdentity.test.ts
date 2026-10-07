@@ -105,21 +105,3 @@ describe("looksLikeEmail", () => {
     expect(looksLikeEmail("a b@c.com")).toBe(false);
   });
 });
-
-describe("an employee badge number", () => {
-  it("is read as an employee when it is neither a tablet nor an email", () => {
-    expect(resolveIdentity("E045", [])).toEqual({ kind: "employee", employee_ref: "E045" });
-    expect(resolveIdentity(" e045 ", [])).toEqual({ kind: "employee", employee_ref: "E045" });
-  });
-
-  it("loses to a tablet with the same label", () => {
-    expect(resolveIdentity("E045", [{ id: "t", label: "E045" }]).kind).toBe("tablet");
-  });
-
-  it("is not a word, a line, or a number on its own", () => {
-    expect(resolveIdentity("line3", []).kind).toBe("unknown");
-    expect(resolveIdentity("daniel", []).kind).toBe("unknown");
-    expect(resolveIdentity("12345", []).kind).toBe("unknown");
-    expect(resolveIdentity("E 045", []).kind).toBe("unknown");
-  });
-});

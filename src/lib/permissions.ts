@@ -70,9 +70,6 @@ export type Action =
   | "headcount.view"
   | "headcount.manage"
   | "attendance.manage"
-  // Overtime asks: the supervisor's side and the floor's side.
-  | "overtime.manage"
-  | "overtime.respond"
   | "downtime.adjust"
   | "downtime.correct"
   | "reports.export"
@@ -239,14 +236,6 @@ const MATRIX: Record<Action, Role[]> = {
   "headcount.view": ["admin"],
   "headcount.manage": ["admin"],
   "attendance.manage": ["admin", "manager"],
-  // Overtime asks. `manage` must agree with `can_manage_overtime()` in the database
-  // (docs/apply/10-…overtime_is_offered_before_it_is_worked.sql) or the screen offers
-  // buttons the RLS refuses. `respond` is everyone with a login: the page itself
-  // shows nothing until the login is linked to an employee row.
-  // The `supervisor` enum value is retired (10/09/2026) and holds nothing; the people
-  // who run the floor today sign in as manager or production_office_admin.
-  "overtime.manage": ["admin", "manager", "production_office_admin"],
-  "overtime.respond": ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   // Rewriting a stoppage number that is already on the record is deliberately
   // narrower than `downtime.adjust`: it changes how a line and an engineer are
@@ -542,7 +531,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "scorecard", label: "Leader Scorecard", actions: ["scorecard.fill", "scorecard.approve"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
-  { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage", "attendance.manage", "overtime.manage", "overtime.respond"] },
+  { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage", "attendance.manage"] },
   { key: "headcount", label: "Production Headcount", actions: ["headcount.view", "headcount.manage"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
@@ -578,8 +567,6 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "headcount.view": "See the daily Production Headcount board (Day / Night).",
   "headcount.manage": "Allocate people to areas and record absence, holidays and overtime.",
   "attendance.manage": "Record attendance for the shift.",
-  "overtime.manage": "Ask for overtime, pick who works it, and record who turned up.",
-  "overtime.respond": "See overtime on offer and answer yes or no (My Overtime).",
   "reports.export": "Export reports to CSV / Excel / PDF.",
   "machines.view": "Browse the machines registry.",
   "machines.manage": "Add, edit or archive machines.",

@@ -2630,33 +2630,6 @@ export type Database = {
           },
         ]
       }
-      overtime_rules: {
-        Row: {
-          id: boolean
-          late_cancel_blocks: boolean
-          late_cancel_hours: number
-          no_show_block_days: number
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          id?: boolean
-          late_cancel_blocks?: boolean
-          late_cancel_hours?: number
-          no_show_block_days?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          id?: boolean
-          late_cancel_blocks?: boolean
-          late_cancel_hours?: number
-          no_show_block_days?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       overtime_requests: {
         Row: {
           closed_at: string | null
@@ -2749,6 +2722,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      overtime_rules: {
+        Row: {
+          id: boolean
+          late_cancel_blocks: boolean
+          late_cancel_hours: number
+          no_show_block_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          late_cancel_blocks?: boolean
+          late_cancel_hours?: number
+          no_show_block_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          late_cancel_blocks?: boolean
+          late_cancel_hours?: number
+          no_show_block_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       packaging_bom: {
         Row: {
@@ -6842,7 +6842,22 @@ export type Database = {
       }
       answer_overtime: {
         Args: { p_answer: string; p_request_id: string }
-        Returns: Database["public"]["Tables"]["overtime_responses"]["Row"]
+        Returns: {
+          answer: string
+          answered_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision: string | null
+          employee_id: string
+          id: string
+          request_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "overtime_responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       assign_work_order_engineer: {
         Args: { _engineer_id: string; _wo_id: string }
@@ -7049,7 +7064,35 @@ export type Database = {
       }
       link_me_to_employee: {
         Args: { p_employee_id: string }
-        Returns: Database["public"]["Tables"]["employees"]["Row"]
+        Returns: {
+          active: boolean
+          created_at: string
+          current_line_id: string | null
+          department: string | null
+          email: string | null
+          employee_ref: string | null
+          employment_type: string
+          full_name: string
+          headcount_area_id: string | null
+          id: string
+          left_on: string | null
+          manager_id: string | null
+          notes: string | null
+          position: string | null
+          sheet_aliases: string | null
+          shift_group: string | null
+          shift_pattern_id: string | null
+          source: string
+          started_on: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       list_active_profile_names: {
         Args: never
@@ -7204,9 +7247,9 @@ export type Database = {
         Args: { p_month?: string }
         Returns: {
           absent_this_month: number
+          blocked_until: string
           employee_id: string
           ot_accepted_60d: number
-          blocked_until: string | null
           ot_attended_60d: number
           sick_this_month: number
         }[]

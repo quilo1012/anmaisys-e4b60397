@@ -30,8 +30,6 @@ export type LoginIdentity<T extends TabletChoice = TabletChoice> =
   | { kind: "tablet"; tablet: T }
   /** É um endereço; entra por `signInWithPassword` e o papel decide o resto. */
   | { kind: "email"; email: string }
-  /** Parece o número de um crachá ("E045"); entra pela edge function `employee-signin`. */
-  | { kind: "employee"; employee_ref: string }
   /** Nem uma coisa nem outra — dizer isso agora poupa um erro cru do Supabase. */
   | { kind: "unknown" };
 
@@ -40,16 +38,6 @@ const norm = (s: string) => s.trim().toLowerCase();
 /** Um endereço completo: algo, arroba, domínio com ponto. */
 export function looksLikeEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-/**
- * O número do crachá: uma a três letras e dois a seis algarismos, sem espaços.
- *
- * Deliberadamente estreito. "line3" não é um crachá e nunca deve ser lido como um —
- * é um rótulo de tablet, e os tablets decidem antes deste teste de qualquer forma.
- */
-export function looksLikeEmployeeRef(value: string): boolean {
-  return /^[A-Za-z]{1,3}\d{2,6}$/.test(value.trim());
 }
 
 export function resolveIdentity<T extends TabletChoice>(
@@ -66,8 +54,6 @@ export function resolveIdentity<T extends TabletChoice>(
   }
 
   if (looksLikeEmail(value)) return { kind: "email", email: v };
-
-  if (looksLikeEmployeeRef(value)) return { kind: "employee", employee_ref: value.trim().toUpperCase() };
 
   return { kind: "unknown" };
 }

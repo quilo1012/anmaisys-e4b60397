@@ -60,8 +60,6 @@ const EXPECTED: Record<Action, Role[]> = {
   "headcount.view": ["admin"],
   "headcount.manage": ["admin"],
   "attendance.manage": ["admin", "manager"],
-  "overtime.manage": ["admin", "manager", "production_office_admin"],
-  "overtime.respond": ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   "downtime.correct": ["admin", "maintenance_manager"],
   // `operator` fora desde 03/10/2026, por decisão. Se este teste voltar a falhar em

@@ -148,10 +148,7 @@ export default function Login() {
 
   // ── Rate limit state ────────────────────────────────────────
   // Identity used as the rate-limit key (tablet account id or email).
-  const matchedEmployee = identity.kind === "employee" ? identity.employee_ref : null;
-  const rlId = matchedTablet ? matchedTablet.id
-    : identity.kind === "email" ? identity.email
-    : matchedEmployee ? `emp:${matchedEmployee}` : "";
+  const rlId = matchedTablet ? matchedTablet.id : (identity.kind === "email" ? identity.email : "");
   const [lockedMsLeft, setLockedMsLeft] = useState(0);
   const [remaining, setRemaining] = useState(5);
 
@@ -278,7 +275,7 @@ export default function Login() {
     setFormError(null);
 
     if (!identifier.trim()) {
-      const msg = "Enter your email or employee ID, or pick your tablet.";
+      const msg = "Enter your email, or pick your tablet.";
       setFormError(msg);
       toast({ title: msg, variant: "destructive" });
       return;
@@ -287,8 +284,8 @@ export default function Login() {
     // devolver "Unable to validate email address: invalid format".
     if (unrecognised) {
       const msg = hasTablets
-        ? "Not recognised. Use your work email, your employee ID (like E045), or pick your tablet from the list."
-        : "Not recognised. Use your work email address or your employee ID (like E045).";
+        ? "Not recognised. Use your work email, or pick your tablet from the list."
+        : "Not recognised. Use your work email address.";
       setFormError(msg);
       toast({ title: "Not recognised", description: msg, variant: "destructive" });
       return;
@@ -323,18 +320,6 @@ export default function Login() {
         const { error: setErr } = await supabase.auth.setSession({
           access_token: data.access_token,
           refresh_token: data.refresh_token,
-        });
-        if (setErr) throw setErr;
-      } else if (matchedEmployee) {
-        // A badge number. The function keys the account to the roster and never
-        // hands the synthetic email to the browser — tokens only, like the tablets.
-        const { data, error } = await invokeFunction<{ access_token: string; refresh_token: string }>(
-          "employee-signin", { mode: "signin", employee_ref: matchedEmployee, password },
-        );
-        if (error) throw error;
-        if (!data?.access_token || !data?.refresh_token) throw new Error("Invalid credentials");
-        const { error: setErr } = await supabase.auth.setSession({
-          access_token: data.access_token, refresh_token: data.refresh_token,
         });
         if (setErr) throw setErr;
       } else {
@@ -472,7 +457,7 @@ export default function Login() {
               }}
               onFocus={() => { if (hasTablets && !identifier) setListOpen(true); }}
               onKeyDown={onIdentifierKeyDown}
-              placeholder={hasTablets ? "you@appliednutrition.com, E045, or Line 3" : "you@appliednutrition.com or E045"}
+              placeholder={hasTablets ? "you@appliednutrition.com or Line 3" : "you@appliednutrition.com"}
               required
               autoComplete="username"
               spellCheck={false}

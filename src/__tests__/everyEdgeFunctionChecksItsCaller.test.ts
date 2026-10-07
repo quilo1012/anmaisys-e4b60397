@@ -55,7 +55,7 @@ const VALIDA_O_CHAMADOR = [
  * than pattern-matched, and the test below holds it to what a sign-in endpoint owes
  * instead — a rate limit and an answer that does not reveal whether the account exists.
  */
-const AUTENTICA_EM_VEZ_DE_VERIFICAR = ["tablet-signin", "employee-signin"];
+const AUTENTICA_EM_VEZ_DE_VERIFICAR = ["tablet-signin"];
 
 function funcoes(): string[] {
   if (!existsSync(FUNCTIONS_DIR)) return [];

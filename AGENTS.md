@@ -38,19 +38,3 @@ Applying a view or function straight to production through MCP, without writing 
 migration, leaves the app working in production and broken on any fresh database. It has
 happened twice. `src/__tests__/aAppNaoLeNadaQueNaoEstejaNumaMigracao.test.ts` now fails
 when it recurs.
-
-## Production follows `main` — change the code here, not in the Lovable chat
-
-The Lovable project serves what is on this repository's `main`. Verified 06/10/2026: the
-project's `latest_commit_sha` and `main` were the same commit, `status: identical`.
-
-So **code changes belong in a pull request to `main`**, which is also how they get review
-and CI. Asking the Lovable chat agent to edit the code instead spends workspace credits,
-skips both, and ends up in the same place anyway. On 06/10 the workspace ran out of
-credits, so that route was not even available — while the GitHub one kept working.
-
-**Secrets are the exception, and they are not in this repository.** `ANTHROPIC_API_KEY`,
-`LOVABLE_API_KEY` and the rest exist only in the project's settings, and nothing here can
-read or set them — ask the owner. Keeping them out is deliberate: on 15/09 a
-`.env.production` holding a `live_` payments token was committed to this repository while
-it was public. Do not "fix" a missing secret by putting it in a file.

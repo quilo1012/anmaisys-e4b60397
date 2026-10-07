@@ -19,7 +19,6 @@ export const PIN_SECTION_PATHS: Record<string, string[]> = {
     "/dashboard/leave",
     "/dashboard/attendance",
     "/dashboard/finance-close",
-    "/dashboard/overtime",
   ],
 };
 
