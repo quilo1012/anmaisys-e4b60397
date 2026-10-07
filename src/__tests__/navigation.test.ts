@@ -118,6 +118,10 @@ describe("sidebar", () => {
       "SKU Products",
       "Production Control",
       "Headcount",
+      // People, then what is asked of them: the two overtime rows sit under Headcount
+      // because they are the same people seen from the ask, not a new subject.
+      "Overtime",
+      "My Overtime",
     ]);
   });
 

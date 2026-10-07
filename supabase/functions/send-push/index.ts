@@ -69,7 +69,9 @@ Deno.serve(async (req) => {
 
     const { data: roles } = await supabase
       .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
-    const isStaff = (roles ?? []).some((r: { role: string }) => ["admin", "manager"].includes(r.role));
+    // production_office_admin added 06/10/2026: it posts overtime asks, and an ask
+    // that cannot tell the floor it exists is a row nobody answers.
+    const isStaff = (roles ?? []).some((r: { role: string }) => ["admin", "manager", "production_office_admin"].includes(r.role));
 
     const rawBody = await req.json().catch(() => null);
     const parsedBody = PushPayloadSchema.safeParse(rawBody);

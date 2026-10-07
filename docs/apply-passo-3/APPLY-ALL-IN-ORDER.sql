@@ -8539,3 +8539,925 @@ COMMENT ON VIEW public.v_timemoto_coverage IS
 REVOKE ALL ON public.v_timemoto_coverage FROM PUBLIC;
 REVOKE ALL ON public.v_timemoto_coverage FROM anon;
 GRANT SELECT ON public.v_timemoto_coverage TO authenticated;
+
+-- ================================================================
+-- BLOCO 70
+-- 20261006180000_overtime_is_offered_before_it_is_worked.sql
+-- ================================================================
+
+-- 10 · Overtime is offered before it is worked.
+--
+-- `overtime_entries` records hours AFTER the fact, copied from the payroll sheet, and
+-- a trigger refuses hand-written rows. Nothing in the schema says what happened
+-- BEFORE: who was asked, who said yes, who the supervisor picked, who then failed to
+-- turn up. That is the part the floor actually fights over, and it lived in WhatsApp.
+--
+-- Three tables, one per moment:
+--   overtime_requests   the supervisor's ask — "Saturday 14:00–22:00, I need 4"
+--   overtime_responses  one row per person per ask — yes/no, then accepted/reserve/declined
+--   overtime_outcomes   what the person did on the day — turned up, sick, no-show
+--
+-- Hours are NOT recorded here. When the day is over, the hours arrive from TimeMoto
+-- as they do for every other day; this module only knows who was supposed to be in.
+--
+-- Idempotent throughout. Safe to run twice.
+
+-- ---------------------------------------------------------------------------
+-- 1. The ask
+-- ---------------------------------------------------------------------------
+create table if not exists public.overtime_requests (
+  id            uuid primary key default gen_random_uuid(),
+  on_date       date not null,
+  starts_at     time not null,
+  ends_at       time not null,
+  -- How many people the supervisor needs. Not how many will say yes.
+  headcount     integer not null check (headcount > 0),
+  -- Who sees it. Null = every active employee.
+  department    text,
+  shift_group   text,
+  note          text,
+  status        text not null default 'open' check (status in ('open', 'closed', 'cancelled')),
+  created_by    uuid not null references auth.users(id),
+  created_at    timestamptz not null default now(),
+  closed_at     timestamptz,
+  constraint overtime_requests_ends_after_starts check (ends_at <> starts_at)
+);
+
+create index if not exists overtime_requests_on_date_idx on public.overtime_requests (on_date desc);
+
+-- ---------------------------------------------------------------------------
+-- 2. The answer, then the decision
+-- ---------------------------------------------------------------------------
+create table if not exists public.overtime_responses (
+  id            uuid primary key default gen_random_uuid(),
+  request_id    uuid not null references public.overtime_requests(id) on delete cascade,
+  employee_id   uuid not null references public.employees(id) on delete cascade,
+  -- What the person said. 'no' is kept, so the supervisor knows who has seen it.
+  answer        text not null check (answer in ('yes', 'no')),
+  -- What the supervisor did with a 'yes'. Null until decided.
+  decision      text check (decision in ('accepted', 'reserve', 'declined')),
+  answered_at   timestamptz not null default now(),
+  decided_at    timestamptz,
+  decided_by    uuid references auth.users(id),
+  -- One answer per person per ask. Changing your mind is an UPDATE, not a second row.
+  constraint overtime_responses_one_per_person unique (request_id, employee_id)
+);
+
+create index if not exists overtime_responses_request_idx on public.overtime_responses (request_id);
+create index if not exists overtime_responses_employee_idx on public.overtime_responses (employee_id);
+
+-- ---------------------------------------------------------------------------
+-- 3. What happened on the day
+-- ---------------------------------------------------------------------------
+create table if not exists public.overtime_outcomes (
+  response_id   uuid primary key references public.overtime_responses(id) on delete cascade,
+  outcome       text not null check (outcome in (
+                  'attended', 'no_show', 'called_sick', 'cancelled_in_time', 'cancelled_late')),
+  note          text,
+  recorded_by   uuid not null references auth.users(id),
+  recorded_at   timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------------
+-- 4. Who may do what
+-- ---------------------------------------------------------------------------
+alter table public.overtime_requests  enable row level security;
+alter table public.overtime_responses enable row level security;
+alter table public.overtime_outcomes  enable row level security;
+
+-- The roles that run overtime. Mirrors `overtime.manage` in src/lib/permissions.ts;
+-- the two lists must agree or the screen promises what the database refuses. The
+-- `supervisor` enum value is retired and deliberately absent: the people who run the
+-- floor sign in as manager or production_office_admin.
+create or replace function public.can_manage_overtime(uid uuid)
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  -- Through has_action, so an override saved on the Permissions Matrix screen
+  -- counts here too. The array is the baseline: the same three the matrix carries.
+  select public.has_action(uid, 'overtime.manage',
+           array['admin','manager','production_office_admin']::app_role[]);
+$$;
+
+-- The employee row that belongs to the signed-in person, if any.
+create or replace function public.my_employee_id()
+returns uuid
+language sql stable security definer set search_path = public
+as $$
+  select id from public.employees where user_id = auth.uid() and active limit 1;
+$$;
+
+drop policy if exists "overtime_requests_read"   on public.overtime_requests;
+drop policy if exists "overtime_requests_manage" on public.overtime_requests;
+create policy "overtime_requests_read" on public.overtime_requests
+  for select to authenticated using (true);
+create policy "overtime_requests_manage" on public.overtime_requests
+  for all to authenticated
+  using (public.can_manage_overtime(auth.uid()))
+  with check (public.can_manage_overtime(auth.uid()));
+
+drop policy if exists "overtime_responses_read"     on public.overtime_responses;
+drop policy if exists "overtime_responses_own"      on public.overtime_responses;
+drop policy if exists "overtime_responses_decide"   on public.overtime_responses;
+-- Everybody signed in can see the list. The floor already knows who put their hand
+-- up; hiding it here would only move the argument back to WhatsApp.
+create policy "overtime_responses_read" on public.overtime_responses
+  for select to authenticated using (true);
+-- A person writes only their own answer, and only while the ask is open.
+create policy "overtime_responses_own" on public.overtime_responses
+  for insert to authenticated
+  with check (
+    employee_id = public.my_employee_id()
+    and exists (select 1 from public.overtime_requests r
+                 where r.id = request_id and r.status = 'open')
+  );
+-- Managers may change anything: the decision, or an answer on behalf of somebody
+-- who has no login and said yes at the desk.
+create policy "overtime_responses_decide" on public.overtime_responses
+  for all to authenticated
+  using (public.can_manage_overtime(auth.uid()))
+  with check (public.can_manage_overtime(auth.uid()));
+
+drop policy if exists "overtime_outcomes_read"   on public.overtime_outcomes;
+drop policy if exists "overtime_outcomes_manage" on public.overtime_outcomes;
+create policy "overtime_outcomes_read" on public.overtime_outcomes
+  for select to authenticated using (true);
+create policy "overtime_outcomes_manage" on public.overtime_outcomes
+  for all to authenticated
+  using (public.can_manage_overtime(auth.uid()))
+  with check (public.can_manage_overtime(auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- 5. Answering — the one write an employee makes
+-- ---------------------------------------------------------------------------
+-- An UPSERT behind a function rather than a raw upsert from the screen, so the rules
+-- live in one place: you can change 'no' to 'yes' while the ask is open; you cannot
+-- change anything once the supervisor has decided on you.
+create or replace function public.answer_overtime(p_request_id uuid, p_answer text)
+returns public.overtime_responses
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_emp uuid := public.my_employee_id();
+  v_row public.overtime_responses;
+begin
+  if v_emp is null then
+    raise exception 'No employee record is linked to this login' using errcode = 'P0001';
+  end if;
+  if p_answer not in ('yes', 'no') then
+    raise exception 'Answer must be yes or no' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from public.overtime_requests where id = p_request_id and status = 'open') then
+    raise exception 'This overtime is no longer open' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from public.overtime_responses
+              where request_id = p_request_id and employee_id = v_emp and decision is not null) then
+    raise exception 'The supervisor has already decided on your answer' using errcode = 'P0001';
+  end if;
+
+  insert into public.overtime_responses (request_id, employee_id, answer)
+  values (p_request_id, v_emp, p_answer)
+  on conflict (request_id, employee_id)
+  do update set answer = excluded.answer, answered_at = now()
+  returning * into v_row;
+  return v_row;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 6. Linking a login to an employee row
+-- ---------------------------------------------------------------------------
+-- Employees mostly have no login: `employees.user_id` is null for nearly everybody.
+-- The sign-up page (invite code) creates the login; this links it to the person, once,
+-- and only to a row nobody else holds. If the row has an email, it has to match.
+create or replace function public.link_me_to_employee(p_employee_id uuid)
+returns public.employees
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_email text;
+  v_row   public.employees;
+begin
+  if public.my_employee_id() is not null then
+    raise exception 'This login is already linked to an employee' using errcode = 'P0001';
+  end if;
+  select email into v_email from auth.users where id = auth.uid();
+
+  update public.employees
+     set user_id = auth.uid()
+   where id = p_employee_id
+     and active
+     and user_id is null
+     and (email is null or lower(email) = lower(coalesce(v_email, '')))
+  returning * into v_row;
+
+  if v_row.id is null then
+    raise exception 'That employee cannot be linked to this login' using errcode = 'P0001';
+  end if;
+  return v_row;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 6b. Names, without the roster
+-- ---------------------------------------------------------------------------
+-- `employees` is readable only behind `workforce.view` (admin). That is right for a
+-- table with emails, reporting lines and a notes field — and it means neither the
+-- manager posting an ask nor the operator answering it can read it. These three
+-- functions hand out only what the screens need: an id, a name, a department and a
+-- shift. No email, no notes, no manager. A printed rota on the wall says as much.
+
+-- Active people, for the manager choosing. Gated on the same permission as the screen.
+create or replace function public.overtime_roster()
+returns table (id uuid, full_name text, department text, shift_group text)
+language sql stable security definer set search_path = public
+as $$
+  select e.id, e.full_name, e.department, e.shift_group
+    from public.employees e
+   where e.active
+     and public.can_manage_overtime(auth.uid())
+   order by e.full_name;
+$$;
+
+-- The caller's own row. Null when the login is not linked to anybody yet.
+create or replace function public.my_overtime_identity()
+returns table (id uuid, full_name text, department text, shift_group text)
+language sql stable security definer set search_path = public
+as $$
+  select e.id, e.full_name, e.department, e.shift_group
+    from public.employees e
+   where e.user_id = auth.uid() and e.active
+   limit 1;
+$$;
+
+-- Names nobody has claimed yet, for the first visit. Any login may read this list:
+-- it is how a new login finds itself, and it holds no more than a name and a department.
+create or replace function public.overtime_unlinked_names()
+returns table (id uuid, full_name text, department text, shift_group text)
+language sql stable security definer set search_path = public
+as $$
+  select e.id, e.full_name, e.department, e.shift_group
+    from public.employees e
+   where e.active and e.user_id is null
+   order by e.full_name;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 7. The number beside the name
+-- ---------------------------------------------------------------------------
+-- How many times, this calendar month, each person did not turn up — from the three
+-- places the factory records it: the headcount board (`employee_attendance`), the
+-- TimeMoto import (`attendance_days`) and overtime they had accepted (`overtime_outcomes`).
+-- Booked holiday is not an absence and is not counted. The 60-day column is overtime
+-- only: accepted shifts, and how many of those were actually worked.
+create or replace function public.overtime_reliability(p_month date default current_date)
+returns table (
+  employee_id        uuid,
+  sick_this_month    integer,
+  absent_this_month  integer,
+  ot_accepted_60d    integer,
+  ot_attended_60d    integer
+)
+language sql stable security definer set search_path = public
+as $$
+  with bounds as (
+    select date_trunc('month', p_month)::date                       as m_from,
+           (date_trunc('month', p_month) + interval '1 month')::date as m_to,
+           (current_date - 60)                                        as d60
+  ),
+  board as (
+    select a.employee_id,
+           count(*) filter (where a.status = 'sick')                       as sick,
+           count(*) filter (where a.status in ('unpaid', 'absent', 'awol')) as absent
+      from public.employee_attendance a, bounds b
+     where a.on_date >= b.m_from and a.on_date < b.m_to
+     group by a.employee_id
+  ),
+  clocks as (
+    select d.employee_id,
+           count(*) filter (where d.absence_name ~* 'sick')                                 as sick,
+           count(*) filter (where d.absence_name is not null
+                              and d.absence_name !~* 'sick'
+                              and d.absence_name !~* 'holiday|vacation|annual')               as absent
+      from public.attendance_days d, bounds b
+     where d.on_date >= b.m_from and d.on_date < b.m_to
+     group by d.employee_id
+  ),
+  ot_month as (
+    select r.employee_id,
+           count(*) filter (where o.outcome = 'called_sick')                          as sick,
+           count(*) filter (where o.outcome in ('no_show', 'cancelled_late'))          as absent
+      from public.overtime_outcomes o
+      join public.overtime_responses r on r.id = o.response_id
+      join public.overtime_requests q on q.id = r.request_id, bounds b
+     where q.on_date >= b.m_from and q.on_date < b.m_to
+     group by r.employee_id
+  ),
+  ot_60 as (
+    select r.employee_id,
+           count(*)                                            as accepted,
+           count(*) filter (where o.outcome = 'attended')      as attended
+      from public.overtime_responses r
+      join public.overtime_requests q on q.id = r.request_id
+      left join public.overtime_outcomes o on o.response_id = r.id, bounds b
+     where r.decision = 'accepted' and q.on_date >= b.d60 and q.on_date <= current_date
+     group by r.employee_id
+  ),
+  ids as (
+    select employee_id from board
+    union select employee_id from clocks
+    union select employee_id from ot_month
+    union select employee_id from ot_60
+  )
+  select i.employee_id,
+         coalesce(b.sick, 0) + coalesce(c.sick, 0) + coalesce(m.sick, 0),
+         coalesce(b.absent, 0) + coalesce(c.absent, 0) + coalesce(m.absent, 0),
+         coalesce(s.accepted, 0),
+         coalesce(s.attended, 0)
+    from ids i
+    left join board    b on b.employee_id = i.employee_id
+    left join clocks   c on c.employee_id = i.employee_id
+    left join ot_month m on m.employee_id = i.employee_id
+    left join ot_60    s on s.employee_id = i.employee_id;
+$$;
+
+grant execute on function public.answer_overtime(uuid, text)       to authenticated;
+grant execute on function public.link_me_to_employee(uuid)         to authenticated;
+grant execute on function public.overtime_reliability(date)        to authenticated;
+grant execute on function public.can_manage_overtime(uuid)         to authenticated;
+grant execute on function public.my_employee_id()                  to authenticated;
+grant execute on function public.overtime_roster()                 to authenticated;
+grant execute on function public.my_overtime_identity()            to authenticated;
+grant execute on function public.overtime_unlinked_names()         to authenticated;
+
+-- ================================================================
+-- BLOCO 71
+-- 20261006193000_an_ask_tells_the_people_it_is_for.sql
+-- ================================================================
+
+-- An ask tells the people it is for.
+--
+-- Posting an overtime ask wrote a row and nothing else. Whoever did not open the app
+-- that day never knew, and "first to answer" quietly became "first to look". The push
+-- goes out from the manager's screen through `send-push`, which already writes the
+-- in-app bell and web-pushes to anyone who turned it on. What the screen lacked was
+-- the list of logins to send to: `employees` is admin-only, so a manager could not
+-- read user_id off it.
+--
+-- This hands out exactly that — user ids, nothing else — and only to somebody who can
+-- manage overtime. With no employee list it returns the ask's audience (department and
+-- shift as the ask narrows them, every linked employee otherwise). With a list it
+-- returns those people's logins, for "you're in" and "you're on reserve".
+--
+-- Idempotent.
+
+create or replace function public.overtime_push_targets(
+  p_request_id  uuid,
+  p_employee_ids uuid[] default null
+)
+returns setof uuid
+language sql stable security definer set search_path = public
+as $$
+  select distinct e.user_id
+    from public.employees e
+    join public.overtime_requests q on q.id = p_request_id
+   where public.can_manage_overtime(auth.uid())
+     and e.active
+     and e.user_id is not null
+     and (
+       (p_employee_ids is null
+        and (q.department  is null or q.department  = e.department)
+        and (q.shift_group is null or q.shift_group = e.shift_group))
+       or e.id = any (coalesce(p_employee_ids, '{}'::uuid[]))
+     );
+$$;
+
+grant execute on function public.overtime_push_targets(uuid, uuid[]) to authenticated;
+
+-- ================================================================
+-- BLOCO 72
+-- 20261006193800_two_buckets_the_policies_already_assumed.sql
+-- ================================================================
+
+-- Dois buckets que as políticas já presumiam, e que nenhuma migração criava.
+--
+-- `part-photos` tem políticas desde 26/08 (e revistas a 08/09 e 18/09).
+-- `technical-docs` tem políticas desde 21/09. A app lê e escreve nos dois:
+-- `usePartPhotos.ts` e `useTechnicalInfo.ts`.
+--
+-- Nenhum dos dois foi alguma vez criado por uma migração. Existem em produção
+-- porque alguém os criou à mão no painel. O que ficou escrito no repositório
+-- foram as políticas — regras sobre um bucket que o SQL nunca cria.
+--
+-- Numa base nova as políticas aplicam-se a um bucket que não está lá, e os ecrãs
+-- falham com "Bucket not found": a fotografia de peças no Stock, e o repositório
+-- técnico inteiro de manuais e procedimentos de máquina.
+--
+-- Verificado a 06/10/2026 no destino da migração `ammlyqnjlhioukpgldgc`: tem
+-- `dm-audio`, `part-photos`, `quality-photos` e `wo-photos` — e **não** tem
+-- `technical-docs`. O `part-photos` também lá está por mão humana, não por este
+-- SQL; entra aqui para que a próxima base não dependa de ninguém se lembrar.
+--
+-- É a mesma classe de falha que o `AGENTS.md` já regista para vistas e funções
+-- ("Database objects the app reads must exist in a migration"), aplicada a
+-- buckets, que o teste existente não cobria. Passa a cobrir — ver
+-- `src/__tests__/aAppNaoLeNenhumBucketQueNaoEstejaNumaMigracao.test.ts`.
+--
+-- Os dois são privados, e isso não é escolha deste ficheiro:
+--   * `part-photos` foi documentado como privado quando as políticas foram
+--     escritas ("live in the private part-photos bucket");
+--   * `technical-docs` é lido por `createSignedUrl`, que só um bucket privado
+--     precisa.
+--
+-- Idempotente de propósito: a produção já tem os dois, e aqui isto não faz nada.
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('part-photos', 'part-photos', false)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('technical-docs', 'technical-docs', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- ================================================================
+-- BLOCO 72
+-- 20261006204000_an_invite_that_never_expires_is_a_door_left_open.sql
+-- ================================================================
+
+-- An invite that never expires is a door left open.
+--
+-- The invite code is one string, pasted into a WhatsApp group, and it stays valid until
+-- an admin remembers to change it. Nobody remembers. The overtime module is about to
+-- send that link to 211 people, which is 211 phones it can be forwarded from.
+--
+-- One column: when the code stops working. Null keeps today's behaviour, so nothing
+-- changes until an admin sets a date; the settings card proposes seven days whenever a
+-- new code is generated. check_invite_code is the only reader and gains the one clause.
+--
+-- Idempotent.
+
+alter table public.signup_config
+  add column if not exists invite_expires_at timestamptz;
+
+create or replace function public.check_invite_code(code text)
+returns boolean
+language sql security definer set search_path = public
+as $$
+  select coalesce(bool_or(
+           enabled
+           and invite_code is not null
+           and invite_code = code
+           and (invite_expires_at is null or now() < invite_expires_at)
+         ), false)
+    from public.signup_config
+   where id;
+$$;
+
+revoke all on function public.check_invite_code(text) from public;
+grant execute on function public.check_invite_code(text) to anon, authenticated;
+
+-- ================================================================
+-- BLOCO 73
+-- 20261006210000_a_floor_login_does_not_wait_in_a_queue.sql
+-- ================================================================
+
+-- A floor login does not wait in a queue.
+--
+-- Self sign-ups land pending — no role, inactive — and an admin activates each one by
+-- hand. Right for a login that will see production figures; wrong for the 211 people
+-- the overtime link is about to reach, who need to do exactly one thing: say yes or no.
+-- An operator login can see its own asks and its own answers, and nothing an admin
+-- would mind it seeing. Two hundred approvals would mean two hundred people who could
+-- not answer this week's overtime.
+--
+-- One setting on signup_config: the role a self sign-up starts with. Null (today's
+-- value, and the default) keeps the queue. 'operator' makes the account active with
+-- that role on creation. Admins still hear about it — a quieter notification, with the
+-- name and the role — and can deactivate as before. handle_new_user is the only reader.
+--
+-- Idempotent.
+
+alter table public.signup_config
+  add column if not exists self_signup_role public.app_role;
+
+-- What the sign-up page tells the person to expect. Anonymous, because they are not
+-- signed in yet; returns the role name or null, nothing else.
+create or replace function public.self_signup_role()
+returns text
+language sql stable security definer set search_path = public
+as $$
+  select self_signup_role::text from public.signup_config where id;
+$$;
+revoke all on function public.self_signup_role() from public;
+grant execute on function public.self_signup_role() to anon, authenticated;
+
+create or replace function public.handle_new_user()
+ returns trigger
+ language plpgsql
+ security definer
+ set search_path to 'public'
+as $function$
+declare
+  is_first_user boolean;
+  is_self boolean := (new.raw_user_meta_data->>'self_signup' = 'true');
+  auto_role public.app_role := (select self_signup_role from public.signup_config where id);
+  display_name text := coalesce(new.raw_user_meta_data->>'name', new.email);
+begin
+  select not exists (select 1 from public.profiles for update) into is_first_user;
+
+  insert into public.profiles (id, name, email, active)
+  values (
+    new.id,
+    display_name,
+    new.email,
+    case when is_self and not is_first_user and auto_role is null then false else true end
+  );
+
+  if is_first_user then
+    insert into public.user_roles (user_id, role) values (new.id, 'admin');
+  elsif is_self and auto_role is not null then
+    insert into public.user_roles (user_id, role) values (new.id, auto_role)
+    on conflict do nothing;
+  end if;
+
+  if is_self and not is_first_user then
+    if auto_role is null then
+      insert into public.notifications (user_id, title, body, priority, action_url)
+      select ur.user_id,
+             'New account pending approval',
+             display_name || ' registered and needs a role.',
+             'high',
+             '/users/manage'
+        from public.user_roles ur where ur.role = 'admin';
+    else
+      insert into public.notifications (user_id, title, body, priority, action_url)
+      select ur.user_id,
+             'New ' || auto_role::text || ' account',
+             display_name || ' registered with the invite link and is active.',
+             'low',
+             '/users/manage'
+        from public.user_roles ur where ur.role = 'admin';
+    end if;
+  end if;
+
+  return new;
+end;
+$function$;
+
+-- ================================================================
+-- BLOCO 74
+-- 20261006212000_when_one_drops_out_the_reserve_steps_in.sql
+-- ================================================================
+
+-- When one drops out, the reserve steps in.
+--
+-- The supervisor accepts four and marks one or two as reserve, because somebody always
+-- rings in sick. Then somebody rings in sick, and the supervisor has to notice, open the
+-- ask, find the reserve, and press Accept — on a phone, between two other problems. The
+-- reserve exists so that this is not a decision; so the database makes it not one.
+--
+-- Recording an outcome goes through this function. When the outcome says an ACCEPTED
+-- person will not be there (sick, no-show, cancelled either way) and the ask is still
+-- open, the longest-waiting reserve is promoted to accepted, stamped with the recorder,
+-- and returned — so the screen can tell that person their place opened. Attended, or a
+-- drop-out on an ask already closed, promotes nobody. One promotion per outcome: a
+-- second drop-out promotes the next reserve on its own call.
+--
+-- Idempotent.
+
+create or replace function public.record_overtime_outcome(
+  p_response_id uuid,
+  p_outcome     text,
+  p_note        text default null
+)
+returns table (promoted_response_id uuid, promoted_employee_id uuid)
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_req   public.overtime_requests;
+  v_resp  public.overtime_responses;
+  v_next  public.overtime_responses;
+begin
+  if not public.can_manage_overtime(auth.uid()) then
+    raise exception 'Only somebody who manages overtime can record an outcome' using errcode = '42501';
+  end if;
+  if p_outcome not in ('attended', 'no_show', 'called_sick', 'cancelled_in_time', 'cancelled_late') then
+    raise exception 'Unknown outcome %', p_outcome using errcode = 'P0001';
+  end if;
+
+  select * into v_resp from public.overtime_responses where id = p_response_id for update;
+  if v_resp.id is null then
+    raise exception 'No such response' using errcode = 'P0001';
+  end if;
+  select * into v_req from public.overtime_requests where id = v_resp.request_id for update;
+
+  insert into public.overtime_outcomes (response_id, outcome, note, recorded_by, recorded_at)
+  values (p_response_id, p_outcome, p_note, auth.uid(), now())
+  on conflict (response_id) do update
+    set outcome = excluded.outcome, note = excluded.note,
+        recorded_by = excluded.recorded_by, recorded_at = excluded.recorded_at;
+
+  -- Somebody who was in is now out, and there is still a shift to fill.
+  if v_resp.decision = 'accepted'
+     and p_outcome <> 'attended'
+     and v_req.status = 'open'
+  then
+    select * into v_next
+      from public.overtime_responses r
+     where r.request_id = v_req.id
+       and r.decision = 'reserve'
+       and r.answer = 'yes'
+       and not exists (select 1 from public.overtime_outcomes o where o.response_id = r.id)
+     order by r.answered_at
+     limit 1
+     for update skip locked;
+
+    if v_next.id is not null then
+      update public.overtime_responses
+         set decision = 'accepted', decided_at = now(), decided_by = auth.uid()
+       where id = v_next.id;
+      return query select v_next.id, v_next.employee_id;
+      return;
+    end if;
+  end if;
+
+  return;
+end;
+$$;
+
+grant execute on function public.record_overtime_outcome(uuid, text, text) to authenticated;
+
+-- ================================================================
+-- BLOCO 75
+-- 20261006220000_a_rule_the_floor_can_read.sql
+-- ================================================================
+
+-- A rule the floor can read.
+--
+-- The supervisor sees "2 sick · 1 absent" beside a name and decides. That is the right
+-- default, and it stays the default. But two things the floor argues about should not
+-- depend on who the supervisor is that week: whether a no-show keeps you out of the
+-- next asks, and whether cancelling the night before is the same as cancelling with
+-- a week's notice. Written down, they are a rule; left to judgement, they are a grudge.
+--
+-- One row of settings, both rules OFF until a manager turns them on:
+--   no_show_block_days   0 = off. A no-show (and, if the switch says so, a late
+--                        cancellation) blocks self-sign-up for this many days after the
+--                        shift. The manager can still add the person at the desk.
+--   late_cancel_hours    0 = off. "Cancelled" recorded fewer than this many hours before
+--                        the shift starts is cancelled_late; otherwise cancelled_in_time.
+--                        The manager records "cancelled"; the clock decides which.
+--   late_cancel_blocks   whether cancelled_late counts toward the block above.
+--
+-- Idempotent.
+
+create table if not exists public.overtime_rules (
+  id                  boolean primary key default true check (id),
+  no_show_block_days  integer not null default 0 check (no_show_block_days between 0 and 365),
+  late_cancel_hours   integer not null default 0 check (late_cancel_hours between 0 and 168),
+  late_cancel_blocks  boolean not null default false,
+  updated_at          timestamptz not null default now(),
+  updated_by          uuid references auth.users(id)
+);
+insert into public.overtime_rules (id) values (true) on conflict (id) do nothing;
+
+alter table public.overtime_rules enable row level security;
+drop policy if exists "overtime_rules_read"   on public.overtime_rules;
+drop policy if exists "overtime_rules_manage" on public.overtime_rules;
+create policy "overtime_rules_read" on public.overtime_rules
+  for select to authenticated using (true);
+create policy "overtime_rules_manage" on public.overtime_rules
+  for update to authenticated
+  using (public.can_manage_overtime(auth.uid()))
+  with check (public.can_manage_overtime(auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- Until when is this person out, and why. Null when they are not.
+-- ---------------------------------------------------------------------------
+create or replace function public.overtime_block_for(p_employee_id uuid)
+returns table (blocked_until date, reason text, on_date date)
+language sql stable security definer set search_path = public
+as $$
+  with rules as (select * from public.overtime_rules where id),
+  hits as (
+    select q.on_date,
+           o.outcome,
+           (q.on_date + r.no_show_block_days)::date as until_date
+      from public.overtime_outcomes o
+      join public.overtime_responses rs on rs.id = o.response_id
+      join public.overtime_requests q on q.id = rs.request_id
+      cross join rules r
+     where rs.employee_id = p_employee_id
+       and r.no_show_block_days > 0
+       and (o.outcome = 'no_show' or (r.late_cancel_blocks and o.outcome = 'cancelled_late'))
+       and (q.on_date + r.no_show_block_days) > current_date
+  )
+  select until_date, outcome, on_date
+    from hits
+   order by until_date desc
+   limit 1;
+$$;
+grant execute on function public.overtime_block_for(uuid) to authenticated;
+
+-- The caller's own block, for the My Overtime screen.
+create or replace function public.my_overtime_block()
+returns table (blocked_until date, reason text, on_date date)
+language sql stable security definer set search_path = public
+as $$
+  select * from public.overtime_block_for(public.my_employee_id());
+$$;
+grant execute on function public.my_overtime_block() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- answer_overtime refuses a blocked person, and says until when.
+-- ---------------------------------------------------------------------------
+create or replace function public.answer_overtime(p_request_id uuid, p_answer text)
+returns public.overtime_responses
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_emp   uuid := public.my_employee_id();
+  v_row   public.overtime_responses;
+  v_block record;
+begin
+  if v_emp is null then
+    raise exception 'No employee record is linked to this login' using errcode = 'P0001';
+  end if;
+  if p_answer not in ('yes', 'no') then
+    raise exception 'Answer must be yes or no' using errcode = 'P0001';
+  end if;
+  if not exists (select 1 from public.overtime_requests where id = p_request_id and status = 'open') then
+    raise exception 'This overtime is no longer open' using errcode = 'P0001';
+  end if;
+  if exists (select 1 from public.overtime_responses
+              where request_id = p_request_id and employee_id = v_emp and decision is not null) then
+    raise exception 'The supervisor has already decided on your answer' using errcode = 'P0001';
+  end if;
+  -- A "no" is always allowed: it is information, not a request.
+  if p_answer = 'yes' then
+    select * into v_block from public.overtime_block_for(v_emp);
+    if v_block.blocked_until is not null then
+      raise exception 'You can''t sign up for overtime until %. (Missed overtime on %.)',
+        to_char(v_block.blocked_until, 'DD/MM'), to_char(v_block.on_date, 'DD/MM')
+        using errcode = 'P0001';
+    end if;
+  end if;
+
+  insert into public.overtime_responses (request_id, employee_id, answer)
+  values (p_request_id, v_emp, p_answer)
+  on conflict (request_id, employee_id)
+  do update set answer = excluded.answer, answered_at = now()
+  returning * into v_row;
+  return v_row;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- record_overtime_outcome accepts "cancelled" and lets the clock decide.
+-- ---------------------------------------------------------------------------
+create or replace function public.record_overtime_outcome(
+  p_response_id uuid,
+  p_outcome     text,
+  p_note        text default null
+)
+returns table (promoted_response_id uuid, promoted_employee_id uuid)
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_req     public.overtime_requests;
+  v_resp    public.overtime_responses;
+  v_next    public.overtime_responses;
+  v_outcome text := p_outcome;
+  v_hours   integer := (select late_cancel_hours from public.overtime_rules where id);
+  v_starts  timestamptz;
+begin
+  if not public.can_manage_overtime(auth.uid()) then
+    raise exception 'Only somebody who manages overtime can record an outcome' using errcode = '42501';
+  end if;
+  if v_outcome not in ('attended', 'no_show', 'called_sick', 'cancelled', 'cancelled_in_time', 'cancelled_late') then
+    raise exception 'Unknown outcome %', v_outcome using errcode = 'P0001';
+  end if;
+
+  select * into v_resp from public.overtime_responses where id = p_response_id for update;
+  if v_resp.id is null then
+    raise exception 'No such response' using errcode = 'P0001';
+  end if;
+  select * into v_req from public.overtime_requests where id = v_resp.request_id for update;
+
+  -- "cancelled": in time or late, by the rule. With the rule off, in time.
+  if v_outcome = 'cancelled' then
+    v_starts := (v_req.on_date + v_req.starts_at)::timestamptz;
+    v_outcome := case when v_hours > 0 and now() > v_starts - make_interval(hours => v_hours)
+                      then 'cancelled_late' else 'cancelled_in_time' end;
+  end if;
+
+  insert into public.overtime_outcomes (response_id, outcome, note, recorded_by, recorded_at)
+  values (p_response_id, v_outcome, p_note, auth.uid(), now())
+  on conflict (response_id) do update
+    set outcome = excluded.outcome, note = excluded.note,
+        recorded_by = excluded.recorded_by, recorded_at = excluded.recorded_at;
+
+  if v_resp.decision = 'accepted'
+     and v_outcome <> 'attended'
+     and v_req.status = 'open'
+  then
+    select * into v_next
+      from public.overtime_responses r
+     where r.request_id = v_req.id
+       and r.decision = 'reserve'
+       and r.answer = 'yes'
+       and not exists (select 1 from public.overtime_outcomes o where o.response_id = r.id)
+     order by r.answered_at
+     limit 1
+     for update skip locked;
+
+    if v_next.id is not null then
+      update public.overtime_responses
+         set decision = 'accepted', decided_at = now(), decided_by = auth.uid()
+       where id = v_next.id;
+      return query select v_next.id, v_next.employee_id;
+      return;
+    end if;
+  end if;
+
+  return;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- The manager's list shows the block beside the name.
+-- ---------------------------------------------------------------------------
+drop function if exists public.overtime_reliability(date);
+create function public.overtime_reliability(p_month date default current_date)
+returns table (
+  employee_id        uuid,
+  sick_this_month    integer,
+  absent_this_month  integer,
+  ot_accepted_60d    integer,
+  ot_attended_60d    integer,
+  blocked_until      date
+)
+language sql stable security definer set search_path = public
+as $$
+  with bounds as (
+    select date_trunc('month', p_month)::date                       as m_from,
+           (date_trunc('month', p_month) + interval '1 month')::date as m_to,
+           (current_date - 60)                                        as d60
+  ),
+  board as (
+    select a.employee_id,
+           count(*) filter (where a.status = 'sick')                       as sick,
+           count(*) filter (where a.status in ('unpaid', 'absent', 'awol')) as absent
+      from public.employee_attendance a, bounds b
+     where a.on_date >= b.m_from and a.on_date < b.m_to
+     group by a.employee_id
+  ),
+  clocks as (
+    select d.employee_id,
+           count(*) filter (where d.absence_name ~* 'sick')                                 as sick,
+           count(*) filter (where d.absence_name is not null
+                              and d.absence_name !~* 'sick'
+                              and d.absence_name !~* 'holiday|vacation|annual')               as absent
+      from public.attendance_days d, bounds b
+     where d.on_date >= b.m_from and d.on_date < b.m_to
+     group by d.employee_id
+  ),
+  ot_month as (
+    select r.employee_id,
+           count(*) filter (where o.outcome = 'called_sick')                          as sick,
+           count(*) filter (where o.outcome in ('no_show', 'cancelled_late'))          as absent
+      from public.overtime_outcomes o
+      join public.overtime_responses r on r.id = o.response_id
+      join public.overtime_requests q on q.id = r.request_id, bounds b
+     where q.on_date >= b.m_from and q.on_date < b.m_to
+     group by r.employee_id
+  ),
+  ot_60 as (
+    select r.employee_id,
+           count(*)                                            as accepted,
+           count(*) filter (where o.outcome = 'attended')      as attended
+      from public.overtime_responses r
+      join public.overtime_requests q on q.id = r.request_id
+      left join public.overtime_outcomes o on o.response_id = r.id, bounds b
+     where r.decision = 'accepted' and q.on_date >= b.d60 and q.on_date <= current_date
+     group by r.employee_id
+  ),
+  ids as (
+    select employee_id from board
+    union select employee_id from clocks
+    union select employee_id from ot_month
+    union select employee_id from ot_60
+  )
+  select i.employee_id,
+         coalesce(b.sick, 0) + coalesce(c.sick, 0) + coalesce(m.sick, 0),
+         coalesce(b.absent, 0) + coalesce(c.absent, 0) + coalesce(m.absent, 0),
+         coalesce(s.accepted, 0),
+         coalesce(s.attended, 0),
+         (select blocked_until from public.overtime_block_for(i.employee_id))
+    from ids i
+    left join board    b on b.employee_id = i.employee_id
+    left join clocks   c on c.employee_id = i.employee_id
+    left join ot_month m on m.employee_id = i.employee_id
+    left join ot_60    s on s.employee_id = i.employee_id;
+$$;
+grant execute on function public.overtime_reliability(date) to authenticated;
