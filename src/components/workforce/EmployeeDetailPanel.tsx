@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DEPARTMENTS, POSITIONS } from "@/lib/orgNames";
+
+const SHIFT_GROUPS = ["Day", "Night", "Weekend", "Warehouse Day", "Warehouse Weekend"];
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -50,6 +52,7 @@ export function EmployeeDetailPanel({
   const [managerId, setManagerId] = useState<string>("__none__");
   const [employmentType, setEmploymentType] = useState("permanent");
   const [patternId, setPatternId] = useState<string>("__none__");
+  const [shiftGroup, setShiftGroup] = useState<string>("__none__");
   const [startedOn, setStartedOn] = useState("");
   const [leftOn, setLeftOn] = useState(() => new Date().toISOString().slice(0, 10));
 
@@ -63,11 +66,12 @@ export function EmployeeDetailPanel({
     setManagerId(employee?.manager_id ?? "__none__");
     setEmploymentType(employee?.employment_type ?? "permanent");
     setPatternId(employee?.shift_pattern_id ?? "__none__");
+    setShiftGroup(employee?.shift_group ?? "__none__");
     setStartedOn(employee?.started_on ?? "");
     setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
   }, [
     employee?.id, employee?.full_name, employee?.email,
-    employee?.department, employee?.shift_pattern_id,
+    employee?.department, employee?.shift_pattern_id, employee?.shift_group,
     employee?.started_on, employee?.left_on,
     employee?.position, employee?.manager_id, employee?.employment_type,
   ]);
@@ -97,6 +101,7 @@ export function EmployeeDetailPanel({
     email !== (employee.email ?? "") ||
     department !== (employee.department ?? "") ||
     patternId !== (employee.shift_pattern_id ?? "__none__") ||
+    shiftGroup !== (employee.shift_group ?? "__none__") ||
     startedOn !== (employee.started_on ?? "") ||
     position !== (employee.position ?? "") ||
     managerId !== (employee.manager_id ?? "__none__") ||
@@ -149,6 +154,9 @@ export function EmployeeDetailPanel({
           ...(keptSpelling ? { sheet_aliases: keptSpelling } : {}),
           department: department.trim() || null,
           shift_pattern_id: patternId === "__none__" ? null : patternId,
+          // O turno (Day/Night) e a outra metade da posicao; o painel nao o deixava
+          // mudar, e uma pessoa movida de board ficava "Night" com rota de dias.
+          shift_group: shiftGroup === "__none__" ? null : shiftGroup,
           // Empty clears it back to null. A blank start date means nobody recorded
           // one, which is the truth for the fifty imported rows.
           started_on: startedOn || null,
@@ -333,6 +341,10 @@ export function EmployeeDetailPanel({
                 <SelectTrigger className="text-sm"><SelectValue placeholder="Not set" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Not set</SelectItem>
+                  {/* Um valor antigo fora da lista aparece na mesma, senao o campo mostrava outra coisa. */}
+                  {position && !POSITIONS.includes(position as (typeof POSITIONS)[number]) && (
+                    <SelectItem value={position}>{position}</SelectItem>
+                  )}
                   {POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -414,6 +426,21 @@ export function EmployeeDetailPanel({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Shift</Label>
+              <Select value={shiftGroup} onValueChange={setShiftGroup} disabled={!canEdit}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— not recorded —</SelectItem>
+                  {[...new Set([...SHIFT_GROUPS, ...(employee.shift_group ? [employee.shift_group] : [])])].map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-2xs text-muted-foreground">
+                Which board they work on. The shift pattern below says which days.
+              </p>
             </div>
             <div>
               <Label className="text-xs">Shift pattern</Label>
