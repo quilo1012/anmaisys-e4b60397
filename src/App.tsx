@@ -110,6 +110,8 @@ const SystemHubPage = lazyWithReload(() => import("./pages/dashboard/SystemHubPa
 const RoleRulesPage = lazyWithReload(() => import("./pages/dashboard/RoleRulesPage"));
 const ReportsPage = lazyWithReload(() => import("./pages/dashboard/ReportsPage"));
 const AttendancePage = lazyWithReload(() => import("./pages/dashboard/AttendancePage"));
+const OvertimeRequestsPage = lazyWithReload(() => import("./pages/dashboard/OvertimeRequestsPage"));
+const MyOvertimePage = lazyWithReload(() => import("./pages/dashboard/MyOvertimePage"));
 const FinanceClosePage = lazyWithReload(() => import("./pages/dashboard/FinanceClosePage"));
 const LeavePage = lazyWithReload(() => import("./pages/dashboard/LeavePage"));
 const PeoplePage = lazyWithReload(() => import("./pages/dashboard/PeoplePage"));
@@ -488,6 +490,22 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="workforce.view">
                       <AttendancePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/overtime"
+                  element={
+                    <ProtectedRoute requiredAction="overtime.manage">
+                      <OvertimeRequestsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/my-overtime"
+                  element={
+                    <ProtectedRoute requiredAction="overtime.respond">
+                      <MyOvertimePage />
                     </ProtectedRoute>
                   }
                 />

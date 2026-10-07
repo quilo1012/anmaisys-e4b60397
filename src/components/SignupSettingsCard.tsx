@@ -5,8 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, UserPlus, RefreshCw, Copy, Send } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, UserPlus, RefreshCw, Copy, Send, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  EXPIRY_CHOICES, DEFAULT_EXPIRY, expiryFromChoice, expiryLabel, isExpired, type ExpiryChoice,
+} from "@/lib/inviteExpiry";
 
 /** Random, easy-to-read invite code (no ambiguous chars). */
 function generateCode(): string {
@@ -24,15 +30,23 @@ const cfg = () => supabase.from("signup_config");
 export function SignupSettingsCard() {
   const [code, setCode] = useState("");
   const [enabled, setEnabled] = useState(false);
+  // When the code stops working. Null is "never" — today's behaviour, kept for whoever
+  // wants it; a freshly generated code proposes a week.
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  // What a self sign-up becomes. Null queues it for approval (today's behaviour);
+  // "operator" makes it active on creation — enough to answer overtime, nothing more.
+  const [autoRole, setAutoRole] = useState<"pending" | "operator">("pending");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let ok = true;
-    cfg().select("invite_code, enabled").eq("id", true).maybeSingle().then(({ data }: any) => {
+    cfg().select("invite_code, enabled, invite_expires_at, self_signup_role").eq("id", true).maybeSingle().then(({ data }: any) => {
       if (!ok || !data) { setLoading(false); return; }
       setCode(data.invite_code ?? "");
       setEnabled(!!data.enabled);
+      setExpiresAt(data.invite_expires_at ?? null);
+      setAutoRole(data.self_signup_role === "operator" ? "operator" : "pending");
       setLoading(false);
     });
     return () => { ok = false; };
@@ -40,7 +54,11 @@ export function SignupSettingsCard() {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await cfg().update({ invite_code: code.trim() || null, enabled, updated_at: new Date().toISOString() }).eq("id", true);
+    const { error } = await cfg().update({
+      invite_code: code.trim() || null, enabled, invite_expires_at: expiresAt,
+      self_signup_role: autoRole === "operator" ? "operator" : null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", true);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Sign-up settings saved");
@@ -59,7 +77,7 @@ export function SignupSettingsCard() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <Label className="text-sm">Allow new users to register</Label>
-                <p className="text-xs text-muted-foreground">When on, people can create an account with the invite code. New accounts stay <b>pending</b> until you approve them below.</p>
+                <p className="text-xs text-muted-foreground">When on, people can create an account with the invite code. What they become is set below.</p>
               </div>
               <Switch checked={enabled} onCheckedChange={setEnabled} />
             </div>
@@ -67,7 +85,8 @@ export function SignupSettingsCard() {
               <Label htmlFor="invite-code" className="text-sm">Invite code</Label>
               <div className="flex gap-2">
                 <Input id="invite-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. AN-2026" autoComplete="off" className="font-mono" />
-                <Button type="button" variant="outline" onClick={() => setCode(generateCode())} title="Generate a random code">
+                <Button type="button" variant="outline" title="Generate a random code"
+                  onClick={() => { setCode(generateCode()); setExpiresAt(expiryFromChoice(DEFAULT_EXPIRY)); }}>
                   <RefreshCw className="mr-1 h-4 w-4" /> Generate
                 </Button>
                 <Button type="button" variant="outline" size="icon" disabled={!code.trim()} title="Copy code"
@@ -78,10 +97,34 @@ export function SignupSettingsCard() {
               <p className="text-xs text-muted-foreground">Share this code with people you want to let register. Click <b>Generate</b> for a random one, then <b>Save</b>. Change it anytime to revoke access.</p>
             </div>
 
+            <div className="space-y-1.5">
+              <Label className="text-sm">Code stops working after</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select onValueChange={(v) => setExpiresAt(expiryFromChoice(v as ExpiryChoice))}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Set a limit…" /></SelectTrigger>
+                  <SelectContent>
+                    {EXPIRY_CHOICES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Badge variant="outline" className={cn("font-normal", isExpired(expiresAt) && "border-destructive/40 bg-destructive/10 text-destructive")}>
+                  <Clock className="mr-1 h-3 w-3" />
+                  {expiryLabel(expiresAt)}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A code pasted into a group chat gets forwarded. Give it a week; generate a new one when somebody joins.
+                {isExpired(expiresAt) && <> <b>This code has expired</b> — nobody can register with it until you pick a new limit and save.</>}
+              </p>
+            </div>
+
             {code.trim() && (() => {
               const origin = typeof window !== "undefined" ? window.location.origin : "";
               const link = `${origin}/signup?code=${encodeURIComponent(code.trim())}`;
-              const message = `Create your ${document.title || "system"} account here: ${link}\nInvite code: ${code.trim()}`;
+              // The message is what gets pasted into the group, so it says what the person
+              // is signing up for — otherwise the first question in the group is "what is this".
+              const message = autoRole === "operator"
+                ? `Overtime sign-up — create your account here: ${link}\nInvite code: ${code.trim()}\nAfter confirming your email, sign in, pick your name once, and you'll get a notification whenever overtime opens.`
+                : `Create your ${document.title || "system"} account here: ${link}\nInvite code: ${code.trim()}`;
               return (
                 <div className="space-y-1.5">
                   <Label className="text-sm">Invite link</Label>
@@ -101,12 +144,30 @@ export function SignupSettingsCard() {
               );
             })()}
 
+            <div className="space-y-1.5">
+              <Label className="text-sm">New accounts start as</Label>
+              <Select value={autoRole} onValueChange={(v) => setAutoRole(v as "pending" | "operator")}>
+                <SelectTrigger className="w-[260px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending — you approve each one</SelectItem>
+                  <SelectItem value="operator">Active operator — can answer overtime</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {autoRole === "operator"
+                  ? <>Accounts from this link work straight away as <b>operator</b>: their own overtime asks and answers, nothing else. You still get a notification for each one and can deactivate them in Users.</>
+                  : <>Accounts wait with no role until you set one in Users. Right for office logins; slow for a whole floor.</>}
+              </p>
+            </div>
+
             <div className="flex justify-end">
               <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}Save</Button>
             </div>
-            <p className="rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
-              To approve a pending user: find them in the staff list (shown as <b>Inactive</b>, no role), edit them, set a role and mark <b>Active</b>.
-            </p>
+            {autoRole === "pending" && (
+              <p className="rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
+                To approve a pending user: find them in the staff list (shown as <b>Inactive</b>, no role), edit them, set a role and mark <b>Active</b>.
+              </p>
+            )}
           </>
         )}
       </CardContent>
