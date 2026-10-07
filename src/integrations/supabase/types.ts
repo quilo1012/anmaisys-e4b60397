@@ -2598,6 +2598,158 @@ export type Database = {
           },
         ]
       }
+      overtime_outcomes: {
+        Row: {
+          note: string | null
+          outcome: string
+          recorded_at: string
+          recorded_by: string
+          response_id: string
+        }
+        Insert: {
+          note?: string | null
+          outcome: string
+          recorded_at?: string
+          recorded_by: string
+          response_id: string
+        }
+        Update: {
+          note?: string | null
+          outcome?: string
+          recorded_at?: string
+          recorded_by?: string
+          response_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "overtime_outcomes_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: true
+            referencedRelation: "overtime_responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      overtime_requests: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          created_by: string
+          department: string | null
+          ends_at: string
+          headcount: number
+          id: string
+          note: string | null
+          on_date: string
+          shift_group: string | null
+          starts_at: string
+          status: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          created_by: string
+          department?: string | null
+          ends_at: string
+          headcount: number
+          id?: string
+          note?: string | null
+          on_date: string
+          shift_group?: string | null
+          starts_at: string
+          status?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string
+          department?: string | null
+          ends_at?: string
+          headcount?: number
+          id?: string
+          note?: string | null
+          on_date?: string
+          shift_group?: string | null
+          starts_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      overtime_responses: {
+        Row: {
+          answer: string
+          answered_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision: string | null
+          employee_id: string
+          id: string
+          request_id: string
+        }
+        Insert: {
+          answer: string
+          answered_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string | null
+          employee_id: string
+          id?: string
+          request_id: string
+        }
+        Update: {
+          answer?: string
+          answered_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision?: string | null
+          employee_id?: string
+          id?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "overtime_responses_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overtime_responses_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "overtime_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      overtime_rules: {
+        Row: {
+          id: boolean
+          late_cancel_blocks: boolean
+          late_cancel_hours: number
+          no_show_block_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          late_cancel_blocks?: boolean
+          late_cancel_hours?: number
+          no_show_block_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          late_cancel_blocks?: boolean
+          late_cancel_hours?: number
+          no_show_block_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       packaging_bom: {
         Row: {
           component: string
@@ -4939,18 +5091,24 @@ export type Database = {
           enabled: boolean
           id: boolean
           invite_code: string | null
+          invite_expires_at: string | null
+          self_signup_role: Database["public"]["Enums"]["app_role"] | null
           updated_at: string
         }
         Insert: {
           enabled?: boolean
           id?: boolean
           invite_code?: string | null
+          invite_expires_at?: string | null
+          self_signup_role?: Database["public"]["Enums"]["app_role"] | null
           updated_at?: string
         }
         Update: {
           enabled?: boolean
           id?: boolean
           invite_code?: string | null
+          invite_expires_at?: string | null
+          self_signup_role?: Database["public"]["Enums"]["app_role"] | null
           updated_at?: string
         }
         Relationships: []
@@ -6682,6 +6840,25 @@ export type Database = {
         Args: { _new_email: string; _user_id: string }
         Returns: undefined
       }
+      answer_overtime: {
+        Args: { p_answer: string; p_request_id: string }
+        Returns: {
+          answer: string
+          answered_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision: string | null
+          employee_id: string
+          id: string
+          request_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "overtime_responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assign_work_order_engineer: {
         Args: { _engineer_id: string; _wo_id: string }
         Returns: Json
@@ -6690,6 +6867,7 @@ export type Database = {
         Args: { _grace_hours?: number }
         Returns: number
       }
+      can_manage_overtime: { Args: { uid: string }; Returns: boolean }
       check_invite_code: { Args: { code: string }; Returns: boolean }
       cleanup_batch_skus: {
         Args: never
@@ -6884,6 +7062,38 @@ export type Database = {
           status: string
         }[]
       }
+      link_me_to_employee: {
+        Args: { p_employee_id: string }
+        Returns: {
+          active: boolean
+          created_at: string
+          current_line_id: string | null
+          department: string | null
+          email: string | null
+          employee_ref: string | null
+          employment_type: string
+          full_name: string
+          headcount_area_id: string | null
+          id: string
+          left_on: string | null
+          manager_id: string | null
+          notes: string | null
+          position: string | null
+          sheet_aliases: string | null
+          shift_group: string | null
+          shift_pattern_id: string | null
+          source: string
+          started_on: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       list_active_profile_names: {
         Args: never
         Returns: {
@@ -7003,6 +7213,65 @@ export type Database = {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined
       }
+      my_employee_id: { Args: never; Returns: string }
+      my_overtime_block: {
+        Args: never
+        Returns: {
+          blocked_until: string
+          on_date: string
+          reason: string
+        }[]
+      }
+      my_overtime_identity: {
+        Args: never
+        Returns: {
+          department: string
+          full_name: string
+          id: string
+          shift_group: string
+        }[]
+      }
+      overtime_block_for: {
+        Args: { p_employee_id: string }
+        Returns: {
+          blocked_until: string
+          on_date: string
+          reason: string
+        }[]
+      }
+      overtime_push_targets: {
+        Args: { p_employee_ids?: string[]; p_request_id: string }
+        Returns: string[]
+      }
+      overtime_reliability: {
+        Args: { p_month?: string }
+        Returns: {
+          absent_this_month: number
+          blocked_until: string
+          employee_id: string
+          ot_accepted_60d: number
+          ot_attended_60d: number
+          sick_this_month: number
+        }[]
+      }
+      overtime_roster: {
+        Args: never
+        Returns: {
+          department: string
+          full_name: string
+          id: string
+          shift_group: string
+        }[]
+      }
+      overtime_unlinked_names: {
+        Args: never
+        Returns: {
+          department: string
+          full_name: string
+          id: string
+          shift_group: string
+        }[]
+      }
       pair_device: {
         Args: { _label?: string; _line_id: string; _token: string }
         Returns: undefined
@@ -7033,6 +7302,13 @@ export type Database = {
         }[]
       }
       receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
+      record_overtime_outcome: {
+        Args: { p_note?: string; p_outcome: string; p_response_id: string }
+        Returns: {
+          promoted_employee_id: string
+          promoted_response_id: string
+        }[]
+      }
       refresh_site_banner: { Args: never; Returns: undefined }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
       reopen_wo_as_recurrence: {
@@ -7226,6 +7502,7 @@ export type Database = {
         Args: { _version_id: number }
         Returns: undefined
       }
+      self_signup_role: { Args: never; Returns: string }
       session_write_deadline: {
         Args: { _session_date: string; _shift: string }
         Returns: string
