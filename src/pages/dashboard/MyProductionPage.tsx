@@ -18,6 +18,8 @@ import { ShiftScrapCard } from "@/components/production/ShiftScrapCard";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
 import { canUseLineChat } from "@/lib/permissions";
 import { londonHM } from "@/lib/shifts";
+import { parseWholeQuantity } from "@/lib/wholeQuantity";
+import { parseBlenderLabel } from "@/lib/blenderLabel";
 import { LoggingShiftProvider, useLoggingShift } from "@/contexts/LoggingShiftContext";
 import { ShiftHandoverGate, CarriedOverShiftBanner } from "@/components/production/ShiftHandoverGate";
 import { shiftTimeToIso, runMinutes } from "@/lib/productionTime";
@@ -861,11 +863,15 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
   };
 
   const onSave = async (opts?: { keepProduct?: boolean }) => {
-    const quantity = Number(qty);
-    // Blenders can be combined ("7/8"). Keep the typed label as the identity and
-    // take the first number for the numeric column used in reporting.
-    const blenderLabel = blender.trim();
-    const blenderNum = Number((blenderLabel.match(/\d+/) ?? [""])[0]);
+    // `quantity` is an integer column, and "2.428" is 2428 with a thousands
+    // separator, not two-point-four. See src/lib/wholeQuantity.ts for why this
+    // refuses and names the figure rather than rounding it to 2.
+    const parsedQty = parseWholeQuantity(qty);
+    // Blenders can be combined ("7/8"), the typed label is the entry's identity,
+    // and the numeric column has a ceiling. See src/lib/blenderLabel.ts for why an
+    // out-of-range figure is named here instead of travelling to Postgres and
+    // coming back as a constraint name.
+    const parsedBlender = parseBlenderLabel(blender);
     // Free-text SKU: if nothing was picked from the catalog, log the typed code
     // as-is (no new SKU is created). Admin reconciles the real SKU later.
     const rawCode = skuQuery.trim().replace(/\s+—\s+.*$/, "").trim();
@@ -880,8 +886,11 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
     if (parsed.exp && parsed.exp !== expMonth) setExpMonth(parsed.exp);
     if (!selectedSku && !rawCode) { toast.error("Enter or select a SKU"); return; }
     if (!batchClean) { toast.error("Enter the batch code"); return; }
-    if (!blenderLabel || !Number.isFinite(blenderNum) || blenderNum < 1) { toast.error("Enter the blender (e.g. 3 or 7/8)"); return; }
-    if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
+    if (parsedBlender.message) { toast.error(parsedBlender.message); return; }
+    const blenderLabel = parsedBlender.label;
+    const blenderNum = parsedBlender.number;
+    if (parsedQty.message) { toast.error(parsedQty.message); return; }
+    const quantity = parsedQty.value;
 
     // Both times, always.
     //
@@ -1440,11 +1449,15 @@ function LoggedThisShift({ sessionId }: { sessionId: string }) {
 
   const onSaveEdit = async () => {
     if (!editing) return;
-    const label = editing.blender.trim();
-    const num = Number((label.match(/\d+/) ?? [""])[0]);
-    const quantity = Number(editing.qty);
-    if (!label || !Number.isFinite(num) || num < 1) { toast.error("Enter the blender (e.g. 3 or 7/8)"); return; }
-    if (!Number.isFinite(quantity) || quantity <= 0) { toast.error("Enter a quantity greater than 0"); return; }
+    // Same columns, same ceiling, same separator habit — a correction goes through
+    // the same parse as the original entry, or the fix would be the way round it.
+    const parsedBlender = parseBlenderLabel(editing.blender);
+    const parsedQty = parseWholeQuantity(editing.qty);
+    if (parsedBlender.message) { toast.error(parsedBlender.message); return; }
+    if (parsedQty.message) { toast.error(parsedQty.message); return; }
+    const label = parsedBlender.label;
+    const num = parsedBlender.number;
+    const quantity = parsedQty.value;
     setSavingEdit(true);
     try {
       const { error: e1 } = await (supabase as any)
