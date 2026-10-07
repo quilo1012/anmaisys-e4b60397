@@ -238,12 +238,31 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * Open, close or cancel an ask — and say so when it did not happen.
+   *
+   * An UPDATE refused by RLS is not an error. `overtime_requests_manage` is gated on
+   * `can_manage_overtime`, and a caller without it simply matches no rows: PostgREST
+   * answers 204, the mutation resolves, `refresh` refetches, and the ask comes back
+   * exactly as it was. "Cancel ask" looked like a dead button and could not say why.
+   *
+   * Asking for the row back is what turns that silence into an answer. An INSERT in
+   * the same position does raise — RLS violations on insert are errors — which is why
+   * `createRequest` needs nothing, and `decide` already asks with `.single()`. This
+   * was the one write that did neither.
+   */
   const setRequestStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: OvertimeRequest["status"] }) => {
       const patch: Partial<OvertimeRequest> = { status };
       if (status !== "open") patch.closed_at = new Date().toISOString();
-      const { error } = await db.from("overtime_requests").update(patch).eq("id", id);
+      const { data, error } = await db
+        .from("overtime_requests").update(patch).eq("id", id).select("id");
       if (error) throw error;
+      if (!((data as { id: string }[] | null)?.length)) {
+        throw new Error(
+          "You do not have permission to change this overtime ask, or it no longer exists.",
+        );
+      }
     },
     onSuccess: refresh,
   });
