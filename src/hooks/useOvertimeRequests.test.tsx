@@ -67,6 +67,21 @@ describe("setRequestStatus", () => {
     expect((result.current.setRequestStatus.error as Error).message).toMatch(/permission|not allowed|cannot/i);
   });
 
+  it("fails the same way for an ask that is not there, and does not claim it worked", async () => {
+    // Indistinguishable from the refusal above at the wire — both are zero rows — and
+    // that is the point. The old code called both of them success; neither is. The
+    // message covers the two because the client cannot tell them apart and should not
+    // guess: an ask somebody else just cancelled and an ask you may not touch look
+    // identical from here.
+    updateReturns = [];
+    const { result } = renderHook(() => useOvertimeMutations(), { wrapper: wrapper() });
+    result.current.setRequestStatus.mutate({ id: "does-not-exist", status: "cancelled" });
+
+    await waitFor(() => expect(result.current.setRequestStatus.isError).toBe(true));
+    expect(result.current.setRequestStatus.isSuccess).toBe(false);
+    expect((result.current.setRequestStatus.error as Error).message).toMatch(/no longer exists|permission/i);
+  });
+
   it("succeeds when the row comes back", async () => {
     updateReturns = [{ id: "ask-1" }];
     const { result } = renderHook(() => useOvertimeMutations(), { wrapper: wrapper() });
