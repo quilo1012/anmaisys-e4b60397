@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePublicTabletAccounts, type PublicTabletAccount } from "@/hooks/useOperatorAccounts";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
+import { setFavicon, resetFavicon } from "@/lib/favicon";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
 import { SignupQrCard } from "@/components/SignupQrCard";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -48,6 +49,10 @@ const TABLET_SELECTION_TTL_MS = 8 * 60 * 60 * 1000;
 // refresh-token was revoked (e.g. the same shared account refreshing on
 // another tablet). Scoped to shared tablet accounts only — never used for staff.
 const TABLET_CRED_KEY = "an_tablet_cred";
+// Quanto tempo o campo de identificação tem de estar parado antes de a marca do
+// posto passar para o separador. O ícone é uma etiqueta, não um indicador de
+// digitação: só muda depois de quem escreve ter acabado.
+const FAVICON_SETTLE_MS = 400;
 
 function getStoredTabletId(): string {
   if (typeof window === "undefined") return "";
@@ -214,22 +219,26 @@ export default function Login() {
   }, [listOpen]);
 
   // Reflect the active per-tablet / per-mode favicon in the browser tab too.
-  // Restores the default on unmount.
+  //
+  // `matchedTablet` resolve-se a cada tecla escrita no campo de identificação, e
+  // ligar isto directamente ao efeito fazia o ícone do separador saltar entre a
+  // marca do posto e a marca de staff letra a letra. Um ícone que pisca a cada
+  // tecla não identifica coisa nenhuma — só se espera que o campo assente. Quem
+  // repõe o ícone por omissão é o módulo, a partir do que o markup declarou, e
+  // não deste efeito a guardar o href que lá estava (que a meio da escrita já
+  // era o de outra marca).
   const brandingKey = matchedTablet ? "tablet" : "staff";
+  const brandedFavicon = matchedTablet?.favicon_url || branding?.[brandingKey]?.url || null;
   useEffect(() => {
-    const url = matchedTablet?.favicon_url || branding?.[brandingKey]?.url || "/favicon.png";
-    let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
-    const previous = link?.href;
-    if (!link) {
-      link = document.createElement("link");
-      link.rel = "icon";
-      document.head.appendChild(link);
-    }
-    link.href = url;
-    return () => {
-      if (link && previous) link.href = previous;
-    };
-  }, [brandingKey, matchedTablet?.favicon_url, branding]);
+    const t = window.setTimeout(() => {
+      if (brandedFavicon) setFavicon(brandedFavicon);
+      else resetFavicon();
+    }, FAVICON_SETTLE_MS);
+    return () => window.clearTimeout(t);
+  }, [brandedFavicon]);
+
+  // Ao sair do login o separador volta à marca do sistema.
+  useEffect(() => resetFavicon, []);
 
   const pickTablet = (acc: PublicTabletAccount) => {
     setIdentifier(acc.label);

@@ -6,6 +6,7 @@ import { AlertTriangle, Bell, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { acknowledgeWOLocal } from "@/lib/woAck";
+import { setFaviconBadge as paintFaviconBadge, clearFaviconBadge, badgeBaseUrl } from "@/lib/favicon";
 
 export interface CriticalAlertPayload {
   woId: string;
@@ -62,18 +63,17 @@ const CHIME_INTERVAL_MS = 3000;
 const CHIME_PEAK = 0.28;
 
 // ─── Favicon badge ────────────────────────────────────────────────────────────
-let originalFaviconHref: string | null = null;
-function getFaviconLink(): HTMLLinkElement | null {
-  return document.querySelector<HTMLLinkElement>("link[rel~='icon']");
-}
+// O crachá é uma sobreposição temporária: desenha-se sobre a marca em vigor e,
+// quando não há alertas por reconhecer, larga o separador para quem manda nele.
+// Quem repõe é `clearFaviconBadge`, que descobre a camada de baixo — este
+// módulo já não guarda "o href que lá estava", que era o que fazia o crachá
+// deixar para trás o ícone de outro ecrã depois de acabar.
 function setFaviconBadge(count: number) {
-  const link = getFaviconLink();
-  if (!link) return;
-  if (originalFaviconHref === null) originalFaviconHref = link.href;
   if (count <= 0) {
-    link.href = originalFaviconHref;
+    clearFaviconBadge();
     return;
   }
+  const base = badgeBaseUrl();
   try {
     const size = 64;
     const canvas = document.createElement("canvas");
@@ -95,7 +95,7 @@ function setFaviconBadge(count: number) {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(count > 9 ? "9+" : String(count), size - 18, 19);
-      link.href = canvas.toDataURL("image/png");
+      paintFaviconBadge(canvas.toDataURL("image/png"));
     };
     img.onerror = () => {
       // Fallback: draw badge alone
@@ -108,9 +108,9 @@ function setFaviconBadge(count: number) {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(count > 9 ? "9+" : String(count), size / 2, size / 2 + 2);
-      link.href = canvas.toDataURL("image/png");
+      paintFaviconBadge(canvas.toDataURL("image/png"));
     };
-    img.src = originalFaviconHref;
+    img.src = base;
   } catch {
     /* ignore */
   }
