@@ -7,8 +7,18 @@
     <meta name="description" content="AN Maintenance — Industrial Maintenance Management System" />
     <meta name="author" content="Applied Nutrition" />
 
-    <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!-- Uma marca só, declarada em todos os tamanhos que um browser pede. O
+         separador trocava de ícone porque havia duas marcas a competir: o
+         index.html apontava para /favicon.png (o átomo AN, quadrado) e o
+         site.webmanifest para /android-chrome-*.png (o letreiro largo "Applied
+         Nutrition Manutenção"), e o Chrome tanto pode usar um como o outro.
+         Sem /favicon.ico, o pedido implícito do browser caía no index.html do
+         SPA — HTML servido como ícone, que dá o globo cinzento. Agora todos os
+         caminhos dão na mesma imagem. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#1F4E79" />
 
