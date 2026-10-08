@@ -13,9 +13,10 @@ import {
 } from "@/hooks/useOvertimeRequests";
 import {
   requestIsForEmployee, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
-  type OvertimeRequest,
+  headcountLine, audienceLine, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
+import { ModuleHeader } from "@/components/ui/ModuleHeader";
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -37,10 +38,18 @@ export default function MyOvertimePage() {
   return (
     <DashboardLayout>
       <div className="mx-auto max-w-xl space-y-4">
-        <div>
-          <h1 className="text-xl font-semibold">Overtime</h1>
-          <p className="text-sm text-muted-foreground">Say yes or no. The supervisor picks and you'll see it here.</p>
-        </div>
+        {/* The band, like every other screen in the system. This page opened with a
+            bare <h1> on white — the sixth screen to do it, and the exact thing
+            ModuleHeader was written to end: five screens about the same people, two
+            different headers, so moving between them read as leaving the section.
+            `brand` because this one is answered from a phone, where the sidebar is a
+            closed drawer and nothing else on the page carries the mark. */}
+        <ModuleHeader
+          module="Overtime"
+          title="Overtime"
+          description="Say yes or no. The supervisor picks, and you'll see it here."
+          brand
+        />
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
         ) : me ? (
@@ -122,11 +131,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const reply = (request: OvertimeRequest, a: "yes" | "no") =>
     answer.mutate({ requestId: request.id, answer: a }, {
       onSuccess: () => toast.success(
-        a === "yes" ? `Overtime confirmed for ${fmtDate(request.on_date)}` : `Noted — you said no to ${fmtDate(request.on_date)}`,
+        // The button says "Yes, I can", so the answer says you said yes. It used to
+        // say "Overtime confirmed", which is the supervisor's word and not yours —
+        // the very collapse the two-line receipt below exists to undo.
+        a === "yes"
+          ? `You said yes to ${fmtDate(request.on_date)}`
+          : `You said no to ${fmtDate(request.on_date)}`,
         {
           description: a === "yes"
-            ? `${windowLabel(request.starts_at, request.ends_at)}${request.shift_group ? ` · ${request.shift_group}` : ""} — waiting for the supervisor to pick the team.`
-            : `${windowLabel(request.starts_at, request.ends_at)}${request.shift_group ? ` · ${request.shift_group}` : ""}`,
+            ? `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}. The supervisor picks the team next.`
+            : `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}.`,
         },
       ),
       onError: (e) => toast.error((e as Error).message || "Could not save your answer"),
@@ -143,7 +157,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
 
   return (
     <div className="space-y-3">
-      <div className="text-xs text-muted-foreground">Signed in as {me.full_name}{me.shift_group ? ` · ${me.shift_group}` : ""}</div>
+      <div className="text-xs text-muted-foreground">
+        Signed in as {me.full_name}{me.shift_group ? `, ${me.shift_group} crew` : ""}
+      </div>
       {block && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="flex items-start gap-3 py-4 text-sm">
@@ -168,13 +184,19 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           : my?.decision === "declined" || r.status !== "open" ? "bg-muted text-muted-foreground"
           : "";
         return (
-          <Card key={r.id} className={cn(r.status !== "open" && "opacity-80")}>
+          /* Shape, not opacity. A closed ask used to be the same card at
+             `opacity-80`, which reads as "still loading" rather than "this is over".
+             It loses its buttons and gains a rule instead — the card changes form,
+             which can be seen without reading it. */
+          <Card key={r.id} className={cn(r.status !== "open" && "border-dashed bg-muted/30")}>
             <CardContent className="space-y-3 pt-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-base font-medium">{fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {r.headcount} needed{r.shift_group ? ` · ${r.shift_group}` : ""}{r.department ? ` · ${r.department}` : ""}{r.note ? ` · ${r.note}` : ""}
+                  {/* A sentence, not four facts on middle dots. The note gets its
+                      own line because it is the only thing here a person wrote. */}
+                  <div className="text-sm text-muted-foreground">
+                    {headcountLine(r)} — {audienceLine(r)}
                   </div>
                 </div>
                 <Badge variant="outline" className={cn("shrink-0 font-normal", tone)}>
@@ -183,6 +205,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   {status}
                 </Badge>
               </div>
+              {r.note && <p className="text-sm italic text-foreground/80">“{r.note}”</p>}
               {my && (
                 /* Two lines on purpose. The first is what this person said, which is
                    theirs and does not change; the second is what the supervisor has
@@ -200,12 +223,6 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                       <span className="font-medium">{supervisorLabel(r, my)}</span>
                     </div>
                   )}
-                  <div className="mt-1 flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Shift</span>
-                    <span className="font-medium">
-                      {windowLabel(r.starts_at, r.ends_at)}{r.shift_group ? ` · ${r.shift_group}` : ""}
-                    </span>
-                  </div>
                 </div>
               )}
               {canAnswer && (

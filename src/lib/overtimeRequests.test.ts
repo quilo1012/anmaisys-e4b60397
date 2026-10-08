@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
-  myAnswerLabel, supervisorLabel,
+  myAnswerLabel, supervisorLabel, headcountLine, audienceLine,
   type Reliability, type OvertimeResponse, type Candidate,
 } from "./overtimeRequests";
 
@@ -187,5 +187,40 @@ describe("supervisorLabel", () => {
   });
   it("does not wait on behalf of somebody who said no", () => {
     expect(supervisorLabel({ status: "open" }, { answer: "no", decision: null })).toBeNull();
+  });
+});
+
+/**
+ * Who the ask is for, and how many it needs — as words.
+ *
+ * Both screens built this the same way and it is the commonest tell there is:
+ * `{headcount} needed · {shift_group} · {department} · {note}`. Four different kinds
+ * of fact threaded onto middle dots, so the one that decides whether you read on —
+ * how many people are needed — carries the same weight as a note somebody typed.
+ *
+ * Two functions rather than one, because they answer two questions and the two
+ * screens need them in different places: the supervisor's card leads with who can
+ * see it, the floor's card leads with how many are wanted.
+ */
+describe("headcountLine", () => {
+  it("counts people, and counts one of them properly", () => {
+    expect(headcountLine({ headcount: 4 })).toBe("4 people needed");
+    expect(headcountLine({ headcount: 1 })).toBe("1 person needed");
+  });
+});
+
+describe("audienceLine", () => {
+  it("names the department and the crew when the ask names both", () => {
+    expect(audienceLine({ department: "Production", shift_group: "Day" }))
+      .toBe("Production, Day crew");
+  });
+  it("names whichever one the ask narrowed on", () => {
+    expect(audienceLine({ department: "Production", shift_group: null })).toBe("Production");
+    expect(audienceLine({ department: null, shift_group: "Night" })).toBe("Night crew");
+  });
+  it("says everyone when the ask named nobody, rather than leaving a gap", () => {
+    // An empty line reads as missing data. "Everyone" is the actual rule: a null on
+    // the ask means it was not narrowed — see `requestIsForEmployee`.
+    expect(audienceLine({ department: null, shift_group: null })).toBe("Everyone");
   });
 });

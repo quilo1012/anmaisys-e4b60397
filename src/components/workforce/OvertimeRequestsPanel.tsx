@@ -18,7 +18,7 @@ import {
 } from "@/hooks/useOvertimeRequests";
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
-  windowLabel, type OvertimeRequest, type OvertimeOutcome, type Candidate,
+  windowLabel, audienceLine, type OvertimeRequest, type OvertimeOutcome, type Candidate,
 } from "@/lib/overtimeRequests";
 import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
 
@@ -262,19 +262,42 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
               {fmtDate(request.on_date)} · {windowLabel(request.starts_at, request.ends_at)}
               {request.status !== "open" && <Badge variant="outline" className="capitalize">{request.status}</Badge>}
             </CardTitle>
-            <div className="mt-1 text-xs text-muted-foreground">
-              {request.department ?? "Everyone"}{request.shift_group ? ` · ${request.shift_group}` : ""}
-              {request.note ? ` · ${request.note}` : ""}
-            </div>
-          </div>
-          <div className="text-right text-sm">
-            <div className="font-medium">Needs {counts.headcount}</div>
-            <div className="text-xs text-muted-foreground">
-              {counts.interested} interested · {counts.accepted} accepted{counts.reserve ? ` · ${counts.reserve} reserve` : ""}
-            </div>
-            {counts.short > 0 && request.status === "open" && (
-              <div className="text-xs font-medium text-warning">{counts.short} still to pick</div>
+            {/* Who can see it, as a sentence. The note is on its own line below: it
+                is the only thing on this card somebody typed, and threading it onto
+                middle dots after the department hid it. */}
+            <div className="mt-1 text-xs text-muted-foreground">{audienceLine(request)}</div>
+            {request.note && (
+              <p className="mt-1 text-xs italic text-foreground/80">“{request.note}”</p>
             )}
+          </div>
+          {/* The one question this screen is for: how far from a full team. It was a
+              sentence of four counts, with the number that drives the whole card —
+              how many are still to pick — set in the smallest text on it. A meter
+              answers it before anything is read; the counts stay underneath, because
+              picking still needs them. */}
+          <div className="min-w-[11rem] text-sm">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-medium">
+                {counts.accepted} of {counts.headcount} picked
+              </span>
+              {counts.short > 0 && request.status === "open" && (
+                <span className="text-xs font-medium text-warning">{counts.short} to go</span>
+              )}
+            </div>
+            <div
+              className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted"
+              role="img"
+              aria-label={`${counts.accepted} of ${counts.headcount} picked`}
+            >
+              <div
+                className={cn("h-full rounded-full transition-[width]",
+                  counts.short === 0 ? "bg-success" : "bg-warning")}
+                style={{ width: `${Math.min(100, (counts.accepted / Math.max(1, counts.headcount)) * 100)}%` }}
+              />
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {counts.interested} said yes{counts.reserve ? `, ${counts.reserve} on reserve` : ""}
+            </div>
           </div>
         </div>
       </CardHeader>

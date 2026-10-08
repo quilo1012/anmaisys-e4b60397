@@ -237,6 +237,34 @@ export function supervisorLabel(
   return "Waiting for the supervisor";
 }
 
+/**
+ * How many people the ask wants, in words.
+ *
+ * Both screens built this as `{headcount} needed · {shift_group} · {department}` —
+ * four kinds of fact threaded onto middle dots, so the number that decides whether
+ * somebody reads on carried the same weight as a note typed by hand.
+ */
+export function headcountLine(request: Pick<OvertimeRequest, "headcount">): string {
+  return `${request.headcount} ${request.headcount === 1 ? "person" : "people"} needed`;
+}
+
+/**
+ * Who can answer the ask, in words. Separate from `headcountLine` because the two
+ * screens lead with different halves: the supervisor's card asks who can see this,
+ * the floor's card asks how many are wanted.
+ *
+ * "Everyone" rather than an empty line: a null on the ask means it was not narrowed
+ * — the same rule `requestIsForEmployee` reads — and a gap would look like missing
+ * data instead of the answer.
+ */
+export function audienceLine(
+  request: Pick<OvertimeRequest, "department" | "shift_group">,
+): string {
+  const crew = request.shift_group ? `${request.shift_group} crew` : null;
+  if (request.department && crew) return `${request.department}, ${crew}`;
+  return request.department ?? crew ?? "Everyone";
+}
+
 /** `14:00–22:00` from two Postgres times, with or without seconds. */
 export function windowLabel(startsAt: string, endsAt: string): string {
   const hm = (t: string) => t.slice(0, 5);
