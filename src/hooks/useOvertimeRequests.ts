@@ -330,11 +330,24 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * The rules, and the same refusal to fail quietly as `setRequestStatus`.
+   *
+   * `overtime_rules` is gated by `overtime_rules_manage` on `can_manage_overtime`, so
+   * a caller without the action matches no row and gets a 204 — no error. This screen
+   * sets how many days a no-show keeps somebody out of overtime and what counts as a
+   * late cancellation, so the silent version of this is a supervisor who believes a
+   * block is off, on a dialog that said it saved, with the block still on.
+   */
   const saveRules = useMutation({
     mutationFn: async (rules: OvertimeRules) => {
-      const { error } = await db.from("overtime_rules")
-        .update({ ...rules, updated_at: new Date().toISOString(), updated_by: user!.id }).eq("id", true);
+      const { data, error } = await db.from("overtime_rules")
+        .update({ ...rules, updated_at: new Date().toISOString(), updated_by: user!.id })
+        .eq("id", true).select("id");
       if (error) throw error;
+      if (!((data as { id: boolean }[] | null)?.length)) {
+        throw new Error("You do not have permission to change the overtime rules.");
+      }
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["overtime_rules"] });

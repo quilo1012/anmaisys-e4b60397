@@ -90,3 +90,38 @@ describe("setRequestStatus", () => {
     await waitFor(() => expect(result.current.setRequestStatus.isSuccess).toBe(true));
   });
 });
+
+/**
+ * The same silence, on the screen that decides who is blocked.
+ *
+ * `saveRules` wrote `.update(...).eq("id", true)` and threw only on `error` — the
+ * shape `setRequestStatus` had. `overtime_rules` is gated by `overtime_rules_manage`
+ * on `can_manage_overtime`, so a caller without the action matches no row, gets a
+ * 204, and the mutation resolves. The dialog already shows `onError`, so nothing was
+ * missing there: the write simply never said no.
+ *
+ * It matters more than the ask buttons do. These are the rules that decide how long
+ * somebody is kept out of overtime after a no-show and what counts as a late
+ * cancellation — so the failure is a supervisor who believes they have turned a block
+ * off, on a screen that said "Overtime rules saved", with the block still on.
+ */
+describe("saveRules", () => {
+  const rules = { no_show_block_days: 0, late_cancel_hours: 0, late_cancel_blocks: false };
+
+  it("fails when the write changed no row", async () => {
+    updateReturns = [];
+    const { result } = renderHook(() => useOvertimeMutations(), { wrapper: wrapper() });
+    result.current.saveRules.mutate(rules);
+
+    await waitFor(() => expect(result.current.saveRules.isError).toBe(true));
+    expect((result.current.saveRules.error as Error).message).toMatch(/permission|not allowed|cannot/i);
+  });
+
+  it("succeeds when the row comes back", async () => {
+    updateReturns = [{ id: true }];
+    const { result } = renderHook(() => useOvertimeMutations(), { wrapper: wrapper() });
+    result.current.saveRules.mutate(rules);
+
+    await waitFor(() => expect(result.current.saveRules.isSuccess).toBe(true));
+  });
+});
