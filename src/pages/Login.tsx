@@ -21,6 +21,7 @@ import { usePublicTabletAccounts, type PublicTabletAccount } from "@/hooks/useOp
 import { invokeFunction } from "@/lib/invokeFunction";
 import { useLoginBranding } from "@/hooks/useLoginBranding";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
+import { SignupQrCard } from "@/components/SignupQrCard";
 import { AuthShell } from "@/components/auth/AuthShell";
 import {
   authBtnBase,
@@ -670,6 +671,11 @@ export default function Login() {
           </p>
         )}
       </form>
+
+      {/* On a shared tablet there is no "create account": the login would be bound to
+          one person for good, and the next twenty people would answer overtime as
+          them. The code sends them to their own phone instead. */}
+      {!showCreateAccount && (matchedTablet || hasTablets) && <SignupQrCard />}
 
       {showCreateAccount && (
         <p className="mt-6 text-sm text-auth-ink-muted">

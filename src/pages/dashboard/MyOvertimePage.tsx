@@ -11,7 +11,10 @@ import {
   useMyEmployee, useUnlinkedEmployees, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
   useMyOvertimeBlock,
 } from "@/hooks/useOvertimeRequests";
-import { requestIsForEmployee, myStatusLabel, windowLabel } from "@/lib/overtimeRequests";
+import {
+  requestIsForEmployee, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
+  type OvertimeRequest,
+} from "@/lib/overtimeRequests";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 
 const fmtDate = (d: string) =>
@@ -107,9 +110,25 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
     [requests, me, today, mine],
   );
 
-  const reply = (requestId: string, a: "yes" | "no") =>
-    answer.mutate({ requestId, answer: a }, {
-      onSuccess: () => toast.success(a === "yes" ? "Marked you as interested" : "Noted — you said no"),
+  /**
+   * The answer, and a receipt that says which day it was for.
+   *
+   * "Marked you as interested" was true and not enough: somebody who answers three
+   * asks in a week between shifts has no way to tell which one just took, and the
+   * screen they are holding scrolls. The toast names the date and the hours, and says
+   * in the same breath that a yes is not yet a place — that part is the supervisor's,
+   * and the card below carries it on its own line.
+   */
+  const reply = (request: OvertimeRequest, a: "yes" | "no") =>
+    answer.mutate({ requestId: request.id, answer: a }, {
+      onSuccess: () => toast.success(
+        a === "yes" ? `Overtime confirmed for ${fmtDate(request.on_date)}` : `Noted — you said no to ${fmtDate(request.on_date)}`,
+        {
+          description: a === "yes"
+            ? `${windowLabel(request.starts_at, request.ends_at)}${request.shift_group ? ` · ${request.shift_group}` : ""} — waiting for the supervisor to pick the team.`
+            : `${windowLabel(request.starts_at, request.ends_at)}${request.shift_group ? ` · ${request.shift_group}` : ""}`,
+        },
+      ),
       onError: (e) => toast.error((e as Error).message || "Could not save your answer"),
     });
 
@@ -155,7 +174,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                 <div>
                   <div className="text-base font-medium">{fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}</div>
                   <div className="text-xs text-muted-foreground">
-                    {r.headcount} needed{r.department ? ` · ${r.department}` : ""}{r.note ? ` · ${r.note}` : ""}
+                    {r.headcount} needed{r.shift_group ? ` · ${r.shift_group}` : ""}{r.department ? ` · ${r.department}` : ""}{r.note ? ` · ${r.note}` : ""}
                   </div>
                 </div>
                 <Badge variant="outline" className={cn("shrink-0 font-normal", tone)}>
@@ -164,18 +183,43 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   {status}
                 </Badge>
               </div>
+              {my && (
+                /* Two lines on purpose. The first is what this person said, which is
+                   theirs and does not change; the second is what the supervisor has
+                   done about it, which is not theirs and often has not happened yet.
+                   One line could only ever say one of them, and that is how "I
+                   confirmed" started reading as "I am in". */
+                <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Your answer</span>
+                    <span className="font-medium">{myAnswerLabel(my)}</span>
+                  </div>
+                  {supervisorLabel(r, my) && (
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Supervisor</span>
+                      <span className="font-medium">{supervisorLabel(r, my)}</span>
+                    </div>
+                  )}
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Shift</span>
+                    <span className="font-medium">
+                      {windowLabel(r.starts_at, r.ends_at)}{r.shift_group ? ` · ${r.shift_group}` : ""}
+                    </span>
+                  </div>
+                </div>
+              )}
               {canAnswer && (
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     size="lg" variant={my?.answer === "yes" ? "default" : "outline"}
                     className={cn("h-12", my?.answer === "yes" && "bg-success text-success-foreground hover:bg-success/90")}
-                    disabled={answer.isPending || !!block} onClick={() => reply(r.id, "yes")}
+                    disabled={answer.isPending || !!block} onClick={() => reply(r, "yes")}
                   >
                     <Check className="mr-2 h-5 w-5" /> Yes, I can
                   </Button>
                   <Button
                     size="lg" variant={my?.answer === "no" ? "secondary" : "outline"} className="h-12"
-                    disabled={answer.isPending} onClick={() => reply(r.id, "no")}
+                    disabled={answer.isPending} onClick={() => reply(r, "no")}
                   >
                     <X className="mr-2 h-5 w-5" /> No
                   </Button>

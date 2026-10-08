@@ -238,12 +238,31 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * Open, close or cancel an ask — and say so when it did not happen.
+   *
+   * An UPDATE refused by RLS is not an error. `overtime_requests_manage` is gated on
+   * `can_manage_overtime`, and a caller without it simply matches no rows: PostgREST
+   * answers 204, the mutation resolves, `refresh` refetches, and the ask comes back
+   * exactly as it was. "Cancel ask" looked like a dead button and could not say why.
+   *
+   * Asking for the row back is what turns that silence into an answer. An INSERT in
+   * the same position does raise — RLS violations on insert are errors — which is why
+   * `createRequest` needs nothing, and `decide` already asks with `.single()`. This
+   * was the one write that did neither.
+   */
   const setRequestStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: OvertimeRequest["status"] }) => {
       const patch: Partial<OvertimeRequest> = { status };
       if (status !== "open") patch.closed_at = new Date().toISOString();
-      const { error } = await db.from("overtime_requests").update(patch).eq("id", id);
+      const { data, error } = await db
+        .from("overtime_requests").update(patch).eq("id", id).select("id");
       if (error) throw error;
+      if (!((data as { id: string }[] | null)?.length)) {
+        throw new Error(
+          "You do not have permission to change this overtime ask, or it no longer exists.",
+        );
+      }
     },
     onSuccess: refresh,
   });
@@ -311,11 +330,24 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * The rules, and the same refusal to fail quietly as `setRequestStatus`.
+   *
+   * `overtime_rules` is gated by `overtime_rules_manage` on `can_manage_overtime`, so
+   * a caller without the action matches no row and gets a 204 — no error. This screen
+   * sets how many days a no-show keeps somebody out of overtime and what counts as a
+   * late cancellation, so the silent version of this is a supervisor who believes a
+   * block is off, on a dialog that said it saved, with the block still on.
+   */
   const saveRules = useMutation({
     mutationFn: async (rules: OvertimeRules) => {
-      const { error } = await db.from("overtime_rules")
-        .update({ ...rules, updated_at: new Date().toISOString(), updated_by: user!.id }).eq("id", true);
+      const { data, error } = await db.from("overtime_rules")
+        .update({ ...rules, updated_at: new Date().toISOString(), updated_by: user!.id })
+        .eq("id", true).select("id");
       if (error) throw error;
+      if (!((data as { id: boolean }[] | null)?.length)) {
+        throw new Error("You do not have permission to change the overtime rules.");
+      }
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["overtime_rules"] });

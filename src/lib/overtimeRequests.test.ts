@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
+  myAnswerLabel, supervisorLabel,
   type Reliability, type OvertimeResponse, type Candidate,
 } from "./overtimeRequests";
 
@@ -132,5 +133,59 @@ describe("myStatusLabel", () => {
     expect(myStatusLabel({ status: "open" }, resp({ decision: "reserve" }))).toBe("Reserve");
     expect(myStatusLabel({ status: "closed" }, resp())).toBe("Filled");
     expect(myStatusLabel({ status: "closed" }, resp({ answer: "no" }))).toBe("You said no");
+  });
+});
+
+/**
+ * Two answers, two lines.
+ *
+ * `myStatusLabel` collapses the whole of an employee's position into one word, which
+ * is right for a badge and wrong for a confirmation: "Waiting" does not say whether
+ * the person said yes, and "You're in" does not say who decided it. On a phone held
+ * between shifts those are the two things being asked — did my answer land, and has
+ * anybody acted on it — and a single string can only answer one.
+ *
+ * So they are separate functions and stay separate. The employee's answer is a fact
+ * about the employee; the decision is a fact about the supervisor; and the screen
+ * showing them on one line was how "I confirmed" and "I was accepted" became the
+ * same sentence.
+ */
+describe("myAnswerLabel", () => {
+  it("says nothing happened when there is no answer", () => {
+    expect(myAnswerLabel(undefined)).toBe("Not answered");
+  });
+  it("says what the person themselves said", () => {
+    expect(myAnswerLabel({ answer: "yes", decision: null })).toBe("You said yes");
+    expect(myAnswerLabel({ answer: "no", decision: null })).toBe("You said no");
+  });
+  it("does not change when the supervisor decides — that is the other line", () => {
+    expect(myAnswerLabel({ answer: "yes", decision: "declined" })).toBe("You said yes");
+    expect(myAnswerLabel({ answer: "yes", decision: "accepted" })).toBe("You said yes");
+  });
+});
+
+describe("supervisorLabel", () => {
+  it("has nothing to say before the person answers", () => {
+    expect(supervisorLabel({ status: "open" }, undefined)).toBeNull();
+  });
+  it("says the ask is waiting while nobody has decided", () => {
+    expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: null }))
+      .toBe("Waiting for the supervisor");
+  });
+  it("names each decision the supervisor can make", () => {
+    expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: "accepted" })).toBe("Accepted");
+    expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: "reserve" })).toBe("Reserve");
+    expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: "declined" })).toBe("Not needed this time");
+  });
+  it("says the ask was cancelled over anything it was waiting for", () => {
+    // A cancelled ask is not a decision about the person, and reading "Waiting for
+    // the supervisor" on an ask that no longer exists is the worst of both.
+    expect(supervisorLabel({ status: "cancelled" }, { answer: "yes", decision: null })).toBe("Ask cancelled");
+  });
+  it("keeps a decision already made, even once the ask is closed", () => {
+    expect(supervisorLabel({ status: "closed" }, { answer: "yes", decision: "accepted" })).toBe("Accepted");
+  });
+  it("does not wait on behalf of somebody who said no", () => {
+    expect(supervisorLabel({ status: "open" }, { answer: "no", decision: null })).toBeNull();
   });
 });

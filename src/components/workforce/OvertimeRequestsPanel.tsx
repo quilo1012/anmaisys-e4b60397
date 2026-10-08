@@ -210,6 +210,25 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
   const { setRequestStatus, decide, recordOutcome, answerFor } = useOvertimeMutations();
   const [addingFor, setAddingFor] = useState<string>("");
 
+  /**
+   * Open, close or cancel — and say so when the write is refused.
+   *
+   * The mutation throws now when RLS matched no row, which it could not do before.
+   * That only helps if somebody is listening: a `mutate` with no `onError` leaves the
+   * message in react-query's state, where the person who pressed the button never
+   * sees it, and the button goes on looking dead for a different reason.
+   */
+  const changeStatus = (status: OvertimeRequest["status"]) =>
+    setRequestStatus.mutate(
+      { id: request.id, status },
+      {
+        onSuccess: () => toast.success(
+          status === "cancelled" ? "Ask cancelled" : status === "closed" ? "Ask closed" : "Ask reopened",
+        ),
+        onError: (e) => toast.error((e as Error).message || "Could not change the ask"),
+      },
+    );
+
   const byId = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
   const counts = countResponses(request, responses);
   const isPast = request.on_date < iso(new Date());
@@ -371,10 +390,10 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setRequestStatus.mutate({ id: request.id, status: "cancelled" })}>
+              <Button size="sm" variant="ghost" onClick={() => changeStatus("cancelled")}>
                 Cancel ask
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => setRequestStatus.mutate({ id: request.id, status: "closed" })}>
+              <Button size="sm" variant="secondary" onClick={() => changeStatus("closed")}>
                 Close ask
               </Button>
             </div>
@@ -382,7 +401,7 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
         )}
         {request.status !== "open" && !isPast && (
           <div className="border-t pt-3">
-            <Button size="sm" variant="ghost" onClick={() => setRequestStatus.mutate({ id: request.id, status: "open" })}>
+            <Button size="sm" variant="ghost" onClick={() => changeStatus("open")}>
               Reopen
             </Button>
           </div>

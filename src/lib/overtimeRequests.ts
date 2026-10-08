@@ -196,6 +196,47 @@ export function myStatusLabel(
   }
 }
 
+/**
+ * What the employee themselves said. A fact about the employee, and nothing else.
+ *
+ * Split from `myStatusLabel` because a badge and a confirmation are different jobs.
+ * One word is right on a badge; a person who has just pressed a button is asking two
+ * questions — did my answer land, and has anybody acted on it — and a single string
+ * can only answer one of them. Collapsing them is how "I confirmed" and "I was
+ * accepted" came to read as the same sentence on a phone held between shifts.
+ */
+export function myAnswerLabel(
+  response: Pick<OvertimeResponse, "answer" | "decision"> | undefined,
+): string {
+  if (!response) return "Not answered";
+  return response.answer === "yes" ? "You said yes" : "You said no";
+}
+
+/**
+ * What the supervisor has done about it, or null when there is nothing to report.
+ *
+ * Null rather than "nothing yet": a line that says nothing should not be drawn. It is
+ * null before the person answers, and null for somebody who said no — there is no
+ * decision to wait for on an answer that declined.
+ *
+ * A cancelled ask wins over waiting. Reading "Waiting for the supervisor" on an ask
+ * that no longer exists is the worst of both, and the cancellation is the news.
+ */
+export function supervisorLabel(
+  request: Pick<OvertimeRequest, "status">,
+  response: Pick<OvertimeResponse, "answer" | "decision"> | undefined,
+): string | null {
+  if (!response || response.answer === "no") return null;
+  switch (response.decision) {
+    case "accepted": return "Accepted";
+    case "reserve":  return "Reserve";
+    case "declined": return "Not needed this time";
+  }
+  if (request.status === "cancelled") return "Ask cancelled";
+  if (request.status === "closed")    return "Not needed this time";
+  return "Waiting for the supervisor";
+}
+
 /** `14:00–22:00` from two Postgres times, with or without seconds. */
 export function windowLabel(startsAt: string, endsAt: string): string {
   const hm = (t: string) => t.slice(0, 5);
