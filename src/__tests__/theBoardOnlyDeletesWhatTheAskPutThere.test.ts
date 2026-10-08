@@ -63,6 +63,22 @@ describe("the overtime → board bridge", () => {
     expect(s).not.toMatch(/new\.answer/i);
   });
 
+  it("hands the bridge a real boolean, because null is not false in SQL", () => {
+    // Found in production review, before this ever ran. `decision` is null for every
+    // answer nobody has decided on yet, and `null = 'accepted'` is null — so
+    // `if not p_accepted` was neither true nor false, the guard was skipped, and
+    // execution fell through to the insert. Every employee who said yes would have
+    // landed on the board with no supervisor involved, and undoing a decision would
+    // have created the allocation instead of removing it.
+    //
+    // The bare comparison reads correctly in every language with two-valued logic,
+    // which is why it survived a design review and a reading. It is asserted here
+    // rather than trusted.
+    const s = sql();
+    expect(s).toMatch(/coalesce\(new\.decision = 'accepted', false\)/);
+    expect(s).not.toMatch(/overtime_board_apply\(\s*\n?\s*new\.request_id, new\.employee_id, new\.decision = 'accepted'\)/);
+  });
+
   it("reuses the factory's own day/night line instead of writing 06 and 18 again", () => {
     const s = sql();
     expect(s).toMatch(/factory_shift_of/);

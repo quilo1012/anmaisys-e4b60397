@@ -9677,8 +9677,14 @@ returns trigger
 language plpgsql security definer set search_path = public
 as $$
 begin
+  -- `coalesce(..., false)` and not the bare comparison. `decision` is null for every
+  -- answer nobody has decided on yet, and `null = 'accepted'` is null, not false — so
+  -- `if not p_accepted` inside `overtime_board_apply` was neither true nor false, the
+  -- guard was skipped, and execution fell through to the insert. Every employee who
+  -- said yes would have landed on the board untouched by a supervisor, and undoing a
+  -- decision would have created the allocation instead of removing it.
   perform public.overtime_board_apply(
-    new.request_id, new.employee_id, new.decision = 'accepted');
+    new.request_id, new.employee_id, coalesce(new.decision = 'accepted', false));
   return new;
 end;
 $$;

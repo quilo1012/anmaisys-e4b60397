@@ -119,6 +119,23 @@ BEGIN
   SELECT count(*) INTO n FROM public.daily_allocations WHERE overtime_request_id = ask_1 AND employee_id = e_a;
   PERFORM pg_temp.expect_true('a promoted reserve reaches the board', n = 1);
 
+  -- decision back to NULL is not a decision, so it is not a place on the board. This
+  -- is the branch the bare `new.decision = 'accepted'` skipped entirely: null is not
+  -- false, so the guard was neither taken nor refused and the insert ran anyway.
+  UPDATE public.overtime_responses SET decision = NULL WHERE id = resp_a;
+  SELECT count(*) INTO n FROM public.daily_allocations
+   WHERE overtime_request_id = ask_1 AND employee_id = e_a;
+  PERFORM pg_temp.expect_true('undoing the decision takes them off the board', n = 0);
+  UPDATE public.overtime_responses SET decision = 'accepted' WHERE id = resp_a;
+
+  -- And a fresh answer with no decision at all never reaches the board: the whole
+  -- point of hanging this on the decision rather than on the answer.
+  INSERT INTO public.overtime_responses (request_id, employee_id, answer)
+  VALUES (ask_2, e_manual, 'yes');
+  SELECT count(*) INTO n FROM public.daily_allocations
+   WHERE overtime_request_id = ask_2 AND employee_id = e_manual;
+  PERFORM pg_temp.expect_true('a brand new yes is not on the board', n = 0);
+
   -- two people, one ask, two rows
   UPDATE public.overtime_responses SET decision = 'accepted' WHERE id = resp_b;
   SELECT count(*) INTO n FROM public.daily_allocations WHERE overtime_request_id = ask_1;
