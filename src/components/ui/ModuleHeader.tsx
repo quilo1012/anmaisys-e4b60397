@@ -1,4 +1,8 @@
 import { cn } from "@/lib/utils";
+// The plain mark, not public/appliedlogo.jpeg — that one is the "Applied Nutrition
+// MAINTENANCE" lockup with the gear and spanners, and has no business on a
+// production screen. Same import the print header uses.
+import appliedMark from "@/assets/appliedlogo.jpeg";
 
 /**
  * The band at the top of a screen naming which module you are in.
@@ -23,7 +27,7 @@ import { cn } from "@/lib/utils";
  * seen the tabs.
  */
 export function ModuleHeader({
-  title, description, module = "Workforce", children, className,
+  title, description, module = "Workforce", brand = false, children, className,
 }: {
   title: string;
   description?: string;
@@ -39,6 +43,16 @@ export function ModuleHeader({
    * lateral: é entre separadores que se navega sem sair da página.
    */
   module?: string;
+  /**
+   * Show the Applied Nutrition mark inside the band.
+   *
+   * Off by default, and that is the point: on a desktop the sidebar already carries
+   * it, and a second one on the same screen is noise. The floor answers overtime from
+   * a phone, where the sidebar is a closed drawer and nothing on the page says whose
+   * system this is — so the mark rides here, and only below the width where the
+   * sidebar appears.
+   */
+  brand?: boolean;
   /** Controls belonging to this screen — a period picker, Export, Print. */
   children?: React.ReactNode;
   className?: string;
@@ -54,7 +68,16 @@ export function ModuleHeader({
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
+        {brand && (
+          <div className="md:hidden">
+            <img
+              src={appliedMark}
+              alt="Applied Nutrition"
+              className="h-9 w-9 shrink-0 rounded-md object-cover ring-1 ring-white/20 print:ring-0"
+            />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
           <div className="font-display text-2xs font-semibold uppercase tracking-[0.18em] text-white/60 print:text-black/50">
             {module}
           </div>
