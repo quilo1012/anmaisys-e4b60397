@@ -23,6 +23,12 @@
 -- have to carve them out with `can_manage_overtime` — a second copy of the rule, in a
 -- place where getting it wrong hides asks from the people who manage them. Seeing an
 -- ask was never the thing that mattered; answering it is, and that is what this closes.
+--
+-- This replaces the whole function, so it carries the block from
+-- 20261006220000_a_rule_the_floor_can_read.sql verbatim. The first draft was written
+-- against the version before that one and would have dropped it: a person kept out for
+-- a no-show could sign up again the moment this ran. Found by reading
+-- pg_get_functiondef in production before applying, not by any test.
 
 create or replace function public.answer_overtime(p_request_id uuid, p_answer text)
 returns public.overtime_responses
@@ -34,6 +40,7 @@ declare
   v_dept    text;
   v_shift   text;
   v_row     public.overtime_responses;
+  v_block   record;
 begin
   if v_emp is null then
     raise exception 'No employee record is linked to this login' using errcode = 'P0001';
@@ -63,6 +70,15 @@ begin
   if exists (select 1 from public.overtime_responses
               where request_id = p_request_id and employee_id = v_emp and decision is not null) then
     raise exception 'The supervisor has already decided on your answer' using errcode = 'P0001';
+  end if;
+  -- A "no" is always allowed: it is information, not a request.
+  if p_answer = 'yes' then
+    select * into v_block from public.overtime_block_for(v_emp);
+    if v_block.blocked_until is not null then
+      raise exception 'You can''t sign up for overtime until %. (Missed overtime on %.)',
+        to_char(v_block.blocked_until, 'DD/MM'), to_char(v_block.on_date, 'DD/MM')
+        using errcode = 'P0001';
+    end if;
   end if;
 
   insert into public.overtime_responses (request_id, employee_id, answer)

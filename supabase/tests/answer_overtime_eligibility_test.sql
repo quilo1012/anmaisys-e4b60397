@@ -39,6 +39,18 @@ EXCEPTION WHEN others THEN
   RETURN true;
 END $$;
 
+-- The same call, but returns the refusal's message (null when accepted), so a case can
+-- say WHICH rule refused rather than only that something did.
+CREATE FUNCTION pg_temp.refusal(_user uuid, _request uuid, _answer text)
+RETURNS text LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', _user)::text, true);
+  PERFORM public.answer_overtime(_request, _answer);
+  RETURN NULL;
+EXCEPTION WHEN others THEN
+  RETURN SQLERRM;
+END $$;
+
 DO $$
 DECLARE
   v_creator uuid;
@@ -51,6 +63,9 @@ DECLARE
   ask_both     uuid;   -- narrowed to Production AND Day
   ask_open     uuid;   -- narrowed to nobody
   ask_cancelled uuid;
+  ask_missed   uuid;   -- yesterday's ask the Day/Production person did not turn up to
+  resp_missed  uuid;
+  msg text;
   n int;
 BEGIN
   -- `overtime_requests.created_by` is `not null references auth.users(id)`, so the
@@ -122,6 +137,58 @@ BEGIN
   SELECT count(*) INTO n FROM public.overtime_responses
    WHERE request_id = ask_both AND employee_id = e_day_prod;
   PERFORM pg_temp.expect_true('the second answer replaced the first', n = 1);
+
+  -- ---------------------------------------------------------------------------
+  -- The two rules together. answer_overtime is replaced whole by every migration
+  -- that touches it, and the first draft of the eligibility guard dropped the
+  -- no-show block from 20261006220000 without a word. These cases fail if either
+  -- rule goes missing again.
+  -- ---------------------------------------------------------------------------
+
+  -- Turn the block on (rolled back with everything else) and give the Day/Production
+  -- person a no-show yesterday: they are out until yesterday + 7.
+  UPDATE public.overtime_rules SET no_show_block_days = 7 WHERE id;
+
+  INSERT INTO public.overtime_requests
+    (on_date, starts_at, ends_at, headcount, department, shift_group, status, created_by)
+  VALUES (current_date - 1, '06:00', '14:00', 1, 'Production', 'Day', 'closed', v_creator)
+  RETURNING id INTO ask_missed;
+  INSERT INTO public.overtime_responses (request_id, employee_id, answer, decision)
+  VALUES (ask_missed, e_day_prod, 'yes', 'accepted')
+  RETURNING id INTO resp_missed;
+  INSERT INTO public.overtime_outcomes (response_id, outcome, recorded_by)
+  VALUES (resp_missed, 'no_show', v_creator);
+
+  -- Eligible for the ask by department and crew, and still kept out by the block.
+  msg := pg_temp.refusal(u_day_prod, ask_both, 'yes');
+  PERFORM pg_temp.expect_true('a blocked person is refused an ask they are eligible for',
+    msg LIKE 'You can''t sign up for overtime until%');
+
+  -- An ask that names nobody does not get round the block either.
+  msg := pg_temp.refusal(u_day_prod, ask_open, 'yes');
+  PERFORM pg_temp.expect_true('a blocked person is refused an unnarrowed ask',
+    msg LIKE 'You can''t sign up for overtime until%');
+
+  -- "No" is information, not a request: the block never stops it.
+  PERFORM pg_temp.expect_true('a blocked person may still say no',
+    pg_temp.refusal(u_day_prod, ask_open, 'no') IS NULL);
+
+  -- The eligibility guard still runs while the block is on, for the people it is for.
+  msg := pg_temp.refusal(u_night_prod, ask_both, 'yes');
+  PERFORM pg_temp.expect_true('the shift-group rule still refuses with the block on',
+    msg LIKE 'This overtime is for the % crew');
+  msg := pg_temp.refusal(u_day_wh, ask_both, 'yes');
+  PERFORM pg_temp.expect_true('the department rule still refuses with the block on',
+    msg LIKE 'This overtime is for % and you are not in it');
+
+  -- And an unblocked person is not caught by somebody else's block.
+  PERFORM pg_temp.expect_true('the block is per person',
+    pg_temp.refusal(u_night_prod, ask_open, 'yes') IS NULL);
+
+  -- Rule off: the same person, the same ask, gets in. The block was the reason.
+  UPDATE public.overtime_rules SET no_show_block_days = 0 WHERE id;
+  PERFORM pg_temp.expect_true('with the rule off the same yes is accepted',
+    pg_temp.refusal(u_day_prod, ask_both, 'yes') IS NULL);
 END $$;
 
 SELECT 'ALL TESTS PASSED' AS result;

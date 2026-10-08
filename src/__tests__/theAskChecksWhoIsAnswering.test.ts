@@ -64,6 +64,33 @@ describe("answer_overtime", () => {
     expect(guard).toBeLessThan(write);
   });
 
+  it("still keeps out a person blocked for a missed shift", () => {
+    // Every definition replaces the whole function. The first draft of the eligibility
+    // guard was written against the version before 20261006220000 and dropped the block
+    // without a word; production would have let a no-show sign straight back up.
+    const body = currentAnswerOvertime();
+    expect(body).toContain("overtime_block_for(v_emp)");
+    expect(body).toMatch(/if p_answer = 'yes' then\s+select \* into v_block/);
+    expect(body).toContain("You can''t sign up for overtime until %.");
+  });
+
+  it("runs both rules before the write, so neither can be skipped by the other", () => {
+    const body = currentAnswerOvertime();
+    const write = body.indexOf("insert into");
+    for (const guard of ["v_req.department", "v_req.shift_group", "overtime_block_for"]) {
+      const at = body.indexOf(guard);
+      expect(at, guard).toBeGreaterThan(-1);
+      expect(at, guard).toBeLessThan(write);
+    }
+  });
+
+  it("leaves an ask that names nobody open to everybody", () => {
+    // Null on the ask is "not narrowed": each guard fires only when the ask set a value.
+    const body = currentAnswerOvertime();
+    expect(body).toContain("v_req.department is not null and v_req.department is distinct from v_dept");
+    expect(body).toContain("v_req.shift_group is not null and v_req.shift_group is distinct from v_shift");
+  });
+
   it("names the two columns the screen's own rule narrows on", () => {
     // Parity with `requestIsForEmployee`: same two narrowings, same direction — a null
     // on the ask means "not narrowed", and nobody is quietly included.
