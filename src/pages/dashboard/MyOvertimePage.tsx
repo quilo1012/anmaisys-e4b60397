@@ -13,7 +13,7 @@ import {
 } from "@/hooks/useOvertimeRequests";
 import {
   requestIsForEmployee, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
-  headcountLine, audienceLine, type OvertimeRequest,
+  headcountLine, audienceLine, askIsOver, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -111,12 +111,23 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
   const mine = useMemo(() => new Map(responses.filter((r) => r.employee_id === me.id).map((r) => [r.request_id, r])), [responses, me.id]);
-  const today = new Date().toISOString().slice(0, 10);
+  /**
+   * What is still worth showing this person.
+   *
+   * The date test was `on_date >= today` and nothing else, so an ask stayed on offer
+   * for the whole calendar day — including at 23:00, nine hours after a 06:00–14:00
+   * window had closed, with both buttons live. `askIsOver` reads the hours the ask
+   * actually carries.
+   *
+   * An ask already answered stays on the list even once it is over: that is the
+   * person's own record of what they said and what came of it. What goes is the
+   * offer of a shift nobody can work any more.
+   */
   const visible = useMemo(
     () => requests
       .filter((r) => requestIsForEmployee(r, me))
-      .filter((r) => r.on_date >= today || mine.has(r.id)),
-    [requests, me, today, mine],
+      .filter((r) => mine.has(r.id) || !askIsOver(r)),
+    [requests, me, mine],
   );
 
   /**
@@ -177,7 +188,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
-        const canAnswer = r.status === "open" && !my?.decision;
+        // Open, undecided, and not already finished. The third was missing, which is
+        // how a morning that had ended was still taking answers at eleven at night.
+        const canAnswer = r.status === "open" && !my?.decision && !askIsOver(r);
         const tone =
           my?.decision === "accepted" ? "bg-success/15 text-success border-success/30"
           : my?.decision === "reserve" ? "bg-warning/15 text-warning border-warning/30"
