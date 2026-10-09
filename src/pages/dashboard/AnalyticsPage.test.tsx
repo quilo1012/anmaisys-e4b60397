@@ -85,6 +85,21 @@ const QUALITY_ACTIONS = [
     recorded_at: `${day(1)}T11:00:00.000Z`, labels: [], validation_status: null,
     description: "Magnet check", shift: "DAY", line: "Line 1", department: "Quality",
   },
+  /**
+   * Uma acção dentro do período contra uma líder que não teve sessão nenhuma nele.
+   *
+   * A tabela nasce do registo de sessões, por isso a SANDRA não tem linha — e o
+   * mosaico "Open Actions", que era a soma da coluna, deixava a acção dela de fora
+   * enquanto o painel de documentação ao lado a contava. Dois números da mesma
+   * consulta, na mesma tela, em desacordo. `points_at_creation` fixa o preço para que
+   * o teste responda por esta aritmética e não pela tabela de pontos.
+   */
+  {
+    id: "qa-sem-sessao", leader_name: "SANDRA", status: "todo", severity: "medium",
+    recorded_at: `${day(2)}T11:00:00.000Z`, labels: [], validation_status: null,
+    points_at_creation: 2,
+    description: "Allergen board not signed", shift: "DAY", line: "Line 2", department: "Supervisor",
+  },
 ];
 
 const TABLES: Record<string, Record<string, unknown>[]> = {
@@ -186,8 +201,43 @@ describe("Leader Performance — open actions and the period", () => {
   it("totals the card's Open Actions tile over the same period", async () => {
     renderPage();
     await leaderRow("Ailton");
+    // Duas acções dentro do período: a do Ailton (3 pontos, high) e a da SANDRA
+    // (2 pontos), que não tem linha na tabela por não ter tido sessão.
     await waitFor(() => {
-      expect(openActionsTile().textContent?.replace(/\s+/g, "")).toBe("13pts");
+      expect(openActionsTile().textContent?.replace(/\s+/g, "")).toBe("25pts");
     });
+  });
+
+  it("counts an action against a leader who ran no session in the period", async () => {
+    renderPage();
+    const ailton = await leaderRow("Ailton");
+    // A tabela continua a ser dos líderes que trabalharam: a SANDRA não entra...
+    expect(screen.queryByText("SANDRA")).toBeNull();
+    // ...a coluna do Ailton não a herda...
+    await waitFor(() => {
+      expect(openActionsCell(ailton).textContent?.replace(/\s+/g, "")).toBe("13p⚠1");
+    });
+    // ...e o mosaico, que soma 2, diz por baixo da tabela de onde vem a diferença.
+    await waitFor(() => {
+      expect(openActionsTile().textContent?.replace(/\s+/g, "")).toBe("25pts");
+    });
+    const nota = await screen.findByText(/Open Actions above includes/i);
+    expect(nota.textContent).toMatch(/1 action/);
+    expect(nota.textContent).toMatch(/ran no session in this period/);
+  });
+
+  it("says nothing under the table when every open action has a row", async () => {
+    // Sem a acção da SANDRA, o mosaico e a coluna concordam e não há nada a explicar.
+    const sandra = QUALITY_ACTIONS.pop();
+    try {
+      renderPage();
+      await leaderRow("Ailton");
+      await waitFor(() => {
+        expect(openActionsTile().textContent?.replace(/\s+/g, "")).toBe("13pts");
+      });
+      expect(screen.queryByText(/Open Actions above includes/i)).toBeNull();
+    } finally {
+      if (sandra) QUALITY_ACTIONS.push(sandra);
+    }
   });
 });
