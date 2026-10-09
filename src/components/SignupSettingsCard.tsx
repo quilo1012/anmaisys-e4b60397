@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, UserPlus, RefreshCw, Copy, Send, Clock } from "lucide-react";
+import { Loader2, UserPlus, RefreshCw, Copy, Send, Clock, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useSignupQr } from "@/hooks/useSignupQr";
 import {
   EXPIRY_CHOICES, DEFAULT_EXPIRY, expiryFromChoice, expiryLabel, isExpired, type ExpiryChoice,
 } from "@/lib/inviteExpiry";
@@ -25,6 +26,87 @@ function generateCode(): string {
 }
 
 const cfg = () => supabase.from("signup_config");
+
+/**
+ * The same invite link as a picture, to print and pin up.
+ *
+ * The link above is for the people who are in a group chat. This is for the ones who
+ * are not — the floor. A worker scanning the tablet's QR reaches the form with the
+ * invite box empty and labelled "From your supervisor", and stops there; a sheet on
+ * the wall by the clock is the supervisor, available at six in the morning.
+ *
+ * It is drawn here and nowhere public on purpose: `signup_config` is readable only
+ * with an admin session, so this screen is one of the few that is allowed to hold the
+ * code at all. The login page's QR carries none — see `signupQrPayload`.
+ */
+function InviteQr({ code }: { code: string }) {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const { src, failed } = useSignupQr(origin, code);
+  if (failed || !origin) return null;
+
+  /**
+   * Built node by node rather than written as a string: the code is somebody's typing
+   * and the sheet is a document, and the one place those two meet is the one place an
+   * injection would live. `textContent` closes it by construction instead of by
+   * remembering to escape.
+   */
+  const print = () => {
+    const w = window.open("", "_blank", "width=720,height=900");
+    if (!w || !src) { toast.error("Allow pop-ups to print the sheet"); return; }
+    const d = w.document;
+    d.title = "Create your account";
+
+    const style = d.createElement("style");
+    style.textContent = `
+      body{font-family:system-ui,sans-serif;margin:0;padding:48px;text-align:center;color:#0f172a}
+      h1{font-size:34px;margin:0 0 8px}
+      p.lead{font-size:17px;margin:0 0 28px;color:#475569}
+      img{width:340px;height:340px}
+      p.code{margin-top:28px;font-size:15px;color:#475569}
+      p.code b{font-family:ui-monospace,monospace;font-size:21px;color:#0f172a;letter-spacing:.04em}
+    `;
+    d.head.appendChild(style);
+
+    const h1 = d.createElement("h1");
+    h1.textContent = "Create your account";
+    const lead = d.createElement("p");
+    lead.className = "lead";
+    lead.textContent = "Scan this with your phone to sign up for overtime.";
+    const img = d.createElement("img");
+    img.src = src;
+    img.alt = "";
+    const fallback = d.createElement("p");
+    fallback.className = "code";
+    fallback.append("If scanning doesn't work, the invite code is ");
+    const b = d.createElement("b");
+    b.textContent = code;
+    fallback.appendChild(b);
+
+    d.body.append(h1, lead, img, fallback);
+    w.focus();
+    // After the picture is on the page, or the sheet prints with an empty square.
+    if (img.complete) w.print();
+    else img.onload = () => w.print();
+  };
+
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+      {src
+        ? <img src={src} alt="QR code to sign-up with the invite code filled in" className="h-24 w-24 rounded bg-white p-1" />
+        : <div className="h-24 w-24 animate-pulse rounded bg-muted" aria-hidden />}
+      <div className="min-w-0 space-y-1.5">
+        <p className="text-sm font-medium">Sheet for the wall</p>
+        <p className="text-xs text-muted-foreground">
+          Whoever scans this reaches sign-up with the code already filled in. Print it and put it
+          where people clock in.
+        </p>
+        <Button type="button" variant="outline" size="sm" disabled={!src} onClick={print}>
+          <Printer className="mr-1 h-4 w-4" /> Print the sheet
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /** Admin card: manage the self-registration invite code + on/off switch. */
 export function SignupSettingsCard() {
@@ -140,6 +222,7 @@ export function SignupSettingsCard() {
                     <Send className="mr-1 h-4 w-4" /> Copy link + code to send
                   </Button>
                   <p className="text-xs text-muted-foreground">The link opens sign-up with the code already filled in. Save the code first so the link works.</p>
+                  <InviteQr code={code.trim()} />
                 </div>
               );
             })()}
