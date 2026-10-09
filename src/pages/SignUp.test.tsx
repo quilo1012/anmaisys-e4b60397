@@ -69,6 +69,15 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     expect(screen.queryByText(/Filled in from the link/i)).toBeNull();
   });
 
+  it("diz o mesmo na porta do email, que estava sem explicação nenhuma", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Register with my email/i }));
+    // Quem foge de um número que não sabe não pode cair numa segunda caixa pior.
+    expect(await screen.findByLabelText(/^Email$/i)).toBeTruthy();
+    expect(screen.getByText(/sign-up sheet where you clock in/i)).toBeTruthy();
+    expect(screen.queryByPlaceholderText(/Ask your administrator/i)).toBeNull();
+  });
+
   it("diz que o código veio do link quando veio, em vez de o deixar sem explicação", () => {
     restore?.();
     restore = withSearch("?code=AN-2026");
