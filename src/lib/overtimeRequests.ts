@@ -238,6 +238,31 @@ export function supervisorLabel(
 }
 
 /**
+ * Whether the shift this ask is for has already finished.
+ *
+ * Seen on a Line 1 tablet at 23:00 on 08/10: the ask for that morning, 06:00–14:00,
+ * listed as "Not answered" with both buttons live, nine hours after the window shut.
+ * Somebody could have said yes to a morning that was over, and the supervisor's
+ * screen would have shown them among the interested.
+ *
+ * The screen filtered on `on_date >= today` and nothing else — dates, when the ask
+ * carries hours. `starts_at` and `ends_at` were never read.
+ *
+ * A window whose end reads earlier than its start is a night: 18:00–06:00 ends the
+ * following morning, not twelve hours before it began.
+ */
+export function askIsOver(
+  request: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at">,
+  now: Date = new Date(),
+): boolean {
+  const hm = (t: string) => t.slice(0, 5);
+  const crossesMidnight = hm(request.ends_at) <= hm(request.starts_at);
+  const end = new Date(`${request.on_date}T${hm(request.ends_at)}:00`);
+  if (crossesMidnight) end.setDate(end.getDate() + 1);
+  return now.getTime() > end.getTime();
+}
+
+/**
  * How many people the ask wants, in words.
  *
  * Both screens built this as `{headcount} needed · {shift_group} · {department}` —

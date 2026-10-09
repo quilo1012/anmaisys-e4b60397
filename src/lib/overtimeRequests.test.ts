@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
-  myAnswerLabel, supervisorLabel, headcountLine, audienceLine,
+  myAnswerLabel, supervisorLabel, headcountLine, audienceLine, askIsOver,
   type Reliability, type OvertimeResponse, type Candidate,
 } from "./overtimeRequests";
 
@@ -222,5 +222,48 @@ describe("audienceLine", () => {
     // An empty line reads as missing data. "Everyone" is the actual rule: a null on
     // the ask means it was not narrowed — see `requestIsForEmployee`.
     expect(audienceLine({ department: null, shift_group: null })).toBe("Everyone");
+  });
+});
+
+/**
+ * A shift that has already finished is not on offer.
+ *
+ * Seen on a Line 1 tablet at 23:00 on 08/10: the ask for 08/10, 06:00–14:00, listed
+ * as "Not answered" with both buttons live. The window had closed nine hours
+ * earlier. Somebody could still have said yes to a morning that was over, and the
+ * supervisor's screen would have shown them as interested.
+ *
+ * The filter compared `on_date >= today` and nothing else — dates, when the ask
+ * carries hours. `starts_at` and `ends_at` were never read.
+ *
+ * A night window ends on the following day: 18:00–06:00 is not a window that ends
+ * twelve hours before it starts.
+ */
+describe("askIsOver", () => {
+  const ask = (on_date: string, starts_at: string, ends_at: string) =>
+    ({ on_date, starts_at, ends_at });
+
+  it("is not over before it starts", () => {
+    expect(askIsOver(ask("2026-10-09", "06:00", "14:00"), new Date("2026-10-08T23:00:00Z"))).toBe(false);
+  });
+
+  it("is not over while it is running", () => {
+    expect(askIsOver(ask("2026-10-08", "06:00", "14:00"), new Date("2026-10-08T09:00:00Z"))).toBe(false);
+  });
+
+  it("is over once the window has closed", () => {
+    // The case from the tablet: 23:00, same day, a window that ended at 14:00.
+    expect(askIsOver(ask("2026-10-08", "06:00", "14:00"), new Date("2026-10-08T23:00:00Z"))).toBe(true);
+  });
+
+  it("carries a night window into the next day instead of ending it before it starts", () => {
+    const night = ask("2026-10-08", "18:00", "06:00");
+    expect(askIsOver(night, new Date("2026-10-08T23:00:00Z"))).toBe(false);
+    expect(askIsOver(night, new Date("2026-10-09T03:00:00Z"))).toBe(false);
+    expect(askIsOver(night, new Date("2026-10-09T07:00:00Z"))).toBe(true);
+  });
+
+  it("reads seconds on the time, because Postgres sends them", () => {
+    expect(askIsOver(ask("2026-10-08", "06:00:00", "14:00:00"), new Date("2026-10-08T23:00:00Z"))).toBe(true);
   });
 });
