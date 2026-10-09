@@ -33,6 +33,7 @@ import { QUALITY_STATUSES, actionPoints, isValidatedPaperwork } from "@/lib/qual
 import { rowMatchesShift } from "@/lib/shifts";
 import { woStatusCounts, DONE_STATUSES } from "@/lib/woStatusCounts";
 import { leaderNameKey } from "@/lib/leaderNameMatch";
+import { isOnTheWorkingBoard, splitOpenActionsBySession } from "@/lib/openActionsInPeriod";
 import { useLeaderAttribution } from "@/hooks/useLabelAttribution";
 import { useGateLabels } from "@/hooks/useQualityOptions";
 import { NoCeilingNotice } from "@/components/leader/NoCeilingNotice";
@@ -388,7 +389,7 @@ export default function AnalyticsPage() {
     const openMap = new Map<string, { open: number; points: number; critical: number }>();
     for (const a of periodActionRows) {
       // The screen's own question: still on the working board.
-      if (a.status !== "todo" && a.status !== "in_progress") continue;
+      if (!isOnTheWorkingBoard(a)) continue;
       const leader = leaderNameKey(a.leader_name);
       if (!leader) continue;
       const cur = openMap.get(leader) ?? { open: 0, points: 0, critical: 0 };
@@ -430,11 +431,29 @@ export default function AnalyticsPage() {
       });
     const totalActual = rows.reduce((s, r) => s + r.actual, 0);
     const totalTarget = rows.reduce((s, r) => s + r.target, 0);
+    /**
+     * The tile's number, which is not the column's total.
+     *
+     * The table has a row only for a leader who ran a session in the period — it is
+     * built from the session log. An action raised against somebody who led none that
+     * week has no row to sit in, and summing the column therefore drops it, while the
+     * documentation panel below counts it. The tile says "Actions raised in this
+     * period and still to do or in progress", so it counts them: all of them. The part
+     * the table cannot account for is printed under the table rather than left as an
+     * unexplained gap between two figures on the same card.
+     */
+    const openSplit = splitOpenActionsBySession(
+      periodActionRows,
+      new Set(map.keys()),
+      excluded,
+    );
     return {
       rows, totalActual, totalTarget,
       avgEff: totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0,
-      totalOpenActions: rows.reduce((s, r) => s + r.openActions, 0),
-      totalOpenPoints: rows.reduce((s, r) => s + r.openPoints, 0),
+      totalOpenActions: openSplit.all.open,
+      totalOpenPoints: openSplit.all.points,
+      openWithoutSession: openSplit.withoutSession,
+      leadersWithoutSession: openSplit.leadersWithoutSession,
     };
   }, [leaderRows, ragTargetRows, periodActionRows, weights, excluded]);
 
@@ -997,6 +1016,23 @@ export default function AnalyticsPage() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* The difference between the tile and the column above it, said out
+                    loud. The table lists people who ran a session; the tile counts
+                    every action raised in the period. Without this line the two
+                    disagree on the same card and neither says why. */}
+                {leaderPerf.openWithoutSession.open > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Open Actions above includes {leaderPerf.openWithoutSession.open}{" "}
+                    {leaderPerf.openWithoutSession.open === 1 ? "action" : "actions"} raised against{" "}
+                    {leaderPerf.leadersWithoutSession === 0
+                      ? "no named leader"
+                      : leaderPerf.leadersWithoutSession === 1
+                        ? "a leader who ran no session in this period"
+                        : `${leaderPerf.leadersWithoutSession} leaders who ran no session in this period`}
+                    , so {leaderPerf.openWithoutSession.open === 1 ? "it has" : "they have"} no row here.
+                  </p>
+                )}
 
                 {/* Where the documentation errors come from, and on which shift. */}
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
