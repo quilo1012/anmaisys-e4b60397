@@ -246,8 +246,17 @@ export default function SignUp() {
         <div className="space-y-1.5">
           <label htmlFor="su-code" className={authLabel}>Invite code</label>
           <input id="su-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off"
-            placeholder="Ask your administrator"
+            placeholder="From the sign-up sheet, or your supervisor"
             className={authField} />
+          {/* The same sentence as the badge door. This door was left without one, so
+              somebody who switched tabs to escape a number they did not know arrived
+              at a second box with even less to go on — "Ask your administrator", in a
+              factory where the administrator is not who you ask. */}
+          <p className="text-xs text-auth-ink-muted">
+            {fromLink
+              ? "Filled in from the link you opened."
+              : "From the sign-up sheet where you clock in, or your supervisor."}
+          </p>
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
