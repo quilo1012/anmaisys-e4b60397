@@ -19,6 +19,19 @@ on:
         description: "Publicar noutro projecto (deixar vazio = o do supabase/config.toml)"
         required: false
         type: string
+      # Uma função de cada vez, porque `supabase functions deploy` sem nome publica as
+      # 48 do repositório de uma só vez e sobrepõe o que estiver no ar. A produção tem
+      # 50 publicadas: duas não existem em ramo nenhum do git, e uma terceira foi
+      # apagada do git e continua a servir. Correr isto em branco para reparar uma é
+      # arriscar quarenta e sete que ninguém pediu para tocar — e o estrago ficaria em
+      # funções que nenhum teste deste repositório cobre.
+      #
+      # Em branco continua a publicar tudo, que é o que faz hoje. O que muda é haver
+      # uma maneira de não o fazer.
+      function:
+        description: "Publicar só esta função (deixar vazio = TODAS as 48)"
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -66,7 +79,32 @@ jobs:
           echo "Total: $(ls -1 supabase/functions | grep -v '^_' | wc -l)"
 
       - name: Deploy
-        run: supabase functions deploy --project-ref "${{ steps.target.outputs.ref }}"
+        env:
+          # Por `env:` e não interpolado no comando: o nome vem de uma caixa de texto
+          # que uma pessoa preenche, e um `${{ }}` dentro de um `run:` é substituído
+          # antes de a shell o ver — ponto e vírgula incluído.
+          FN: ${{ inputs.function }}
+          REF: ${{ steps.target.outputs.ref }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FN:-}" ]; then
+            echo "### Publicando TODAS as funções do repositório" >> "$GITHUB_STEP_SUMMARY"
+            supabase functions deploy --project-ref "$REF"
+            exit 0
+          fi
+          # Nomes de funções são `[a-z0-9-]`. Recusar o resto fecha a porta a um nome
+          # que seja um caminho ou um argumento disfarçado.
+          case "$FN" in
+            *[!a-z0-9-]*|"")
+              echo "::error::Nome de função inválido: só minúsculas, dígitos e hífens."
+              exit 1 ;;
+          esac
+          if [ ! -d "supabase/functions/$FN" ]; then
+            echo "::error::Não existe supabase/functions/$FN. Ver a lista acima."
+            exit 1
+          fi
+          echo "### Publicando apenas \`$FN\`" >> "$GITHUB_STEP_SUMMARY"
+          supabase functions deploy "$FN" --project-ref "$REF"
 
       - name: Confirmar
         run: supabase functions list --project-ref "${{ steps.target.outputs.ref }}"
