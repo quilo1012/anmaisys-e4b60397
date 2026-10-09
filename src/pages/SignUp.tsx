@@ -29,6 +29,10 @@ export default function SignUp() {
   const [code, setCode] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("code")?.trim() ?? ""; } catch { return ""; }
   });
+  /** Whether the code came with the link, which decides what the field says about it. */
+  const [fromLink] = useState(() => {
+    try { return !!new URLSearchParams(window.location.search).get("code")?.trim(); } catch { return false; }
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -150,6 +154,38 @@ export default function SignUp() {
           <input id="su-ref" value={employeeRef} onChange={(e) => setEmployeeRef(e.target.value)} autoComplete="username"
             placeholder="E045" autoCapitalize="characters" spellCheck={false} className={`${authField} font-mono uppercase`} />
           <p className="text-xs text-auth-ink-muted">The number on your badge. Your name and shift are already in the system.</p>
+          {/*
+            The way out of a box you cannot fill.
+
+            Fifty-one people on the roster have no `employee_ref` at all, so for them
+            this field has no right answer and never will until somebody adds one —
+            and plenty of the rest have simply never read the number off their badge.
+            The screen used to say "the number on your badge" and stop there, which
+            left them with a form, no answer, and nothing to click. Standing still is
+            what people do at that point.
+
+            It is a disclosure rather than a paragraph because the people who know
+            their number should not have to read past it, and the ones who do not
+            should find it exactly where they get stuck.
+          */}
+          <details className="group rounded-md border border-auth-line bg-auth-field/40">
+            <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-auth-ink marker:content-none">
+              Don't know your ID?
+            </summary>
+            <div className="space-y-2 border-t border-auth-line px-3 py-2.5 text-xs text-auth-ink-muted">
+              <p>
+                It's printed on your badge: one to three letters and then the digits, like E045.
+              </p>
+              <p>
+                No number on your badge, or it isn't working? Your supervisor or the office can look
+                it up — they have the list. If you have a work email, you can register with that
+                instead and skip the number.
+              </p>
+              <button type="button" onClick={() => { setDoor("email"); setError(""); }} className={authLink}>
+                Register with my email
+              </button>
+            </div>
+          </details>
         </div>
         <div className="space-y-1.5">
           <label htmlFor="su-pass-b" className={authLabel}>Choose a password</label>
@@ -165,6 +201,14 @@ export default function SignUp() {
           <label htmlFor="su-code-b" className={authLabel}>Invite code</label>
           <input id="su-code-b" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off"
             placeholder="From your supervisor" className={authField} />
+          {/* Arriving by the link or the printed QR fills this in. Saying so stops the
+              reader checking a field that is already right, and says where the code
+              came from for the ones who have to go and find it. */}
+          <p className="text-xs text-auth-ink-muted">
+            {fromLink
+              ? "Filled in from the link you opened."
+              : "From the sign-up sheet where you clock in, or your supervisor."}
+          </p>
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}

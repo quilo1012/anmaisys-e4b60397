@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import QRCode from "qrcode";
-import { signupQrPayload } from "@/lib/signupQr";
+import { useSignupQr } from "@/hooks/useSignupQr";
 
 /**
  * Register on your own phone, not on the tablet in front of you.
@@ -19,27 +17,13 @@ import { signupQrPayload } from "@/lib/signupQr";
  * reliably one person.
  *
  * The code carries the signup URL and nothing else — see `signupQrPayload`, which has
- * a test naming what it must never contain. Scanning grants nothing.
+ * a test naming what it may carry and what it never will. Scanning grants nothing.
  */
 export function SignupQrCard({ origin }: { origin?: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
   const base = origin ?? (typeof window !== "undefined" ? window.location.origin : "");
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const url = await QRCode.toDataURL(signupQrPayload(base), {
-          errorCorrectionLevel: "M", margin: 1, width: 320,
-        });
-        if (alive) setSrc(url);
-      } catch {
-        if (alive) setFailed(true);
-      }
-    })();
-    return () => { alive = false; };
-  }, [base]);
+  // No code here, and there is none to give: `signup_config` is unreadable without an
+  // admin session, which is what keeps the factory's code off a public login page.
+  const { src, failed } = useSignupQr(base);
 
   // A card promising a code and showing a hole is worse than no card: somebody stands
   // there waiting for it to load. The address is readable either way.
