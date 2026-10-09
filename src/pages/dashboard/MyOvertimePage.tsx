@@ -17,6 +17,8 @@ import {
 } from "@/lib/overtimeRequests";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
+import { SignupQrCard } from "@/components/SignupQrCard";
+import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -34,6 +36,16 @@ const fmtDate = (d: string) =>
  */
 export default function MyOvertimePage() {
   const { data: me, isLoading } = useMyEmployee();
+  /**
+   * A tablet is a place, and this page is addressed to a person.
+   *
+   * Read before anything else and used instead of `me`, not alongside it: whatever
+   * employee the shared account happens to be linked to is not the person holding the
+   * screen, so showing their name, their answer or their buttons is wrong even when
+   * the data loads perfectly. See `isSharedTabletSession` for how Line 1's tablet
+   * came to be Eduardo Luz.
+   */
+  const sharedTablet = isSharedTabletSession();
 
   return (
     <DashboardLayout>
@@ -50,7 +62,9 @@ export default function MyOvertimePage() {
           description="Say yes or no. The supervisor picks, and you'll see it here."
           brand
         />
-        {isLoading ? (
+        {sharedTablet ? (
+          <TabletNoticeBoard />
+        ) : isLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
         ) : me ? (
           <>
@@ -62,6 +76,65 @@ export default function MyOvertimePage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+/**
+ * What the line's tablet shows instead: a notice, not an account.
+ *
+ * The asks stay visible because the tablet is where people walk past, and "fifteen
+ * needed on Friday morning" is worth reading whoever you are. What is gone is
+ * everything that needs a name — no identity line, no Yes/No, and above all no "Pick
+ * your name once", which is the screen that bound a shared login to one person and
+ * made everybody else on that tablet into him.
+ *
+ * Answering moves to the phone in the person's pocket, which is the only device in
+ * this building that is reliably one person. `SignupQrCard` is the same card the
+ * login screen already shows for the same reason, so a worker meets one instruction
+ * in two places rather than two instructions.
+ */
+function TabletNoticeBoard() {
+  const { data: requests = [], isLoading } = useOvertimeRequests();
+  const open = useMemo(
+    () => requests.filter((r) => r.status === "open" && !askIsOver(r)),
+    [requests],
+  );
+
+  return (
+    <div className="space-y-3">
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="py-4 text-sm">
+          <p className="font-medium">This is the line's tablet, not your phone.</p>
+          <p className="mt-1 text-muted-foreground">
+            Everyone here signs in as the same account, so overtime can't be answered from it.
+            Scan the code below to answer on your own phone — it takes a minute, once.
+          </p>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">Loading…</div>
+      ) : open.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
+          No overtime on offer right now.
+        </CardContent></Card>
+      ) : (
+        open.map((r) => (
+          <Card key={r.id}>
+            <CardContent className="py-4">
+              <div className="font-medium">
+                {fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}
+              </div>
+              <div className="mt-0.5 text-sm text-muted-foreground">
+                {headcountLine(r)} — {audienceLine(r)}
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
+
+      <SignupQrCard tone="page" />
+    </div>
   );
 }
 
