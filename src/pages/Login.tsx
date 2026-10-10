@@ -23,6 +23,7 @@ import { useLoginBranding } from "@/hooks/useLoginBranding";
 import { setFavicon, resetFavicon } from "@/lib/favicon";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
 import { SignupQrCard } from "@/components/SignupQrCard";
+import { isFunctionUnreachable } from "@/lib/edgeFunctionUnreachable";
 import { AuthShell } from "@/components/auth/AuthShell";
 import {
   authBtnBase,
@@ -341,6 +342,13 @@ export default function Login() {
         const { data, error } = await invokeFunction<{ access_token: string; refresh_token: string }>(
           "employee-signin", { mode: "signin", employee_ref: matchedEmployee, password },
         );
+        // The same door, the same silence. When `employee-signin` cannot be reached
+        // the browser's preflight fails and nothing comes back, so "Failed to send a
+        // request to the Edge Function" is all the SDK has. Signing in with an email
+        // address does not go through this function and still works.
+        if (isFunctionUnreachable(error)) {
+          throw new Error("Signing in with a badge number isn't working right now. Use your email address, or ask your supervisor.");
+        }
         if (error) throw error;
         if (!data?.access_token || !data?.refresh_token) throw new Error("Invalid credentials");
         const { error: setErr } = await supabase.auth.setSession({
