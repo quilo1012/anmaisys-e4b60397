@@ -140,6 +140,8 @@ export default function ResetPassword() {
             <h3 className="mt-2 text-sm font-medium text-auth-ink">Recovery email sent</h3>
             <p className="mt-1 text-xs text-auth-ink">
               Check your inbox for the password reset link. If it doesn't arrive, check your spam folder.
+              Still nothing after a few minutes? Ask an administrator to set a new password for you in
+              Manage Users — that works without any email.
             </p>
           </div>
           <button type="button" onClick={() => navigate("/login", { replace: true })} className={ghostBtn}>
