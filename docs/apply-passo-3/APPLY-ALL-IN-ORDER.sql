@@ -9886,9 +9886,36 @@ comment on function public.signup_invite_for_tablet() is
   'and the code unexpired. Null for everybody else. Exists so the tablet QR can open '
   'registration with the code filled in without the code reaching a public page.';
 
-
 -- ================================================================
 -- BLOCO 80
+-- 20261010090000_the_office_can_write_the_attendance_its_board_writes.sql
+-- ================================================================
+
+-- The office places people on the headcount board, and the board's second write was refused.
+--
+-- `employee_attendance` was created on 31/07, three days after the office role got its
+-- additive "office_admin all" policies, and it only ever had the admin one. Since the
+-- board started mirroring each placement into attendance (so the finance close sees the
+-- same day the board shows), every placement by a production_office_admin writes
+-- `daily_allocations` fine and then fails here:
+--
+--   new row violates row-level security policy for table "employee_attendance"
+--
+-- thirteen times on 09/10 between 21:26 and 21:49, all from /dashboard/headcount. The
+-- board keeps the placement and payroll never hears about it.
+--
+-- Same additive policy the office has on the other operational tables: OR'd with the
+-- admin one, so no other role changes.
+
+drop policy if exists "office_admin all" on public.employee_attendance;
+create policy "office_admin all" on public.employee_attendance
+  for all to authenticated
+  using (public.has_role(auth.uid(), 'production_office_admin'::app_role))
+  with check (public.has_role(auth.uid(), 'production_office_admin'::app_role));
+
+
+-- ================================================================
+-- BLOCO 81
 -- 20261010100000_you_say_who_you_are_with_the_number_on_your_badge.sql
 -- ================================================================
 
