@@ -1,6 +1,7 @@
 import { logSystemError } from "@/lib/telemetry";
 import { isUserCorrectable } from "@/lib/userCorrectable";
 import { isProbedColumn } from "@/lib/schemaProbes";
+import { isPendingRpc } from "@/lib/pendingRpcs";
 
 // Automatic backend-failure capture. supabase-js issues every PostgREST / RPC /
 // edge-function call through the global fetch, so wrapping fetch once lets Root
@@ -104,10 +105,17 @@ export function installApiErrorTelemetry(): void {
       // 400 that names a declared probed column is the ladder walking down whether
       // or not the code travelled with it.
       const isHandledProbe = method === "GET" && isProbedColumn(body?.message);
+      // And the other direction of the same gap: a function the client calls before
+      // its migration has been pasted. PGRST202 is PostgREST saying the function is
+      // not in the schema cache, and the name has to be one we declared we are ahead
+      // of — see `pendingRpcs`, where each entry names what the screen shows instead.
+      // Not by code alone: a missing function nothing falls back to is the drift this
+      // log exists to catch.
+      const isPendingFunction = body?.code === "PGRST202" && isPendingRpc(body?.message);
 
       const type = isRls
         ? "RLS_ERROR"
-        : isHandledProbe
+        : isHandledProbe || isPendingFunction
           ? "SCHEMA_DRIFT"
           : isUserCorrectable(message)
             ? "USER_ERROR"
