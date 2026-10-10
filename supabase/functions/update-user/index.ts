@@ -146,7 +146,15 @@ Deno.serve(async (req) => {
     }
 
     if (password) {
-      const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
+      // An administrator setting the password also confirms the address.
+      //
+      // Accounts made through the email door of /signup are created unconfirmed, and the
+      // confirmation mail never leaves this project: on 10/10/2026 rosanaquilo@icloud.com
+      // showed "Confirmation sent at n/a", and her "forgot password" mail never arrived
+      // either. An unconfirmed account is refused at sign-in whatever its password, so a
+      // reset here used to change nothing. The admin choosing the password is the
+      // verification the email could not deliver.
+      const { error: pwError } = await supabaseAdmin.auth.admin.updateUserById(userId, { password, email_confirm: true });
       if (pwError) throw new Error(getReadableErrorMessage(pwError));
     }
 
