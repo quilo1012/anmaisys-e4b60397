@@ -159,14 +159,23 @@ export default function ProductionPerformancePage() {
         const { error } = await q;
         if (error) throw error;
       } else {
-        // No session exists yet for this line/range — create one so the leader assignment sticks.
+        // No session on screen for this line/range — create one so the leader assignment sticks.
+        //
+        // An upsert, not an insert: `hasSession` is what the page last fetched, up to 30s
+        // old, and the tablet opens the session at the start of the shift. On 10/10 at
+        // 06:55 the insert lost that race and the office got
+        // "duplicate key value violates unique constraint production_sessions_line_session_date_shift_key".
+        // If the row is there by now, the leader goes onto it.
         const sessionShift = shift === "all" ? "DAY" : shift;
-        const { error } = await supabase.from("production_sessions").insert({
-          line: lineName,
-          session_date: range.from,
-          shift: sessionShift,
-          leader_name: leaderName,
-        });
+        const { error } = await supabase.from("production_sessions").upsert(
+          {
+            line: lineName,
+            session_date: range.from,
+            shift: sessionShift,
+            leader_name: leaderName,
+          },
+          { onConflict: "line,session_date,shift" },
+        );
         if (error) throw error;
       }
       toast.success(leaderName ? `Leader set to ${leaderName} for ${lineName}` : `Leader cleared for ${lineName}`);
