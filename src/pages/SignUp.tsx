@@ -13,6 +13,7 @@ import {
 import { Loader2, CheckCircle2, Eye, EyeOff, BadgeCheck, Mail } from "lucide-react";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { looksLikeEmployeeRef } from "@/lib/loginIdentity";
+import { isFunctionUnreachable } from "@/lib/edgeFunctionUnreachable";
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -36,6 +37,8 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  /** A porta do crachá não respondeu: oferecer a do email em vez de a deixar tentar outra vez. */
+  const [unreachable, setUnreachable] = useState(false);
   const [done, setDone] = useState(false);
 
   /**
@@ -59,7 +62,19 @@ export default function SignUp() {
       const { data, error: fnErr } = await invokeFunction<{ access_token: string; refresh_token: string; full_name: string | null }>(
         "employee-signin", { mode: "register", employee_ref: ref, password, invite_code: code.trim() },
       );
-      if (fnErr) throw fnErr;
+      if (fnErr) {
+        // The badge door depends on `employee-signin`, and when that function is not
+        // reachable the browser's preflight fails before the request is sent — so
+        // nothing comes back to show. "Failed to send a request to the Edge Function"
+        // is what the floor has been reading. The email door does not go through it.
+        if (isFunctionUnreachable(fnErr)) {
+          setUnreachable(true);
+          setError("Sign-up with a badge number isn't working right now. Register with your email instead — it takes the same invite code.");
+          setSubmitting(false);
+          return;
+        }
+        throw fnErr;
+      }
       if (!data?.access_token || !data?.refresh_token) throw new Error("Could not create the account.");
       const { error: setErr } = await supabase.auth.setSession({
         access_token: data.access_token, refresh_token: data.refresh_token,
@@ -212,6 +227,14 @@ export default function SignUp() {
         </div>
 
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
+
+        {/* A saída, onde a pessoa encalhou. Dizer que não funciona e deixá-la no mesmo
+            ecrã é deixá-la a carregar no botão outra vez. */}
+        {unreachable && (
+          <button type="button" onClick={() => { setDoor("email"); setError(""); setUnreachable(false); }} className={authLink}>
+            Register with my email instead
+          </button>
+        )}
 
         <button type="submit" disabled={submitting} className={authPrimaryBtn}>
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />} Create account and sign in

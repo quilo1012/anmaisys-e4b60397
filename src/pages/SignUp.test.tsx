@@ -22,7 +22,8 @@ vi.mock("@/integrations/supabase/client", () => ({
     auth: { setSession: vi.fn(async () => ({ error: null })) },
   },
 }));
-vi.mock("@/lib/invokeFunction", () => ({ invokeFunction: vi.fn(async () => ({ data: null, error: null })) }));
+const invoke = vi.hoisted(() => vi.fn(async () => ({ data: null, error: null })));
+vi.mock("@/lib/invokeFunction", () => ({ invokeFunction: invoke }));
 
 import SignUp from "@/pages/SignUp";
 
@@ -87,5 +88,53 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     expect(field.value).toBe("AN-2026");
     expect(screen.getByText(/Filled in from the link/i)).toBeTruthy();
     expect(screen.queryByText(/sign-up sheet where you clock in/i)).toBeNull();
+  });
+
+  /**
+   * A porta do crachá quando a função não responde.
+   *
+   * O `employee-signin` não está publicada, e o gateway responde ao **preflight** de
+   * um nome desconhecido com 404 e cabeçalhos incompletos — sem
+   * `access-control-allow-methods` e sem `content-type` nos permitidos. O browser
+   * desiste antes do POST, por isso nada volta para mostrar e o SDK só tem
+   * "Failed to send a request to the Edge Function". Medido contra a `tablet-signin`,
+   * que é publicada e responde 200 ao mesmo preflight.
+   *
+   * A porta do email não passa por aqui e funciona.
+   */
+  it("quando a porta do crachá não responde, diz o que fazer e abre a outra", async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: { name: "FunctionsFetchError", message: "Failed to send a request to the Edge Function" },
+    });
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/Employee ID/i), { target: { value: "E151" } });
+    fireEvent.change(screen.getByLabelText(/Choose a password/i), { target: { value: "umapalavra" } });
+    fireEvent.change(screen.getByLabelText(/Invite code/i), { target: { value: "AN-TESTE" } });
+    fireEvent.click(screen.getByRole("button", { name: /Create account and sign in/i }));
+
+    // A mensagem do SDK não chega ao ecrã.
+    const aviso = await screen.findByText(/badge number isn't working right now/i);
+    expect(aviso).toBeTruthy();
+    expect(screen.queryByText(/Failed to send a request/i)).toBeNull();
+
+    // E há uma saída, não só um lamento.
+    fireEvent.click(screen.getByRole("button", { name: /Register with my email instead/i }));
+    expect(await screen.findByLabelText(/^Email$/i)).toBeTruthy();
+  });
+
+  it("uma recusa com corpo passa intacta — não é engolida pela mensagem genérica", async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: { message: "That invite code isn't valid any more — it may have expired. Ask your supervisor." },
+    });
+    renderPage();
+    fireEvent.change(screen.getByLabelText(/Employee ID/i), { target: { value: "E151" } });
+    fireEvent.change(screen.getByLabelText(/Choose a password/i), { target: { value: "umapalavra" } });
+    fireEvent.change(screen.getByLabelText(/Invite code/i), { target: { value: "AN-ERRADO" } });
+    fireEvent.click(screen.getByRole("button", { name: /Create account and sign in/i }));
+
+    expect(await screen.findByText(/invite code isn't valid any more/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Register with my email instead/i })).toBeNull();
   });
 });
