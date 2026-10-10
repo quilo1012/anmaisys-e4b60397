@@ -26,6 +26,7 @@ import { DateRangePreset, DateRange, getPresetRange } from "@/components/DateRan
 import { type ShiftValue } from "@/components/ShiftFilter";
 import { Link } from "react-router-dom";
 import { SLA_TARGETS } from "@/lib/sla";
+import { rankEngineers, noScoreReason } from "@/lib/engineerRanking";
 import { resolveLine } from "@/lib/resolveLine";
 import { ReportsFilterBar } from "@/components/reports/ReportsFilterBar";
 import { KpiCard } from "@/components/reports/KpiCard";
@@ -725,12 +726,10 @@ export default function AnalyticsPage() {
         engineers[eid].mttrCount++;
       }
     });
-    return Object.values(engineers).map((e) => ({
-      name: e.name,
-      completed: e.completed,
-      avgResponse: e.respCount ? Math.round(e.totalResp / e.respCount) : 0,
-      avgMTTR: e.mttrCount ? Math.round(e.totalMTTR / e.mttrCount) : 0,
-    })).sort((a, b) => b.completed - a.completed);
+    // Os totais saem daqui tal como foram somados. A média — e sobretudo a decisão de
+    // não haver média nenhuma — pertence ao `rankEngineers`, porque era aqui que uma
+    // contagem de zero virava um tempo de zero.
+    return Object.values(engineers).sort((a, b) => b.completed - a.completed);
   }, [allWOs, metricsById]);
 
 
@@ -749,21 +748,7 @@ export default function AnalyticsPage() {
    * Scored from the same two numbers the maintenance KPIs use, over the same period,
    * so the ranking can be checked against the columns printed beside it.
    */
-  const rankedEngineers = useMemo(() => {
-    // Half the score for answering, half for fixing. Full marks at the target, none
-    // at four times it, straight line between — a shape somebody can argue with,
-    // which the old one was not.
-    const band = (value: number, target: number) =>
-      Math.max(0, Math.min(50, Math.round(50 * (1 - (value - target) / (target * 3)))));
-    return engineerPerformance
-      .map((e) => ({
-        ...e,
-        // No completed orders in the period is not a zero and not a hundred: there is
-        // nothing to score, and saying so is more use than a number nobody earned.
-        score: e.completed === 0 ? null : band(e.avgResponse, 30) + band(e.avgMTTR, 60),
-      }))
-      .sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || b.completed - a.completed);
-  }, [engineerPerformance]);
+  const rankedEngineers = useMemo(() => rankEngineers(engineerPerformance), [engineerPerformance]);
 
   return (
     <DashboardLayout>
@@ -1300,14 +1285,16 @@ export default function AnalyticsPage() {
                                 nothing to score, and a badge reading 0 accuses somebody
                                 of a bad month they did not have. */}
                             {eng.score === null ? (
-                              <span className="text-xs text-muted-foreground">no orders</span>
+                              <span className="text-xs text-muted-foreground">{noScoreReason(eng)}</span>
                             ) : (
                               <Badge variant={eng.score >= 75 ? "default" : "destructive"}>{eng.score}</Badge>
                             )}
                           </td>
                           <td className="px-3 py-2 text-center">{eng.completed}</td>
-                          <td className="px-3 py-2 text-center">{fmtMin(eng.avgResponse)}</td>
-                          <td className="px-3 py-2 text-center">{fmtMin(eng.avgMTTR)}</td>
+                          {/* Um traço, não "0m": zero minutos é uma afirmação sobre a
+                              rapidez de alguém, e aqui não há afirmação nenhuma. */}
+                          <td className="px-3 py-2 text-center">{eng.avgResponse === null ? "—" : fmtMin(eng.avgResponse)}</td>
+                          <td className="px-3 py-2 text-center">{eng.avgMTTR === null ? "—" : fmtMin(eng.avgMTTR)}</td>
                           <td className="px-3 py-2 text-center">
                             {/* Against the targets, not against zero: the old test was
                                 `score > 0`, which pointed the arrow up for everybody. */}

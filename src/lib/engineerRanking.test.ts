@@ -1,59 +1,94 @@
 import { describe, it, expect } from "vitest";
+import {
+  band, rankEngineers, noScoreReason, RESPONSE_TARGET_MIN, REPAIR_TARGET_MIN,
+  type EngineerTotals,
+} from "./engineerRanking";
 
-/**
- * The engineer ranking, scored on the period being looked at.
- *
- * Mirrors the rule in AnalyticsPage. What it replaces: `engineer_scores.score`, a
- * lifetime accumulator clamped to 0–100 that was never recalculated. Because it
- * accumulated and stopped at 100, everybody reached the ceiling, where the rewards
- * did nothing and only the penalties still bit — on 04/08 seven engineers read
- * exactly 100 and one read 85, for a single missed response SLA at some unknown
- * point, on a day nobody had completed anything.
- */
-const band = (value: number, target: number) =>
-  Math.max(0, Math.min(50, Math.round(50 * (1 - (value - target) / (target * 3)))));
+const totals = (over: Partial<EngineerTotals> & { name: string }): EngineerTotals => ({
+  completed: 1, totalResp: 0, respCount: 0, totalMTTR: 0, mttrCount: 0, ...over,
+});
 
-const score = (e: { completed: number; avgResponse: number; avgMTTR: number }) =>
-  e.completed === 0 ? null : band(e.avgResponse, 30) + band(e.avgMTTR, 60);
-
-describe("engineer score", () => {
-  it("has nothing to say about somebody who completed nothing", () => {
-    // Not zero. Zero accuses somebody of a bad month they did not have.
-    expect(score({ completed: 0, avgResponse: 0, avgMTTR: 0 })).toBeNull();
-    expect(score({ completed: 0, avgResponse: 999, avgMTTR: 999 })).toBeNull();
+describe("band", () => {
+  it("dá nota máxima ao alvo e nada a quatro vezes o alvo", () => {
+    expect(band(RESPONSE_TARGET_MIN, RESPONSE_TARGET_MIN)).toBe(50);
+    expect(band(REPAIR_TARGET_MIN, REPAIR_TARGET_MIN)).toBe(50);
+    expect(band(4 * RESPONSE_TARGET_MIN, RESPONSE_TARGET_MIN)).toBe(0);
+    expect(band(10 * RESPONSE_TARGET_MIN, RESPONSE_TARGET_MIN)).toBe(0);
   });
 
-  it("gives full marks at the target and better", () => {
-    expect(score({ completed: 5, avgResponse: 30, avgMTTR: 60 })).toBe(100);
-    expect(score({ completed: 5, avgResponse: 2, avgMTTR: 5 })).toBe(100);
+  it("satura a 50 abaixo do alvo — e é daqui que vinha o defeito", () => {
+    // `band` está certo: mais rápido do que o alvo não vale mais do que a nota máxima.
+    // O erro era entregar-lhe zero em vez de "não há medição".
+    expect(band(0, RESPONSE_TARGET_MIN)).toBe(50);
+    expect(band(0, REPAIR_TARGET_MIN)).toBe(50);
+  });
+});
+
+describe("rankEngineers", () => {
+  it("pontua quem tem as duas medições", () => {
+    const [e] = rankEngineers([totals({
+      name: "Medido", completed: 10,
+      totalResp: 300, respCount: 10,   // 30 min → 50
+      totalMTTR: 600, mttrCount: 10,   // 60 min → 50
+    })]);
+    expect(e.avgResponse).toBe(30);
+    expect(e.avgMTTR).toBe(60);
+    expect(e.score).toBe(100);
   });
 
-  it("falls away as the times pass the target", () => {
-    const fast = score({ completed: 5, avgResponse: 30, avgMTTR: 60 })!;
-    const middling = score({ completed: 5, avgResponse: 60, avgMTTR: 120 })!;
-    const slow = score({ completed: 5, avgResponse: 110, avgMTTR: 220 })!;
-    expect(fast).toBeGreaterThan(middling);
-    expect(middling).toBeGreaterThan(slow);
+  /**
+   * O defeito, nomeado.
+   *
+   * Dez ordens fechadas e nenhum tempo registado. A média era `0`, o `band` lia zero
+   * como instantâneo, e esta pessoa aparecia em primeiro com 100 — à frente de quem
+   * tem tempos medidos e merecidos.
+   */
+  it("não dá nota a quem fechou ordens sem nenhum tempo registado", () => {
+    const [e] = rankEngineers([totals({ name: "Sem tempos", completed: 10 })]);
+    expect(e.avgResponse).toBeNull();
+    expect(e.avgMTTR).toBeNull();
+    expect(e.score).toBeNull();
   });
 
-  it("bottoms out rather than going negative", () => {
-    expect(score({ completed: 3, avgResponse: 5000, avgMTTR: 5000 })).toBe(0);
+  it("não dá nota a meio: uma metade medida não é comparável a duas", () => {
+    const [so_resposta] = rankEngineers([totals({
+      name: "Só resposta", completed: 5, totalResp: 150, respCount: 5,
+    })]);
+    expect(so_resposta.avgResponse).toBe(30);
+    expect(so_resposta.avgMTTR).toBeNull();
+    expect(so_resposta.score).toBeNull();
   });
 
-  it("scores the two halves independently", () => {
-    // Quick to answer, slow to fix — should not read the same as slow at both.
-    const quickSlow = score({ completed: 4, avgResponse: 5, avgMTTR: 240 })!;
-    const slowSlow = score({ completed: 4, avgResponse: 240, avgMTTR: 240 })!;
-    expect(quickSlow).toBeGreaterThan(slowSlow);
-    expect(quickSlow).toBe(50);
+  it("quem não fechou nada continua sem nota", () => {
+    const [e] = rankEngineers([totals({ name: "Parado", completed: 0 })]);
+    expect(e.score).toBeNull();
   });
 
-  it("separates people the old accumulator tied at the ceiling", () => {
-    // Seven engineers all read 100 before. Their real period figures differ, so
-    // their scores must too.
-    const a = score({ completed: 10, avgResponse: 12, avgMTTR: 40 })!;
-    const b = score({ completed: 10, avgResponse: 75, avgMTTR: 150 })!;
-    expect(a).not.toBe(b);
-    expect(a).toBeGreaterThan(b);
+  it("quem é medido fica acima de quem não é, por pior que seja", () => {
+    const ranked = rankEngineers([
+      totals({ name: "Sem tempos", completed: 50 }),
+      totals({ name: "Lento mas medido", completed: 3, totalResp: 300, respCount: 3, totalMTTR: 600, mttrCount: 3 }),
+    ]);
+    expect(ranked.map((e) => e.name)).toEqual(["Lento mas medido", "Sem tempos"]);
+    expect(ranked[0].score).toBeGreaterThan(0);
+    expect(ranked[1].score).toBeNull();
+  });
+
+  it("entre dois sem nota, ordena por trabalho feito", () => {
+    const ranked = rankEngineers([
+      totals({ name: "Pouco", completed: 2 }),
+      totals({ name: "Muito", completed: 40 }),
+    ]);
+    expect(ranked.map((e) => e.name)).toEqual(["Muito", "Pouco"]);
+  });
+});
+
+describe("noScoreReason", () => {
+  it("separa não ter trabalho de não ter medição", () => {
+    // As duas liam "no orders", e a segunda é uma falha de dados que alguém pode ir
+    // corrigir — chamar-lhe "sem ordens" esconde-a.
+    expect(noScoreReason({ completed: 0, avgResponse: null, avgMTTR: null })).toBe("no orders");
+    expect(noScoreReason({ completed: 12, avgResponse: null, avgMTTR: null })).toBe("no times recorded");
+    expect(noScoreReason({ completed: 12, avgResponse: 30, avgMTTR: null })).toBe("no times recorded");
   });
 });
