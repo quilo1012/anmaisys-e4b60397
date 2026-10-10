@@ -154,17 +154,6 @@ export function useMyEmployee() {
   });
 }
 
-/** Names nobody has linked a login to yet — the list a new login picks itself from. */
-export function useUnlinkedEmployees() {
-  return useQuery({
-    queryKey: ["employees_unlinked"],
-    queryFn: async (): Promise<RosterName[]> => {
-      const { data, error } = await db.rpc("overtime_unlinked_names");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-}
 
 /**
  * Tell some logins about an ask. Best effort, on purpose.
@@ -356,10 +345,35 @@ export function useOvertimeMutations() {
     },
   });
 
+  /**
+   * Who you are, said with the number on your badge rather than picked off a list.
+   *
+   * It used to take an employee id chosen from `overtime_unlinked_names()` — every
+   * unclaimed person on the roster, by name and department, with a button saying
+   * "That's me". `link_me_to_employee`'s only identity check is an email match on a
+   * column almost no employee row fills in, so the choice was free. See
+   * `link_me_by_employee_ref`, which takes the badge instead and counts wrong answers.
+   */
   const linkMe = useMutation({
-    mutationFn: async (employeeId: string) => {
-      const { error } = await db.rpc("link_me_to_employee", { p_employee_id: employeeId });
-      if (error) throw error;
+    mutationFn: async (employeeRef: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
+      const { error } = await (db.rpc as any)("link_me_by_employee_ref", { p_ref: employeeRef });
+      if (error) {
+        /**
+         * The window between this screen shipping and the migration being pasted.
+         *
+         * Nothing in this repository applies a migration — a person pastes it — so the
+         * two halves of this change cannot land at the same instant, and in between
+         * the function this calls does not exist. PostgREST answers PGRST202, whose
+         * own text is "Could not find the function public.link_me_by_employee_ref...",
+         * which is true and useless to somebody standing in a factory. This says what
+         * to do instead.
+         */
+        if ((error as { code?: string }).code === "PGRST202") {
+          throw new Error("Sign-up is being updated right now. Ask your supervisor to link your account.");
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: KEYS.me });
