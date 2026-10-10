@@ -118,4 +118,34 @@ describe("a read that probes for a column the code can live without", () => {
     await window.fetch("https://x.supabase.co/rest/v1/quality_options", { method: "POST" });
     expect(logged.mock.calls[0][0]).toBe("API_ERROR");
   });
+
+  /**
+   * Uma função chamada antes de a sua migração ser colada.
+   *
+   * Nada neste repositório aplica migrações, por isso o merge publica o cliente que
+   * chama a função antes de ela existir. A 10/10 chegaram dois destes ao quadro do
+   * operador em noventa minutos, arquivados como API_ERROR — faltas para alguém ir
+   * investigar, de uma falha já conhecida e já à espera de uma só colagem.
+   */
+  it("uma função declarada como pendente é deriva, não falta", async () => {
+    serving({
+      code: "PGRST202",
+      message: "Could not find the function public.signup_invite_for_tablet without parameters in the schema cache",
+    }, 404);
+    await window.fetch("https://x.supabase.co/rest/v1/rpc/signup_invite_for_tablet", { method: "POST" });
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0][0]).toBe("SCHEMA_DRIFT");
+    // Registada à mesma: a migração mesmo não aterrou, e isso é para saber.
+    expect(logged.mock.calls[0][1]).toContain("signup_invite_for_tablet");
+  });
+
+  it("uma função que ninguém declarou continua a ser falta", async () => {
+    // A direcção que apanha coisas: silenciar por PGRST202 matava esta também.
+    serving({
+      code: "PGRST202",
+      message: "Could not find the function public.uma_funcao_qualquer in the schema cache",
+    }, 404);
+    await window.fetch("https://x.supabase.co/rest/v1/rpc/uma_funcao_qualquer", { method: "POST" });
+    expect(logged.mock.calls[0][0]).toBe("API_ERROR");
+  });
 });
