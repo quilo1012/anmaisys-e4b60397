@@ -32,3 +32,17 @@ export function signupQrPayload(origin: string, inviteCode?: string | null): str
   if (!code) return `${trimmed}/signup`;
   return `${trimmed}/signup?code=${encodeURIComponent(code)}`;
 }
+
+/**
+ * Where the button goes. Relative, unlike the QR: it is followed on this device.
+ *
+ * `tablet=1` is what tells the form not to sign the tablet in as the person it has just
+ * registered. The code rides along only when the caller was allowed to hold it — on the
+ * public login screen there is none, and the person types it as before.
+ */
+export function tabletSignupPath(inviteCode?: string | null): string {
+  const params = new URLSearchParams({ tablet: "1" });
+  const code = (inviteCode ?? "").trim();
+  if (code) params.set("code", code);
+  return `/signup?${params.toString()}`;
+}

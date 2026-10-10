@@ -14,6 +14,21 @@ import { Loader2, CheckCircle2, Eye, EyeOff, BadgeCheck, Mail } from "lucide-rea
 import { invokeFunction } from "@/lib/invokeFunction";
 import { looksLikeEmployeeRef } from "@/lib/loginIdentity";
 import { isFunctionUnreachable } from "@/lib/edgeFunctionUnreachable";
+import { isSharedTabletSession } from "@/lib/sharedTabletSession";
+import { createClient } from "@supabase/supabase-js";
+
+/**
+ * A client that never touches this browser's stored session.
+ *
+ * `auth.signUp` signs the new account in when confirmation is off, and that replaces
+ * whatever session the browser holds. On a line tablet that is the tablet's own login:
+ * the whole line would then be signed in as the person who just registered. Signing up
+ * through a client with no persistence leaves the tablet exactly as it was.
+ */
+const detachedAuthClient = () =>
+  createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "an-signup-detached" },
+  });
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -33,6 +48,16 @@ export default function SignUp() {
   /** Whether the code came with the link, which decides what the field says about it. */
   const [fromLink] = useState(() => {
     try { return !!new URLSearchParams(window.location.search).get("code")?.trim(); } catch { return false; }
+  });
+  /**
+   * Opened on a shared tablet: from the tablet's own button (`?tablet=1`) or with the
+   * tablet signed in. Then the account is created and nobody is signed in as it here.
+   */
+  const [onTablet] = useState(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("tablet") === "1") return true;
+    } catch { /* fall through */ }
+    return isSharedTabletSession();
   });
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -76,6 +101,9 @@ export default function SignUp() {
         throw fnErr;
       }
       if (!data?.access_token || !data?.refresh_token) throw new Error("Could not create the account.");
+      // On a tablet the account exists and is linked; the tokens are simply not used.
+      // Taking them would sign the line's tablet in as this one person.
+      if (onTablet) { setDone(true); setSubmitting(false); return; }
       const { error: setErr } = await supabase.auth.setSession({
         access_token: data.access_token, refresh_token: data.refresh_token,
       });
@@ -105,7 +133,8 @@ export default function SignUp() {
       if (!ok) { setError("That invite code isn't valid any more — it may have expired, or sign-up is closed. Ask your supervisor for a new one."); setSubmitting(false); return; }
 
       // 2) Create the account. Lands PENDING (active=false, no role) via the DB trigger.
-      const { error: signErr } = await supabase.auth.signUp({
+      const auth = onTablet ? detachedAuthClient().auth : supabase.auth;
+      const { error: signErr } = await auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
@@ -117,8 +146,9 @@ export default function SignUp() {
         },
       });
       if (signErr) throw signErr;
-      // Don't leave a half-session around — the account still needs approval.
-      await supabase.auth.signOut();
+      // Don't leave a half-session around — the account still needs approval. On a
+      // tablet there is none to clear, and signing out would sign the tablet out.
+      if (!onTablet) await supabase.auth.signOut();
       setDone(true);
     } catch (err) {
       setError((err as Error).message || "Could not create the account.");
@@ -133,16 +163,18 @@ export default function SignUp() {
         <div className="space-y-4 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-success-strong" />
           <p className="text-sm text-auth-ink">
-            {autoRole
+            {onTablet && door === "badge"
+              ? <>Your account is ready. Sign in on your own phone with your badge number and the password you just chose — this tablet stays signed in as the line.</>
+              : autoRole
               ? <>Check your email and tap the confirmation link. Then sign in, pick your name once, and you're set — you'll be told whenever overtime opens.</>
               : <>Check your email to confirm your address, then wait for an administrator to approve your account and assign your role. You'll be able to sign in once approved.</>}
           </p>
           <button
             type="button"
-            onClick={() => navigate("/login")}
+            onClick={() => navigate(onTablet && isSharedTabletSession() ? "/dashboard/my-overtime" : "/login")}
             className={authPrimaryBtn}
           >
-            Back to sign in
+            {onTablet && isSharedTabletSession() ? "Back to the tablet" : "Back to sign in"}
           </button>
         </div>
       </AuthShell>
@@ -237,7 +269,7 @@ export default function SignUp() {
         )}
 
         <button type="submit" disabled={submitting} className={authPrimaryBtn}>
-          {submitting && <Loader2 className="h-4 w-4 animate-spin" />} Create account and sign in
+          {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {onTablet ? "Create account" : "Create account and sign in"}
         </button>
 
         <p className="text-center text-sm text-auth-ink-muted">

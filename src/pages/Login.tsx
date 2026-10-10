@@ -689,9 +689,9 @@ export default function Login() {
         )}
       </form>
 
-      {/* On a shared tablet there is no "create account": the login would be bound to
-          one person for good, and the next twenty people would answer overtime as
-          them. The code sends them to their own phone instead. */}
+      {/* On a shared tablet the card carries both ways in: the QR for the person's own
+          phone, and a "Create account" button that opens the form in tablet mode, so
+          registering here never leaves the tablet signed in as that person. */}
       {!showCreateAccount && (matchedTablet || hasTablets) && <SignupQrCard />}
 
       {showCreateAccount && (
