@@ -19,11 +19,19 @@ import { useSignupQr } from "@/hooks/useSignupQr";
  * The code carries the signup URL and nothing else — see `signupQrPayload`, which has
  * a test naming what it may carry and what it never will. Scanning grants nothing.
  */
-export function SignupQrCard({ origin, tone = "auth" }: { origin?: string; tone?: "auth" | "page" }) {
+export function SignupQrCard({
+  origin,
+  tone = "auth",
+  /**
+   * Passed in, never fetched here. This card is drawn on the public login screen as
+   * well, and one that looked the code up for itself would carry it wherever it was
+   * placed. See `useTabletInviteCode` for who is allowed to supply one.
+   */
+  inviteCode,
+}: { origin?: string; tone?: "auth" | "page"; inviteCode?: string | null }) {
   const base = origin ?? (typeof window !== "undefined" ? window.location.origin : "");
-  // No code here, and there is none to give: `signup_config` is unreadable without an
-  // admin session, which is what keeps the factory's code off a public login page.
-  const { src, failed } = useSignupQr(base);
+  const { src, failed } = useSignupQr(base, inviteCode);
+  const carriesCode = !!(inviteCode ?? "").trim();
 
   // The login screen is the dark auth shell and My Overtime is the ordinary page, and
   // `text-auth-ink-muted` on the second is grey on near-white. Two tokens, one card:
@@ -50,6 +58,15 @@ export function SignupQrCard({ origin, tone = "auth" }: { origin?: string; tone?
         : <div className={`h-36 w-36 animate-pulse rounded ${placeholder}`} aria-hidden />}
       <p className={`max-w-[16rem] text-center text-xs ${muted}`}>
         Register on your phone, not on this tablet — the account has to be yours.
+      </p>
+      {/* What the scan gets you, said before the scan rather than after.
+          Without the code the form opens with a box labelled "From your supervisor",
+          and somebody who walked away from the tablet to fill it in has no way back
+          to find out where it comes from. */}
+      <p className={`max-w-[16rem] text-center text-xs ${muted}`}>
+        {carriesCode
+          ? "The invite code is already in this square — you won't be asked for it."
+          : "You'll need the invite code from the sign-up sheet where you clock in."}
       </p>
     </div>
   );
