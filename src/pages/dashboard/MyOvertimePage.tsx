@@ -3,12 +3,12 @@ import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, X, Clock, Loader2, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  useMyEmployee, useUnlinkedEmployees, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
+  useMyEmployee, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
   useMyOvertimeBlock,
 } from "@/hooks/useOvertimeRequests";
 import {
@@ -142,39 +142,62 @@ function TabletNoticeBoard() {
   );
 }
 
+/**
+ * Who you are, in the one way that is yours alone.
+ *
+ * This screen used to be a dropdown of every unclaimed person on the roster — name and
+ * department — under the heading "Who are you?" and a button saying "That's me". It
+ * was not a question, it was an offer: the account that clicked became whoever it
+ * picked, and `link_me_to_employee`'s only identity check is an email match on a
+ * column almost no employee row fills in. The badge door never had that problem, so
+ * this is the badge door's rule brought over to the other side.
+ *
+ * No list is loaded any more, which also means nobody has to be told that the person
+ * they wanted is already taken: `link_me_by_employee_ref` answers every miss the same
+ * way, so the box cannot be used to find out who has registered.
+ */
 function LinkMyself() {
-  const { data: options = [], isLoading } = useUnlinkedEmployees();
   const { linkMe } = useOvertimeMutations();
-  const [picked, setPicked] = useState("");
+  const [ref, setRef] = useState("");
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const typed = ref.trim().toUpperCase();
+    if (!typed) return;
+    linkMe.mutate(typed, {
+      // The database's words, not ours. It distinguishes "not available", "already
+      // linked" and "too many tries", and each one tells the person a different thing
+      // to do next — flattening them into "could not link" would waste that.
+      onError: (err) => toast.error((err as Error).message || "Could not link your account"),
+    });
+  };
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">Who are you?</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Pick your name once. After this the page will know you.
-        </p>
-        <Select value={picked} onValueChange={setPicked} disabled={isLoading}>
-          <SelectTrigger><SelectValue placeholder={isLoading ? "Loading names…" : "Your name"} /></SelectTrigger>
-          <SelectContent>
-            {options.map((e) => (
-              <SelectItem key={e.id} value={e.id}>
-                {e.full_name}{e.department ? ` — ${e.department}` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button
-          className="w-full" disabled={!picked || linkMe.isPending}
-          onClick={() => linkMe.mutate(picked, { onError: (e) => toast.error((e as Error).message) })}
-        >
-          {linkMe.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          That's me
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Not on the list? Your name may already be linked to another login, or you may not be on the
-          system yet. Ask your supervisor.
-        </p>
+      <CardHeader><CardTitle className="text-base">Which badge is yours?</CardTitle></CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-3" noValidate>
+          <p className="text-sm text-muted-foreground">
+            Type the number on your badge, once. After this the page will know you.
+          </p>
+          <Input
+            value={ref}
+            onChange={(e) => setRef(e.target.value)}
+            placeholder="E045"
+            autoCapitalize="characters"
+            spellCheck={false}
+            className="font-mono uppercase"
+            aria-label="Employee ID"
+          />
+          <Button className="w-full" type="submit" disabled={!ref.trim() || linkMe.isPending}>
+            {linkMe.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            That's me
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            No number on your badge, or it isn't working? Your supervisor can link your account —
+            they have the list. Five wrong tries and you'll have to ask them anyway.
+          </p>
+        </form>
       </CardContent>
     </Card>
   );
