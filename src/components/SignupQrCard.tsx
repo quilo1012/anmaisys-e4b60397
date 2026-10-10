@@ -1,4 +1,6 @@
+import { Link } from "react-router-dom";
 import { useSignupQr } from "@/hooks/useSignupQr";
+import { tabletSignupPath } from "@/lib/signupQr";
 
 /**
  * Register on your own phone, not on the tablet in front of you.
@@ -10,11 +12,11 @@ import { useSignupQr } from "@/hooks/useSignupQr";
  * answering on one tablet answers as whoever that account is linked to: one row,
  * overwritten each time, and the floor reporting that only one person can sign up.
  *
- * Creating an account there would make it permanent — `link_me_to_employee` binds the
- * login to one employee and refuses to do it twice. So this screen does not offer it:
- * `showCreateAccount` is already false on a tablet, and this is what belongs in its
- * place. The phone in somebody's pocket is the only device in this building that is
- * reliably one person.
+ * The phone is still the better place, but it is no longer the only one. Since
+ * 20261009090000 the database refuses to link a tablet account to anybody, and the
+ * registration form opened from here is told it is on a tablet (`?tablet=1`), so it
+ * creates the person's account without signing the tablet in as them. Some people have
+ * no phone with them at the start of a shift; for them the button below is the way in.
  *
  * The code carries the signup URL and nothing else — see `signupQrPayload`, which has
  * a test naming what it may carry and what it never will. Scanning grants nothing.
@@ -57,17 +59,26 @@ export function SignupQrCard({
         ? <img src={src} alt="QR code to the registration page" className="h-36 w-36 rounded bg-white p-1.5" />
         : <div className={`h-36 w-36 animate-pulse rounded ${placeholder}`} aria-hidden />}
       <p className={`max-w-[16rem] text-center text-xs ${muted}`}>
-        Register on your phone, not on this tablet — the account has to be yours.
+        Or create it here — the tablet stays signed in as the line, not as you.
       </p>
+      <Link
+        to={tabletSignupPath(inviteCode)}
+        className={tone === "auth"
+          ? "inline-flex h-10 items-center justify-center rounded-lg bg-auth-brand px-5 text-sm font-semibold text-white shadow-sm hover:bg-auth-brand/90"
+          : "inline-flex h-10 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"}
+      >
+        Create account
+      </Link>
       {/* What the scan gets you, said before the scan rather than after.
           Without the code the form opens with a box labelled "From your supervisor",
           and somebody who walked away from the tablet to fill it in has no way back
           to find out where it comes from. */}
       <p className={`max-w-[16rem] text-center text-xs ${muted}`}>
         {carriesCode
-          ? "The invite code is already in this square — you won't be asked for it."
+          ? "The invite code is already in this square and in the button — you won't be asked for it."
           : "You'll need the invite code from the sign-up sheet where you clock in."}
       </p>
     </div>
   );
 }
+

@@ -137,4 +137,29 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     expect(await screen.findByText(/invite code isn't valid any more/i)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Register with my email instead/i })).toBeNull();
   });
+
+  /**
+   * The tablet's own "Create account" button opens this with `?tablet=1`.
+   *
+   * The badge door hands back tokens for the new account. Using them would sign the
+   * line's shared tablet in as one person — the Eduardo Luz failure again, by another
+   * route. On a tablet the account is made and the tokens are left alone.
+   */
+  it("no tablet cria a conta sem pôr o tablet em nome da pessoa", async () => {
+    restore?.();
+    restore = withSearch("?tablet=1&code=AN-2026");
+    invoke.mockResolvedValueOnce({ data: { access_token: "a", refresh_token: "r", full_name: "X" }, error: null });
+    const { supabase } = await import("@/integrations/supabase/client");
+    const setSession = supabase.auth.setSession as unknown as ReturnType<typeof vi.fn>;
+    setSession.mockClear();
+    renderPage();
+
+    expect((screen.getByLabelText(/Invite code/i) as HTMLInputElement).value).toBe("AN-2026");
+    fireEvent.change(screen.getByLabelText(/Employee ID/i), { target: { value: "E151" } });
+    fireEvent.change(screen.getByLabelText(/Choose a password/i), { target: { value: "umapalavra" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Create account$/i }));
+
+    expect(await screen.findByText(/Sign in on your own phone/i)).toBeTruthy();
+    expect(setSession).not.toHaveBeenCalled();
+  });
 });
