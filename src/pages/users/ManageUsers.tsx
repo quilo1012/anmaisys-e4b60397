@@ -19,7 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { SignupSettingsCard } from "@/components/SignupSettingsCard";
 import { LeaderLinePicker } from "@/components/LeaderLinePicker";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package, Hand } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package, Hand, BadgeCheck } from "lucide-react";
+import { badgeRefFromEmail, isEmployeeAccount } from "@/lib/employeeAccounts";
 import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
@@ -205,7 +206,7 @@ function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSave
 
 export default function ManageUsers() {
   const [users, setUsers] = useState<Profile[]>([]);
-  const [activeTab, setActiveTab] = useState<"staff" | "engineers" | "leaders">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "employees" | "engineers" | "leaders">("staff");
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -686,12 +687,115 @@ export default function ManageUsers() {
     }
   };
 
+  // Floor logins (the `employee` role, and anything made through the badge) have their
+  // own tab, so the office list is not two hundred overtime accounts long.
+  const staffUsers = users.filter((u) => !isEmployeeAccount(u));
+  const employeeUsers = users.filter((u) => isEmployeeAccount(u));
+
+  const renderUserTable = (title: string, list: Profile[], emptyText: string) => (
+        <Card>
+          <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Login</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {list.map((user) => {
+                  const RoleIcon = user.role ? roleIcons[user.role] : Shield;
+                  const badgeRef = badgeRefFromEmail(user.email);
+                  const isCurrentUser = user.id === currentUser?.id;
+                  const managerBlockedTarget = currentRole !== "admin" && !!user.role && protectedStaffRoles.includes(user.role);
+                  return (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>
+                        {badgeRef
+                          ? <span className="inline-flex items-center gap-1.5"><BadgeCheck className="h-4 w-4 text-muted-foreground" />Badge <span className="font-mono">{badgeRef}</span></span>
+                          : user.email}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <RoleIcon className="h-4 w-4" />
+                          <Badge variant="outline" className={roleBadgeClass(user.role)}>
+                            {user.role ? roleLabels[user.role] : "No role"}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>{user.shift ?? "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.active ? "default" : "secondary"}>
+                          {user.active ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          {!user.role && !managerBlockedTarget && (
+                            <Button size="sm" className="h-8 gap-1 bg-success text-success-foreground hover:bg-success/90" onClick={() => openEditUser(user)}>
+                              <Check className="h-4 w-4" /> Approve
+                            </Button>
+                          )}
+                          {!managerBlockedTarget && (
+                            <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {!isCurrentUser && !managerBlockedTarget && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="icon" variant="ghost" aria-label="Delete this record" title="Delete" className="text-destructive-strong hover:text-destructive-strong">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete user?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete <strong>{user.name}</strong> ({user.email}). This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    {deleteLoading === user.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {list.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">{emptyText}</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+  );
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
           title="User Management"
-          description="Staff logins, tablet station logins and engineer PIN identities, in one place."
+          description="Staff logins, employee (overtime) logins, and engineer and leader PIN identities, in one place."
           icon={<UsersIcon className="h-5 w-5" />}
         />
 
@@ -703,6 +807,15 @@ export default function ManageUsers() {
             className="gap-2"
           >
             <UsersIcon className="h-4 w-4" /> Staff
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "employees" ? "default" : "ghost"}
+            onClick={() => setActiveTab("employees")}
+            className="gap-2"
+          >
+            <Hand className="h-4 w-4" /> Employees
+            <Badge variant="secondary" className="ml-0.5 h-5 px-1.5 text-xs">{employeeUsers.length}</Badge>
           </Button>
           <Button
             type="button"
@@ -722,12 +835,25 @@ export default function ManageUsers() {
           </Button>
         </div>
 
+        <div className={activeTab === "employees" ? "space-y-4" : "hidden"}>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold">Employees</h2>
+              <p className="text-muted-foreground">People on the floor who sign in with their badge or the invite link to see and answer overtime</p>
+            </div>
+            <Button onClick={() => { setRole("employee"); setOpen(true); }} disabled={!createRoleOptions.includes("employee")}>
+              <UserPlus className="h-4 w-4 mr-2" />New Employee
+            </Button>
+          </div>
+          {currentRole === "admin" && <SignupSettingsCard />}
+          {renderUserTable("Employees", employeeUsers, "No employee logins yet. Share the invite link above, or add one with New Employee.")}
+        </div>
+
         <div className={activeTab === "staff" ? "space-y-4" : "hidden"}>
-        {currentRole === "admin" && <SignupSettingsCard />}
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold">Staff Members</h2>
-            <p className="text-muted-foreground">Admins, managers and engineers — people who log in with their personal email</p>
+            <p className="text-muted-foreground">Admins, managers, engineers and operators — the office and line logins. Employees have their own tab.</p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -789,96 +915,7 @@ export default function ManageUsers() {
 
         {currentRole === "admin" && <RolePermissionsSummary />}
 
-        <Card>
-          <CardHeader><CardTitle>Staff Members</CardTitle></CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Shift</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => {
-                  const RoleIcon = user.role ? roleIcons[user.role] : Shield;
-                  const isCurrentUser = user.id === currentUser?.id;
-                  const managerBlockedTarget = currentRole !== "admin" && !!user.role && protectedStaffRoles.includes(user.role);
-                  return (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <RoleIcon className="h-4 w-4" />
-                          <Badge variant="outline" className={roleBadgeClass(user.role)}>
-                            {user.role ? roleLabels[user.role] : "No role"}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>{user.shift ?? "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.active ? "default" : "secondary"}>
-                          {user.active ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {!user.role && !managerBlockedTarget && (
-                            <Button size="sm" className="h-8 gap-1 bg-success text-success-foreground hover:bg-success/90" onClick={() => openEditUser(user)}>
-                              <Check className="h-4 w-4" /> Approve
-                            </Button>
-                          )}
-                          {!managerBlockedTarget && (
-                            <Button size="icon" variant="ghost" onClick={() => openEditUser(user)}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {!isCurrentUser && !managerBlockedTarget && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="icon" variant="ghost" aria-label="Delete this record" title="Delete" className="text-destructive-strong hover:text-destructive-strong">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete user?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently delete <strong>{user.name}</strong> ({user.email}). This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    {deleteLoading === user.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {users.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">No users found</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {renderUserTable("Staff Members", staffUsers, "No users found")}
           </div>
 
         <div className={activeTab === "engineers" ? "space-y-4" : "hidden"}>
