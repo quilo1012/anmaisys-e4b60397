@@ -319,7 +319,7 @@ export default function AttendancePage() {
           ponta e os números na outra, e a última página trazia uma linha só. */}
       <div
         className={cn(
-          "space-y-4 print-content print-dense",
+          "attendance-sheet space-y-4 print-content print-dense",
           tab === "clocks" && "print-landscape",
         )}
       >
@@ -338,9 +338,11 @@ export default function AttendancePage() {
               // o papel, em cada página.
               : "Days marked on the headcount board"
           }
-          // Every `<header>` is hidden in print. This one carries the title and the
-          // period, which is what makes the printout a document rather than a grid.
-          className="print-keep"
+          // Sem `print-keep`. A banda é o cabeçalho do ECRÃ — navio, sobrancelha do
+          // módulo, dois controlos — e ia para o papel por o papel não ter cabeçalho
+          // seu. A folha de salários abria com WORKFORCE em capitais espaçadas, que é
+          // a resposta a "em que módulo estou" dada a quem já tem a folha na mão. O
+          // cabeçalho do documento está abaixo, escrito para o meio onde é lido.
         >
           <Button size="sm" variant="secondary" onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" /> Print
@@ -397,8 +399,42 @@ export default function AttendancePage() {
           <ReadFailed what="The attendance record" onRetry={() => { refetchRoster(); refetchDays(); }} />
         ) : (
         <>
+        {/* ── A cabeça da folha, só no papel ───────────────────────────────────────
+            O cabeçalho de um ecrã e o cabeçalho de um documento não são o mesmo
+            objecto. A banda responde "onde estou" a quem navega; isto responde "o que
+            é isto" a quem pega na folha quinze dias depois, sem a aplicação à frente:
+            o que é, que dias cobre, de onde vêm os números e quando foram tirados.
+
+            O período vai na face dos algarismos e vai grande, porque o período é o que
+            a folha É: duas folhas desta tabela não diferem em mais nada. */}
+        <header className="print-keep hidden print:block">
+          <h1 className="font-display text-[15pt] font-bold leading-tight text-black">
+            Time &amp; Attendance
+          </h1>
+          <p className="mt-0.5 font-figure text-[11pt] leading-none text-black">
+            {fmtDate(from)} — {fmtDate(to)}
+          </p>
+          <p className="sheet-provenance">
+            Hours clocked on TimeMoto. Taken off the system {fmtDate(currentShift().operationalDate)}.
+          </p>
+
+          {/* As cinco figuras com que o ecrã abre, em linha em vez de em cinco caixas.
+              No ecrã são as caixas que tornam uma delas encontrável de relance; no
+              papel são cinco rectângulos de tinta a dizer o que uma linha de rótulo e
+              valor diz numa. */}
+          <dl className="sheet-summary">
+            <div><dt>Hours worked</dt><dd>{hm(totals.worked)}</dd></div>
+            <div><dt>Balance</dt><dd>{hm(totals.balance)}</dd></div>
+            <div><dt>People clocked</dt><dd>{totals.people}</dd></div>
+            <div><dt>Holiday days</dt><dd>{totals.holidayDays}</dd></div>
+            <div><dt>Absence days</dt><dd>{totals.absenceDays}</dd></div>
+          </dl>
+        </header>
+
         {/* Hours worked leads: this screen exists to say what the clocks recorded, and
             the other three are how to read that number. */}
+        {/* Só no ecrã: o papel diz as mesmas cinco figuras numa linha, acima. */}
+        <div className="no-print">
         <FigureRow>
           <Figure lead label="Hours worked" value={hm(totals.worked)} hint="What TimeMoto recorded" />
           <Figure
@@ -419,6 +455,7 @@ export default function AttendancePage() {
             hint="Sick, unpaid or unexplained"
           />
         </FigureRow>
+        </div>
 
         <Card>
           <CardContent className="p-0">
@@ -507,6 +544,21 @@ export default function AttendancePage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {/* Os cinco totais são ditos uma vez no cabeçalho, onde são o
+                        resumo; aqui são a aritmética da coluna que está por cima deles,
+                        que é outra afirmação e tem de ficar debaixo da coluna que soma.
+                        O ecrã mantém a sua linha de figuras. */}
+                    <TableRow className="hidden print:table-row sheet-total hover:bg-transparent">
+                      <TableCell className="font-semibold">Total · {byPerson.length} people</TableCell>
+                      <TableCell />
+                      <TableCell className="border-l text-right font-figure tabular-nums">{hm(totals.worked)}</TableCell>
+                      <TableCell className="text-right font-figure tabular-nums">{hm(totals.balance)}</TableCell>
+                      <TableCell className="border-l text-right font-figure tabular-nums">
+                        {byPerson.reduce((a, p) => a + p.present, 0)}
+                      </TableCell>
+                      <TableCell className="text-right font-figure tabular-nums">{totals.holidayDays}</TableCell>
+                      <TableCell className="font-figure tabular-nums">{totals.absenceDays} absence days</TableCell>
+                    </TableRow>
                   </TableBody>
                   {/* An empty repeating foot, for the same reason the caption above has
                       a top padding: it keeps the last row of every page off the edge. */}
@@ -524,12 +576,27 @@ export default function AttendancePage() {
         {/* Do lado das horas, e não da página: fala do que este separador é e de como
             se importa para ele. Na folha das marcas do quadro dizia a uma sala que
             aquilo eram horas picadas, que é precisamente o contrário. */}
-        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
+        <p className="no-print flex items-start gap-1.5 text-2xs text-muted-foreground">
           <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           The headcount board says who was meant to be on a line; this says who actually
           clocked on. Importing the same period twice updates those days rather than
           duplicating them.
         </p>
+
+        {/* ── O pé do documento ─────────────────────────────────────────────────────
+            Um documento que na prática se assina e não tem onde, assina-se na margem —
+            e é assim que duas cópias da mesma quinzena deixam de se distinguir. */}
+        <footer className="print-keep hidden print:block sheet-foot">
+          <p className="sheet-provenance">
+            Clock data from TimeMoto. The headcount board records who was rostered; this
+            records who clocked on. The two are read together.
+          </p>
+          <div className="sheet-signoff">
+            <span>Checked by</span>
+            <span>Signature</span>
+            <span>Date</span>
+          </div>
+        </footer>
           </TabsContent>
 
           <TabsContent value="marks">
