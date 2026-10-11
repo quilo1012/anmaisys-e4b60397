@@ -256,6 +256,20 @@ export function filterByCrew(rows: ClosePerson[], crew: string): ClosePerson[] {
   return rows.filter((r) => (r.shift ?? NO_CREW) === crew);
 }
 
+/**
+ * The crew rows the printed summary lists above its total.
+ *
+ * Only for the whole picture. With a crew chosen, the sheet is about that crew and
+ * the total row already is it: "Production · Weekend" printed with Day, Night and
+ * Warehouse lines above it put four crews nobody asked for on the page, and read as
+ * though the register below covered them too. One crew alone would only repeat the
+ * total.
+ */
+export function summaryCrewRows<T extends { shift: string }>(byCrew: T[], crew: string): T[] {
+  if (crew !== "all") return [];
+  return byCrew.length > 1 ? byCrew : [];
+}
+
 /** What a crew is called on screen. Only the sentinel needs saying out loud. */
 export function crewLabel(crew: string): string {
   return crew === NO_CREW ? "No crew recorded" : crew;
