@@ -40,6 +40,7 @@ import {
   recordLoginFailure,
 } from "@/lib/loginRateLimit";
 import { resolveIdentity, suggestTablets } from "@/lib/loginIdentity";
+import { classifyLoginFailure, NOT_ACTIVATED_MESSAGE } from "@/lib/loginFailure";
 
 const TABLET_KEY = "an_tablet_account_id";
 const TABLET_TS_KEY = "an_tablet_account_id_at";
@@ -405,33 +406,32 @@ export default function Login() {
         navigate(landAfterLogin(roleResult as string), { replace: true });
       }
     } catch (error: unknown) {
-      // Count this failure and surface remaining attempts / lockout.
-      const after = recordLoginFailure(rlId);
-      setLockedMsLeft(after.lockedMsLeft);
-      setRemaining(after.remaining);
       const reason = error instanceof Error ? error.message : String(error);
 
-      // "Wrong password" and "I could not reach the server" used to read exactly the
-      // same, so an operator on a dropped uplink retyped a password that was never
-      // the problem — five times, and then the lockout. They are different problems
-      // with different answers, so they now say different things.
-      const lower = reason.toLowerCase();
-      const isNetwork = lower.includes("failed to fetch")
-        || lower.includes("networkerror")
-        || lower.includes("load failed")
-        || lower.includes("timeout")
-        || lower.includes("aborted");
-      const isCredentials = lower.includes("invalid credentials")
-        || lower.includes("invalid login")
-        || lower.includes("invalid_grant");
+      // Classificar ANTES de contar. "Wrong password" e "I could not reach the server"
+      // já tinham deixado de ler igual, mas só o TEXTO tinha sido separado — o contador
+      // continuava a subir para as duas, e para tudo o resto. Uma conta por activar
+      // recusa com `email_not_confirmed`, e a pessoa, que escreveu a password certa,
+      // era mandada tentar outra vez até à tranca. Ver `loginFailure`.
+      const failure = classifyLoginFailure(error);
+      const after = failure.countsAgainstLockout
+        ? recordLoginFailure(rlId)
+        : getLoginLockout(rlId);
+      setLockedMsLeft(after.lockedMsLeft);
+      setRemaining(after.remaining);
+
+      const isNetwork = failure.kind === "network";
+      const attemptsLeft = failure.countsAgainstLockout && after.remaining > 0;
 
       const description = after.lockedMsLeft > 0
         ? `Too many attempts — locked for ${Math.ceil(after.lockedMsLeft / 1000)}s.`
         : isNetwork
           ? "No connection to the server. Your password is fine — check the wifi and try again."
-          : isCredentials
-            ? `That password is not right for ${matchedTablet ? `"${matchedTablet.label}"` : "this account"}.${after.remaining > 0 ? ` ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} left before it locks.` : ""}`
-            : `${reason}${after.remaining > 0 ? ` · ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} remaining` : ""}`;
+          : failure.kind === "not_activated"
+            ? NOT_ACTIVATED_MESSAGE
+            : failure.kind === "credentials"
+              ? `That password is not right for ${matchedTablet ? `"${matchedTablet.label}"` : "this account"}.${attemptsLeft ? ` ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} left before it locks.` : ""}`
+              : reason;
 
       setFormError(description);
       toast({ title: "Sign-in failed", description, variant: "destructive" });
