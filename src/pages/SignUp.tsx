@@ -15,6 +15,8 @@ import { invokeFunction } from "@/lib/invokeFunction";
 import { looksLikeEmployeeRef } from "@/lib/loginIdentity";
 import { isFunctionUnreachable } from "@/lib/edgeFunctionUnreachable";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
+import { signupErrorMessage, withConnectionRetry } from "@/lib/signupConnection";
+import { roleTitle, type Role } from "@/lib/permissions";
 import { createClient } from "@supabase/supabase-js";
 
 /**
@@ -29,6 +31,22 @@ const detachedAuthClient = () =>
   createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: "an-signup-detached" },
   });
+
+/**
+ * Who the account will be, said before it is created. The person does not choose it:
+ * the badge always makes an Employee, and the email door makes whatever the admin set
+ * in Sign-up settings. A role picker here would hand the choice to anyone holding the
+ * code, admin included.
+ */
+function JoinsAs({ role }: { role: string | null }) {
+  if (!role || !(role in roleTitle)) return null;
+  return (
+    <p className="text-sm text-auth-ink-muted">
+      You'll join as <b className="text-auth-ink">{roleTitle[role as Role]}</b>
+      {role === "employee" ? " — you'll see overtime on offer and answer it." : "."}
+    </p>
+  );
+}
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -84,8 +102,10 @@ export default function SignUp() {
     if (!code.trim()) { setError("Enter the invite code."); return; }
     setSubmitting(true);
     try {
-      const { data, error: fnErr } = await invokeFunction<{ access_token: string; refresh_token: string; full_name: string | null }>(
-        "employee-signin", { mode: "register", employee_ref: ref, password, invite_code: code.trim() },
+      const { data, error: fnErr } = await withConnectionRetry(() =>
+        invokeFunction<{ access_token: string; refresh_token: string; full_name: string | null }>(
+          "employee-signin", { mode: "register", employee_ref: ref, password, invite_code: code.trim() },
+        ),
       );
       if (fnErr) {
         // The badge door depends on `employee-signin`, and when that function is not
@@ -111,7 +131,7 @@ export default function SignUp() {
       // Signed in and linked. Straight to the one screen this account is for.
       window.location.href = "/dashboard/my-overtime";
     } catch (err) {
-      setError((err as Error).message || "Could not create the account.");
+      setError(signupErrorMessage(err, "Could not create the account."));
       setSubmitting(false);
     }
   };
@@ -127,31 +147,36 @@ export default function SignUp() {
     setSubmitting(true);
     try {
       // 1) Validate the invite code server-side (without exposing it).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
-      const { data: ok, error: rpcErr } = await (supabase.rpc as any)("check_invite_code", { code: code.trim() });
+      const { data: ok, error: rpcErr } = await withConnectionRetry<{ data: boolean | null; error: unknown }>(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
+        () => (supabase.rpc as any)("check_invite_code", { code: code.trim() }),
+      );
       if (rpcErr) throw rpcErr;
       if (!ok) { setError("That invite code isn't valid any more — it may have expired, or sign-up is closed. Ask your supervisor for a new one."); setSubmitting(false); return; }
 
       // 2) Create the account. Lands PENDING (active=false, no role) via the DB trigger.
       const auth = onTablet ? detachedAuthClient().auth : supabase.auth;
-      const { error: signErr } = await auth.signUp({
+      // Repeating a sign-up whose first attempt did arrive is harmless: with confirmation
+      // on, the server answers an already-registered address exactly as it answers a new
+      // one, and sends nothing twice.
+      const { error: signErr } = await withConnectionRetry(() => auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
           data: { name: name.trim(), self_signup: "true" },
-          // An operator account is for one thing; land it there after the email click.
+          // An overtime account is for one thing; land it there after the email click.
           emailRedirectTo: autoRole
             ? `${window.location.origin}/login?next=${encodeURIComponent("/dashboard/my-overtime")}`
             : `${window.location.origin}/login`,
         },
-      });
+      }));
       if (signErr) throw signErr;
       // Don't leave a half-session around — the account still needs approval. On a
       // tablet there is none to clear, and signing out would sign the tablet out.
       if (!onTablet) await supabase.auth.signOut();
       setDone(true);
     } catch (err) {
-      setError((err as Error).message || "Could not create the account.");
+      setError(signupErrorMessage(err, "Could not create the account."));
     } finally {
       setSubmitting(false);
     }
@@ -258,6 +283,7 @@ export default function SignUp() {
           </p>
         </div>
 
+        <JoinsAs role="employee" />
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
 
         {/* A saída, onde a pessoa encalhou. Dizer que não funciona e deixá-la no mesmo
@@ -314,6 +340,7 @@ export default function SignUp() {
           </p>
         </div>
 
+        <JoinsAs role={autoRole} />
         {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
 
         <button type="submit" disabled={submitting}

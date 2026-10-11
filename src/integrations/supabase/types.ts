@@ -7588,6 +7588,7 @@ export type Database = {
         | "warehouse"
         | "quality_supervisor"
         | "production_office_admin"
+        | "employee"
       machine_category: "line_fixed" | "line_mobile" | "support"
       mobile_asset_type: "printer" | "bag_sealer"
       po_status: "draft" | "sent" | "received" | "cancelled"
@@ -7775,6 +7776,7 @@ export const Constants = {
         "warehouse",
         "quality_supervisor",
         "production_office_admin",
+        "employee",
       ],
       machine_category: ["line_fixed", "line_mobile", "support"],
       mobile_asset_type: ["printer", "bag_sealer"],

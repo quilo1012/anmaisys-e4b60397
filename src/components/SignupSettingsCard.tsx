@@ -80,15 +80,19 @@ function InviteQr({ code }: { code: string }) {
 }
 
 /** Admin card: manage the self-registration invite code + on/off switch. */
+type AutoRole = "pending" | "employee" | "operator";
+
 export function SignupSettingsCard() {
   const [code, setCode] = useState("");
   const [enabled, setEnabled] = useState(false);
   // When the code stops working. Null is "never" — today's behaviour, kept for whoever
   // wants it; a freshly generated code proposes a week.
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
-  // What a self sign-up becomes. Null queues it for approval (today's behaviour);
-  // "operator" makes it active on creation — enough to answer overtime, nothing more.
-  const [autoRole, setAutoRole] = useState<"pending" | "operator">("pending");
+  // What a self sign-up becomes. Null queues it for approval; "employee" makes it active
+  // on creation with My Overtime and nothing else. "operator" was the value before
+  // `employee` existed and carries the whole operator menu — still shown if it is what
+  // is saved, so the screen never claims a setting the database does not hold.
+  const [autoRole, setAutoRole] = useState<AutoRole>("pending");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -99,7 +103,7 @@ export function SignupSettingsCard() {
       setCode(data.invite_code ?? "");
       setEnabled(!!data.enabled);
       setExpiresAt(data.invite_expires_at ?? null);
-      setAutoRole(data.self_signup_role === "operator" ? "operator" : "pending");
+      setAutoRole(data.self_signup_role === "employee" || data.self_signup_role === "operator" ? data.self_signup_role : "pending");
       setLoading(false);
     });
     return () => { ok = false; };
@@ -109,7 +113,7 @@ export function SignupSettingsCard() {
     setSaving(true);
     const { error } = await cfg().update({
       invite_code: code.trim() || null, enabled, invite_expires_at: expiresAt,
-      self_signup_role: autoRole === "operator" ? "operator" : null,
+      self_signup_role: autoRole === "pending" ? null : autoRole,
       updated_at: new Date().toISOString(),
     }).eq("id", true);
     setSaving(false);
@@ -175,7 +179,7 @@ export function SignupSettingsCard() {
               const link = `${origin}/signup?code=${encodeURIComponent(code.trim())}`;
               // The message is what gets pasted into the group, so it says what the person
               // is signing up for — otherwise the first question in the group is "what is this".
-              const message = autoRole === "operator"
+              const message = autoRole !== "pending"
                 ? `Overtime sign-up — create your account here: ${link}\nInvite code: ${code.trim()}\nAfter confirming your email, sign in, pick your name once, and you'll get a notification whenever overtime opens.`
                 : `Create your ${document.title || "system"} account here: ${link}\nInvite code: ${code.trim()}`;
               return (
@@ -200,16 +204,21 @@ export function SignupSettingsCard() {
 
             <div className="space-y-1.5">
               <Label className="text-sm">New accounts start as</Label>
-              <Select value={autoRole} onValueChange={(v) => setAutoRole(v as "pending" | "operator")}>
+              <Select value={autoRole} onValueChange={(v) => setAutoRole(v as AutoRole)}>
                 <SelectTrigger className="w-[260px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pending — you approve each one</SelectItem>
-                  <SelectItem value="operator">Active operator — can answer overtime</SelectItem>
+                  <SelectItem value="employee">Active employee — can answer overtime</SelectItem>
+                  {autoRole === "operator" && (
+                    <SelectItem value="operator">Active operator — the whole operator menu</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                {autoRole === "operator"
-                  ? <>Accounts from this link work straight away as <b>operator</b>: their own overtime asks and answers, nothing else. You still get a notification for each one and can deactivate them in Users.</>
+                {autoRole === "employee"
+                  ? <>Accounts from this link work straight away as <b>employee</b>: their own overtime asks and answers, nothing else. You still get a notification for each one and can deactivate them in Users.</>
+                  : autoRole === "operator"
+                  ? <>Accounts from this link work straight away as <b>operator</b>, which is more than overtime: production logging, maintenance calls, targets. Pick <b>employee</b> if overtime is all they are here for.</>
                   : <>Accounts wait with no role until you set one in Users. Right for office logins; slow for a whole floor.</>}
               </p>
             </div>
