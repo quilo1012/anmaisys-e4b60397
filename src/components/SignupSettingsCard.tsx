@@ -11,6 +11,8 @@ import { Loader2, UserPlus, RefreshCw, Copy, Send, Clock, Printer } from "lucide
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useSignupQr } from "@/hooks/useSignupQr";
+import { signupQrPayload } from "@/lib/signupQr";
+import { writeSignupLabel } from "@/lib/signupLabel";
 import {
   EXPIRY_CHOICES, DEFAULT_EXPIRY, expiryFromChoice, expiryLabel, isExpired, type ExpiryChoice,
 } from "@/lib/inviteExpiry";
@@ -45,48 +47,17 @@ function InviteQr({ code }: { code: string }) {
   if (failed || !origin) return null;
 
   /**
-   * Built node by node rather than written as a string: the code is somebody's typing
-   * and the sheet is a document, and the one place those two meet is the one place an
-   * injection would live. `textContent` closes it by construction instead of by
-   * remembering to escape.
+   * Printed onto whatever paper the printer has loaded — the label in the Zebra
+   * ZT231 on the floor, A4 in the office. See `writeSignupLabel` for how the sheet
+   * fits either without being told which.
    */
   const print = () => {
     const w = window.open("", "_blank", "width=720,height=900");
     if (!w || !src) { toast.error("Allow pop-ups to print the sheet"); return; }
-    const d = w.document;
-    d.title = "Create your account";
-
-    const style = d.createElement("style");
-    style.textContent = `
-      body{font-family:system-ui,sans-serif;margin:0;padding:48px;text-align:center;color:#0f172a}
-      h1{font-size:34px;margin:0 0 8px}
-      p.lead{font-size:17px;margin:0 0 28px;color:#475569}
-      img{width:340px;height:340px}
-      p.code{margin-top:28px;font-size:15px;color:#475569}
-      p.code b{font-family:ui-monospace,monospace;font-size:21px;color:#0f172a;letter-spacing:.04em}
-    `;
-    d.head.appendChild(style);
-
-    const h1 = d.createElement("h1");
-    h1.textContent = "Create your account";
-    const lead = d.createElement("p");
-    lead.className = "lead";
-    lead.textContent = "Scan this with your phone to sign up for overtime.";
-    const img = d.createElement("img");
-    img.src = src;
-    img.alt = "";
-    const fallback = d.createElement("p");
-    fallback.className = "code";
-    fallback.append("If scanning doesn't work, the invite code is ");
-    const b = d.createElement("b");
-    b.textContent = code;
-    fallback.appendChild(b);
-
-    d.body.append(h1, lead, img, fallback);
+    writeSignupLabel(w.document, { payload: signupQrPayload(origin, code), code });
     w.focus();
-    // After the picture is on the page, or the sheet prints with an empty square.
-    if (img.complete) w.print();
-    else img.onload = () => w.print();
+    // Vector and inline: there is no picture to wait for before printing.
+    w.print();
   };
 
   return (
