@@ -7,7 +7,18 @@ import {
 // Every value of the enum, retired ones included: `supervisor`, `planner`, `viewer`
 // and `co_engineer` are asserted to hold nothing at all, which is the whole point of
 // retiring them in the matrix rather than deleting them from the enum.
-const ROLES: Role[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "production_office_admin"];
+//
+// `employee` was added to the matrix on 11/10 and not to this list, so for a day the
+// newest role — the one the invite link and the badge are about to hand to two hundred
+// people — was the only one no assertion could see. The loop below walks ROLES, so a
+// value missing here is not tested loosely: it is not tested at all, and `employee`
+// could have been added to any row without a single test noticing.
+//
+// It holds exactly one action, and that is the whole reason it exists: `operator` logs
+// production, raises maintenance calls and sees line targets, and somebody whose only
+// business in the app is "yes, I'll do Saturday" should have none of that. Listing it
+// here is what keeps that true — every other row now asserts it holds nothing.
+const ROLES: Role[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "production_office_admin", "employee"];
 
 // Expected MATRIX — kept in sync manually with permissions.ts. If someone
 // edits permissions.ts without updating this table, the diff fails loudly.
@@ -61,7 +72,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "headcount.manage": ["admin"],
   "attendance.manage": ["admin", "manager"],
   "overtime.manage": ["admin", "manager", "production_office_admin"],
-  "overtime.respond": ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor"],
+  "overtime.respond": ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   "downtime.correct": ["admin", "maintenance_manager"],
   // `operator` fora desde 03/10/2026, por decisão. Se este teste voltar a falhar em
