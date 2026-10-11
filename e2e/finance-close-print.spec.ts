@@ -220,3 +220,34 @@ test("the Finance Close prints on A4 landscape without losing a column, a row or
     fs.writeFileSync(process.env.FC_PDF_OUT, pdf);
   }
 });
+
+test("filtered to Production · Weekend, the sheet prints that crew and no other", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await stubSupabase(page);
+  await page.goto("/dashboard/finance-close");
+  await page.waitForSelector("table.close-register tbody tr", { timeout: 30_000 });
+
+  await page.getByRole("combobox").filter({ hasText: "Every department" }).click();
+  await page.getByRole("option", { name: "Production" }).click();
+  await page.getByRole("combobox").filter({ hasText: "Every crew" }).click();
+  await page.getByRole("option", { name: "Weekend", exact: true }).click();
+
+  await page.emulateMedia({ media: "print" });
+  await page.setViewportSize(A4_LANDSCAPE);
+
+  const s = await page.evaluate(() => ({
+    summary: [...document.querySelectorAll("table.close-summary tbody tr")]
+      .map((tr) => tr.querySelector("td")?.textContent?.trim()),
+    crews: [...new Set([...document.querySelectorAll("table.close-register tbody tr")]
+      .map((tr) => tr.children[1]?.textContent?.trim()))],
+    depts: [...new Set([...document.querySelectorAll("table.close-register tbody tr")]
+      .map((tr) => tr.children[2]?.textContent?.trim()))],
+    caption: document.querySelector("th.print-caption")?.textContent ?? "",
+  }));
+  // Only the total, named after the filter — no Day, Night or Warehouse lines.
+  expect(s.summary).toEqual(["Production · Weekend"]);
+  expect(s.crews).toEqual(["Weekend"]);
+  expect(s.depts).toEqual(["Production"]);
+  expect(s.caption).toContain("Production · Weekend only");
+});

@@ -25,6 +25,7 @@ import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
   closeCrews, filterByCrew, crewLabel, NO_CREW,
   closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
+  summaryCrewRows,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 import { plannedBoardDates, periodElapsedTo } from "@/lib/shiftBalance";
@@ -556,8 +557,9 @@ export default function FinanceClosePage() {
             </tr>
           </thead>
           <tbody>
-            {/* Uma tripulação só faria a fila e o total dizerem a mesma coisa. */}
-            {byShift.length > 1 && byShift.map((t) => (
+            {/* Só com "Every crew": com uma tripulação escolhida a folha é dela, e a
+                fila do total já é ela — ver `summaryCrewRows`. */}
+            {summaryCrewRows(byShift, crew).map((t) => (
               <tr key={t.shift}>
                 <td>{crewLabel(t.shift)}</td>
                 <td className="text-right font-figure">{t.people}</td>
