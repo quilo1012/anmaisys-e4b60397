@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeFunction } from "@/lib/invokeFunction";
+import { roleRejectedByDatabase, roleRejectedMessage } from "@/lib/roleNotInDatabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -213,12 +214,20 @@ export default function ManageUsers() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("operator");
+  /**
+   * Papéis que a base recusou nesta sessão.
+   *
+   * A lista oferecida é uma constante; o enum vive na base. Quando as duas discordam,
+   * quem sabe é a base — e, sabido uma vez, não se volta a oferecer o que não guarda.
+   */
+  const [rolesRejectedByDb, setRolesRejectedByDb] = useState<AppRole[]>([]);
   const [shift, setShift] = useState<string>("none");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { user: currentUser, role: currentRole } = useAuth();
-  const createRoleOptions = currentRole === "admin" ? adminRoleOptions : managerCreateRoleOptions;
-  const editRoleOptions = currentRole === "admin" ? adminRoleOptions : managerEditRoleOptions;
+  const offerable = (list: AppRole[]) => list.filter((r) => !rolesRejectedByDb.includes(r));
+  const createRoleOptions = offerable(currentRole === "admin" ? adminRoleOptions : managerCreateRoleOptions);
+  const editRoleOptions = offerable(currentRole === "admin" ? adminRoleOptions : managerEditRoleOptions);
 
   // Edit user state
   const [editUser, setEditUser] = useState<Profile | null>(null);
@@ -503,6 +512,16 @@ export default function ManageUsers() {
       setEmail(""); setPassword(""); setPasswordError(null); setName(""); setRole(createRoleOptions[0] ?? "engineer"); setShift("none");
       await Promise.all([fetchUsers(), fetchEngineers()]);
     } catch (error: any) {
+      // A base recusou o papel: dizer o que se passa e parar de o oferecer, em vez de
+      // repetir a frase do Postgres numa caixa vermelha.
+      const rejected = roleRejectedByDatabase(error);
+      if (rejected) {
+        setRolesRejectedByDb((prev) => (prev.includes(rejected as AppRole) ? prev : [...prev, rejected as AppRole]));
+        const message = roleRejectedMessage(rejected);
+        setPasswordError(message);
+        toast({ title: "Role not available", description: message, variant: "destructive" });
+        return;
+      }
       const message = describePasswordError(error.message);
       setPasswordError(message);
       toast({ title: "Error", description: message, variant: "destructive" });
