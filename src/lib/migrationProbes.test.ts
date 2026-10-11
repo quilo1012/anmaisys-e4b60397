@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { probesFor, probePath, MISSING_CODE } from "./migrationProbes";
+import { probesFor, probePath, paramNames, probeBody, MISSING_CODE } from "./migrationProbes";
 
 const root = resolve(__dirname, "../..");
 
 describe("probesFor", () => {
   it("encontra uma função chamável", () => {
     const p = probesFor("create or replace function public.foo_bar(p_x uuid)\nreturns text\nas $$ select 'x' $$;", "m.sql");
-    expect(p).toEqual([{ kind: "function", name: "foo_bar", migration: "m.sql" }]);
+    expect(p).toEqual([{ kind: "function", name: "foo_bar", args: ["p_x"], migration: "m.sql" }]);
   });
 
   it("ignora funções de trigger, que não são chamáveis", () => {
@@ -42,6 +42,34 @@ describe("probesFor", () => {
     const sql = "create or replace function public.f() returns int as $$ select 1 $$;\n"
               + "create or replace function public.f() returns int as $$ select 2 $$;";
     expect(probesFor(sql, "m.sql")).toHaveLength(1);
+  });
+});
+
+/**
+ * A pergunta tem de ter a forma da função.
+ *
+ * O PostgREST escolhe a sobrecarga pelos NOMES dos argumentos. Um POST com `{}` pede a
+ * sobrecarga sem argumentos e recebe `PGRST202` quando a função tem parâmetros — que é
+ * exactamente o que esta sonda lê como "não existe". A 11/10/2026 isso pôs o
+ * `link_me_to_employee` numa lista de promessas por cumprir quando estava na base
+ * desde sempre.
+ */
+describe("paramNames", () => {
+  it("lê as assinaturas que enganaram a sonda", () => {
+    expect(paramNames("p_employee_id uuid")).toEqual(["p_employee_id"]);
+    expect(paramNames("p_on_date date, p_starts_at time")).toEqual(["p_on_date", "p_starts_at"]);
+    expect(paramNames("")).toEqual([]);
+  });
+
+  it("aguenta multi-linha, DEFAULT e modos", () => {
+    expect(paramNames("\n  p_a uuid,\n  p_b int default 3\n")).toEqual(["p_a", "p_b"]);
+    expect(paramNames("in p_a uuid, variadic p_b text[]")).toEqual(["p_a", "p_b"]);
+  });
+
+  it("o corpo da sonda nomeia os argumentos e deixa os valores a null", () => {
+    const [probe] = probesFor("create function public.f(p_a uuid, p_b date) returns int as $$ select 1 $$;", "m.sql");
+    expect(probeBody(probe)).toEqual({ p_a: null, p_b: null });
+    expect(probeBody({ kind: "function", name: "g", migration: "m.sql" })).toEqual({});
   });
 });
 

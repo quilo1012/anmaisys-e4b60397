@@ -45,9 +45,21 @@ export interface Probe {
   table?: string;
   /** Which migration asked for it, for the report. */
   migration: string;
+  /**
+   * The function's parameter names, for a `function` probe.
+   *
+   * PostgREST resolves an overload by ARGUMENT NAME, so a POST with an empty body
+   * asks for the zero-argument overload and answers `PGRST202` when the function
+   * takes parameters — which reads exactly like "the function is not there". That
+   * cost a false report on 11/10/2026: `link_me_to_employee` was called with `{}`,
+   * answered PGRST202, and went into a list of unkept promises although it had been
+   * in the database all along. The names go in the body so the question matches the
+   * function that was actually written.
+   */
+  args?: string[];
 }
 
-const FUNCTION_RE = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z0-9_]+)\s*\(/gi;
+const FUNCTION_RE = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z0-9_]+)\s*\(([^)]*)\)/gi;
 const COLUMN_RE = /alter\s+table\s+(?:public\.)?([a-z0-9_]+)\s+add\s+column\s+(?:if\s+not\s+exists\s+)?([a-z0-9_]+)/gi;
 const TABLE_RE = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z0-9_]+)/gi;
 const ENUM_RE = /alter\s+type\s+(?:public\.)?([a-z0-9_]+)\s+add\s+value\s+(?:if\s+not\s+exists\s+)?'([a-z0-9_]+)'/gi;
@@ -79,7 +91,7 @@ export function probesFor(sql: string, migration: string): Probe[] {
     // `returns trigger` within the next few lines means this is not callable.
     const after = body.slice(m.index ?? 0, (m.index ?? 0) + 400);
     if (/returns\s+trigger/i.test(after)) continue;
-    add({ kind: "function", name: m[1], migration });
+    add({ kind: "function", name: m[1], args: paramNames(m[2]), migration });
   }
   for (const m of body.matchAll(COLUMN_RE)) {
     add({ kind: "column", name: m[1], detail: m[2], table: m[1], migration });
@@ -91,6 +103,35 @@ export function probesFor(sql: string, migration: string): Probe[] {
     add({ kind: "enum", name: m[1], detail: m[2], migration });
   }
   return out;
+}
+
+/**
+ * The declared parameter names of a function, from the text between its parentheses.
+ *
+ * `IN`/`OUT`/`INOUT` and a `DEFAULT` tail are dropped; what is left of each chunk
+ * starts with the parameter name. A signature carrying a parenthesised type such as
+ * `numeric(10,2)` would be cut short by the regex above and is not attempted here —
+ * the probe then asks the wrong question and says so out loud, which is better than
+ * answering it wrongly.
+ */
+export function paramNames(inside: string): string[] {
+  return inside
+    .split(",")
+    .map((chunk) => chunk.trim().replace(/\s+default\s+[\s\S]*$/i, "").trim())
+    .map((chunk) => chunk.replace(/^(in|out|inout|variadic)\s+/i, "").trim())
+    .map((chunk) => chunk.split(/\s+/)[0] ?? "")
+    .filter((name) => /^[a-z_][a-z0-9_]*$/i.test(name));
+}
+
+/**
+ * The JSON body that asks for a function by the signature it was declared with.
+ *
+ * The values are null on purpose: PostgREST matches the overload on the KEYS, and a
+ * function that exists then answers with its own error instead of `PGRST202` — which
+ * is the only thing this probe is asking.
+ */
+export function probeBody(p: Probe): Record<string, null> {
+  return Object.fromEntries((p.args ?? []).map((a) => [a, null]));
 }
 
 /** The PostgREST path that asks the question, relative to `/rest/v1/`. */

@@ -22,7 +22,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { probesFor, probePath, MISSING_CODE, type Probe } from "@/lib/migrationProbes";
+import { probesFor, probePath, MISSING_CODE, type Probe, probeBody } from "@/lib/migrationProbes";
 
 const root = resolve(__dirname, "../..");
 
@@ -69,7 +69,7 @@ describe.skipIf(!ligado)("o que o main promete e a base não tem", () => {
       const res = await fetch(`${url}/rest/v1/${path}`, {
         method: isRpc ? "POST" : "GET",
         headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        ...(isRpc ? { body: "{}" } : {}),
+        ...(isRpc ? { body: JSON.stringify(probeBody(p)) } : {}),
       });
       let code = "";
       try { code = ((await res.json()) as { code?: string }).code ?? ""; } catch { /* sem corpo */ }
