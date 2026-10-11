@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  summaryCrewRows,
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, closeCrews, filterByCrew, NO_CREW,
   closeDepartments, filterClose, departmentLabel, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
   type ClosePersonInput,
@@ -569,5 +570,22 @@ describe("pickClosePeriod — abrir no periodo errado e pior do que abrir vazio"
     const r = pickClosePeriod(PERIODOS, "2026-10-03", "apagado");
     expect(r.period).toBeNull();
     expect(r.isFallback).toBe(false);
+  });
+});
+
+describe("summaryCrewRows", () => {
+  const byCrew = [{ shift: "Day" }, { shift: "Night" }, { shift: "Weekend" }];
+
+  it("lists every crew when the sheet is about every crew", () => {
+    expect(summaryCrewRows(byCrew, "all").map((c) => c.shift)).toEqual(["Day", "Night", "Weekend"]);
+  });
+
+  it("lists no other crew once one is chosen — the total row is that crew", () => {
+    // Production · Weekend printed Day and Night above its own total.
+    expect(summaryCrewRows(byCrew, "Weekend")).toEqual([]);
+  });
+
+  it("does not repeat a lone crew as a row and again as the total", () => {
+    expect(summaryCrewRows([{ shift: "Day" }], "all")).toEqual([]);
   });
 });
