@@ -22,7 +22,7 @@ function jsonResponse(body: unknown, status = 200) {
 const updateUserSchema = z.object({
   userId: z.string().uuid("Invalid user ID"),
   name: z.string().trim().min(1).max(100).optional(),
-  role: z.enum(["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "employee"]).optional(),
+  role: z.enum(["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "production_office_admin", "employee"]).optional(),
   shift: z.string().max(50).nullable().optional(),
   active: z.boolean().optional(),
   email: z.preprocess(
