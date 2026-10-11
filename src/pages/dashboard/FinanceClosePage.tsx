@@ -36,6 +36,9 @@ import { currentShift } from "@/lib/operationalShift";
 /** `10/08/2026`. A fábrica lê as datas ao contrário, e esta folha lê-se lá. */
 const fmtDate = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
 
+/** A largura somada das colunas, para o papel as repartir em proporção. */
+const CLOSE_MM_TOTAL = CLOSE_COLUMNS.reduce((s, c) => s + c.mm, 0);
+
 /**
  * The pay period handed to finance: overtime and time off, per person.
  *
@@ -736,13 +739,17 @@ export default function FinanceClosePage() {
                 <Table className="close-register">
                   {/* As larguras do PDF, aplicadas à folha do navegador. Só contam em
                       `@media print`, onde a tabela passa a `table-layout: fixed`; no
-                      ecrã o `--mm` não é lido por regra nenhuma. */}
+                      ecrã o `--mm` não é lido por regra nenhuma.
+                      Vão como PROPORÇÃO do total, não em milímetros: as dezoito somam
+                      274mm e a folha deitada, com margens, dá 277 — em milímetros
+                      absolutos qualquer margem um pouco maior empurrava o Part day
+                      para fora do papel sem aviso. Em proporção a tabela cabe sempre. */}
                   <colgroup>
                     {CLOSE_COLUMNS.map((c) => (
                       <col
                         key={c.key}
                         data-mm=""
-                        style={{ "--mm": c.mm } as React.CSSProperties}
+                        style={{ "--mm": c.mm, "--mm-total": CLOSE_MM_TOTAL } as React.CSSProperties}
                       />
                     ))}
                   </colgroup>

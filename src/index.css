@@ -270,6 +270,33 @@ select:-webkit-autofill {
   size: A4 landscape;
 }
 
+/* O fecho financeiro tem página própria, e é a única com margem e numeração.
+   As outras correm a `margin: 0` para o navegador não ter onde escrever o URL e a
+   data; mas sem margem não há caixas de margem, e sem caixas de margem não há
+   "Page 3 of 11" — num documento de onze folhas que se confere ao balcão e se
+   arquiva, a folha solta que caiu da pilha não tinha maneira de dizer onde ia.
+   A margem fica no `@page` e sai do body e do `.print-content` (ver `.close-sheet`
+   em baixo), para não ser contada duas vezes. Se quem imprime ligar "Headers and
+   footers" no diálogo, o Chrome escreve o rodapé dele, que também traz o número. */
+@page finance-close {
+  size: A4 landscape;
+  margin: 10mm 10mm 12mm;
+
+  @bottom-left {
+    content: "Finance Close";
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 6.5pt;
+    color: #6B7078;
+  }
+
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: Inter, system-ui, sans-serif;
+    font-size: 6.5pt;
+    color: #6B7078;
+  }
+}
+
 /* The headcount's printed sheet. Drawn only on paper — see HeadcountPrintSheet.tsx. */
 .headcount-print-sheet {
   display: none;
@@ -697,7 +724,62 @@ select:-webkit-autofill {
   }
 
   .close-sheet col[data-mm] {
-    width: calc(var(--mm) * 1mm);
+    width: calc(var(--mm) / var(--mm-total) * 100%);
+  }
+
+  /* A página com margem e numeração (ver `@page finance-close`), do root para
+     baixo pela mesma razão que a `landscape-sheet`: um nome de página que muda a
+     meio abre folha nova. Dois `:has` para vencer os da `.print-landscape`. */
+  html:has(.print-landscape.close-sheet),
+  body:has(.print-landscape.close-sheet),
+  .print-landscape.close-sheet {
+    page: finance-close;
+  }
+
+  /* A margem já vem do `@page`; os 10mm do body e os 10mm do `.print-content`
+     somavam 20mm de cada lado e deixavam ao registo 257mm para 274mm de colunas
+     — o Part day saía a 7mm do bordo do papel. */
+  body:has(.close-sheet) {
+    padding: 0 !important;
+  }
+
+  .print-content.close-sheet {
+    padding: 0 !important;
+  }
+
+  /* …e o contentor que rola o ecrã traz `p-3 sm:p-6` do DashboardLayout: mais
+     24px por cima e dos lados, só na primeira folha, que desalinhavam o título
+     do resto do documento. */
+  .overflow-y-auto:has(> * > .close-sheet) {
+    padding: 0 !important;
+  }
+
+  /* O cartão que embrulha o registo também é `rounded-lg`, e a regra geral não
+     deixa um cartão partir-se: era ELE, e não só a tabela, que atirava o registo
+     inteiro para a folha dois. */
+  .close-sheet [class*="rounded-"]:has(table.close-register) {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  /* O REGISTO PARTE-SE ENTRE FOLHAS; AS FILAS NÃO.
+     `.print-content table { page-break-inside: avoid }` foi escrito para tabelas
+     curtas. Sobre um registo de duzentas pessoas, que não cabe numa folha de
+     maneira nenhuma, empurrava a tabela inteira para a página dois e deixava a
+     primeira com o título, o resumo e dois terços de papel em branco. */
+  .print-content.close-sheet table.close-register {
+    page-break-inside: auto !important;
+    break-inside: auto !important;
+  }
+
+  .print-content.close-sheet table.close-register tr {
+    break-inside: avoid !important;
+  }
+
+  /* A legenda corrente é uma linha de texto, não uma célula de dados: o padding
+     de 1,4mm das células, mais específico, vencia o dela. */
+  .print-content.close-sheet table.close-register th.print-caption {
+    padding: 0 0 2mm !important;
   }
 
   /* Traços, não fundos. Duas espessuras e mais nenhuma: uma sob a banda do
@@ -727,7 +809,9 @@ select:-webkit-autofill {
     overflow-wrap: normal !important;
     word-break: keep-all !important;
     hyphens: none !important;
-    padding: 1.4mm 1.2mm !important;
+    /* 1,1mm de altura: com 1,4mm e a margem do `@page` o registo de duzentas
+       pessoas ia para doze folhas; assim fica em onze, à mesma letra. */
+    padding: 1.1mm 1.2mm !important;
   }
 
   .print-content.close-sheet table.close-register thead th {
@@ -778,7 +862,9 @@ select:-webkit-autofill {
      a vir do `padding-top` do `<thead>` inteiro, e a legenda fica uma linha de
      texto em vez de um bloco. */
   .close-sheet th.print-caption {
-    padding: 6mm 0 2mm !important;
+    /* A margem de topo de cada folha é a do `@page`; isto é só o ar entre a
+       legenda e as bandas. */
+    padding: 0 0 2mm !important;
     font-size: 7.5pt !important;
     letter-spacing: 0.01em;
     color: #6B7078 !important;
@@ -794,7 +880,10 @@ select:-webkit-autofill {
     /* Seis pontos, porque uma banda de uma coluna só ("Hours · from the board",
        14mm) a 6,5 dava quatro linhas e empurrava o cabeçalho todo para 29mm. */
     font-size: 6pt !important;
-    letter-spacing: 0.06em;
+    /* 0,03em e não 0,06: a banda de uma coluna só partia em quatro linhas e
+       fazia o cabeçalho, que se repete em onze folhas, um centímetro mais alto. */
+    letter-spacing: 0.03em;
+    line-height: 1.1 !important;
     color: #6B7078 !important;
     padding-bottom: 1mm !important;
     border-bottom: 0 !important;
