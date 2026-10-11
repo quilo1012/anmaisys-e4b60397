@@ -26,6 +26,7 @@ const invoke = vi.hoisted(() => vi.fn(async () => ({ data: null, error: null }))
 vi.mock("@/lib/invokeFunction", () => ({ invokeFunction: invoke }));
 
 import SignUp from "@/pages/SignUp";
+import { supabase } from "@/integrations/supabase/client";
 
 /** O ecrã lê `?code=` do endereço ao montar, por isso o teste tem de o pôr lá antes. */
 function withSearch(search: string) {
@@ -103,10 +104,12 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
    * A porta do email não passa por aqui e funciona.
    */
   it("quando a porta do crachá não responde, diz o que fazer e abre a outra", async () => {
-    invoke.mockResolvedValueOnce({
+    // Duas vezes: uma ligação que cai é tentada outra vez antes de se dizer seja o que for.
+    const unreachable = {
       data: null,
       error: { name: "FunctionsFetchError", message: "Failed to send a request to the Edge Function" },
-    });
+    };
+    invoke.mockResolvedValueOnce(unreachable).mockResolvedValueOnce(unreachable);
     renderPage();
     fireEvent.change(screen.getByLabelText(/Employee ID/i), { target: { value: "E151" } });
     fireEvent.change(screen.getByLabelText(/Choose a password/i), { target: { value: "umapalavra" } });
@@ -114,7 +117,7 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     fireEvent.click(screen.getByRole("button", { name: /Create account and sign in/i }));
 
     // A mensagem do SDK não chega ao ecrã.
-    const aviso = await screen.findByText(/badge number isn't working right now/i);
+    const aviso = await screen.findByText(/badge number isn't working right now/i, undefined, { timeout: 4000 });
     expect(aviso).toBeTruthy();
     expect(screen.queryByText(/Failed to send a request/i)).toBeNull();
 
@@ -161,5 +164,44 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
 
     expect(await screen.findByText(/Sign in on your own phone/i)).toBeTruthy();
     expect(setSession).not.toHaveBeenCalled();
+  });
+
+  /**
+   * "AbortError: Fetch is aborted" era o que o ecrã mostrava: o texto do WebKit para
+   * um pedido cortado, devolvido pelo postgrest-js como `{ message }`. Uma queda é
+   * tentada outra vez sozinha; se cair outra vez, a pessoa lê uma frase que pode seguir.
+   */
+  const fillEmailDoor = async () => {
+    fireEvent.click(screen.getByRole("button", { name: /Register with my email/i }));
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Ana Teste" } });
+    fireEvent.change(screen.getByLabelText(/^Email$/i), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: "umapalavra" } });
+    fireEvent.change(screen.getByLabelText(/Invite code/i), { target: { value: "AN-TESTE" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /^Create account$/i }).at(-1)!);
+  };
+
+  it("uma ligação que cai duas vezes dá a frase que se pode seguir, não o AbortError", async () => {
+    const rpc = vi.mocked(supabase.rpc);
+    rpc.mockImplementation((async (fn: string) =>
+      fn === "check_invite_code"
+        ? { data: null, error: { message: "AbortError: Fetch is aborted", code: "" } }
+        : { data: null, error: null }) as never);
+    renderPage();
+    await fillEmailDoor();
+
+    expect(await screen.findByText(
+      "Não foi possível ligar ao servidor. Verifique a ligação e tente novamente.",
+      undefined, { timeout: 4000 },
+    )).toBeTruthy();
+    expect(screen.queryByText(/AbortError|Fetch is aborted/)).toBeNull();
+    expect(rpc.mock.calls.filter(([fn]) => fn === "check_invite_code")).toHaveLength(2);
+    rpc.mockImplementation((async () => ({ data: null, error: null })) as never);
+  });
+
+  it("diz como quem a pessoa vai entrar, sem a deixar escolher", () => {
+    renderPage();
+    // A porta do crachá cria sempre um Employee.
+    expect(screen.getByText(/You'll join as/i).textContent).toMatch(/Employee/);
+    expect(screen.queryByRole("combobox", { name: /role/i })).toBeNull();
   });
 });

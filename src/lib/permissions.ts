@@ -129,6 +129,7 @@ export const ACTIVE_ROLES: Role[] = [
   "quality_supervisor",
   "warehouse",
   "operator",
+  "employee",
 ];
 
 /**
@@ -246,7 +247,9 @@ const MATRIX: Record<Action, Role[]> = {
   // The `supervisor` enum value is retired (10/09/2026) and holds nothing; the people
   // who run the floor today sign in as manager or production_office_admin.
   "overtime.manage": ["admin", "manager", "production_office_admin"],
-  "overtime.respond": ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor"],
+  // `employee` holds this and nothing else: the login the invite link and the badge
+  // hand out, for people whose only business in the app is saying yes or no.
+  "overtime.respond": ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   // Rewriting a stoppage number that is already on the record is deliberately
   // narrower than `downtime.adjust`: it changes how a line and an engineer are
@@ -314,6 +317,7 @@ export const roleDashMap: Record<Role, string> = {
   warehouse: "/dashboard/warehouse",
   quality_supervisor: "/dashboard/quality",
   production_office_admin: "/dashboard/production-performance",
+  employee: "/dashboard/my-overtime",
 };
 
 /** Returns the dashboard path for a role, falling back to /login when unknown. */
@@ -444,7 +448,7 @@ export const ALL_ACTIONS: Action[] = Object.keys(MATRIX) as Action[];
 export const ALL_ROLES: Role[] = [
   "admin", "manager", "supervisor", "maintenance_manager", "planner", "engineer",
   "co_engineer", "operator", "viewer", "warehouse", "quality_supervisor",
-  "production_office_admin",
+  "production_office_admin", "employee",
 ];
 
 /**
@@ -466,6 +470,7 @@ export const roleTitle: Record<Role, string> = {
   warehouse: "Warehouse Admin",
   quality_supervisor: "Quality Supervisor",
   production_office_admin: "Production Office",
+  employee: "Employee",
 };
 
 /**
@@ -486,6 +491,7 @@ export const ROLE_SUMMARY: Record<Role, string> = {
   warehouse: "Runs the store: parts in and out, and the service requests that come from the floor.",
   quality_supervisor: "Owns quality: raises and rules on quality actions, and signs off the leader scorecards.",
   production_office_admin: "The production office: keeps the boards, the plan and the paperwork behind the lines up to date.",
+  employee: "Sees the overtime on offer and answers it (My Overtime). Nothing else.",
 };
 
 

@@ -10150,3 +10150,57 @@ grant execute on function public.my_overtime_identity()        to authenticated;
 -- being anonymous is deliberate: these four are, the eight above were not.
 revoke all on function public.overtime_push_targets(uuid, uuid[]) from public;
 grant execute on function public.overtime_push_targets(uuid, uuid[]) to authenticated;
+
+
+-- ================================================================
+-- BLOCO 83
+-- 20261011120000_an_employee_is_here_for_overtime.sql
+-- ================================================================
+
+-- An employee is here for overtime.
+--
+-- The invite link and the badge have been making `operator` accounts, because operator
+-- was the narrowest role there was. It is not narrow: it logs production, raises
+-- maintenance calls and sees line targets. Two hundred people whose only business in
+-- the app is "yes, I'll do Saturday" were being handed all of that.
+--
+-- `employee` holds one action in src/lib/permissions.ts, `overtime.respond`, and lands
+-- on /dashboard/my-overtime. No RLS policy needs it: everything My Overtime reads or
+-- writes is open to `authenticated` and narrowed by `my_employee_id()`, not by role
+-- (20261006180000), and every admin/manager/office policy stays as it is.
+--
+-- ALONE, ON PURPOSE. Postgres refuses to use an enum value in the same transaction
+-- that adds it ("unsafe use of new value"), and the SQL editor runs a paste as one
+-- transaction. 20261011120100 uses the value and must be run after this one, in a
+-- separate run.
+--
+-- Idempotent.
+
+alter type public.app_role add value if not exists 'employee';
+
+
+-- ================================================================
+-- BLOCO 84
+-- 20261011120100_the_invite_link_makes_an_employee.sql
+-- ================================================================
+
+-- The invite link makes an employee.
+--
+-- Needs 20261011120000 to have been run first, in a run of its own: this file uses
+-- the value that one adds.
+--
+-- `self_signup_role` was set to 'operator' because that was the narrowest role on
+-- offer. Now there is one made for it. Only an 'operator' setting is moved: null (the
+-- approval queue) is an admin's deliberate choice and stays. The badge door
+-- (`employee-signin`) hard-codes its role and changes in the same commit; it needs a
+-- redeploy from Lovable to take effect.
+--
+-- Accounts that already exist keep the role they have. Turning existing operators
+-- into employees takes production logging away from people who may be using it, and
+-- that is a decision for Users, one person at a time, not for a migration.
+--
+-- Idempotent.
+
+update public.signup_config
+   set self_signup_role = 'employee'
+ where self_signup_role = 'operator';

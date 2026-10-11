@@ -119,12 +119,14 @@ Deno.serve(async (req) => {
       }
       const uid = created.user.id;
 
-      // Active, operator, linked — in that order, and all three before the session.
+      // Active, employee, linked — in that order, and all three before the session.
+      // `employee`, not `operator`: the badge is for answering overtime, and operator
+      // carries production logging and maintenance calls with it.
       const { error: profErr } = await admin.from("profiles")
         .upsert({ id: uid, name: employee.full_name, email, active: true }, { onConflict: "id" });
       if (profErr) console.error("profiles upsert", profErr);
       const { error: roleErr } = await admin.from("user_roles")
-        .upsert({ user_id: uid, role: "operator" }, { onConflict: "user_id" });
+        .upsert({ user_id: uid, role: "employee" }, { onConflict: "user_id" });
       if (roleErr) console.error("user_roles upsert", roleErr);
       const { error: linkErr } = await admin.from("employees")
         .update({ user_id: uid }).eq("id", employee.id).is("user_id", null);
@@ -134,7 +136,7 @@ Deno.serve(async (req) => {
       const { data: admins } = await admin.from("user_roles").select("user_id").eq("role", "admin");
       if (admins?.length) {
         await admin.from("notifications").insert(admins.map((a: { user_id: string }) => ({
-          user_id: a.user_id, title: "New operator account",
+          user_id: a.user_id, title: "New employee account",
           body: `${employee.full_name} (${ref}) registered with their employee ID and is active.`,
           priority: "low", action_url: "/users/manage",
         })));

@@ -22,7 +22,7 @@ function jsonResponse(body: unknown, status = 200) {
 const updateUserSchema = z.object({
   userId: z.string().uuid("Invalid user ID"),
   name: z.string().trim().min(1).max(100).optional(),
-  role: z.enum(["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse"]).optional(),
+  role: z.enum(["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "engineer", "co_engineer", "operator", "viewer", "warehouse", "employee"]).optional(),
   shift: z.string().max(50).nullable().optional(),
   active: z.boolean().optional(),
   email: z.preprocess(
@@ -130,8 +130,8 @@ Deno.serve(async (req) => {
       throw new Error(protectedRolesMessage("modify"));
     }
 
-    if (isManager && !isAdmin && role && role !== "engineer" && role !== "co_engineer" && role !== "operator") {
-      throw new Error("Managers can only assign Engineer, Co-Engineer or Operator roles");
+    if (isManager && !isAdmin && role && role !== "engineer" && role !== "co_engineer" && role !== "operator" && role !== "employee") {
+      throw new Error("Managers can only assign Engineer, Co-Engineer, Operator or Employee roles");
     }
 
     if ((role === "admin" || role === "manager" || role === "supervisor" || role === "quality_supervisor" || role === "maintenance_manager" || role === "planner" || role === "viewer") && !isAdmin) throw new Error("Only admins can assign Admin, Manager, Supervisor, QC Supervisor, Maintenance Manager, Planner or Viewer roles");

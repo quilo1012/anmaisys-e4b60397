@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { SignupSettingsCard } from "@/components/SignupSettingsCard";
 import { LeaderLinePicker } from "@/components/LeaderLinePicker";
-import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package } from "lucide-react";
+import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package, Hand } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
@@ -40,7 +40,7 @@ interface Engineer {
   labor_rate?: number | null;
 }
 
-const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", quality_supervisor: "Supervisor QC", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer", warehouse: "Warehouse Admin", production_office_admin: "Production Office Admin" };
+const roleLabels: Record<AppRole, string> = { admin: "Admin", manager: "Manager", supervisor: "Supervisor", quality_supervisor: "Supervisor QC", maintenance_manager: "Maintenance Manager", planner: "Planner", engineer: "Engineer", co_engineer: "Co-Engineer", operator: "Operator", viewer: "Viewer", warehouse: "Warehouse Admin", production_office_admin: "Production Office Admin", employee: "Employee" };
 const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = {
   admin: Shield,
   manager: Shield,
@@ -54,14 +54,15 @@ const roleIcons: Record<AppRole, React.ComponentType<{ className?: string }>> = 
   viewer: Shield,
   warehouse: Package,
   production_office_admin: Shield,
+  employee: Hand,
 };
 
-// The eight profiles a person is given today, in authority order. `supervisor`,
+// The nine profiles a person is given today, in authority order. `supervisor`,
 // `planner`, `viewer` and `co_engineer` were retired and are no longer offered here —
 // an account still carrying one goes on rendering, it is simply not assignable again.
 const adminRoleOptions: AppRole[] = [...ACTIVE_ROLES];
 const managerCreateRoleOptions: AppRole[] = ["engineer"];
-const managerEditRoleOptions: AppRole[] = ["engineer", "operator"];
+const managerEditRoleOptions: AppRole[] = ["engineer", "operator", "employee"];
 const protectedStaffRoles: AppRole[] = ["admin", "manager", "supervisor", "quality_supervisor", "maintenance_manager", "planner", "production_office_admin"];
 
 function roleBadgeClass(role?: AppRole) {
