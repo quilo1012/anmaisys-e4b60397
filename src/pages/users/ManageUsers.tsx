@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { ToastAction } from "@/components/ui/toast";
 // Tabs replaced by simple button group + conditional render for reliability
 import { useToast } from "@/hooks/use-toast";
+import { activateLogin } from "@/lib/activateLogin";
 import { useAuth } from "@/contexts/AuthContext";
 import { SignupSettingsCard } from "@/components/SignupSettingsCard";
 import { LeaderLinePicker } from "@/components/LeaderLinePicker";
@@ -238,6 +239,7 @@ export default function ManageUsers() {
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editPasswordError, setEditPasswordError] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
   // Delete state
@@ -546,6 +548,30 @@ export default function ManageUsers() {
     if (pwd.length > 128) return "Password must be at most 128 characters long.";
     const strength = await checkPasswordSecurity(pwd);
     return strength.ok ? null : strength.reason ?? "Use a stronger password.";
+  };
+
+  /**
+   * Deixar entrar uma conta que nunca confirmou o endereço.
+   *
+   * Separado do Save de propósito: o Save pode estar a MUDAR o endereço, e confirmar
+   * um endereço que o admin acabou de escrever sem o verificar é outra coisa. Isto usa
+   * o endereço que a conta já tem. Ver `activateLogin` para porque é uma RPC e não a
+   * edge function — esta funciona sem republicar nada.
+   */
+  const handleActivateLogin = async () => {
+    if (!editUser) return;
+    setActivating(true);
+    const problem = await activateLogin(
+      (fn, args) => (supabase.rpc as any)(fn, args),
+      { id: editUser.id, email: editUser.email },
+    );
+    setActivating(false);
+    if (problem) {
+      toast({ title: "Could not activate", description: problem, variant: "destructive" });
+      return;
+    }
+    logAuditEvent("user_login_activated", "user", editUser.id, { email: editUser.email });
+    toast({ title: "Sign-in activated", description: `${editUser.name || editUser.email} can sign in now.` });
   };
 
   const handleEditUser = async () => {
@@ -1269,6 +1295,24 @@ export default function ManageUsers() {
               <div className="flex items-center justify-between">
                 <Label>Active</Label>
                 <Switch checked={editActive} onCheckedChange={setEditActive} />
+              </div>
+              {/* "Active" é o nosso interruptor, na tabela profiles. Uma conta pode
+                  estar Active e na mesma ser recusada à entrada, porque quem recusa é
+                  o GoTrue, por causa do endereço nunca confirmado. São dois estados
+                  diferentes e estavam a ser confundidos, por isso este está à parte e
+                  diz o que faz. */}
+              <div className="space-y-2 rounded-lg border border-dashed p-3">
+                <Label className="text-sm">Sign-in blocked by email confirmation?</Label>
+                <p className="text-xs text-muted-foreground">
+                  If this person is told <b>“This account is not active yet”</b> at sign-in, their
+                  address was never confirmed — no confirmation email reaches a badge account. This
+                  confirms it for them. Their password does not change.
+                </p>
+                <Button type="button" variant="outline" size="sm" disabled={activating || !editUser?.email}
+                  onClick={handleActivateLogin}>
+                  {activating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Activate sign-in
+                </Button>
               </div>
             </div>
             <DialogFooter>
