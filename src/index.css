@@ -606,6 +606,19 @@ select:-webkit-autofill {
     max-width: none !important;
   }
 
+  /* …excepto numa célula de tabela, onde `display: block` não é a mudança pequena
+     que parece. Um `td` transformado em bloco cai fora da linha: o browser embrulha-o
+     numa célula anónima, a coluna deixa de ser dimensionada com as outras, e o texto
+     fica numa caixa sua com as réguas da linha já não a encontrar. Dezoito colunas da
+     aplicação levam `truncate` num `td` — descrições de avaria, notas, nomes de SKU.
+     Tirar o grampo ao texto, sim; tirar a célula à linha, não. */
+  .print-content td.truncate,
+  .print-content th.truncate,
+  .print-content td[class*="line-clamp"],
+  .print-content th[class*="line-clamp"] {
+    display: table-cell !important;
+  }
+
   .print-content td,
   .print-content th {
     overflow-wrap: break-word;
@@ -629,6 +642,155 @@ select:-webkit-autofill {
      markup already carries and one for the alignment it inherits from the column. */
   .print-content th.text-right { text-align: right; }
   .print-content th.text-center { text-align: center; }
+
+  /* ── A folha do Time & Attendance ─────────────────────────────────────────
+     Um documento de salários, não uma fotografia de um ecrã.
+
+     Sai do escritório a tinta preta sobre branco numa laser monocromática, é
+     arquivada, conferida contra o quadro do headcount e assinada. Daí saem três
+     coisas, e são o desenho todo:
+
+     A COR NÃO SOBREVIVE. O saldo é a única figura com sinal e o ecrã carrega-lhe o
+     sinal em verde e âmbar. Naquela impressora os dois saem o mesmo cinzento, e uma
+     figura cinzenta lê-se como uma figura menos importante — o contrário do que é
+     verdade. Por isso a folha é preta, e o sinal é o traço de menos e o peso da letra.
+
+     AS RÉGUAS SÃO ESTRUTURA, NÃO ENFEITE. A folha de impressão global encaixota cada
+     célula, que é o aspecto de uma tabela de ecrã empurrada por uma impressora: sete
+     verticais numa linha onde só duas significam alguma coisa. Aqui as únicas
+     verticais são as duas que separam quanto TEMPO alguém esteve de quantos DIAS
+     esteve ou não — a divisão que a banda por cima das colunas já afirma. O resto é
+     um fio por baixo da linha, que é o que o olho precisa para a ler de ponta a ponta.
+
+     ESCREVE-SE EM CIMA DELA. As linhas são postas para uma caneta e não para a
+     densidade, e o pé tem onde assinar.
+
+     Tudo limitado a `.attendance-sheet`: a impressão de nenhum outro ecrã muda. */
+  .attendance-sheet {
+    color: #000 !important;
+    font-size: 8.5pt;
+  }
+
+  .attendance-sheet .sheet-provenance {
+    margin-top: 2mm;
+    font-size: 7.5pt;
+    line-height: 1.45;
+    color: #5a5a5a;
+  }
+
+  /* As cinco figuras em linha. `dl` e não divs, porque é o que elas são: cinco termos
+     e os seus valores, que é também como um leitor de ecrã as encontra. */
+  .attendance-sheet .sheet-summary {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 0 14mm;
+    margin: 3mm 0 4mm;
+    padding: 2.5mm 0;
+    border-top: 0.5pt solid #c9c9c9;
+    border-bottom: 0.5pt solid #c9c9c9;
+  }
+  .attendance-sheet .sheet-summary dt {
+    font-size: 7.5pt;
+    color: #5a5a5a;
+  }
+  .attendance-sheet .sheet-summary dd {
+    margin: 0.5mm 0 0;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 10pt;
+    font-weight: 600;
+    line-height: 1;
+    color: #000;
+  }
+
+  /* O cartão da tabela é um objecto de ecrã — um painel levantado do fundo da página.
+     O papel não tem página por trás, por isso a moldura é uma caixa desenhada à volta
+     de uma tabela que já tem réguas suas, e o tom é toner gasto em nada. */
+  .attendance-sheet [class*="rounded-"],
+  .attendance-sheet .border {
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  .attendance-sheet tbody tr {
+    background: transparent !important;
+  }
+
+  .attendance-sheet th,
+  .attendance-sheet td {
+    border: 0 !important;
+    border-bottom: 0.5pt solid #d4d4d4 !important;
+    background: transparent !important;
+    padding: 1.6mm 2mm !important;
+    color: #000 !important;
+  }
+
+  /* As duas verticais que carregam a divisão Hours / Days. A marcação já marca
+     exactamente essas duas fronteiras com `border-l`, pela mesma razão, no ecrã. */
+  .attendance-sheet th.border-l,
+  .attendance-sheet td.border-l {
+    border-left: 0.5pt solid #d4d4d4 !important;
+  }
+
+  /* A legenda corrente é um rótulo numa folha de continuação, não um cabeçalho de
+     coluna. */
+  .attendance-sheet th.print-caption {
+    border-bottom: 0 !important;
+    font-size: 7.5pt !important;
+    font-weight: 400 !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    color: #5a5a5a !important;
+  }
+
+  /* `Hours` e `Days`, como a marcação os escreve. O ecrã põe-nos em capitais
+     espaçadas para a banda se ler como banda à distância de um braço num tablet; o
+     papel é lido à distância de leitura e não precisa de gritar. */
+  .attendance-sheet thead th {
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-weight: 600 !important;
+    font-size: 8pt !important;
+  }
+
+  .attendance-sheet thead tr:last-of-type th {
+    border-bottom: 1pt solid #000 !important;
+  }
+
+  /* O sinal, carregado pelo peso. `text-destructive-strong` é a figura devida; no
+     papel é preta, e é a que vem a negrito, porque uma hora em dívida é a que alguém
+     tem de resolver. */
+  .attendance-sheet .text-destructive-strong {
+    font-weight: 700 !important;
+  }
+
+  .attendance-sheet .sheet-total td {
+    border-top: 1pt solid #000 !important;
+    border-bottom: 0 !important;
+    padding-top: 2mm !important;
+    font-weight: 700 !important;
+  }
+
+  .attendance-sheet .sheet-foot {
+    margin-top: 6mm;
+    break-inside: avoid;
+  }
+
+  /* Três réguas para escrever em cima. Os rótulos por baixo da régua, onde um
+     formulário os põe. */
+  .attendance-sheet .sheet-signoff {
+    display: flex !important;
+    gap: 10mm;
+    margin-top: 8mm;
+  }
+  .attendance-sheet .sheet-signoff > span {
+    flex: 1 1 0;
+    max-width: 70mm;
+    padding-top: 1.5mm;
+    border-top: 0.5pt solid #000;
+    font-size: 7.5pt;
+    color: #5a5a5a;
+  }
 
   /* Print header block */
   .print-header {
