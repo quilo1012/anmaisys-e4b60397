@@ -1,7 +1,7 @@
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { sheetBandOf } from "@/lib/headcountBlocks";
 import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
@@ -45,7 +45,7 @@ import { AreaPicker } from "@/components/workforce/AreaPicker";
 import { useShiftPatterns } from "@/hooks/useWorkforce";
 import { PersonDayDialog } from "@/components/workforce/PersonDayDialog";
 import { roleStripe } from "@/lib/workforceRoles";
-import { bayInk, bayWash } from "@/lib/lineBay";
+import { disambiguators } from "@/lib/boardNames";
 import {
   useHeadcountAreas,
   useShiftRoster,
@@ -319,6 +319,8 @@ function isLeader(department: string | null | undefined) {
 
 function Chip({
   name,
+  personRef,
+  sheetName,
   tone,
   leader,
   lineLeader,
@@ -337,6 +339,10 @@ function Chip({
   onDragStart,
 }: {
   name: string;
+  /** Número de funcionário (ou departamento) quando outro no board tem o mesmo nome. */
+  personRef?: string | null;
+  /** Como a folha escreve esta pessoa, quando é diferente do cadastro. Vai no tooltip. */
+  sheetName?: string | null;
   /** "14:00" written beside the name on the sheet. */
   startTime?: string | null;
   /** "training" written in brackets on the sheet. */
@@ -400,7 +406,7 @@ function Chip({
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
         dimmed && "opacity-20",
       )}
-      title={name}
+      title={[name, personRef, sheetName && sheetName !== name ? `on the sheet: ${sheetName}` : null].filter(Boolean).join(" — ")}
       onClick={onOpen}
       onKeyDown={(e) => { if (onOpen && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
       role={onOpen ? "button" : undefined}
@@ -413,6 +419,9 @@ function Chip({
           O LEAD fica, pequeno, porque o cinzento sozinho não se lê num ecrã ao sol. */}
       {leader && <span className="sr-only">Lead: </span>}
       <span className="truncate">{name}</span>
+      {personRef && (
+        <span className="shrink-0 font-figure text-2xs font-semibold text-muted-foreground">{personRef}</span>
+      )}
       {startTime && (
         <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
           {startTime}
@@ -708,7 +717,7 @@ function ShiftBoard({
    */
   const peopleByArea = useMemo(() => {
     const byArea = new Map<string, {
-      person: HeadcountEmployee; shown: string; startTime: string | null;
+      person: HeadcountEmployee; shown: string; sheetName: string | null; startTime: string | null;
       tag: string | null; overtime: boolean; leader: boolean;
     }[]>();
     for (const a of allocations) {
@@ -719,7 +728,9 @@ function ShiftBoard({
       const list = byArea.get(a.area_id) ?? [];
       list.push({
         person,
-        shown: a.sheet_name ?? person.full_name,
+        // O nome do cadastro, um por pessoa. A grafia da folha vai para o tooltip.
+        shown: person.full_name,
+        sheetName: a.sheet_name ?? null,
         startTime: a.sheet_start_time ?? null,
         tag: a.sheet_tag ?? null,
         overtime: a.status === "overtime",
@@ -750,7 +761,8 @@ function ShiftBoard({
       .map((a) => {
         const p = employeeById.get(a.employee_id)!;
         return Object.assign({}, p, {
-          shown: a.sheet_name ?? p.full_name,
+          shown: p.full_name,
+          sheetName: a.sheet_name ?? null,
           startTime: a.sheet_start_time ?? null,
           tag: a.sheet_tag ?? null,
         });
@@ -758,6 +770,13 @@ function ShiftBoard({
       .sort((a, b) => a.shown.localeCompare(b.shown));
 
   const unassigned = roster.filter((e) => !byEmployee.has(e.id));
+
+  // Quem está no ecrã hoje — colocados, ausentes e por colocar — e, entre eles, quem
+  // partilha o nome com outro. Só esses levam o número ao lado.
+  const refOf = disambiguators([
+    ...allocations.map((a) => employeeById.get(a.employee_id)).filter((p): p is HeadcountEmployee => !!p),
+    ...unassigned,
+  ]);
 
   // Working = placed on an area, whether the day is a normal one or an overtime one.
   // The sheet's "Total staff in Production" counts the overtime people too — they are
@@ -816,6 +835,8 @@ function ShiftBoard({
                 <Chip
                   key={p.id}
                   name={p.shown}
+                  personRef={refOf.get(p.id)}
+                  sheetName={p.sheetName}
                   startTime={p.startTime}
                   tag={p.tag}
                   onOpen={() => setEditing(p.id)}
@@ -837,6 +858,34 @@ function ShiftBoard({
           </DropZone>
         );
       })}
+      {/* Quem o rota põe neste turno hoje e ainda não está em sítio nenhum. Antes era
+          só um número no cabeçalho ("3 unallocated"), e uma pessoa que não está em
+          nenhuma coluna é uma pessoa que ninguém vê. Daqui arrasta-se para a linha. */}
+      {unassigned.length > 0 && (
+        <div className="-mb-px -mr-px h-full">
+          <SheetColumn title="Not placed yet" head="heading" rows={unassigned.length + 1} count={unassigned.length}>
+            {[...unassigned]
+              .sort((a, b) => a.full_name.localeCompare(b.full_name))
+              .map((p) => (
+                <Chip
+                  key={p.id}
+                  name={p.full_name}
+                  personRef={refOf.get(p.id)}
+                  dimmed={isDimmed(p.full_name)}
+                  role={roleStripe(p.department)}
+                  tone="roster"
+                  crew={crewBadge(p.shift_group)}
+                  onOpen={() => setEditing(p.id)}
+                  draggable={canManage}
+                  onDragStart={(e) => {
+                    holdDrag(p.id);
+                    dragStart(e, p.id);
+                  }}
+                />
+              ))}
+          </SheetColumn>
+        </div>
+      )}
     </>
   );
   const productionIds = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
@@ -1269,10 +1318,12 @@ function ShiftBoard({
                 rows={bandRows}
                 count={people.length}
               >
-                    {people.map(({ person: p, shown, startTime, tag, overtime: isOt, leader: leadsToday }) => (
+                    {people.map(({ person: p, shown, sheetName, startTime, tag, overtime: isOt, leader: leadsToday }) => (
                       <Chip
                         key={p.id}
                         name={shown}
+                        personRef={refOf.get(p.id)}
+                        sheetName={sheetName}
                         startTime={startTime}
                         tag={tag}
                         leader={leadsToday || isLeader(p.department)}
@@ -1499,6 +1550,61 @@ function ShiftBoard({
   );
 }
 
+/**
+ * Os separadores do fundo do Excel: um por dia do mês, com a data como a folha da
+ * empresa a escreve (`03.08.2026`), pela ordem do calendário.
+ *
+ * O board já tinha as setas e o calendário; faltava ver o mês inteiro de uma vez e
+ * saltar para um dia com um toque, que é como toda a gente anda na folha.
+ */
+function SheetDayTabs({ date, today, onPick }: { date: string; today: string; onPick: (d: string) => void }) {
+  const days = useMemo(() => {
+    const [y, m] = date.split("-").map(Number);
+    const last = new Date(y, m, 0).getDate();
+    return Array.from({ length: last }, (_, i) => `${y}-${String(m).padStart(2, "0")}-${String(i + 1).padStart(2, "0")}`);
+  }, [date]);
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = strip.current?.querySelector<HTMLElement>("[aria-current='date']");
+    el?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [date]);
+
+  return (
+    <nav
+      aria-label="Days of the month"
+      className="print:hidden md:sticky md:bottom-0 md:z-10 border-t border-neutral-400 bg-muted/95 backdrop-blur"
+    >
+      <div ref={strip} className="flex overflow-x-auto overscroll-x-contain">
+        {days.map((d) => {
+          const active = d === date;
+          const [yy, mm, dd] = d.split("-");
+          const weekend = [0, 6].includes(new Date(`${d}T12:00:00`).getDay());
+          return (
+            <button
+              key={d}
+              type="button"
+              onClick={() => onPick(d)}
+              aria-current={active ? "date" : undefined}
+              title={formatLong(d) + (d === today ? " (today)" : "")}
+              className={cn(
+                "shrink-0 border-r border-neutral-400 px-3 py-2 font-figure text-xs tabular-nums",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                // O separador aberto é branco e sobe sobre a linha, como no Excel.
+                active
+                  ? "-mt-px border-t-2 border-t-[#217346] bg-card font-bold text-[#217346] dark:text-[#5fd08d]"
+                  : cn("text-muted-foreground hover:bg-card/60 hover:text-foreground", weekend && "text-muted-foreground/60"),
+                d === today && !active && "underline decoration-2 underline-offset-4",
+              )}
+            >
+              {`${dd}.${mm}.${yy}`}
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 export default function ProductionHeadcountPage() {
   const qc = useQueryClient();
   const { can } = useRole();
@@ -1510,6 +1616,7 @@ export default function ProductionHeadcountPage() {
   // left, and the first thing anyone does is page back a day.
   const opened = useMemo(() => currentShift(), []);
   const [date, setDate] = useState<string>(opened.operationalDate);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [view, setView] = useState<ViewKey>(opened.shift);
   const { data: areas = [], isLoading } = useHeadcountAreas();
 
@@ -1723,6 +1830,24 @@ export default function ProductionHeadcountPage() {
           shift-balance table followed the board onto paper, which is two extra sheets
           nobody asked for and a page of pay information left on a printer by the lines.
           Reading them is what the screen is for. */}
+      {/* As abas da folha, uma por dia do mês, como no fundo do Excel. */}
+      <SheetDayTabs date={date} today={opened.operationalDate} onPick={setDate} />
+
+      {/* Fora da vista principal, à espera de quem os peça. O board é para ver quem está
+          onde; as horas por linha, o período e as horas extra são outra pergunta, e de
+          manhã empurravam a folha para fora do ecrã. */}
+      <div className="no-print">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((o) => !o)}
+          aria-expanded={detailsOpen}
+          className="flex items-center gap-1.5 rounded text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronRight className={cn("h-4 w-4 transition-transform motion-reduce:transition-none", detailsOpen && "rotate-90")} />
+          {detailsOpen ? "Hide hours and overtime" : "Show hours and overtime"}
+        </button>
+      </div>
+      {detailsOpen && (
       <div className="no-print space-y-4">
         {view === "Split" ? (
           <>
@@ -1735,6 +1860,7 @@ export default function ProductionHeadcountPage() {
         <PeriodCalendar />
         <HeadcountOvertimePanel />
       </div>
+      )}
 
       <HeadcountSheetDialog
         open={sheet !== null}

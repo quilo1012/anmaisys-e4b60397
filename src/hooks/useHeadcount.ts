@@ -34,6 +34,8 @@ export type HeadcountEmployee = {
   department: string | null;
   /** Which rota they are on. Null means unrecorded, which is not the same as off. */
   shift_pattern_id: string | null;
+  /** O número de funcionário. Separa no ecrã duas pessoas com o mesmo nome. */
+  employee_ref?: string | null;
   /**
    * The other spellings the company spreadsheet uses for this person, comma separated.
    *
@@ -192,7 +194,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,shift_group,department,shift_pattern_id,sheet_aliases")
+        .select("id,full_name,employee_ref,shift_group,department,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -270,7 +272,7 @@ export function useRotaCover() {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,shift_group,department,shift_pattern_id,sheet_aliases")
+        .select("id,full_name,employee_ref,shift_group,department,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
