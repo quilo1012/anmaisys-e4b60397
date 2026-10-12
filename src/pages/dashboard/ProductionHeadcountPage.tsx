@@ -46,6 +46,7 @@ import { useShiftPatterns } from "@/hooks/useWorkforce";
 import { PersonDayDialog } from "@/components/workforce/PersonDayDialog";
 import { roleStripe } from "@/lib/workforceRoles";
 import { disambiguators } from "@/lib/boardNames";
+import { SheetCellInput } from "@/components/workforce/SheetCellInput";
 import {
   useHeadcountAreas,
   useShiftRoster,
@@ -157,8 +158,10 @@ const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
  * essa fila em degraus.
  */
 function SheetColumn({
-  title, head, onHeadClick, headHint, grip, rows, count, children,
+  title, head, onHeadClick, headHint, grip, rows, count, children, blank,
 }: {
+  /** O que vai na primeira célula vazia — o campo para escrever um nome. */
+  blank?: React.ReactNode;
   title: string;
   head: SheetFill;
   onHeadClick?: () => void;
@@ -185,9 +188,13 @@ function SheetColumn({
       </div>
       <div className="flex flex-col">
         {children}
-        {Array.from({ length: Math.max(0, rows - count) }, (_, i) => (
-          <div key={i} aria-hidden className={cn("h-12 shrink-0 border-b", SHEET_RULE)} />
-        ))}
+        {Array.from({ length: Math.max(0, rows - count) }, (_, i) =>
+          i === 0 && blank ? (
+            <div key={i} className={cn("h-12 shrink-0 border-b", SHEET_RULE)}>{blank}</div>
+          ) : (
+            <div key={i} aria-hidden className={cn("h-12 shrink-0 border-b", SHEET_RULE)} />
+          ),
+        )}
       </div>
       {/* `Total` e o número por baixo, que é como cada coluna da planilha acaba. */}
       <div className="mt-auto flex flex-col">
@@ -784,6 +791,16 @@ function ShiftBoard({
 
   // Quem está no ecrã hoje — colocados, ausentes e por colocar — e, entre eles, quem
   // partilha o nome com outro. Só esses levam o número ao lado.
+  // Quem se pode escrever numa célula: toda a gente activa, de qualquer crew — o
+  // mesmo que o picker do cabeçalho oferece. E onde cada um está hoje, para a lista.
+  const everyone = useMemo(() => [...(everyoneById?.values() ?? [])], [everyoneById]);
+  const whereNow = (id: string): string | null => {
+    const a = byEmployee.get(id);
+    if (!a) return null;
+    if (a.area_id) return areas.find((x) => x.id === a.area_id)?.name ?? null;
+    return AWAY_BLOCKS.find((b) => b.status === a.status)?.label ?? null;
+  };
+
   const refOf = disambiguators([
     ...allocations.map((a) => employeeById.get(a.employee_id)).filter((p): p is HeadcountEmployee => !!p),
     ...unassigned,
@@ -841,6 +858,15 @@ function ShiftBoard({
               headHint={canManage ? `Add or remove people in ${block.label}` : undefined}
               rows={rows}
               count={people.length}
+              blank={canManage ? (
+                <SheetCellInput
+                  className="h-full"
+                  people={everyone}
+                  columnName={block.label}
+                  whereNow={whereNow}
+                  onPick={(id) => handleDrop({ areaId: null, status: block.status })(id)}
+                />
+              ) : undefined}
             >
               {people.map((p) => (
                 <Chip
@@ -1328,6 +1354,15 @@ function ShiftBoard({
                 headHint={canManage ? `Add or remove people on ${area.name}` : undefined}
                 rows={bandRows}
                 count={people.length}
+                blank={canManage ? (
+                  <SheetCellInput
+                    className="h-full"
+                    people={everyone}
+                    columnName={area.name}
+                    whereNow={whereNow}
+                    onPick={(id) => handleDrop({ areaId: area.id, status: "assigned" })(id)}
+                  />
+                ) : undefined}
               >
                     {people.map(({ person: p, shown, sheetName, startTime, tag, overtime: isOt, leader: leadsToday }) => (
                       <Chip
