@@ -41,6 +41,8 @@ import {
 } from "@/lib/loginRateLimit";
 import { resolveIdentity, suggestTablets } from "@/lib/loginIdentity";
 import { classifyLoginFailure, NOT_ACTIVATED_MESSAGE } from "@/lib/loginFailure";
+import { useSignupInviteCode } from "@/hooks/useSignupInvite";
+import { signupPath } from "@/lib/signupQr";
 
 const TABLET_KEY = "an_tablet_account_id";
 const TABLET_TS_KEY = "an_tablet_account_id_at";
@@ -157,6 +159,9 @@ export default function Login() {
   // ── Rate limit state ────────────────────────────────────────
   // Identity used as the rate-limit key (tablet account id or email).
   const matchedEmployee = identity.kind === "employee" ? identity.employee_ref : null;
+  // Desde 11/10/2026 este ecrã pode mostrar o código: é ele que o põe no link do
+  // "Create account", para ninguém ter de o ir pedir. Ver `useSignupInviteCode`.
+  const inviteCode = useSignupInviteCode();
   const rlId = matchedTablet ? matchedTablet.id
     : identity.kind === "email" ? identity.email
     : matchedEmployee ? `emp:${matchedEmployee}` : "";
@@ -692,14 +697,14 @@ export default function Login() {
       {/* On a shared tablet the card carries both ways in: the QR for the person's own
           phone, and a "Create account" button that opens the form in tablet mode, so
           registering here never leaves the tablet signed in as that person. */}
-      {!showCreateAccount && (matchedTablet || hasTablets) && <SignupQrCard />}
+      {!showCreateAccount && (matchedTablet || hasTablets) && <SignupQrCard inviteCode={inviteCode} />}
 
       {showCreateAccount && (
         <p className="mt-6 text-sm text-auth-ink-muted">
           Don't have an account?{" "}
           <button
             type="button"
-            onClick={() => navigate("/signup")}
+            onClick={() => navigate(signupPath(inviteCode))}
             className={authLink}
           >
             Create account

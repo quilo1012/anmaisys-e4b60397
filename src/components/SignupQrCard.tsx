@@ -27,7 +27,7 @@ export function SignupQrCard({
   /**
    * Passed in, never fetched here. This card is drawn on the public login screen as
    * well, and one that looked the code up for itself would carry it wherever it was
-   * placed. See `useTabletInviteCode` for who is allowed to supply one.
+   * placed. See `useSignupInviteCode` for where it comes from.
    */
   inviteCode,
 }: { origin?: string; tone?: "auth" | "page"; inviteCode?: string | null }) {

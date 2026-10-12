@@ -19,7 +19,7 @@ import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { SignupQrCard } from "@/components/SignupQrCard";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
-import { useTabletInviteCode } from "@/hooks/useTabletInvite";
+import { useSignupInviteCode } from "@/hooks/useSignupInvite";
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -98,7 +98,7 @@ function TabletNoticeBoard() {
   const { data: requests = [], isLoading } = useOvertimeRequests();
   // Only a tablet session gets one; everywhere else the RPC answers null and the QR
   // carries nothing, which is what it does today.
-  const inviteCode = useTabletInviteCode(true);
+  const inviteCode = useSignupInviteCode();
   const open = useMemo(
     () => requests.filter((r) => r.status === "open" && !askIsOver(r)),
     [requests],
