@@ -21,6 +21,7 @@ import {
   buildHeadcountWorkbook, parseHeadcountWorkbook, datesBetween, rowsToImport,
   type ImportPreview, type StandingLeader, type UnmatchedName,
 } from "@/lib/headcountSheet";
+import { importReport, otherBoardLeftOut, shortDate } from "@/lib/headcountImportReport";
 import { useRotaCover } from "@/hooks/useHeadcount";
 import { planDay } from "@/lib/headcountPlan";
 import { personNameCase } from "@/lib/personName";
@@ -193,6 +194,13 @@ export function HeadcountSheetDialog({
   // sheet. Import waits until the board is switched or somebody says they mean it.
   const other = target === "Day" ? "Night" : "Day";
   const crewMismatch = !!preview && preview.crews[other] > preview.crews[target];
+
+  // Every date the file touches, for both boards — so a board this run does not write
+  // is said, not left to be noticed as an empty night three days later.
+  const report = useMemo(
+    () => preview ? importReport(preview, target, Number(date.slice(0, 4))) : [],
+    [preview, target, date],
+  );
 
   const close = () => {
     setBook(null); setAssigned({}); setAbsenceAs(null); setRemember(true); setSourceLine(null);
@@ -487,7 +495,16 @@ export function HeadcountSheetDialog({
 
       if (remember) await rememberSpellings();
 
-      toast.success(`Imported ${rows.length} allocation${rows.length === 1 ? "" : "s"} onto the ${target} board`);
+      const perDate = report.filter((l) => l.shift === target && l.date && l.written > 0)
+        .map((l) => `${shortDate(l.date!)}: ${l.written}`).join(", ");
+      toast.success(`Imported ${rows.length} allocation${rows.length === 1 ? "" : "s"} onto the ${target} board`
+        + (perDate ? ` (${perDate})` : ""));
+      const left = otherBoardLeftOut(report, target);
+      if (left.length) {
+        // Not an error and not silent: the other board for these dates is exactly as it
+        // was, and if it was empty it is still empty.
+        toast.warning(`${other} not imported for ${left.map(shortDate).join(", ")} — import the ${other} sheet onto the ${other} board.`, { duration: 12_000 });
+      }
       onImported();
       close();
     } catch (e) {
@@ -640,6 +657,26 @@ export function HeadcountSheetDialog({
                     </Badge>
                   )}
                 </div>
+
+                {report.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto rounded-md border p-2.5 text-2xs">
+                    <div className="mb-1 font-semibold">By date and board</div>
+                    <table className="w-full">
+                      <tbody>
+                        {report.map((l, i) => (
+                          <tr key={i} className={l.shift !== target ? "text-muted-foreground" : ""}>
+                            <td className="whitespace-nowrap pr-2 align-top tabular-nums">{l.date ? shortDate(l.date) : "—"}</td>
+                            <td className="pr-2 align-top">{l.shift}</td>
+                            <td className="whitespace-nowrap pr-2 align-top tabular-nums">
+                              {l.shift === target && l.date ? `${l.written} written${l.skipped ? ` · ${l.skipped} not` : ""}` : "not written"}
+                            </td>
+                            <td className="align-top">{l.reasons.join("; ")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {(preview.unmatchedNames.length > 0 || preview.unknownColumns.length > 0 || preview.skippedSheets.length > 0 || preview.otherShiftSheets.length > 0) && (
                   <div className="max-h-52 space-y-2 overflow-y-auto rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs">
