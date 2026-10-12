@@ -94,9 +94,17 @@ describe("My Attendance", () => {
     expect(screen.getByTestId("day-detail")).toHaveTextContent(/not counted as an absence/i);
   });
 
-  it("marks overtime on the present day itself", () => {
-    env.result.mockReturnValue(ready());
+  it("marks overtime on the present day itself, when it was an overtime shift", () => {
+    env.result.mockReturnValue({ data: { state: "ready", data: {
+      ...DATA, board: [{ on_date: "2026-10-12", shift: "Day", status: "overtime", half_day: null }],
+    } }, isLoading: false, isError: false });
     renderPage();
     expect(screen.getByRole("button", { name: /(12 Oct|Oct 12).*Present, overtime/ })).toBeInTheDocument();
+  });
+
+  it("does not put OT on a rota day just because the clock ran over", () => {
+    env.result.mockReturnValue(ready());
+    renderPage();
+    expect(screen.getByRole("button", { name: /(12 Oct|Oct 12).*Present/ })).not.toHaveAccessibleName(/overtime/);
   });
 });
