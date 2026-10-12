@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -217,6 +217,9 @@ export const navItems: NavItem[] = [
   // `operator_line_accounts` e a migração 20261009090000, que já recusa ligá-las a um
   // funcionário. Um turno inteiro ao mesmo tablet respondia como a mesma pessoa.
   { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
+  // The signed-in person's own record. Same people as My Overtime; the database answers
+  // it from the session alone (`my_attendance`), so it can only ever be their own.
+  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
@@ -667,6 +670,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/headcount": "Production Headcount",
   "/dashboard/overtime": "Overtime",
   "/dashboard/my-overtime": "My Overtime",
+  "/dashboard/my-attendance": "My Attendance",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",

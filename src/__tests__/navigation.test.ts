@@ -122,6 +122,9 @@ describe("sidebar", () => {
       // because they are the same people seen from the ask, not a new subject.
       "Overtime",
       "My Overtime",
+      // The same person's own record beside their own overtime: the two self-service
+      // rows read together, and come last because they are about one person.
+      "My Attendance",
     ]);
   });
 
