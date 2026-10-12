@@ -709,7 +709,7 @@ function ShiftBoard({
   // so somebody can take them off — rather than vanishing from the screen while still
   // counting in the totals, which is what made the board read "20 support" with the
   // WH Team column at zero.
-  const employeeById = everyoneById ?? new Map<string, HeadcountEmployee>();
+  const employeeById = useMemo(() => everyoneById ?? new Map<string, HeadcountEmployee>(), [everyoneById]);
 
   /**
    * Who is working in an area, leader first.
