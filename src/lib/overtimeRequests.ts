@@ -192,6 +192,41 @@ export function requestIsForEmployee(
   return true;
 }
 
+/**
+ * The board an ask's hours land on: Day from 06:00 to 17:59, Night otherwise.
+ *
+ * The same line `factory_shift_of` draws in the database, which is what the ask →
+ * board bridge (`overtime_board_shift`) uses. It is NOT the ask's `shift_group`:
+ * that field says which crew is asked, and an ask for night hours can be put to the
+ * day crew. Confusing the two is how "the admin cannot add a Day person to Night
+ * overtime" happened — the form's "Shift" read as the target shift and narrowed the
+ * people instead.
+ */
+export function overtimeBoardFor(startsAt: string): "Day" | "Night" {
+  const h = Number(startsAt.slice(0, 2));
+  return h >= 6 && h < 18 ? "Day" : "Night";
+}
+
+/**
+ * Who a supervisor may add at the desk: everybody active who has not answered.
+ *
+ * The ask's department and crew decide who is ASKED — who sees it and may answer on
+ * their own phone (`answer_overtime` still enforces that). A supervisor adding a name
+ * is a decision made by somebody allowed to make it, so it is not narrowed: a Day
+ * person covering a Night shortage is the point of overtime. People outside the ask's
+ * audience are offered last and flagged, so it is a visible choice, not an accident.
+ */
+export function deskCandidates<T extends { id: string; full_name: string; department: string | null; shift_group: string | null }>(
+  request: Pick<OvertimeRequest, "department" | "shift_group">,
+  employees: T[],
+  answered: ReadonlySet<string>,
+): { employee: T; outside: boolean }[] {
+  return employees
+    .filter((e) => !answered.has(e.id))
+    .map((e) => ({ employee: e, outside: !requestIsForEmployee(request, e) }))
+    .sort((a, b) => Number(a.outside) - Number(b.outside) || a.employee.full_name.localeCompare(b.employee.full_name));
+}
+
 /** What the employee's own row says on their screen. */
 export function myStatusLabel(
   request: Pick<OvertimeRequest, "status">,
