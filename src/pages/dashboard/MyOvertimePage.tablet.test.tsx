@@ -88,11 +88,25 @@ describe("My Overtime num tablet partilhado", () => {
     expect(screen.queryByText(/Pick your name once/i)).toBeNull();
   });
 
-  it("mostra na mesma as horas abertas, porque o tablet é por onde se passa", async () => {
+  /**
+   * ISTO ERA O CONTRÁRIO ATÉ 12/10/2026.
+   *
+   * O teste dizia "mostra na mesma as horas abertas, porque o tablet é por onde se
+   * passa", e era uma razão verdadeira — só que a lista aparecia por cima de um aviso
+   * a dizer que daqui não se responde a nenhuma delas. A pessoa lia
+   * "ter., 13/10 · 06:00–18:00 — 5 people needed", procurava o botão, não havia
+   * botão. O que fica disso não é "tenho de usar o telemóvel": é que o sistema está
+   * avariado.
+   *
+   * Agora o ecrã faz um pedido só. Quem quiser afixar os turnos tem a folha impressa
+   * do Users → Self sign-up, que é papel e não promete botão nenhum.
+   */
+  it("não mostra turno nenhum — só o aviso e o código", async () => {
     asTablet();
     renderPage();
-    await waitFor(() => expect(screen.getByText(/06:00/)).toBeTruthy());
-    expect(screen.getByTestId("signup-qr")).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId("signup-qr")).toBeTruthy());
+    expect(screen.queryByText(/06:00/)).toBeNull();
+    expect(screen.queryByText(/people needed/i)).toBeNull();
   });
 
   it("mesmo com a conta por ligar, não pede ao tablet que escolha um nome", async () => {
