@@ -644,64 +644,128 @@ select:-webkit-autofill {
   .print-content th.text-center { text-align: center; }
 
   /* ── A folha do Time & Attendance ─────────────────────────────────────────
-     Um documento de salários, não uma fotografia de um ecrã.
+     Um documento de salários de fábrica, não uma tabela de ecrã impressa.
 
-     Sai do escritório a tinta preta sobre branco numa laser monocromática, é
-     arquivada, conferida contra o quadro do headcount e assinada. Daí saem três
-     coisas, e são o desenho todo:
+     O QUE A FOLHA FAZ. Não é mostrar presenças — é encontrar as excepções e
+     resolvê-las antes de fechar o processamento. Tudo o que é normal pode recuar;
+     tudo o que precisa de uma decisão tem de vir ao de cima. É essa pergunta que
+     decide cada escolha abaixo.
 
-     A COR NÃO SOBREVIVE. O saldo é a única figura com sinal e o ecrã carrega-lhe o
-     sinal em verde e âmbar. Naquela impressora os dois saem o mesmo cinzento, e uma
-     figura cinzenta lê-se como uma figura menos importante — o contrário do que é
-     verdade. Por isso a folha é preta, e o sinal é o traço de menos e o peso da letra.
+     A MARGEM É QUE MARCA. Quem fecha a quinzena a dever horas leva uma régua na
+     margem esquerda da linha. Não uma cor: isto sai de uma laser monocromática, onde
+     o vermelho do saldo e o verde do saldo saem exactamente o mesmo cinzento — e um
+     número cinzento lê-se como um número menos importante, que é o contrário do que
+     é verdade. A régua sobrevive à fotocópia, ao fax e ao scan do auditor.
 
-     AS RÉGUAS SÃO ESTRUTURA, NÃO ENFEITE. A folha de impressão global encaixota cada
-     célula, que é o aspecto de uma tabela de ecrã empurrada por uma impressora: sete
-     verticais numa linha onde só duas significam alguma coisa. Aqui as únicas
-     verticais são as duas que separam quanto TEMPO alguém esteve de quantos DIAS
-     esteve ou não — a divisão que a banda por cima das colunas já afirma. O resto é
-     um fio por baixo da linha, que é o que o olho precisa para a ler de ponta a ponta.
+     SEM MATIZ NENHUM. Cinco valores de cinzento e mais nada. Preto para os nomes e
+     os algarismos, um cinzento médio para departamentos e motivos, um fio claro para
+     as linhas, preto para as réguas que agrupam, e um único tom para as bandas.
 
-     ESCREVE-SE EM CIMA DELA. As linhas são postas para uma caneta e não para a
-     densidade, e o pé tem onde assinar.
+     AS RÉGUAS SÃO GRAMÁTICA. Fio = uma linha. Régua fina = um grupo. Régua grossa =
+     o documento. Quem lê aprende isso na primeira página e não volta a pensar nisso.
 
      Tudo limitado a `.attendance-sheet`: a impressão de nenhum outro ecrã muda. */
   .attendance-sheet {
-    color: #000 !important;
+    --ink: #000;
+    --ink-weak: #4a4a4a;
+    --rule: #bdbdbd;
+    --rule-strong: #000;
+    --band: #ededed;
+
+    color: var(--ink) !important;
     font-size: 8.5pt;
   }
 
-  .attendance-sheet .sheet-provenance {
-    margin-top: 2mm;
-    font-size: 7.5pt;
-    line-height: 1.45;
-    color: #5a5a5a;
+  /* ── A cabeça ─────────────────────────────────────────────────────────────
+     O título à esquerda, o registo à direita, assentes na mesma linha de base. */
+  .attendance-sheet .sheet-head {
+    display: flex !important;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12mm;
+    padding-bottom: 3mm;
+    border-bottom: 1pt solid var(--rule-strong);
   }
 
-  /* As cinco figuras em linha. `dl` e não divs, porque é o que elas são: cinco termos
-     e os seus valores, que é também como um leitor de ecrã as encontra. */
-  .attendance-sheet .sheet-summary {
-    display: flex !important;
-    flex-wrap: wrap;
-    gap: 0 14mm;
-    margin: 3mm 0 4mm;
-    padding: 2.5mm 0;
-    border-top: 0.5pt solid #c9c9c9;
-    border-bottom: 0.5pt solid #c9c9c9;
+  .attendance-sheet .sheet-head-title {
+    min-width: 0;
   }
-  .attendance-sheet .sheet-summary dt {
-    font-size: 7.5pt;
-    color: #5a5a5a;
+
+  .attendance-sheet .sheet-head h1 {
+    margin: 0;
+    font-family: Archivo, Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 16pt;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    color: var(--ink);
   }
-  .attendance-sheet .sheet-summary dd {
-    margin: 0.5mm 0 0;
+
+  /* O período é o que a folha É: duas folhas desta tabela não diferem em mais nada.
+     Vai na face dos algarismos, que é a mesma das horas que a folha transporta. */
+  .attendance-sheet .sheet-period {
+    margin: 1mm 0 0;
     font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
     font-variant-numeric: tabular-nums;
-    font-size: 10pt;
-    font-weight: 600;
+    font-size: 11pt;
     line-height: 1;
-    color: #000;
+    color: var(--ink);
   }
+
+  .attendance-sheet .sheet-provenance {
+    margin: 2mm 0 0;
+    max-width: 105mm;
+    font-size: 7.5pt;
+    line-height: 1.45;
+    color: var(--ink-weak);
+  }
+
+  /* O bloco de registo. Rótulo à esquerda, figura à direita, numa coluna estreita —
+     a caixa de uma guia de remessa, e não cinco mosaicos lado a lado. */
+  .attendance-sheet .sheet-record {
+    flex: 0 0 auto;
+    min-width: 52mm;
+    margin: 0;
+  }
+  .attendance-sheet .sheet-record > div {
+    display: flex !important;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6mm;
+    padding: 0.8mm 0;
+    border-bottom: 0.5pt solid var(--rule);
+  }
+  .attendance-sheet .sheet-record > div:last-child {
+    border-bottom: 0;
+  }
+  .attendance-sheet .sheet-record dt {
+    font-size: 7.5pt;
+    color: var(--ink-weak);
+  }
+  .attendance-sheet .sheet-record dd {
+    margin: 0;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 8.5pt;
+    color: var(--ink);
+  }
+
+  /* A única figura do bloco que pede uma acção, e por isso a única que lidera.
+     Uma fila de iguais não tem resposta nenhuma lá dentro. */
+  .attendance-sheet .sheet-record-lead {
+    padding-bottom: 1.5mm !important;
+    border-bottom: 1pt solid var(--rule-strong) !important;
+  }
+  .attendance-sheet .sheet-record-lead dt {
+    font-size: 8pt;
+    color: var(--ink);
+  }
+  .attendance-sheet .sheet-record-lead dd {
+    font-size: 11pt;
+    font-weight: 600;
+  }
+
+  /* ── A tabela ─────────────────────────────────────────────────────────────── */
 
   /* O cartão da tabela é um objecto de ecrã — um painel levantado do fundo da página.
      O papel não tem página por trás, por isso a moldura é uma caixa desenhada à volta
@@ -719,17 +783,19 @@ select:-webkit-autofill {
   .attendance-sheet th,
   .attendance-sheet td {
     border: 0 !important;
-    border-bottom: 0.5pt solid #d4d4d4 !important;
+    border-bottom: 0.5pt solid var(--rule) !important;
     background: transparent !important;
-    padding: 1.6mm 2mm !important;
-    color: #000 !important;
+    padding: 1.5mm 2mm !important;
+    color: var(--ink) !important;
+    vertical-align: baseline;
   }
 
-  /* As duas verticais que carregam a divisão Hours / Days. A marcação já marca
-     exactamente essas duas fronteiras com `border-l`, pela mesma razão, no ecrã. */
+  /* As duas únicas verticais que significam alguma coisa: separam quanto TEMPO
+     alguém esteve de quantos DIAS esteve ou não. A marcação já marca essas duas
+     fronteiras com `border-l`, pela mesma razão, no ecrã. */
   .attendance-sheet th.border-l,
   .attendance-sheet td.border-l {
-    border-left: 0.5pt solid #d4d4d4 !important;
+    border-left: 0.5pt solid var(--rule) !important;
   }
 
   /* A legenda corrente é um rótulo numa folha de continuação, não um cabeçalho de
@@ -740,12 +806,12 @@ select:-webkit-autofill {
     font-weight: 400 !important;
     letter-spacing: 0 !important;
     text-transform: none !important;
-    color: #5a5a5a !important;
+    color: var(--ink-weak) !important;
   }
 
   /* `Hours` e `Days`, como a marcação os escreve. O ecrã põe-nos em capitais
-     espaçadas para a banda se ler como banda à distância de um braço num tablet; o
-     papel é lido à distância de leitura e não precisa de gritar. */
+     espaçadas para a banda se ler à distância de um braço num tablet; o papel é lido
+     à distância de leitura e não precisa de gritar. */
   .attendance-sheet thead th {
     text-transform: none !important;
     letter-spacing: 0 !important;
@@ -753,24 +819,99 @@ select:-webkit-autofill {
     font-size: 8pt !important;
   }
 
-  .attendance-sheet thead tr:last-of-type th {
-    border-bottom: 1pt solid #000 !important;
+  .attendance-sheet .sheet-head-row th {
+    padding-bottom: 1.5mm !important;
   }
 
-  /* O sinal, carregado pelo peso. `text-destructive-strong` é a figura devida; no
-     papel é preta, e é a que vem a negrito, porque uma hora em dívida é a que alguém
-     tem de resolver. */
+  .attendance-sheet thead tr:last-of-type th {
+    border-bottom: 1pt solid var(--rule-strong) !important;
+  }
+
+  /* A banda do departamento. O nome em caixa normal e na face dos títulos: em
+     capitais espaçadas seria o mesmo rótulo genérico que esta folha acabou de
+     perder no topo. O tom e o espaço acima é que fazem dela uma banda. */
+  .attendance-sheet .sheet-band td {
+    background: var(--band) !important;
+    border-bottom: 0.5pt solid var(--rule-strong) !important;
+    padding: 2.5mm 2mm 1.5mm !important;
+    font-family: Archivo, Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 9.5pt;
+    font-weight: 700;
+  }
+  .attendance-sheet .sheet-band td.sheet-band-note {
+    font-family: inherit;
+    font-size: 7.5pt;
+    font-weight: 400;
+    text-align: right;
+    color: var(--ink-weak) !important;
+  }
+  /* Um departamento não se parte entre duas folhas sem levar a sua banda atrás. */
+  .attendance-sheet .sheet-band {
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  /* A marca da excepção: uma régua na margem da linha, fora da coluna, onde o olho a
+     apanha a descer a folha sem ler nada. O nome passa a semibold — a linha tem de
+     se distinguir ao virar a página, não só ao lê-la. */
+  .attendance-sheet tr[data-settle] td:first-child {
+    position: relative;
+    padding-left: 4mm !important;
+    font-weight: 600 !important;
+  }
+  .attendance-sheet tr[data-settle] td:first-child::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.8mm;
+    bottom: 0.8mm;
+    width: 1mm;
+    background: var(--ink);
+  }
+
+  /* O saldo devido, a vermelho — e a negrito por baixo da cor.
+     É o único sítio da folha onde entra matiz, e entra com duas condições.
+
+     A primeira é o tom. Um vermelho vivo passa por uma laser monocromática e sai um
+     cinzento CLARO: a coluna que menos pode perder o sinal ficaria mais fraca do que
+     o preto à volta dela, que é o contrário do que o número diz. Este vermelho tem
+     luminância de uns 25% — em cinzento sai escuro, e lê-se como ênfase e não como
+     desbotado.
+
+     A segunda é que a cor nunca é o único portador. Quem deve horas leva a régua na
+     margem e o nome a semibold, e o próprio número leva o traço de menos. Imprime-se
+     a cores e vê-se vermelho; imprime-se a preto, fotocopia-se ou faxa-se, e o sinal
+     continua todo lá. Oito por cento dos homens não distinguiria este vermelho do
+     preto ao lado, e para esses a folha funciona na mesma. */
   .attendance-sheet .text-destructive-strong {
+    color: #a4161a !important;
     font-weight: 700 !important;
   }
 
+  .attendance-sheet .sheet-reason {
+    font-size: 7.5pt;
+    color: var(--ink-weak) !important;
+  }
+
+  /* O subtotal do departamento: sem rótulo nenhum, porque a banda três linhas acima
+     já disse de quem é, e um "Blending total" repetido seis vezes é seis linhas de
+     tinta a dizer o que a posição já diz. */
+  .attendance-sheet .sheet-subtotal td {
+    border-top: 0.5pt solid var(--rule-strong) !important;
+    border-bottom: 0 !important;
+    padding-top: 1.2mm !important;
+    padding-bottom: 3mm !important;
+    font-weight: 600 !important;
+  }
+
   .attendance-sheet .sheet-total td {
-    border-top: 1pt solid #000 !important;
+    border-top: 1.5pt solid var(--rule-strong) !important;
     border-bottom: 0 !important;
     padding-top: 2mm !important;
     font-weight: 700 !important;
   }
 
+  /* ── O pé ─────────────────────────────────────────────────────────────────── */
   .attendance-sheet .sheet-foot {
     margin-top: 6mm;
     break-inside: avoid;
@@ -787,9 +928,9 @@ select:-webkit-autofill {
     flex: 1 1 0;
     max-width: 70mm;
     padding-top: 1.5mm;
-    border-top: 0.5pt solid #000;
+    border-top: 0.5pt solid var(--rule-strong);
     font-size: 7.5pt;
-    color: #5a5a5a;
+    color: var(--ink-weak);
   }
 
   /* Print header block */
