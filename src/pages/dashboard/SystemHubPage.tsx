@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useRole } from "@/hooks/useRole";
 import {
-  Shield, Radar, Radio, Settings as SettingsIcon, Users, Activity, ChevronRight,
+  Shield, Radar, Radio, Settings as SettingsIcon, Users, Activity, ChevronRight, Link2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Action } from "@/lib/permissions";
@@ -36,6 +36,11 @@ export const SYSTEM_TOOLS: Tool[] = [
     title: "Users",
     description: "Who has an account, what role they hold, and what that role can reach.",
     url: "/users/manage", icon: Users, action: "users.manage", category: "People",
+  },
+  {
+    title: "Link accounts",
+    description: "Which person each login belongs to. Somebody who cannot get past \"Which badge is yours?\" is linked here.",
+    url: "/dashboard/link-accounts", icon: Link2, action: "employees.link_login", category: "People",
   },
   {
     title: "Role rules",

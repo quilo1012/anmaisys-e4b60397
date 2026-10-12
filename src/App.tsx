@@ -123,6 +123,7 @@ const MyOvertimePage = lazyWithReload(() => import("./pages/dashboard/MyOvertime
 const FinanceClosePage = lazyWithReload(() => import("./pages/dashboard/FinanceClosePage"));
 const LeavePage = lazyWithReload(() => import("./pages/dashboard/LeavePage"));
 const MyAttendancePage = lazyWithReload(() => import("./pages/dashboard/MyAttendancePage"));
+const LinkAccountsPage = lazyWithReload(() => import("./pages/dashboard/LinkAccountsPage"));
 const PeoplePage = lazyWithReload(() => import("./pages/dashboard/PeoplePage"));
 const ProductionHeadcountPage = lazyWithReload(() => import("./pages/dashboard/ProductionHeadcountPage"));
 
@@ -508,6 +509,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="overtime.manage">
                       <OvertimeRequestsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/link-accounts"
+                  element={
+                    <ProtectedRoute requiredAction="employees.link_login">
+                      <LinkAccountsPage />
                     </ProtectedRoute>
                   }
                 />
