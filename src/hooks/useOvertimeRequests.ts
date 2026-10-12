@@ -401,6 +401,29 @@ export function useOvertimeMutations() {
    * column almost no employee row fills in, so the choice was free. See
    * `link_me_by_employee_ref`, which takes the badge instead and counts wrong answers.
    */
+  /**
+   * A tentativa silenciosa, antes de se pedir o número do crachá.
+   *
+   * Corre sozinha quando a página abre para quem ainda não está ligado. Se o email da
+   * SESSÃO estiver numa ficha activa e por reclamar, liga e a pessoa nunca chega a ver
+   * o formulário. Não leva argumento nenhum de propósito — ver a migração
+   * 20261012140000: quem não controla a caixa de correio não reclama a ficha.
+   *
+   * Falhar é o caso NORMAL, não um erro: a maior parte das fichas não tem email. Por
+   * isso isto não levanta nada e não mostra nada — a pessoa vê o formulário do crachá,
+   * que é o que veria de qualquer maneira. O único efeito visível é quando corre bem.
+   */
+  const linkMeByEmail = useMutation({
+    mutationFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC do bloco por colar
+      const { data, error } = await (db.rpc as any)("link_me_by_email");
+      // Silêncio em qualquer caso: a função ausente, o email que não bate e a ficha já
+      // reclamada querem dizer todos a mesma coisa para o ecrã — mostra o formulário.
+      return error ? null : (data ?? null);
+    },
+    onSuccess: (linked) => { if (linked) refresh(); },
+  });
+
   const linkMe = useMutation({
     mutationFn: async (employeeRef: string) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
@@ -429,5 +452,5 @@ export function useOvertimeMutations() {
     },
   });
 
-  return { createRequest, editRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, linkMe, saveRules };
+  return { createRequest, editRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, linkMe, linkMeByEmail, saveRules };
 }

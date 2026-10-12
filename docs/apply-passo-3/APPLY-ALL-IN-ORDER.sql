@@ -10510,3 +10510,154 @@ $$;
 
 revoke all on function public.answer_overtime(uuid, text) from public;
 grant execute on function public.answer_overtime(uuid, text) to authenticated;
+
+
+-- ================================================================
+-- BLOCO 88
+-- 20261012140000_the_email_you_signed_in_with_says_who_you_are.sql
+-- ================================================================
+--
+-- LIGA A CONTA SOZINHA quando o email da sessao esta na ficha. Independente
+-- e idempotente; pode ser colado sozinho.
+--
+
+-- O email com que entraste diz quem tu és.
+--
+-- Hoje um funcionário que acaba de criar conta tem de escrever o número do crachá.
+-- Muitos não o sabem de cor, 51 fichas não têm número nenhum, e a mensagem manda
+-- falar com um supervisor que até agora não tinha onde carregar.
+--
+-- A ficha do funcionário já tem `email`. Quando esse email é o MESMO com que a pessoa
+-- iniciou sessão, não há nada a adivinhar: o GoTrue já verificou que ela controla
+-- aquela caixa de correio, e é por isso que esta função não aceita um email como
+-- argumento. Aceitar um transformava isto em "escreve o email do teu colega e ficas
+-- com a ficha dele". Sem argumento, a única forma de reclamar uma ficha é ter entrado
+-- com o email que está nela.
+--
+-- EXACTAMENTE UMA LINHA, ou nada. Dois funcionários com o mesmo email na ficha é um
+-- erro de dados que ninguém deve resolver por sorteio, e a função recusa-se a
+-- escolher — a pessoa cai no crachá, como antes.
+--
+-- NÃO MEXE NO CONTADOR DE TENTATIVAS. O `link_me_by_employee_ref` conta as falhas
+-- porque ali a pessoa está a adivinhar um número. Aqui não escreveu nada: isto corre
+-- sozinho quando a página abre. Gastar-lhe uma das cinco tentativas por uma coisa que
+-- ela não fez era tirar-lhe o recurso de que vai precisar a seguir.
+
+create or replace function public.link_me_by_email()
+returns public.employees
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_email   text := lower(trim(coalesce(auth.jwt() ->> 'email', '')));
+  v_matches integer;
+  v_row     public.employees;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in first' using errcode = 'P0001';
+  end if;
+
+  -- Um tablet é um sítio, não uma pessoa. A mesma recusa das outras duas portas: um
+  -- turno inteiro entra nesta conta, e ligá-la a alguém faz de toda a gente essa
+  -- pessoa. Ver 20261009090000.
+  if exists (select 1 from public.operator_line_accounts o where o.user_id = auth.uid()) then
+    raise exception 'This is a shared line tablet, not a personal account.'
+      using errcode = 'P0001';
+  end if;
+
+  if public.my_employee_id() is not null then
+    raise exception 'This login is already linked to an employee' using errcode = 'P0001';
+  end if;
+
+  -- Contas de crachá vivem em `@employee.pmsystem.local`, um domínio onde ninguém
+  -- recebe nada e que ninguém escolheu. Não é prova de identidade de pessoa nenhuma.
+  if v_email = '' or v_email like '%@employee.pmsystem.local' then
+    raise exception 'No work email on this login' using errcode = 'P0001';
+  end if;
+
+  select count(*) into v_matches
+    from public.employees
+   where lower(trim(email)) = v_email and active and user_id is null;
+
+  if v_matches <> 1 then
+    -- Zero: o email não está em ficha nenhuma, ou a ficha já foi reclamada.
+    -- Dois ou mais: erro de dados, e ninguém escolhe por sorteio.
+    raise exception 'No single employee record matches this email' using errcode = 'P0001';
+  end if;
+
+  update public.employees
+     set user_id = auth.uid()
+   where lower(trim(email)) = v_email
+     and active
+     and user_id is null
+  returning * into v_row;
+
+  if v_row.id is null then
+    -- Outra sessão chegou primeiro entre a contagem e a escrita.
+    raise exception 'No single employee record matches this email' using errcode = 'P0001';
+  end if;
+
+  -- A tentativa falhada do crachá, se a houve, deixa de interessar: a pessoa está
+  -- ligada e o contador não serve para mais nada.
+  delete from public.identity_link_attempts where user_id = auth.uid();
+  return v_row;
+end;
+$$;
+
+revoke all on function public.link_me_by_email() from public;
+grant execute on function public.link_me_by_email() to authenticated;
+
+comment on function public.link_me_by_email() is
+  'Liga este login ao funcionario cujo email e o da SESSAO, se houver exactamente uma '
+  'ficha activa e por reclamar com esse email. Nao aceita argumento de proposito: '
+  'quem nao controla a caixa de correio nao reclama a ficha. Ver 20261012140000.';
+
+
+-- ================================================================
+-- BLOCO 89
+-- 20261012150000_timemoto_is_where_the_number_comes_from.sql
+-- ================================================================
+--
+-- SO O ESQUEMA. As colunas ficam vazias ate haver importacao do TimeMoto.
+--
+
+-- O TimeMoto passa a ser de onde vem o número.
+--
+-- Decidido a 12/10/2026: o relógio já é o sistema onde toda a gente desta fábrica tem
+-- um identificador estável, e este tinha os seus — 51 fichas sem `employee_ref`
+-- nenhum, nomes escritos de maneiras diferentes em três sítios, e uma lista de
+-- `sheet_aliases` curada à mão porque emparelhar por nome nunca funcionou.
+--
+-- Isto é só o esquema. A IMPORTAÇÃO é um passo à parte e precisa do export do
+-- TimeMoto; sem ele estas colunas ficam vazias e nada muda, que é o estado correcto
+-- para uma coluna que ainda não tem dados.
+--
+-- DEPOIS DE IMPORTAR, e só então, as fichas sem número herdam o do relógio:
+--
+--     update public.employees
+--        set employee_ref = timemoto_user_id
+--      where employee_ref is null and timemoto_user_id is not null;
+--
+-- Não está aqui de propósito. Posta nesta migração corria uma vez, a zero linhas,
+-- antes de os dados existirem — e depois nunca mais. Pertence ao passo da importação.
+--
+-- Levanta a instrução de 2026 de não preencher as 51 fichas sem `employee_ref`, que
+-- foi levantada explicitamente ao tomar esta decisão. Quem já tem número MANTÉM o
+-- seu: a linha acima só toca no que está vazio.
+
+alter table public.employees
+  add column if not exists timemoto_user_id  text,
+  add column if not exists timemoto_username text;
+
+-- Dois funcionários com o mesmo id de relógio é um erro de importação, e é melhor que
+-- a importação falhe do que fique silenciosamente a apontar duas fichas ao mesmo
+-- picar. Parcial, porque vazio é o estado normal enquanto não houver export.
+create unique index if not exists employees_timemoto_user_id_key
+  on public.employees (timemoto_user_id)
+  where timemoto_user_id is not null;
+
+comment on column public.employees.timemoto_user_id is
+  'O identificador desta pessoa no TimeMoto. E a fonte do numero: as fichas sem '
+  'employee_ref herdam-no na importacao. Ver 20261012150000.';
+comment on column public.employees.timemoto_username is
+  'O nome de utilizador no TimeMoto, para a importacao poder ser conferida por um '
+  'humano sem abrir os dois sistemas lado a lado.';
