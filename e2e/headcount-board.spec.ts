@@ -18,7 +18,8 @@ const AREAS = [
 ].map(([id, name, kind, section], i) => ({ id, name, kind, section, sort_order: (i + 1) * 10, active: true, sheet_label: null, sheet_group: null }));
 
 const NAMES = ["Pedro Assis","Welligton Segat","Felipe Pinelli","Carlos Russo","Juan Bartholo","Guilherme Dias","Diego Alves","Macelio Souza","Nilton Filho","Eduardo Belini","Marcio Carvalho","David Goncalves","Everton Luz","Adriano Melo","Lucas Glor","Rodolfo Pires","Alice Kovac","Simone Reis","Kevin Mota","Stetson Luz","Natalia Braz","Karen Dias","Wilma Rosa","Ramao Neves","Henrique Sa","Fabio Crespo","Alysson Reis","Aleks Petrov","Karina Braz","Ivan Costa"];
-const EMP = NAMES.map((full_name, i) => ({ id: `e${i}`, full_name, department: null, active: true, shift_group: i % 2 ? "A" : "B", start_date: "2024-01-08", end_date: null, role: null }));
+// Metade no crew Fri–Mon, que leva o crachá FRI–MON — o que roubava o espaço do nome.
+const EMP = NAMES.map((full_name, i) => ({ id: `e${i}`, full_name: i === 3 ? "Sandro Vasconcelos" : full_name, department: null, active: true, shift_group: i % 2 ? "Weekend" : "B", start_date: "2024-01-08", end_date: null, role: null }));
 
 const AREA_IDS = AREAS.map((a) => a.id);
 const ALLOCS = EMP.map((e, i) => ({
@@ -138,4 +139,26 @@ test("cada coluna acaba num Total, como cada coluna da planilha", async ({ page 
   }
 
   await page.screenshot({ path: "e2e/.results/board.png", fullPage: true });
+});
+
+test("o nome cabe inteiro, e os Totais de uma banda ficam na mesma fila", async ({ page }) => {
+  await openBoard(page);
+
+  // Com o FRI–MON ao lado do nome, uma coluna de 150px mostrava "Sandro V…". O nome
+  // passou para uma linha sua; aqui mede-se que nenhum nome da banda é cortado.
+  const cut = await page.evaluate(() =>
+    [...document.querySelectorAll(".headcount-columns .headcount-chip .truncate")]
+      .filter((el) => el.scrollWidth > el.clientWidth + 1)
+      .map((el) => el.textContent),
+  );
+  expect(cut, `nomes cortados: ${cut.join(", ")}`).toEqual([]);
+
+  // As células com marca são mais altas se ninguém as prender; os Totais saíam em degraus.
+  const tops = await page.evaluate(() => {
+    const band = document.querySelector(".headcount-columns")!;
+    return [...band.querySelectorAll(".headcount-sheet-column")].map((col) =>
+      Math.round([...col.querySelectorAll("span")].find((s) => s.textContent?.trim() === "Total")!.getBoundingClientRect().top),
+    );
+  });
+  expect(new Set(tops).size, `Totais a alturas diferentes: ${tops.join(", ")}`).toBe(1);
 });
