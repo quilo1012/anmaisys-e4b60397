@@ -10,7 +10,7 @@ import { DateField } from "@/components/ui/DateField";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Users, Check, Clock, X, UserPlus, Loader2 } from "lucide-react";
+import { Plus, Users, Check, Clock, X, UserPlus, Loader2, Pencil, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useOvertimeRequests, useOvertimeResponses, useOvertimeReliability, useOvertimeOutcomes,
@@ -19,8 +19,10 @@ import {
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   windowLabel, audienceLine, type OvertimeRequest, type OvertimeOutcome, type Candidate,
+  hoursBetween,
 } from "@/lib/overtimeRequests";
 import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
+import { answeredForDifferentHours, countStale, windowAnswered } from "@/lib/staleOvertimeAnswer";
 
 const fmtDate = (d: string) => d.split("-").reverse().join("/");
 const iso = (d: Date) =>
@@ -207,7 +209,21 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
   const { data: employees = [] } = useOvertimeRoster();
   const { data: responses = [] } = useOvertimeResponses(request.id);
   const { data: reliability } = useOvertimeReliability();
-  const { setRequestStatus, decide, recordOutcome, answerFor } = useOvertimeMutations();
+  const { setRequestStatus, editRequest, decide, recordOutcome, answerFor } = useOvertimeMutations();
+  // Corrigir a data e as horas de um pedido já feito. Aberto a null; a null não está a
+  // editar nada. Ver `editRequest` para porque não apaga respostas.
+  const [editing, setEditing] = useState(false);
+  const [edDate, setEdDate] = useState(request.on_date);
+  const [edStart, setEdStart] = useState(request.starts_at.slice(0, 5));
+  const [edEnd, setEdEnd] = useState(request.ends_at.slice(0, 5));
+  const [edCount, setEdCount] = useState(String(request.headcount));
+  const openEdit = () => {
+    setEdDate(request.on_date);
+    setEdStart(request.starts_at.slice(0, 5));
+    setEdEnd(request.ends_at.slice(0, 5));
+    setEdCount(String(request.headcount));
+    setEditing(true);
+  };
   const [addingFor, setAddingFor] = useState<string>("");
 
   /**
@@ -254,6 +270,7 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
     decide.mutate({ responseId, decision }, { onError: (e) => toast.error((e as Error).message) });
 
   return (
+    <>
     <Card className={cn(request.status !== "open" && "opacity-80")}>
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -298,6 +315,14 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
             <div className="mt-1 text-xs text-muted-foreground">
               {counts.interested} said yes{counts.reserve ? `, ${counts.reserve} on reserve` : ""}
             </div>
+            {/* O número que manda alguém pegar no telefone. Fica no cabeçalho porque a
+                lista pode estar fechada e isto não pode passar despercebido. */}
+            {countStale(responses, request) > 0 && (
+              <div className="mt-1 flex items-center gap-1 text-xs font-medium text-warning">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                {countStale(responses, request)} to re-confirm — the shift changed
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -322,7 +347,21 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
                   const tone = reliabilityTone(rel);
                   return (
                     <TableRow key={response.id}>
-                      <TableCell className="font-medium">{employee.full_name}</TableCell>
+                      <TableCell className="font-medium">
+                        {employee.full_name}
+                        {/* Disse que sim a outro turno. Não se apaga a resposta — diz-se
+                            a quem é preciso telefonar, e a que horas ela respondeu, que
+                            é o que a pessoa vai dizer ao telefone. */}
+                        {answeredForDifferentHours(response, request) && (() => {
+                          const seen = windowAnswered(response)!;
+                          return (
+                            <span className="mt-0.5 flex items-center gap-1 text-xs font-normal text-warning">
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              said yes to {fmtDate(seen.on_date)} · {windowLabel(seen.starts_at, seen.ends_at)}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{employee.shift_group ?? "—"}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
@@ -406,13 +445,22 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
               </Select>
               <Button
                 size="sm" variant="outline" disabled={!addingFor || answerFor.isPending}
-                onClick={() => answerFor.mutate({ requestId: request.id, employeeId: addingFor },
+                onClick={() => answerFor.mutate({
+                  requestId: request.id, employeeId: addingFor,
+                  window: { on_date: request.on_date, starts_at: request.starts_at, ends_at: request.ends_at },
+                },
                   { onSuccess: () => setAddingFor(""), onError: (e) => toast.error((e as Error).message) })}
               >
                 Add
               </Button>
             </div>
             <div className="flex items-center gap-2">
+              {/* As horas são escritas à mão, por isso um engano fica lá — 18:00–14:00
+                  onde era 18:00–06:00. Corrigir não apaga respostas: quem já tinha
+                  dito que sim fica assinalado na lista acima. */}
+              <Button size="sm" variant="ghost" onClick={openEdit}>
+                <Pencil className="mr-1 h-4 w-4" /> Edit
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => changeStatus("cancelled")}>
                 Cancel ask
               </Button>
@@ -430,7 +478,67 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
           </div>
         )}
       </CardContent>
+
     </Card>
+
+      <Dialog open={editing} onOpenChange={setEditing}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit this ask</DialogTitle>
+            <DialogDescription>
+              Nobody's answer is deleted. Anyone who already said yes is marked, so you
+              know who to tell that the shift moved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Date</Label>
+              <DateField value={edDate} onChange={setEdDate} aria-label="Date" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="ed-start">Starts</Label>
+                <Input id="ed-start" type="time" value={edStart} onChange={(e) => setEdStart(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ed-end">Ends</Label>
+                <Input id="ed-end" type="time" value={edEnd} onChange={(e) => setEdEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ed-count">People needed</Label>
+              <Input id="ed-count" type="number" min={1} value={edCount}
+                onChange={(e) => setEdCount(e.target.value)} />
+            </div>
+            {/* Vinte horas num turno de doze é o engano que isto existe para corrigir —
+                por isso o ecrã diz quanto tempo é, em vez de deixar a pessoa fazer a
+                conta de cabeça às seis da manhã. */}
+            <p className="text-xs text-muted-foreground">
+              {windowLabel(edStart, edEnd)} · {hoursBetween(edStart, edEnd)}
+            </p>
+          </div>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button
+              disabled={editRequest.isPending || !edDate || !edStart || !edEnd || Number(edCount) < 1}
+              onClick={() => editRequest.mutate(
+                {
+                  id: request.id, on_date: edDate, starts_at: edStart, ends_at: edEnd,
+                  headcount: Number(edCount),
+                },
+                {
+                  onSuccess: () => { setEditing(false); toast.success("Ask updated"); },
+                  onError: (e) => toast.error((e as Error).message),
+                },
+              )}
+            >
+              {editRequest.isPending && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+              Save changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

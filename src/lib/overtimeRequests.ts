@@ -37,6 +37,17 @@ export interface OvertimeResponse {
   decision: OvertimeDecision | null;
   answered_at: string;
   decided_at: string | null;
+  /**
+   * Que turno a pessoa tinha à frente quando disse que sim.
+   *
+   * Gravado no momento da resposta, para um pedido poder ser corrigido sem apagar as
+   * respostas nem comprometer ninguém com horas que nunca viu. Null nas respostas
+   * dadas antes desta coluna existir — e aí não se afirma nada. Ver
+   * `answeredForDifferentHours`.
+   */
+  answered_for_date?: string | null;
+  answered_for_starts_at?: string | null;
+  answered_for_ends_at?: string | null;
 }
 
 /** One row of `overtime_reliability()`. */
@@ -294,4 +305,34 @@ export function audienceLine(
 export function windowLabel(startsAt: string, endsAt: string): string {
   const hm = (t: string) => t.slice(0, 5);
   return `${hm(startsAt)}–${hm(endsAt)}`;
+}
+
+/**
+ * Quanto tempo vai de uma hora à outra, atravessando a meia-noite.
+ *
+ * Existe por causa de um pedido real, a 13/10/2026, marcado para as **18:00–14:00**:
+ * vinte horas, onde era 18:00–06:00. As duas horas são escritas à mão em campos
+ * separados e nada as relacionava, por isso o engano não tinha como aparecer — e
+ * `18:00–14:00` lê-se bem à pressa. A duração não.
+ *
+ * Não recusa nada: um turno longo pode ser real, e um ecrã que proíbe o que não
+ * compreende é pior do que um que mostra a conta. Diz só o que foi escrito, por
+ * extenso, ao lado do campo.
+ */
+export function hoursBetween(startsAt: string, endsAt: string): string {
+  const mins = (t: string) => {
+    // Exige HH:MM. Um campo a meio de ser escrito — "1" — davam 60 minutos e um
+    // número errado ao lado da caixa, que é pior do que não dizer nada ainda.
+    const m = /^(\d{1,2}):([0-5]\d)/.exec((t ?? "").trim());
+    if (!m) return NaN;
+    const hh = Number(m[1]);
+    return hh <= 23 ? hh * 60 + Number(m[2]) : NaN;
+  };
+  const a = mins(startsAt), b = mins(endsAt);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return "";
+  // Igual é um turno inteiro, não zero: ninguém marca horas extra de zero minutos, e
+  // 24h é o que a pessoa quis dizer se escreveu a mesma hora duas vezes.
+  const total = b > a ? b - a : b === a ? 24 * 60 : 24 * 60 - a + b;
+  const h = Math.floor(total / 60), m = total % 60;
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`;
 }

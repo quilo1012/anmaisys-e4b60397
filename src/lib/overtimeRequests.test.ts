@@ -3,8 +3,7 @@ import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
   myAnswerLabel, supervisorLabel, headcountLine, audienceLine, askIsOver,
-  type Reliability, type OvertimeResponse, type Candidate,
-} from "./overtimeRequests";
+  type Reliability, type OvertimeResponse, type Candidate, hoursBetween } from "./overtimeRequests";
 
 const rel = (o: Partial<Reliability> = {}): Reliability => ({
   employee_id: "e", sick_this_month: 0, absent_this_month: 0,
@@ -265,5 +264,28 @@ describe("askIsOver", () => {
 
   it("reads seconds on the time, because Postgres sends them", () => {
     expect(askIsOver(ask("2026-10-08", "06:00:00", "14:00:00"), new Date("2026-10-08T23:00:00Z"))).toBe(true);
+  });
+});
+
+describe("hoursBetween", () => {
+  it("a noite normal", () => {
+    expect(hoursBetween("18:00", "06:00")).toBe("12h");
+  });
+
+  /** O engano que motivou isto: vinte horas lidas à pressa como um turno de noite. */
+  it("mostra as vinte horas de 18:00–14:00", () => {
+    expect(hoursBetween("18:00", "14:00")).toBe("20h");
+  });
+
+  it("o dia que não atravessa a meia-noite", () => {
+    expect(hoursBetween("06:00", "14:30")).toBe("8h30");
+  });
+
+  it("a mesma hora duas vezes é um dia inteiro, não zero", () => {
+    expect(hoursBetween("18:00", "18:00")).toBe("24h");
+  });
+
+  it("aguenta o campo vazio enquanto se escreve", () => {
+    for (const v of ["", "1", "ab:cd"]) expect(hoursBetween(v, "06:00")).toBe("");
   });
 });
