@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2 } from "lucide-react";
+import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -70,6 +70,8 @@ import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
 import { currentShift } from "@/lib/operationalShift";
+import { useSearchParams } from "react-router-dom";
+import { boardNotImported } from "@/lib/headcountImportReport";
 import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { DayClockBadge } from "@/components/workforce/DayClockBadge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -1256,6 +1258,25 @@ function ShiftBoard({
         </div>
       )}
 
+      {/* An empty board on a date the rota has people due is not a quiet night: it is a
+          board nobody imported. Three nights went that way unnoticed behind a small
+          "0 / 64 on the rota", so it is said where the board starts. */}
+      {!showAll && boardNotImported({
+        loading: allocLoading || rosterLoading,
+        allocations: allocations.length,
+        dueOnRota: roster.length,
+      }) && (
+        <div role="status" className="flex items-center gap-2 border border-warning/50 bg-warning/10 px-3 py-2 text-sm print:hidden">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-warning-strong" />
+          <span>
+            <b>{shift} not imported for this date.</b>{" "}
+            <span className="text-muted-foreground">
+              {roster.length} on the rota and nobody on the board — import the {shift.toLowerCase()} sheet, or copy a day.
+            </span>
+          </span>
+        </div>
+      )}
+
       {/* `headcount-kpis`: the print sheet sets these five in one row. See index.css. */}
       <div className="headcount-kpis grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
@@ -1723,9 +1744,27 @@ export default function ProductionHeadcountPage() {
   // stay free afterwards: a day supervisor at 07:00 often wants to read what the night
   // left, and the first thing anyone does is page back a day.
   const opened = useMemo(() => currentShift(), []);
-  const [date, setDate] = useState<string>(opened.operationalDate);
+  // The day and the board live in the address, not only in state. Held in state alone,
+  // anything that remounted the page — a reload, a session refresh, coming back from
+  // another screen — dropped the reader back on today, and paging to 14/10 and opening
+  // the Night tab could land on 12/10. The address survives all of those, and a link to
+  // "the night of the 14th" can be sent to somebody.
+  const [params, setParams] = useSearchParams();
+  const fromUrlDate = params.get("date");
+  const date = fromUrlDate && /^\d{4}-\d{2}-\d{2}$/.test(fromUrlDate) ? fromUrlDate : opened.operationalDate;
+  const fromUrlView = params.get("shift");
+  const view: ViewKey = fromUrlView === "Day" || fromUrlView === "Night" || fromUrlView === "Split"
+    ? fromUrlView : opened.shift;
+  const setBoard = (next: { date?: string; view?: ViewKey }) =>
+    setParams((prev) => {
+      const p = new URLSearchParams(prev);
+      p.set("date", next.date ?? date);
+      p.set("shift", next.view ?? view);
+      return p;
+    }, { replace: true });
+  const setDate = (d: string) => setBoard({ date: d });
+  const setView = (v: ViewKey) => setBoard({ view: v });
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [view, setView] = useState<ViewKey>(opened.shift);
   const { data: areas = [], isLoading } = useHeadcountAreas();
 
   // Split shows two boards at once, so the sheet takes the Day one — a workbook has
