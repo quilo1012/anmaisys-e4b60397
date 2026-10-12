@@ -23,6 +23,16 @@ html[data-device="line-tablet"] {
   font-size: 87.5%;
 }
 
+/* The line tablets are Samsung Galaxy Tab A9 (8.7"). Chrome on it is about 1005×600
+   CSS px, and in landscape the browser's own bars leave roughly 490px of page. At
+   14px the Operator Panel's form only got as far as "Requested By" before the fold.
+   A short screen takes one more step down. */
+@media (max-height: 640px) {
+  html[data-device="line-tablet"] {
+    font-size: 81.25%;
+  }
+}
+
 html[data-device="line-tablet"] .text-2xs {
   font-size: 11px;
   line-height: 15px;
