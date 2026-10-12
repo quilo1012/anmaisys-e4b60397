@@ -1572,8 +1572,10 @@ function ShiftBoard({
           <PersonDayDialog
             open
             onOpenChange={(v) => !v && setEditing(null)}
-            name={alloc?.sheet_name ?? person.full_name}
-            fullName={person.full_name}
+            // O nome do cadastro em título, como no board; a grafia da folha
+            // ("LUCAS GLOR") fica por baixo, pequena.
+            name={person.full_name}
+            fullName={alloc?.sheet_name ?? undefined}
             shiftGroup={person.shift_group}
             status={(alloc?.status as AllocStatus | undefined) ?? null}
             areaId={alloc?.area_id ?? null}
