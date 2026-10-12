@@ -162,7 +162,7 @@ export default function FinanceClosePage() {
         db.from("overtime_entries").select("employee_id, hours").eq("period_id", period!.id),
         // `on_date`, not `date` — the column the manual marks actually use.
         fetchAllRows<any>({
-          range: (a, b) => db.from("employee_attendance").select("employee_id, status")
+          range: (a, b) => db.from("employee_attendance").select("employee_id, on_date, status")
             .gte("on_date", from).lte("on_date", to)
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
