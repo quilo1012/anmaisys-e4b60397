@@ -105,10 +105,13 @@ describe("the planned day on the sheet", () => {
     });
     const grid = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 });
     const cells = grid.flat().map(String);
-    expect(cells[0]).toMatch(/planned from the rota/);
+    expect(cells.some((c) => /Planned from the rota/.test(c))).toBe(true);
     for (const n of ["Ana Lima", "Bia Rocha", "Duda Reis", "Caio Dias"]) expect(cells).toContain(n);
     expect(cells).toContain(NO_LINE_COLUMN);
-    const total = grid.find((r) => String(r[0]).startsWith("Total staff in Production"));
-    expect(total?.[1]).toBe(3); // Ana, Bia on lines + Duda with no line; Caio is on holiday
+    // The figure sits in the cell under its heading. Ana, Bia on lines + Duda with no
+    // line; Caio is on holiday.
+    const r = grid.findIndex((row) => row.includes("Total staff in Pr"));
+    const c = grid[r].indexOf("Total staff in Pr");
+    expect(String(grid[r + 1][c])).toBe("3");
   });
 });

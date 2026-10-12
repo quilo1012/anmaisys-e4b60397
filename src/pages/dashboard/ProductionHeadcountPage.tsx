@@ -2,7 +2,7 @@ import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable"
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
-import { blockOf } from "@/lib/headcountBlocks";
+import { sheetBandOf } from "@/lib/headcountBlocks";
 import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -154,17 +154,21 @@ function dayTypeLabel(iso: string) {
  * lets Gel Room count as production while sitting beside the capsule machines.
  */
 /**
- * The three bands the board draws in, in the order somebody reads them.
+ * As duas bandas em que o board desenha — as da planilha da empresa.
  *
- * "Sectors" was pulled out of the other two: WH Team and Maintenance sat under Support
- * beside Lab and Office, while Hygiene and Quality sat under Production beside the
- * lines. They are neither — they are places that serve the whole floor, and having
- * them split across the two bands meant a supervisor checking hygiene cover had to
- * look in the wrong half of the screen first.
+ * Eram três. "Sectors" tinha sido separada das outras duas de propósito: o WH Team e a
+ * Maintenance estavam sob Support ao lado do Lab e do Office, e a Hygiene e a Quality
+ * sob Production ao lado das linhas, e quem ia verificar a cobertura da higiene
+ * procurava primeiro na metade errada do ecrã.
+ *
+ * Continuam juntas — passaram as duas para o apoio, que é onde a folha de Outubro as
+ * tem. O que se ganha é o ecrã e o papel serem o mesmo objecto: quem arruma o board de
+ * manhã e quem lê a folha impressa à tarde deixam de ter de traduzir entre duas
+ * arrumações da mesma gente. A regra de qual é qual é `sheetBandOf`, a mesma que o
+ * export e o import usam.
  */
 const SECTIONS: { key: string; label: string; accent: string }[] = [
   { key: "production", label: "Production", accent: "text-primary" },
-  { key: "sectors", label: "Sectors", accent: "text-primary" },
   { key: "support", label: "Support", accent: "text-muted-foreground" },
 ];
 
@@ -1070,7 +1074,7 @@ function ShiftBoard({
 
       {SECTIONS.map((section) => {
         if (!blockVisible(section.key)) return null;
-        const ofKind = areas.filter((a) => blockOf(a) === section.key);
+        const ofKind = areas.filter((a) => sheetBandOf(a) === section.key);
         if (ofKind.length === 0) return null;
         const open = openSections[section.key] !== false;
         const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
@@ -1129,12 +1133,6 @@ function ShiftBoard({
                 >
                   {canManage && grip}
                   <CardTitle className="truncate text-sm font-bold">{area.name}</CardTitle>
-                  <span className={cn(
-                    "grid h-6 min-w-[1.75rem] shrink-0 place-items-center rounded-full border bg-background px-2 font-figure text-sm font-bold",
-                    people.length ? "text-foreground" : "text-muted-foreground/50",
-                  )}>
-                    {people.length}
-                  </span>
                 </CardHeader>
                 {/* An empty column shrinks instead of holding a hole the size of a
                     full one. Twenty areas at 76px of nothing is most of a screen. */}
@@ -1171,6 +1169,23 @@ function ShiftBoard({
                     )}
                   </div>
                 </CardContent>
+                {/* `Total` e o número por baixo dele, que é como cada coluna da
+                    planilha acaba — e não um crachá no cabeçalho.
+
+                    A contagem estava em cima porque numa coluna comprida se via sem
+                    rolar. Em baixo é onde quem lê a folha a procura, e o board e a
+                    folha deixam de dar a mesma resposta em sítios diferentes. O
+                    número fica cinzento a zero: uma coluna vazia é uma pergunta por
+                    responder, não um facto. */}
+                <div className="flex items-baseline justify-between border-t px-2.5 py-1.5">
+                  <span className="text-2xs font-semibold text-muted-foreground">Total</span>
+                  <span className={cn(
+                    "font-figure text-sm font-bold tabular-nums",
+                    people.length ? "text-foreground" : "text-muted-foreground/50",
+                  )}>
+                    {people.length}
+                  </span>
+                </div>
               </Card>
             </DropZone>
             )}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,8 +96,27 @@ export default function MyOvertimePage() {
  * way, so the box cannot be used to find out who has registered.
  */
 function LinkMyself() {
-  const { linkMe } = useOvertimeMutations();
+  const { linkMe, linkMeByEmail } = useOvertimeMutations();
   const [ref, setRef] = useState("");
+
+  /**
+   * Tentar pelo email antes de pedir o número.
+   *
+   * Uma vez por montagem, e em silêncio. O email da sessão já foi verificado pelo
+   * GoTrue, por isso se ele estiver numa ficha activa e por reclamar não há nada a
+   * adivinhar e a pessoa nunca vê este formulário. Falhar é o caso normal — a maior
+   * parte das fichas não tem email — e por isso não há mensagem nenhuma para esse
+   * caso: o formulário abaixo já é a resposta.
+   */
+  const tentado = useRef(false);
+  useEffect(() => {
+    if (tentado.current) return;
+    tentado.current = true;
+    linkMeByEmail.mutate();
+    // `linkMeByEmail` muda de identidade a cada render do hook; a guarda acima é o que
+    // garante uma tentativa só, e pô-lo nas dependências só traria de volta o ciclo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,6 +129,17 @@ function LinkMyself() {
       onError: (err) => toast.error((err as Error).message || "Could not link your account"),
     });
   };
+
+  // Enquanto a tentativa silenciosa corre, não mostrar o formulário: para quem vai
+  // ser ligado pelo email, ele aparecia e desaparecia, e o que fica é ter-se visto um
+  // pedido que ninguém fez.
+  if (linkMeByEmail.isPending) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Checking your account…
+      </div>
+    );
+  }
 
   return (
     <Card>

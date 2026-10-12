@@ -2,6 +2,7 @@
 // the two that writes a cell's fill. Every other coloured export in the app uses it.
 import XLSX from "xlsx-js-style";
 import { keepsLeadership } from "@/lib/leaderMark";
+import { sheetBandOf } from "@/lib/headcountBlocks";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
@@ -213,20 +214,6 @@ export function parseSheetDate(name: string, fallbackYear: number): string | nul
   return null;
 }
 
-// Blocks follow `section`, the same rule the board draws by, so the sheet and the
-// screen cannot disagree about where Hygiene sits. The totals below still count by
-// `kind` — that is the other question, and the answer to it did not change.
-const sheetBandOf = (a: HeadcountArea): "production" | "support" => {
-  const sec = (a.section ?? "").toLowerCase();
-  // Sectors — hygiene, quality, maintenance, the warehouse — print with support on
-  // the company's sheet, which has two bands and not three. The screen shows them
-  // apart because that is the question a supervisor asks; the sheet keeps its own
-  // shape so an export still reads back the way it always did.
-  if (sec === "production") return "production";
-  if (sec === "sectors" || sec === "support") return "support";
-  return a.kind === "production" ? "production" : "support";
-};
-
 /**
  * The columns the company's own sheet has, built from the data rather than a list
  * in this file.
@@ -300,7 +287,11 @@ export const NO_LINE_COLUMN = "Due in — no line yet";
 
 /** The away columns keep the colour the company's sheet gives them. */
 const STATE_LOOK: Record<string, SheetLook> = {
-  Sickness: "away", Unpaid: "away", Holidays: "leave", Overtime: "leave",
+  Absence: "away", Sickness: "away", Unpaid: "away",
+  Holidays: "leave", Overtime: "leave", "Overtime staff": "leave",
+  // A figura que a folha existe para carregar. Roxa, como na planilha da empresa,
+  // onde é a única célula que não é nem um nome nem uma contagem de coluna.
+  "Total staff in Pr": "grand",
 };
 
 /**
@@ -342,46 +333,85 @@ export function buildHeadcountWorkbook(input: {
     const looks = new Map<string, SheetLook>();
     const paint = (r: number, c: number, look: SheetLook) => looks.set(`${r},${c}`, look);
 
+    /**
+     * One band of columns, as the company's sheet draws it.
+     *
+     * No heading row. The sheet has none — it opens straight on `Line 1`, and the two
+     * bands are told apart by the Total row that closes the first one. `PRODUCTION`
+     * and `SUPPORT` were this file's own invention, helpful on a screen and two rows
+     * of ink on a sheet that is read by its columns.
+     *
+     * `figures` are columns that carry a number instead of a list of names — the
+     * sheet's own `Total staff in Pr`, which has the headcount in its first cell and
+     * nothing under it. It is a column and not a row because that is where the
+     * company's sheet keeps it, and it is the figure people look for first.
+     */
     type Cell = { name: string; leader: boolean; planned?: boolean };
-    const band = (cols: { label: string; areas: HeadcountArea[] }[], heading: string, extra: [string, Cell[]][] = []) => {
+    const band = (
+      cols: { label: string; areas: HeadcountArea[] }[],
+      extra: [string, Cell[]][] = [],
+      figures: [string, number][] = [],
+    ) => {
       if (cols.length === 0 && extra.length === 0) return 0;
-      rows.push([heading]);
-      paint(rows.length - 1, 0, "label");
-      // The away states are columns beside the areas, the way the sheet has them —
-      // a name under "Absence" reads the same as a name under "Line 1".
-      const labels = [...cols.map((c) => c.label), ...extra.map(([l]) => l)];
+      const labels = [...cols.map((c) => c.label), ...figures.map(([l]) => l), ...extra.map(([l]) => l)];
       const lists = [
         ...cols.map(inColumn),
+        ...figures.map(([, n]): Cell[] => [{ name: String(n), leader: false }]),
         ...extra.map(([, cells]) => cells),
       ];
+      // Na planilha a figura fica entre as áreas e as faltas — acabou de se somar o que
+      // está em cima dela, e ainda não começaram os que não estão cá.
+      const figureAt = new Set(figures.map((_, i) => cols.length + i));
       rows.push(labels);
       labels.forEach((l, c) => paint(rows.length - 1, c, c < cols.length ? "heading" : STATE_LOOK[l] ?? "heading"));
       // One spare row under the longest column, as the sheet has: room to write a name in.
       const depth = Math.max(0, ...lists.map((c) => c.length)) + 1;
       for (let i = 0; i < depth; i++) {
         rows.push(lists.map((c) => c[i]?.name ?? ""));
-        lists.forEach((c, x) => paint(rows.length - 1, x, c[i]?.leader ? "leader" : c[i]?.planned ? "planned" : "name"));
+        lists.forEach((c, x) =>
+          paint(rows.length - 1, x, figureAt.has(x) ? "grand" : c[i]?.leader ? "leader" : c[i]?.planned ? "planned" : "name"),
+        );
       }
       // "Total" and the figure under it, green, the way every column on the sheet ends.
-      rows.push(lists.map(() => "Total"));
-      lists.forEach((_, x) => paint(rows.length - 1, x, "total"));
-      rows.push(lists.map((c) => c.length));
-      lists.forEach((_, x) => paint(rows.length - 1, x, "total"));
+      // Except the figure columns: on the company's sheet `Total staff in Pr` has its
+      // number in the first cell and an empty Total, because a total of a total is not
+      // a number anybody reads.
+      rows.push(lists.map((_, x) => (figureAt.has(x) ? "" : "Total")));
+      lists.forEach((_, x) => !figureAt.has(x) && paint(rows.length - 1, x, "total"));
+      rows.push(lists.map((c, x) => (figureAt.has(x) ? "" : c.length)));
+      lists.forEach((_, x) => !figureAt.has(x) && paint(rows.length - 1, x, "total"));
       rows.push([]);
       // Only the area columns count towards the band subtotal; the states are people
       // who are not there.
       return cols.reduce((n, c) => n + inColumn(c).length, 0);
     };
 
-    const anyPlanned = allocs.some((a) => a.planned);
-    rows.push([`${day.shift} shift — ${day.date}${anyPlanned ? " — planned from the rota" : ""}`]);
-    paint(0, 0, "title");
-    rows.push([]);
-    const states: [string, Cell[]][] = STATUS_BLOCKS.map((b) => [
-      b.label,
-      allocs.filter((a) => a.status === b.status).map((a) => nameOf(a)).filter(Boolean).sort()
-        .map((name) => ({ name, leader: false })),
-    ]);
+
+    /**
+     * As colunas de ausência, como a planilha as tem: uma `Absence`, não duas.
+     *
+     * A planilha da empresa tem UMA coluna de faltas e o board tem duas respostas —
+     * Sickness e Unpaid. Escrevê-las separadas fazia o ficheiro deixar de se parecer
+     * com a folha que toda a gente lê de manhã, que é a única razão de este export
+     * existir com esta forma.
+     *
+     * Não se perde nada na volta: o importador deste mesmo ficheiro já reconhece a
+     * coluna `Absence` e PERGUNTA ao escritório o que ela quer dizer (`absenceAs`),
+     * em vez de adivinhar — porque sob qual das duas um nome cai é um facto de
+     * salário. Um ficheiro antigo, com as duas colunas, continua a ser lido como
+     * sempre foi.
+     */
+    const namesWith = (statuses: string[]): Cell[] =>
+      allocs.filter((a) => statuses.includes(a.status)).map((a) => nameOf(a)).filter(Boolean).sort()
+        .map((name) => ({ name, leader: false }));
+
+    const states: [string, Cell[]][] = [
+      ["Absence", namesWith(["sick", "unpaid"])],
+      ["Holidays", namesWith(["holiday"])],
+      // "Overtime staff" é como a planilha escreve a coluna. O importador já lê os
+      // dois, por `also`, por isso uma folha antiga continua a entrar.
+      ["Overtime staff", namesWith(["overtime"])],
+    ];
     const known = new Set(input.areas.map((a) => a.id));
     const noLine = working
       .filter((a) => !a.area_id || !known.has(a.area_id))
@@ -393,31 +423,36 @@ export function buildHeadcountWorkbook(input: {
     // where the company's sheet has them. Beside the lines they made the top band
     // sixteen columns wide, and a sheet that wide does not print on one page. The
     // importer reads a column by its heading, so where it stands changes nothing.
-    const inProduction = band(production, "PRODUCTION");
-    const inSupport = band(support, "SUPPORT", states);
+    const inProduction = band(production);
+
+    // Contado antes de desenhar a banda, porque o número entra DENTRO dela: na
+    // planilha `Total staff in Pr` é uma coluna da segunda banda, com a conta das
+    // duas, e não uma linha no fim da folha. É a figura que as pessoas procuram
+    // primeiro, e procuram-na onde ela sempre esteve.
+    const inSupport = support.reduce((n, c) => n + inColumn(c).length, 0);
+    // In, but on no line: counted in the total, never inside a band they are not in.
+    band(support, states, [["Total staff in Pr", inProduction + inSupport + noLine.length]]);
+
     rows.push([]);
-    // The number the sheet exists to carry: everyone standing on a production area.
-    // Three numbers, because two definitions of "in production" are in use and this
-    // sheet is not the place to pick a winner quietly.
+    // E uma linha só, que a planilha não tem, para a outra definição de "em produção".
     //
-    // The system counts `kind = production` — the lines and the machines, which for
-    // 04/08 is 39. The company sheet's own definition sums both printed bands, which
-    // is 60. They differ by Hygiene, Quality and Runner: support people who print in
-    // the production band. Both are stated, and the total is spelled out so nobody
-    // has to work out which one a figure came from.
+    // O sistema conta `kind = production` — as linhas e as máquinas. A planilha soma
+    // as duas bandas impressas. Diferem pela Hygiene, pela Quality e pelo Runner:
+    // gente de apoio que imprime na banda de produção. A coluna acima diz a da
+    // planilha, que é a que a folha existe para carregar; esta linha diz a do sistema,
+    // nomeada, para que ninguém tenha de descobrir de qual das duas veio um número.
     const byKind = input.areas
       .filter((a) => a.kind === "production")
       .reduce((n, a) => n + inColumn({ areas: [a] }).length, 0);
     rows.push(["On production lines (system: kind = production)", byKind]);
-    rows.push(["In the production band on this sheet", inProduction]);
-    rows.push(["In the support band on this sheet", inSupport]);
-    // In, but on no line: counted in the total, never inside a band they are not in.
-    if (noLine.length) rows.push(["Due in with no line yet", noLine.length]);
-    for (let r = 1; r <= (noLine.length ? 4 : 3); r++) paint(rows.length - r, 0, "summary");
-    rows.push(["Total staff in Production (both bands)", inProduction + inSupport + noLine.length]);
-    // The purple cell. On the company's sheet it is the one figure people look for.
-    paint(rows.length - 1, 0, "grand");
-    paint(rows.length - 1, 1, "grand");
+    paint(rows.length - 1, 0, "summary");
+    // A day that has not happened, filled from the rota (`planDay`). Said in words as
+    // well as in grey italic, because a printout in black and white loses the italic's
+    // colour and nobody should read a plan as the morning's board.
+    if (allocs.some((a) => a.planned)) {
+      rows.push(["Planned from the rota — not yet the board for this day"]);
+      paint(rows.length - 1, 0, "summary");
+    }
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     for (const [at, look] of looks) {
