@@ -185,7 +185,7 @@ describe("a folha impressa", () => {
   it("diz o nome e o período numa linha que se repete em cada página", async () => {
     renderPage();
 
-    const caption = await screen.findByText(/^Time & Attendance · \d{2}\/\d{2}\/\d{4} → \d{2}\/\d{2}\/\d{4}$/);
+    const caption = await screen.findByText(/^Time & Attendance, \d{2}\/\d{2}\/\d{4} — \d{2}\/\d{2}\/\d{4}$/);
     // Dentro do `<thead>`, que é o que faz dela uma linha repetida e não um título.
     expect(caption.closest("thead")).not.toBeNull();
     expect(caption.closest("tr")).toHaveClass("print-caption-row");
