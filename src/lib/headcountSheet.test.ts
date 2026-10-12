@@ -69,16 +69,37 @@ describe("export then import", () => {
   it("comes back with every person on the area they were on", () => {
     const p = parseHeadcountWorkbook(wb, { areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026 });
     expect(p.unmatchedNames).toEqual([]);
-    expect(p.matched).toHaveLength(6);
+    // Quatro, e não seis: quem está em falta sai sob a coluna `Absence` da planilha,
+    // que é uma e não duas, e a volta não a abre sozinha.
+    expect(p.matched).toHaveLength(4);
     const on = (id: string) => p.matched.find((m) => m.employeeId === id);
     expect(on("e1")!.areaId).toBe("l1");
     expect(on("e3")!.areaId).toBe("l5");
     expect(on("e4")!.areaId).toBe("hy");
-    // Sickness and unpaid are separate columns and must survive the round trip as
-    // themselves — collapsing them back into one absence is exactly what the board
-    // stopped doing.
-    expect(on("e5")).toMatchObject({ status: "unpaid", areaId: null });
-    expect(on("e6")).toMatchObject({ status: "sick", areaId: null });
+  });
+
+  /**
+   * O preço de escrever a coluna da planilha, dito aqui para não ser descoberto tarde.
+   *
+   * A planilha da empresa tem UMA coluna de faltas; o board tem duas respostas. Ao
+   * escrever `Absence` o ficheiro passa a parecer-se com a folha que toda a gente lê
+   * — e deixa de poder dizer, sozinho, quem faltou por doença e quem faltou sem
+   * vencimento. Sob qual das duas um nome cai é um facto de salário.
+   *
+   * O importador não adivinha: assinala que a coluna existe e segura os nomes até o
+   * escritório dizer o que ela quer dizer. Uma folha antiga, com `Sickness` e
+   * `Unpaid` separadas, continua a ser lida como sempre foi.
+   */
+  it("holds the absent back until the office says what Absence meant", () => {
+    const p = parseHeadcountWorkbook(wb, { areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026 });
+    expect(p.absenceColumnFound, "a coluna de faltas da planilha tem de ser reconhecida").toBe(true);
+    expect(p.matched.some((m) => m.status === "sick" || m.status === "unpaid")).toBe(false);
+
+    const told = parseHeadcountWorkbook(wb, {
+      areas: AREAS, roster: ROSTER, shift: "Day", fallbackYear: 2026, absenceAs: "unpaid",
+    });
+    const absent = told.matched.filter((m) => m.areaId === null).map((m) => `${m.employeeId}:${m.status}`).sort();
+    expect(absent).toEqual(["e5:unpaid", "e6:unpaid"]);
   });
 
   it("does not mistake a column's count row for a person", () => {
@@ -146,8 +167,10 @@ describe("the company sheet's own column names", () => {
       allocationsFor: () => [alloc("e1", "l1"), alloc("e4", "hy")],
     });
     const flat = XLSX.utils.sheet_to_json<string[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 }).flat();
+    // A da planilha é uma COLUNA, com o número na célula por baixo dela; a do sistema
+    // é a única linha que a folha leva no fim. As duas continuam ditas, e nomeadas.
+    expect(flat.some((c) => String(c) === "Total staff in Pr")).toBe(true);
     expect(flat.some((c) => String(c).includes("kind = production"))).toBe(true);
-    expect(flat.some((c) => String(c).includes("both bands"))).toBe(true);
   });
 });
 
@@ -726,7 +749,7 @@ describe("the exported sheet looks like the company's", () => {
   it("heads a place in yellow, absence in red, leave in green", () => {
     expect(fillOf("Line 1")).toBe("FFFF00");
     expect(fillOf("Office")).toBe("FFFF00");
-    expect(fillOf("Sickness")).toBe("FF0000");
+    expect(fillOf("Absence")).toBe("FF0000");
     expect(fillOf("Holidays")).toBe("92D050");
   });
 
@@ -739,7 +762,7 @@ describe("the exported sheet looks like the company's", () => {
 
   it("ends every column on a green Total, and the sheet on the purple one", () => {
     expect(fillOf("Total")).toBe("92D050");
-    expect(fillOf("Total staff in Production (both bands)")).toBe("7030A0");
+    expect(fillOf("Total staff in Pr")).toBe("7030A0");
   });
 
   it("draws the box round an empty cell too", () => {
@@ -750,7 +773,10 @@ describe("the exported sheet looks like the company's", () => {
 
   it("still reads back as the day it was written from", () => {
     const back = parseHeadcountWorkbook(wb, { areas: areasX, roster: crew, shift: "Day", fallbackYear: 2026 });
-    expect(back.matched.map((m) => `${m.employeeId}:${m.status}`).sort()).toEqual(["e1:assigned", "e2:assigned", "e3:sick", "e4:holiday"]);
+    // `e3` estava doente e sai sob `Absence`, que a volta segura até alguém dizer o
+    // que ela significa. As férias e os postos voltam intactos.
+    expect(back.matched.map((m) => `${m.employeeId}:${m.status}`).sort()).toEqual(["e1:assigned", "e2:assigned", "e4:holiday"]);
+    expect(back.absenceColumnFound).toBe(true);
     expect(back.unknownColumns).toEqual([]);
   });
 });
