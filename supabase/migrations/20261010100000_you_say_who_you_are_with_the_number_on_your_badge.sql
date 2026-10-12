@@ -56,6 +56,18 @@ declare
   v_matches integer;
   v_row   public.employees;
 begin
+  -- Sem sessão não se liga nada.
+  --
+  -- O `grant` só dá isto ao papel `authenticated`, por isso o anon nunca chega cá. Mas
+  -- a linha fica: sem esta guarda, um `auth.uid()` nulo passa as três verificações
+  -- seguintes, escreve `user_id = null` sobre uma linha que já o tinha, e DEVOLVE a
+  -- ficha do funcionário a quem a pediu. Um grant acrescentado por distracção numa
+  -- migração futura transformava um erro de permissões numa fuga de dados, e esta
+  -- base já teve exactamente essa espécie de acidente.
+  if auth.uid() is null then
+    raise exception 'Sign in first' using errcode = 'P0001';
+  end if;
+
   if v_ref = '' then
     raise exception 'Enter the number on your badge' using errcode = 'P0001';
   end if;
@@ -117,7 +129,19 @@ begin
     insert into public.identity_link_attempts (user_id, fails, last_fail)
     values (auth.uid(), 1, now())
     on conflict (user_id) do update
-      set fails = public.identity_link_attempts.fails + 1, last_fail = now();
+      -- A janela de 24 horas tem de valer na ESCRITA e não só na leitura.
+      --
+      -- Somando sempre, o contador nunca recomeçava: quem falhasse cinco vezes numa
+      -- segunda-feira voltava na quarta, passava a porta (o `last_fail` já estava
+      -- fora da janela), falhava uma vez — e a soma punha 6, com `last_fail` outra
+      -- vez dentro da janela. A partir daí tinha UMA tentativa por dia em vez de
+      -- cinco, para sempre, e nenhum ecrã onde alguém limpasse aquilo.
+      set fails = case
+            when public.identity_link_attempts.last_fail > now() - interval '24 hours'
+              then public.identity_link_attempts.fails + 1
+            else 1
+          end,
+          last_fail = now();
     -- One message for every miss. Saying "no such badge" and "already taken"
     -- separately would turn this into a tool for finding out who has registered.
     raise exception 'That badge number is not available. Check it, or ask your supervisor.'
