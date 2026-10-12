@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import "./line-tablet.css";
 import { installDomTranslateGuard } from "@/lib/domTranslateGuard";
 import { installApiErrorTelemetry } from "@/lib/apiErrorTelemetry";
 import { installStaleJwtRetry } from "@/lib/staleJwtRetry";

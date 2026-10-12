@@ -7,7 +7,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { reportQueryError, type QueryErrorMeta } from "@/lib/queryErrors";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -27,6 +27,7 @@ import { useSeverityPointsSync } from "@/hooks/useSeverityPoints";
 import { useLabelPointsSync, useDepartmentAttributionSync, useRootCauseAttributionSync } from "@/hooks/useQualityOptions";
 import { useLabelPointsCapSync } from "@/hooks/useLabelPointsCap";
 import { useForgetPreviousUser } from "@/hooks/useForgetPreviousUser";
+import { applyLineTabletDensity, wasLineTablet } from "@/lib/lineTabletDevice";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
@@ -77,6 +78,17 @@ function RootCauseAttributionSync() {
  */
 function LabelPointsCapSync() {
   useLabelPointsCapSync();
+  return null;
+}
+
+/** The line tablets get a denser type scale than the office. See lib/lineTabletDevice. */
+function LineTabletDensity() {
+  const { role } = useAuth();
+  const { pathname } = useLocation();
+  // `pathname` is only here to re-read the device flag after the login writes it.
+  useEffect(() => {
+    applyLineTabletDensity(role === "operator" || wasLineTablet());
+  }, [role, pathname]);
   return null;
 }
 
@@ -303,6 +315,7 @@ const App = () => (
       <RootCauseAttributionSync />
             <LabelPointsCapSync />
             <TelemetryInit />
+            <LineTabletDensity />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
