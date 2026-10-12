@@ -9,6 +9,7 @@ import { DEPARTMENTS } from "@/lib/orgNames";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { personNameCase } from "@/lib/personName";
 import { AlertTriangle, UserPlus } from "lucide-react";
 import { useCreateEmployee, useEmployees, useHeadcountAreas } from "@/hooks/useWorkforce";
 import { similarNames } from "@/lib/similarNames";
@@ -48,7 +49,7 @@ export function AddEmployeeDialog() {
   const { data: onFile = [] } = useEmployees();
   const create = useCreateEmployee();
 
-  const trimmed = name.trim();
+  const trimmed = personNameCase(name);
 
   const lookalikes = useMemo(() => similarNames(trimmed, onFile).slice(0, 4), [trimmed, onFile]);
   /**

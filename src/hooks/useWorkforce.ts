@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { personNameCase } from "@/lib/personName";
 import { currentShift } from "@/lib/operationalShift";
 import type { PatternDayOverride } from "@/lib/overtime";
 
@@ -441,7 +442,7 @@ export function useCreateEmployee() {
       // person the first time TimeMoto is imported.
       const { data, error } = await db
         .from("employees")
-        .insert({ ...input, active: true, source: "manual" })
+        .insert({ ...input, full_name: personNameCase(input.full_name), active: true, source: "manual" })
         .select("id")
         .single();
       if (error) throw error;
@@ -612,7 +613,7 @@ export function useUpdateEmployee() {
       // sao cinco contas — abria o formulario e nao escrevia uma linha.
       const { data: written, error } = await db
         .from("employees")
-        .update(patch)
+        .update(typeof patch.full_name === "string" ? { ...patch, full_name: personNameCase(patch.full_name) } : patch)
         .eq("id", id)
         .select("id");
       if (error) throw error;

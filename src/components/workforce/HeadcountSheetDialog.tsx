@@ -23,6 +23,7 @@ import {
 } from "@/lib/headcountSheet";
 import { useRotaCover } from "@/hooks/useHeadcount";
 import { planDay } from "@/lib/headcountPlan";
+import { personNameCase } from "@/lib/personName";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
 
 /**
@@ -257,7 +258,7 @@ export function HeadcountSheetDialog({
     try {
       const { data, error } = await supabase
         .from("employees")
-        .insert(names.map((n) => ({ full_name: n.trim(), active: true, source: "sheet" })) as never)
+        .insert(names.map((n) => ({ full_name: personNameCase(n), active: true, source: "sheet" })) as never)
         .select("id,full_name,shift_group,department,shift_pattern_id,sheet_aliases");
       if (error) throw error;
       const made = (data ?? []) as unknown as HeadcountEmployee[];
@@ -265,7 +266,9 @@ export function HeadcountSheetDialog({
       setAssigned((prev) => {
         const next = { ...prev };
         for (const p of made) {
-          const spelling = names.find((n) => n.trim() === p.full_name);
+          // The database writes the name in its one case ("LUCAS GLOR" lands as "Lucas
+          // Glor"), so the sheet's spelling is found through the same rule, not as typed.
+          const spelling = names.find((n) => personNameCase(n) === p.full_name);
           if (spelling) next[spelling] = p.id;
         }
         return next;
