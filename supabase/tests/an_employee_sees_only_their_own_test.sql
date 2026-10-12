@@ -90,7 +90,10 @@ begin
   if jsonb_array_length(j->'clocks') <> 1 or (j->'clocks'->0->>'worked_minutes')::int <> 701 then
     raise exception 'FAILED: A should see exactly A''s one clocked day, got %', j->'clocks';
   end if;
-  if j::text like '%802%' or j::text like '%' || current_setting('zz.e_b') || '%' then
+  -- Checked on the rows, not on the text: "802" turns up inside a random uuid or a
+  -- timestamp often enough to fail a clean run, which is how this test first flaked.
+  if exists (select 1 from jsonb_array_elements(j->'clocks') c where c->>'on_date' = '2030-01-08')
+     or j::text like '%' || current_setting('zz.e_b') || '%' then
     raise exception 'FAILED: B''s record appears in A''s attendance';
   end if;
   if jsonb_array_length(j->'marks') <> 0 then
@@ -134,7 +137,8 @@ begin
   if jsonb_array_length(j->'clocks') <> 1 or (j->'clocks'->0->>'worked_minutes')::int <> 802 then
     raise exception 'FAILED: B should see exactly B''s one clocked day, got %', j->'clocks';
   end if;
-  if j::text like '%701%' or j::text like '%' || current_setting('zz.e_a') || '%' then
+  if exists (select 1 from jsonb_array_elements(j->'clocks') c where c->>'on_date' = '2030-01-07')
+     or j::text like '%' || current_setting('zz.e_a') || '%' then
     raise exception 'FAILED: A''s record appears in B''s attendance';
   end if;
   if jsonb_array_length(j->'marks') <> 1 then
