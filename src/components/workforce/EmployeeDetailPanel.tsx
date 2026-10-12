@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { AlertTriangle, ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
 import { similarNames } from "@/lib/similarNames";
+import { personNameCase } from "@/lib/personName";
 import { cn } from "@/lib/utils";
 import {
   describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements,
@@ -147,7 +148,9 @@ export function EmployeeDetailPanel({
       {
         id: employee.id,
         patch: {
-          full_name: fullName.trim(),
+          // Na forma única do nome — o ecrã de criar já a usava, o de editar não, e um
+          // nome corrigido aqui com caps lock voltava a ficar "JOAO SPINELLI".
+          full_name: personNameCase(fullName),
           // Vazio limpa: um email em branco e a verdade para 186 das 211 pessoas, e
           // uma cadeia vazia guardada no lugar de null le-se como um email que existe.
           email: email.trim() || null,

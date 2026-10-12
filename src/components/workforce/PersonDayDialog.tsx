@@ -53,7 +53,7 @@ export function PersonDayDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   name: string;
-  /** The payroll name behind a sheet spelling, shown small under the title. */
+  /** The other spelling of the same person — the sheet's — shown small under the title. */
   fullName?: string;
   shiftGroup: string | null;
   /** Null when they are on the roster but not placed on the day. */
