@@ -22,7 +22,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { probesFor, probePath, MISSING_CODE, type Probe, probeBody } from "@/lib/migrationProbes";
+import { probesFor, probePath, MISSING_CODE, type Probe, probeBody, markReplacements } from "@/lib/migrationProbes";
 
 const root = resolve(__dirname, "../..");
 
@@ -59,8 +59,18 @@ describe.skipIf(!ligado)("o que o main promete e a base não tem", () => {
       .filter((f) => f.endsWith(".sql") && f.split("_")[0] > APLICADA_ATE)
       .sort();
 
-    const todas: Probe[] = pendentes.flatMap((f) => probesFor(readFileSync(resolve(dir, f), "utf8"), f));
+    // A lista TODA, e não só as pendentes: a primeira definição de uma função pode ser
+    // de meses antes da janela que esta sonda cobre, e é isso que decide se uma
+    // promessa é verificável. Ver `markReplacements`.
+    const historico = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()
+      .map((f) => ({ file: f, sql: readFileSync(resolve(dir, f), "utf8") }));
+
+    const todas: Probe[] = markReplacements(
+      pendentes.flatMap((f) => probesFor(readFileSync(resolve(dir, f), "utf8"), f)),
+      historico,
+    );
     const faltam: string[] = [];
+    const porSaber: string[] = [];
 
     for (const p of todas) {
       const path = probePath(p, ENUM_VIA);
@@ -75,11 +85,20 @@ describe.skipIf(!ligado)("o que o main promete e a base não tem", () => {
       try { code = ((await res.json()) as { code?: string }).code ?? ""; } catch { /* sem corpo */ }
       const ausente = code === MISSING_CODE[p.kind];
       const rotulo = `${p.kind} ${p.name}${p.detail ? "." + p.detail : ""}`;
-      console.log(`  ${ausente ? "FALTA " : "existe"}  ${rotulo.padEnd(46)} ${res.status} ${code}  ${p.migration}`);
+      // Um corpo substituído não muda a assinatura, por isso a resposta é a mesma com
+      // o corpo novo ou com o antigo. Dizer "existe" aqui era afirmar o que não se
+      // sabe — e foi assim que um botão foi construído sobre uma função partida.
+      const estado = ausente ? "FALTA " : p.replacesExisting ? "?     " : "existe";
+      console.log(`  ${estado}  ${rotulo.padEnd(46)} ${res.status} ${code}  ${p.migration}`);
       if (ausente) faltam.push(`${rotulo}  (${p.migration})`);
+      else if (p.replacesExisting) porSaber.push(`${rotulo}  (${p.migration})`);
     }
 
     console.log(`\n  ${faltam.length} de ${todas.length} promessas por cumprir na base.`);
+    if (porSaber.length) {
+      console.log(`  ${porSaber.length} que esta sonda NÃO pode verificar — só substituem um corpo:`);
+      for (const q of porSaber) console.log(`    ? ${q}`);
+    }
     // Relato, não veredicto: durante a espera pela colagem o estado normal é "faltam",
     // e um teste que falhasse aqui seria desligado no dia seguinte.
     expect(Array.isArray(faltam)).toBe(true);
