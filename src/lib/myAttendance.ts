@@ -137,7 +137,11 @@ export function buildMyDays(data: MyAttendanceData, from: string, to: string, to
     const base = {
       date, due, clock, mark, board, requests,
       pending: requests.some((r) => r.status === "pending"),
-      overtime: false, workedOnLeave: false, label: null as string | null,
+      // OT means an overtime shift on record — the board's `overtime` row, which an
+      // accepted ask writes (20261012190000) or a planner places by hand. Never the
+      // clock: a day with minutes over schedule is not overtime (the period settles
+      // that, deficit first), and calling it "OT" put the label on ordinary rota days.
+      overtime: board?.status === "overtime", workedOnLeave: false, label: null as string | null,
     };
 
     let status: DayStatus;
@@ -154,7 +158,6 @@ export function buildMyDays(data: MyAttendanceData, from: string, to: string, to
         base.workedOnLeave = worked > 0;
       } else if (worked > 0) {
         status = "present";
-        base.overtime = (clock.balance_minutes ?? 0) > 0;
       } else if ((clock.scheduled_minutes ?? 0) > 0) {
         // TimeMoto itself expected a day and recorded none worked: that is a record of
         // absence, not a missing one.
@@ -167,8 +170,11 @@ export function buildMyDays(data: MyAttendanceData, from: string, to: string, to
       status = markStatus(mark.status);
       if (status === "other" || status === "absent") base.label = mark.status;
     } else {
-      source = due || date > today ? "rota" : null;
-      if (date > today || date === today) status = due ? "scheduled" : "rest";
+      // A board row for a day not yet worked is a plan too: an accepted overtime shift
+      // on a rest day is somewhere the person is due, not a day off.
+      const planned = due || board?.status === "assigned" || board?.status === "overtime";
+      source = planned || date > today ? "rota" : null;
+      if (date > today || date === today) status = planned ? "scheduled" : "rest";
       else status = due ? "no_record" : "rest";
     }
 

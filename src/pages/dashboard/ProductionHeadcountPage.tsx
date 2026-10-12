@@ -109,19 +109,14 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
   { status: "sick", label: "Sickness", head: "away" },
   { status: "unpaid", label: "Unpaid", head: "away" },
   { status: "holiday", label: "Holidays", head: "leave" },
-  // "Called in" and not "Overtime", here and in the two places below. The board's
-  // `overtime` means ONE thing: somebody was called in on a day their rota does not
-  // cover. It is a planning fact, written in the morning. Timesheet overtime — hours
-  // worked beyond contract, `balance_minutes` in the clock — is a different number
-  // from a different source, and the two were sharing a word on a screen that shows
-  // both. The stored status stays `overtime`: it is the value in `daily_allocations`
-  // and renaming it would break the base. Only the reading changes.
-  //
-  // NOT renamed in `lib/headcountSheet.ts`, deliberately: the "Overtime" and
-  // "Overtime staff" there are the company spreadsheet's own column headings, matched
-  // on the way in and written on the way out. That word is an interface with a file,
-  // not a label this screen chose.
-  { status: "overtime", label: "Called in", head: "leave" },
+  // "Overtime", as the supervisors asked (12/10/2026), and as the company sheet heads
+  // the same column. It was "Called in" for a while, to keep it apart from timesheet
+  // overtime — hours over contract in the clock. That clash is gone at the source:
+  // My Attendance no longer calls a day with extra clocked minutes "OT", so on every
+  // screen the word now means one thing — an overtime shift somebody was accepted for
+  // (the ask → board bridge, 20261012190000) or placed on by hand. The stored status
+  // was always `overtime` and stays so.
+  { status: "overtime", label: "Overtime", head: "leave" },
   // Amarelo, como uma área: na planilha o Training é uma coluna de sítio, não de falta.
   { status: "training", label: "Training", head: "heading" },
 ];
@@ -852,18 +847,23 @@ function ShiftBoard({
    * rota traz. Nada é gravado: "Save this plan" faz a mesma cópia do menu, e os nomes
    * a cinzento são exactamente as linhas que ela escreve.
    *
-   * Só quando o dia está por planear (nenhuma pessoa a trabalhar gravada): um dia que
-   * alguém começou a arrumar é a palavra dessa pessoa, não do matrix.
+   * Só quando o dia está por planear — ninguém colocado numa coluna: um dia que
+   * alguém começou a arrumar é a palavra dessa pessoa, não do matrix. Contava-se
+   * qualquer pessoa "a trabalhar", e uma linha que ninguém arrumou bastava para apagar
+   * o plano inteiro: a overtime aceite (que chega sem coluna, pela ponte) ou um
+   * holiday marcado com antecedência deixavam o dia 17 com toda a gente em "Not
+   * placed yet". Uma linha sem coluna não é arrumar o dia.
    */
   const todayIso = (() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
   })();
+  const placedOnArea = allocations.some((a) => !!a.area_id);
   const planKind: "normal" | "changeover" = [1, 5].includes(new Date(`${onDate}T12:00:00`).getDay()) ? "changeover" : "normal";
   const plan = matrix.matrices.find((m) => m.kind === planKind);
   const ghostByArea = useMemo(() => {
     const out = new Map<string, HeadcountEmployee[]>();
-    if (onDate <= todayIso || working.length > 0 || !plan) return out;
+    if (onDate <= todayIso || placedOnArea || !plan) return out;
     for (const r of plan.due) {
       // Só para colunas que o board desenha; uma área desactivada deixaria a pessoa
       // fora da coluna e fora da bandeja ao mesmo tempo.
@@ -874,7 +874,7 @@ function ShiftBoard({
     }
     for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
     return out;
-  }, [onDate, todayIso, working.length, plan, byEmployee, employeeById, areas]);
+  }, [onDate, todayIso, placedOnArea, plan, byEmployee, employeeById, areas]);
   const ghostCount = [...ghostByArea.values()].reduce((n, l) => n + l.length, 0);
   const ghostIds = new Set([...ghostByArea.values()].flat().map((p) => p.id));
   const ghostsIn = (areaId: string) => ghostByArea.get(areaId) ?? [];
@@ -1340,9 +1340,8 @@ function ShiftBoard({
         <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
         <KpiPill icon={Wrench} label="Support" value={support} tone="" />
         <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
-        {/* The most misleading of the five: it sits in a row of timesheet-shaped
-            numbers, where "Overtime" reads as hours rather than as people called in. */}
-        <KpiPill icon={Clock3} label="Called in" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
+        {/* People on an overtime shift, not hours. */}
+        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
       </div>
 
       {ghostCount > 0 && (
@@ -1670,7 +1669,7 @@ function ShiftBoard({
           ela: ficam numa fila sua, com o mesmo desenho. */}
       {!awayInSupport && (
         <>
-          <SectionLabel>Away, called in &amp; training</SectionLabel>
+          <SectionLabel>Away, overtime &amp; training</SectionLabel>
           <div className="headcount-away grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
             {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length)) + 1)}
           </div>
@@ -1680,7 +1679,7 @@ function ShiftBoard({
       {/* Quem o rota põe neste turno e ainda não está em coluna nenhuma.
           Fora da folha, de propósito. Não é uma coluna da planilha e não tem tamanho
           certo — num domingo eram quinze — e dentro da grelha esticava as colunas da
-          mesma fila: os Totais de Unpaid, Holidays e Called in desciam para longe dos
+          mesma fila: os Totais de Unpaid, Holidays e Overtime desciam para longe dos
           nomes. Aqui é uma bandeja por baixo, nas mesmas faixas de 150px da folha, para
           as células alinharem com as colunas de cima. Larga-se aqui quem se quer tirar
           de uma linha. */}
