@@ -9,8 +9,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calculator, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown } from "lucide-react";
+import { Calculator, ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -24,7 +26,7 @@ import { boardShiftFor } from "@/hooks/useHeadcount";
 import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
   closeCrews, filterByCrew, crewLabel, NO_CREW,
-  closeDepartments, departmentLabel, filterClose, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
+  closeDepartments, departmentLabel, filterClose, inDepartments, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
   summaryCrewRows,
   type ClosePersonInput,
 } from "@/lib/financeClose";
@@ -328,12 +330,25 @@ export default function FinanceClosePage() {
    * A second select rather than a "Production Weekend" entry in the first: composed,
    * the same two answer Production Night and Hygiene Weekend too, and the crew list
    * stays a list of crews.
+   *
+   * Ticked rather than picked: "Hygiene and Lab" is one question too, and with a
+   * single choice it was two exports added up by hand. Nothing ticked is every
+   * department.
    */
-  const [deptFilter, setDeptFilter] = useState<string>("all");
+  const [deptFilter, setDeptFilter] = useState<string[]>([]);
   const departments = useMemo(() => closeDepartments(rows), [rows]);
   // Departments are read off the WHOLE period, not off the chosen crew: narrowing both
   // ways round would make each select rewrite the other's options as you used them.
-  const department = deptFilter !== "all" && !departments.includes(deptFilter) ? "all" : deptFilter;
+  // A ticked department the new period does not hold drops out of the filter rather
+  // than leaving it narrowed to somebody who is not there.
+  const department = useMemo(
+    () => deptFilter.filter((d) => departments.includes(d)),
+    [deptFilter, departments],
+  );
+  const allDepartments = department.length === 0;
+  const departmentNames = department.map(departmentLabel).join(" + ");
+  const toggleDepartment = (d: string) => setDeptFilter((cur) =>
+    (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
 
   // The crews are read off the chosen department, so picking Warehouse does not leave
   // Night in the list offering a view of nobody.
@@ -363,7 +378,7 @@ export default function FinanceClosePage() {
 
   /** What the page is showing, said out loud — it is printed and handed to somebody. */
   const scope = [
-    department === "all" ? null : departmentLabel(department),
+    allDepartments ? null : departmentNames,
     crew === "all" ? null : crewLabel(crew),
   ].filter(Boolean).join(" · ");
 
@@ -409,7 +424,7 @@ export default function FinanceClosePage() {
    * file" instead of hiding them.
    */
   const otShown = useMemo(() => {
-    if (crew === "all" && department === "all") return otEntries ?? [];
+    if (crew === "all" && allDepartments) return otEntries ?? [];
     const byId = new Map((otEmployees ?? []).map((e) => [e.id, {
       crew: e.shift_group ?? NO_CREW,
       department: (e.department ?? "").trim() || NO_DEPARTMENT,
@@ -421,9 +436,9 @@ export default function FinanceClosePage() {
       // reconciling the register will be looking for them.
       if (!who) return false;
       return (crew === "all" || who.crew === crew)
-        && (department === "all" || who.department === department);
+        && inDepartments(who.department, department);
     });
-  }, [otEntries, otEmployees, crew, department]);
+  }, [otEntries, otEmployees, crew, department, allDepartments]);
   const num = (n: number | null) => (n == null ? "—" : n.toFixed(2));
 
   return (
@@ -477,15 +492,35 @@ export default function FinanceClosePage() {
           {/* Department first, crew second — it is the order the question is asked in
               ("production weekend"), and the department is what narrows the crew list
               rather than the other way round. */}
-          <Select value={department} onValueChange={setDeptFilter}>
-            <SelectTrigger className="h-9 w-[190px] border-white/25 bg-white/10 text-white"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Every department</SelectItem>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                aria-label="Departments"
+                className="h-9 w-[190px] justify-between print:hidden border-white/25 bg-white/10 px-3 font-normal text-white hover:bg-white/15 hover:text-white"
+              >
+                <span className="truncate">
+                  {allDepartments ? "Every department"
+                    : department.length <= 2 ? departmentNames
+                    : `${department.length} departments`}
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 p-1">
+              <Label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 font-normal hover:bg-muted">
+                <Checkbox checked={allDepartments} onCheckedChange={() => setDeptFilter([])} />
+                Every department
+              </Label>
+              <div className="my-1 h-px bg-border" />
               {departments.map((d) => (
-                <SelectItem key={d} value={d}>{departmentLabel(d)}</SelectItem>
+                <Label key={d} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 font-normal hover:bg-muted">
+                  <Checkbox checked={department.includes(d)} onCheckedChange={() => toggleDepartment(d)} />
+                  {departmentLabel(d)}
+                </Label>
               ))}
-            </SelectContent>
-          </Select>
+            </PopoverContent>
+          </Popover>
           <Select value={crew} onValueChange={setShiftFilter}>
             <SelectTrigger className="h-9 w-[190px] border-white/25 bg-white/10 text-white"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -545,7 +580,7 @@ export default function FinanceClosePage() {
         <table className="hidden print:table close-summary w-full">
           <thead>
             <tr>
-              <th className="text-left">{department === "all" ? "Crew" : departmentLabel(department)}</th>
+              <th className="text-left">{allDepartments ? "Crew" : departmentNames}</th>
               <th className="text-right">People</th>
               <th className="border-l text-right">Shifts over</th>
               <th className="text-right">Shifts short</th>

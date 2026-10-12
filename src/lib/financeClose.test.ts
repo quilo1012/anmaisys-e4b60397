@@ -424,6 +424,21 @@ describe("closeDepartments", () => {
     expect(departmentLabel(NO_DEPARTMENT)).toBe("No department recorded");
   });
 
+  it("takes several departments at once, with the crew still applied", () => {
+    const rows = build(
+      ["Hygiene", "Weekend"], ["Lab", "Weekend"], ["Lab", "Day"],
+      ["Production", "Weekend"], [null, "Weekend"],
+    );
+    expect(filterClose(rows, { crew: "all", department: ["Hygiene", "Lab"] })).toHaveLength(3);
+    expect(filterClose(rows, { crew: "Weekend", department: ["Hygiene", "Lab"] })).toHaveLength(2);
+    expect(filterClose(rows, { crew: "all", department: ["Lab", NO_DEPARTMENT] })).toHaveLength(3);
+  });
+
+  it("reads nothing ticked as every department, not as nobody", () => {
+    const rows = build(["Production", "Day"], ["Office", "Night"]);
+    expect(filterClose(rows, { crew: "all", department: [] })).toEqual(rows);
+  });
+
   it("splits the subtotals with nobody counted twice", () => {
     const rows = build(["Production", "Day"], ["Production", "Night"], ["Lab", "Day"], [null, "Day"]);
     const per = closeDepartments(rows)
