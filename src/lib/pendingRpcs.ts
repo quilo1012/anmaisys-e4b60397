@@ -43,6 +43,13 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
+    name: "login_link_candidates",
+    block: "BLOCO 91 — 20261012170000_a_supervisor_links_a_login_to_its_person.sql",
+    fallback:
+      "useLoginLinks turns PGRST202 into `notSetUp`, and LinkAccountsPage says linking is " +
+      "being set up instead of an empty list — an empty list would read as \"every login is linked\".",
+  },
+  {
     name: "my_attendance",
     block: "BLOCO 90 — 20261012160000_an_employee_sees_only_their_own.sql",
     fallback:

@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -299,6 +299,9 @@ export const navItems: NavItem[] = [
   // in the rest of the hub. Folding it in would have cost them the link or given
   // them the audit trail and the integration settings to go with it.
   { title: "Users", url: "/users/manage", icon: Users, roles: ["manager"], group: "Administration", action: "users.manage" },
+  // Beside Users for the same reason: the manager is the "supervisor" the badge prompt
+  // sends people to. The admin reaches it from the System hub.
+  { title: "Link accounts", url: "/dashboard/link-accounts", icon: Link2, roles: ["manager"], group: "Administration", action: "employees.link_login" },
 ];
 
 
@@ -671,6 +674,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/overtime": "Overtime",
   "/dashboard/my-overtime": "My Overtime",
   "/dashboard/my-attendance": "My Attendance",
+  "/dashboard/link-accounts": "Link accounts",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",
   "/dashboard/intouch-settings": "iTouching Sync",
