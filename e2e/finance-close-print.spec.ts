@@ -228,8 +228,9 @@ test("filtered to Production · Weekend, the sheet prints that crew and no other
   await page.goto("/dashboard/finance-close");
   await page.waitForSelector("table.close-register tbody tr", { timeout: 30_000 });
 
-  await page.getByRole("combobox").filter({ hasText: "Every department" }).click();
-  await page.getByRole("option", { name: "Production" }).click();
+  await page.getByRole("button", { name: "Departments" }).click();
+  await page.getByRole("checkbox", { name: "Production" }).click();
+  await page.keyboard.press("Escape");
   await page.getByRole("combobox").filter({ hasText: "Every crew" }).click();
   await page.getByRole("option", { name: "Weekend", exact: true }).click();
 
@@ -250,4 +251,28 @@ test("filtered to Production · Weekend, the sheet prints that crew and no other
   expect(s.crews).toEqual(["Weekend"]);
   expect(s.depts).toEqual(["Production"]);
   expect(s.caption).toContain("Production · Weekend only");
+});
+
+test("two departments ticked at once, the sheet holds both and nobody else", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await stubSupabase(page);
+  await page.goto("/dashboard/finance-close");
+  await page.waitForSelector("table.close-register tbody tr", { timeout: 30_000 });
+
+  await page.getByRole("button", { name: "Departments" }).click();
+  await page.getByRole("checkbox", { name: "Hygiene" }).click();
+  await page.getByRole("checkbox", { name: "Laboratory" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Departments" })).toHaveText("Hygiene + Laboratory");
+
+  const depts = await page.evaluate(() => [...new Set([...document.querySelectorAll("table.close-register tbody tr")]
+    .map((tr) => tr.children[2]?.textContent?.trim()))].sort());
+  expect(depts).toEqual(["Hygiene", "Laboratory"]);
+
+  // "Every department" clears the ticks rather than being one more department.
+  await page.getByRole("button", { name: "Departments" }).click();
+  await page.getByRole("checkbox", { name: "Every department" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Departments" })).toHaveText("Every department");
 });

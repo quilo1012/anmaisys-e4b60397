@@ -309,7 +309,23 @@ export function departmentLabel(department: string): string {
 }
 
 /**
- * The rows a reader asked for: one crew, one department, or the pair of them.
+ * A department filter as the page holds it: one name, "all", or a set of names.
+ *
+ * A set because the question is not always one department: "Hygiene and Lab" is one
+ * question, asked by whoever signs off the support staff, and answering it took two
+ * exports added up by hand. An empty set means nothing was ticked, which is the same
+ * as not asking — never a close of nobody.
+ */
+export type DepartmentFilter = string | readonly string[];
+
+/** Whether a department passes the filter. "all" and an empty set let everybody in. */
+export function inDepartments(department: string, filter: DepartmentFilter): boolean {
+  if (typeof filter === "string") return filter === "all" || department === filter;
+  return filter.length === 0 || filter.includes(department);
+}
+
+/**
+ * The rows a reader asked for: one crew, one or more departments, or the pair.
  *
  * The pair is the point. "Production weekend" is not a crew — the Weekend crew is
  * forty people and only thirty-one of them are on the lines, the rest being Hygiene,
@@ -325,11 +341,11 @@ export function departmentLabel(department: string): string {
  */
 export function filterClose(
   rows: ClosePerson[],
-  { crew, department }: { crew: string; department: string },
+  { crew, department }: { crew: string; department: DepartmentFilter },
 ): ClosePerson[] {
   return rows.filter(
     (r) => (crew === "all" || (r.shift ?? NO_CREW) === crew)
-      && (department === "all" || departmentOf(r) === department),
+      && inDepartments(departmentOf(r), department),
   );
 }
 
