@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -199,6 +199,44 @@ export default function AttendancePage() {
       })
       .sort((a, b) => b.worked - a.worked);
   }, [days, nameById, deptById]);
+
+  /**
+   * A folha agrupada por departamento, para quem a recebe.
+   *
+   * No ecrã a tabela está ordenada por horas trabalhadas, e está certo: o ecrã existe
+   * para dizer o que os relógios registaram, e a pessoa que o lê está a olhar para a
+   * fábrica toda. No papel a folha é entregue também ao chefe de um departamento, que
+   * tem doze pessoas nela e cento e setenta e seis nomes para percorrer até lhes
+   * chegar. A coluna Department existe exactamente para isso, e uma ordenação por
+   * horas derrota-a: espalha os doze por toda a folha.
+   *
+   * Dentro do grupo a ordem é o nome, que é por onde se procura uma pessoa, e nunca
+   * por horas — uma folha cuja ordem muda de quinzena para quinzena não se compara
+   * com a anterior.
+   */
+  const byDepartment = useMemo(() => {
+    const m = new Map<string, typeof byPerson>();
+    for (const p of byPerson) {
+      const key = p.department ?? "No department recorded";
+      m.set(key, [...(m.get(key) ?? []), p]);
+    }
+    return [...m.entries()]
+      .map(([department, people]) => ({
+        department,
+        people: [...people].sort((a, b) => a.name.localeCompare(b.name)),
+        worked: people.reduce((a, p) => a + p.worked, 0),
+        balance: people.reduce((a, p) => a + p.balance, 0),
+        present: people.reduce((a, p) => a + p.present, 0),
+        holiday: people.reduce((a, p) => a + p.holiday, 0),
+        // Quem deve horas ao fim da quinzena. É a conta que esta folha existe para
+        // fechar, e a única razão pela qual uma linha é marcada na margem.
+        toSettleCount: people.filter((p) => p.balance < 0).length,
+      }))
+      .sort((a, b) => a.department.localeCompare(b.department));
+  }, [byPerson]);
+
+  /** Quantas pessoas fecham a quinzena a dever horas. A conta que a folha vai saldar. */
+  const owingHours = useMemo(() => byPerson.filter((p) => p.balance < 0).length, [byPerson]);
 
   const totals = useMemo(() => ({
     worked: byPerson.reduce((a, p) => a + p.worked, 0),
@@ -407,23 +445,28 @@ export default function AttendancePage() {
 
             O período vai na face dos algarismos e vai grande, porque o período é o que
             a folha É: duas folhas desta tabela não diferem em mais nada. */}
-        <header className="print-keep hidden print:block">
-          <h1 className="font-display text-[15pt] font-bold leading-tight text-black">
-            Time &amp; Attendance
-          </h1>
-          <p className="mt-0.5 font-figure text-[11pt] leading-none text-black">
-            {fmtDate(from)} — {fmtDate(to)}
-          </p>
-          <p className="sheet-provenance">
-            Hours clocked on TimeMoto. Taken off the system {fmtDate(currentShift().operationalDate)}.
-          </p>
+        <header className="print-keep hidden print:block sheet-head">
+          <div className="sheet-head-title">
+            <h1>Time &amp; Attendance</h1>
+            <p className="sheet-period">{fmtDate(from)} — {fmtDate(to)}</p>
+            <p className="sheet-provenance">
+              Hours clocked on TimeMoto, taken off the system{" "}
+              {fmtDate(currentShift().operationalDate)}.
+            </p>
+          </div>
 
-          {/* As cinco figuras com que o ecrã abre, em linha em vez de em cinco caixas.
-              No ecrã são as caixas que tornam uma delas encontrável de relance; no
-              papel são cinco rectângulos de tinta a dizer o que uma linha de rótulo e
-              valor diz numa. */}
-          <dl className="sheet-summary">
-            <div><dt>Hours worked</dt><dd>{hm(totals.worked)}</dd></div>
+          {/* O bloco de registo, e não uma fila de cinco números iguais.
+              Uma fila dá o mesmo peso a "24 pessoas", que é contexto, e a um saldo de
+              horas que ninguém reconciliou, que é trabalho por fazer — e quem lê tem
+              de ler os cinco ou nenhum. Aqui os números estão alinhados à direita numa
+              coluna, como na caixa de uma guia de remessa, e o que lidera é a única
+              figura que pede uma acção: quantas pessoas é que ficam a dever horas. */}
+          <dl className="sheet-record">
+            <div className="sheet-record-lead">
+              <dt>To settle</dt>
+              <dd>{owingHours === 0 ? "none" : `${owingHours} ${owingHours === 1 ? "person" : "people"}`}</dd>
+            </div>
+            <div><dt>Worked</dt><dd>{hm(totals.worked)}</dd></div>
             <div><dt>Balance</dt><dd>{hm(totals.balance)}</dd></div>
             <div><dt>People clocked</dt><dd>{totals.people}</dd></div>
             <div><dt>Holiday days</dt><dd>{totals.holidayDays}</dd></div>
@@ -476,7 +519,7 @@ export default function AttendancePage() {
                         of the paper's edge — see `.print-caption` in index.css. */}
                     <TableRow className="hidden print-caption-row hover:bg-transparent">
                       <TableHead colSpan={7} className="print-caption">
-                        Time &amp; Attendance · {fmtDate(from)} → {fmtDate(to)}
+                        Time &amp; Attendance, {fmtDate(from)} — {fmtDate(to)}
                       </TableHead>
                     </TableRow>
                     {/* A banded row over the column names, because the six figures under
@@ -500,13 +543,27 @@ export default function AttendancePage() {
                         Days
                       </TableHead>
                     </TableRow>
+                    {/* Os nomes das colunas no papel. O departamento não é uma
+                        coluna aqui: é a banda que abre cada grupo, e repeti-lo em cada
+                        linha era escrever "Blending" cinco vezes seguidas debaixo de um
+                        cabeçalho que já o diz. A largura que ele ocupava passa para o
+                        nome e para o motivo da falta, que são as duas colunas cujo
+                        conteúdo não tem largura previsível. */}
+                    <TableRow className="hidden print:table-row sheet-head-row hover:bg-transparent">
+                      <TableHead colSpan={2}>Employee</TableHead>
+                      <TableHead className="border-l text-right">Worked</TableHead>
+                      <TableHead className="text-right">Balance</TableHead>
+                      <TableHead className="border-l text-right">Present</TableHead>
+                      <TableHead className="text-right">Holiday</TableHead>
+                      <TableHead>Absence</TableHead>
+                    </TableRow>
                     {/* Widths on the figures, none on the words. Six unsized columns
                         spread evenly across a 1900px window, so a name sat at the far
                         left and its hours at the far right with a hand's width of white
                         between them — a row nobody could read across without a finger on
                         the screen. Fixed here, the digits line up in a column and the
                         slack goes to the reason column, which is the one that varies. */}
-                    <TableRow>
+                    <TableRow className="no-print">
                       <TableHead>Employee</TableHead>
                       <TableHead className="w-[9rem]">Department</TableHead>
                       <TableHead className="w-[6.5rem] border-l text-right">Worked</TableHead>
@@ -516,7 +573,9 @@ export default function AttendancePage() {
                       <TableHead className="w-[13rem]">Absence</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  {/* O corpo do ecrã: por horas trabalhadas, que é a pergunta que o
+                      ecrã responde. O papel tem o seu, agrupado, logo a seguir. */}
+                  <TableBody className="no-print">
                     {byPerson.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.name}</TableCell>
@@ -544,20 +603,84 @@ export default function AttendancePage() {
                         </TableCell>
                       </TableRow>
                     ))}
-                    {/* Os cinco totais são ditos uma vez no cabeçalho, onde são o
-                        resumo; aqui são a aritmética da coluna que está por cima deles,
-                        que é outra afirmação e tem de ficar debaixo da coluna que soma.
-                        O ecrã mantém a sua linha de figuras. */}
-                    <TableRow className="hidden print:table-row sheet-total hover:bg-transparent">
-                      <TableCell className="font-semibold">Total · {byPerson.length} people</TableCell>
-                      <TableCell />
+                  </TableBody>
+
+                  {/* ── O corpo da folha, agrupado por departamento ──────────────────
+                      A mesma gente, pela ordem por que é lida em papel. A banda nomeia
+                      o departamento e diz quantos são e quantos ficam a dever horas,
+                      que é a frase com que um chefe decide se tem alguma coisa a
+                      fazer antes de virar a página.
+
+                      `data-settle` marca quem deve horas. A marca é uma régua na
+                      margem da linha e não uma cor: esta folha sai de uma laser
+                      monocromática, onde o vermelho e o verde saem o mesmo cinzento. */}
+                  <TableBody className="hidden print:table-row-group sheet-body">
+                    {byDepartment.map((g) => (
+                      <Fragment key={g.department}>
+                        <TableRow className="sheet-band hover:bg-transparent">
+                          <TableCell colSpan={2}>{g.department}</TableCell>
+                          <TableCell colSpan={5} className="sheet-band-note">
+                            {g.people.length} {g.people.length === 1 ? "person" : "people"}
+                            {g.toSettleCount > 0 && `, ${g.toSettleCount} to settle`}
+                          </TableCell>
+                        </TableRow>
+
+                        {g.people.map((p) => (
+                          <TableRow key={p.id} data-settle={p.balance < 0 ? "" : undefined}>
+                            <TableCell colSpan={2} className="font-medium">{p.name}</TableCell>
+                            <TableCell className="border-l text-right font-figure tabular-nums">{hm(p.worked)}</TableCell>
+                            <TableCell className={`text-right font-figure tabular-nums ${p.balance < 0 ? "text-destructive-strong" : ""}`}>
+                              {hm(p.balance)}
+                            </TableCell>
+                            <TableCell className="border-l text-right font-figure tabular-nums">{p.present}</TableCell>
+                            <TableCell className="text-right font-figure tabular-nums">
+                              {p.holiday === 0 ? "—" : p.holiday}
+                            </TableCell>
+                            {/* Sem "×" e sem pontos a meio: numa coluna estreita cada
+                                um custa uma linha a mais, e com cento e setenta e seis
+                                nomes uma linha a mais por pessoa é uma folha a mais. */}
+                            <TableCell className="sheet-reason">
+                              {Object.keys(p.unplanned).length === 0
+                                ? "—"
+                                : Object.entries(p.unplanned)
+                                    .map(([k, n]) => (n > 1 ? `${k} ${n}` : k))
+                                    .join(", ")}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+
+                        <TableRow className="sheet-subtotal hover:bg-transparent">
+                          <TableCell colSpan={2} />
+                          <TableCell className="border-l text-right font-figure tabular-nums">{hm(g.worked)}</TableCell>
+                          {/* Um departamento a dever dezassete horas é precisamente o
+                              que o chefe tem de ver ao virar a página. A regra do
+                              negativo vale onde a conta fecha e não só nas pessoas. */}
+                          <TableCell className={`text-right font-figure tabular-nums ${g.balance < 0 ? "text-destructive-strong" : ""}`}>
+                            {hm(g.balance)}
+                          </TableCell>
+                          <TableCell className="border-l text-right font-figure tabular-nums">{g.present}</TableCell>
+                          <TableCell className="text-right font-figure tabular-nums">{g.holiday}</TableCell>
+                          <TableCell />
+                        </TableRow>
+                      </Fragment>
+                    ))}
+
+                    {/* Os números do cabeçalho são o resumo da folha; este é a
+                        aritmética da coluna que está por cima dele, e tem de ficar
+                        debaixo da coluna que soma. */}
+                    <TableRow className="sheet-total hover:bg-transparent">
+                      <TableCell colSpan={2}>
+                        All departments, {byPerson.length} people
+                      </TableCell>
                       <TableCell className="border-l text-right font-figure tabular-nums">{hm(totals.worked)}</TableCell>
-                      <TableCell className="text-right font-figure tabular-nums">{hm(totals.balance)}</TableCell>
+                      <TableCell className={`text-right font-figure tabular-nums ${totals.balance < 0 ? "text-destructive-strong" : ""}`}>
+                        {hm(totals.balance)}
+                      </TableCell>
                       <TableCell className="border-l text-right font-figure tabular-nums">
                         {byPerson.reduce((a, p) => a + p.present, 0)}
                       </TableCell>
                       <TableCell className="text-right font-figure tabular-nums">{totals.holidayDays}</TableCell>
-                      <TableCell className="font-figure tabular-nums">{totals.absenceDays} absence days</TableCell>
+                      <TableCell className="sheet-reason">{totals.absenceDays} absence days</TableCell>
                     </TableRow>
                   </TableBody>
                   {/* An empty repeating foot, for the same reason the caption above has

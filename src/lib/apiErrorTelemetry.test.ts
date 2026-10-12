@@ -130,13 +130,13 @@ describe("a read that probes for a column the code can live without", () => {
   it("uma função declarada como pendente é deriva, não falta", async () => {
     serving({
       code: "PGRST202",
-      message: "Could not find the function public.signup_invite_for_tablet without parameters in the schema cache",
+      message: "Could not find the function public.signup_invite_code without parameters in the schema cache",
     }, 404);
-    await window.fetch("https://x.supabase.co/rest/v1/rpc/signup_invite_for_tablet", { method: "POST" });
+    await window.fetch("https://x.supabase.co/rest/v1/rpc/signup_invite_code", { method: "POST" });
     expect(logged).toHaveBeenCalledTimes(1);
     expect(logged.mock.calls[0][0]).toBe("SCHEMA_DRIFT");
     // Registada à mesma: a migração mesmo não aterrou, e isso é para saber.
-    expect(logged.mock.calls[0][1]).toContain("signup_invite_for_tablet");
+    expect(logged.mock.calls[0][1]).toContain("signup_invite_code");
   });
 
   it("uma função que ninguém declarou continua a ser falta", async () => {

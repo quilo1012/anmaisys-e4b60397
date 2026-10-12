@@ -213,7 +213,10 @@ export const navItems: NavItem[] = [
   // gets a row of its own rather than living only on the board's tab bar.
   { title: "Overtime", url: "/dashboard/overtime", icon: HandCoins, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
   // The floor's side of the same thing: the asks that apply to you, and Yes / No.
-  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
+  // Sem `operator`: essas contas são de LINHA, não de pessoa — ver
+  // `operator_line_accounts` e a migração 20261009090000, que já recusa ligá-las a um
+  // funcionário. Um turno inteiro ao mesmo tablet respondia como a mesma pessoa.
+  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
