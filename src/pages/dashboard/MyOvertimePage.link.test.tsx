@@ -32,6 +32,9 @@ vi.mock("@/components/workforce/OvertimePushNudge", () => ({ OvertimePushNudge: 
 
 const hooks = vi.hoisted(() => ({
   linkMutate: vi.fn(),
+  linkByEmailMutate: vi.fn(),
+  // Ligado por um teste só, para ver o ecrã enquanto a tentativa corre.
+  emailPending: { value: false },
   unlinked: vi.fn(() => ({ data: [], isLoading: false })),
 }));
 
@@ -45,6 +48,10 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeMutations: () => ({
     answer: { mutate: vi.fn() },
     linkMe: { mutate: hooks.linkMutate, isPending: false },
+    // A tentativa silenciosa pelo email, que corre antes de este formulário aparecer.
+    // Aqui nunca liga ninguém: estes testes são sobre o caminho do crachá, que é o
+    // que a pessoa vê quando o email não resolveu.
+    linkMeByEmail: { mutate: hooks.linkByEmailMutate, isPending: hooks.emailPending.value },
   }),
 }));
 
@@ -63,7 +70,13 @@ const badgeField = () => screen.getByLabelText(/Employee ID/i);
 const claimButton = () => screen.getByRole("button", { name: /That's me/i });
 
 describe("Ligar a conta ao funcionário certo", () => {
-  beforeEach(() => { hooks.linkMutate.mockReset(); hooks.unlinked.mockClear(); toastError.mockReset(); });
+  beforeEach(() => {
+    hooks.linkMutate.mockReset();
+    hooks.linkByEmailMutate.mockReset();
+    hooks.emailPending.value = false;
+    hooks.unlinked.mockClear();
+    toastError.mockReset();
+  });
 
   it("registo válido: envia o número do crachá, em maiúsculas e sem espaços", () => {
     renderPage();
@@ -146,5 +159,30 @@ describe("Ligar a conta ao funcionário certo", () => {
     // devem ir em vez de os deixar a tentar.
     renderPage();
     expect(screen.getByText(/supervisor can link your account/i)).toBeTruthy();
+  });
+
+  /**
+   * Antes de pedir o número, tenta pelo email da sessão.
+   *
+   * O email já foi verificado pelo GoTrue, por isso se estiver numa ficha activa e por
+   * reclamar não há nada a adivinhar e esta página nunca chega a aparecer. É a razão
+   * de a tentativa ser silenciosa: falhar é o caso normal, e o formulário abaixo já é
+   * a resposta para esse caso.
+   */
+  it("tenta pelo email antes de pedir o crachá, e só uma vez", async () => {
+    renderPage();
+    await waitFor(() => expect(hooks.linkByEmailMutate).toHaveBeenCalledTimes(1));
+    // Sem argumento: a função usa o email da sessão. Passar um transformava isto em
+    // "escreve o email do teu colega e ficas com a ficha dele".
+    expect(hooks.linkByEmailMutate.mock.calls[0][0]).toBeUndefined();
+  });
+
+  it("não pisca o formulário enquanto a tentativa corre", () => {
+    hooks.emailPending.value = true;
+    renderPage();
+    // Para quem vai ser ligado pelo email, o formulário aparecia e desaparecia — e o
+    // que fica é ter-se visto um pedido que ninguém fez.
+    expect(screen.queryByText(/Which badge is yours/i)).toBeNull();
+    expect(screen.getByText(/Checking your account/i)).toBeTruthy();
   });
 });
