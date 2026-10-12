@@ -249,7 +249,7 @@ const MATRIX: Record<Action, Role[]> = {
   "overtime.manage": ["admin", "manager", "production_office_admin"],
   // `employee` holds this and nothing else: the login the invite link and the badge
   // hand out, for people whose only business in the app is saying yes or no.
-  "overtime.respond": ["admin", "manager", "production_office_admin", "operator", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
+  "overtime.respond": ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   // Rewriting a stoppage number that is already on the record is deliberately
   // narrower than `downtime.adjust`: it changes how a line and an engineer are

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { signupQrPayload } from "./signupQr";
+import { signupQrPayload, signupPath, tabletSignupPath } from "./signupQr";
 
 /**
  * The QR is a way to walk to a page. It may carry the factory's invite code, and it
@@ -80,5 +80,38 @@ describe("signupQrPayload", () => {
   it("refuses an origin that is not one, rather than building a link to nowhere", () => {
     expect(() => signupQrPayload("")).toThrow();
     expect(() => signupQrPayload("", "AN-2026")).toThrow();
+  });
+});
+
+/**
+ * O código no link, e o que continua a travar o registo.
+ *
+ * A 11/10/2026 foi decidido que o botão "Create account" leva o código já preenchido,
+ * para ninguém ter de o pedir ao supervisor às seis da manhã. A consequência foi dita
+ * na altura: o código deixa de ser um segredo. O que passa a travar o registo é o
+ * interruptor `enabled` e o `invite_expires_at`, e é a RPC que decide isso — ela
+ * devolve null nos dois casos, por isso desligar o registo fecha a porta de verdade em
+ * vez de apenas esconder o campo.
+ */
+describe("signupPath", () => {
+  it("leva o código quando há um", () => {
+    expect(signupPath("AN-CM69HY")).toBe("/signup?code=AN-CM69HY");
+  });
+
+  it("volta ao caminho simples quando não há", () => {
+    for (const nada of ["", "   ", null, undefined]) expect(signupPath(nada)).toBe("/signup");
+  });
+
+  it("escapa o que vier", () => {
+    expect(signupPath("A B&C")).toBe("/signup?code=A%20B%26C");
+  });
+
+  /**
+   * Sem `tablet=1`: a diferença entre os dois caminhos é o que impede um turno inteiro
+   * de ficar ligado à mesma identidade, e misturá-los desfazia isso em silêncio.
+   */
+  it("não é o caminho do tablet", () => {
+    expect(signupPath("AN-X")).not.toContain("tablet");
+    expect(tabletSignupPath("AN-X")).toContain("tablet=1");
   });
 });

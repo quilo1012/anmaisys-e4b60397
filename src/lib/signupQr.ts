@@ -37,12 +37,26 @@ export function signupQrPayload(origin: string, inviteCode?: string | null): str
  * Where the button goes. Relative, unlike the QR: it is followed on this device.
  *
  * `tablet=1` is what tells the form not to sign the tablet in as the person it has just
- * registered. The code rides along only when the caller was allowed to hold it — on the
- * public login screen there is none, and the person types it as before.
+ * registered. The code rides along when the caller has one; since 11/10/2026 the public
+ * login screen has one too — see `signupPath` and the migration 20261011230000.
  */
 export function tabletSignupPath(inviteCode?: string | null): string {
   const params = new URLSearchParams({ tablet: "1" });
   const code = (inviteCode ?? "").trim();
   if (code) params.set("code", code);
   return `/signup?${params.toString()}`;
+}
+
+/**
+ * O mesmo, para um ecrã que não é um tablet.
+ *
+ * Sem `tablet=1`: num telemóvel ou num computador, registar-se e ficar com a sessão
+ * iniciada é o que a pessoa quer. A separação existe porque a diferença entre os dois
+ * casos é o que impedia um turno inteiro de ficar ligado à mesma identidade.
+ *
+ * Sem código, devolve `/signup` tal e qual, e o formulário pede-o como sempre pediu.
+ */
+export function signupPath(inviteCode?: string | null): string {
+  const code = (inviteCode ?? "").trim();
+  return code ? `/signup?code=${encodeURIComponent(code)}` : "/signup";
 }

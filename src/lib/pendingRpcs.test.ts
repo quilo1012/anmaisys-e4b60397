@@ -13,7 +13,7 @@ const root = resolve(__dirname, "../..");
 describe("isPendingRpc", () => {
   it("reconhece as funções declaradas pela mensagem do PostgREST", () => {
     expect(isPendingRpc(
-      "Could not find the function public.signup_invite_for_tablet without parameters in the schema cache",
+      "Could not find the function public.signup_invite_code without parameters in the schema cache",
     )).toBe(true);
     expect(isPendingRpc(
       "Could not find the function public.link_me_by_employee_ref(p_ref) in the schema cache",

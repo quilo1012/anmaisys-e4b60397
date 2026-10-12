@@ -43,12 +43,12 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
-    name: "signup_invite_for_tablet",
-    block: "BLOCO 79 — 20261010080000_the_tablets_qr_may_carry_the_code.sql",
+    name: "signup_invite_code",
+    block: "BLOCO 86 — 20261011230000_the_invite_code_rides_the_link.sql",
     fallback:
-      "useTabletInviteCode returns null, so SignupQrCard draws the QR without a code — " +
-      "exactly what the login screen's QR has always done. The card then says the invite " +
-      "code will be asked for.",
+      "useSignupInviteCode returns null, so the Create account link carries no code and " +
+      "SignupQrCard draws the QR without one — exactly what the login screen has always " +
+      "done. The sign-up form then asks for the code, as it does today.",
   },
   {
     name: "link_me_by_employee_ref",
