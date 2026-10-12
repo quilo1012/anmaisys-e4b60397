@@ -31,6 +31,7 @@ export type Action =
   // Users / Audit
   | "users.view"
   | "users.manage"
+  | "employees.link_login"
   | "audit.view"
   // Reports
   | "reports.analytics"
@@ -181,6 +182,10 @@ const MATRIX: Record<Action, Role[]> = {
 
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
+  // Setting which person a login is (`employees.user_id`). The same people who manage
+  // accounts: it decides whose overtime and attendance a login sees. The database
+  // checks the same list (20261012170000_a_supervisor_links_a_login_to_its_person.sql).
+  "employees.link_login": ["admin", "manager"],
   "audit.view": ["admin", "manager"],
 
   "reports.analytics": ["admin", "manager", "production_office_admin"],
@@ -583,7 +588,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "intouch", label: "iTouching", actions: ["intouch.view", "intouch.manage"] },
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
   { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator", "dashboard.warehouse"] },
-  { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "audit.view"] },
+  { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "employees.link_login", "audit.view"] },
   { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.export", "reliability.view", "suppliers.view"] },
   { key: "system", label: "System", actions: ["system.hub", "system.clear", "system.settings", "system.shiftpasswords", "system.diagnostics", "permissions.manage"] },
 ];
@@ -609,6 +614,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "headcount.view": "See the daily Production Headcount board (Day / Night).",
   "headcount.manage": "Allocate people to areas and record absence, holidays and overtime.",
   "attendance.manage": "Record attendance for the shift.",
+  "employees.link_login": "Link a login to the employee it belongs to, so it sees that person's overtime and attendance.",
   "attendance.view_own": "See your own clock record, days off and hour balance (My Attendance). Never anybody else's.",
   "overtime.manage": "Ask for overtime, pick who works it, and record who turned up.",
   "overtime.respond": "See overtime on offer and answer yes or no (My Overtime).",

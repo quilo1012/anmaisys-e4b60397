@@ -436,7 +436,7 @@ function Chip({
           <span className="shrink-0 font-figure text-2xs font-semibold text-muted-foreground">{personRef}</span>
         )}
       </span>
-      {(startTime || tag || crew || half || arrivedLateAt || leftEarlyAt || (role && !leader)) && (
+      {(startTime || tag || crew || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew)) && (
       <span className="flex max-w-full flex-wrap items-center justify-center gap-1 leading-none">
       {startTime && (
         <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
@@ -493,7 +493,7 @@ function Chip({
       )}
       {/* The named role rides after the name, the way a label does on a card. Only
           when there is one: a badge every row carries tells the eye nothing. */}
-      {role && !leader && (
+      {role && !leader && role.short !== crew && (
         <span
           title={role.label}
           className={cn("shrink-0 rounded-sm px-1 py-px text-2xs font-bold uppercase leading-tight", role.cls)}
@@ -789,7 +789,7 @@ function ShiftBoard({
 
   const unassigned = roster.filter((e) => !byEmployee.has(e.id));
   // Sem crew no cadastro, ninguém os punha em board nenhum. Não são "por colocar" do
-  // turno — o rota não os põe cá — por isso ficam numa coluna à parte, em ambos os
+  // turno — o rota não os põe cá — por isso ficam numa bandeja à parte, em ambos os
   // boards, até alguém os colocar ou lhes dar um crew.
   const noCrewUnplaced = noCrew.filter((e) => !byEmployee.has(e.id));
 
@@ -900,59 +900,6 @@ function ShiftBoard({
           </DropZone>
         );
       })}
-      {/* Quem o rota põe neste turno hoje e ainda não está em sítio nenhum. Antes era
-          só um número no cabeçalho ("3 unallocated"), e uma pessoa que não está em
-          nenhuma coluna é uma pessoa que ninguém vê. Daqui arrasta-se para a linha. */}
-      {unassigned.length > 0 && (
-        <div className="-mb-px -mr-px h-full">
-          <SheetColumn title="Not placed yet" head="heading" rows={unassigned.length + 1} count={unassigned.length}>
-            {[...unassigned]
-              .sort((a, b) => a.full_name.localeCompare(b.full_name))
-              .map((p) => (
-                <Chip
-                  key={p.id}
-                  name={p.full_name}
-                  personRef={refOf.get(p.id)}
-                  dimmed={isDimmed(p.full_name)}
-                  role={roleStripe(p.department)}
-                  tone="roster"
-                  crew={crewBadge(p.shift_group)}
-                  onOpen={() => setEditing(p.id)}
-                  draggable={canManage}
-                  onDragStart={(e) => {
-                    holdDrag(p.id);
-                    dragStart(e, p.id);
-                  }}
-                />
-              ))}
-          </SheetColumn>
-        </div>
-      )}
-      {noCrewUnplaced.length > 0 && (
-        <div className="-mb-px -mr-px h-full">
-          <SheetColumn title="No crew on file" head="heading" rows={noCrewUnplaced.length + 1} count={noCrewUnplaced.length}>
-            {[...noCrewUnplaced]
-              .sort((a, b) => a.full_name.localeCompare(b.full_name))
-              .map((p) => (
-                <Chip
-                  key={p.id}
-                  name={p.full_name}
-                  personRef={refOf.get(p.id)}
-                  dimmed={isDimmed(p.full_name)}
-                  role={roleStripe(p.department)}
-                  tone="roster"
-                  crew={null}
-                  onOpen={() => setEditing(p.id)}
-                  draggable={canManage}
-                  onDragStart={(e) => {
-                    holdDrag(p.id);
-                    dragStart(e, p.id);
-                  }}
-                />
-              ))}
-          </SheetColumn>
-        </div>
-      )}
     </>
   );
   const productionIds = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
@@ -1620,6 +1567,90 @@ function ShiftBoard({
             {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length)) + 1)}
           </div>
         </>
+      )}
+
+      {/* Quem o rota põe neste turno e ainda não está em coluna nenhuma.
+          Fora da folha, de propósito. Não é uma coluna da planilha e não tem tamanho
+          certo — num domingo eram quinze — e dentro da grelha esticava as colunas da
+          mesma fila: os Totais de Unpaid, Holidays e Called in desciam para longe dos
+          nomes. Aqui é uma bandeja por baixo, nas mesmas faixas de 150px da folha, para
+          as células alinharem com as colunas de cima. Larga-se aqui quem se quer tirar
+          de uma linha. */}
+      {unassigned.length > 0 && (
+        <section aria-label={`Not placed yet: ${unassigned.length}`} className="mt-6">
+          <DropZone disabled={!canManage} onDrop={(employeeId) => handleDrop("roster")(employeeId)} className="rounded-none">
+            <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 border bg-muted px-3 py-2", SHEET_RULE)}>
+              <h3 className="text-sm font-bold text-foreground">
+                Not placed yet <span className="font-figure tabular-nums">({unassigned.length})</span>
+              </h3>
+              {canManage && (
+                <p className="text-xs text-muted-foreground">
+                  Drag a name onto a column, or type it in a column's empty cell.
+                </p>
+              )}
+            </div>
+            <div className="grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
+              {[...unassigned]
+                .sort((a, b) => a.full_name.localeCompare(b.full_name))
+                .map((p) => (
+                  <div key={p.id} className={cn("-mt-px border border-t-0 bg-card [&>*]:border-b-0", SHEET_RULE, "-mr-px")}>
+                    <Chip
+                      name={p.full_name}
+                      personRef={refOf.get(p.id)}
+                      dimmed={isDimmed(p.full_name)}
+                      role={roleStripe(p.department)}
+                      tone="roster"
+                      crew={crewBadge(p.shift_group)}
+                      onOpen={() => setEditing(p.id)}
+                      draggable={canManage}
+                      onDragStart={(e) => {
+                        holdDrag(p.id);
+                        dragStart(e, p.id);
+                      }}
+                    />
+                  </div>
+                ))}
+            </div>
+          </DropZone>
+        </section>
+      )}
+
+      {/* Activos sem crew no cadastro (o import da folha cria-os assim). O roster
+          separa por crew, e sem crew não estavam em board nenhum — nem em "Not placed
+          yet". Ficam aqui, sem crew inventado, até alguém os colocar ou lhes dar um. */}
+      {noCrewUnplaced.length > 0 && (
+        <section aria-label={`No crew on file: ${noCrewUnplaced.length}`} className="mt-6">
+          <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 border bg-muted px-3 py-2", SHEET_RULE)}>
+            <h3 className="text-sm font-bold text-foreground">
+              No crew on file <span className="font-figure tabular-nums">({noCrewUnplaced.length})</span>
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Active, but with no crew, so no board lists them. Place them here or give them a crew.
+            </p>
+          </div>
+          <div className="grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
+            {[...noCrewUnplaced]
+              .sort((a, b) => a.full_name.localeCompare(b.full_name))
+              .map((p) => (
+                <div key={p.id} className={cn("-mt-px border border-t-0 bg-card [&>*]:border-b-0", SHEET_RULE, "-mr-px")}>
+                  <Chip
+                    name={p.full_name}
+                    personRef={refOf.get(p.id)}
+                    dimmed={isDimmed(p.full_name)}
+                    role={roleStripe(p.department)}
+                    tone="roster"
+                    crew={null}
+                    onOpen={() => setEditing(p.id)}
+                    draggable={canManage}
+                    onDragStart={(e) => {
+                      holdDrag(p.id);
+                      dragStart(e, p.id);
+                    }}
+                  />
+                </div>
+              ))}
+          </div>
+        </section>
       )}
 
     </div>

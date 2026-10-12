@@ -21,8 +21,11 @@ const NAMES = ["Pedro Assis","Welligton Segat","Felipe Pinelli","Carlos Russo","
 // Metade no crew Fri–Mon, que leva o crachá FRI–MON — o que roubava o espaço do nome.
 const EMP = NAMES.map((full_name, i) => ({ id: `e${i}`, full_name: i === 3 ? "Sandro Vasconcelos" : full_name, department: null, active: true, shift_group: i % 2 ? "Weekend" : "B", start_date: "2024-01-08", end_date: null, role: null }));
 
+// Quinze que o rota põe no turno e ninguém colocou — um domingo real tinha 15.
+const UNPLACED = ["Elielton Barbosa","Ezaquiel Silva","Jaime Brandao","Jessika Lopes","Ketlyn Amorin","Laila Nunes","Leonor Lima","Leticia Peres","Luis Fernandes","Magno Vitoria","Nilson Santos","Reynaldo Costa","Tiago Rocha","Vanessa Prado","Yuri Matos"];
+UNPLACED.forEach((full_name, k) => EMP.push({ id: `u${k}`, full_name, department: k % 3 ? null : "Warehouse", active: true, shift_group: k % 2 ? "Weekend" : "Warehouse Day", start_date: "2024-01-08", end_date: null, role: null }));
 const AREA_IDS = AREAS.map((a) => a.id);
-const ALLOCS = EMP.map((e, i) => ({
+const ALLOCS = EMP.filter((e) => !e.id.startsWith("u")).map((e, i) => ({
   id: `a${i}`, employee_id: e.id, on_date: "2026-10-01", shift: "Day",
   area_id: i < 26 ? AREA_IDS[i % AREA_IDS.length] : null,
   status: i < 26 ? "assigned" : ["sick", "holiday", "overtime", "unpaid"][i % 4],
@@ -187,7 +190,30 @@ test("escreve-se um nome na célula vazia e a pessoa entra na coluna", async ({ 
   await expect(cell).toHaveValue("");
 });
 
-test("quem não tem crew no cadastro aparece no board, numa coluna à parte", async ({ page }) => {
+test("quem falta colocar não estica as colunas da folha", async ({ page }) => {
+  await openBoard(page);
+
+  // A lista de quem falta colocar não tem tamanho fixo. Dentro da grelha da folha, uma
+  // coluna de 16 nomes esticava as vizinhas da mesma fila e os Totais delas desciam
+  // para o fundo, longe dos nomes. Em cada fila da grelha os Totais têm de estar à
+  // mesma altura.
+  const rows = await page.evaluate(() => {
+    const byRow = new Map<number, number[]>();
+    document.querySelectorAll(".headcount-sheet-column").forEach((col) => {
+      const head = Math.round(col.getBoundingClientRect().top);
+      const total = [...col.querySelectorAll("span")].find((s) => s.textContent?.trim() === "Total")!;
+      byRow.set(head, [...(byRow.get(head) ?? []), Math.round(total.getBoundingClientRect().top)]);
+    });
+    return [...byRow.values()].map((tops) => new Set(tops).size);
+  });
+  expect(rows.every((n) => n === 1), `filas com Totais desalinhados: ${JSON.stringify(rows)}`).toBe(true);
+
+  // E os quinze estão todos à vista, cada um com o nome inteiro.
+  const tray = page.getByRole("region", { name: /not placed yet/i });
+  for (const n of UNPLACED) await expect(tray.getByText(n, { exact: true })).toBeVisible();
+});
+
+test("quem não tem crew no cadastro aparece no board, à parte de quem falta colocar", async ({ page }) => {
   // Criados pelo import da folha sem crew, não estavam em board nenhum: nem numa
   // coluna, nem em "Not placed yet". Ninguém os via.
   await stub(page);
@@ -196,12 +222,10 @@ test("quem não tem crew no cadastro aparece no board, numa coluna à parte", as
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([...EMP, crewless]) }));
   await page.setViewportSize({ width: 1600, height: 1400 });
   await page.goto("/dashboard/headcount");
-  const board = page.locator(".headcount-columns");
-  await expect(board.getByText("Pedro Assis").first()).toBeVisible({ timeout: 20000 });
+  await expect(page.locator(".headcount-columns").getByText("Pedro Assis").first()).toBeVisible({ timeout: 20000 });
 
-  const col = page.locator(".headcount-sheet-column", { hasText: "No crew on file" }).first();
-  await expect(col).toBeVisible();
-  await expect(col.getByText("Rita Semcrew")).toBeVisible();
+  const tray = page.getByRole("region", { name: /no crew on file/i });
+  await expect(tray.getByText("Rita Semcrew", { exact: true })).toBeVisible();
   // Uma vez só: não é "por colocar" do turno, é outra coisa.
-  await expect(page.locator(".headcount-sheet-column", { hasText: "Not placed yet" }).getByText("Rita Semcrew")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: /not placed yet/i }).getByText("Rita Semcrew")).toHaveCount(0);
 });
