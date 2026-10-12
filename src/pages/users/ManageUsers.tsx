@@ -23,6 +23,7 @@ import { SignupSettingsCard } from "@/components/SignupSettingsCard";
 import { LeaderLinePicker } from "@/components/LeaderLinePicker";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package, Hand, BadgeCheck } from "lucide-react";
 import { badgeRefFromEmail, isEmployeeAccount } from "@/lib/employeeAccounts";
+import { LinkEmployeeRecord } from "@/components/workforce/LinkEmployeeRecord";
 import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
@@ -737,7 +738,10 @@ export default function ManageUsers() {
   const staffUsers = users.filter((u) => !isEmployeeAccount(u));
   const employeeUsers = users.filter((u) => isEmployeeAccount(u));
 
-  const renderUserTable = (title: string, list: Profile[], emptyText: string) => (
+  // Linking a login to its employee record writes `employees`, which only
+  // workforce.manage may do; everybody else sees no column rather than a dead button.
+  const canLinkRecords = !!currentRole && can(currentRole, "workforce.manage");
+  const renderUserTable = (title: string, list: Profile[], emptyText: string, withRecord = false) => (
         <Card>
           <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
           <CardContent>
@@ -746,6 +750,7 @@ export default function ManageUsers() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Login</TableHead>
+                  {withRecord && <TableHead>Employee record</TableHead>}
                   <TableHead>Role</TableHead>
                   <TableHead>Shift</TableHead>
                   <TableHead>Status</TableHead>
@@ -766,6 +771,11 @@ export default function ManageUsers() {
                           ? <span className="inline-flex items-center gap-1.5"><BadgeCheck className="h-4 w-4 text-muted-foreground" />Badge <span className="font-mono">{badgeRef}</span></span>
                           : user.email}
                       </TableCell>
+                      {withRecord && (
+                        <TableCell>
+                          <LinkEmployeeRecord login={{ id: user.id, email: user.email, name: user.name }} />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <RoleIcon className="h-4 w-4" />
@@ -826,7 +836,7 @@ export default function ManageUsers() {
                 })}
                 {list.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">{emptyText}</TableCell>
+                    <TableCell colSpan={withRecord ? 7 : 6} className="text-center text-muted-foreground py-8">{emptyText}</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -891,7 +901,7 @@ export default function ManageUsers() {
             </Button>
           </div>
           {currentRole === "admin" && <SignupSettingsCard />}
-          {renderUserTable("Employees", employeeUsers, "No employee logins yet. Share the invite link above, or add one with New Employee.")}
+          {renderUserTable("Employees", employeeUsers, "No employee logins yet. Share the invite link above, or add one with New Employee.", canLinkRecords)}
         </div>
 
         <div className={activeTab === "staff" ? "space-y-4" : "hidden"}>
