@@ -185,6 +185,23 @@ export function crewBadge(shiftGroup: string | null | undefined): string | null 
   return null;
 }
 
+/**
+ * Active people with no crew on file on this date.
+ *
+ * The roster sorts everybody onto a board by crew, and `boardShiftFor(null)` is null,
+ * so a person with no crew was on neither board's roster: not in a column, not under
+ * "Not placed yet", nowhere. The sheet import creates exactly these people ("Created
+ * active, with no crew on file"). They are listed apart rather than given a crew,
+ * because which board they belong on is a decision nobody has made yet.
+ */
+export function withNoCrewOn<T extends Pick<HeadcountEmployee, "id" | "shift_group" | "shift_pattern_id">>(
+  everyone: T[],
+  history: ShiftPosition[] | undefined,
+  onDate: string,
+): T[] {
+  return everyone.filter((e) => boardShiftFor(resolveShiftOn(history, e, onDate).shift_group) === null);
+}
+
 export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   const { data: patterns } = useShiftPatterns();
   const { data: history } = useShiftHistory();
@@ -250,7 +267,9 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
       });
   }, [everyone, patterns, history, shift, onDate]);
 
-  return { data, byId, onShift, isLoading };
+  const noCrew = useMemo(() => withNoCrewOn(everyone ?? [], history, onDate), [everyone, history, onDate]);
+
+  return { data, byId, onShift, noCrew, isLoading };
 }
 
 /**

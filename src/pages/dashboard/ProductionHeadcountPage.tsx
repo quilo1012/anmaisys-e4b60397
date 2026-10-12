@@ -634,7 +634,7 @@ function ShiftBoard({
    * read for the first of those.
    */
   const [find, setFind] = useState("");
-  const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
+  const { data: roster = [], byId: everyoneById, onShift = [], noCrew = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   /** Absence / Holidays / Overtime, opened the same way an area column is. */
   const [pickingAway, setPickingAway] = useState<{ status: AllocStatus; label: string } | null>(null);
@@ -788,6 +788,10 @@ function ShiftBoard({
       .sort((a, b) => a.shown.localeCompare(b.shown));
 
   const unassigned = roster.filter((e) => !byEmployee.has(e.id));
+  // Sem crew no cadastro, ninguém os punha em board nenhum. Não são "por colocar" do
+  // turno — o rota não os põe cá — por isso ficam numa bandeja à parte, em ambos os
+  // boards, até alguém os colocar ou lhes dar um crew.
+  const noCrewUnplaced = noCrew.filter((e) => !byEmployee.has(e.id));
 
   // Quem está no ecrã hoje — colocados, ausentes e por colocar — e, entre eles, quem
   // partilha o nome com outro. Só esses levam o número ao lado.
@@ -804,6 +808,7 @@ function ShiftBoard({
   const refOf = disambiguators([
     ...allocations.map((a) => employeeById.get(a.employee_id)).filter((p): p is HeadcountEmployee => !!p),
     ...unassigned,
+    ...noCrewUnplaced,
   ]);
 
   // Working = placed on an area, whether the day is a normal one or an overtime one.
@@ -1178,6 +1183,7 @@ function ShiftBoard({
             <div className="mt-1 text-2xs text-muted-foreground">
               {unassigned.length} unallocated · {away} away
               {training > 0 && <> · {training} training</>}
+              {noCrewUnplaced.length > 0 && <> · {noCrewUnplaced.length} with no crew</>}
             </div>
           </div>
         </div>
@@ -1606,6 +1612,44 @@ function ShiftBoard({
                 ))}
             </div>
           </DropZone>
+        </section>
+      )}
+
+      {/* Activos sem crew no cadastro (o import da folha cria-os assim). O roster
+          separa por crew, e sem crew não estavam em board nenhum — nem em "Not placed
+          yet". Ficam aqui, sem crew inventado, até alguém os colocar ou lhes dar um. */}
+      {noCrewUnplaced.length > 0 && (
+        <section aria-label={`No crew on file: ${noCrewUnplaced.length}`} className="mt-6">
+          <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 border bg-muted px-3 py-2", SHEET_RULE)}>
+            <h3 className="text-sm font-bold text-foreground">
+              No crew on file <span className="font-figure tabular-nums">({noCrewUnplaced.length})</span>
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Active, but with no crew, so no board lists them. Place them here or give them a crew.
+            </p>
+          </div>
+          <div className="grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
+            {[...noCrewUnplaced]
+              .sort((a, b) => a.full_name.localeCompare(b.full_name))
+              .map((p) => (
+                <div key={p.id} className={cn("-mt-px border border-t-0 bg-card [&>*]:border-b-0", SHEET_RULE, "-mr-px")}>
+                  <Chip
+                    name={p.full_name}
+                    personRef={refOf.get(p.id)}
+                    dimmed={isDimmed(p.full_name)}
+                    role={roleStripe(p.department)}
+                    tone="roster"
+                    crew={null}
+                    onOpen={() => setEditing(p.id)}
+                    draggable={canManage}
+                    onDragStart={(e) => {
+                      holdDrag(p.id);
+                      dragStart(e, p.id);
+                    }}
+                  />
+                </div>
+              ))}
+          </div>
         </section>
       )}
 

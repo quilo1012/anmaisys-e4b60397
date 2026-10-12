@@ -212,3 +212,20 @@ test("quem falta colocar não estica as colunas da folha", async ({ page }) => {
   const tray = page.getByRole("region", { name: /not placed yet/i });
   for (const n of UNPLACED) await expect(tray.getByText(n, { exact: true })).toBeVisible();
 });
+
+test("quem não tem crew no cadastro aparece no board, à parte de quem falta colocar", async ({ page }) => {
+  // Criados pelo import da folha sem crew, não estavam em board nenhum: nem numa
+  // coluna, nem em "Not placed yet". Ninguém os via.
+  await stub(page);
+  const crewless = { id: "nc1", full_name: "Rita Semcrew", department: null, active: true, shift_group: null, start_date: "2026-10-01", end_date: null, role: null };
+  await page.route(/\/rest\/v1\/employees/, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([...EMP, crewless]) }));
+  await page.setViewportSize({ width: 1600, height: 1400 });
+  await page.goto("/dashboard/headcount");
+  await expect(page.locator(".headcount-columns").getByText("Pedro Assis").first()).toBeVisible({ timeout: 20000 });
+
+  const tray = page.getByRole("region", { name: /no crew on file/i });
+  await expect(tray.getByText("Rita Semcrew", { exact: true })).toBeVisible();
+  // Uma vez só: não é "por colocar" do turno, é outra coisa.
+  await expect(page.getByRole("region", { name: /not placed yet/i }).getByText("Rita Semcrew")).toHaveCount(0);
+});
