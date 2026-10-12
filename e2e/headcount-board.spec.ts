@@ -56,6 +56,9 @@ async function openBoard(page: Page) {
   await stub(page);
   await page.setViewportSize({ width: 1600, height: 1400 });
   await page.goto("/dashboard/headcount");
+  // O board abre no turno que está a correr: depois das 18:00 é o Night, onde este
+  // crew de dia não está, e os testes passavam ou falhavam conforme a hora. O Day à mão.
+  await page.getByRole("tab", { name: "Day" }).click();
   await page.locator(".headcount-columns").first().waitFor({ state: "visible", timeout: 20000 });
   // Dentro do board: o mesmo nome está também na folha de impressão escondida que o
   // ecrã carrega, e `.first()` sozinho resolve para essa.
@@ -228,4 +231,34 @@ test("quem não tem crew no cadastro aparece no board, à parte de quem falta co
   await expect(tray.getByText("Rita Semcrew", { exact: true })).toBeVisible();
   // Uma vez só: não é "por colocar" do turno, é outra coisa.
   await expect(page.getByRole("region", { name: /not placed yet/i }).getByText("Rita Semcrew")).toHaveCount(0);
+});
+
+test("um dia por planear mostra a cinzento onde o matrix põe cada pessoa", async ({ page }) => {
+  // Amanhã ainda não tem nada gravado. Quem abria o dia para saber em que linha ia
+  // estar via colunas vazias; o sítio estava no matrix. Aparece agora na coluna, a
+  // cinzento, e nada é gravado sem se carregar em "Save this plan".
+  await stub(page);
+  await page.route(/rest\/v1\/daily_allocations/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  await page.route(/rest\/v1\/headcount_matrix/, (r) => r.fulfill({
+    status: 200, contentType: "application/json",
+    body: JSON.stringify([
+      { employee_id: "e0", area_id: "l3", saved_from: "2026-10-01", kind: "normal" },
+      { employee_id: "e0", area_id: "l3", saved_from: "2026-10-01", kind: "changeover" },
+    ]),
+  }));
+  await page.setViewportSize({ width: 1600, height: 1400 });
+  await page.goto("/dashboard/headcount");
+  await page.getByRole("tab", { name: "Day" }).click();
+  // Dois dias à frente: de madrugada o board abre na data de ontem, e um só passo
+  // caía em hoje, que não é um dia por planear.
+  await page.getByRole("button", { name: "Next day" }).click();
+  await page.getByRole("button", { name: "Next day" }).click();
+
+  await expect(page.getByText("Not planned yet.")).toBeVisible({ timeout: 15000 });
+  const ghost = page.locator(".headcount-columns [data-planned]", { hasText: "Pedro Assis" });
+  await expect(ghost).toBeVisible();
+  // Na coluna do matrix, e não na bandeja de quem não tem sítio.
+  const col = ghost.locator("xpath=ancestor::*[contains(@class,'headcount-sheet-column')]");
+  await expect(col.locator(".headcount-column-title")).toHaveText("Line 3");
+  await expect(page.getByRole("region", { name: /not placed yet/i }).getByText("Pedro Assis", { exact: true })).toHaveCount(0);
 });
