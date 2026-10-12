@@ -41,6 +41,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "stock.pricing": ["admin"],
   "users.view": ["admin", "manager"],
   "users.manage": ["admin", "manager"],
+  "employees.link_login": ["admin", "manager"],
   "audit.view": ["admin", "manager"],
   "reports.analytics": ["admin", "manager", "production_office_admin"],
   "system.clear": ["admin"],
