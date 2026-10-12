@@ -102,10 +102,10 @@ type ViewKey = ShiftKey | "Split";
  * training already looks like on the Workforce board; the same fact should not change
  * colour between two screens.
  */
-const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
-  { status: "sick", label: "Sickness", accent: "border-destructive/40 bg-destructive/5" },
-  { status: "unpaid", label: "Unpaid", accent: "border-warning/40 bg-warning/5" },
-  { status: "holiday", label: "Holidays", accent: "border-warning/40 bg-warning/5" },
+const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
+  { status: "sick", label: "Sickness", head: "away" },
+  { status: "unpaid", label: "Unpaid", head: "away" },
+  { status: "holiday", label: "Holidays", head: "leave" },
   // "Called in" and not "Overtime", here and in the two places below. The board's
   // `overtime` means ONE thing: somebody was called in on a day their rota does not
   // cover. It is a planning fact, written in the morning. Timesheet overtime — hours
@@ -118,9 +118,85 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; accent: string }[] = [
   // "Overtime staff" there are the company spreadsheet's own column headings, matched
   // on the way in and written on the way out. That word is an interface with a file,
   // not a label this screen chose.
-  { status: "overtime", label: "Called in", accent: "border-primary/40 bg-primary/5" },
-  { status: "training", label: "Training", accent: "border-purple-500/40 bg-purple-500/5" },
+  { status: "overtime", label: "Called in", head: "leave" },
+  // Amarelo, como uma área: na planilha o Training é uma coluna de sítio, não de falta.
+  { status: "training", label: "Training", head: "heading" },
 ];
+
+/**
+ * As cores da planilha, as mesmas que o export escreve (`SHEET_LOOKS` em
+ * `lib/headcountSheet.ts`): amarelo nos cabeçalhos, verde nos Totais, nas férias e nas
+ * horas extra, vermelho nas faltas, cinzento no líder, roxo no total da produção.
+ *
+ * O board era um ecrã de cartões e a folha um quadro de células, e quem passava de um
+ * para o outro tinha de reaprender onde estava cada coisa. Agora o board É a folha:
+ * as mesmas cores no mesmo sítio, e as mesmas pessoas na mesma célula.
+ *
+ * Cores fixas e não tokens do tema, de propósito: são as da folha da empresa, e uma
+ * célula amarela tem de ser amarela de noite também, com o texto preto que a folha usa.
+ */
+type SheetFill = "heading" | "away" | "leave" | "total" | "grand" | "leader";
+const SHEET_FILL: Record<SheetFill, string> = {
+  heading: "bg-[#FFFF00] text-black",
+  away: "bg-[#FF0000] text-white",
+  leave: "bg-[#92D050] text-black",
+  total: "bg-[#92D050] text-black",
+  grand: "bg-[#7030A0] text-white",
+  leader: "bg-[#D9D9D9] text-black",
+};
+/** A linha fina preta à volta de cada célula da folha. */
+const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
+
+/**
+ * Uma coluna da folha: o cabeçalho, uma célula por pessoa, células vazias até ao fundo
+ * da banda, e `Total` com o número por baixo, os dois a verde.
+ *
+ * As vazias não são enfeite. Na folha todas as colunas de uma banda têm a mesma altura
+ * e os Totais ficam todos na mesma linha, por isso lê-se a fila verde de um lado ao
+ * outro sem procurar. Uma coluna que encolhe para o tamanho dos seus nomes partia
+ * essa fila em degraus.
+ */
+function SheetColumn({
+  title, head, onHeadClick, headHint, grip, rows, count, children,
+}: {
+  title: string;
+  head: SheetFill;
+  onHeadClick?: () => void;
+  headHint?: string;
+  grip?: React.ReactNode;
+  /** Quantas linhas de nomes a banda tem — a coluna mais comprida, mais uma livre. */
+  rows: number;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("headcount-sheet-column flex h-full flex-col border bg-card", SHEET_RULE)}>
+      <div
+        className={cn(
+          "flex min-h-[40px] items-center gap-1 border-b px-1.5",
+          SHEET_RULE, SHEET_FILL[head],
+          onHeadClick && "cursor-pointer hover:brightness-95",
+        )}
+        onClick={onHeadClick}
+        title={headHint}
+      >
+        {grip}
+        <span className="headcount-column-title flex-1 truncate text-center text-sm font-bold">{title}</span>
+      </div>
+      <div className="flex flex-col">
+        {children}
+        {Array.from({ length: Math.max(0, rows - count) }, (_, i) => (
+          <div key={i} aria-hidden className={cn("min-h-[44px] border-b", SHEET_RULE)} />
+        ))}
+      </div>
+      {/* `Total` e o número por baixo, que é como cada coluna da planilha acaba. */}
+      <div className="mt-auto flex flex-col">
+        <span className={cn("border-b py-1 text-center text-xs font-semibold", SHEET_RULE, SHEET_FILL.total)}>Total</span>
+        <span className={cn("py-1 text-center font-figure text-sm font-bold tabular-nums", SHEET_FILL.total)}>{count}</span>
+      </div>
+    </div>
+  );
+}
 
 function toISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -211,11 +287,6 @@ function SectionLabel({
   );
 }
 
-/** Two letters, for the square that sits before the name. */
-function initials(name: string) {
-  const p = name.trim().split(/\s+/);
-  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase();
-}
 
 /**
  * How each shift looks.
@@ -296,13 +367,11 @@ function Chip({
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
+  // Células brancas, como na folha. A cor fica para os cabeçalhos e para o líder; um
+  // nome numa coluna de Holidays já diz o que é pela coluna onde está.
+  const plain = "bg-card text-foreground";
   const tones: Record<string, string> = {
-    production: "bg-primary/5 border-primary/20",
-    support: "bg-muted/40 border-border",
-    away: "bg-warning/10 border-warning/30",
-    overtime: "bg-primary/10 border-primary/30",
-    training: "bg-purple-500/10 border-purple-500/30",
-    roster: "bg-card border-border",
+    production: plain, support: plain, away: plain, overtime: plain, training: plain, roster: plain,
   };
   return (
     <span
@@ -317,20 +386,20 @@ function Chip({
         // by somebody wearing gloves. A 30px row is a row you miss.
         // `headcount-chip` is what the print sheet takes that height back through —
         // paper has no thumbs, and 44px × eighty names is two pages of white space.
-        "headcount-chip inline-flex min-h-[44px] w-full max-w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-sm font-medium",
+        // Uma célula da folha: quadrada, a linha fina por baixo, o nome ao centro.
+        "headcount-chip inline-flex min-h-[44px] w-full max-w-full items-center justify-center gap-1.5 border-b px-2 py-1.5 text-center text-sm font-medium",
+        SHEET_RULE,
         // The leader of *this* line wears the line's own colour — border and wash from
         // the bay, the way the column header already does — so scanning the board says
         // which line they lead before the name is read. The plain amber mark stays for
         // a Team Leader who is on a line that has not named them its leader.
-        lineLeader && lineName
-          ? "font-semibold text-foreground"
-          : leader ? "border-warning/60 bg-warning/15 font-semibold text-foreground"
-          : overtime ? "border-primary/40 bg-primary/10"
+        // O líder é a célula cinzenta, como na primeira linha de cada coluna da folha.
+        lineLeader || leader ? cn(SHEET_FILL.leader, "font-bold")
+          : overtime ? "bg-[#92D050]/25 text-foreground"
           : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
         dimmed && "opacity-20",
       )}
-      style={lineLeader && lineName ? { borderColor: bayInk(lineName), backgroundColor: bayWash(lineName) } : undefined}
       title={name}
       onClick={onOpen}
       onKeyDown={(e) => { if (onOpen && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
@@ -340,17 +409,10 @@ function Chip({
       {/* The leader's square says LEAD rather than their initials. Initials in a
           darker box only read as "this one is somehow different"; the word says which
           way, and it is the thing being looked for when a column is scanned. */}
-      <span className={cn(
-        "grid h-[26px] shrink-0 place-items-center rounded-md text-[11px] font-bold leading-none",
-        // Only the initials go on paper's cutting-room floor: they are two letters of
-        // the name printed an inch to their right. The crew, the half day and the early
-        // finish stay — those are the day's record, and a printed sheet is what somebody
-        // checks the day against.
-        leader ? "w-11 bg-warning text-warning-foreground tracking-wide" : "headcount-chip-initials w-[26px] bg-background/70 text-muted-foreground",
-      )}>
-        {leader ? "LEAD" : initials(name)}
-      </span>
-      <span className={cn("truncate", lineLeader && lineName && "font-bold")} style={lineLeader && lineName ? { color: bayInk(lineName) } : undefined}>{name}</span>
+      {/* As iniciais saíram: a folha não as tem, e eram o nome outra vez em duas letras.
+          O LEAD fica, pequeno, porque o cinzento sozinho não se lê num ecrã ao sol. */}
+      {leader && <span className="sr-only">Lead: </span>}
+      <span className="truncate">{name}</span>
       {startTime && (
         <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
           {startTime}
@@ -708,6 +770,75 @@ function ShiftBoard({
     (a) => (a.status === "assigned" || a.status === "overtime") && employeeById.has(a.employee_id),
   );
   const assignedCount = working.length;
+  // A segunda banda leva as faltas, como na folha — só quando está à vista.
+  const supportShown = blockVisible("support") && openSections["support"] !== false
+    && areas.some((a) => sheetBandOf(a) === "support");
+  const awayInSupport = supportShown;
+
+  /**
+   * O fim da segunda banda: `Total staff in Production` a roxo, e depois as faltas, as
+   * horas extra e a formação, cada uma na sua coluna com a cor que a folha lhe dá.
+   */
+  const sheetTail = (rows: number) => (
+    <>
+      <div className={cn("-mb-px -mr-px flex h-full flex-col border", SHEET_RULE)}>
+        {/* "Total staff in Pr", cortado como a folha o escreve: numa linha só, para o
+            cabeçalho ter a altura dos outros. O nome inteiro fica no title. */}
+        <div
+          className={cn("flex min-h-[40px] items-center justify-center border-b px-1.5 text-center text-sm font-bold", SHEET_RULE, SHEET_FILL.grand)}
+          title="Total staff in Production — everyone on a line or in support, called-in included"
+        >
+          Total staff in Pr
+        </div>
+        <div className={cn("flex min-h-[44px] items-center justify-center font-figure text-2xl font-bold tabular-nums", SHEET_FILL.grand)}>
+          {assignedCount}
+        </div>
+        <div className="flex-1 bg-card" />
+      </div>
+      {AWAY_BLOCKS.map((block) => {
+        const people = peopleWith(block.status);
+        return (
+          <DropZone
+            key={block.status}
+            disabled={!canManage}
+            className="-mb-px -mr-px h-full rounded-none"
+            onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
+          >
+            <SheetColumn
+              title={block.label}
+              head={block.head}
+              onHeadClick={canManage ? () => setPickingAway({ status: block.status, label: block.label }) : undefined}
+              headHint={canManage ? `Add or remove people in ${block.label}` : undefined}
+              rows={rows}
+              count={people.length}
+            >
+              {people.map((p) => (
+                <Chip
+                  key={p.id}
+                  name={p.shown}
+                  startTime={p.startTime}
+                  tag={p.tag}
+                  onOpen={() => setEditing(p.id)}
+                  dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
+                  role={roleStripe(p.department)}
+                  tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
+                  half={byEmployee.get(p.id)?.half_day === true}
+                  leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
+                  arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
+                  crew={crewBadge(p.shift_group)}
+                  draggable={canManage}
+                  onDragStart={(e) => {
+                    holdDrag(p.id);
+                    dragStart(e, p.id);
+                  }}
+                />
+              ))}
+            </SheetColumn>
+          </DropZone>
+        );
+      })}
+    </>
+  );
   const productionIds = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
   const onLines = working.filter((a) => a.area_id && productionIds.has(a.area_id)).length;
   const support = assignedCount - onLines;
@@ -1078,6 +1209,14 @@ function ShiftBoard({
         if (ofKind.length === 0) return null;
         const open = openSections[section.key] !== false;
         const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
+        // A banda inteira tem a altura da coluna mais comprida, mais uma linha livre
+        // para escrever um nome — como a folha. As faltas contam na banda de apoio
+        // quando estão lá dentro.
+        const bandRows = Math.max(
+          0,
+          ...ofKind.map((a) => peopleIn(a.id).length),
+          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length) : []),
+        ) + 1;
         return (
         <div key={section.key}>
         <SectionLabel
@@ -1108,9 +1247,9 @@ function ShiftBoard({
           }}
         >
         <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
-        {/* Packs as many line columns across as the screen allows. Capping this at
-            three put Line 4 onto a second row on a monitor with room for six. */}
-        <div className="headcount-columns grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))" }}>
+        {/* Colunas encostadas, como as da folha: a linha fina entre duas é uma só, e
+            não um corredor de cartões. Tantas lado a lado quantas o ecrã deixar. */}
+        <div className="headcount-columns grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
@@ -1118,26 +1257,18 @@ function ShiftBoard({
             {(grip) => (
             <DropZone
               disabled={!canManage}
+              className="-mb-px -mr-px h-full rounded-none"
               onDrop={(employeeId) => handleDrop({ areaId: area.id, status: "assigned" })(employeeId)}
             >
-              {/* The stripe came off: the header an inch below is already tinted from
-                  the same `area.kind`, and saying it twice that close adds nothing.
-                  Production against support is a category, not a state — and a bar down
-                  the left edge, in this system, is where a state is said. */}
-              <Card className="h-full overflow-hidden">
-                <CardHeader
-                  className={cn("flex flex-row items-center justify-between gap-2 space-y-0 border-b px-2.5 py-2", area.kind === "production" ? "border-l-4" : "bg-muted", canManage && "cursor-pointer hover:brightness-95")}
-                  style={area.kind === "production" ? { backgroundColor: bayWash(area.name, "soft"), borderLeftColor: bayInk(area.name) } : undefined}
-                  onClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
-                  title={canManage ? `Add or remove people on ${area.name}` : undefined}
-                >
-                  {canManage && grip}
-                  <CardTitle className="truncate text-sm font-bold">{area.name}</CardTitle>
-                </CardHeader>
-                {/* An empty column shrinks instead of holding a hole the size of a
-                    full one. Twenty areas at 76px of nothing is most of a screen. */}
-                <CardContent className={cn("p-2", people.length === 0 ? "min-h-[52px]" : "min-h-[80px]")}>
-                  <div className="flex flex-col gap-1.5">
+              <SheetColumn
+                title={area.name}
+                head="heading"
+                grip={canManage ? grip : undefined}
+                onHeadClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
+                headHint={canManage ? `Add or remove people on ${area.name}` : undefined}
+                rows={bandRows}
+                count={people.length}
+              >
                     {people.map(({ person: p, shown, startTime, tag, overtime: isOt, leader: leadsToday }) => (
                       <Chip
                         key={p.id}
@@ -1162,36 +1293,14 @@ function ShiftBoard({
                         }}
                       />
                     ))}
-                    {people.length === 0 && (
-                      <span className="flex h-9 items-center justify-center rounded-lg border border-dashed text-2xs text-muted-foreground/70">
-                        Drop people here
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-                {/* `Total` e o número por baixo dele, que é como cada coluna da
-                    planilha acaba — e não um crachá no cabeçalho.
-
-                    A contagem estava em cima porque numa coluna comprida se via sem
-                    rolar. Em baixo é onde quem lê a folha a procura, e o board e a
-                    folha deixam de dar a mesma resposta em sítios diferentes. O
-                    número fica cinzento a zero: uma coluna vazia é uma pergunta por
-                    responder, não um facto. */}
-                <div className="flex items-baseline justify-between border-t px-2.5 py-1.5">
-                  <span className="text-2xs font-semibold text-muted-foreground">Total</span>
-                  <span className={cn(
-                    "font-figure text-sm font-bold tabular-nums",
-                    people.length ? "text-foreground" : "text-muted-foreground/50",
-                  )}>
-                    {people.length}
-                  </span>
-                </div>
-              </Card>
+              </SheetColumn>
             </DropZone>
             )}
             </SortableColumn>
           );
         })}
+        {/* A figura roxa e as faltas fecham a segunda banda, que é onde a folha as tem. */}
+        {section.key === "support" && awayInSupport && sheetTail(bandRows)}
         </div>
         </SortableContext>
         </DndContext>
@@ -1374,77 +1483,16 @@ function ShiftBoard({
         );
       })()}
 
-      <SectionLabel>Away, called in &amp; training</SectionLabel>
-      {/* auto-*fit*, not auto-fill, and not a fixed column count either.
-          auto-fill was what left an empty track on anything wider than a laptop: cards
-          against the left edge with a hole beside them. auto-fit collapses that track
-          and lets the cards stretch into it. A fixed `lg:grid-cols-5` would have been
-          wrong for a different reason — Tailwind's breakpoints read the window, and in
-          the Both view this board is half of one, so five columns there are 120px each.
-          The container decides instead.
-          Deliberately *not* `headcount-columns`: that class is overridden in print to
-          118px auto-fill tracks, which suits twenty area columns and leaves five blocks
-          huddled in the left half of a landscape sheet. `headcount-away` is this row's
-          own print floor — see the note beside it in index.css. */}
-      <div
-        className="headcount-away grid gap-4"
-        style={{ gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))" }}
-      >
-        {AWAY_BLOCKS.map((block) => {
-          const people = peopleWith(block.status);
-          return (
-            <DropZone
-              key={block.status}
-              disabled={!canManage}
-              onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
-            >
-              <Card className={cn("h-full", block.accent)}>
-                {/* Clickable like an area column. These blocks only took a drag
-                    before, which on a tablet means holding a name and dragging it
-                    across the screen — the one gesture gloves are worst at, for the
-                    thing done most often when somebody does not turn up. */}
-                <CardHeader
-                  className={cn(
-                    "flex flex-row items-center justify-between gap-2 space-y-0 py-3",
-                    canManage && "cursor-pointer hover:brightness-95",
-                  )}
-                  onClick={canManage ? () => setPickingAway({ status: block.status, label: block.label }) : undefined}
-                  title={canManage ? `Add or remove people in ${block.label}` : undefined}
-                >
-                  <CardTitle className="text-sm font-semibold">{block.label}</CardTitle>
-                  <Badge variant="outline" className="tabular-nums">{people.length}</Badge>
-                </CardHeader>
-                <CardContent className="min-h-[64px] pb-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {people.map((p) => (
-                      <Chip
-                        key={p.id}
-                        name={p.shown}
-                        startTime={p.startTime}
-                        tag={p.tag}
-                        onOpen={() => setEditing(p.id)}
-                        dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
-                        role={roleStripe(p.department)}
-                        tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
-                        half={byEmployee.get(p.id)?.half_day === true}
-                        leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
-                        arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
-                        crew={crewBadge(p.shift_group)}
-                        draggable={canManage}
-                        onDragStart={(e) => {
-                          holdDrag(p.id);
-                          dragStart(e, p.id);
-                        }}
-                      />
-                    ))}
-                    {people.length === 0 && <span className="text-xs text-muted-foreground">—</span>}
-                  </div>
-                </CardContent>
-              </Card>
-            </DropZone>
-          );
-        })}
-      </div>
+      {/* Sem a banda de apoio no ecrã (filtrada ou dobrada), as faltas não podem ir com
+          ela: ficam numa fila sua, com o mesmo desenho. */}
+      {!awayInSupport && (
+        <>
+          <SectionLabel>Away, called in &amp; training</SectionLabel>
+          <div className="headcount-away grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
+            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length)) + 1)}
+          </div>
+        </>
+      )}
 
     </div>
     </>
