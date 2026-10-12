@@ -343,6 +343,7 @@ function Chip({
   leftEarlyAt,
   arrivedLateAt,
   crew,
+  leftOn,
   startTime,
   tag,
   draggable,
@@ -381,6 +382,8 @@ function Chip({
   /** Which crew they belong to — FRI–MON, WH, NIGHT. Null for the plain day shift,
       which is most of the board and needs no label to say so. */
   crew?: string | null;
+  /** Their last day, if they have left. The card stays on the days they worked. */
+  leftOn?: string | null;
   draggable: boolean;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -440,7 +443,7 @@ function Chip({
           <span className="shrink-0 font-figure text-2xs font-semibold text-muted-foreground">{personRef}</span>
         )}
       </span>
-      {(startTime || tag || crew || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew)) && (
+      {(startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew)) && (
       <span className="flex max-w-full flex-wrap items-center justify-center gap-1 leading-none">
       {startTime && (
         <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
@@ -450,6 +453,16 @@ function Chip({
       {tag && (
         <span title={tag} className="shrink-0 rounded-sm border border-border bg-muted px-1 py-px text-[10px] font-bold capitalize leading-tight text-muted-foreground">
           {tag}
+        </span>
+      )}
+      {/* Somebody who has since left, on a day they worked. Said on the card, because
+          a name nobody recognises on Monday's board is the first thing anyone asks about. */}
+      {leftOn && (
+        <span
+          title={`Left on ${format(parseISO(leftOn), "dd/MM/yyyy")}`}
+          className="shrink-0 rounded-sm border border-destructive/40 bg-destructive/10 px-1 py-px text-2xs font-bold uppercase leading-tight tracking-wide text-destructive"
+        >
+          Left
         </span>
       )}
       {/* Day and the Fri–Mon crew share this board, so the card has to say which is
@@ -638,7 +651,7 @@ function ShiftBoard({
    * read for the first of those.
    */
   const [find, setFind] = useState("");
-  const { data: roster = [], byId: everyoneById, onShift = [], noCrew = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
+  const { data: roster = [], byId: everyoneById, boardById, onShift = [], noCrew = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   /** Absence / Holidays / Overtime, opened the same way an area column is. */
   const [pickingAway, setPickingAway] = useState<{ status: AllocStatus; label: string } | null>(null);
@@ -710,8 +723,9 @@ function ShiftBoard({
   // and has to show in its column. If the person stops being eligible the card stays,
   // so somebody can take them off — rather than vanishing from the screen while still
   // counting in the totals, which is what made the board read "20 support" with the
-  // WH Team column at zero.
-  const employeeById = useMemo(() => everyoneById ?? new Map<string, HeadcountEmployee>(), [everyoneById]);
+  // WH Team column at zero. Leavers too, on the days up to their last one, marked
+  // LEFT: the day they worked is history (`boardPeopleOn`).
+  const employeeById = useMemo(() => boardById ?? new Map<string, HeadcountEmployee>(), [boardById]);
 
   /**
    * Who is working in an area, leader first.
@@ -818,10 +832,10 @@ function ShiftBoard({
   // Working = placed on an area, whether the day is a normal one or an overtime one.
   // The sheet's "Total staff in Production" counts the overtime people too — they are
   // in the factory — so leaving them out made the board disagree with the sheet.
-  // Only people the board can actually draw. Somebody marked as having left keeps
-  // their allocation rows — the day they worked is history and deleting it would take
-  // that with them — but they are no longer on the roster, so their card disappears.
-  // Counting them anyway is how a column reading zero sat under a total saying ten.
+  // Only people the board can actually draw. A leaver is drawn on the days up to their
+  // last one, so they count there and nowhere after; a row for anybody else the board
+  // cannot draw stays out of the total. Counting what is not drawn is how a column
+  // reading zero sat under a total saying ten.
   const working = allocations.filter(
     (a) => (a.status === "assigned" || a.status === "overtime") && employeeById.has(a.employee_id),
   );
@@ -933,6 +947,7 @@ function ShiftBoard({
                   leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                   arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                   crew={crewBadge(p.shift_group)}
+                  leftOn={p.left_on ?? null}
                   draggable={canManage}
                   onDragStart={(e) => {
                     holdDrag(p.id);
@@ -1439,6 +1454,7 @@ function ShiftBoard({
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                         arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                         crew={crewBadge(p.shift_group)}
+                        leftOn={p.left_on ?? null}
                         onOpen={() => setEditing(p.id)}
                         tone={area.kind === "production" ? "production" : "support"}
                         draggable={canManage}
