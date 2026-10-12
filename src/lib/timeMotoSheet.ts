@@ -16,7 +16,7 @@ export interface TimeMotoRow {
   date: string;
   start: string | null;
   end: string | null;
-  /** Minutes actually worked. Zero on an absence day. */
+  /** Minutes actually worked. Zero on an absence day nobody clocked in on. */
   workedMinutes: number;
   /** Signed minutes against the contracted day: negative is short, positive is over. */
   balanceMinutes: number | null;
@@ -50,8 +50,10 @@ const FIELDS: { field: keyof TimeMotoRow | "firstname" | "lastname" | "ignore"; 
   { field: "firstname", aliases: ["firstname", "first name", "given name"] },
   { field: "lastname", aliases: ["lastname", "last name", "surname", "family name"] },
   { field: "date", aliases: ["date", "day", "work date"] },
-  { field: "start", aliases: ["in", "start", "start time", "clock in", "first in"] },
-  { field: "end", aliases: ["out", "end", "end time", "clock out", "last out"] },
+  // `StartTime` / `EndTime` are what the real export calls them. Without those two the
+  // punches were never read, so every import stored a day with no clock times at all.
+  { field: "start", aliases: ["in", "start", "start time", "starttime", "clock in", "first in"] },
+  { field: "end", aliases: ["out", "end", "end time", "endtime", "clock out", "last out"] },
   { field: "workedMinutes", aliases: ["duration", "worked", "worked hours", "hours", "total", "actual"] },
   { field: "balanceMinutes", aliases: ["balance", "saldo", "overtime", "difference", "diff"] },
   { field: "absence", aliases: ["absence", "absence name", "absencename", "leave", "leave type", "type", "reason"] },
@@ -88,6 +90,12 @@ export function parseHm(value: unknown): number | null {
   const plain = Number(raw.replace(",", "."));
   if (!Number.isNaN(plain)) return Math.round(plain * 60);
   return null;
+}
+
+/** A clock time as the export wrote it, or null. The export writes `-` for no punch. */
+function punch(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  return raw && raw !== "-" ? raw : null;
 }
 
 /** `04/08/26`, `4/8/2026`, `2026-08-04`, or an Excel date cell. */
@@ -179,13 +187,18 @@ export function parseTimeMotoWorkbook(wb: XLSX.WorkBook, fallbackYear: number): 
 
     const absence = String(get("absence") ?? "").trim() || null;
     const worked = parseHm(get("workedMinutes"));
+    const start = punch(get("start"));
+    const end = punch(get("end"));
     out.rows.push({
       name: carriedName,
       date,
-      start: String(get("start") ?? "").trim() || null,
-      end: String(get("end") ?? "").trim() || null,
-      // An absence day is zero worked, whatever the duration column happens to hold.
-      workedMinutes: absence ? 0 : Math.max(0, worked ?? 0),
+      start,
+      end,
+      // An absence day nobody clocked is zero worked, whatever the duration column
+      // holds — TimeMoto can credit leave with the scheduled hours. A day booked as
+      // Vacation that somebody clocked in and out of was worked: the export shows
+      // 06:00–18:00 against a Vacation day, and the balance beside it counts all twelve.
+      workedMinutes: absence && !(start && end) ? 0 : Math.max(0, worked ?? 0),
       balanceMinutes: parseHm(get("balanceMinutes")),
       absence,
       scheduledMinutes: parseHm(get("scheduledMinutes")),

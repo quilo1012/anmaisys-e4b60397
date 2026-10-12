@@ -36,7 +36,10 @@ const fmtDate = (d: string) =>
  * holds and the page opens straight onto the asks.
  */
 export default function MyOvertimePage() {
-  const { data: me, isLoading } = useMyEmployee();
+  // `isPending`, not `isLoading`: React Query 5 reports a query that has not started
+  // (it waits for the auth user) as pending but not loading, and the badge prompt below
+  // is for "the database says nobody" — never for "nobody has asked yet".
+  const { data: me, isPending, isError, refetch } = useMyEmployee();
   /**
    * A tablet is a place, and this page is addressed to a person.
    *
@@ -65,7 +68,17 @@ export default function MyOvertimePage() {
         />
         {sharedTablet ? (
           <TabletOvertimeNotice />
-        ) : isLoading ? (
+        ) : isError ? (
+          /* A failed lookup is not an unlinked account. Asking a linked person for their
+             badge again because the phone's network dropped is how a linked account
+             ends up "registering" twice. */
+          <Card>
+            <CardContent className="space-y-3 p-4 text-sm">
+              <p>We couldn't check who you are just now. Your badge link is not lost.</p>
+              <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
+            </CardContent>
+          </Card>
+        ) : isPending ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
         ) : me ? (
           <>

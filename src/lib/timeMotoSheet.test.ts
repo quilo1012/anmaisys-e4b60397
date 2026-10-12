@@ -188,6 +188,42 @@ describe("the export of a single person", () => {
     expect(p.names).toEqual(["Daniel"]);
     expect(p.rows[0]).toMatchObject({ name: "Daniel", date: "2026-07-13", workedMinutes: 750, scheduledMinutes: 720 });
   });
+
+  // The same file, 17/07 to 31/07. Three days booked as Vacation; on two of them the
+  // person came in anyway, clocked 06:00–18:00 and 05:45–18:00, and TimeMoto put the
+  // whole day in the balance. Zeroing "worked" on every absence day threw those
+  // twenty-four hours away while the balance beside them still counted them.
+  it("keeps the hours of a booked holiday the person clocked in on", () => {
+    const p = parseTimeMotoWorkbook(book([
+      ONE,
+      ["Daniel", "17/07/26", "-", "-", "", "0:00", "12:00", "0:00", "0:00", "Vacation", ""],
+      ["Daniel", "24/07/26", "6:00", "18:00", "", "12:00", "12:00", "12:00", "0:00", "Vacation", ""],
+      ["Daniel", "31/07/26", "5:45", "18:00", "", "12:15", "12:00", "12:15", "0:00", "Vacation", ""],
+    ]), 2026);
+    expect(p.rows.map((r) => [r.date, r.absence, r.workedMinutes, r.balanceMinutes])).toEqual([
+      ["2026-07-17", "Vacation", 0, 0],
+      ["2026-07-24", "Vacation", 720, 720],
+      ["2026-07-31", "Vacation", 735, 735],
+    ]);
+  });
+
+  it("reads the export's dash as no punch, not as a time", () => {
+    const p = parseTimeMotoWorkbook(book([
+      ONE,
+      ["Daniel", "17/07/26", "-", "-", "", "0:00", "12:00", "0:00", "0:00", "Vacation", ""],
+    ]), 2026);
+    expect(p.rows[0]).toMatchObject({ start: null, end: null });
+  });
+
+  it("still zeroes an absence day nobody clocked, whatever the duration says", () => {
+    // TimeMoto can credit a holiday with the scheduled hours. Without punches those
+    // are leave hours, not hours worked.
+    const p = parseTimeMotoWorkbook(book([
+      ONE,
+      ["Daniel", "17/07/26", "-", "-", "", "12:00", "12:00", "0:00", "0:00", "Vacation", ""],
+    ]), 2026);
+    expect(p.rows[0].workedMinutes).toBe(0);
+  });
 });
 
 describe("matchNames", () => {

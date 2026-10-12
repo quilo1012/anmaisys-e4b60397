@@ -23,6 +23,7 @@ import { useRole } from "@/hooks/useRole";
 import { supabase } from "@/integrations/supabase/client";
 import {
   roleHolds,
+  roleMayHold,
   defaultCan,
   isPermissionOverridden,
   setPermissionOverrides,
@@ -58,6 +59,15 @@ const ROLE_LABELS: Record<Role, string> = {
 
 
 const keyOf = (r: Role, a: Action) => `${r}:${a}`;
+
+/**
+ * The message off whatever was thrown. Supabase throws plain `{ message }` objects, not
+ * `Error`s, so `instanceof Error` alone would drop the database's own words.
+ */
+function errorMessage(e: unknown, fallback: string): string {
+  const m = (e as { message?: unknown } | null)?.message;
+  return typeof m === "string" && m ? m : fallback;
+}
 
 export default function PermissionsMatrixPage() {
   const { role } = useRole();
@@ -101,7 +111,8 @@ export default function PermissionsMatrixPage() {
     setDeviceDraft((prev) => ({ ...prev, [k]: !(prev[k] ?? !isDeviceHidden(r, a, mode)) }));
     setDeviceDirty((prev) => {
       const next = new Set(prev);
-      next.has(k) ? next.delete(k) : next.add(k);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
       return next;
     });
   };
@@ -117,11 +128,11 @@ export default function PermissionsMatrixPage() {
         (deviceDraft[k] ? toShow : toHide).push({ role: r, action: a, device });
       }
       if (toHide.length) {
-        const { error } = await (supabase as any).from("role_mobile_hidden").upsert(toHide, { onConflict: "role,action,device" });
+        const { error } = await supabase.from("role_mobile_hidden").upsert(toHide, { onConflict: "role,action,device" });
         if (error) throw error;
       }
       for (const row of toShow) {
-        const { error } = await (supabase as any).from("role_mobile_hidden").delete().eq("role", row.role).eq("action", row.action).eq("device", row.device);
+        const { error } = await supabase.from("role_mobile_hidden").delete().eq("role", row.role).eq("action", row.action).eq("device", row.device);
         if (error) throw error;
       }
       const hidden: string[] = [];
@@ -131,8 +142,8 @@ export default function PermissionsMatrixPage() {
       setDeviceHidden(hidden);
       setDeviceDirty(new Set());
       toast({ title: "Device visibility saved" });
-    } catch (e: any) {
-      toast({ title: "Save failed", description: e?.message ?? "Could not save.", variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Save failed", description: errorMessage(e, "Could not save."), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -144,7 +155,8 @@ export default function PermissionsMatrixPage() {
     setDraft((prev) => ({ ...prev, [k]: !prev[k] }));
     setDirty((prev) => {
       const next = new Set(prev);
-      next.has(k) ? next.delete(k) : next.add(k);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
       return next;
     });
   };
@@ -189,20 +201,20 @@ export default function PermissionsMatrixPage() {
         else toUpsert.push({ role: r, action: a, allowed: val });
       }
       if (toUpsert.length) {
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from("role_permission_overrides")
           .upsert(toUpsert, { onConflict: "role,action" });
         if (error) throw error;
       }
       for (const d of toDelete) {
-        const { error } = await (supabase as any)
+        const { error } = await supabase
           .from("role_permission_overrides")
           .delete()
           .eq("role", d.role)
           .eq("action", d.action);
         if (error) throw error;
       }
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("role_permission_overrides")
         .select("role, action, allowed");
       if (error) throw error;
@@ -238,8 +250,8 @@ export default function PermissionsMatrixPage() {
       setDirty(new Set());
       setPreviewOpen(false);
       toast({ title: "Permissions saved", description: `${toUpsert.length + toDelete.length} change(s) applied.` });
-    } catch (e: any) {
-      toast({ title: "Save failed", description: e?.message ?? String(e), variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Save failed", description: errorMessage(e, String(e)), variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -370,7 +382,8 @@ export default function PermissionsMatrixPage() {
                   onCheckedChange={(v) => {
                     setVisibleRoles((prev) => {
                       const next = new Set(prev);
-                      v ? next.add(r) : next.delete(r);
+                      if (v) next.add(r);
+                      else next.delete(r);
                       if (next.size === 0) next.add(r);
                       return next;
                     });
@@ -532,7 +545,11 @@ export default function PermissionsMatrixPage() {
                                     <button
                                       type="button"
                                       onClick={() => toggle(r, a)}
-                                      disabled={!isAdmin}
+                                      // A cell past the employee ceiling cannot take effect on
+                                      // either side (EMPLOYEE_CEILING / has_action), so it is not
+                                      // offered — a toggle that saves and does nothing is worse.
+                                      disabled={!isAdmin || !roleMayHold(r, a)}
+                                      title={roleMayHold(r, a) ? undefined : "Employees can only see their own records. This cannot be granted to them."}
                                       // Every cell in an 8-role by ~100-action grid used to
                                       // announce the identical "allowed — toggle", so a screen
                                       // reader could not tell which cell was about to change —

@@ -43,6 +43,14 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
+    name: "my_attendance",
+    block: "BLOCO 90 — 20261012160000_an_employee_sees_only_their_own.sql",
+    fallback:
+      "useMyAttendance turns PGRST202 into `notSetUp`, and MyAttendancePage says \"My " +
+      "Attendance is being set up\" instead of drawing an empty month — an empty month " +
+      "would read as a month with no record, which is a statement about the person.",
+  },
+  {
     name: "signup_invite_code",
     block: "BLOCO 86 — 20261011230000_the_invite_code_rides_the_link.sql",
     fallback:

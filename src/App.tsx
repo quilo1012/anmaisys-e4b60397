@@ -26,9 +26,17 @@ import { usePermissionOverridesSync } from "@/hooks/usePermissionOverrides";
 import { useSeverityPointsSync } from "@/hooks/useSeverityPoints";
 import { useLabelPointsSync, useDepartmentAttributionSync, useRootCauseAttributionSync } from "@/hooks/useQualityOptions";
 import { useLabelPointsCapSync } from "@/hooks/useLabelPointsCap";
+import { useForgetPreviousUser } from "@/hooks/useForgetPreviousUser";
 
 function PermissionOverridesSync() {
   usePermissionOverridesSync();
+  return null;
+}
+
+/** One person's cached answers are never drawn for the next person on the same tablet. */
+function ForgetPreviousUser() {
+  const { user } = useAuth();
+  useForgetPreviousUser(user?.id);
   return null;
 }
 
@@ -114,6 +122,7 @@ const OvertimeRequestsPage = lazyWithReload(() => import("./pages/dashboard/Over
 const MyOvertimePage = lazyWithReload(() => import("./pages/dashboard/MyOvertimePage"));
 const FinanceClosePage = lazyWithReload(() => import("./pages/dashboard/FinanceClosePage"));
 const LeavePage = lazyWithReload(() => import("./pages/dashboard/LeavePage"));
+const MyAttendancePage = lazyWithReload(() => import("./pages/dashboard/MyAttendancePage"));
 const PeoplePage = lazyWithReload(() => import("./pages/dashboard/PeoplePage"));
 const ProductionHeadcountPage = lazyWithReload(() => import("./pages/dashboard/ProductionHeadcountPage"));
 
@@ -285,6 +294,7 @@ const App = () => (
           <CriticalAlertProvider>
             <ErrorBoundary>
             <AppBanners />
+            <ForgetPreviousUser />
             <PermissionOverridesSync />
             <SeverityPointsSync />
             <LabelPointsSync />
@@ -498,6 +508,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="overtime.manage">
                       <OvertimeRequestsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/my-attendance"
+                  element={
+                    <ProtectedRoute requiredAction="attendance.view_own">
+                      <MyAttendancePage />
                     </ProtectedRoute>
                   }
                 />

@@ -70,6 +70,7 @@ export type Action =
   | "headcount.view"
   | "headcount.manage"
   | "attendance.manage"
+  | "attendance.view_own"
   // Overtime asks: the supervisor's side and the floor's side.
   | "overtime.manage"
   | "overtime.respond"
@@ -247,9 +248,13 @@ const MATRIX: Record<Action, Role[]> = {
   // The `supervisor` enum value is retired (10/09/2026) and holds nothing; the people
   // who run the floor today sign in as manager or production_office_admin.
   "overtime.manage": ["admin", "manager", "production_office_admin"],
-  // `employee` holds this and nothing else: the login the invite link and the badge
-  // hand out, for people whose only business in the app is saying yes or no.
+  // `employee` holds this and `attendance.view_own` and nothing else: the login the
+  // invite link and the badge hand out. See EMPLOYEE_CEILING.
   "overtime.respond": ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
+  // My Attendance: the signed-in person's own clock, marks, leave and balance — never
+  // anybody else's, whoever holds it. The database answers it through `my_attendance()`,
+  // which is keyed on `my_employee_id()`, so the same people as `overtime.respond`.
+  "attendance.view_own": ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   // Rewriting a stoppage number that is already on the record is deliberately
   // narrower than `downtime.adjust`: it changes how a line and an engineer are
@@ -386,9 +391,28 @@ export function isOwnerSession(): boolean {
  * DESCRIBES permissions rather than enforcing them.
  */
 export function roleHolds(role: Role, action: Action): boolean {
+  if (!roleMayHold(role, action)) return false;
   const key = `${role}:${action}`;
   if (key in OVERRIDES) return OVERRIDES[key];
   return MATRIX[action]?.includes(role) ?? false;
+}
+
+/**
+ * Everything an `employee` login may ever hold, whatever the Permissions screen says.
+ *
+ * The employee is the login a badge or the invite link hands out — the whole floor, on
+ * their own phones. Every action outside this list reads somebody else's records or the
+ * factory's, and one tick on the Permissions screen used to be enough to open it: the
+ * grant brought the menu row back (`navItemShows`) and `has_action` honoured it in the
+ * database. A ceiling rather than a default, so a grant beyond it does nothing on
+ * either side. `has_action` carries the same list in SQL
+ * (20261012160000_an_employee_sees_only_their_own.sql).
+ */
+export const EMPLOYEE_CEILING: readonly Action[] = ["overtime.respond", "attendance.view_own"];
+
+/** Whether a grant of this action to this role could take effect at all. */
+export function roleMayHold(role: Role, action: Action): boolean {
+  return role !== "employee" || EMPLOYEE_CEILING.includes(action);
 }
 
 /** Returns true if the given role can perform the action. Null role → false. */
@@ -397,6 +421,7 @@ export function can(role: Role | null | undefined, action: Action): boolean {
   // papel de propósito: o owner passa mesmo que o papel ainda não tenha resolvido.
   if (IS_OWNER) return true;
   if (!role) return false;
+  if (!roleMayHold(role, action)) return false;
 
   const key = `${role}:${action}`;
   if (key in OVERRIDES) return OVERRIDES[key];
@@ -491,7 +516,7 @@ export const ROLE_SUMMARY: Record<Role, string> = {
   warehouse: "Runs the store: parts in and out, and the service requests that come from the floor.",
   quality_supervisor: "Owns quality: raises and rules on quality actions, and signs off the leader scorecards.",
   production_office_admin: "The production office: keeps the boards, the plan and the paperwork behind the lines up to date.",
-  employee: "Sees the overtime on offer and answers it (My Overtime). Nothing else.",
+  employee: "Sees the overtime on offer and answers it (My Overtime), and their own attendance (My Attendance). Nothing about anybody else.",
 };
 
 
@@ -548,7 +573,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "scorecard", label: "Leader Scorecard", actions: ["scorecard.fill", "scorecard.approve"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
-  { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage", "attendance.manage", "overtime.manage", "overtime.respond"] },
+  { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage", "attendance.manage", "attendance.view_own", "overtime.manage", "overtime.respond"] },
   { key: "headcount", label: "Production Headcount", actions: ["headcount.view", "headcount.manage"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
@@ -584,6 +609,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "headcount.view": "See the daily Production Headcount board (Day / Night).",
   "headcount.manage": "Allocate people to areas and record absence, holidays and overtime.",
   "attendance.manage": "Record attendance for the shift.",
+  "attendance.view_own": "See your own clock record, days off and hour balance (My Attendance). Never anybody else's.",
   "overtime.manage": "Ask for overtime, pick who works it, and record who turned up.",
   "overtime.respond": "See overtime on offer and answer yes or no (My Overtime).",
   "reports.export": "Export reports to CSV / Excel / PDF.",
