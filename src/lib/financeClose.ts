@@ -492,17 +492,38 @@ export function countDaysAway(
     return c;
   };
 
-  const clockedDays = new Set<string>();
+  // A row with no date cannot be put on a day, so it cannot be counted as one. The
+  // page once read the marks without `on_date`: every key came out "<id> undefined",
+  // no mark ever matched a clocked day, and a Fri–Mon person read 44 days present in
+  // a 35-day period. Refused here, so a missing column shows as zero rather than as
+  // days counted twice.
+  const keyOf = (id: string, onDate: string | null | undefined) =>
+    (onDate ? `${id} ${onDate}` : null);
+
+  // One verdict per person per day from each source. Two clock rows for the same day
+  // are one day, not two: the absence wins if either carries one, otherwise worked
+  // minutes on either make it a day present.
+  const clockedDays = new Map<string, { id: string; absence: string | null; worked: boolean }>();
   for (const d of clocked) {
-    clockedDays.add(`${d.employee_id} ${d.on_date}`);
-    const c = of(d.employee_id);
-    if (d.absence_name) c.absences[d.absence_name] = (c.absences[d.absence_name] ?? 0) + 1;
-    else if ((d.worked_minutes ?? 0) > 0) c.daysPresent += 1;
+    const key = keyOf(d.employee_id, d.on_date);
+    if (!key) continue;
+    const day = clockedDays.get(key) ?? { id: d.employee_id, absence: null, worked: false };
+    day.absence ??= d.absence_name || null;
+    day.worked ||= (d.worked_minutes ?? 0) > 0;
+    clockedDays.set(key, day);
+  }
+  for (const day of clockedDays.values()) {
+    const c = of(day.id);
+    if (day.absence) c.absences[day.absence] = (c.absences[day.absence] ?? 0) + 1;
+    else if (day.worked) c.daysPresent += 1;
   }
 
+  const markedDays = new Set<string>();
   for (const a of manual) {
     if (!a.status) continue;
-    if (clockedDays.has(`${a.employee_id} ${a.on_date}`)) continue;
+    const key = keyOf(a.employee_id, a.on_date);
+    if (!key || clockedDays.has(key) || markedDays.has(key)) continue;
+    markedDays.add(key);
     const c = of(a.employee_id);
     if (a.status === "present") c.daysPresent += 1;
     else c.absences[a.status] = (c.absences[a.status] ?? 0) + 1;

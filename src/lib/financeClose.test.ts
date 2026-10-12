@@ -510,6 +510,59 @@ describe("countDaysAway", () => {
     expect(counted.get("a")!.daysPresent).toBe(1);
     expect(counted.get("b")!.daysPresent).toBe(1);
   });
+
+  /** Every Friday to Monday from Mon 07/09/2026 to Sun 11/10/2026: twenty days. */
+  const weekendDays = () => {
+    const out: string[] = [];
+    for (let d = new Date(Date.UTC(2026, 8, 7)); d <= new Date(Date.UTC(2026, 9, 11)); d.setUTCDate(d.getUTCDate() + 1)) {
+      if ([5, 6, 0, 1].includes(d.getUTCDay())) out.push(d.toISOString().slice(0, 10));
+    }
+    return out;
+  };
+
+  it("never counts more present days than the person's days on the clock or the board", () => {
+    // The shape of the 44: a Fri–Mon person the clocks recorded on all twenty rota
+    // days, marked present on the board for the same twenty and four more.
+    const rota = weekendDays();
+    expect(rota).toHaveLength(20);
+    const extra = ["2026-09-08", "2026-09-15", "2026-09-22", "2026-09-29"];
+    const c = countDaysAway(
+      rota.map((d) => clock(d, { worked_minutes: 660 })),
+      [...rota, ...extra].map((d) => mark(d, "present")),
+    ).get("e1")!;
+    expect(c.daysPresent).toBe(24);
+  });
+
+  it("refuses a mark with no date instead of counting it on top of the clocks", () => {
+    // What the page did while it selected `employee_id, status` and left the date out.
+    const rota = weekendDays();
+    const c = countDaysAway(
+      rota.map((d) => clock(d, { worked_minutes: 660 })),
+      rota.map(() => ({ employee_id: "e1", status: "present" }) as never),
+    ).get("e1")!;
+    expect(c.daysPresent).toBe(20);
+  });
+
+  it("counts two clock rows for the same day as one day", () => {
+    const c = countDaysAway(
+      [clock("2026-09-11", { worked_minutes: 300 }), clock("2026-09-11", { worked_minutes: 360 })],
+      [],
+    ).get("e1")!;
+    expect(c.daysPresent).toBe(1);
+  });
+
+  it("lets an absence on either clock row for the day decide it, once", () => {
+    const c = countDaysAway(
+      [clock("2026-09-11", { worked_minutes: 0 }), clock("2026-09-11", { absence_name: "Sick" })],
+      [],
+    ).get("e1")!;
+    expect(c).toEqual({ daysPresent: 0, absences: { Sick: 1 } });
+  });
+
+  it("counts a day marked twice on the board once", () => {
+    const c = countDaysAway([], [mark("2026-09-12", "present"), mark("2026-09-12", "present")]).get("e1")!;
+    expect(c.daysPresent).toBe(1);
+  });
 });
 
 describe("payrollEmpty — a coluna por preencher não é uma coluna de zeros", () => {
