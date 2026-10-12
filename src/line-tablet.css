@@ -1,0 +1,41 @@
+/* ===========================================================================
+ * Line tablets: one step denser than the office.
+ *
+ * The login and the operator screens (Operator Panel, My Production, Performance)
+ * were set for a desk monitor, and on the line tablets the type came out too big to
+ * work with: the maintenance form needed scrolling to reach its own submit button.
+ *
+ * Tailwind sizes text, spacing and control heights in rem, so the whole interface
+ * follows the root size. Moving the root from 16px to 14px takes everything down by
+ * one eighth together — type, padding, field heights — and keeps the proportions
+ * the screens were designed with, which shrinking font sizes one by one would not.
+ *
+ * Two things must not shrink with it:
+ *   - the smallest type. `text-2xs` (11px) is already the floor for reading a
+ *     tablet at arm's length; at 14px root it would land at 9.6px. It and
+ *     `text-xs` are pinned in px.
+ *   - touch targets. The 44px minimum on small buttons is set in px in index.css,
+ *     so it holds regardless of the root size.
+ *
+ * Who counts as a line tablet is decided in src/lib/lineTabletDevice.ts.
+ * =========================================================================== */
+html[data-device="line-tablet"] {
+  font-size: 87.5%;
+}
+
+html[data-device="line-tablet"] .text-2xs {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+html[data-device="line-tablet"] .text-xs {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@media print {
+  /* Paper keeps its own scale. */
+  html[data-device="line-tablet"] {
+    font-size: 100%;
+  }
+}

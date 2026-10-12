@@ -43,6 +43,7 @@ import { resolveIdentity, suggestTablets } from "@/lib/loginIdentity";
 import { classifyLoginFailure, NOT_ACTIVATED_MESSAGE } from "@/lib/loginFailure";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
 import { signupPath } from "@/lib/signupQr";
+import { rememberLineTablet } from "@/lib/lineTabletDevice";
 
 const TABLET_KEY = "an_tablet_account_id";
 const TABLET_TS_KEY = "an_tablet_account_id_at";
@@ -374,6 +375,7 @@ export default function Login() {
       setAuthed(true);
       toast({ title: "Signed in", description: "Redirecting to your dashboard…" });
 
+      rememberLineTablet(!!matchedTablet);
       if (matchedTablet) {
         localStorage.setItem(TABLET_KEY, matchedTablet.id);
         localStorage.setItem(TABLET_TS_KEY, String(Date.now()));
