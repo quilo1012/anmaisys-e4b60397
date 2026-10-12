@@ -634,7 +634,7 @@ function ShiftBoard({
    * read for the first of those.
    */
   const [find, setFind] = useState("");
-  const { data: roster = [], byId: everyoneById, onShift = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
+  const { data: roster = [], byId: everyoneById, onShift = [], noCrew = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   /** Absence / Holidays / Overtime, opened the same way an area column is. */
   const [pickingAway, setPickingAway] = useState<{ status: AllocStatus; label: string } | null>(null);
@@ -788,6 +788,10 @@ function ShiftBoard({
       .sort((a, b) => a.shown.localeCompare(b.shown));
 
   const unassigned = roster.filter((e) => !byEmployee.has(e.id));
+  // Sem crew no cadastro, ninguém os punha em board nenhum. Não são "por colocar" do
+  // turno — o rota não os põe cá — por isso ficam numa coluna à parte, em ambos os
+  // boards, até alguém os colocar ou lhes dar um crew.
+  const noCrewUnplaced = noCrew.filter((e) => !byEmployee.has(e.id));
 
   // Quem está no ecrã hoje — colocados, ausentes e por colocar — e, entre eles, quem
   // partilha o nome com outro. Só esses levam o número ao lado.
@@ -804,6 +808,7 @@ function ShiftBoard({
   const refOf = disambiguators([
     ...allocations.map((a) => employeeById.get(a.employee_id)).filter((p): p is HeadcountEmployee => !!p),
     ...unassigned,
+    ...noCrewUnplaced,
   ]);
 
   // Working = placed on an area, whether the day is a normal one or an overtime one.
@@ -912,6 +917,31 @@ function ShiftBoard({
                   role={roleStripe(p.department)}
                   tone="roster"
                   crew={crewBadge(p.shift_group)}
+                  onOpen={() => setEditing(p.id)}
+                  draggable={canManage}
+                  onDragStart={(e) => {
+                    holdDrag(p.id);
+                    dragStart(e, p.id);
+                  }}
+                />
+              ))}
+          </SheetColumn>
+        </div>
+      )}
+      {noCrewUnplaced.length > 0 && (
+        <div className="-mb-px -mr-px h-full">
+          <SheetColumn title="No crew on file" head="heading" rows={noCrewUnplaced.length + 1} count={noCrewUnplaced.length}>
+            {[...noCrewUnplaced]
+              .sort((a, b) => a.full_name.localeCompare(b.full_name))
+              .map((p) => (
+                <Chip
+                  key={p.id}
+                  name={p.full_name}
+                  personRef={refOf.get(p.id)}
+                  dimmed={isDimmed(p.full_name)}
+                  role={roleStripe(p.department)}
+                  tone="roster"
+                  crew={null}
                   onOpen={() => setEditing(p.id)}
                   draggable={canManage}
                   onDragStart={(e) => {
@@ -1206,6 +1236,7 @@ function ShiftBoard({
             <div className="mt-1 text-2xs text-muted-foreground">
               {unassigned.length} unallocated · {away} away
               {training > 0 && <> · {training} training</>}
+              {noCrewUnplaced.length > 0 && <> · {noCrewUnplaced.length} with no crew</>}
             </div>
           </div>
         </div>

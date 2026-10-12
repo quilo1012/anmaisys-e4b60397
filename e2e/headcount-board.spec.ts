@@ -186,3 +186,22 @@ test("escreve-se um nome na célula vazia e a pessoa entra na coluna", async ({ 
   expect(w.area_id).toBe("l3");
   await expect(cell).toHaveValue("");
 });
+
+test("quem não tem crew no cadastro aparece no board, numa coluna à parte", async ({ page }) => {
+  // Criados pelo import da folha sem crew, não estavam em board nenhum: nem numa
+  // coluna, nem em "Not placed yet". Ninguém os via.
+  await stub(page);
+  const crewless = { id: "nc1", full_name: "Rita Semcrew", department: null, active: true, shift_group: null, start_date: "2026-10-01", end_date: null, role: null };
+  await page.route(/\/rest\/v1\/employees/, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([...EMP, crewless]) }));
+  await page.setViewportSize({ width: 1600, height: 1400 });
+  await page.goto("/dashboard/headcount");
+  const board = page.locator(".headcount-columns");
+  await expect(board.getByText("Pedro Assis").first()).toBeVisible({ timeout: 20000 });
+
+  const col = page.locator(".headcount-sheet-column", { hasText: "No crew on file" }).first();
+  await expect(col).toBeVisible();
+  await expect(col.getByText("Rita Semcrew")).toBeVisible();
+  // Uma vez só: não é "por colocar" do turno, é outra coisa.
+  await expect(page.locator(".headcount-sheet-column", { hasText: "Not placed yet" }).getByText("Rita Semcrew")).toHaveCount(0);
+});
