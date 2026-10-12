@@ -162,3 +162,27 @@ test("o nome cabe inteiro, e os Totais de uma banda ficam na mesma fila", async 
   });
   expect(new Set(tops).size, `Totais a alturas diferentes: ${tops.join(", ")}`).toBe(1);
 });
+
+test("escreve-se um nome na célula vazia e a pessoa entra na coluna", async ({ page }) => {
+  // Como na folha: escreve-se na célula. Mas o que se grava é a pessoa do cadastro
+  // escolhida na lista, nunca o texto escrito.
+  const writes: Record<string, unknown>[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/rest/v1/daily_allocations") && r.method() === "POST") {
+      const body = r.postDataJSON();
+      writes.push(...(Array.isArray(body) ? body : [body]));
+    }
+  });
+  await openBoard(page);
+
+  const cell = page.getByRole("combobox", { name: "Add a person to Line 3" });
+  await cell.fill("vasconc");
+  await expect(page.getByRole("option", { name: /Sandro Vasconcelos/ })).toBeVisible();
+  await cell.press("Enter");
+
+  await expect.poll(() => writes.length).toBeGreaterThan(0);
+  const w = writes.at(-1)!;
+  expect(w.employee_id).toBe("e3");
+  expect(w.area_id).toBe("l3");
+  await expect(cell).toHaveValue("");
+});
