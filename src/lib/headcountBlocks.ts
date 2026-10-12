@@ -26,3 +26,26 @@ export function blockOf(area: { section: string | null; kind: string }): Headcou
   if (s === "production" || s === "sectors" || s === "support") return s;
   return area.kind === "production" ? "production" : "support";
 }
+
+/**
+ * As duas bandas da planilha da empresa, a partir das três do board.
+ *
+ * Vivia dentro de `headcountSheet.ts`, onde servia o export, o papel e o import. O
+ * board passou a desenhar nas duas bandas da planilha em vez das suas três, e a regra
+ * ficou com dois leitores em ficheiros diferentes — que é como uma regra se torna
+ * duas e as duas divergem.
+ *
+ * Os sectores — Hygiene, Quality, Maintenance, o armazém — caem no apoio, que é onde a
+ * folha de Outubro os tem. O Runner fica na produção por ter `section = production`,
+ * que é também onde a folha o tem.
+ *
+ * `kind` continua a ser a outra pergunta, e a resposta a essa não mudou: é ele que
+ * decide o que as contagens contam.
+ */
+export const SHEET_BANDS = ["production", "support"] as const;
+
+export type SheetBand = (typeof SHEET_BANDS)[number];
+
+export function sheetBandOf(area: { section: string | null; kind: string }): SheetBand {
+  return blockOf(area) === "production" ? "production" : "support";
+}

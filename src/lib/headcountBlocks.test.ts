@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blockOf, HEADCOUNT_BLOCKS } from "./headcountBlocks";
+import { blockOf, HEADCOUNT_BLOCKS, sheetBandOf, SHEET_BANDS } from "./headcountBlocks";
 
 /**
  * Which block an area is drawn in, asserted rather than assumed.
@@ -51,5 +51,47 @@ describe("blockOf", () => {
       { section: "sectors", kind: "support" },
     ];
     for (const c of cases) expect(HEADCOUNT_BLOCKS as readonly string[]).toContain(blockOf(c));
+  });
+});
+
+/**
+ * As duas bandas da planilha, que o board passou a desenhar.
+ *
+ * Esta regra tinha dois leitores em ficheiros diferentes — uma cópia dentro do
+ * `headcountSheet.ts` para o export, o papel e o import, e as três bandas do board.
+ * Agora é uma só, e isto é o que a prende.
+ */
+describe("sheetBandOf", () => {
+  it("põe as linhas na banda de produção", () => {
+    expect(sheetBandOf({ section: "production", kind: "production" })).toBe("production");
+  });
+
+  it("põe os sectores no apoio, que é onde a planilha os tem", () => {
+    // Hygiene, Quality, WH team e Maintenance estão na segunda banda da folha de
+    // Outubro, ao lado do Lab e do Office.
+    expect(sheetBandOf({ section: "sectors", kind: "production" })).toBe("support");
+    expect(sheetBandOf({ section: "sectors", kind: "support" })).toBe("support");
+  });
+
+  it("deixa o Runner na produção, porque a planilha também o deixa", () => {
+    // `kind` diz apoio e `section` diz produção: é `section` que decide onde a coluna
+    // é desenhada, e a folha tem o Runner na primeira banda.
+    expect(sheetBandOf({ section: "production", kind: "support" })).toBe("production");
+  });
+
+  it("não perde uma área cuja secção ninguém escreveu", () => {
+    // O mesmo motivo que `blockOf` tem: uma área sem secção, ou com uma secção mal
+    // escrita, desaparecia do board enquanto as suas alocações continuavam a ser
+    // gravadas.
+    expect(sheetBandOf({ section: null, kind: "production" })).toBe("production");
+    expect(sheetBandOf({ section: "qualquer coisa", kind: "support" })).toBe("support");
+  });
+
+  it("nunca devolve uma terceira banda", () => {
+    for (const section of ["production", "sectors", "support", null, "typo"]) {
+      for (const kind of ["production", "support"]) {
+        expect(SHEET_BANDS).toContain(sheetBandOf({ section, kind }));
+      }
+    }
   });
 });
