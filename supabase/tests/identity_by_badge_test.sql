@@ -27,6 +27,7 @@ declare
   v_dup_a   uuid;
   v_dup_b   uuid;
   v_got     uuid;
+  v_linked  integer;
   v_msg     text;
 begin
   -- Two logins and one employee carrying a badge nobody has claimed.
@@ -96,10 +97,12 @@ begin
     end if;
   end;
 
-  select count(*) into v_got from public.employees
+  -- A count, into an integer. It went into the uuid above and failed every run with
+  -- "invalid input syntax for type uuid" before reaching its own assertion.
+  select count(*) into v_linked from public.employees
    where id in (v_dup_a, v_dup_b) and user_id is not null;
-  if v_got::int <> 0 then
-    raise exception 'FAILED: an ambiguous badge linked % row(s)', v_got;
+  if v_linked <> 0 then
+    raise exception 'FAILED: an ambiguous badge linked % row(s)', v_linked;
   end if;
 
   raise notice 'cases 1-3 passed';
