@@ -160,8 +160,10 @@ const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
  * essa fila em degraus.
  */
 function SheetColumn({
-  title, head, onHeadClick, headHint, grip, rows, count, children, blank,
+  title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled,
 }: {
+  /** Células já ocupadas, quando há mais do que `count` (nomes do plano, a cinzento). */
+  filled?: number;
   /** O que vai na primeira célula vazia — o campo para escrever um nome. */
   blank?: React.ReactNode;
   title: string;
@@ -190,7 +192,7 @@ function SheetColumn({
       </div>
       <div className="flex flex-col">
         {children}
-        {Array.from({ length: Math.max(0, rows - count) }, (_, i) =>
+        {Array.from({ length: Math.max(0, rows - (filled ?? count)) }, (_, i) =>
           i === 0 && blank ? (
             <div key={i} className={cn("h-12 shrink-0 border-b", SHEET_RULE)}>{blank}</div>
           ) : (
@@ -709,7 +711,7 @@ function ShiftBoard({
   // so somebody can take them off — rather than vanishing from the screen while still
   // counting in the totals, which is what made the board read "20 support" with the
   // WH Team column at zero.
-  const employeeById = everyoneById ?? new Map<string, HeadcountEmployee>();
+  const employeeById = useMemo(() => everyoneById ?? new Map<string, HeadcountEmployee>(), [everyoneById]);
 
   /**
    * Who is working in an area, leader first.
@@ -824,6 +826,46 @@ function ShiftBoard({
     (a) => (a.status === "assigned" || a.status === "overtime") && employeeById.has(a.employee_id),
   );
   const assignedCount = working.length;
+
+  /**
+   * Um dia que ainda não aconteceu e que ninguém planeou, mostrado como o rota o põe.
+   *
+   * O board só tem o que foi gravado, e amanhã é gravado amanhã de manhã. Quem
+   * abria o dia seguinte para saber em que linha ia estar via colunas vazias e o nome
+   * em "Not placed yet" — a pergunta era "onde vou estar?", e o sítio estava no
+   * matrix, a um menu de distância. Aqui aparece a cinzento, na coluna onde o matrix
+   * do dia (changeover às segundas e sextas, standard nos outros) põe cada pessoa que o
+   * rota traz. Nada é gravado: "Save this plan" faz a mesma cópia do menu, e os nomes
+   * a cinzento são exactamente as linhas que ela escreve.
+   *
+   * Só quando o dia está por planear (nenhuma pessoa a trabalhar gravada): um dia que
+   * alguém começou a arrumar é a palavra dessa pessoa, não do matrix.
+   */
+  const todayIso = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  })();
+  const planKind: "normal" | "changeover" = [1, 5].includes(new Date(`${onDate}T12:00:00`).getDay()) ? "changeover" : "normal";
+  const plan = matrix.matrices.find((m) => m.kind === planKind);
+  const ghostByArea = useMemo(() => {
+    const out = new Map<string, HeadcountEmployee[]>();
+    if (onDate <= todayIso || working.length > 0 || !plan) return out;
+    for (const r of plan.due) {
+      // Só para colunas que o board desenha; uma área desactivada deixaria a pessoa
+      // fora da coluna e fora da bandeja ao mesmo tempo.
+      if (!r.area_id || !areas.some((x) => x.id === r.area_id) || byEmployee.has(r.employee_id)) continue;
+      const p = employeeById.get(r.employee_id);
+      if (!p) continue;
+      out.set(r.area_id, [...(out.get(r.area_id) ?? []), p]);
+    }
+    for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return out;
+  }, [onDate, todayIso, working.length, plan, byEmployee, employeeById, areas]);
+  const ghostCount = [...ghostByArea.values()].reduce((n, l) => n + l.length, 0);
+  const ghostIds = new Set([...ghostByArea.values()].flat().map((p) => p.id));
+  const ghostsIn = (areaId: string) => ghostByArea.get(areaId) ?? [];
+  // A bandeja é para quem não tem sítio nenhum — nem gravado, nem no plano.
+  const trayPeople = unassigned.filter((e) => !ghostIds.has(e.id));
   // A segunda banda leva as faltas, como na folha — só quando está à vista.
   const supportShown = blockVisible("support") && openSections["support"] !== false
     && areas.some((a) => sheetBandOf(a) === "support");
@@ -1288,6 +1330,22 @@ function ShiftBoard({
         <KpiPill icon={Clock3} label="Called in" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
       </div>
 
+      {ghostCount > 0 && (
+        <div className={cn("mt-4 flex flex-wrap items-center justify-between gap-3 border bg-muted px-3 py-2", SHEET_RULE)}>
+          <p className="text-sm">
+            <span className="font-bold">Not planned yet.</span>{" "}
+            <span className="text-muted-foreground">
+              The {ghostCount} names in grey italic are where the {plan?.label} matrix puts the people due in. Nothing is saved until you save it.
+            </span>
+          </p>
+          {canManage && (
+            <Button size="sm" onClick={() => runCopy({ kind: "matrix", matrix: planKind })} disabled={copyLastLikeDay.isPending}>
+              Save this plan
+            </Button>
+          )}
+        </div>
+      )}
+
       {SECTIONS.map((section) => {
         if (!blockVisible(section.key)) return null;
         const ofKind = areas.filter((a) => sheetBandOf(a) === section.key);
@@ -1299,7 +1357,7 @@ function ShiftBoard({
         // quando estão lá dentro.
         const bandRows = Math.max(
           0,
-          ...ofKind.map((a) => peopleIn(a.id).length),
+          ...ofKind.map((a) => peopleIn(a.id).length + ghostsIn(a.id).length),
           ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length) : []),
         ) + 1;
         return (
@@ -1353,6 +1411,7 @@ function ShiftBoard({
                 headHint={canManage ? `Add or remove people on ${area.name}` : undefined}
                 rows={bandRows}
                 count={people.length}
+                filled={people.length + ghostsIn(area.id).length}
                 blank={canManage ? (
                   <SheetCellInput
                     className="h-full"
@@ -1388,6 +1447,16 @@ function ShiftBoard({
                           dragStart(e, p.id);
                         }}
                       />
+                    ))}
+                    {ghostsIn(area.id).map((p) => (
+                      <div
+                        key={`plan-${p.id}`}
+                        data-planned
+                        title={`${p.full_name} — planned by the ${plan?.label ?? "matrix"}, not saved yet`}
+                        className={cn("flex h-12 shrink-0 flex-col items-center justify-center border-b px-2 text-center text-sm italic text-muted-foreground", SHEET_RULE)}
+                      >
+                        <span className="max-w-full truncate">{p.full_name}</span>
+                      </div>
                     ))}
               </SheetColumn>
             </DropZone>
@@ -1597,12 +1666,12 @@ function ShiftBoard({
           nomes. Aqui é uma bandeja por baixo, nas mesmas faixas de 150px da folha, para
           as células alinharem com as colunas de cima. Larga-se aqui quem se quer tirar
           de uma linha. */}
-      {unassigned.length > 0 && (
-        <section aria-label={`Not placed yet: ${unassigned.length}`} className="mt-6">
+      {trayPeople.length > 0 && (
+        <section aria-label={`Not placed yet: ${trayPeople.length}`} className="mt-6">
           <DropZone disabled={!canManage} onDrop={(employeeId) => handleDrop("roster")(employeeId)} className="rounded-none">
             <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 border bg-muted px-3 py-2", SHEET_RULE)}>
               <h3 className="text-sm font-bold text-foreground">
-                Not placed yet <span className="font-figure tabular-nums">({unassigned.length})</span>
+                Not placed yet <span className="font-figure tabular-nums">({trayPeople.length})</span>
               </h3>
               {canManage && (
                 <p className="text-xs text-muted-foreground">
@@ -1611,7 +1680,7 @@ function ShiftBoard({
               )}
             </div>
             <div className="grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-              {[...unassigned]
+              {[...trayPeople]
                 .sort((a, b) => a.full_name.localeCompare(b.full_name))
                 .map((p) => (
                   <div key={p.id} className={cn("-mt-px border border-t-0 bg-card [&>*]:border-b-0", SHEET_RULE, "-mr-px")}>
