@@ -186,7 +186,7 @@ function SheetColumn({
       <div className="flex flex-col">
         {children}
         {Array.from({ length: Math.max(0, rows - count) }, (_, i) => (
-          <div key={i} aria-hidden className={cn("min-h-[44px] border-b", SHEET_RULE)} />
+          <div key={i} aria-hidden className={cn("h-12 shrink-0 border-b", SHEET_RULE)} />
         ))}
       </div>
       {/* `Total` e o número por baixo, que é como cada coluna da planilha acaba. */}
@@ -393,7 +393,12 @@ function Chip({
         // `headcount-chip` is what the print sheet takes that height back through —
         // paper has no thumbs, and 44px × eighty names is two pages of white space.
         // Uma célula da folha: quadrada, a linha fina por baixo, o nome ao centro.
-        "headcount-chip inline-flex min-h-[44px] w-full max-w-full items-center justify-center gap-1.5 border-b px-2 py-1.5 text-center text-sm font-medium",
+        // O nome numa linha só para ele, e as marcas (crew, papel, horas) por baixo.
+        // Lado a lado, o FRI–MON comia metade de uma coluna de 150px e o nome saía
+        // "Sandro V…" — numa folha que existe para se lerem nomes.
+        // Altura fixa, com ou sem marcas: é a mesma em todas as células, por isso os
+        // Totais de uma banda continuam numa só fila.
+        "headcount-chip flex h-12 w-full max-w-full shrink-0 flex-col overflow-hidden items-center justify-center gap-0.5 border-b px-2 py-1 text-center text-sm font-medium",
         SHEET_RULE,
         // The leader of *this* line wears the line's own colour — border and wash from
         // the bay, the way the column header already does — so scanning the board says
@@ -418,10 +423,14 @@ function Chip({
       {/* As iniciais saíram: a folha não as tem, e eram o nome outra vez em duas letras.
           O LEAD fica, pequeno, porque o cinzento sozinho não se lê num ecrã ao sol. */}
       {leader && <span className="sr-only">Lead: </span>}
-      <span className="truncate">{name}</span>
-      {personRef && (
-        <span className="shrink-0 font-figure text-2xs font-semibold text-muted-foreground">{personRef}</span>
-      )}
+      <span className="flex max-w-full items-baseline justify-center gap-1">
+        <span className="truncate">{name}</span>
+        {personRef && (
+          <span className="shrink-0 font-figure text-2xs font-semibold text-muted-foreground">{personRef}</span>
+        )}
+      </span>
+      {(startTime || tag || crew || half || arrivedLateAt || leftEarlyAt || (role && !leader)) && (
+      <span className="flex max-w-full flex-wrap items-center justify-center gap-1 leading-none">
       {startTime && (
         <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
           {startTime}
@@ -480,10 +489,12 @@ function Chip({
       {role && !leader && (
         <span
           title={role.label}
-          className={cn("ml-auto shrink-0 rounded-sm px-1 py-px text-2xs font-bold uppercase leading-tight", role.cls)}
+          className={cn("shrink-0 rounded-sm px-1 py-px text-2xs font-bold uppercase leading-tight", role.cls)}
         >
           {role.short}
         </span>
+      )}
+      </span>
       )}
     </span>
   );
