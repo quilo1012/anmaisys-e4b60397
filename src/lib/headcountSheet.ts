@@ -262,7 +262,7 @@ const columnsOf = (areas: HeadcountArea[]) => {
  * The export used to be the right words in an unformatted grid, and the office went on
  * keeping the old workbook beside it because that one could be read from across the room.
  */
-type SheetLook = "title" | "label" | "summary" | "heading" | "away" | "leave" | "name" | "leader" | "total" | "grand";
+type SheetLook = "title" | "label" | "summary" | "heading" | "away" | "leave" | "name" | "planned" | "leader" | "total" | "grand";
 
 const THIN = { style: "thin", color: { rgb: "000000" } };
 const BOXED = { top: THIN, bottom: THIN, left: THIN, right: THIN };
@@ -283,10 +283,20 @@ const SHEET_LOOKS: Record<SheetLook, Record<string, unknown>> = {
   away: filled("FF0000", { bold: true, color: { rgb: "FFFFFF" } }),
   leave: filled("92D050", { bold: true }),
   name: { font: { name: "Arial", sz: 12 }, alignment: CENTRED, border: BOXED },
+  // A name the rota put there, not a planner: grey italic, so a future day reads as a
+  // plan and the morning's board is still what is checked.
+  planned: { font: { name: "Arial", sz: 12, italic: true, color: { rgb: "595959" } }, alignment: CENTRED, border: BOXED },
   leader: filled("D9D9D9", { bold: true }),
   total: filled("92D050"),
   grand: filled("7030A0", { bold: true, color: { rgb: "FFFFFF" } }),
 };
+
+/**
+ * People due in with no line to stand on — a rota name with no standing place, or a
+ * saved row with no area. Every working row used to need an area to print, so these
+ * were in no column at all and the totals were short by exactly them.
+ */
+export const NO_LINE_COLUMN = "Due in — no line yet";
 
 /** The away columns keep the colour the company's sheet gives them. */
 const STATE_LOOK: Record<string, SheetLook> = {
@@ -305,7 +315,7 @@ export function buildHeadcountWorkbook(input: {
   days: SheetDay[];
   areas: HeadcountArea[];
   employeeById: Map<string, HeadcountEmployee>;
-  allocationsFor: (date: string, shift: string) => Allocation[];
+  allocationsFor: (date: string, shift: string) => Array<Allocation & { planned?: boolean }>;
 }): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
   const production = columnsOf(input.areas.filter((a) => sheetBandOf(a) === "production"));
@@ -321,7 +331,7 @@ export function buildHeadcountWorkbook(input: {
     const inColumn = (col: { areas: HeadcountArea[] }) => {
       const ids = new Set(col.areas.map((a) => a.id));
       return working.filter((a) => a.area_id && ids.has(a.area_id))
-        .map((a) => ({ name: nameOf(a), leader: a.is_leader ?? false }))
+        .map((a) => ({ name: nameOf(a), leader: a.is_leader ?? false, planned: !!a.planned }))
         .filter((x) => x.name)
         .sort((x, y) => Number(y.leader) - Number(x.leader) || x.name.localeCompare(y.name));
     };
@@ -332,7 +342,8 @@ export function buildHeadcountWorkbook(input: {
     const looks = new Map<string, SheetLook>();
     const paint = (r: number, c: number, look: SheetLook) => looks.set(`${r},${c}`, look);
 
-    const band = (cols: { label: string; areas: HeadcountArea[] }[], heading: string, extra: [string, string[]][] = []) => {
+    type Cell = { name: string; leader: boolean; planned?: boolean };
+    const band = (cols: { label: string; areas: HeadcountArea[] }[], heading: string, extra: [string, Cell[]][] = []) => {
       if (cols.length === 0 && extra.length === 0) return 0;
       rows.push([heading]);
       paint(rows.length - 1, 0, "label");
@@ -341,7 +352,7 @@ export function buildHeadcountWorkbook(input: {
       const labels = [...cols.map((c) => c.label), ...extra.map(([l]) => l)];
       const lists = [
         ...cols.map(inColumn),
-        ...extra.map(([, names]) => names.map((name) => ({ name, leader: false }))),
+        ...extra.map(([, cells]) => cells),
       ];
       rows.push(labels);
       labels.forEach((l, c) => paint(rows.length - 1, c, c < cols.length ? "heading" : STATE_LOOK[l] ?? "heading"));
@@ -349,7 +360,7 @@ export function buildHeadcountWorkbook(input: {
       const depth = Math.max(0, ...lists.map((c) => c.length)) + 1;
       for (let i = 0; i < depth; i++) {
         rows.push(lists.map((c) => c[i]?.name ?? ""));
-        lists.forEach((c, x) => paint(rows.length - 1, x, c[i]?.leader ? "leader" : "name"));
+        lists.forEach((c, x) => paint(rows.length - 1, x, c[i]?.leader ? "leader" : c[i]?.planned ? "planned" : "name"));
       }
       // "Total" and the figure under it, green, the way every column on the sheet ends.
       rows.push(lists.map(() => "Total"));
@@ -362,13 +373,22 @@ export function buildHeadcountWorkbook(input: {
       return cols.reduce((n, c) => n + inColumn(c).length, 0);
     };
 
-    rows.push([`${day.shift} shift — ${day.date}`]);
+    const anyPlanned = allocs.some((a) => a.planned);
+    rows.push([`${day.shift} shift — ${day.date}${anyPlanned ? " — planned from the rota" : ""}`]);
     paint(0, 0, "title");
     rows.push([]);
-    const states: [string, string[]][] = STATUS_BLOCKS.map((b) => [
+    const states: [string, Cell[]][] = STATUS_BLOCKS.map((b) => [
       b.label,
-      allocs.filter((a) => a.status === b.status).map((a) => nameOf(a)).filter(Boolean).sort(),
+      allocs.filter((a) => a.status === b.status).map((a) => nameOf(a)).filter(Boolean).sort()
+        .map((name) => ({ name, leader: false })),
     ]);
+    const known = new Set(input.areas.map((a) => a.id));
+    const noLine = working
+      .filter((a) => !a.area_id || !known.has(a.area_id))
+      .map((a) => ({ name: nameOf(a), leader: false, planned: !!a.planned }))
+      .filter((x) => x.name)
+      .sort((x, y) => x.name.localeCompare(y.name));
+    if (noLine.length) states.unshift([NO_LINE_COLUMN, noLine]);
     // The away columns sit in the second band, beside Office and Maintenance, which is
     // where the company's sheet has them. Beside the lines they made the top band
     // sixteen columns wide, and a sheet that wide does not print on one page. The
@@ -391,8 +411,10 @@ export function buildHeadcountWorkbook(input: {
     rows.push(["On production lines (system: kind = production)", byKind]);
     rows.push(["In the production band on this sheet", inProduction]);
     rows.push(["In the support band on this sheet", inSupport]);
-    for (const r of [1, 2, 3]) paint(rows.length - r, 0, "summary");
-    rows.push(["Total staff in Production (both bands)", inProduction + inSupport]);
+    // In, but on no line: counted in the total, never inside a band they are not in.
+    if (noLine.length) rows.push(["Due in with no line yet", noLine.length]);
+    for (let r = 1; r <= (noLine.length ? 4 : 3); r++) paint(rows.length - r, 0, "summary");
+    rows.push(["Total staff in Production (both bands)", inProduction + inSupport + noLine.length]);
     // The purple cell. On the company's sheet it is the one figure people look for.
     paint(rows.length - 1, 0, "grand");
     paint(rows.length - 1, 1, "grand");

@@ -22,6 +22,7 @@ import {
   type ImportPreview, type StandingLeader, type UnmatchedName,
 } from "@/lib/headcountSheet";
 import { useRotaCover } from "@/hooks/useHeadcount";
+import { planDay } from "@/lib/headcountPlan";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
 
 /**
@@ -305,14 +306,63 @@ export function HeadcountSheetDialog({
         byDay.get(key)!.push(a);
       }
 
+      // Days after today have nobody on the board yet — it is written on the morning —
+      // so they are printed as the rota says they will look: see `planDay`. Only read
+      // when the range reaches past today; an export of last month asks for nothing.
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const matrix = { normal: new Map<string, string | null>(), changeover: new Map<string, string | null>() };
+      const lastArea = new Map<string, string | null>();
+      if (to > today) {
+        const since = new Date(now);
+        since.setDate(since.getDate() - 42);
+        const sinceIso = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
+        const [{ data: m, error: mErr }, recent] = await Promise.all([
+          (supabase as any).from("headcount_matrix").select("employee_id,area_id,kind").eq("shift", shift),
+          fetchAllRows<{ employee_id: string; area_id: string | null; on_date: string }>({
+            range: async (a, b) => await (supabase as any)
+              .from("daily_allocations")
+              .select("employee_id,area_id,on_date")
+              .eq("shift", shift).eq("status", "assigned").not("area_id", "is", null)
+              .gte("on_date", sinceIso).lte("on_date", today)
+              .order("on_date", { ascending: false }).order("employee_id", { ascending: true })
+              .range(a, b),
+          }),
+        ]);
+        if (mErr) throw mErr;
+        for (const r of (m ?? []) as Array<{ employee_id: string; area_id: string | null; kind: string }>) {
+          if (r.kind === "normal" || r.kind === "changeover") matrix[r.kind].set(r.employee_id, r.area_id);
+        }
+        // Newest first, so the first row seen for a person is the line they were on last.
+        for (const r of recent ?? []) if (!lastArea.has(r.employee_id)) lastArea.set(r.employee_id, r.area_id);
+      }
+
+      let plannedDays = 0;
+      let noRota = 0;
+      const planned = new Map(days.map((d) => {
+        const p = planDay({
+          date: d, shift, today, saved: byDay.get(`${d}|${shift}`) ?? [],
+          roster, cover: rotaCover, matrix, lastArea,
+        });
+        if (p.planned) plannedDays += 1;
+        noRota = Math.max(noRota, p.noRota);
+        return [d, p.allocations] as const;
+      }));
+
       const wb = buildHeadcountWorkbook({
         days: days.map((d) => ({ date: d, shift })),
         areas,
         employeeById: new Map(roster.map((e) => [e.id, e])),
-        allocationsFor: (d, s) => byDay.get(`${d}|${s}`) ?? [],
+        allocationsFor: (d) => planned.get(d) ?? [],
       });
       XLSX.writeFile(wb, `headcount-${shift.toLowerCase()}-${from}-to-${to}.xlsx`);
-      toast.success(`Exported ${days.length} day${days.length === 1 ? "" : "s"}`);
+      toast.success(
+        `Exported ${days.length} day${days.length === 1 ? "" : "s"}`
+        + (plannedDays ? ` — ${plannedDays} future day${plannedDays === 1 ? "" : "s"} filled from the rota (grey italic)` : ""),
+      );
+      if (noRota) {
+        toast.warning(`${noRota} ${noRota === 1 ? "person has" : "people have"} no rota on file and ${noRota === 1 ? "is" : "are"} not on the planned days`);
+      }
       close();
     } catch (e) {
       toast.error((e as Error).message);
@@ -468,6 +518,10 @@ export function HeadcountSheetDialog({
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1" />
               </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Days that have not happened yet and have nobody placed are filled from the rota,
+              in grey italic. Booked holiday, sickness and overtime print in their own columns.
+            </p>
             <Button onClick={runExport} disabled={busy || !from || !to} className="w-full">
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Export {datesBetween(from, to).length || 0} day(s)
