@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { probesFor, probePath, paramNames, probeBody, MISSING_CODE } from "./migrationProbes";
+import { probesFor, probePath, paramNames, probeBody, MISSING_CODE, markReplacements } from "./migrationProbes";
 
 const root = resolve(__dirname, "../..");
 
@@ -111,5 +111,60 @@ describe("contra as migrações reais do repositório", () => {
     expect(todas).toContainEqual(expect.objectContaining({ kind: "column", detail: "overtime_request_id" }));
     expect(todas).toContainEqual(expect.objectContaining({ kind: "function", name: "link_me_by_employee_ref" }));
     expect(todas).toContainEqual(expect.objectContaining({ kind: "enum", detail: "employee" }));
+  });
+});
+
+/**
+ * O que a sonda não pode saber, e tem de dizer que não sabe.
+ *
+ * Um `create or replace` sobre uma função que já existia promete um CORPO novo, não
+ * uma função nova. A assinatura não muda, por isso o PostgREST responde igual com o
+ * corpo novo ou com o antigo.
+ *
+ * A 11/10/2026 isto custou caro: `admin_update_auth_email` deu `401 42501`, foi lido
+ * como "existe e já faz o que falta", e um botão foi construído em cima dela. O corpo
+ * estava partido desde Julho e nunca tinha corrido, porque a função nunca tivera um
+ * chamador.
+ */
+describe("markReplacements", () => {
+  const criar = (n: string) => `create or replace function public.${n}(p_x uuid) returns int as $$ select 1 $$;`;
+
+  it("marca a segunda definição e não a primeira", () => {
+    const historico = [
+      { file: "0001_a.sql", sql: criar("foo") },
+      { file: "0002_b.sql", sql: criar("foo") },
+    ];
+    const marcados = markReplacements(
+      [...probesFor(criar("foo"), "0001_a.sql"), ...probesFor(criar("foo"), "0002_b.sql")],
+      historico,
+    );
+    expect(marcados[0].replacesExisting).toBeUndefined();
+    expect(marcados[1].replacesExisting).toBe(true);
+  });
+
+  /**
+   * A razão de receber o histórico TODO e não só as migrações pendentes: a primeira
+   * definição pode ser de meses antes da janela que a sonda cobre, e foi exactamente
+   * esse o caso.
+   */
+  it("vê a primeira definição mesmo fora da janela sondada", () => {
+    const historico = [
+      { file: "0001_julho.sql", sql: criar("admin_update_auth_email") },
+      { file: "9999_outubro.sql", sql: criar("admin_update_auth_email") },
+    ];
+    const [p] = markReplacements(probesFor(criar("admin_update_auth_email"), "9999_outubro.sql"), historico);
+    expect(p.replacesExisting).toBe(true);
+  });
+
+  it("não marca colunas, tabelas nem enums", () => {
+    const sql = "alter table public.t add column if not exists c text;";
+    const [p] = markReplacements(probesFor(sql, "0001_a.sql"), [{ file: "0001_a.sql", sql }]);
+    expect(p.replacesExisting).toBeUndefined();
+  });
+
+  it("uma função mesmo nova não é marcada", () => {
+    const historico = [{ file: "0001_a.sql", sql: criar("nova") }];
+    const [p] = markReplacements(probesFor(criar("nova"), "0001_a.sql"), historico);
+    expect(p.replacesExisting).toBeUndefined();
   });
 });

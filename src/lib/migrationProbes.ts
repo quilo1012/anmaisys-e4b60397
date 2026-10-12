@@ -57,6 +57,20 @@ export interface Probe {
    * function that was actually written.
    */
   args?: string[];
+  /**
+   * Esta migração só SUBSTITUI o corpo de uma função que já existia.
+   *
+   * Nesse caso a sonda não consegue responder à pergunta. Um `create or replace` não
+   * muda a assinatura, por isso a função resolve na mesma e o PostgREST responde
+   * `401` tenha o corpo novo ou o antigo. Dizer "existe" ali é dizer uma coisa que não
+   * se sabe.
+   *
+   * Isto não é teórico. A 11/10/2026 sondei o `admin_update_auth_email`, vi `401
+   * 42501`, concluí "existe e já faz o que falta" e construí um botão em cima dela. O
+   * corpo estava partido desde Julho e nunca tinha corrido. **Existir não é
+   * funcionar**, e uma sonda que não distingue as duas coisas convida ao mesmo erro.
+   */
+  replacesExisting?: boolean;
 }
 
 const FUNCTION_RE = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z0-9_]+)\s*\(([^)]*)\)/gi;
@@ -156,3 +170,35 @@ export const MISSING_CODE: Record<ProbeKind, string> = {
   table: "PGRST205",
   enum: "22P02",
 };
+
+/**
+ * Quais destas promessas a sonda NÃO pode verificar, e porquê.
+ *
+ * Uma migração que faz `create or replace` sobre uma função que já existia não promete
+ * uma função nova — promete um CORPO novo. A assinatura é a mesma, por isso o
+ * PostgREST resolve-a e responde `401` quer o corpo tenha sido substituído quer não. A
+ * sonda não tem como ver a diferença, e "existe" ali é uma afirmação sobre uma coisa
+ * que ela não sabe.
+ *
+ * Recebe as migrações por ordem e marca cada função cuja primeira definição está num
+ * ficheiro anterior. Precisa da lista TODA, e não só das que estão por aplicar: a
+ * primeira definição do `admin_update_auth_email` é de Julho, muito antes da janela
+ * que esta sonda cobre.
+ */
+export function markReplacements(
+  probes: Probe[],
+  allMigrationsInOrder: readonly { file: string; sql: string }[],
+): Probe[] {
+  const firstSeenIn = new Map<string, string>();
+  for (const { file, sql } of allMigrationsInOrder) {
+    const body = withoutComments(sql);
+    for (const m of body.matchAll(FUNCTION_RE)) {
+      if (!firstSeenIn.has(m[1])) firstSeenIn.set(m[1], file);
+    }
+  }
+  return probes.map((p) => {
+    if (p.kind !== "function") return p;
+    const first = firstSeenIn.get(p.name);
+    return first && first !== p.migration ? { ...p, replacesExisting: true } : p;
+  });
+}
