@@ -256,6 +256,38 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * Corrigir a data, as horas ou quantos são precisos num pedido já feito.
+   *
+   * As horas são escritas à mão e um engano fica lá — 18:00–14:00 onde era 18:00–06:00.
+   * Até 12/10/2026 a única saída era cancelar e recomeçar, e com isso iam embora os
+   * sins verdadeiros.
+   *
+   * Isto NÃO apaga respostas, de propósito. Quem já tinha dito que sim fica assinalado
+   * no cartão, porque a resposta guarda o turno a que foi dada — ver
+   * `answeredForDifferentHours`. O supervisor vê a quem tem de ligar; ninguém fica
+   * comprometido em silêncio com horas que nunca viu.
+   *
+   * Pede a linha de volta pela mesma razão que o `setRequestStatus`: um UPDATE recusado
+   * pelas políticas não é erro nenhum, são zero linhas e um 204, e o botão ficava com
+   * ar de morto sem poder dizer porquê.
+   */
+  const editRequest = useMutation({
+    mutationFn: async ({ id, ...patch }: { id: string } & Pick<
+      OvertimeRequest, "on_date" | "starts_at" | "ends_at" | "headcount"
+    >) => {
+      const { data, error } = await db
+        .from("overtime_requests").update(patch).eq("id", id).select("id");
+      if (error) throw error;
+      if (!((data as { id: string }[] | null)?.length)) {
+        throw new Error(
+          "You do not have permission to change this overtime ask, or it no longer exists.",
+        );
+      }
+    },
+    onSuccess: refresh,
+  });
+
   /** The employee's one write. Goes through the RPC so the rules stay in the database. */
   const answer = useMutation({
     mutationFn: async ({ requestId, answer }: { requestId: string; answer: "yes" | "no" }) => {
@@ -267,9 +299,24 @@ export function useOvertimeMutations() {
 
   /** A supervisor answering on behalf of somebody who has no login and said yes at the desk. */
   const answerFor = useMutation({
-    mutationFn: async ({ requestId, employeeId }: { requestId: string; employeeId: string }) => {
+    mutationFn: async ({ requestId, employeeId, window }: {
+      requestId: string; employeeId: string;
+      window?: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at"> | null;
+    }) => {
       const { error } = await db.from("overtime_responses").upsert(
-        { request_id: requestId, employee_id: employeeId, answer: "yes", answered_at: new Date().toISOString() },
+        {
+          request_id: requestId, employee_id: employeeId, answer: "yes",
+          answered_at: new Date().toISOString(),
+          // O mesmo instantâneo que o `answer_overtime` guarda. Sem isto, um sim dado
+          // ao balcão nunca aparecia como desactualizado depois de a hora mudar — e é
+          // exactamente a pessoa que não tem login, por isso a que mais precisa de
+          // alguém se lembrar de lhe ligar.
+          answered_for_date: window?.on_date ?? null,
+          answered_for_starts_at: window?.starts_at ?? null,
+          answered_for_ends_at: window?.ends_at ?? null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- colunas de
+          // 20261012080000; o types.ts só as conhece depois de o bloco ser colado.
+        } as any,
         { onConflict: "request_id,employee_id" },
       );
       if (error) throw error;
@@ -382,5 +429,5 @@ export function useOvertimeMutations() {
     },
   });
 
-  return { createRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, linkMe, saveRules };
+  return { createRequest, editRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, linkMe, saveRules };
 }
