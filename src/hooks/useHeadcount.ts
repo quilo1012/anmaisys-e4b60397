@@ -49,6 +49,11 @@ export type HeadcountEmployee = {
    * for the columns.
    */
   sheet_aliases?: string | null;
+  /**
+   * Set only on somebody who has left: their last day. Active people are read without
+   * it, so its presence on a card is what says "this person has gone".
+   */
+  left_on?: string | null;
 };
 
 export type Allocation = {
@@ -202,6 +207,33 @@ export function withNoCrewOn<T extends Pick<HeadcountEmployee, "id" | "shift_gro
   return everyone.filter((e) => boardShiftFor(resolveShiftOn(history, e, onDate).shift_group) === null);
 }
 
+/**
+ * Who the board can draw on a date: everybody active, plus anybody who has left, up to
+ * and including their last day.
+ *
+ * A leaver keeps the days they worked. Before, the board read active people only, so
+ * on 01/09 Ramon Oliveira and five others were on the Night board's lines in the
+ * database and nowhere on the screen — the board of a day that has happened lied
+ * about who was there. Three duplicate records deactivated on 11–12/10 did the same
+ * to the days booked on them.
+ *
+ * Only up to their last day. After it there is nothing true to draw, and nobody can
+ * place them there: the pickers, the trays and the copy all still read active people.
+ * A leaver with no leaving date stays off every board, because "when" is the thing
+ * this rule turns on and nobody has said it.
+ */
+export function boardPeopleOn<T extends { id: string; left_on?: string | null }>(
+  active: ReadonlyMap<string, T>,
+  leavers: readonly T[],
+  onDate: string,
+): Map<string, T> {
+  const out = new Map(active);
+  for (const p of leavers) {
+    if (p.left_on && onDate <= p.left_on && !out.has(p.id)) out.set(p.id, p);
+  }
+  return out;
+}
+
 export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   const { data: patterns } = useShiftPatterns();
   const { data: history } = useShiftHistory();
@@ -269,7 +301,25 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
 
   const noCrew = useMemo(() => withNoCrewOn(everyone ?? [], history, onDate), [everyone, history, onDate]);
 
-  return { data, byId, onShift, noCrew, isLoading };
+  // Read apart from the roster, so nothing that offers or places a person can see them.
+  const { data: leavers } = useQuery({
+    queryKey: ["headcount-leavers"],
+    queryFn: async (): Promise<HeadcountEmployee[]> => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id,full_name,employee_ref,shift_group,department,shift_pattern_id,sheet_aliases,left_on")
+        .eq("active", false)
+        .not("left_on", "is", null);
+      if (error) throw error;
+      return (data ?? []) as HeadcountEmployee[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  /** Everybody whose saved allocation the board draws on this date. See `boardPeopleOn`. */
+  const boardById = useMemo(() => boardPeopleOn(byId, leavers ?? [], onDate), [byId, leavers, onDate]);
+
+  return { data, byId, boardById, onShift, noCrew, isLoading };
 }
 
 /**
