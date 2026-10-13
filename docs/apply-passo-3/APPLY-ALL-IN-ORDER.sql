@@ -11203,3 +11203,298 @@ update public.employees e
 -- Left behind, if any: rows whose corrected name is already somebody else's.
 --   select id, full_name from public.employees
 --    where full_name is distinct from public.person_name_case(full_name);
+
+-- ================================================================
+-- BLOCO 93
+-- 20261012190000_accepted_overtime_is_planned_not_present.sql
+-- ================================================================
+--
+-- A OVERTIME ACEITE CHEGA AO BOARD: a ponte do 20261007120000 nunca foi aplicada
+-- (sem trigger, sem coluna). Este bloco traz a ponte inteira, sem escrever
+-- "present" antes do dia, e poe no board as aceites de hoje em diante
+-- (a 12/10: Rosana Cardozo, 17/10, Day). Sozinho e idempotente.
+-- Depois, correr supabase/tests/overtime_board_bridge_test.sql.
+--
+
+-- Accepted overtime is a plan on the board, not a day already worked.
+--
+-- Rosana Cardozo, 17/10/2026, 06:00–18:00: answered yes, a supervisor accepted, and the
+-- Day board for the 17th had nothing for her. Read on 12/10/2026 in the SQL editor:
+-- `overtime_responses.decision = 'accepted'`, no `daily_allocations` row on any shift,
+-- and `pg_trigger` with no `overtime_response_to_board_t`. The bridge written in
+-- 20261007120000 never reached production — the column `daily_allocations
+-- .overtime_request_id` and `overtime_board_shift()` both answer 404 to the REST probe.
+-- It was never a bug in the bridge; the wire was in the repository and not in the base.
+--
+-- This file is that bridge, whole and self-contained, so it can be pasted on its own,
+-- with one change: it no longer writes `employee_attendance` 'present' at the moment
+-- of acceptance. An ask is accepted days ahead. Writing 'present' for the 17th on the
+-- 12th says she was in before the day exists, and My Attendance and the finance close
+-- both read that table as a record. The board row (`status = 'overtime'`) is the plan;
+-- presence comes from the clock (TimeMoto → attendance_days) or from a supervisor's
+-- mark on the day, as for everybody else.
+--
+-- Everything 20261007120000 promised about what it will never touch still holds: it
+-- only deletes rows carrying its ask's id, and it inserts with `on conflict do
+-- nothing`, so a person already on the board that day keeps the row they have and is
+-- never drawn twice.
+--
+-- The backfill at the end puts on the board every accepted answer, on an ask that is
+-- not cancelled, for today or later. Past days are left alone: what happened on them
+-- is the board's record already, and adding to it now would rewrite history.
+--
+-- Idempotent.
+
+-- ── 1. The key the board rows carry home ───────────────────────────────────
+alter table public.daily_allocations
+  add column if not exists overtime_request_id uuid null
+    references public.overtime_requests(id) on delete set null;
+
+create index if not exists daily_allocations_overtime_request_id_idx
+  on public.daily_allocations (overtime_request_id)
+  where overtime_request_id is not null;
+
+comment on column public.daily_allocations.overtime_request_id is
+  'The overtime ask that put this row here, or null for every ordinary allocation. '
+  'Only a row carrying an id may be removed by the overtime flow.';
+
+-- ── 2. Which board an ask's hours belong to ────────────────────────────────
+create or replace function public.overtime_board_shift(p_on_date date, p_starts_at time)
+returns text
+language sql stable set search_path = public
+as $$
+  select initcap(public.factory_shift_of((p_on_date + p_starts_at) at time zone 'Europe/London'));
+$$;
+
+-- ── 3. The one place that writes the board on behalf of an ask ─────────────
+create or replace function public.overtime_board_apply(
+  p_request_id  uuid,
+  p_employee_id uuid,
+  p_accepted    boolean
+) returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_req   public.overtime_requests;
+  v_shift text;
+begin
+  select * into v_req from public.overtime_requests where id = p_request_id;
+  if v_req.id is null then return; end if;
+
+  if not p_accepted then
+    -- Only ours. A row the planner made for the same person on the same day has no
+    -- id on it and is invisible to this.
+    delete from public.daily_allocations
+     where overtime_request_id = p_request_id
+       and employee_id = p_employee_id;
+    return;
+  end if;
+
+  if v_req.status = 'cancelled' then return; end if;
+
+  v_shift := public.overtime_board_shift(v_req.on_date, v_req.starts_at);
+
+  -- Planned, not present: no employee_attendance here (see the header).
+  insert into public.daily_allocations
+    (on_date, shift, employee_id, status, area_id, is_leader, overtime_request_id)
+  values
+    (v_req.on_date, v_shift, p_employee_id, 'overtime', null, false, p_request_id)
+  on conflict (on_date, shift, employee_id) do nothing;
+end;
+$$;
+
+revoke all on function public.overtime_board_apply(uuid, uuid, boolean) from public, anon, authenticated;
+
+-- ── 4. The decision ────────────────────────────────────────────────────────
+create or replace function public.overtime_response_to_board()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  -- coalesce: `decision` is null until somebody decides, and null is not false.
+  perform public.overtime_board_apply(
+    new.request_id, new.employee_id, coalesce(new.decision = 'accepted', false));
+  return new;
+end;
+$$;
+
+drop trigger if exists overtime_response_to_board_t on public.overtime_responses;
+create trigger overtime_response_to_board_t
+  after insert or update of decision on public.overtime_responses
+  for each row execute function public.overtime_response_to_board();
+
+-- ── 5. The cancellation ────────────────────────────────────────────────────
+create or replace function public.overtime_request_to_board()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if new.status = 'cancelled' and old.status is distinct from 'cancelled' then
+    delete from public.daily_allocations where overtime_request_id = new.id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists overtime_request_to_board_t on public.overtime_requests;
+create trigger overtime_request_to_board_t
+  after update of status on public.overtime_requests
+  for each row execute function public.overtime_request_to_board();
+
+-- ── 6. What was accepted before the wire existed ───────────────────────────
+-- On 12/10/2026 this is one row: Rosana Cardozo, 17/10, Day.
+select public.overtime_board_apply(r.request_id, r.employee_id, true)
+  from public.overtime_responses r
+  join public.overtime_requests q on q.id = r.request_id
+ where r.decision = 'accepted'
+   and q.status <> 'cancelled'
+   and q.on_date >= current_date;
+
+-- ================================================================
+-- BLOCO 94
+-- 20261012200000_my_attendance_says_where.sql
+-- ================================================================
+--
+-- O MY ATTENDANCE DIZ ONDE: a coluna do board de cada dia e as horas da overtime
+-- aceite. Precisa do BLOCO 90 (my_attendance). Independente do 93. Idempotente.
+--
+
+-- My Attendance says where: the board column for each day, and the hours of overtime.
+--
+-- The employee could see that they were due on the 14th and not where. The board
+-- already knows — `daily_allocations.area_id`, one row per person per day and shift —
+-- and `my_attendance` returned the row without it. Nothing new is stored: the same
+-- rows the Headcount Board draws, with the column's name joined on, so the phone and
+-- the board cannot disagree. A supervisor moving somebody on the board moves them on
+-- the phone at the next load.
+--
+-- Two additions to the jsonb, both new keys, so the screen running before this is
+-- pasted keeps working and the screen running after it before this is pasted shows
+-- no work area rather than a wrong one:
+--   board[].area / area_kind / is_leader   — the column, by the name the board uses
+--   overtime[]                              — accepted overtime asks: date and hours
+--
+-- Still only the caller's own rows: `my_employee_id()` decides whose, as before.
+-- Everything else in the function is 20261012160000 unchanged.
+--
+-- Idempotent.
+
+create or replace function public.my_attendance(p_from date, p_to date)
+returns jsonb
+language plpgsql stable security definer set search_path = public
+as $$
+declare
+  v_emp        uuid;
+  v_year_from  date;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in to see your attendance' using errcode = '42501';
+  end if;
+  -- The baseline is `attendance.view_own` in src/lib/permissions.ts, and must stay so.
+  if not public.has_action(auth.uid(), 'attendance.view_own',
+           array['admin','manager','production_office_admin','engineer',
+                 'maintenance_manager','warehouse','quality_supervisor','employee']::app_role[]) then
+    raise exception 'Not allowed to see attendance' using errcode = '42501';
+  end if;
+  if p_from is null or p_to is null or p_to < p_from then
+    raise exception 'The range must start on or before the day it ends' using errcode = '22023';
+  end if;
+  if p_to - p_from > 400 then
+    raise exception 'Pick a range of at most 400 days' using errcode = '22023';
+  end if;
+
+  v_emp := public.my_employee_id();
+  if v_emp is null then
+    return null;
+  end if;
+
+  -- Two leave years either side of today, so the balance can be counted whatever
+  -- "today" the screen uses; `leaveBalance` keeps only the current one.
+  v_year_from := make_date(extract(year from current_date)::int - 1, 8, 1);
+
+  return jsonb_build_object(
+    'me', (
+      select jsonb_build_object(
+        'id', e.id, 'full_name', e.full_name, 'employee_ref', e.employee_ref,
+        'department', e.department, 'position', e.position,
+        'shift_group', e.shift_group, 'started_on', e.started_on)
+        from public.employees e where e.id = v_emp),
+    'pattern', (
+      select jsonb_build_object(
+        'name', p.name, 'days', p.days, 'starts_at', p.starts_at, 'ends_at', p.ends_at,
+        'break_minutes', p.break_minutes, 'annual_leave_days', p.annual_leave_days)
+        from public.employees e join public.shift_patterns p on p.id = e.shift_pattern_id
+       where e.id = v_emp),
+    'clocks', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'on_date', d.on_date, 'start_time', d.start_time, 'end_time', d.end_time,
+               'worked_minutes', d.worked_minutes, 'balance_minutes', d.balance_minutes,
+               'scheduled_minutes', d.scheduled_minutes,
+               'overtime_adj_minutes', d.overtime_adj_minutes,
+               'absence_name', d.absence_name) order by d.on_date)
+        from public.attendance_days d
+       where d.employee_id = v_emp and d.on_date between p_from and p_to), '[]'::jsonb),
+    -- How far the clock record reaches for this person. A rostered day after it is
+    -- "no record yet", never "absent".
+    'clocked_to', (select max(d.on_date) from public.attendance_days d where d.employee_id = v_emp),
+    'clocks_imported_at', (select max(d.imported_at) from public.attendance_days d where d.employee_id = v_emp),
+    'marks', coalesce((
+      select jsonb_agg(jsonb_build_object('on_date', a.on_date, 'status', a.status) order by a.on_date)
+        from public.employee_attendance a
+       where a.employee_id = v_emp and a.on_date between p_from and p_to), '[]'::jsonb),
+    'holiday_marks', coalesce((
+      select jsonb_agg(a.on_date order by a.on_date)
+        from public.employee_attendance a
+       where a.employee_id = v_emp and a.status = 'holiday'
+         and a.on_date between v_year_from and v_year_from + interval '3 years'), '[]'::jsonb),
+    -- Where: the board column the row is in, by the name the board heads it with.
+    -- Null when the row has no column (an absence, or overtime nobody has placed yet)
+    -- — the screen says "not yet assigned" rather than guessing from the department.
+    'board', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'on_date', b.on_date, 'shift', b.shift, 'status', b.status,
+               'half_day', b.half_day, 'area', h.name, 'area_kind', h.kind,
+               'is_leader', b.is_leader) order by b.on_date, b.shift)
+        from public.daily_allocations b
+        left join public.headcount_areas h on h.id = b.area_id
+       where b.employee_id = v_emp and b.on_date between p_from and p_to), '[]'::jsonb),
+    -- The hours of each overtime shift a supervisor accepted this person for. The
+    -- board row says which board; the ask says when it starts and ends, which for a
+    -- Day person on Night overtime is not their rota's hours.
+    'overtime', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'on_date', q.on_date, 'starts_at', q.starts_at, 'ends_at', q.ends_at)
+               order by q.on_date, q.starts_at)
+        from public.overtime_responses r
+        join public.overtime_requests q on q.id = r.request_id
+       where r.employee_id = v_emp and r.decision = 'accepted'
+         and q.status <> 'cancelled'
+         and q.on_date between p_from and p_to), '[]'::jsonb),
+    'requests', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'kind', r.kind, 'start_date', r.start_date, 'end_date', r.end_date,
+               'status', r.status, 'working_days', r.working_days) order by r.start_date)
+        from public.leave_requests r
+       where r.employee_id = v_emp
+         and r.start_date <= p_to and r.end_date >= p_from), '[]'::jsonb),
+    -- Hours payroll recorded for this person, per period. The figure that is paid.
+    'payroll', coalesce((
+      select jsonb_agg(jsonb_build_object('period_id', o.period_id, 'hours', o.hours))
+        from public.overtime_entries o
+        join public.workforce_payroll_periods w on w.id = o.period_id
+       where o.employee_id = v_emp
+         and w.start_date <= p_to and w.end_date >= p_from), '[]'::jsonb),
+    -- The calendar, not anybody's data: the selector needs it, and the table is
+    -- readable by admin alone.
+    'periods', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', w.id, 'name', w.name, 'start_date', w.start_date, 'end_date', w.end_date)
+               order by w.start_date)
+        from public.workforce_payroll_periods w
+       where w.start_date <= current_date + 120), '[]'::jsonb)
+  );
+end;
+$$;
+
+revoke all on function public.my_attendance(date, date) from public;
+grant execute on function public.my_attendance(date, date) to authenticated;

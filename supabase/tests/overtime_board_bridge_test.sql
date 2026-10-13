@@ -1,7 +1,8 @@
 -- Tests for the Overtime → Board bridge (#3): the whole state machine.
 --
 -- Run this WHOLE file in one go, in the Supabase SQL Editor, after
--- 20261007120000_an_accepted_ask_reaches_the_board.sql has been applied. It opens a
+-- 20261012190000_accepted_overtime_is_planned_not_present.sql has been applied
+-- (it carries the whole bridge from 20261007120000, minus the 'present' write). It opens a
 -- transaction, seeds its own throwaway people, asks and board rows, asserts, and
 -- ROLLBACKs: nothing survives it. The last statement prints 'ALL TESTS PASSED'; any
 -- failure raises and aborts before it, naming the case.
@@ -93,10 +94,10 @@ BEGIN
    WHERE overtime_request_id = ask_1 AND employee_id = e_a AND status = 'overtime';
   PERFORM pg_temp.expect_true('accepted creates the allocation', n = 1);
 
-  -- and the payroll mirror follows it
+  -- and it is a plan, not a record: nobody is 'present' a month before the day
   SELECT count(*) INTO n FROM public.employee_attendance
-   WHERE employee_id = e_a AND on_date = current_date + 30 AND status = 'present';
-  PERFORM pg_temp.expect_true('accepted reaches employee_attendance', n = 1);
+   WHERE employee_id = e_a AND on_date = current_date + 30;
+  PERFORM pg_temp.expect_true('accepted writes no attendance ahead of the day', n = 0);
 
   -- accepted again → no duplicate
   UPDATE public.overtime_responses SET decision = 'accepted' WHERE id = resp_a;
@@ -205,17 +206,17 @@ BEGIN
    WHERE overtime_request_id = ask_2 AND employee_id = e_a;
   PERFORM pg_temp.expect_true('declining takes the allocation', n = 0);
   SELECT count(*) INTO n FROM public.employee_attendance
-   WHERE employee_id = e_a AND on_date = current_date + 30 AND status = 'present';
-  PERFORM pg_temp.expect_true('but the attendance row stays for a human to settle', n = 1);
+   WHERE employee_id = e_a AND on_date = current_date + 30;
+  PERFORM pg_temp.expect_true('and there is no attendance row to leave behind', n = 0);
 
   -- (4) A promoted reserve gets their own attendance, like anybody else accepted.
   UPDATE public.overtime_responses SET decision = 'reserve'
    WHERE request_id = ask_2 AND employee_id = e_a;
   UPDATE public.overtime_responses SET decision = 'accepted'
    WHERE request_id = ask_2 AND employee_id = e_a;
-  SELECT count(*) INTO n FROM public.employee_attendance
-   WHERE employee_id = e_a AND on_date = current_date + 30 AND status = 'present';
-  PERFORM pg_temp.expect_true('a promoted reserve has their attendance', n = 1);
+  SELECT count(*) INTO n FROM public.daily_allocations
+   WHERE overtime_request_id = ask_2 AND employee_id = e_a AND status = 'overtime';
+  PERFORM pg_temp.expect_true('a promoted reserve is on the board', n = 1);
 
   -- (5) Nothing the overtime flow does touches an attendance row belonging to another
   -- day or another person. Cancelling the whole ask is the widest action it has.
@@ -225,7 +226,7 @@ BEGIN
   PERFORM pg_temp.expect_true('cancelling the ask leaves another context''s attendance', n = 1);
   SELECT count(*) INTO n FROM public.employee_attendance
    WHERE employee_id = e_a AND on_date = current_date + 30;
-  PERFORM pg_temp.expect_true('and leaves the accepted person''s attendance too', n = 1);
+  PERFORM pg_temp.expect_true('and wrote none for the accepted person', n = 0);
 END $$;
 
 SELECT 'ALL TESTS PASSED' AS result;

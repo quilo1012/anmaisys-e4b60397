@@ -13,15 +13,14 @@
  *
  * Pure functions only. None of this writes; the writes stay in `useOvertimeRequests`.
  */
-import { countResponses, type OvertimeRequest, type OvertimeResponse, type OvertimeOutcome } from "@/lib/overtimeRequests";
+import { countResponses, overtimeBoardFor, type OvertimeRequest, type OvertimeResponse, type OvertimeOutcome } from "@/lib/overtimeRequests";
 
 export type OvertimeShift = "Day" | "Night";
 export const OVERTIME_SHIFTS: OvertimeShift[] = ["Day", "Night"];
 
 /** Which board the ask's hours land on. Mirrors `overtime_board_shift` in the database. */
 export function askShift(request: Pick<OvertimeRequest, "starts_at">): OvertimeShift {
-  const h = Number(request.starts_at.slice(0, 2));
-  return h >= 6 && h < 18 ? "Day" : "Night";
+  return overtimeBoardFor(request.starts_at);
 }
 
 /** Minutes from start to end, across midnight. Same reading as `hoursBetween`. */

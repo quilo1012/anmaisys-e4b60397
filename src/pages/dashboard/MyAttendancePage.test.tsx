@@ -72,8 +72,10 @@ describe("My Attendance", () => {
     env.result.mockReturnValue(ready());
     renderPage();
     expect(screen.getByText(/Ana Silva/)).toBeInTheDocument();
-    // The second call asks for the pay period, once the periods are known.
-    expect(env.result).toHaveBeenLastCalledWith("2026-10-12", "2026-11-08");
+    // The page asks again for the pay period, once the periods are known. (The
+    // "Where I'm working" card makes its own call, for the next two weeks.)
+    expect(env.result).toHaveBeenCalledWith("2026-10-12", "2026-11-08");
+    expect(env.result).toHaveBeenCalledWith("2026-10-20", "2026-11-02");
     const hours = screen.getByTestId("hours-balance");
     expect(hours).toHaveTextContent(/Overtime for October 2026/);
     expect(hours).toHaveTextContent(/not yet approved or paid/i);
@@ -94,9 +96,28 @@ describe("My Attendance", () => {
     expect(screen.getByTestId("day-detail")).toHaveTextContent(/not counted as an absence/i);
   });
 
-  it("marks overtime on the present day itself", () => {
-    env.result.mockReturnValue(ready());
+  it("marks overtime on the present day itself, when it was an overtime shift", () => {
+    env.result.mockReturnValue({ data: { state: "ready", data: {
+      ...DATA, board: [{ on_date: "2026-10-12", shift: "Day", status: "overtime", half_day: null }],
+    } }, isLoading: false, isError: false });
     renderPage();
     expect(screen.getByRole("button", { name: /(12 Oct|Oct 12).*Present, overtime/ })).toBeInTheDocument();
+  });
+
+  it("does not put OT on a rota day just because the clock ran over", () => {
+    env.result.mockReturnValue(ready());
+    renderPage();
+    expect(screen.getByRole("button", { name: /(12 Oct|Oct 12).*Present/ })).not.toHaveAccessibleName(/overtime/);
+  });
+
+  it("says where they are working, from the board, and admits what nobody placed", () => {
+    env.result.mockReturnValue({ data: { state: "ready", data: {
+      ...DATA,
+      board: [{ on_date: "2026-10-20", shift: "Day", status: "assigned", half_day: null, area: "Gel Line", area_kind: "production", is_leader: false }],
+    } }, isLoading: false, isError: false });
+    renderPage();
+    const card = screen.getByTestId("where-im-working");
+    expect(card).toHaveTextContent("Gel Line");
+    expect(card).toHaveTextContent("Work area not yet assigned");
   });
 });

@@ -23,7 +23,7 @@ import {
 } from "@/hooks/useOvertimeRequests";
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
-  windowLabel, audienceLine, requestIsForEmployee, type OvertimeRequest, type OvertimeResponse,
+  windowLabel, audienceLine, deskCandidates, type OvertimeRequest, type OvertimeResponse,
   type OvertimeOutcome, type Candidate, type Reliability, hoursBetween,
 } from "@/lib/overtimeRequests";
 import {
@@ -424,8 +424,9 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
           {/* The board this lands on is decided by the start time — the same rule the
               database uses. Said out loud so a 17:00 start is not a surprise. */}
           {target && (
-            <p className="text-xs text-muted-foreground">
-              Lands on the <strong className="text-foreground">{target.toLowerCase()} shift</strong> board · {hoursBetween(startsAt, endsAt)}
+            <p className="text-xs text-muted-foreground" data-testid="ot-target-board">
+              Goes on the <strong className="text-foreground">{target}</strong> board of {fmtDate(onDate)} · {hoursBetween(startsAt, endsAt)}.
+              The crew only decides who is asked; you can still add anybody from any crew.
             </p>
           )}
           <div className="grid gap-1.5">
@@ -444,13 +445,13 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
               </Select>
             </div>
             <div className="grid gap-1.5">
-              {/* Who may answer from their phone, by their own crew. Not the shift the
+              {/* Who is asked on their phone, by their own crew. Not the shift the
                   overtime is on — that is the time above. */}
-              <Label>Crew who can answer</Label>
+              <Label>Crew asked</Label>
               <Select value={shiftGroup} onValueChange={setShiftGroup}>
-                <SelectTrigger aria-label="Crew who can answer"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Crew asked"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any crew</SelectItem>
+                  <SelectItem value="all">Every crew</SelectItem>
                   {shiftGroups.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -555,16 +556,12 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
 
   const clashOf = (employeeId: string) => clashesFor(employeeId, request, ctx.others, ctx.board);
 
-  /**
-   * Who can be added at the desk. Everybody active who has not answered — the ask's
-   * crew and department narrow who sees it on a phone, not who a supervisor may put
-   * on it. So people outside the ask's audience are listed too, in their own group:
-   * a day-crew packer can be put on a night ask on purpose, never by accident.
-   */
-  const answered = new Set(responses.map((r) => r.employee_id));
-  const notAnswered = roster.filter((e) => !answered.has(e.id));
-  const inAudience = notAnswered.filter((e) => requestIsForEmployee(request, e));
-  const outsideAudience = notAnswered.filter((e) => !requestIsForEmployee(request, e));
+  // Not narrowed by the ask's crew or department: those say who is asked, and a
+  // supervisor may add anybody — a Day person on Night overtime included. Those
+  // outside the ask get their own group, so it is a choice and never an accident.
+  const desk = deskCandidates(request, roster, new Set(responses.map((r) => r.employee_id)));
+  const inAudience = desk.filter((d) => !d.outside).map((d) => d.employee);
+  const outsideAudience = desk.filter((d) => d.outside).map((d) => d.employee);
   const addOption = (e: RosterName) => {
     const blocked = blockedLabel(reliability?.get(e.id));
     const clash = clashOf(e.id)[0];

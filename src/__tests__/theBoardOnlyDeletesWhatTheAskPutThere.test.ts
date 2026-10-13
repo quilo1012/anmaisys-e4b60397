@@ -99,3 +99,39 @@ describe("the overtime → board bridge", () => {
     expect(sql()).toMatch(/v_req\.status\s*=\s*'cancelled'\s*then return/i);
   });
 });
+
+/**
+ * 20261007120000 never reached production (12/10/2026: no trigger, no column), and
+ * 20261012190000 carries the bridge in its place. The same guarantees, read off the
+ * file that will actually be pasted — plus the one rule it changes.
+ */
+describe("the bridge as it reaches production (20261012190000)", () => {
+  const live = () => readFileSync(resolve(
+    __dirname, "../../supabase/migrations/20261012190000_accepted_overtime_is_planned_not_present.sql",
+  ), "utf8");
+
+  it("filters every delete of daily_allocations by the ask that wrote the row", () => {
+    const deletes = [...live().matchAll(/delete\s+from\s+public\.daily_allocations([\s\S]*?);/gi)];
+    expect(deletes.length).toBeGreaterThan(0);
+    for (const d of deletes) expect(d[1]).toMatch(/overtime_request_id\s*=/i);
+  });
+
+  it("never writes a person present ahead of the day", () => {
+    // Accepted on the 12th for the 17th is a plan. Presence comes from the clock.
+    expect(live()).not.toMatch(/insert\s+into\s+public\.employee_attendance/i);
+  });
+
+  it("keeps the decision, not the answer, and null as false", () => {
+    const s = live();
+    expect(s).toMatch(/coalesce\(new\.decision = 'accepted', false\)/);
+    expect(s).not.toMatch(/new\.answer/i);
+    expect(s).toMatch(/on conflict \(on_date, shift, employee_id\) do nothing/i);
+  });
+
+  it("backfills only accepted, uncancelled asks from today on", () => {
+    const back = live().slice(live().indexOf("── 6."));
+    expect(back).toMatch(/r\.decision = 'accepted'/);
+    expect(back).toMatch(/q\.status <> 'cancelled'/);
+    expect(back).toMatch(/q\.on_date >= current_date/);
+  });
+});

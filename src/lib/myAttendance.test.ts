@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildClose, countDaysAway } from "@/lib/financeClose";
 import {
-  buildMyDays, summarise, rangeChoices, defaultRange, periodMatching,
+  buildMyDays, myShifts, summarise, rangeChoices, defaultRange, periodMatching,
   type MyAttendanceData, type MyClockRow,
 } from "./myAttendance";
 
@@ -64,16 +64,37 @@ describe("a day is absent only when a record says so", () => {
 });
 
 describe("overtime is a mark on a present day, never a second day", () => {
+  const ot = (on_date: string) => ({ on_date, shift: "Day", status: "overtime", half_day: null });
+
   it("flags the day and counts it once", () => {
-    const d = data({ clocks: [clock("2026-10-05", 750, 90)] });
+    const d = data({ clocks: [clock("2026-10-05", 750, 90)], board: [ot("2026-10-05")] });
     const days = buildMyDays(d, "2026-10-05", "2026-10-05", "2026-10-20");
     expect(days[0]).toMatchObject({ status: "present", overtime: true });
     expect(summarise(d, days, "2026-10-05", "2026-10-05", "2026-10-20").daysPresent).toBe(1);
   });
 
-  it("marks work on a rest day as present with overtime", () => {
-    const d = data({ clocks: [clock("2026-10-09", 660, 660, { scheduled_minutes: 0 })] });
-    expect(day(d, "2026-10-09")).toMatchObject({ status: "present", overtime: true, due: false });
+  it("does not call extra clocked minutes on a rota day overtime", () => {
+    // The "OT" on ordinary days: 90 minutes over schedule is a balance the period
+    // settles, deficit first — not an overtime shift.
+    const d = data({ clocks: [clock("2026-10-05", 750, 90)] });
+    expect(day(d, "2026-10-05")).toMatchObject({ status: "present", overtime: false });
+  });
+
+  it("marks work on a rest day as present, and overtime only when it was an overtime shift", () => {
+    const worked = clock("2026-10-09", 660, 660, { scheduled_minutes: 0 });
+    expect(day(data({ clocks: [worked] }), "2026-10-09")).toMatchObject({ status: "present", overtime: false, due: false });
+    expect(day(data({ clocks: [worked], board: [ot("2026-10-09")] }), "2026-10-09"))
+      .toMatchObject({ status: "present", overtime: true, due: false });
+  });
+
+  it("shows accepted overtime ahead of the day as scheduled, not present", () => {
+    // Rosana Cardozo, Saturday 17/10/2026, seen on the 12th.
+    const d = data({ board: [ot("2026-10-17")] });
+    expect(day(d, "2026-10-17", "2026-10-12")).toMatchObject({ status: "scheduled", overtime: true, due: false });
+  });
+
+  it("keeps an ordinary future rota day scheduled and without OT", () => {
+    expect(day(data(), "2026-10-15", "2026-10-12")).toMatchObject({ status: "scheduled", overtime: false, due: true });
   });
 });
 
@@ -236,5 +257,49 @@ describe("ranges", () => {
   it("knows a range is a pay period only when it matches exactly", () => {
     expect(periodMatching(periods, "2026-10-12", "2026-11-08")?.id).toBe("b");
     expect(periodMatching(periods, "2026-10-12", "2026-11-07")).toBeNull();
+  });
+});
+
+describe("where I'm working comes from the Headcount Board", () => {
+  const row = (on_date: string, extra: Partial<MyAttendanceData["board"][number]> = {}) =>
+    ({ on_date, shift: "Day", status: "assigned", half_day: null, area: "Line 1", area_kind: "production", is_leader: false, ...extra });
+
+  it("gives each day its own column", () => {
+    const d = data({ board: [row("2026-10-13", { area: "Gel Line" }), row("2026-10-14")] });
+    expect(myShifts(d, "2026-10-13", "2026-10-14").map((s) => [s.date, s.shift, s.area, s.hours]))
+      .toEqual([["2026-10-13", "Day", "Gel Line", "06:00–18:00"], ["2026-10-14", "Day", "Line 1", "06:00–18:00"]]);
+  });
+
+  it("says not yet assigned for a rota day the board has not placed, never the department", () => {
+    const [s] = myShifts(data(), "2026-10-15", "2026-10-15");
+    expect(s).toMatchObject({ kind: "scheduled", shift: "Day", area: null });
+  });
+
+  it("does not claim 'not assigned' when the database was not asked for the column", () => {
+    const old = { on_date: "2026-10-13", shift: "Day", status: "assigned", half_day: null };
+    expect(myShifts(data({ board: [old] }), "2026-10-13", "2026-10-13")[0].area).toBeUndefined();
+  });
+
+  it("shows cross-shift overtime on the board and hours of the ask, beside the normal day", () => {
+    const d = data({
+      board: [row("2026-10-13"), row("2026-10-13", { shift: "Night", status: "overtime", area: "Blender Team" })],
+      overtime: [{ on_date: "2026-10-13", starts_at: "18:00:00", ends_at: "06:00:00" }],
+    });
+    expect(myShifts(d, "2026-10-13", "2026-10-13").map((s) => [s.shift, s.kind, s.area, s.hours])).toEqual([
+      ["Day", "scheduled", "Line 1", "06:00–18:00"],
+      ["Night", "overtime", "Blender Team", "18:00–06:00"],
+    ]);
+  });
+
+  it("lists accepted overtime the board does not hold yet, unassigned", () => {
+    const d = data({ overtime: [{ on_date: "2026-10-17", starts_at: "06:00:00", ends_at: "18:00:00" }] });
+    expect(myShifts(d, "2026-10-17", "2026-10-17")).toEqual([
+      { date: "2026-10-17", shift: "Day", hours: "06:00–18:00", kind: "overtime", area: null, leader: false },
+    ]);
+  });
+
+  it("gives an away day no work area", () => {
+    const d = data({ board: [row("2026-10-13", { status: "holiday", area: null })] });
+    expect(myShifts(d, "2026-10-13", "2026-10-13")[0]).toMatchObject({ kind: "holiday", area: null, hours: null });
   });
 });
