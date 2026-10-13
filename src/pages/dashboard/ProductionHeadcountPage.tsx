@@ -36,7 +36,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BackButton } from "@/components/BackButton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
@@ -601,6 +600,20 @@ function DropZone({
  * on — "how many are in production" is the question, and the other four are how it
  * breaks down.
  */
+/** A band action: icon always, its word from 1536px up. The word is the accessible name either way. */
+function HeaderAction({
+  icon: Icon, label, title, onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>; label: string; title: string; onClick: () => void;
+}) {
+  return (
+    <Button size="sm" variant="secondary" className="h-8 px-2.5 print:hidden" aria-label={label} title={title} onClick={onClick}>
+      <Icon className="h-4 w-4 2xl:mr-2" />
+      <span className="hidden 2xl:inline">{label}</span>
+    </Button>
+  );
+}
+
 function KpiPill({
   icon: Icon, label, value, tone, highlight, valueTone,
 }: {
@@ -608,12 +621,10 @@ function KpiPill({
   label: string; value: number; tone: string; highlight?: boolean; valueTone?: string;
 }) {
   return (
-    <div className={cn("rounded-xl border px-3 py-2.5 shadow-sm", highlight ? cn(tone, "border-transparent") : "bg-card")}>
-      <div className="flex items-center gap-1.5">
-        <Icon className={cn("h-3.5 w-3.5 shrink-0", highlight ? "" : "text-muted-foreground")} />
-        <span className={cn("font-figure text-2xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
-      </div>
-      <div className="mt-1.5 truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+    <div className={cn("flex items-center gap-1.5 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"))}>
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", highlight ? "" : "text-muted-foreground")} />
+      <span className={cn("font-figure text-xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
+      <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -623,11 +634,18 @@ function ShiftBoard({
   shift,
   areas,
   canManage,
+  onSync,
 }: {
   onDate: string;
   shift: ShiftKey;
   areas: HeadcountArea[];
   canManage: boolean;
+  /**
+   * Opens the SharePoint sync for this board's sheet, from the "not imported" notice.
+   * Absent where the band's sync would read the other board's sheet — in Both, it reads
+   * the day sheet, so the night board offers only the copy.
+   */
+  onSync?: () => void;
 }) {
   /**
    * Everyone on the crew, rota or no rota.
@@ -1021,21 +1039,60 @@ function ShiftBoard({
       title={`Production Headcount — ${shift} shift — ${format(parseISO(onDate), "EEEE dd.MM.yyyy")}`}
       layout={printSheetLayout({ areas, allocations, employeeById })}
     />
-    <div className="headcount-on-screen space-y-4">
+    <div className="headcount-on-screen space-y-3">
       {/* Says whose board this is before a single column is read.
           It used to be a full-width colour slab in white type. The colour is doing
           real work — in Split the two boards are otherwise identical grids side by
           side — so it stays, as a rule down the edge and a tinted icon rather than
-          the loudest thing on the screen. */}
-      <div className={cn("flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-2.5 border-l-[3px]", look.rule)}>
-        <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", look.chip)}>
-          <ShiftIcon className="h-4 w-4" />
+          the loudest thing on the screen.
+
+          One card, two lines: what the board adds up to, then what can be done to it.
+          They were a bar of controls and, under it, five tall cards for five numbers —
+          two hundred pixels of a laptop before Line 1. The figures are the same five,
+          counted the same way; they are just set in a line instead of in boxes. */}
+      <div className={cn("rounded-xl border bg-card border-l-[3px]", look.rule)}>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2">
+          <div className="flex items-center gap-2">
+            <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md", look.chip)}>
+              <ShiftIcon className="h-4 w-4" />
+            </div>
+            {/* The day type is in the band above, once for both boards. */}
+            <h3 className="whitespace-nowrap text-sm font-bold leading-tight">{shift} shift</h3>
+          </div>
+          {/* The two numbers side by side, because apart they invite the wrong sum:
+              46 assigned out of 82 due in is a shift half planned, and "46" alone
+              reads like the whole answer. The rest of the rota is named underneath so
+              nobody has to work out where the other 36 went. */}
+          <div className="shrink-0 sm:border-l sm:pl-4">
+            <div className="flex items-baseline gap-1.5">
+              <b className={cn("font-figure text-lg font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
+              <span className="whitespace-nowrap text-2xs font-bold uppercase tracking-wider text-muted-foreground">
+                / {roster.length} {showAll ? "on this shift" : "on the rota"}
+              </span>
+            </div>
+            <div className="mt-1 h-1 w-36 overflow-hidden rounded-full bg-border">
+              <div
+                className={cn("h-full rounded-full", look.rule.replace("border-l-", "bg-"))}
+                style={{ width: `${roster.length ? Math.min(100, (assignedCount / roster.length) * 100) : 0}%` }}
+              />
+            </div>
+            <div className="mt-0.5 whitespace-nowrap text-2xs text-muted-foreground">
+              {unassigned.length} unallocated · {away} away
+              {training > 0 && <> · {training} training</>}
+              {noCrewUnplaced.length > 0 && <> · {noCrewUnplaced.length} with no crew</>}
+            </div>
+          </div>
+          {/* `headcount-kpis`: the print sheet sets these five in one row. See index.css. */}
+          <div className="headcount-kpis flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-x-4 gap-y-1 sm:border-l sm:pl-4">
+            <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
+            <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
+            <KpiPill icon={Wrench} label="Support" value={support} tone="" />
+            <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
+            {/* People on an overtime shift, not hours. */}
+            <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
+          </div>
         </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-bold leading-tight">{shift} shift</h3>
-          <div className="truncate text-2xs text-muted-foreground">{dayTypeLabel(onDate)}</div>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 border-t px-3 py-1.5 print:hidden">
           {/* Sector filter: which blocks are drawn at all. Screen-only — the printed
               sheet always carries the whole board. */}
           <div className="flex items-center gap-1 print:hidden" role="group" aria-label="Show sectors">
@@ -1222,29 +1279,6 @@ function ShiftBoard({
               </AlertDialogContent>
             </AlertDialog>
           )}
-          {/* The two numbers side by side, because apart they invite the wrong sum:
-              46 assigned out of 82 due in is a shift half planned, and "46" alone
-              reads like the whole answer. The rest of the rota is named underneath so
-              nobody has to work out where the other 36 went. */}
-          <div className={cn("rounded-lg px-3 py-1.5 text-right", look.soft)}>
-            <div className="flex items-baseline justify-end gap-1.5">
-              <b className={cn("font-figure text-xl font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
-              <span className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
-                / {roster.length} {showAll ? "on this shift" : "on the rota"}
-              </span>
-            </div>
-            <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-border">
-              <div
-                className={cn("h-full rounded-full", look.rule.replace("border-l-", "bg-"))}
-                style={{ width: `${roster.length ? Math.min(100, (assignedCount / roster.length) * 100) : 0}%` }}
-              />
-            </div>
-            <div className="mt-1 text-2xs text-muted-foreground">
-              {unassigned.length} unallocated · {away} away
-              {training > 0 && <> · {training} training</>}
-              {noCrewUnplaced.length > 0 && <> · {noCrewUnplaced.length} with no crew</>}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1260,8 +1294,8 @@ function ShiftBoard({
           It outlives the toast and the page load on purpose. "I copied the wrong day"
           is noticed a minute later, by which time a four-second toast is long gone. */}
       {canManage && undoable && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/5 px-4 py-2.5 print:hidden">
-          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-warning/15 text-warning-strong">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/5 px-3 py-1.5 print:hidden">
+          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-warning/15 text-warning-strong">
             <Undo2 className="h-4 w-4" />
           </div>
           <div className="min-w-0">
@@ -1323,29 +1357,41 @@ function ShiftBoard({
         allocations: allocations.length,
         dueOnRota: roster.length,
       }) && (
-        <div role="status" className="flex items-center gap-2 border border-warning/50 bg-warning/10 px-3 py-2 text-sm print:hidden">
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-warning/50 bg-warning/10 px-3 py-1.5 text-sm print:hidden">
           <AlertTriangle className="h-4 w-4 shrink-0 text-warning-strong" />
-          <span>
+          <span className="min-w-0 flex-1">
             <b>{shift} not imported for this date.</b>{" "}
             <span className="text-muted-foreground">
               {roster.length} on the rota and nobody on the board — import the {shift.toLowerCase()} sheet, or copy a day.
             </span>
           </span>
+          {/* The two ways out, where the problem is said, rather than up in the band and
+              down in the toolbar for somebody to connect. */}
+          {canManage && (
+            <span className="flex shrink-0 items-center gap-2">
+              {onSync && (
+                <Button size="sm" variant="outline" className="h-7 border-warning/50 bg-background" onClick={onSync}>
+                  <CloudDownload className="mr-1.5 h-3.5 w-3.5" />
+                  Sync the {shift.toLowerCase()} sheet
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7"
+                onClick={() => runCopy({ kind: "last" })}
+                disabled={copyLastLikeDay.isPending}
+              >
+                <CopyPlus className="mr-1.5 h-3.5 w-3.5" />
+                Copy the last day
+              </Button>
+            </span>
+          )}
         </div>
       )}
 
-      {/* `headcount-kpis`: the print sheet sets these five in one row. See index.css. */}
-      <div className="headcount-kpis grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
-        <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
-        <KpiPill icon={Wrench} label="Support" value={support} tone="" />
-        <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
-        {/* People on an overtime shift, not hours. */}
-        <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
-      </div>
-
       {ghostCount > 0 && (
-        <div className={cn("mt-4 flex flex-wrap items-center justify-between gap-3 border bg-muted px-3 py-2", SHEET_RULE)}>
+        <div className={cn("flex flex-wrap items-center justify-between gap-3 border bg-muted px-3 py-1.5", SHEET_RULE)}>
           <p className="text-sm">
             <span className="font-bold">Not planned yet.</span>{" "}
             <span className="text-muted-foreground">
@@ -1872,6 +1918,8 @@ export default function ProductionHeadcountPage() {
   const { byId: everyoneById } = useShiftRoster(sheetShift, date, true);
   const sheetRoster = useMemo(() => [...everyoneById.values()], [everyoneById]);
 
+  const openSync = () => { setSyncing(true); setSheet("import"); };
+
   const shiftDate = (delta: number) => {
     const d = new Date(`${date}T12:00:00`);
     d.setDate(d.getDate() + delta);
@@ -1898,35 +1946,54 @@ export default function ProductionHeadcountPage() {
         because paper has no window to widen. `print-landscape` turns the paper: the
         board is a row of up to twenty columns, and portrait made a sheet meant to be
         read on a wall come out as pages of fragments. */}
-    <div className="space-y-4 print-content print-landscape">
-      {/* Above the banner rather than inside it: the banner is navy, and a ghost
-          button on it reads as disabled. Same component and same position as every
-          other screen, so leaving the board is where the hand already expects it —
-          the board scrolls for twenty columns and the shell's Back is a long way up. */}
-      <BackButton className="no-print" />
-      <WorkforceTabs />
-
-      {/* Where the clock is, before any figure below is read against it. Compact here:
-          this screen is the board, and the clock is context for it rather than its
-          subject. */}
-      <ClockCoverageNote todayIso={opened.operationalDate} compact className="no-print" />
+    <div className="space-y-3 print-content print-landscape">
+      {/* One line for where you are and how fresh the clock is. They were three rows —
+          a second Back (the shell's is pinned above this page and never scrolls away),
+          the tabs, and the clock note under them — before the band had started. */}
+      <div className="no-print flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <WorkforceTabs />
+        {/* Where the clock is, before any figure below is read against it. Compact here:
+            this screen is the board, and the clock is context for it rather than its
+            subject. */}
+        <ClockCoverageNote todayIso={opened.operationalDate} compact />
+      </div>
 
       <ModuleHeader
         title="Production Headcount"
         description="Daily allocation of people to production and support areas"
+        compact
         // The band is a `<header>`, and the print sheet hides every one of those. It
         // carries the title and the date, which is everything that makes a printed
         // board a document rather than a grid of names.
         className="print-keep"
       >
         <>
+            {/* Which board, beside which day: the two answer one question together, and
+                with Day / Night / Both on a row of its own under the band they were read
+                as separate settings. */}
+            <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="print:hidden">
+              <TabsList className="h-9 bg-white/10 p-1 text-white/70">
+                {/* Two boards, not four. Day carries everybody whose shift runs while the
+                    lines do — Mon–Thu, Fri–Mon and the warehouse — which is how the
+                    factory's own sheets are drawn. Each card says which crew. */}
+                {(["Day", "Night", "Split"] as const).map((v) => (
+                  <TabsTrigger
+                    key={v}
+                    value={v}
+                    className="h-7 px-3 text-xs text-white/75 focus-visible:ring-white/70 focus-visible:ring-offset-0 data-[state=inactive]:hover:text-white data-[state=active]:bg-white data-[state=active]:text-[hsl(var(--section))]"
+                  >
+                    {v === "Split" ? "Both" : v}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
             {/* The arrows step, and the date itself opens a calendar. Stepping is right
                 for the days either side of the one you are on — which is most of the
                 use — and hopeless for the rest: a board wanted three weeks out was
                 twenty-one presses, so people gave up and read the spreadsheet instead.
                 The date looked like a label because it was one; it is now the control
                 its position always promised. */}
-            <div className="flex items-center gap-1 rounded-lg bg-white/10 p-1 print:bg-transparent">
+            <div className="flex items-center gap-0.5 rounded-lg bg-white/10 p-0.5 print:bg-transparent">
               <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20 print:hidden" onClick={() => shiftDate(-1)} aria-label="Previous day">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -1937,7 +2004,7 @@ export default function ProductionHeadcountPage() {
                     // `print-keep` because this is where the printed sheet says which
                     // day it is. Everything else in this band is a control and prints
                     // hidden; the date is the record.
-                    className="print-keep min-w-[9.5rem] rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 print:px-0 print:text-black print:hover:bg-transparent"
+                    className="print-keep min-w-[8.5rem] rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 print:px-0 print:text-black print:hover:bg-transparent"
                     aria-label={`Showing ${formatLong(date)} — pick another day`}
                   >
                     {formatLong(date)}
@@ -1968,7 +2035,7 @@ export default function ProductionHeadcountPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 text-white hover:bg-white/20 print:hidden"
+                className="h-8 px-2.5 text-white hover:bg-white/20 print:hidden"
                 // Asked again on the press rather than reused from mount: this screen
                 // is left open on a wall tablet for days, and `opened` is the shift that
                 // was running when it was loaded. A "Today" that returns to Tuesday is
@@ -1998,10 +2065,11 @@ export default function ProductionHeadcountPage() {
                 Night still running — filed under {formatLong(date)}
               </Badge>
             )}
-            <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setSheet("export")}>
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
+            {/* The actions, apart from the date by a rule. Below 1536px they keep their
+                icon and lose the word (the name stays as the accessible name and the
+                tooltip), which is what lets the band stay one line on a laptop. Sync
+                keeps a word at every width: it is the one pressed every morning. */}
+            <span aria-hidden className="mx-1 hidden h-6 w-px bg-white/20 sm:block print:hidden" />
             {canManage && (
               <>
                 {/* The sheet the office types every morning, one press away. It opens the
@@ -2009,35 +2077,22 @@ export default function ProductionHeadcountPage() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="print:hidden"
-                  onClick={() => { setSyncing(true); setSheet("import"); }}
+                  className="h-8 print:hidden"
+                  aria-label="Sync from SharePoint"
+                  title="Sync from SharePoint — read today's sheet and preview it before anything is saved"
+                  onClick={openSync}
                 >
-                  <CloudDownload className="mr-2 h-4 w-4" />
-                  Sync from SharePoint
+                  <CloudDownload className="h-4 w-4 2xl:mr-2" />
+                  <span className="ml-1.5 2xl:hidden">Sync</span>
+                  <span className="hidden 2xl:inline">Sync from SharePoint</span>
                 </Button>
-                <Button size="sm" variant="secondary" className="print:hidden" onClick={() => { setSyncing(false); setSheet("import"); }}>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Import
-                </Button>
+                <HeaderAction icon={Upload} label="Import" title="Import a sheet from a file" onClick={() => { setSyncing(false); setSheet("import"); }} />
               </>
             )}
-            <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
-              <Printer className="mr-2 h-4 w-4" />
-              Print
-            </Button>
+            <HeaderAction icon={Download} label="Export" title="Export this day as a sheet" onClick={() => setSheet("export")} />
+            <HeaderAction icon={Printer} label="Print" title="Print the board" onClick={() => window.print()} />
         </>
       </ModuleHeader>
-
-      <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="print:hidden">
-        <TabsList>
-          {/* Two boards, not four. Day carries everybody whose shift runs while the
-              lines do — Mon–Thu, Fri–Mon and the warehouse — which is how the
-              factory's own sheets are drawn. Each card says which crew. */}
-          <TabsTrigger value="Day">Day</TabsTrigger>
-          <TabsTrigger value="Night">Night</TabsTrigger>
-          <TabsTrigger value="Split">Both</TabsTrigger>
-        </TabsList>
-      </Tabs>
 
       {!canManage && (
         <p className="text-xs text-muted-foreground print:hidden">Read-only view — you don't have permission to change allocations.</p>
@@ -2047,11 +2102,11 @@ export default function ProductionHeadcountPage() {
         <Skeleton className="h-64 w-full" />
       ) : view === "Split" ? (
         <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
-          <ShiftBoard onDate={date} shift="Day" areas={areas} canManage={canManage} />
+          <ShiftBoard onDate={date} shift="Day" areas={areas} canManage={canManage} onSync={openSync} />
           <ShiftBoard onDate={date} shift="Night" areas={areas} canManage={canManage} />
         </div>
       ) : (
-        <ShiftBoard onDate={date} shift={view} areas={areas} canManage={canManage} />
+        <ShiftBoard onDate={date} shift={view} areas={areas} canManage={canManage} onSync={openSync} />
       )}
 
       {/* The board is today; these two are the period it adds up to. Kept on the same
