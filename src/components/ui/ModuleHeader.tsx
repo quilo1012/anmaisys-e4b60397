@@ -27,7 +27,7 @@ import appliedMark from "@/assets/appliedlogo.jpeg";
  * seen the tabs.
  */
 export function ModuleHeader({
-  title, description, module = "Workforce", brand = false, children, className,
+  title, description, module = "Workforce", brand = false, compact = false, children, className,
 }: {
   title: string;
   description?: string;
@@ -53,6 +53,16 @@ export function ModuleHeader({
    * sidebar appears.
    */
   brand?: boolean;
+  /**
+   * One row, for a screen whose subject is below the band rather than in it.
+   *
+   * The board's band was three lines of title (eyebrow, name, description) beside a row
+   * of controls, and on a 1366×768 laptop that band, the tabs above it and the shift
+   * bar under it pushed Line 1 to the bottom edge of the screen. Compact drops the
+   * eyebrow — the Workforce tabs directly above already answer "where am I" — and moves
+   * the description into the title's tooltip, so the band is one line of controls tall.
+   */
+  compact?: boolean;
   /** Controls belonging to this screen — a period picker, Export, Print. */
   children?: React.ReactNode;
   className?: string;
@@ -60,14 +70,15 @@ export function ModuleHeader({
   return (
     <header
       className={cn(
-        "rounded-xl bg-[hsl(var(--section))] p-4 text-white shadow-sm",
+        "rounded-xl bg-[hsl(var(--section))] text-white shadow-sm",
+        compact ? "px-4 py-2" : "p-4",
         // Ink on paper: the navy would print as a solid block and the page is meant to
         // be handed to somebody.
         "print:bg-white print:p-0 print:text-black print:shadow-none",
         className,
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className={cn("flex flex-wrap items-center justify-between", compact ? "gap-x-3 gap-y-2" : "gap-3")}>
         {brand && (
           <div className="md:hidden">
             <img
@@ -77,17 +88,26 @@ export function ModuleHeader({
             />
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <div className="font-display text-2xs font-semibold uppercase tracking-[0.18em] text-white/60 print:text-black/50">
-            {module}
+        {compact ? (
+          <h1
+            className="shrink-0 font-display text-lg font-bold leading-tight tracking-tight"
+            title={description}
+          >
+            {title}
+          </h1>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-2xs font-semibold uppercase tracking-[0.18em] text-white/60 print:text-black/50">
+              {module}
+            </div>
+            <h1 className="truncate font-display text-xl font-bold tracking-tight">{title}</h1>
+            {description && (
+              <p className="text-xs text-white/70 print:text-black/70">{description}</p>
+            )}
           </div>
-          <h1 className="truncate font-display text-xl font-bold tracking-tight">{title}</h1>
-          {description && (
-            <p className="text-xs text-white/70 print:text-black/70">{description}</p>
-          )}
-        </div>
+        )}
         {children && (
-          <div className="flex flex-wrap items-center gap-2">{children}</div>
+          <div className={cn("flex flex-wrap items-center gap-2", compact && "min-w-0 flex-1 justify-end")}>{children}</div>
         )}
       </div>
     </header>
