@@ -7,20 +7,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/DateField";
+import { ModuleHeader } from "@/components/ui/ModuleHeader";
+import { Figure } from "@/components/ui/Figure";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Users, Check, Clock, X, UserPlus, Loader2, Pencil, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Check, Clock, X, UserPlus, Loader2, Pencil, AlertTriangle, Ban, Sun, Moon, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { can } from "@/lib/permissions";
 import {
-  useOvertimeRequests, useOvertimeResponses, useOvertimeReliability, useOvertimeOutcomes,
-  useOvertimeMutations, useOvertimeRoster, type RosterName,
+  useOvertimeRequests, useOvertimeResponsesFor, useOvertimeOutcomesFor, useOvertimeReliability,
+  useOvertimeMutations, useOvertimeRoster, useOvertimeBoardRows, type RosterName,
 } from "@/hooks/useOvertimeRequests";
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
-  windowLabel, audienceLine, type OvertimeRequest, type OvertimeOutcome, type Candidate,
-  hoursBetween,
+  windowLabel, audienceLine, requestIsForEmployee, type OvertimeRequest, type OvertimeResponse,
+  type OvertimeOutcome, type Candidate, type Reliability, hoursBetween,
 } from "@/lib/overtimeRequests";
+import {
+  askShift, askState, ASK_STATE_LABEL, summarise, filterAsks, clashesFor, boardDatesFor, duplicateNames,
+  hoursLabel, DEFAULT_FILTERS, OVERTIME_SHIFTS,
+  type OvertimeShift, type AskFilters, type AskState, type BoardRow, type Clash, type ShiftSummary,
+} from "@/lib/overtimeShifts";
 import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
 import { answeredForDifferentHours, countStale, windowAnswered } from "@/lib/staleOvertimeAnswer";
 
@@ -46,75 +56,306 @@ const STORED_LABEL: Record<string, string> = {
   cancelled_in_time: "Cancelled in time", cancelled_late: "Cancelled late",
 };
 
+/** StatusBadge's palette, one restrained colour per state. */
+const STATE_BADGE: Record<AskState, string> = {
+  open: "warning", filled: "success", closed: "default", cancelled: "cancelled",
+};
+
+const SHIFT_ICON: Record<OvertimeShift, typeof Sun> = { Day: Sun, Night: Moon };
+const SHIFT_HOURS: Record<OvertimeShift, { starts: string; ends: string }> = {
+  Day: { starts: "06:00", ends: "18:00" }, Night: { starts: "18:00", ends: "06:00" },
+};
+
+const RANGE_LABEL: Record<AskFilters["range"], string> = {
+  upcoming: "Upcoming", today: "Today", tomorrow: "Tomorrow", next7: "Next 7 days",
+  past14: "Past 14 days", date: "Pick a date…",
+};
+
+type ShiftTab = "all" | OvertimeShift;
+
 /**
- * The supervisor's side of overtime: ask, choose, then say what happened.
+ * Overtime Management: ask, choose, then say what happened — split by the shift the
+ * overtime is for.
  *
- * One ask per card. The header carries the count the whole thing is read for —
- * "Needs 4 · 7 interested · 2 accepted" — and the rows carry the number beside the
- * name that this module exists to show: how many times this month the person did not
- * turn up. The supervisor still chooses; the list only puts the likely choice first.
+ * The shift comes from the ask's hours (`askShift`), which is the same rule the
+ * database uses to put an accepted answer on the board. The person's own crew is shown
+ * beside their name and never moves the ask: a day-crew packer on a night ask is
+ * night overtime.
+ *
+ * The rows still carry the number beside the name that this module exists to show —
+ * how many times this month the person did not turn up — and, now, anything on the
+ * board that stands in the way of the ask: already rostered on that shift, on holiday,
+ * or no rest either side.
  */
 export function OvertimeRequestsPanel() {
-  const { data: requests = [], isLoading } = useOvertimeRequests();
-  const [creating, setCreating] = useState(false);
-  const [showPast, setShowPast] = useState(false);
+  const { role } = useAuth();
+  const mayManage = can(role, "overtime.manage");
+  const { data: requests = [], isLoading, isError, error, refetch } = useOvertimeRequests();
+  const { data: roster = [] } = useOvertimeRoster();
+  const { data: reliability } = useOvertimeReliability();
+  const { data: responses = [], isLoading: responsesLoading } = useOvertimeResponsesFor(requests.map((r) => r.id));
+  const chosenIds = responses.filter((r) => r.decision === "accepted" || r.decision === "reserve").map((r) => r.id);
+  const { data: outcomes = [] } = useOvertimeOutcomesFor(chosenIds);
 
+  const [creating, setCreating] = useState(false);
+  const [filters, setFilters] = useState<AskFilters>(DEFAULT_FILTERS);
+  const [tab, setTab] = useState<ShiftTab>("all");
   const today = iso(new Date());
-  const visible = useMemo(
-    () => requests.filter((r) => showPast || r.on_date >= today || r.status === "open"),
-    [requests, showPast, today],
+
+  const responsesByRequest = useMemo(() => {
+    const m = new Map<string, OvertimeResponse[]>();
+    for (const r of responses) m.set(r.request_id, [...(m.get(r.request_id) ?? []), r]);
+    return m;
+  }, [responses]);
+  const outcomeByResponse = useMemo(
+    () => new Map(outcomes.map((o) => [o.response_id, o.outcome])),
+    [outcomes],
   );
+
+  const filtered = useMemo(
+    () => filterAsks(requests, responsesByRequest, filters, today),
+    [requests, responsesByRequest, filters, today],
+  );
+  const byShift = useMemo(() => {
+    const m: Record<OvertimeShift, OvertimeRequest[]> = { Day: [], Night: [] };
+    for (const r of filtered) m[askShift(r)].push(r);
+    return m;
+  }, [filtered]);
+
+  const total = summarise(filtered, responsesByRequest, outcomeByResponse);
+  const perShift: Record<OvertimeShift, ShiftSummary> = {
+    Day: summarise(byShift.Day, responsesByRequest, outcomeByResponse),
+    Night: summarise(byShift.Night, responsesByRequest, outcomeByResponse),
+  };
+  const summaryShown = tab === "all" ? total : perShift[tab];
+
+  const { data: board = [] } = useOvertimeBoardRows(boardDatesFor(filtered));
+  const others = useMemo(
+    () => requests.map((r) => ({ request: r, responses: responsesByRequest.get(r.id) ?? [] })),
+    [requests, responsesByRequest],
+  );
+  const departments = useMemo(() => Array.from(new Set([
+    ...roster.map((e) => e.department), ...requests.map((r) => r.department),
+  ].filter(Boolean) as string[])).sort(), [roster, requests]);
+
+  const dupNames = useMemo(() => duplicateNames(roster), [roster]);
+
+  const filtersChanged = JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
+  const rangeLabel = filters.range === "date"
+    ? (filters.date ? fmtDate(filters.date) : "Any date")
+    : RANGE_LABEL[filters.range];
+  const loading = isLoading || (requests.length > 0 && responsesLoading);
+
+  const ctx: CardContext = {
+    roster, reliability, outcomeByResponse, responsesByRequest, others, board, dupNames,
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="h-4 w-4" />
-          Overtime asks — who was asked, who said yes, who was picked.
-        </div>
-        <div className="flex items-center gap-2">
-          <OvertimeRulesDialog />
-          <Button variant="ghost" size="sm" onClick={() => setShowPast((v) => !v)}>
-            {showPast ? "Hide past" : "Show past 14 days"}
+      <ModuleHeader
+        title="Overtime Management"
+        description="Manage overtime requests, approvals and shift coverage."
+      >
+        {mayManage && (
+          <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>
+            <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+            <span className="hidden sm:inline">New overtime ask</span><span className="sm:hidden">New ask</span>
           </Button>
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="mr-1 h-4 w-4" /> New ask
-          </Button>
-        </div>
+        )}
+      </ModuleHeader>
+
+      {/* The four counts, each over a different kind of row so none is counted twice:
+          asks, undecided answers, accepted answers, and the hours of those. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Figure lead label="Awaiting decision" value={String(summaryShown.awaitingDecision)}
+          unit={summaryShown.awaitingDecision === 1 ? "answer" : "answers"}
+          tone={summaryShown.awaitingDecision > 0 ? "owed" : "neutral"}
+          hint="Said yes, nobody has accepted or declined them yet" />
+        <Figure label="Asks needing people" value={String(summaryShown.needsPeople)}
+          hint="Open, with places still to fill" />
+        <Figure label="Confirmed" value={String(summaryShown.confirmed)}
+          unit={summaryShown.confirmed === 1 ? "person" : "people"}
+          hint="Accepted and not dropped out" />
+        <Figure label="Scheduled overtime" value={hoursLabel(summaryShown.scheduledMinutes)}
+          hint={`${tab === "all" ? "Both shifts" : `${tab} shift`} · ${rangeLabel.toLowerCase()}`} />
       </div>
 
-      {isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
-      {!isLoading && visible.length === 0 && (
-        <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
-          No overtime asked for. Press "New ask" when you need people.
-        </CardContent></Card>
-      )}
-      {visible.map((r) => <RequestCard key={r.id} request={r} />)}
+      {/* Filters. Compact, one row on a desk, wrapping on a phone. */}
+      <div className="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-3" role="group" aria-label="Filters">
+        <div className="grid gap-1">
+          <Label htmlFor="ot-f-range" className="text-2xs uppercase tracking-wider text-muted-foreground">Date</Label>
+          <Select value={filters.range} onValueChange={(v) => setFilters((f) => ({ ...f, range: v as AskFilters["range"] }))}>
+            <SelectTrigger id="ot-f-range" className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(RANGE_LABEL) as AskFilters["range"][]).map((k) => (
+                <SelectItem key={k} value={k}>{RANGE_LABEL[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {filters.range === "date" && (
+          <div className="grid gap-1">
+            <Label className="text-2xs uppercase tracking-wider text-muted-foreground">On</Label>
+            <DateField value={filters.date} onChange={(d) => setFilters((f) => ({ ...f, date: d }))} aria-label="Overtime date" />
+          </div>
+        )}
+        <div className="grid gap-1">
+          <Label htmlFor="ot-f-state" className="text-2xs uppercase tracking-wider text-muted-foreground">Status</Label>
+          <Select value={filters.state} onValueChange={(v) => setFilters((f) => ({ ...f, state: v as AskFilters["state"] }))}>
+            <SelectTrigger id="ot-f-state" className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {(Object.keys(ASK_STATE_LABEL) as AskState[]).map((s) => (
+                <SelectItem key={s} value={s}>{ASK_STATE_LABEL[s]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1">
+          <Label htmlFor="ot-f-dept" className="text-2xs uppercase tracking-wider text-muted-foreground">Department</Label>
+          <Select value={filters.department} onValueChange={(v) => setFilters((f) => ({ ...f, department: v }))}>
+            <SelectTrigger id="ot-f-dept" className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All departments</SelectItem>
+              {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {filtersChanged && (
+          <Button size="sm" variant="ghost" className="h-9" onClick={() => setFilters(DEFAULT_FILTERS)}>
+            <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset
+          </Button>
+        )}
+        <div className="ml-auto">{mayManage && <OvertimeRulesDialog />}</div>
+      </div>
 
-      <NewRequestDialog open={creating} onOpenChange={setCreating} />
+      <Tabs value={tab} onValueChange={(v) => setTab(v as ShiftTab)}>
+        <TabsList className="h-auto w-full justify-start overflow-x-auto sm:w-auto" aria-label="Shift">
+          <TabsTrigger value="all">All shifts</TabsTrigger>
+          {OVERTIME_SHIFTS.map((s) => {
+            const Icon = SHIFT_ICON[s];
+            const pending = perShift[s].awaitingDecision + perShift[s].needsPeople;
+            return (
+              <TabsTrigger key={s} value={s} className="gap-1.5">
+                <Icon className="h-4 w-4" aria-hidden /> {s} shift
+                {pending > 0 && (
+                  <span className="rounded-full bg-warning/15 px-1.5 text-2xs font-semibold tabular-nums text-warning-strong"
+                    aria-label={`${pending} pending`}>
+                    {pending}
+                  </span>
+                )}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </Tabs>
+
+      {isError ? (
+        <Card><CardContent className="flex flex-wrap items-center justify-between gap-2 py-6 text-sm">
+          <span className="text-destructive">Could not load overtime: {(error as Error)?.message ?? "unknown error"}</span>
+          <Button size="sm" variant="outline" onClick={() => void refetch()}>Try again</Button>
+        </CardContent></Card>
+      ) : loading ? (
+        <div className="space-y-3" aria-busy="true">
+          {[0, 1].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl border bg-muted/40" />)}
+        </div>
+      ) : (
+        (tab === "all" ? OVERTIME_SHIFTS : [tab]).map((s) => (
+          <ShiftSection
+            key={s} shift={s} asks={byShift[s]} summary={perShift[s]} rangeLabel={rangeLabel}
+            ctx={ctx} mayManage={mayManage}
+            onCreate={() => { setTab(s); setCreating(true); }}
+          />
+        ))
+      )}
+
+      <NewRequestDialog
+        open={creating} onOpenChange={setCreating}
+        defaultShift={tab === "all" ? "Day" : tab} roster={roster}
+      />
     </div>
   );
 }
 
-function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
-  const { data: employees = [] } = useOvertimeRoster();
+interface CardContext {
+  roster: RosterName[];
+  reliability: Map<string, Reliability> | undefined;
+  outcomeByResponse: Map<string, OvertimeOutcome>;
+  responsesByRequest: Map<string, OvertimeResponse[]>;
+  others: { request: OvertimeRequest; responses: OvertimeResponse[] }[];
+  board: BoardRow[];
+  dupNames: Set<string>;
+}
+
+function ShiftSection({ shift, asks, summary, rangeLabel, ctx, mayManage, onCreate }: {
+  shift: OvertimeShift; asks: OvertimeRequest[]; summary: ShiftSummary; rangeLabel: string;
+  ctx: CardContext; mayManage: boolean; onCreate: () => void;
+}) {
+  const Icon = SHIFT_ICON[shift];
+  const headingId = `ot-shift-${shift}`;
+  return (
+    <section aria-labelledby={headingId} className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b pb-2">
+        <h2 id={headingId} className="flex items-center gap-2 font-display text-lg font-semibold">
+          <Icon className="h-5 w-5 text-muted-foreground" aria-hidden />
+          {shift} shift
+          <span className="text-sm font-normal text-muted-foreground">
+            {SHIFT_HOURS[shift].starts}–{SHIFT_HOURS[shift].ends} · {rangeLabel}
+          </span>
+        </h2>
+        <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
+          <span><strong className="text-foreground">{summary.needsPeople}</strong> needing people</span>
+          <span><strong className="text-foreground">{summary.awaitingDecision}</strong> awaiting decision</span>
+          <span><strong className="text-foreground">{summary.confirmed}</strong> confirmed · {hoursLabel(summary.scheduledMinutes)}</span>
+        </div>
+      </div>
+      {asks.length === 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
+          <span>No {shift.toLowerCase()}-shift overtime for {rangeLabel.toLowerCase()} with these filters.</span>
+          {mayManage && (
+            <Button size="sm" variant="outline" onClick={onCreate}>
+              <Plus className="mr-1 h-4 w-4" /> Ask for {shift.toLowerCase()} shift
+            </Button>
+          )}
+        </div>
+      ) : (
+        asks.map((r) => <RequestCard key={r.id} request={r} ctx={ctx} mayManage={mayManage} />)
+      )}
+    </section>
+  );
+}
+
+function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
+  open: boolean; onOpenChange: (v: boolean) => void; defaultShift: OvertimeShift; roster: RosterName[];
+}) {
   const { createRequest } = useOvertimeMutations();
   const [onDate, setOnDate] = useState(iso(new Date(Date.now() + 86_400_000)));
-  const [startsAt, setStartsAt] = useState("06:00");
-  const [endsAt, setEndsAt] = useState("14:00");
+  const [startsAt, setStartsAt] = useState(SHIFT_HOURS[defaultShift].starts);
+  const [endsAt, setEndsAt] = useState(SHIFT_HOURS[defaultShift].ends);
   const [headcount, setHeadcount] = useState("4");
   const [department, setDepartment] = useState<string>("all");
   const [shiftGroup, setShiftGroup] = useState<string>("all");
   const [note, setNote] = useState("");
+  const [seenDefault, setSeenDefault] = useState<OvertimeShift | null>(null);
+
+  // Opening from the Night tab starts on the night's hours. Only on opening: once the
+  // supervisor has typed a time, switching tabs behind the dialog must not undo it.
+  if (open && seenDefault !== defaultShift) {
+    setSeenDefault(defaultShift);
+    setStartsAt(SHIFT_HOURS[defaultShift].starts);
+    setEndsAt(SHIFT_HOURS[defaultShift].ends);
+  }
+  if (!open && seenDefault !== null) setSeenDefault(null);
 
   const departments = useMemo(
-    () => Array.from(new Set(employees.map((e) => e.department).filter(Boolean) as string[])).sort(),
-    [employees],
+    () => Array.from(new Set(roster.map((e) => e.department).filter(Boolean) as string[])).sort(),
+    [roster],
   );
   const shiftGroups = useMemo(
-    () => Array.from(new Set(employees.map((e) => e.shift_group).filter(Boolean) as string[])).sort(),
-    [employees],
+    () => Array.from(new Set(roster.map((e) => e.shift_group).filter(Boolean) as string[])).sort(),
+    [roster],
   );
+  const target = /^\d{2}:\d{2}/.test(startsAt) ? askShift({ starts_at: startsAt }) : null;
 
   const submit = () => {
     const n = Number(headcount);
@@ -147,13 +388,28 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Ask for overtime</DialogTitle>
+          <DialogTitle>New overtime ask</DialogTitle>
           <DialogDescription>Say when and how many. Everyone it applies to will see it and answer yes or no.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3">
           <div className="grid gap-1.5">
             <Label>Date</Label>
-            <DateField value={onDate} onChange={setOnDate} />
+            <DateField value={onDate} onChange={setOnDate} aria-label="Date" />
+          </div>
+          <div className="grid gap-1.5">
+            <Label>Target shift</Label>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Target shift">
+              {OVERTIME_SHIFTS.map((s) => {
+                const Icon = SHIFT_ICON[s];
+                const on = startsAt === SHIFT_HOURS[s].starts && endsAt === SHIFT_HOURS[s].ends;
+                return (
+                  <Button key={s} type="button" size="sm" variant={on ? "default" : "outline"} aria-pressed={on}
+                    onClick={() => { setStartsAt(SHIFT_HOURS[s].starts); setEndsAt(SHIFT_HOURS[s].ends); }}>
+                    <Icon className="mr-1.5 h-4 w-4" aria-hidden /> {s} {SHIFT_HOURS[s].starts}–{SHIFT_HOURS[s].ends}
+                  </Button>
+                );
+              })}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
@@ -165,6 +421,13 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               <Input id="ot-end" type="time" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
             </div>
           </div>
+          {/* The board this lands on is decided by the start time — the same rule the
+              database uses. Said out loud so a 17:00 start is not a surprise. */}
+          {target && (
+            <p className="text-xs text-muted-foreground">
+              Lands on the <strong className="text-foreground">{target.toLowerCase()} shift</strong> board · {hoursBetween(startsAt, endsAt)}
+            </p>
+          )}
           <div className="grid gap-1.5">
             <Label htmlFor="ot-n">People needed</Label>
             <Input id="ot-n" type="number" min={1} inputMode="numeric" value={headcount} onChange={(e) => setHeadcount(e.target.value)} />
@@ -173,7 +436,7 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
             <div className="grid gap-1.5">
               <Label>Department</Label>
               <Select value={department} onValueChange={setDepartment}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Department"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Everyone</SelectItem>
                   {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
@@ -181,11 +444,13 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label>Shift</Label>
+              {/* Who may answer from their phone, by their own crew. Not the shift the
+                  overtime is on — that is the time above. */}
+              <Label>Crew who can answer</Label>
               <Select value={shiftGroup} onValueChange={setShiftGroup}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Crew who can answer"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any shift</SelectItem>
+                  <SelectItem value="all">Any crew</SelectItem>
                   {shiftGroups.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -205,13 +470,42 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   );
 }
 
-function RequestCard({ request }: { request: OvertimeRequest }) {
-  const { data: employees = [] } = useOvertimeRoster();
-  const { data: responses = [] } = useOvertimeResponses(request.id);
-  const { data: reliability } = useOvertimeReliability();
+/**
+ * "Daniel" alone, or "Daniel · Packing, Night crew" when another active Daniel exists.
+ *
+ * Not the badge number: `overtime_roster` hands out name, department and crew only,
+ * and the employees table itself is admin-only (theRosterFollowsItsScreen). The row
+ * underneath still carries the employee id; this is what the eye needs to tell them apart.
+ */
+function displayName(e: RosterName, ctx: Pick<CardContext, "dupNames">): string {
+  if (!ctx.dupNames.has(e.full_name.trim().toLowerCase())) return e.full_name;
+  const tag = [e.department, e.shift_group && `${e.shift_group} crew`].filter(Boolean).join(", ");
+  return tag ? `${e.full_name} · ${tag}` : e.full_name;
+}
+
+function ClashList({ clashes }: { clashes: Clash[] }) {
+  if (clashes.length === 0) return null;
+  return (
+    <ul className="mt-1 space-y-0.5">
+      {clashes.map((c, i) => (
+        <li key={i} className={cn("flex items-center gap-1 text-xs font-normal",
+          c.severity === "block" ? "text-destructive" : "text-warning-strong")}>
+          {c.severity === "block"
+            ? <Ban className="h-3 w-3 shrink-0" aria-hidden />
+            : <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden />}
+          {c.text}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ctx: CardContext; mayManage: boolean }) {
+  const { roster, reliability, outcomeByResponse } = ctx;
+  const responses = useMemo(() => ctx.responsesByRequest.get(request.id) ?? [], [ctx.responsesByRequest, request.id]);
   const { setRequestStatus, editRequest, decide, recordOutcome, answerFor } = useOvertimeMutations();
-  // Corrigir a data e as horas de um pedido já feito. Aberto a null; a null não está a
-  // editar nada. Ver `editRequest` para porque não apaga respostas.
+  // Corrigir a data e as horas de um pedido já feito. Ver `editRequest` para porque não
+  // apaga respostas.
   const [editing, setEditing] = useState(false);
   const [edDate, setEdDate] = useState(request.on_date);
   const [edStart, setEdStart] = useState(request.starts_at.slice(0, 5));
@@ -229,10 +523,9 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
   /**
    * Open, close or cancel — and say so when the write is refused.
    *
-   * The mutation throws now when RLS matched no row, which it could not do before.
-   * That only helps if somebody is listening: a `mutate` with no `onError` leaves the
-   * message in react-query's state, where the person who pressed the button never
-   * sees it, and the button goes on looking dead for a different reason.
+   * The mutation throws when RLS matched no row. That only helps if somebody is
+   * listening: a `mutate` with no `onError` leaves the message in react-query's
+   * state, where the person who pressed the button never sees it.
    */
   const changeStatus = (status: OvertimeRequest["status"]) =>
     setRequestStatus.mutate(
@@ -245,8 +538,10 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
       },
     );
 
-  const byId = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
+  const byId = useMemo(() => new Map(roster.map((e) => [e.id, e])), [roster]);
   const counts = countResponses(request, responses);
+  const state = askState(request, responses);
+  const shift = askShift(request);
   const isPast = request.on_date < iso(new Date());
 
   const candidates: Candidate<RosterName>[] = useMemo(() => sortCandidates(
@@ -255,16 +550,31 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
       .map((r) => ({ employee: byId.get(r.employee_id)!, response: r, reliability: reliability?.get(r.employee_id) })),
   ), [responses, byId, reliability]);
 
-  const saidNo = responses.filter((r) => r.answer === "no").map((r) => byId.get(r.employee_id)?.full_name).filter(Boolean);
+  const saidNo = responses.filter((r) => r.answer === "no")
+    .map((r) => byId.get(r.employee_id)).filter(Boolean).map((e) => displayName(e!, ctx));
 
-  const chosen = responses.filter((r) => r.decision === "accepted" || r.decision === "reserve");
-  const { data: outcomes = [] } = useOvertimeOutcomes(request.id, chosen.map((r) => r.id));
-  const outcomeById = new Map(outcomes.map((o) => [o.response_id, o.outcome]));
+  const clashOf = (employeeId: string) => clashesFor(employeeId, request, ctx.others, ctx.board);
 
+  /**
+   * Who can be added at the desk. Everybody active who has not answered — the ask's
+   * crew and department narrow who sees it on a phone, not who a supervisor may put
+   * on it. So people outside the ask's audience are listed too, in their own group:
+   * a day-crew packer can be put on a night ask on purpose, never by accident.
+   */
   const answered = new Set(responses.map((r) => r.employee_id));
-  const notAnswered = employees.filter((e) => !answered.has(e.id)
-    && (!request.department || e.department === request.department)
-    && (!request.shift_group || e.shift_group === request.shift_group));
+  const notAnswered = roster.filter((e) => !answered.has(e.id));
+  const inAudience = notAnswered.filter((e) => requestIsForEmployee(request, e));
+  const outsideAudience = notAnswered.filter((e) => !requestIsForEmployee(request, e));
+  const addOption = (e: RosterName) => {
+    const blocked = blockedLabel(reliability?.get(e.id));
+    const clash = clashOf(e.id)[0];
+    const extra = [e.shift_group && `${e.shift_group} crew`, blocked, clash?.text].filter(Boolean).join(" · ");
+    return (
+      <SelectItem key={e.id} value={e.id}>
+        {displayName(e, ctx)}{extra ? <span className="text-muted-foreground"> — {extra}</span> : null}
+      </SelectItem>
+    );
+  };
 
   const onDecide = (responseId: string, decision: "accepted" | "reserve" | "declined" | null) =>
     decide.mutate({ responseId, decision }, { onError: (e) => toast.error((e as Error).message) });
@@ -273,32 +583,28 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
     <>
     <Card className={cn(request.status !== "open" && "opacity-80")}>
       <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              {fmtDate(request.on_date)} · {windowLabel(request.starts_at, request.ends_at)}
-              {request.status !== "open" && <Badge variant="outline" className="capitalize">{request.status}</Badge>}
+              <span className="tabular-nums">{fmtDate(request.on_date)} · {windowLabel(request.starts_at, request.ends_at)}</span>
+              <span className="text-xs font-normal text-muted-foreground">{shift} shift · {hoursBetween(request.starts_at, request.ends_at)}</span>
+              <StatusBadge status={STATE_BADGE[state]} label={ASK_STATE_LABEL[state]} size="sm" />
             </CardTitle>
             {/* Who can see it, as a sentence. The note is on its own line below: it
-                is the only thing on this card somebody typed, and threading it onto
-                middle dots after the department hid it. */}
-            <div className="mt-1 text-xs text-muted-foreground">{audienceLine(request)}</div>
+                is the only thing on this card somebody typed. */}
+            <div className="mt-1 text-xs text-muted-foreground">For: {audienceLine(request)}</div>
             {request.note && (
               <p className="mt-1 text-xs italic text-foreground/80">“{request.note}”</p>
             )}
           </div>
-          {/* The one question this screen is for: how far from a full team. It was a
-              sentence of four counts, with the number that drives the whole card —
-              how many are still to pick — set in the smallest text on it. A meter
-              answers it before anything is read; the counts stay underneath, because
-              picking still needs them. */}
-          <div className="min-w-[11rem] text-sm">
+          {/* The one question this card is for: how far from a full team. */}
+          <div className="w-full min-w-[11rem] text-sm sm:w-auto">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="font-medium">
+              <span className="font-medium tabular-nums">
                 {counts.accepted} of {counts.headcount} picked
               </span>
               {counts.short > 0 && request.status === "open" && (
-                <span className="text-xs font-medium text-warning">{counts.short} to go</span>
+                <span className="text-xs font-medium text-warning-strong">{counts.short} to go</span>
               )}
             </div>
             <div
@@ -315,10 +621,9 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
             <div className="mt-1 text-xs text-muted-foreground">
               {counts.interested} said yes{counts.reserve ? `, ${counts.reserve} on reserve` : ""}
             </div>
-            {/* O número que manda alguém pegar no telefone. Fica no cabeçalho porque a
-                lista pode estar fechada e isto não pode passar despercebido. */}
+            {/* O número que manda alguém pegar no telefone. */}
             {countStale(responses, request) > 0 && (
-              <div className="mt-1 flex items-center gap-1 text-xs font-medium text-warning">
+              <div className="mt-1 flex items-center gap-1 text-xs font-medium text-warning-strong">
                 <AlertTriangle className="h-3 w-3 shrink-0" />
                 {countStale(responses, request)} to re-confirm — the shift changed
               </div>
@@ -330,117 +635,131 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
         {candidates.length === 0 ? (
           <div className="text-sm text-muted-foreground">Nobody has said yes yet.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Shift</TableHead>
-                  <TableHead>This month</TableHead>
-                  <TableHead>Last 60 days</TableHead>
-                  <TableHead>Answered</TableHead>
-                  <TableHead className="text-right">Decision</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {candidates.map(({ employee, response, reliability: rel }) => {
-                  const tone = reliabilityTone(rel);
-                  return (
-                    <TableRow key={response.id}>
-                      <TableCell className="font-medium">
-                        {employee.full_name}
-                        {/* Disse que sim a outro turno. Não se apaga a resposta — diz-se
-                            a quem é preciso telefonar, e a que horas ela respondeu, que
-                            é o que a pessoa vai dizer ao telefone. */}
-                        {answeredForDifferentHours(response, request) && (() => {
-                          const seen = windowAnswered(response)!;
-                          return (
-                            <span className="mt-0.5 flex items-center gap-1 text-xs font-normal text-warning">
-                              <AlertTriangle className="h-3 w-3 shrink-0" />
-                              said yes to {fmtDate(seen.on_date)} · {windowLabel(seen.starts_at, seen.ends_at)}
-                            </span>
-                          );
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{employee.shift_group ?? "—"}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <Badge variant="outline" className={cn("font-normal", TONE_CLASS[tone])}>{reliabilityLabel(rel)}</Badge>
-                          {blockedLabel(rel) && (
-                            <Badge variant="outline" className="border-destructive/40 bg-destructive/10 font-normal text-destructive">{blockedLabel(rel)}</Badge>
+          // A list rather than a table: six columns do not fit a phone, and a table that
+          // scrolls sideways hides the decision buttons off the edge.
+          <ul className="divide-y rounded-lg border">
+            {candidates.map(({ employee, response, reliability: rel }) => {
+              const tone = reliabilityTone(rel);
+              const clashes = clashOf(employee.id);
+              const blockedBy = clashes.find((c) => c.severity === "block");
+              return (
+                <li key={response.id} className="flex flex-col gap-2 p-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {/* The crew and department beside it are what tell two Daniels apart. */}
+                      <span className="font-medium">{employee.full_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {[employee.shift_group && `${employee.shift_group} crew`, employee.department].filter(Boolean).join(" · ") || "No crew set"}
+                      </span>
+                      {response.decision === null && (
+                        <StatusBadge status="pending" label="Awaiting decision" size="sm" />
+                      )}
+                    </div>
+                    {/* Disse que sim a outro turno. Não se apaga a resposta — diz-se a quem
+                        é preciso telefonar, e a que horas ela respondeu. */}
+                    {answeredForDifferentHours(response, request) && (() => {
+                      const seen = windowAnswered(response)!;
+                      return (
+                        <span className="mt-0.5 flex items-center gap-1 text-xs text-warning-strong">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          said yes to {fmtDate(seen.on_date)} · {windowLabel(seen.starts_at, seen.ends_at)}
+                        </span>
+                      );
+                    })()}
+                    <ClashList clashes={clashes} />
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <Badge variant="outline" className={cn("font-normal", TONE_CLASS[tone])}>{reliabilityLabel(rel)}</Badge>
+                      {blockedLabel(rel) && (
+                        <Badge variant="outline" className="border-destructive/40 bg-destructive/10 font-normal text-destructive">{blockedLabel(rel)}</Badge>
+                      )}
+                      <span>60 days: {attendedLabel(rel)}</span>
+                      <span aria-hidden>·</span>
+                      <span>
+                        Answered {new Date(response.answered_at).toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="md:shrink-0">
+                    {/* Once somebody is in (or on reserve), what matters is whether they turn
+                        up — and that is known before the day as often as after. A drop-out on
+                        an open ask promotes the reserve by itself. */}
+                    {response.decision === "accepted" || response.decision === "reserve" ? (
+                      <div className="flex items-center gap-1 md:justify-end">
+                        <StatusBadge status={response.decision === "accepted" ? "success" : "info"}
+                          label={response.decision === "accepted" ? "Accepted" : "Reserve"} size="sm" />
+                        <Select
+                          value={outcomeByResponse.get(response.id) ?? ""}
+                          disabled={!mayManage}
+                          onValueChange={(v) => recordOutcome.mutate(
+                            { responseId: response.id, outcome: v as OvertimeOutcome },
+                            {
+                              onSuccess: ({ promotedEmployeeId, push }) => {
+                                if (!promotedEmployeeId) return;
+                                const who = byId.get(promotedEmployeeId)?.full_name ?? "the reserve";
+                                toast.success(`${who} moved up from reserve${push?.notified ? " and was told" : ""}.`);
+                              },
+                              onError: (e) => toast.error((e as Error).message),
+                            },
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{attendedLabel(rel)}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {new Date(response.answered_at).toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {/* Once somebody is in (or on reserve), what matters is whether they turn up —
-                            and that is known before the day as often as after: "I can't make it
-                            Saturday" arrives on Thursday. So the outcome is recordable the moment
-                            the decision is made, not only once the date has passed. A drop-out on
-                            an open ask promotes the reserve by itself. */}
-                        {response.decision === "accepted" || response.decision === "reserve" ? (
-                          <div className="flex items-center justify-end gap-1">
-                            <Select
-                              value={outcomeById.get(response.id) ?? ""}
-                              onValueChange={(v) => recordOutcome.mutate(
-                                { responseId: response.id, outcome: v as OvertimeOutcome },
-                                {
-                                  onSuccess: ({ promotedEmployeeId, push }) => {
-                                    if (!promotedEmployeeId) return;
-                                    const who = byId.get(promotedEmployeeId)?.full_name ?? "the reserve";
-                                    toast.success(`${who} moved up from reserve${push?.notified ? " and was told" : ""}.`);
-                                  },
-                                  onError: (e) => toast.error((e as Error).message),
-                                },
-                              )}
-                            >
-                              <SelectTrigger className="h-8 w-[150px]">
-                                <SelectValue placeholder={isPast ? "What happened?" : response.decision === "accepted" ? "In · still coming" : "Reserve"} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {OUTCOMES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                                {(() => { const v = outcomeById.get(response.id); return v && STORED_LABEL[v]
-                                  ? <SelectItem value={v} disabled>{STORED_LABEL[v]}</SelectItem> : null; })()}
-                              </SelectContent>
-                            </Select>
-                            {request.status === "open" && !outcomeById.has(response.id) && (
-                              <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground" title="Undo decision"
-                                disabled={decide.isPending} onClick={() => onDecide(response.id, null)}>
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        ) : (
-                          <DecisionButtons
-                            decision={response.decision}
-                            disabled={request.status !== "open" || decide.isPending}
-                            onDecide={(d) => onDecide(response.id, d)}
-                          />
+                        >
+                          <SelectTrigger className="h-8 w-[150px]" aria-label={`What happened — ${employee.full_name}`}>
+                            <SelectValue placeholder={isPast ? "What happened?" : response.decision === "accepted" ? "Still coming" : "On reserve"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {OUTCOMES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                            {(() => { const v = outcomeByResponse.get(response.id); return v && STORED_LABEL[v]
+                              ? <SelectItem value={v} disabled>{STORED_LABEL[v]}</SelectItem> : null; })()}
+                          </SelectContent>
+                        </Select>
+                        {mayManage && request.status === "open" && !outcomeByResponse.has(response.id) && (
+                          <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground"
+                            aria-label={`Undo decision for ${employee.full_name}`} title="Undo decision"
+                            disabled={decide.isPending} onClick={() => onDecide(response.id, null)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
                         )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                      </div>
+                    ) : (
+                      <DecisionButtons
+                        name={employee.full_name}
+                        decision={response.decision}
+                        disabled={!mayManage || request.status !== "open" || decide.isPending}
+                        acceptBlockedBy={blockedBy?.text ?? null}
+                        onDecide={(d) => onDecide(response.id, d)}
+                      />
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
 
         {saidNo.length > 0 && (
-          <div className="text-xs text-muted-foreground">Said no: {saidNo.join(", ")}</div>
+          <div className="text-xs text-muted-foreground">Declined the offer: {saidNo.join(", ")}</div>
         )}
 
-        {request.status === "open" && (
+        {mayManage && request.status === "open" && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-            <div className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-muted-foreground" />
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <UserPlus className="h-4 w-4 text-muted-foreground" aria-hidden />
               <Select value={addingFor} onValueChange={setAddingFor}>
-                <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Add a yes given at the desk…" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-[260px] max-w-full" aria-label="Add a yes given at the desk">
+                  <SelectValue placeholder="Add a yes given at the desk…" />
+                </SelectTrigger>
                 <SelectContent>
-                  {notAnswered.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+                  {inAudience.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>For this ask</SelectLabel>
+                      {inAudience.map(addOption)}
+                    </SelectGroup>
+                  )}
+                  {outsideAudience.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Other crews and departments</SelectLabel>
+                      {outsideAudience.map(addOption)}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
               <Button
@@ -454,10 +773,9 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
                 Add
               </Button>
             </div>
-            <div className="flex items-center gap-2">
-              {/* As horas são escritas à mão, por isso um engano fica lá — 18:00–14:00
-                  onde era 18:00–06:00. Corrigir não apaga respostas: quem já tinha
-                  dito que sim fica assinalado na lista acima. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* As horas são escritas à mão, por isso um engano fica lá. Corrigir não
+                  apaga respostas: quem já tinha dito que sim fica assinalado acima. */}
               <Button size="sm" variant="ghost" onClick={openEdit}>
                 <Pencil className="mr-1 h-4 w-4" /> Edit
               </Button>
@@ -470,7 +788,7 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
             </div>
           </div>
         )}
-        {request.status !== "open" && !isPast && (
+        {mayManage && request.status !== "open" && !isPast && (
           <div className="border-t pt-3">
             <Button size="sm" variant="ghost" onClick={() => changeStatus("open")}>
               Reopen
@@ -478,7 +796,6 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
           </div>
         )}
       </CardContent>
-
     </Card>
 
       <Dialog open={editing} onOpenChange={setEditing}>
@@ -510,11 +827,10 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
               <Input id="ed-count" type="number" min={1} value={edCount}
                 onChange={(e) => setEdCount(e.target.value)} />
             </div>
-            {/* Vinte horas num turno de doze é o engano que isto existe para corrigir —
-                por isso o ecrã diz quanto tempo é, em vez de deixar a pessoa fazer a
-                conta de cabeça às seis da manhã. */}
+            {/* Vinte horas num turno de doze é o engano que isto existe para corrigir. */}
             <p className="text-xs text-muted-foreground">
               {windowLabel(edStart, edEnd)} · {hoursBetween(edStart, edEnd)}
+              {/^\d{2}:\d{2}/.test(edStart) && <> · {askShift({ starts_at: edStart })} shift</>}
             </p>
           </div>
           <div className="mt-2 flex justify-end gap-2">
@@ -542,25 +858,32 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
   );
 }
 
-function DecisionButtons({ decision, disabled, onDecide }: {
+function DecisionButtons({ name, decision, disabled, acceptBlockedBy, onDecide }: {
+  name: string;
   decision: "accepted" | "reserve" | "declined" | null;
   disabled: boolean;
+  /** Why Accept would make a duplicate, or null. Reserve and Decline stay available. */
+  acceptBlockedBy: string | null;
   onDecide: (d: "accepted" | "reserve" | "declined" | null) => void;
 }) {
-  const btn = (d: "accepted" | "reserve" | "declined", Icon: typeof Check, label: string, active: string) => (
-    <Button
-      key={d} size="sm" variant={decision === d ? "default" : "outline"}
-      className={cn("h-8 px-2", decision === d && active)}
-      disabled={disabled}
-      aria-label={label} title={label}
-      onClick={() => onDecide(decision === d ? null : d)}
-    >
-      <Icon className="h-3.5 w-3.5" />
-      <span className="ml-1 hidden sm:inline">{label}</span>
-    </Button>
-  );
+  const btn = (d: "accepted" | "reserve" | "declined", Icon: typeof Check, label: string, active: string) => {
+    const blocked = d === "accepted" && acceptBlockedBy !== null && decision !== "accepted";
+    return (
+      <Button
+        key={d} size="sm" variant={decision === d ? "default" : "outline"}
+        className={cn("h-8 px-2", decision === d && active)}
+        disabled={disabled || blocked}
+        aria-label={`${label} ${name}`}
+        title={blocked ? `Can't accept: ${acceptBlockedBy}` : label}
+        onClick={() => onDecide(decision === d ? null : d)}
+      >
+        <Icon className="h-3.5 w-3.5" />
+        <span className="ml-1 hidden sm:inline">{label}</span>
+      </Button>
+    );
+  };
   return (
-    <div className="flex justify-end gap-1">
+    <div className="flex gap-1 md:justify-end">
       {btn("accepted", Check, "Accept", "bg-success text-success-foreground hover:bg-success/90")}
       {btn("reserve", Clock, "Reserve", "bg-warning text-warning-foreground hover:bg-warning/90")}
       {btn("declined", X, "Decline", "bg-destructive text-destructive-foreground hover:bg-destructive/90")}

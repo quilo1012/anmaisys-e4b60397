@@ -6,6 +6,7 @@ import { newAskMessage, decisionMessage, type PushMessage } from "@/lib/overtime
 import type {
   OvertimeRequest, OvertimeResponse, OvertimeDecision, OvertimeOutcome, Reliability, OvertimeRules,
 } from "@/lib/overtimeRequests";
+import type { BoardRow } from "@/lib/overtimeShifts";
 
 /**
  * Reads and writes for the overtime ask. Typed against the generated client; the
@@ -48,6 +49,59 @@ export function useOvertimeResponses(requestId?: string) {
       const { data, error } = await q.order("answered_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as OvertimeResponse[];
+    },
+  });
+}
+
+/**
+ * The answers to a set of asks, in one read — for the screen that counts across all
+ * of them. Keyed under "overtime_responses" so every mutation's refresh reaches it.
+ */
+export function useOvertimeResponsesFor(requestIds: string[]) {
+  const ids = [...requestIds].sort();
+  return useQuery({
+    queryKey: ["overtime_responses", "for", ...ids],
+    enabled: ids.length > 0,
+    queryFn: async (): Promise<OvertimeResponse[]> => {
+      const { data, error } = await db.from("overtime_responses").select("*")
+        .in("request_id", ids).order("answered_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as OvertimeResponse[];
+    },
+  });
+}
+
+/** What happened to each chosen answer, for the same screen. */
+export function useOvertimeOutcomesFor(responseIds: string[]) {
+  const ids = [...responseIds].sort();
+  return useQuery({
+    queryKey: ["overtime_outcomes", "for", ...ids],
+    enabled: ids.length > 0,
+    queryFn: async (): Promise<OutcomeRow[]> => {
+      const { data, error } = await db.from("overtime_outcomes")
+        .select("response_id, outcome, note").in("response_id", ids);
+      if (error) throw error;
+      return (data ?? []) as OutcomeRow[];
+    },
+  });
+}
+
+/**
+ * The board around the asks — the rota a clash is measured against. Read only: the
+ * overtime screen never writes the board; the database bridge does that on accept.
+ * `daily_alloc_read` admits admin, manager and office, the same people who hold
+ * `overtime.manage`.
+ */
+export function useOvertimeBoardRows(dates: string[]) {
+  return useQuery({
+    queryKey: ["overtime_board_rows", ...dates],
+    enabled: dates.length > 0,
+    staleTime: 60_000,
+    queryFn: async (): Promise<BoardRow[]> => {
+      const { data, error } = await db.from("daily_allocations")
+        .select("on_date, shift, employee_id, status").in("on_date", dates);
+      if (error) throw error;
+      return (data ?? []) as BoardRow[];
     },
   });
 }
@@ -207,6 +261,7 @@ export function useOvertimeMutations() {
     void qc.invalidateQueries({ queryKey: ["overtime_outcomes"] });
     void qc.invalidateQueries({ queryKey: KEYS.reliability });
     void qc.invalidateQueries({ queryKey: ["my_overtime_block"] });
+    void qc.invalidateQueries({ queryKey: ["overtime_board_rows"] });
   };
 
   const createRequest = useMutation({
