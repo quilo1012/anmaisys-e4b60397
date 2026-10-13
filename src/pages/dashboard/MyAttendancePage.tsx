@@ -5,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMyAttendance } from "@/hooks/useMyAttendance";
 import { currentShift } from "@/lib/operationalShift";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import {
-  buildMyDays, summarise, rangeChoices, defaultRange,
-  type DayStatus, type MyAttendanceData, type MyDay,
+  buildMyDays, summarise, rangeChoices, defaultRange, myShifts,
+  type DayStatus, type MyAttendanceData, type MyDay, type MyShift,
 } from "@/lib/myAttendance";
 
 const STATUS: Record<DayStatus, { label: string; cell: string }> = {
@@ -26,6 +26,24 @@ const STATUS: Record<DayStatus, { label: string; cell: string }> = {
   scheduled: { label: "Scheduled",    cell: "bg-background text-foreground border-primary/40 border-dashed" },
   no_record: { label: "No record yet", cell: "bg-background text-muted-foreground border-dashed border-border" },
 };
+
+const plusDays = (iso: string, n: number) => {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+const KIND_LABEL: Record<MyShift["kind"], string> = {
+  scheduled: "Scheduled", overtime: "Overtime", training: "Training",
+  holiday: "Holiday", sick: "Sickness", unpaid: "Unpaid leave", other: "Away",
+};
+
+/** The column, or the honest version of not knowing it. */
+function areaText(sh: MyShift): string {
+  if (sh.area) return sh.leader ? `${sh.area} (leader)` : sh.area;
+  if (sh.area === undefined) return "—";
+  return "Work area not yet assigned";
+}
 
 const fmtDay = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -86,11 +104,14 @@ export default function MyAttendancePage() {
             enter the number on your badge, or ask your supervisor to link it.
           </CardContent></Card>
         ) : result?.state === "ready" ? (
+          <>
+          <WhereImWorking today={today} />
           <Attendance
             data={result.data} today={today} range={range}
             onRange={(r, key) => { setPicked(key); setRange(r); }}
             pickedKey={picked}
           />
+          </>
         ) : null}
       </div>
     </DashboardLayout>
@@ -192,7 +213,7 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
         <CardContent className="space-y-3">
           <Calendar days={days} today={today} onPick={setSelected} selected={selected?.date ?? null} />
           <Legend />
-          {selected && <DayDetail day={selected} />}
+          {selected && <DayDetail day={selected} shifts={myShifts(data, selected.date, selected.date)} />}
         </CardContent>
       </Card>
     </>
@@ -267,7 +288,45 @@ function Legend() {
   );
 }
 
-function DayDetail({ day }: { day: MyDay }) {
+/**
+ * The next fourteen days, from the Headcount Board: which board, which hours, which
+ * column. Its own read, so it is there whatever range the calendar below is showing.
+ */
+function WhereImWorking({ today }: { today: string }) {
+  const to = plusDays(today, 13);
+  const { data: result } = useMyAttendance(today, to);
+  if (result?.state !== "ready") return null;
+  const shifts = myShifts(result.data, today, to).filter((s) => !["holiday", "sick", "unpaid", "other"].includes(s.kind));
+  return (
+    <Card data-testid="where-im-working">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base"><MapPin className="h-4 w-4" /> Where I'm working</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0 pb-2">
+        {shifts.length === 0 ? (
+          <p className="px-4 pb-2 text-sm text-muted-foreground">No shifts planned in the next two weeks.</p>
+        ) : (
+          <ul className="divide-y text-sm">
+            {shifts.map((sh, i) => (
+              <li key={`${sh.date}-${sh.shift}-${i}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-4 py-2">
+                <div className="min-w-0">
+                  <div className="font-medium">
+                    {sh.date === today ? "Today" : fmtDay(sh.date)}
+                    <span className="font-normal text-muted-foreground"> · {sh.shift}{sh.hours ? ` ${sh.hours}` : ""}</span>
+                  </div>
+                  <div className={cn("text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
+                </div>
+                {sh.kind !== "scheduled" && <Badge variant="outline">{KIND_LABEL[sh.kind]}</Badge>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DayDetail({ day, shifts }: { day: MyDay; shifts: MyShift[] }) {
   const c = day.clock;
   const src = day.source === "clock" ? "TimeMoto" : day.source === "mark" ? "Marked by the office" : day.source === "rota" ? "Your rota" : "Nothing on file";
   return (
@@ -292,6 +351,12 @@ function DayDetail({ day }: { day: MyDay }) {
         {day.board && <>
           <dt className="text-muted-foreground">Board planned</dt><dd>{day.board.status}{day.board.half_day ? " (half day)" : ""}, {day.board.shift}</dd>
         </>}
+        {shifts.filter((sh) => !["holiday", "sick", "unpaid", "other"].includes(sh.kind)).map((sh, i) => (
+          <span key={`wa-${i}`} className="contents">
+            <dt className="text-muted-foreground">Work area{shifts.length > 1 ? ` (${sh.shift})` : ""}</dt>
+            <dd>{areaText(sh)}{sh.hours ? ` · ${sh.hours}` : ""}</dd>
+          </span>
+        ))}
         {day.requests.map((r, i) => (
           <span key={i} className="contents">
             <dt className="text-muted-foreground">Leave request</dt>

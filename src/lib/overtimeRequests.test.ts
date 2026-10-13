@@ -3,7 +3,7 @@ import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
   myAnswerLabel, supervisorLabel, headcountLine, audienceLine, askIsOver,
-  type Reliability, type OvertimeResponse, type Candidate, hoursBetween } from "./overtimeRequests";
+  type Reliability, type OvertimeResponse, type Candidate, hoursBetween, deskCandidates, overtimeBoardFor } from "./overtimeRequests";
 
 const rel = (o: Partial<Reliability> = {}): Reliability => ({
   employee_id: "e", sick_this_month: 0, absent_this_month: 0,
@@ -287,5 +287,43 @@ describe("hoursBetween", () => {
 
   it("aguenta o campo vazio enquanto se escreve", () => {
     for (const v of ["", "1", "ab:cd"]) expect(hoursBetween(v, "06:00")).toBe("");
+  });
+});
+
+describe("cross-shift overtime", () => {
+  const people = [
+    { id: "d", full_name: "Rosana Cardozo", department: "Production", shift_group: "Day" },
+    { id: "n", full_name: "Juliano Santos", department: "Production", shift_group: "Night" },
+    { id: "w", full_name: "Ana Weekend", department: "Production", shift_group: "Weekend" },
+  ];
+
+  it("puts the hours, not the crew, on a board", () => {
+    expect(overtimeBoardFor("06:00")).toBe("Day");
+    expect(overtimeBoardFor("17:59")).toBe("Day");
+    expect(overtimeBoardFor("18:00")).toBe("Night");
+    expect(overtimeBoardFor("05:30")).toBe("Night");
+  });
+
+  it("lets a supervisor add a Day person to an ask for the Night crew", () => {
+    const list = deskCandidates({ department: null, shift_group: "Night" }, people, new Set());
+    // Night crew first, then everybody else by name.
+    expect(list.map((c) => c.employee.id)).toEqual(["n", "w", "d"]);
+    expect(list.find((c) => c.employee.id === "d")).toMatchObject({ outside: true });
+    expect(list.find((c) => c.employee.id === "n")).toMatchObject({ outside: false });
+  });
+
+  it("and a Night person to an ask for the Day crew", () => {
+    const list = deskCandidates({ department: null, shift_group: "Day" }, people, new Set());
+    expect(list[0].employee.id).toBe("d");
+    expect(list.some((c) => c.employee.id === "n" && c.outside)).toBe(true);
+  });
+
+  it("never offers somebody who has already answered, so nobody is added twice", () => {
+    const list = deskCandidates({ department: null, shift_group: null }, people, new Set(["d"]));
+    expect(list.map((c) => c.employee.id)).not.toContain("d");
+  });
+
+  it("still keeps the ask's audience for the employee's own phone", () => {
+    expect(requestIsForEmployee({ department: null, shift_group: "Night" }, people[0])).toBe(false);
   });
 });

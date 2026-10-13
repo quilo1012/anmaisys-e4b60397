@@ -19,7 +19,7 @@ import {
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   windowLabel, audienceLine, type OvertimeRequest, type OvertimeOutcome, type Candidate,
-  hoursBetween,
+  hoursBetween, deskCandidates, overtimeBoardFor,
 } from "@/lib/overtimeRequests";
 import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
 import { answeredForDifferentHours, countStale, windowAnswered } from "@/lib/staleOvertimeAnswer";
@@ -181,16 +181,20 @@ function NewRequestDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label>Shift</Label>
+              <Label>Crew asked</Label>
               <Select value={shiftGroup} onValueChange={setShiftGroup}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Any shift</SelectItem>
+                  <SelectItem value="all">Every crew</SelectItem>
                   {shiftGroups.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground" data-testid="ot-target-board">
+            Goes on the <span className="font-medium text-foreground">{overtimeBoardFor(startsAt)}</span> board
+            of {fmtDate(onDate)}, from the hours. The crew only decides who is asked; you can still add anybody from any crew.
+          </p>
           <div className="grid gap-1.5">
             <Label htmlFor="ot-note">Note (optional)</Label>
             <Textarea id="ot-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Line 3, packing. Bring safety boots." />
@@ -262,9 +266,9 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
   const outcomeById = new Map(outcomes.map((o) => [o.response_id, o.outcome]));
 
   const answered = new Set(responses.map((r) => r.employee_id));
-  const notAnswered = employees.filter((e) => !answered.has(e.id)
-    && (!request.department || e.department === request.department)
-    && (!request.shift_group || e.shift_group === request.shift_group));
+  // Not narrowed by the ask's crew or department: those say who is asked, and a
+  // supervisor may add anybody — a Day person on Night overtime included.
+  const notAnswered = deskCandidates(request, employees, answered);
 
   const onDecide = (responseId: string, decision: "accepted" | "reserve" | "declined" | null) =>
     decide.mutate({ responseId, decision }, { onError: (e) => toast.error((e as Error).message) });
@@ -440,7 +444,12 @@ function RequestCard({ request }: { request: OvertimeRequest }) {
               <Select value={addingFor} onValueChange={setAddingFor}>
                 <SelectTrigger className="h-8 w-[220px]"><SelectValue placeholder="Add a yes given at the desk…" /></SelectTrigger>
                 <SelectContent>
-                  {notAnswered.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+                  {notAnswered.map(({ employee: e, outside }) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.full_name}
+                      {outside && <span className="text-muted-foreground"> · {[e.shift_group && `${e.shift_group} crew`, e.department].filter(Boolean).join(", ") || "not asked"}</span>}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button

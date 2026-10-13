@@ -18,6 +18,7 @@ import { absenceKind, splitAbsences } from "@/lib/absenceKind";
 import { buildClose, countDaysAway, round2 } from "@/lib/financeClose";
 import { eachDate, leaveBalance, type LeaveBalance } from "@/lib/leaveDays";
 import { expectedShifts } from "@/lib/shiftBalance";
+import { overtimeBoardFor } from "@/lib/overtimeRequests";
 
 /* ---------------------------------------------------------------- the payload ---- */
 
@@ -32,7 +33,20 @@ export interface MyClockRow {
   absence_name: string | null;
 }
 export interface MyMark { on_date: string; status: string }
-export interface MyBoardRow { on_date: string; shift: string; status: string; half_day: boolean | null }
+export interface MyBoardRow {
+  on_date: string; shift: string; status: string; half_day: boolean | null;
+  /**
+   * The board column, by the name the board heads it with; null when the row has no
+   * column. ABSENT (undefined) from a `my_attendance` older than 20261012200000 —
+   * which is not the same as null, and the screen must not say "not yet assigned"
+   * about a row whose column it simply was not told.
+   */
+  area?: string | null;
+  area_kind?: string | null;
+  is_leader?: boolean | null;
+}
+/** An overtime shift a supervisor accepted this person for: the ask's own hours. */
+export interface MyOvertimeShift { on_date: string; starts_at: string; ends_at: string }
 export interface MyLeaveRequest {
   kind: string; start_date: string; end_date: string; status: string; working_days: number | null;
 }
@@ -56,6 +70,8 @@ export interface MyAttendanceData {
   /** Every holiday mark across the surrounding leave years, for the balance. */
   holiday_marks: string[];
   board: MyBoardRow[];
+  /** Missing before 20261012200000. */
+  overtime?: MyOvertimeShift[];
   requests: MyLeaveRequest[];
   payroll: { period_id: string; hours: number }[];
   periods: MyPeriod[];
@@ -312,4 +328,73 @@ export function defaultRange(periods: MyPeriod[], today: string): { from: string
   const d = new Date(`${first}T00:00:00Z`);
   d.setUTCMonth(d.getUTCMonth() + 1);
   return { from: first, to: addDays(iso(d), -1) };
+}
+
+/* ------------------------------------------------------------ where I'm working ---- */
+
+export interface MyShift {
+  date: string;
+  /** The board the day is on: "Day" / "Night". */
+  shift: string;
+  /** "06:00–18:00", or null when neither the rota nor the ask says. */
+  hours: string | null;
+  kind: "scheduled" | "overtime" | "training" | "holiday" | "sick" | "unpaid" | "other";
+  /**
+   * The column on the board. `null` = nobody has placed this person yet; `undefined`
+   * = the database did not say (a `my_attendance` from before 20261012200000).
+   */
+  area: string | null | undefined;
+  leader: boolean;
+}
+
+const hhmm = (t: string | null | undefined) => (t ? t.slice(0, 5) : null);
+const span = (a: string | null | undefined, b: string | null | undefined) =>
+  hhmm(a) && hhmm(b) ? `${hhmm(a)}–${hhmm(b)}` : null;
+
+/**
+ * Where the person is working, day by day: the Headcount Board's own rows.
+ *
+ * The board is the source. A row on it gives the shift and the column; nothing is
+ * read from the person's usual department, because "Production" is not a line. A
+ * rota day the board has no row for yet is still shown — it is a day they are due —
+ * with the area null, which the screen says as "Work area not yet assigned". Accepted
+ * overtime the board does not hold (yet) is shown from the ask, on the board its
+ * hours belong to, also unassigned. A day can hold two rows — a Day shift and a Night
+ * overtime — and both are listed.
+ */
+export function myShifts(data: MyAttendanceData, from: string, to: string): MyShift[] {
+  const days = new Set(data.pattern?.days ?? []);
+  const rotaHours = span(data.pattern?.starts_at, data.pattern?.ends_at);
+  // The board's own rule (`boardShiftFor`): the Night crew is on the Night board,
+  // every other crew on the Day board — weekends and warehouse included.
+  const rotaShift = data.me.shift_group === "Night" ? "Night" : "Day";
+  const out: MyShift[] = [];
+  for (const date of eachDate(from, to)) {
+    const rows = data.board.filter((b) => b.on_date === date);
+    const asks = (data.overtime ?? []).filter((o) => o.on_date === date);
+    for (const b of rows) {
+      const ask = b.status === "overtime" ? asks.find((o) => overtimeBoardFor(o.starts_at) === b.shift) : undefined;
+      const kind: MyShift["kind"] =
+        b.status === "assigned" ? "scheduled"
+        : b.status === "overtime" || b.status === "training" || b.status === "holiday" || b.status === "sick" || b.status === "unpaid" ? b.status
+        : "other";
+      const away = kind === "holiday" || kind === "sick" || kind === "unpaid" || kind === "other";
+      out.push({
+        date, shift: b.shift,
+        hours: away ? null : ask ? span(ask.starts_at, ask.ends_at) : b.shift === rotaShift ? rotaHours : null,
+        kind,
+        area: away ? null : "area" in b ? b.area ?? null : undefined,
+        leader: !!b.is_leader,
+      });
+    }
+    for (const o of asks) {
+      const shift = overtimeBoardFor(o.starts_at);
+      if (rows.some((b) => b.shift === shift)) continue;
+      out.push({ date, shift, hours: span(o.starts_at, o.ends_at), kind: "overtime", area: null, leader: false });
+    }
+    if (!rows.length && !asks.length && days.has(isoWeekday(date))) {
+      out.push({ date, shift: rotaShift, hours: rotaHours, kind: "scheduled", area: null, leader: false });
+    }
+  }
+  return out;
 }
