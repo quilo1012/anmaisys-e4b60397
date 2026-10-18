@@ -26,9 +26,10 @@ const STATUS: Record<DayStatus, { label: string; cell: string }> = {
   unpaid:    { label: "Unpaid leave", cell: "bg-muted text-foreground border-border" },
   absent:    { label: "Absent",       cell: "bg-destructive/10 text-destructive border-destructive/30" },
   other:     { label: "Other",        cell: "bg-muted text-foreground border-border" },
-  rest:      { label: "Rest day",     cell: "bg-background text-muted-foreground border-border/60" },
-  scheduled: { label: "Scheduled",    cell: "bg-background text-foreground border-primary/40 border-dashed" },
-  no_record: { label: "No record yet", cell: "bg-background text-muted-foreground border-dashed border-border" },
+  // A day off steps back, so the days that ask something of the person stand out.
+  rest:      { label: "Rest day",     cell: "bg-transparent text-muted-foreground/70 border-transparent" },
+  scheduled: { label: "Scheduled",    cell: "bg-card text-foreground border-primary/50 border-dashed" },
+  no_record: { label: "No record yet", cell: "bg-muted/50 text-muted-foreground border-dashed border-muted-foreground/30" },
 };
 
 const plusDays = (iso: string, n: number) => {
@@ -220,10 +221,19 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
       </Card>
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-base">Calendar</CardTitle></CardHeader>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex flex-wrap items-baseline justify-between gap-x-3 text-base">
+            Calendar
+            {days.length > 0 && (
+              <span className="text-xs font-normal text-muted-foreground">
+                {fmtShort(days[0].date)} – {fmtShort(days[days.length - 1].date)}
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
         <CardContent className="space-y-3">
           <Calendar days={days} today={today} onPick={setSelected} selected={selected?.date ?? null} />
-          <Legend />
+          <Legend days={days} />
           {selected && <DayDetail day={selected} shifts={myShifts(data, selected.date, selected.date)} />}
         </CardContent>
       </Card>
@@ -255,46 +265,80 @@ function Row({ label, value, note }: { label: string; value: string; note: strin
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+const fmtShort = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+const monthOf = (d: string) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { month: "short" });
+
 function Calendar({ days, today, onPick, selected }: {
   days: MyDay[]; today: string; onPick: (d: MyDay) => void; selected: string | null;
 }) {
   const lead = days.length ? ((new Date(`${days[0].date}T00:00:00Z`).getUTCDay() || 7) - 1) : 0;
   return (
-    <div className="grid grid-cols-7 gap-1 text-center">
-      {WEEKDAYS.map((w) => <div key={w} className="text-2xs text-muted-foreground">{w}</div>)}
-      {Array.from({ length: lead }, (_, i) => <div key={`lead-${i}`} />)}
-      {days.map((d) => (
-        <button
-          key={d.date} type="button" onClick={() => onPick(d)}
-          aria-label={`${fmtDay(d.date)}: ${STATUS[d.status].label}${d.overtime ? ", overtime" : ""}${d.pending ? ", pending approval" : ""}`}
-          className={cn(
-            "relative flex min-h-11 flex-col items-center justify-center rounded-md border text-xs",
-            STATUS[d.status].cell,
-            d.date === today && "ring-2 ring-primary ring-offset-1 ring-offset-background",
-            selected === d.date && "outline outline-2 outline-foreground",
-          )}
-        >
-          <span className="font-figure tabular-nums">{Number(d.date.slice(8))}</span>
-          <span className="flex gap-0.5">
-            {d.overtime && <span className="text-[9px] font-semibold">OT</span>}
-            {d.pending && <span className="text-[9px] font-semibold">P</span>}
-            {d.boardSays && <span className="text-[9px] font-semibold">!</span>}
-          </span>
-        </button>
+    <div className="grid grid-cols-7 gap-1 text-center sm:gap-1.5">
+      {WEEKDAYS.map((w, i) => (
+        <div key={w} className={cn("pb-0.5 text-2xs font-medium text-muted-foreground", i >= 5 && "text-muted-foreground/70")}>{w}</div>
       ))}
+      {Array.from({ length: lead }, (_, i) => <div key={`lead-${i}`} />)}
+      {days.map((d, i) => {
+        const isToday = d.date === today;
+        // The month is named where it starts, so "1" after "31" is never a puzzle.
+        const month = i === 0 || d.date.endsWith("-01") ? monthOf(d.date) : null;
+        return (
+          <button
+            key={d.date} type="button" onClick={() => onPick(d)}
+            aria-label={`${fmtDay(d.date)}: ${STATUS[d.status].label}${d.overtime ? ", overtime" : ""}${d.pending ? ", pending approval" : ""}`}
+            aria-current={isToday ? "date" : undefined}
+            aria-pressed={selected === d.date}
+            className={cn(
+              "relative flex min-h-11 flex-col items-center justify-center rounded-md border text-xs transition-colors sm:min-h-14",
+              "hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              d.date < today && d.status === "rest" && "opacity-60",
+              STATUS[d.status].cell,
+              isToday && "border-2 border-primary border-solid",
+              selected === d.date && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
+            )}
+          >
+            {month && <span className="text-[9px] font-semibold uppercase leading-none tracking-wide opacity-80">{month}</span>}
+            <span className={cn("font-figure tabular-nums sm:text-sm", isToday && "font-bold text-primary")}>{Number(d.date.slice(8))}</span>
+            {(d.overtime || d.pending || d.boardSays) && (
+              <span className="flex gap-0.5 leading-none">
+                {d.overtime && <span className="text-[9px] font-semibold">OT</span>}
+                {d.pending && <span className="text-[9px] font-semibold">P</span>}
+                {d.boardSays && <span className="text-[9px] font-semibold">!</span>}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function Legend() {
+/** Only what this calendar shows: a key to colours that are not on screen is noise. */
+function Legend({ days }: { days: MyDay[] }) {
+  const shown = new Set(days.map((d) => d.status));
+  const marks = [
+    days.some((d) => d.overtime) && "OT = overtime on a present day",
+    days.some((d) => d.pending) && "P = pending approval",
+    days.some((d) => d.boardSays) && "! = the board planned something else",
+  ].filter(Boolean) as string[];
   return (
-    <div className="flex flex-wrap gap-1.5 text-2xs">
-      {(Object.keys(STATUS) as DayStatus[]).filter((k) => k !== "other").map((k) => (
-        <span key={k} className={cn("rounded border px-1.5 py-0.5", STATUS[k].cell)}>{STATUS[k].label}</span>
-      ))}
-      <span className="rounded border px-1.5 py-0.5">OT = overtime on a present day</span>
-      <span className="rounded border px-1.5 py-0.5">P = pending approval</span>
-      <span className="rounded border px-1.5 py-0.5">! = the board planned something else</span>
+    <div className="space-y-1.5 border-t pt-3 text-xs text-muted-foreground">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+        {(Object.keys(STATUS) as DayStatus[]).filter((k) => shown.has(k)).map((k) => (
+          <li key={k} className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("h-3 w-3 shrink-0 rounded-sm border", STATUS[k].cell, k === "rest" && "border-border")} />
+            {STATUS[k].label}
+          </li>
+        ))}
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden className="h-3 w-3 shrink-0 rounded-sm border-2 border-primary" />
+          Today
+        </li>
+      </ul>
+      {marks.length > 0 && <p>{marks.join(" · ")}</p>}
+      <p>Tap a day to see its details.</p>
     </div>
   );
 }
