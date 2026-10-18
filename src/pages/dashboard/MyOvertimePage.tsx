@@ -9,10 +9,10 @@ import { Check, X, Clock, Loader2, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useMyEmployee, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
-  useMyOvertimeBlock,
+  useMyOvertimeBlock, useMyOvertimeClashes,
 } from "@/hooks/useOvertimeRequests";
 import {
-  requestIsForEmployee, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
+  asksOfferedTo, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
   headcountLine, audienceLine, askIsOver, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
@@ -23,6 +23,8 @@ import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { TabletOvertimeNotice } from "@/components/workforce/TabletOvertimeNotice";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
+
+const NO_CLASHES: ReadonlyMap<string, string> = new Map();
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -192,6 +194,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const { data: requests = [], isLoading } = useOvertimeRequests();
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
+  const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
   const { answer } = useOvertimeMutations();
   const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
@@ -204,15 +207,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
    * window had closed, with both buttons live. `askIsOver` reads the hours the ask
    * actually carries.
    *
+   * And the crew label was the only test of whether the hours were free, so the
+   * weekend crew was offered Saturday 06:00–18:00 on top of their own Saturday
+   * 06:00–18:00. `clashes` is the database reading their board and rota for the date.
+   *
    * An ask already answered stays on the list even once it is over: that is the
    * person's own record of what they said and what came of it. What goes is the
    * offer of a shift nobody can work any more.
    */
   const visible = useMemo(
-    () => requests
-      .filter((r) => requestIsForEmployee(r, me))
-      .filter((r) => mine.has(r.id) || !askIsOver(r)),
-    [requests, me, mine],
+    () => asksOfferedTo(requests, me, new Set(mine.keys()), clashes),
+    [requests, me, mine, clashes],
   );
 
   /**
@@ -277,6 +282,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         // Open, undecided, and not already finished. The third was missing, which is
         // how a morning that had ended was still taking answers at eleven at night.
         const canAnswer = r.status === "open" && !my?.decision && !askIsOver(r);
+        // Answered before the board or the rota put them on these hours. Their answer
+        // stays; a yes no longer can — the database would refuse it.
+        const ownHours = clashes.get(r.id);
         const tone =
           my?.decision === "accepted" ? "bg-success/15 text-success border-success/30"
           : my?.decision === "reserve" ? "bg-warning/15 text-warning border-warning/30"
@@ -330,12 +338,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   )}
                 </div>
               )}
+              {canAnswer && ownHours && (
+                <p className="text-sm text-muted-foreground">
+                  These hours are already yours — {ownHours.charAt(0).toLowerCase() + ownHours.slice(1)}.
+                </p>
+              )}
               {canAnswer && (
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     size="lg" variant={my?.answer === "yes" ? "default" : "outline"}
                     className={cn("h-12", my?.answer === "yes" && "bg-success text-success-foreground hover:bg-success/90")}
-                    disabled={answer.isPending || !!block} onClick={() => reply(r, "yes")}
+                    disabled={answer.isPending || !!block || !!ownHours} onClick={() => reply(r, "yes")}
                   >
                     <Check className="mr-2 h-5 w-5" /> Yes, I can
                   </Button>
