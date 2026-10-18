@@ -1,4 +1,4 @@
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, Link, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
@@ -6,6 +6,8 @@ import { Loader2, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { can, roleDashMap, subscribePermissionOverrides, subscribeMobileHidden, isDeviceHidden, type Action } from "@/lib/permissions";
 import { useDeviceType } from "@/hooks/use-device-type";
+import { loginPathFor } from "@/lib/sessionRestore";
+import { SessionReconnecting } from "@/components/auth/SessionReconnecting";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -16,9 +18,10 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles, requiredAction }: ProtectedRouteProps) {
-  const { session, role, isOwner, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut } = useAuth();
+  const { session, role, isOwner, profile, loading, authError, silentReLoginInFlight, reconnecting, retryAuth, signOut } = useAuth();
   const [, setPermissionVersion] = useState(0);
   const device = useDeviceType();
+  const location = useLocation();
 
   useEffect(() => {
     const a = subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
@@ -85,9 +88,15 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
     );
   }
 
-  // No session at all — redirect to login
+  // Signed in, but the server could not be reached to renew the session. Waiting
+  // here is the point: bouncing to /login would ask for a password nobody needs.
+  if (!session && reconnecting) {
+    return <SessionReconnecting />;
+  }
+
+  // No session at all — redirect to login, and come back here afterwards.
   if (!session) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPathFor(location)} replace />;
   }
 
   // Account inactive — block immediately, even before role resolves.

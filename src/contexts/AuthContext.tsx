@@ -5,6 +5,7 @@ import { logSystemError } from "@/lib/telemetry";
 import { setIsOwner } from "@/lib/permissions";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { classifyBootSession, clearSessionEndNotice, noteSessionEnded } from "@/lib/sessionRestore";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -21,6 +22,10 @@ interface AuthContextType {
    *  refresh-token revocation recovery). ProtectedRoute uses this to avoid
    *  bouncing the user to /login during the recovery window. */
   silentReLoginInFlight: boolean;
+  /** A session is stored but the server could not be reached to renew it. The
+   *  person is still signed in; screens wait and retry instead of asking for the
+   *  password. See lib/sessionRestore. */
+  reconnecting: boolean;
   retryAuth: () => Promise<void>;
   signOut: (reason?: string) => Promise<void>;
 }
@@ -34,6 +39,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   authError: null,
   silentReLoginInFlight: false,
+  reconnecting: false,
   retryAuth: async () => {},
   signOut: async () => {},
 });
@@ -81,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roleLoading, setRoleLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [silentReLoginInFlight, setSilentReLoginInFlight] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const currentUserIdRef = useRef<string | null>(null);
   const roleRef = useRef<AppRole | null>(null);
   const lastKnownSessionRef = useRef<Session | null>(null);
@@ -88,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const explicitSignOutRef = useRef(false);
   const reLoginInFlightRef = useRef(false);
   const implicitSignOutRecoveryRef = useRef(false);
+  const reconnectRef = useRef<() => void>(() => {});
 
   const TABLET_CRED_KEY = "an_tablet_cred";
   const DEACTIVATED_UNTIL_KEY = "an_account_deactivated_until";
@@ -285,6 +293,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const syncSessionUser = (newSession: Session) => {
+      stopReconnecting();
       lastKnownSessionRef.current = newSession;
       setSession(newSession);
       setUser(newSession.user);
@@ -296,46 +305,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const initializeAuth = async () => {
-      // Try to get the current session first
-      let currentSession: Session | null = null;
+    // While the stored session cannot be renewed for want of a network, retry on
+    // a timer and as soon as the device says it is back online. supabase-js's own
+    // auto-refresh ticker is also retrying; whichever succeeds first emits
+    // TOKEN_REFRESHED, which lands in syncSessionUser below.
+    let reconnectTimer: ReturnType<typeof setInterval> | null = null;
+    const stopReconnecting = () => {
+      if (reconnectTimer) clearInterval(reconnectTimer);
+      reconnectTimer = null;
+      window.removeEventListener("online", reconnectNow);
+      setReconnecting(false);
+    };
+    const startReconnecting = () => {
+      setReconnecting(true);
+      if (reconnectTimer) return;
+      reconnectTimer = setInterval(reconnectNow, 15_000);
+      window.addEventListener("online", reconnectNow);
+    };
+    function reconnectNow() {
+      void readStoredSession();
+    }
+    reconnectRef.current = reconnectNow;
+
+    const readStoredSession = async () => {
+      let result = null;
       try {
-        const sessionResult = await raceWithFallback(supabase.auth.getSession(), 10_000, null);
-        currentSession = sessionResult?.data?.session ?? null;
+        result = await raceWithFallback(supabase.auth.getSession(), 10_000, null);
       } catch {
-        currentSession = null;
+        result = null;
       }
-
-      // If no session but tokens may exist (failed refresh), attempt explicit refresh
-      // This handles transient refresh-token failures across tabs/devices without logging out
-      if (!currentSession) {
-        try {
-          const refreshedResult = await raceWithFallback(supabase.auth.refreshSession(), 10_000, null);
-          const refreshed = refreshedResult?.data;
-          if (refreshed?.session) currentSession = refreshed.session;
-        } catch {
-          // Refresh failed (no token at all) — user is genuinely logged out
-        }
-      }
-
       if (!mounted) return;
-
-      if (currentSession?.user) {
-        syncSessionUser(currentSession);
+      const boot = classifyBootSession(result);
+      if (boot.kind === "signed-in") {
+        syncSessionUser(boot.session);
+      } else if (boot.kind === "reconnecting") {
+        startReconnecting();
       } else {
-        // No session at boot: attempt silent Tablet re-login before giving up.
+        // Nothing usable stored: attempt silent Tablet re-login before giving up.
         // Hard 5s timeout so a slow/stuck refresh never keeps the spinner up.
         const ok = await raceWithFallback(tryTabletRelogin(), 5000, false);
         if (!ok && mounted) {
-          clearAuthState("boot:no-session");
+          stopReconnecting();
+          if (boot.kind === "ended") noteSessionEnded("expired");
+          clearAuthState(`boot:${boot.kind}`);
         }
         // On success, the SIGNED_IN event will populate state.
-
       }
       setIsReady(true);
     };
 
-    void initializeAuth();
+    void readStoredSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
@@ -424,6 +443,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               return;
             }
 
+            noteSessionEnded("expired");
             clearAuthState("implicit-sign-out:expired-or-unrecoverable");
             setIsReady(true);
           } finally {
@@ -435,12 +455,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Token refresh — just sync, never refetch profile or clear
+      // Token refresh — just sync, never clear, and refetch profile only for a user not yet loaded
       if (event === "TOKEN_REFRESHED") {
         if (newSession) {
-          lastKnownSessionRef.current = newSession;
-          setSession(newSession);
-          setUser(newSession.user);
+          if (currentUserIdRef.current !== newSession.user.id) {
+            // A refresh that lands after a boot that could not reach the server:
+            // this is the moment the session is restored, so load role and profile.
+            syncSessionUser(newSession);
+            setIsReady(true);
+          } else {
+            lastKnownSessionRef.current = newSession;
+            setSession(newSession);
+            setUser(newSession.user);
+          }
           // Keep the shared-tablet stored credential in sync with the rotated
           // refresh_token. Supabase rotates it every ~1h; without this the stored
           // an_tablet_cred token goes stale, so a later silent re-login uses an
@@ -486,6 +513,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      if (reconnectTimer) clearInterval(reconnectTimer);
+      window.removeEventListener("online", reconnectNow);
     };
   }, []);
 
@@ -555,11 +584,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       stack: new Error().stack,
     });
     explicitSignOutRef.current = true;
+    clearSessionEndNotice();
     try {
       // Wipe persisted Tablet credentials on explicit sign-out only.
       localStorage.removeItem("an_tablet_cred");
     } catch { /* ignore */ }
-    await supabase.auth.signOut();
+    // `local` ends this device's session, on the server too. The default, `global`,
+    // revoked every session the account had, so signing out of the office PC also
+    // signed the same person out of their phone, and one tablet signing out of a
+    // shared line account signed out every other tablet on it.
+    await supabase.auth.signOut({ scope: "local" });
     currentUserIdRef.current = null;
     lastKnownSessionRef.current = null;
     setSession(null);
@@ -569,6 +603,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsOwner(false);
     setProfile(null);
     setAuthError(null);
+    setReconnecting(false);
   };
 
   const retryAuth = async () => {
@@ -579,27 +614,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    try {
-      const sessionResult = await raceWithFallback(supabase.auth.getSession(), 10_000, null);
-      const currentSession = sessionResult?.data?.session;
-      if (currentSession?.user) {
-        lastKnownSessionRef.current = currentSession;
-        setSession(currentSession);
-        setUser(currentSession.user);
-        currentUserIdRef.current = currentSession.user.id;
-        await fetchUserData(currentSession.user.id);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to reconnect to the backend.";
-      setAuthError(message);
-    }
+    reconnectRef.current();
   };
 
   // Loading is only true on initial boot, never during token refreshes
   const loading = !isReady || (!!session && !role && roleLoading);
 
   return (
-    <AuthContext.Provider value={{ session, user, role, isOwner, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut }}>
+    <AuthContext.Provider value={{ session, user, role, isOwner, profile, loading, authError, silentReLoginInFlight, reconnecting, retryAuth, signOut }}>
       {children}
     </AuthContext.Provider>
   );
