@@ -212,6 +212,7 @@ export const navItems: NavItem[] = [
   // still an import. The route, the screen, the hooks and the data all remain —
   // /dashboard/workforce still opens for an admin who types it.
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
+  { title: "Employee", url: "/dashboard/people", icon: Users, roles: ["admin", "manager"], group: "Production", action: "employees.view" },
   // Overtime is asked for before it is worked, and the ask is the manager's: it is
   // the one Workforce screen a manager reaches without the admin-only board, so it
   // gets a row of its own rather than living only on the board's tab bar.

@@ -501,7 +501,7 @@ const App = () => (
                 <Route
                   path="/dashboard/people"
                   element={
-                    <ProtectedRoute requiredAction="workforce.view">
+                    <ProtectedRoute requiredAction="employees.view">
                       <PeoplePage />
                     </ProtectedRoute>
                   }
