@@ -80,7 +80,9 @@ Deno.serve(async (req) => {
     const parsedBody = PushPayloadSchema.safeParse(rawBody);
     if (!parsedBody.success) {
       return new Response(
-        JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }),
+        // flatten() puts unknown keys (from .strict()) in formErrors, not fieldErrors —
+        // returning only fieldErrors made that failure read as an empty {}.
+        JSON.stringify({ error: "invalid payload", details: parsedBody.error.flatten() }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

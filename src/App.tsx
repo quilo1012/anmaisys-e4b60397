@@ -409,6 +409,9 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                {/* The first address these dashboards had, kept so a link to it still opens them. */}
+                <Route path="/dashboard/production-dashboard" element={<Navigate to="/dashboard/departments/production" replace />} />
+                <Route path="/dashboard/maintenance-dashboard" element={<Navigate to="/dashboard/departments/maintenance" replace />} />
                 <Route
                   path="/dashboard/manager"
                   element={
