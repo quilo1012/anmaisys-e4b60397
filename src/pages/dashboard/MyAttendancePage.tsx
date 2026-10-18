@@ -411,7 +411,7 @@ function DayDetail({ day, shifts }: { day: MyDay; shifts: MyShift[] }) {
         {shifts.filter((sh) => !["holiday", "sick", "unpaid", "other"].includes(sh.kind)).map((sh, i) => (
           <span key={`wa-${i}`} className="contents">
             <dt className="text-muted-foreground">Work area{shifts.length > 1 ? ` (${sh.shift})` : ""}</dt>
-            <dd>{areaText(sh)}{sh.hours ? ` · ${sh.hours}` : ""}</dd>
+            <dd>{areaText(sh)}{sh.hours && <> · {sh.hours.includes("–") ? <ShiftTimeRange startsAt={sh.hours.split("–")[0]} endsAt={sh.hours.split("–")[1]} /> : sh.hours}</>}</dd>
           </span>
         ))}
         {day.requests.map((r, i) => (

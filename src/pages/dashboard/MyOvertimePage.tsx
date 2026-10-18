@@ -1,4 +1,4 @@
-import { ShiftTimeRange } from "@/components/ShiftTimeRange";
+import { ShiftTimeRange, nextDaySuffix } from "@/components/ShiftTimeRange";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { BADGE_EMAIL_DOMAIN } from "@/lib/employeeAccounts";
@@ -319,8 +319,8 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           : `You said no to ${fmtDate(request.on_date)}`,
         {
           description: a === "yes"
-            ? `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}. The supervisor picks the team next.`
-            : `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}.`,
+            ? `${windowLabel(request.starts_at, request.ends_at)}${nextDaySuffix(request.starts_at, request.ends_at)}, ${audienceLine(request)}. The supervisor picks the team next.`
+            : `${windowLabel(request.starts_at, request.ends_at)}${nextDaySuffix(request.starts_at, request.ends_at)}, ${audienceLine(request)}.`,
         },
       ),
       onError: (e) => toast.error((e as Error).message || "Could not save your answer", {
