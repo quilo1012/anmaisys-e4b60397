@@ -74,6 +74,14 @@ BEGIN
     RAISE EXCEPTION 'No auth.users row exists to own the test ask';
   END IF;
 
+  -- Since 20261018100000_one_login_is_one_person.sql `employees.user_id` references
+  -- auth.users, so each throwaway person needs a throwaway login. The ROLLBACK at the
+  -- end takes them away with everything else.
+  INSERT INTO auth.users (id, email, instance_id, aud, role)
+  SELECT u, 'zz-' || u || '@example.invalid', '00000000-0000-0000-0000-000000000000',
+         'authenticated', 'authenticated'
+    FROM unnest(ARRAY[u_weekend, u_weekday, u_short, u_night, u_away, u_moved, u_ot]) u;
+
   INSERT INTO public.shift_patterns (name, days, starts_at, ends_at)
   VALUES ('ZZ Test Fri-Mon short', ARRAY[5,6,7,1]::smallint[], '06:00', '14:00')
   RETURNING id INTO p_wkend_short;
@@ -180,10 +188,12 @@ BEGIN
     NOT pg_temp.hidden(u_ot, ask_sat_morn));
   PERFORM pg_temp.expect_true('overtime that does not overlap is still offered',
     NOT pg_temp.hidden(u_ot, ask_sat_late));
-  -- The row the bridge writes for it. It carries the ask's id and is read through the
+  -- The row the bridge writes for it (written here too, for a database without the
+  -- bridge). It carries the ask's id and is read through the
   -- answer above, with the ask's own hours — not as a whole day shift.
   INSERT INTO public.daily_allocations (on_date, shift, employee_id, status, overtime_request_id)
-  VALUES (sat, 'Day', e_ot, 'overtime', ask_sat_morn);
+  VALUES (sat, 'Day', e_ot, 'overtime', ask_sat_morn)
+  ON CONFLICT (on_date, shift, employee_id) DO NOTHING;  -- already there where block 93 is live
   PERFORM pg_temp.expect_true('the bridged board row is not read as a 06:00–18:00 shift',
     NOT pg_temp.hidden(u_ot, ask_sat_late));
   INSERT INTO public.overtime_outcomes (response_id, outcome, recorded_by)

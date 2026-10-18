@@ -14,8 +14,9 @@
 -- the floor's phone does — `select answer_overtime(...)` with somebody's session.
 --
 -- Being that session is the one trick here: auth.uid() reads request.jwt.claims, so
--- setting that setting is enough to be a given person. No auth.users row is needed,
--- because my_employee_id() joins employees.user_id and stops there.
+-- setting that setting is enough to be a given person. my_employee_id() joins
+-- employees.user_id and stops there; the auth.users rows below exist only because
+-- that column has a foreign key since block 96.
 --
 -- It must run as a role that bypasses RLS (the SQL Editor's postgres role does).
 -- Every name below is a placeholder: no real employee appears here.
@@ -76,6 +77,14 @@ BEGIN
   IF v_creator IS NULL THEN
     RAISE EXCEPTION 'No auth.users row exists to own the test ask';
   END IF;
+
+  -- Since 20261018100000_one_login_is_one_person.sql `employees.user_id` references
+  -- auth.users, so each throwaway person needs a throwaway login. The ROLLBACK at the
+  -- end takes them away with everything else.
+  INSERT INTO auth.users (id, email, instance_id, aud, role)
+  SELECT u, 'zz-' || u || '@example.invalid', '00000000-0000-0000-0000-000000000000',
+         'authenticated', 'authenticated'
+    FROM unnest(ARRAY[u_day_prod, u_night_prod, u_day_wh]) u;
 
   INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
   VALUES ('ZZ Test Day Production',   'Production', 'Day',   true, u_day_prod)

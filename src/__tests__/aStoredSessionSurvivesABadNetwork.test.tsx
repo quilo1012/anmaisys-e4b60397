@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { AuthRetryableFetchError, AuthApiError, type Session } from "@supabase/supabase-js";
-import { classifyBootSession, loginPathFor, noteSessionEnded, takeSessionEndNotice } from "@/lib/sessionRestore";
+import { classifyBootSession, noteSessionEnded, takeSessionEndNotice } from "@/lib/sessionRestore";
 
 /**
  * "Employees keep being asked for their password." The session was in storage the
@@ -34,12 +34,7 @@ describe("reading the stored session at boot", () => {
   });
 });
 
-describe("coming back after signing in again", () => {
-  it("the login link carries the page the person was on", () => {
-    expect(loginPathFor({ pathname: "/dashboard/my-overtime", search: "?week=2" }))
-      .toBe("/login?next=%2Fdashboard%2Fmy-overtime%3Fweek%3D2");
-    expect(loginPathFor({ pathname: "/" })).toBe("/login");
-  });
+describe("the login screen after a session ends", () => {
   it("the reason a session ended is said once", () => {
     noteSessionEnded("expired");
     expect(takeSessionEndNotice()).toMatch(/sign-in ended/);

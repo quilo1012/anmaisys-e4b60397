@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Clock, Loader2, Ban } from "lucide-react";
+import { Check, X, Clock, Loader2, Ban, CalendarClock } from "lucide-react";
+import { LoadFailed } from "@/components/portal/LoadFailed";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   useMyEmployee, useMyUpcomingOvertime, useOvertimeResponses, useOvertimeMutations,
@@ -26,6 +28,37 @@ import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
 
 const NO_CLASHES: ReadonlyMap<string, string> = new Map();
+
+/**
+ * What the page looks like while it waits: the shape of the cards that are coming.
+ *
+ * A grey "Loading…" line and then three tall cards made the page jump on a phone,
+ * and the button under the thumb moved while the person was reaching for it.
+ */
+function AsksSkeleton() {
+  return (
+    <div className="space-y-3" role="status" aria-label="Loading your overtime">
+      {[0, 1].map((i) => (
+        <Card key={i} className="border-l-4 border-l-muted">
+          <CardContent className="space-y-3 pt-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Skeleton className="h-12" />
+              <Skeleton className="h-12" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -78,14 +111,12 @@ export default function MyOvertimePage() {
           /* A failed lookup is not an unlinked account. Asking a linked person for their
              badge again because the phone's network dropped is how a linked account
              ends up "registering" twice. */
-          <Card>
-            <CardContent className="space-y-3 p-4 text-sm">
-              <p>We couldn't check who you are just now. Your badge link is not lost.</p>
-              <Button variant="outline" onClick={() => void refetch()}>Try again</Button>
-            </CardContent>
-          </Card>
+          <LoadFailed
+            message="We couldn't check who you are just now. Your badge link is not lost."
+            onRetry={() => void refetch()}
+          />
         ) : isPending ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          <AsksSkeleton />
         ) : me ? (
           <>
             <OvertimePushNudge />
@@ -141,7 +172,9 @@ function LinkMyself() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const typed = ref.trim().toUpperCase();
-    if (!typed) return;
+    // Enter on the phone keyboard submits too, and the button's `disabled` does not
+    // stop that one. Five wrong tries lock the box, so a doubled try is not free.
+    if (!typed || linkMe.isPending) return;
     linkMe.mutate(typed, {
       // The database's words, not ours. It distinguishes "not available", "already
       // linked" and "too many tries", and each one tells the person a different thing
@@ -175,10 +208,10 @@ function LinkMyself() {
             placeholder="E045"
             autoCapitalize="characters"
             spellCheck={false}
-            className="font-mono uppercase"
+            className="h-12 font-mono uppercase"
             aria-label="Employee ID"
           />
-          <Button className="w-full" type="submit" disabled={!ref.trim() || linkMe.isPending}>
+          <Button className="h-12 w-full" type="submit" disabled={!ref.trim() || linkMe.isPending}>
             {linkMe.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             That's me
           </Button>
@@ -193,7 +226,7 @@ function LinkMyself() {
 }
 
 function AsksForMe({ me }: { me: { id: string; full_name: string; department: string | null; shift_group: string | null } }) {
-  const { data: requests = [], isLoading } = useMyUpcomingOvertime();
+  const { data: requests = [], isLoading, isError, refetch } = useMyUpcomingOvertime();
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
   const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
@@ -231,8 +264,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
    * in the same breath that a yes is not yet a place — that part is the supervisor's,
    * and the card below carries it on its own line.
    */
-  const reply = (request: OvertimeRequest, a: "yes" | "no") =>
+  /**
+   * One answer in flight at a time. `answer.isPending` disables the buttons, but only
+   * from the next render; a double tap on a phone lands before it and sent the answer
+   * twice — two toasts, and on a slow line two rows of audit for one tap.
+   */
+  const sending = useRef(false);
+  const reply = (request: OvertimeRequest, a: "yes" | "no") => {
+    if (sending.current) return;
+    sending.current = true;
     answer.mutate({ requestId: request.id, answer: a }, {
+      onSettled: () => { sending.current = false; },
       onSuccess: () => toast.success(
         // The button says "Yes, I can", so the answer says you said yes. It used to
         // say "Overtime confirmed", which is the supervisor's word and not yours —
@@ -246,23 +288,55 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
             : `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}.`,
         },
       ),
-      onError: (e) => toast.error((e as Error).message || "Could not save your answer"),
+      onError: (e) => toast.error((e as Error).message || "Could not save your answer", {
+        description: "Nothing was changed. Check your signal and tap again.",
+      }),
     });
+  };
+  /** Which button is waiting on the server, so the spinner sits on the one that was tapped. */
+  const inFlight = answer.isPending ? answer.variables : undefined;
 
-  if (isLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
-  if (visible.length === 0) {
+  if (isLoading) return <AsksSkeleton />;
+  // A failed fetch is not an empty list. Saying "no overtime" when the phone simply
+  // lost signal is how somebody misses the one they were waiting for.
+  if (isError) {
     return (
-      <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-        No upcoming overtime available, {me.full_name.split(" ")[0]}. Check back later.
-      </CardContent></Card>
+      <LoadFailed
+        message="We couldn't load the overtime list. Your answers are saved — this is only the screen."
+        onRetry={() => void refetch()}
+      />
     );
   }
+  if (visible.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
+          <CalendarClock className="h-8 w-8 text-muted-foreground/60" aria-hidden />
+          <p className="text-sm font-medium">No upcoming overtime, {me.full_name.split(" ")[0]}.</p>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            When the supervisor asks for people, it shows up here. This page checks for new asks every minute.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const waiting = visible.filter((r) => r.status === "open" && !mine.get(r.id)?.decision && !mine.get(r.id)?.answer && !askHasStarted(r, now) && !clashes.get(r.id)).length;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>Signed in as {me.full_name}</span>
         {me.shift_group && <ShiftTag shift={me.shift_group} noun="crew" />}
+        {/* The one number someone opening this between shifts wants: how many are
+            still waiting on them. Said once, above the list, so the cards below do not
+            each have to be read to find it out. */}
+        <span className={cn(
+          "ml-auto rounded-full px-2 py-0.5 font-semibold",
+          waiting > 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+        )}>
+          {waiting > 0 ? `${waiting} waiting for your answer` : "All answered"}
+        </span>
       </div>
       {block && (
         <Card className="border-destructive/30 bg-destructive/5">
@@ -303,10 +377,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           <Card key={r.id} className={cn(shiftEdge(askShift(r)), r.status !== "open" && "border-dashed bg-muted/30")}>
             <CardContent className="space-y-3 pt-5">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 space-y-1">
+                  {/* Day, then hours, then who — one fact per line, biggest first, so a
+                      thumb scrolling the list reads the dates down the left edge. */}
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-base font-medium">{fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}</span>
+                    <span className="text-base font-semibold">{fmtDate(r.on_date)}</span>
                     <ShiftTag shift={askShift(r)} />
+                  </div>
+                  <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                    {windowLabel(r.starts_at, r.ends_at)}
                   </div>
                   {/* A sentence, not four facts on middle dots. The note gets its
                       own line because it is the only thing here a person wrote. */}
@@ -351,14 +431,22 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     size="lg" variant={my?.answer === "yes" ? "default" : "outline"}
                     className={cn("h-12", my?.answer === "yes" && "bg-success text-success-foreground hover:bg-success/90")}
                     disabled={answer.isPending || !!block || !!ownHours} onClick={() => reply(r, "yes")}
+                    aria-busy={inFlight?.requestId === r.id && inFlight.answer === "yes"}
                   >
-                    <Check className="mr-2 h-5 w-5" /> Yes, I can
+                    {inFlight?.requestId === r.id && inFlight.answer === "yes"
+                      ? <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      : <Check className="mr-2 h-5 w-5" />}
+                    Yes, I can
                   </Button>
                   <Button
                     size="lg" variant={my?.answer === "no" ? "secondary" : "outline"} className="h-12"
                     disabled={answer.isPending} onClick={() => reply(r, "no")}
+                    aria-busy={inFlight?.requestId === r.id && inFlight.answer === "no"}
                   >
-                    <X className="mr-2 h-5 w-5" /> No
+                    {inFlight?.requestId === r.id && inFlight.answer === "no"
+                      ? <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      : <X className="mr-2 h-5 w-5" />}
+                    No
                   </Button>
                 </div>
               )}

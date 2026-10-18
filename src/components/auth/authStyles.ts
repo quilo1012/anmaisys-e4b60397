@@ -13,8 +13,11 @@
 
 export const authLabel = "text-sm font-medium text-auth-ink";
 
+// `text-base` abaixo de `sm`: o Safari do iPhone faz zoom a qualquer campo com letra
+// menor que 16px quando se lhe toca, e a página ficava ampliada e torta depois de
+// escrever a password. A partir de `sm` volta aos 14px de sempre.
 const fieldBase =
-  "h-12 w-full rounded-lg border border-auth-line bg-auth-paper text-sm text-auth-ink " +
+  "h-12 w-full rounded-lg border border-auth-line bg-auth-paper text-base text-auth-ink sm:text-sm " +
   "transition-colors placeholder:text-auth-ink-muted/70 hover:border-auth-ink-muted/50 " +
   "focus:border-auth-brand focus:outline-none focus:ring-2 focus:ring-auth-brand/20";
 

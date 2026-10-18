@@ -68,9 +68,3 @@ export function takeSessionEndNotice(): string | null {
   }
 }
 
-/** The login URL that brings the person back to where they were. */
-export function loginPathFor(location: { pathname: string; search?: string }): string {
-  const here = `${location.pathname}${location.search ?? ""}`;
-  if (!location.pathname || location.pathname === "/" || location.pathname.startsWith("/login")) return "/login";
-  return `/login?next=${encodeURIComponent(here)}`;
-}

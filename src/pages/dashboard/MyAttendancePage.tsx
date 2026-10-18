@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
+import { LoadFailed } from "@/components/portal/LoadFailed";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Info, MapPin } from "lucide-react";
+import { Info, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ShiftTag } from "@/components/ShiftTag";
 import { shiftEdge, shiftKind } from "@/lib/shiftLook";
@@ -68,7 +70,7 @@ export default function MyAttendancePage() {
   // moves to the pay period running today as soon as it knows it.
   const [range, setRange] = useState(() => defaultRange([], today));
   const [picked, setPicked] = useState<string | null>(null);
-  const { data: result, isPending: isLoading, isError } = useMyAttendance(range.from, range.to);
+  const { data: result, isPending: isLoading, isError, refetch } = useMyAttendance(range.from, range.to);
   const periods = result?.state === "ready" ? result.data.periods : null;
 
   useEffect(() => {
@@ -93,9 +95,15 @@ export default function MyAttendancePage() {
             attendance. Open My Attendance on your own phone, signed in with your badge.
           </CardContent></Card>
         ) : isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          <div role="status" aria-label="Loading your attendance" className="space-y-3">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
         ) : isError ? (
-          <Card><CardContent className="p-4 text-sm">Your attendance could not be loaded. Check your connection and try again.</CardContent></Card>
+          <LoadFailed
+            message="Your attendance could not be loaded. Check your connection and try again."
+            onRetry={() => void refetch()}
+          />
         ) : result?.state === "notSetUp" ? (
           <Card><CardContent className="p-4 text-sm">
             My Attendance is being set up. Your record is safe — this page will show it once the update is finished.
