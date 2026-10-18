@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Info, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ShiftTag } from "@/components/ShiftTag";
+import { shiftEdge, shiftKind } from "@/lib/shiftLook";
 import { useMyAttendance } from "@/hooks/useMyAttendance";
 import { currentShift } from "@/lib/operationalShift";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
@@ -135,8 +137,9 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="font-medium">{data.me.full_name}{data.me.employee_ref ? ` · ${data.me.employee_ref}` : ""}</div>
-            <div className="text-xs text-muted-foreground">
-              {[data.me.department, data.me.shift_group && `${data.me.shift_group} crew`, data.pattern?.name].filter(Boolean).join(" · ")}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {data.me.shift_group && <ShiftTag shift={data.me.shift_group} noun="crew" />}
+              <span>{[data.me.department, data.me.shift_group && !shiftKind(data.me.shift_group) && `${data.me.shift_group} crew`, data.pattern?.name].filter(Boolean).join(" · ")}</span>
             </div>
           </div>
           <p className="text-xs text-muted-foreground" data-testid="freshness">
@@ -308,11 +311,12 @@ function WhereImWorking({ today }: { today: string }) {
         ) : (
           <ul className="divide-y text-sm">
             {shifts.map((sh, i) => (
-              <li key={`${sh.date}-${sh.shift}-${i}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-4 py-2">
+              <li key={`${sh.date}-${sh.shift}-${i}`} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2 pl-3 pr-4", shiftEdge(sh.shift))}>
                 <div className="min-w-0">
-                  <div className="font-medium">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
                     {sh.date === today ? "Today" : fmtDay(sh.date)}
-                    <span className="font-normal text-muted-foreground"> · {sh.shift}{sh.hours ? ` ${sh.hours}` : ""}</span>
+                    <ShiftTag shift={sh.shift} />
+                    {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours}</span>}
                   </div>
                   <div className={cn("text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
                 </div>
@@ -349,7 +353,7 @@ function DayDetail({ day, shifts }: { day: MyDay; shifts: MyShift[] }) {
           <dt className="text-muted-foreground">Balance</dt><dd>{fmtMin(c.balance_minutes)}</dd>
         </>}
         {day.board && <>
-          <dt className="text-muted-foreground">Board planned</dt><dd>{day.board.status}{day.board.half_day ? " (half day)" : ""}, {day.board.shift}</dd>
+          <dt className="text-muted-foreground">Board planned</dt><dd className="flex flex-wrap items-center gap-1">{day.board.status}{day.board.half_day ? " (half day)" : ""} <ShiftTag shift={day.board.shift} /></dd>
         </>}
         {shifts.filter((sh) => !["holiday", "sick", "unpaid", "other"].includes(sh.kind)).map((sh, i) => (
           <span key={`wa-${i}`} className="contents">

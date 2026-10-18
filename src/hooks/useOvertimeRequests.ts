@@ -7,7 +7,7 @@ import { localDate } from "@/lib/overtimeRequests";
 import type {
   OvertimeRequest, OvertimeResponse, OvertimeDecision, OvertimeOutcome, Reliability, OvertimeRules,
 } from "@/lib/overtimeRequests";
-import type { BoardRow } from "@/lib/overtimeShifts";
+import { scheduleClashKey, type BoardRow } from "@/lib/overtimeShifts";
 
 /**
  * Reads and writes for the overtime ask. Typed against the generated client; the
@@ -133,6 +133,64 @@ export function useOvertimeBoardRows(dates: string[]) {
         .select("on_date, shift, employee_id, status").in("on_date", dates);
       if (error) throw error;
       return (data ?? []) as BoardRow[];
+    },
+  });
+}
+
+/**
+ * The signed-in employee's open asks that land on hours already theirs — their own
+ * shift that day, by the board or by their rota, or overtime already given — keyed by
+ * ask, with the reason. The database decides (`overtime_schedule_clash`); the phone
+ * only hides what it is told.
+ *
+ * Until BLOCO 95 is pasted the function is missing and the map is empty: the screen
+ * then offers what it always offered, and `answer_overtime` is the old one too.
+ */
+export function useMyOvertimeClashes(enabled: boolean) {
+  return useQuery({
+    queryKey: ["my_overtime_clashes"],
+    enabled,
+    meta: { schemaOptional: true },
+    staleTime: 60_000,
+    queryFn: async (): Promise<Map<string, string>> => {
+      const { data, error } = await db.rpc("my_overtime_clashes");
+      if (error) {
+        if ((error as { code?: string }).code === "PGRST202") return new Map();
+        throw error;
+      }
+      return new Map((data ?? []).map((r) => [r.request_id, r.reason]));
+    },
+  });
+}
+
+/**
+ * The same rule for the supervisor's screen: for each ask, every active person whose
+ * own hours it would land on. Empty until BLOCO 95 is pasted — the board-only check in
+ * `clashesFor` still runs on its own then.
+ */
+export function useOvertimeScheduleClashes(requestIds: string[]) {
+  const ids = [...requestIds].sort();
+  return useQuery({
+    queryKey: ["overtime_schedule_clashes", ...ids],
+    enabled: ids.length > 0,
+    meta: { schemaOptional: true },
+    staleTime: 60_000,
+    queryFn: async (): Promise<Map<string, string>> => {
+      const out = new Map<string, string>();
+      // The function takes at most 100 asks a call.
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await db.rpc("overtime_schedule_clashes", {
+          p_request_ids: ids.slice(i, i + 100),
+        });
+        if (error) {
+          if ((error as { code?: string }).code === "PGRST202") return new Map();
+          throw error;
+        }
+        for (const r of data ?? []) {
+          out.set(scheduleClashKey(r.request_id, r.employee_id), r.reason);
+        }
+      }
+      return out;
     },
   });
 }
@@ -293,6 +351,8 @@ export function useOvertimeMutations() {
     void qc.invalidateQueries({ queryKey: KEYS.reliability });
     void qc.invalidateQueries({ queryKey: ["my_overtime_block"] });
     void qc.invalidateQueries({ queryKey: ["overtime_board_rows"] });
+    void qc.invalidateQueries({ queryKey: ["my_overtime_clashes"] });
+    void qc.invalidateQueries({ queryKey: ["overtime_schedule_clashes"] });
   };
 
   const createRequest = useMutation({

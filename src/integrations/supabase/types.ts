@@ -7222,6 +7222,13 @@ export type Database = {
           reason: string
         }[]
       }
+      my_overtime_clashes: {
+        Args: never
+        Returns: {
+          reason: string
+          request_id: string
+        }[]
+      }
       my_overtime_identity: {
         Args: never
         Returns: {
@@ -7261,6 +7268,14 @@ export type Database = {
           full_name: string
           id: string
           shift_group: string
+        }[]
+      }
+      overtime_schedule_clashes: {
+        Args: { p_request_ids: string[] }
+        Returns: {
+          employee_id: string
+          reason: string
+          request_id: string
         }[]
       }
       overtime_unlinked_names: {

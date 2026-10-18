@@ -401,3 +401,30 @@ describe("cross-shift overtime", () => {
     expect(requestIsForEmployee({ department: null, shift_group: "Night" }, people[0])).toBe(false);
   });
 });
+
+describe("upcomingForMe — the phone does not offer hours that are already the person's", () => {
+  const now = new Date("2026-10-15T12:00:00");
+  const a = (id: string, p: Partial<{ department: string | null; shift_group: string | null; on_date: string; starts_at: string }> = {}) => ({
+    id, status: "open" as const, department: null, shift_group: null, on_date: "2026-10-17", starts_at: "06:00", ...p,
+  });
+  const weekendCrew = { department: "Production", shift_group: "Weekend" };
+  const satDay = a("sat-day");
+  const satNight = a("sat-night", { starts_at: "18:00" });
+  const clashes = new Map([["sat-day", "Your rota has you on the day shift on Sat 17/10, 06:00–18:00"]]);
+  const none = new Map();
+
+  it("hides Saturday Day overtime from somebody rostered Saturday Day", () => {
+    expect(upcomingForMe([satDay, satNight], weekendCrew, none, now, clashes).map((r) => r.id))
+      .toEqual(["sat-night"]);
+  });
+  it("still offers it to somebody whose hours it does not touch", () => {
+    expect(upcomingForMe([satDay], { department: "Production", shift_group: "Day" }, none, now, new Map()))
+      .toEqual([satDay]);
+  });
+  it("keeps an ask the person already answered, so their answer does not vanish", () => {
+    expect(upcomingForMe([satDay], weekendCrew, new Map([["sat-day", { decision: null }]]), now, clashes)).toEqual([satDay]);
+  });
+  it("keeps the department and crew narrowing", () => {
+    expect(upcomingForMe([a("wh", { department: "Warehouse" })], weekendCrew, none, now, new Map())).toEqual([]);
+  });
+});

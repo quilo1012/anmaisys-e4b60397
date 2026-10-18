@@ -340,8 +340,10 @@ export function localDate(now: Date = new Date()): string {
  * is only what can still be worked:
  *
  * - the shift has not started (`askHasStarted`, so a night is judged by its 18:00);
- * - an open ask for this person's department and crew, or one they are already on
- *   (a supervisor may add somebody from outside the audience at the desk);
+ * - an open ask for this person's department and crew that does not land on hours
+ *   already theirs (`clashes` is `my_overtime_clashes()`, the database reading their
+ *   board and rota), or one they are already on (a supervisor may add somebody from
+ *   outside the audience at the desk);
  * - a closed (filled) ask only when this person is in it, accepted or reserve, so
  *   "You're in" for Thursday does not vanish the moment the supervisor closes it.
  *
@@ -353,11 +355,16 @@ export function upcomingForMe<R extends Pick<OvertimeRequest, "id" | "on_date" |
   employee: { department: string | null; shift_group: string | null },
   mine: ReadonlyMap<string, Pick<OvertimeResponse, "decision">>,
   now: Date = new Date(),
+  clashes: ReadonlyMap<string, string> = new Map(),
 ): R[] {
   return requests.filter((r) => {
     if (askHasStarted(r, now)) return false;
     const my = mine.get(r.id);
-    if (r.status === "open") return !!my || requestIsForEmployee(r, employee);
+    // An unanswered ask on hours already theirs is the same shift twice, not
+    // overtime: the weekend crew's Saturday 06:00–18:00 against a Saturday
+    // 06:00–18:00 ask. One answered before the board was drawn stays, so the answer
+    // does not vanish; the page then refuses the yes.
+    if (r.status === "open") return !!my || (requestIsForEmployee(r, employee) && !clashes.has(r.id));
     if (r.status === "closed") return my?.decision === "accepted" || my?.decision === "reserve";
     return false;
   });
