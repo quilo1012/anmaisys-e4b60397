@@ -42,7 +42,12 @@ const renderPage = () => render(<MemoryRouter><SignUp /></MemoryRouter>);
 
 describe("Create account — o que a pessoa à frente do ecrã pode saber", () => {
   let restore: (() => void) | null = null;
-  beforeEach(() => { restore = withSearch(""); });
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.mocked(supabase.rpc).mockReset();
+    vi.mocked(supabase.rpc).mockImplementation((async () => ({ data: null, error: null })) as never);
+    restore = withSearch("");
+  });
   afterEach(() => { restore?.(); restore = null; });
 
   it("oferece uma saída a quem não sabe o número do crachá", async () => {
@@ -89,6 +94,40 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     expect(field.value).toBe("AN-2026");
     expect(screen.getByText(/Filled in from the link/i)).toBeTruthy();
     expect(screen.queryByText(/sign-up sheet where you clock in/i)).toBeNull();
+  });
+
+  it("verifica o código do QR ao abrir e diz que serve, sem a pessoa escrever nada", async () => {
+    vi.mocked(supabase.rpc).mockImplementation((async (fn: string) =>
+      ({ data: fn === "check_invite_code" ? true : null, error: null })) as never);
+    restore?.();
+    restore = withSearch("?code=AN-2026");
+    renderPage();
+
+    expect((screen.getByLabelText(/Invite code/i) as HTMLInputElement).value).toBe("AN-2026");
+    expect(await screen.findByText(/It's valid/i)).toBeTruthy();
+    expect(supabase.rpc).toHaveBeenCalledWith("check_invite_code", { code: "AN-2026" });
+  });
+
+  it("um código do QR que já não serve é dito logo, antes da palavra-passe", async () => {
+    vi.mocked(supabase.rpc).mockImplementation((async (fn: string) =>
+      ({ data: fn === "check_invite_code" ? false : null, error: null })) as never);
+    restore?.();
+    restore = withSearch("?code=AN-OLD");
+    renderPage();
+
+    expect((await screen.findByRole("alert")).textContent).toMatch(/isn't valid any more/i);
+  });
+
+  it("o código sobrevive a ir ao Sign in e voltar sem ele no endereço", () => {
+    restore?.();
+    restore = withSearch("?code=AN-2026");
+    renderPage().unmount();
+
+    restore();
+    restore = withSearch("");
+    renderPage();
+    expect((screen.getByLabelText(/Invite code/i) as HTMLInputElement).value).toBe("AN-2026");
+    expect(screen.getByText(/Filled in from the link/i)).toBeTruthy();
   });
 
   /**
