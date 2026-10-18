@@ -39,7 +39,7 @@ export default function PeoplePage() {
   const { data: employees, isLoading, isError: employeesErr, refetch: refetchEmployees } = useEmployees();
   const { data: patterns, isError: patternsErr, isLoading: patternsLoading, refetch: refetchPatterns } = useShiftPatterns();
   const { can } = useRole();
-  const canEdit = can("workforce.manage");
+  const canEdit = can("employees.manage") || can("workforce.manage");
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const patternById = useMemo(

@@ -283,6 +283,25 @@ export interface ShiftPosition {
   note: string | null;
 }
 
+export interface EmployeeRecordChange {
+  id: string;
+  changed_at: string;
+  before_values: { position: string | null; shift_group: string | null; shift_pattern_id: string | null };
+  after_values: EmployeeRecordChange["before_values"];
+}
+
+export function useEmployeeRecordHistory(employeeId: string | null) {
+  return useQuery({
+    queryKey: ["employee-record-history", employeeId],
+    enabled: !!employeeId,
+    queryFn: () => fetchAllRows<EmployeeRecordChange>({
+      range: (from, to) => db.from("employee_record_history")
+        .select("id, changed_at, before_values, after_values")
+        .eq("employee_id", employeeId).order("changed_at", { ascending: false }).order("id").range(from, to),
+    }),
+  });
+}
+
 /**
  * Every shift position anybody has held, newest first.
  *
@@ -549,6 +568,7 @@ export function useUpdateEmployee() {
       // board keeps deciding overtime against the old one until a reload.
       qc.invalidateQueries({ queryKey: ["employee_shift_history"] });
       qc.invalidateQueries({ queryKey: ["headcount-roster-all"] });
+      qc.invalidateQueries({ queryKey: ["employee-record-history"] });
     },
   });
 }

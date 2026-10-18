@@ -67,6 +67,8 @@ const EXPECTED: Record<Action, Role[]> = {
   "quality.manage": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "workforce.view": ["admin"],
   "workforce.manage": ["admin"],
+  "employees.view": ["admin", "manager"],
+  "employees.manage": ["admin", "manager"],
   "quality.validate": ["admin", "quality_supervisor"],
   "quality.close": ["admin", "manager", "maintenance_manager"],
   "headcount.view": ["admin"],

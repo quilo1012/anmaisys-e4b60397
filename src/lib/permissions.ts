@@ -65,6 +65,8 @@ export type Action =
   | "quality.manage"
   | "workforce.view"
   | "workforce.manage"
+  | "employees.view"
+  | "employees.manage"
   | "quality.validate"
   | "quality.close"
   // Production Headcount
@@ -237,6 +239,9 @@ const MATRIX: Record<Action, Role[]> = {
   // Moving someone between lines and marking who turned up. Separate from viewing,
   // so a read-only account can be given later without also handing over the board.
   "workforce.manage": ["admin"],
+  // Employee corrections do not grant access to the Headcount or payroll screens.
+  "employees.view": ["admin", "manager"],
+  "employees.manage": ["admin", "manager"],
   // The verdict and the closure are two different jobs, held by two different
   // people, and the database enforces exactly this split (enforce_quality_validation).
   "quality.validate": ["admin", "quality_supervisor"],
@@ -585,7 +590,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "scorecard", label: "Leader Scorecard", actions: ["scorecard.fill", "scorecard.approve"] },
   { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
-  { key: "workforce", label: "Workforce & Overtime", actions: ["workforce.view", "workforce.manage", "attendance.manage", "attendance.view_own", "overtime.manage", "overtime.respond"] },
+  { key: "workforce", label: "Workforce & Overtime", actions: ["employees.view", "employees.manage", "workforce.view", "workforce.manage", "attendance.manage", "attendance.view_own", "overtime.manage", "overtime.respond"] },
   { key: "headcount", label: "Production Headcount", actions: ["headcount.view", "headcount.manage"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },

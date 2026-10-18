@@ -941,6 +941,41 @@ export type Database = {
           },
         ]
       }
+      employee_record_history: {
+        Row: {
+          after_values: Json
+          before_values: Json
+          changed_at: string
+          changed_by: string | null
+          employee_id: string
+          id: string
+        }
+        Insert: {
+          after_values: Json
+          before_values: Json
+          changed_at?: string
+          changed_by?: string | null
+          employee_id: string
+          id?: string
+        }
+        Update: {
+          after_values?: Json
+          before_values?: Json
+          changed_at?: string
+          changed_by?: string | null
+          employee_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_record_history_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_shift_history: {
         Row: {
           changed_by: string | null

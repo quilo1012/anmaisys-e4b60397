@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useRole } from "@/hooks/useRole";
 import { Users, Contact, CalendarDays, Clock, Calculator, HandCoins } from "lucide-react";
 
 /**
@@ -26,12 +27,18 @@ const TABS = [
 ];
 
 export function WorkforceTabs() {
+  const { can } = useRole();
+  const visibleTabs = TABS.filter((t) => can(
+    t.to === "/dashboard/people" ? "employees.view" :
+    t.to === "/dashboard/headcount" ? "headcount.view" :
+    t.to === "/dashboard/overtime" ? "overtime.manage" : "workforce.view",
+  ));
   return (
     <nav
       aria-label="Workforce sections"
       className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-1 print:hidden"
     >
-      {TABS.map((t) => (
+      {visibleTabs.map((t) => (
         <NavLink
           key={t.to}
           to={t.to}

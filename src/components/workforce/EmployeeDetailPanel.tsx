@@ -18,7 +18,7 @@ import { personNameCase } from "@/lib/personName";
 import { cn } from "@/lib/utils";
 import {
   describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements,
-  useOvertimeEverImported, useShiftPatterns,
+  useOvertimeEverImported, useShiftPatterns, useShiftHistory, useEmployeeRecordHistory,
   useUpdateEmployee, type Employee,
 } from "@/hooks/useWorkforce";
 
@@ -44,6 +44,8 @@ export function EmployeeDetailPanel({
   const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
   const { data: overtimeEverImported } = useOvertimeEverImported();
   const { data: colleagues } = useEmployees();
+  const shiftHistory = useShiftHistory();
+  const recordHistory = useEmployeeRecordHistory(employee?.id ?? null);
   const update = useUpdateEmployee();
 
   const [fullName, setFullName] = useState("");
@@ -560,6 +562,36 @@ export function EmployeeDetailPanel({
           </TabsContent>
 
           <TabsContent value="history" className="space-y-2 pt-3">
+            <h3 className="text-sm font-semibold">Position, shift and rota changes</h3>
+            {recordHistory.isError || shiftHistory.isError ? (
+              <div className="space-y-2 text-sm">
+                <p>Employee history could not be loaded.</p>
+                <Button variant="outline" onClick={() => { void recordHistory.refetch(); void shiftHistory.refetch(); }}>Retry</Button>
+              </div>
+            ) : recordHistory.isLoading || shiftHistory.isLoading ? <Skeleton className="h-24" /> : (
+              <>
+                {(recordHistory.data ?? []).length === 0 && <p className="text-sm text-muted-foreground">No position changes recorded yet.</p>}
+                {(recordHistory.data ?? []).map((change) => (
+                  <div key={change.id} className="space-y-1 rounded border p-3 text-sm">
+                    <p className="text-xs text-muted-foreground">{format(new Date(change.changed_at), "dd/MM/yyyy HH:mm")}</p>
+                    {(["position", "shift_group", "shift_pattern_id"] as const).filter((field) => change.before_values[field] !== change.after_values[field]).map((field) => {
+                      const label = field === "position" ? "Position" : field === "shift_group" ? "Shift" : "Shift pattern";
+                      const show = (value: string | null) => !value ? "Not set" : field === "shift_pattern_id" ? patterns?.find((p) => p.id === value)?.name ?? "Previous rota (no longer listed)" : value;
+                      return <p key={field}>{label}: {show(change.before_values[field])} → <strong>{show(change.after_values[field])}</strong></p>;
+                    })}
+                  </div>
+                ))}
+                <h3 className="pt-2 text-sm font-semibold">Dated shift and rota history</h3>
+                {(shiftHistory.data ?? []).filter((h) => h.employee_id === employee.id).map((h) => (
+                  <div key={h.effective_from} className="space-y-1 rounded border p-3 text-sm">
+                    <p className="text-xs text-muted-foreground">From {format(new Date(`${h.effective_from}T12:00:00`), "dd/MM/yyyy")}</p>
+                    <p>{h.shift_group ?? "No shift"} · {patterns?.find((p) => p.id === h.shift_pattern_id)?.name ?? "No rota listed"}</p>
+                    {h.note && <p className="text-xs text-muted-foreground">{h.note}</p>}
+                  </div>
+                ))}
+              </>
+            )}
+            <h3 className="pt-2 text-sm font-semibold">Line movements</h3>
             {loadingMoves ? (
               <Skeleton className="h-24" />
             ) : (movements ?? []).length === 0 ? (
