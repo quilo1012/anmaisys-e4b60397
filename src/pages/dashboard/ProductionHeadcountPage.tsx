@@ -1,3 +1,4 @@
+import { ShiftTag } from "@/components/ShiftTag";
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
@@ -463,14 +464,7 @@ function Chip({
       {/* Day and the Fri–Mon crew share this board, so the card has to say which is
           which. Only the ones that are not the plain day shift are labelled — a badge
           on every card is a badge that stops being read. */}
-      {crew && (
-        <span
-          title={`${crew} crew`}
-          className="shrink-0 rounded-sm border border-muted-foreground/40 bg-muted px-1 py-px text-2xs font-bold uppercase leading-tight tracking-wide text-muted-foreground"
-        >
-          {crew}
-        </span>
-      )}
+      {crew && <ShiftTag shift={crew} noun="crew" className="px-1 py-px text-2xs" />}
       {/* Half a day, said on the chip. Without it the block reads "2 away" and both
           look identical, when one of them worked the morning. */}
       {half && (

@@ -1,3 +1,4 @@
+import { ShiftTimeRange } from "@/components/ShiftTimeRange";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -368,7 +369,7 @@ function WhereImWorking({ today }: { today: string }) {
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
                     {sh.date === today ? "Today" : fmtDay(sh.date)}
                     <ShiftTag shift={sh.shift} />
-                    {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours}</span>}
+                    {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours.includes("–") ? <ShiftTimeRange startsAt={sh.hours.split("–")[0]} endsAt={sh.hours.split("–")[1]} /> : sh.hours}</span>}
                   </div>
                   <div className={cn("text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
                 </div>

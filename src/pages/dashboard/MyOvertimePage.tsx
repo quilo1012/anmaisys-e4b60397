@@ -1,3 +1,4 @@
+import { ShiftTimeRange } from "@/components/ShiftTimeRange";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { BADGE_EMAIL_DOMAIN } from "@/lib/employeeAccounts";
@@ -17,7 +18,7 @@ import {
   useMyOvertimeBlock, useMyOvertimeClashes, useOvertimePlaces,
 } from "@/hooks/useOvertimeRequests";
 import {
-  upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
+  upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel,
   headcountLine, audienceLine, placesLine, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
@@ -437,7 +438,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   </div>
                   <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                    {windowLabel(r.starts_at, r.ends_at)}
+                    <ShiftTimeRange startsAt={r.starts_at} endsAt={r.ends_at} />
                   </div>
                   {/* A sentence, not four facts on middle dots. The note gets its
                       own line because it is the only thing here a person wrote. */}
