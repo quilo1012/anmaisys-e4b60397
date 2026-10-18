@@ -1,5 +1,5 @@
 import { ShiftTimeRange, nextDaySuffix } from "@/components/ShiftTimeRange";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { Fragment, useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { BADGE_EMAIL_DOMAIN } from "@/lib/employeeAccounts";
 import { toast } from "sonner";
@@ -8,7 +8,8 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { OvertimeStatusBadge } from "@/components/workforce/OvertimeStatusBadge";
 import { Check, X, Clock, Loader2, Ban, CalendarClock } from "lucide-react";
 import { LoadFailed } from "@/components/portal/LoadFailed";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -65,7 +66,7 @@ function AsksSkeleton() {
 }
 
 const fmtDate = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
+  new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
 /**
  * The floor's side of overtime: a list of asks and two buttons.
@@ -360,7 +361,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
           <CalendarClock className="h-8 w-8 text-muted-foreground/60" aria-hidden />
-          <p className="text-sm font-medium">No upcoming overtime, {me.full_name.split(" ")[0]}.</p>
+          <p className="text-sm font-medium">No overtime waiting for your answer</p>
           <p className="max-w-xs text-sm text-muted-foreground">
             When the supervisor asks for people, it shows up here. This page checks for new asks every minute.
           </p>
@@ -371,6 +372,11 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   }
 
   const waiting = visible.filter((r) => r.status === "open" && !mine.get(r.id)?.decision && !mine.get(r.id)?.answer && !askHasStarted(r, now) && !clashes.get(r.id)).length;
+  // Presentation only: partition the already-filtered list; keep eligibility and reply handlers intact.
+  const sections = [
+    { title: "Offers", items: visible.filter((r) => !mine.get(r.id)?.answer && !mine.get(r.id)?.decision) },
+    { title: "My answers", items: visible.filter((r) => !!mine.get(r.id)?.answer || !!mine.get(r.id)?.decision) },
+  ];
 
   return (
     <div className="space-y-3">
@@ -402,7 +408,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         </Card>
       )}
       {goneNotice}
-      {visible.map((r) => {
+      {sections.map((section) => (
+        <section key={section.title} className="space-y-3" aria-label={section.title}>
+          <h2 className="text-base font-semibold">{section.title}</h2>
+          {section.items.length === 0 && section.title === "Offers" && (
+            <p className="py-4 text-sm text-muted-foreground">No overtime waiting for your answer</p>
+          )}
+          {Array.from(new Set(section.items.map((r) => r.on_date))).map((date) => (
+            <div key={date} className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground">{fmtDate(date)}</h3>
+              {section.items.filter((r) => r.on_date === date).map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
         // Room is only news to somebody still deciding; once picked, it is not their question.
@@ -413,11 +428,10 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         // Answered before the board or the rota put them on these hours. Their answer
         // stays; a yes no longer can — the database would refuse it.
         const ownHours = clashes.get(r.id);
-        const tone =
-          my?.decision === "accepted" ? "bg-success/15 text-success border-success/30"
-          : my?.decision === "reserve" ? "bg-warning/15 text-warning border-warning/30"
-          : my?.decision === "declined" || r.status !== "open" ? "bg-muted text-muted-foreground"
-          : "";
+        const badgeStatus = my?.decision === "accepted" ? "full"
+          : my?.decision === "reserve" ? "partial"
+          : my?.decision === "declined" || my?.answer === "no" || r.status !== "open" ? "closed"
+          : my?.answer === "yes" ? "partial" : "needs";
         return (
           /* Shape, not opacity. A closed ask used to be the same card at
              `opacity-80`, which reads as "still loading" rather than "this is over".
@@ -433,7 +447,6 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   {/* Day, then hours, then who — one fact per line, biggest first, so a
                       thumb scrolling the list reads the dates down the left edge. */}
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="text-base font-semibold">{fmtDate(r.on_date)}</span>
                     <ShiftTag shift={askShift(r)} />
                   </div>
                   <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
@@ -446,16 +459,13 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     {headcountLine(r)} — {audienceLine(r)}
                   </div>
                   {room && (
-                    <div className={cn("text-sm", room.taken >= room.headcount ? "font-medium text-warning-strong" : "text-muted-foreground")}>
+                    <div className={cn("space-y-1 text-sm", room.taken >= room.headcount ? "font-medium text-warning-strong" : "text-muted-foreground")}>
                       {placesLine(room)}
+                      <Progress className="h-1.5" value={room.headcount > 0 ? Math.min(100, (room.taken / room.headcount) * 100) : 0} aria-label={placesLine(room)} />
                     </div>
                   )}
                 </div>
-                <Badge variant="outline" className={cn("shrink-0 font-normal", tone)}>
-                  {my?.decision === "accepted" && <Check className="mr-1 h-3 w-3" />}
-                  {my?.decision === "reserve" && <Clock className="mr-1 h-3 w-3" />}
-                  {status}
-                </Badge>
+                <OvertimeStatusBadge status={badgeStatus} label={status} className="shrink-0" />
               </div>
               {r.note && <p className="text-sm italic text-foreground/80">“{r.note}”</p>}
               {my && (
@@ -485,8 +495,8 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
               {canAnswer && (
                 <div className="grid grid-cols-2 gap-2">
                   <Button
-                    size="lg" variant={my?.answer === "yes" ? "default" : "outline"}
-                    className={cn("h-12", my?.answer === "yes" && "bg-success text-success-foreground hover:bg-success/90")}
+                    size="lg" variant="default"
+                    className="min-h-12 bg-success text-success-foreground hover:bg-success/90"
                     disabled={answer.isPending || !!block || !!ownHours} onClick={() => reply(r, "yes")}
                     aria-busy={inFlight?.requestId === r.id && inFlight.answer === "yes"}
                   >
@@ -496,7 +506,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     Yes, I can
                   </Button>
                   <Button
-                    size="lg" variant={my?.answer === "no" ? "secondary" : "outline"} className="h-12"
+                    size="lg" variant="outline" className="min-h-12"
                     disabled={answer.isPending} onClick={() => reply(r, "no")}
                     aria-busy={inFlight?.requestId === r.id && inFlight.answer === "no"}
                   >
@@ -510,7 +520,11 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
             </CardContent>
           </Card>
         );
-      })}
+              })}
+            </div>
+          ))}
+        </section>
+      ))}
     </div>
   );
 }
