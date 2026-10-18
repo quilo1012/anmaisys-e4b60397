@@ -23,7 +23,10 @@ const EMP = NAMES.map((full_name, i) => ({ id: `e${i}`, full_name: i === 3 ? "Sa
 
 // Quinze que o rota põe no turno e ninguém colocou — um domingo real tinha 15.
 const UNPLACED = ["Elielton Barbosa","Ezaquiel Silva","Jaime Brandao","Jessika Lopes","Ketlyn Amorin","Laila Nunes","Leonor Lima","Leticia Peres","Luis Fernandes","Magno Vitoria","Nilson Santos","Reynaldo Costa","Tiago Rocha","Vanessa Prado","Yuri Matos"];
-UNPLACED.forEach((full_name, k) => EMP.push({ id: `u${k}`, full_name, department: k % 3 ? null : "Warehouse", active: true, shift_group: k % 2 ? "Weekend" : "Warehouse Day", start_date: "2024-01-08", end_date: null, role: null }));
+// Crews que não dizem os seus dias: sem padrão, estão devidos todos os dias. Um crew
+// Fri–Mon sem padrão já não está devido de terça a quinta, e o teste da bandeja passava
+// ou falhava conforme o dia da semana em que corria.
+UNPLACED.forEach((full_name, k) => EMP.push({ id: `u${k}`, full_name, department: k % 3 ? null : "Warehouse", active: true, shift_group: k % 2 ? "B" : "Warehouse Day", start_date: "2024-01-08", end_date: null, role: null }));
 const AREA_IDS = AREAS.map((a) => a.id);
 const ALLOCS = EMP.filter((e) => !e.id.startsWith("u")).map((e, i) => ({
   id: `a${i}`, employee_id: e.id, on_date: "2026-10-01", shift: "Day",

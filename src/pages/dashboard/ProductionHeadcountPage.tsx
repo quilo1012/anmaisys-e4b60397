@@ -842,15 +842,17 @@ function ShiftBoard({
     ...noCrewUnplaced,
   ]);
 
-  // Working = placed on an area, whether the day is a normal one or an overtime one.
-  // The sheet's "Total staff in Production" counts the overtime people too — they are
-  // in the factory — so leaving them out made the board disagree with the sheet.
+  // Working = status `assigned`. Sickness, Unpaid and Overtime are columns of their
+  // own at the end of the sheet and are not added into "Total staff in Production":
+  // that total is the crew the day was planned with. It used to count the overtime
+  // people as well, which put the purple number above what the lines and support
+  // add up to. Overtime keeps its own figure.
   // Only people the board can actually draw. A leaver is drawn on the days up to their
   // last one, so they count there and nowhere after; a row for anybody else the board
   // cannot draw stays out of the total. Counting what is not drawn is how a column
   // reading zero sat under a total saying ten.
   const working = allocations.filter(
-    (a) => (a.status === "assigned" || a.status === "overtime") && employeeById.has(a.employee_id),
+    (a) => a.status === "assigned" && employeeById.has(a.employee_id),
   );
   const assignedCount = working.length;
 
@@ -914,7 +916,7 @@ function ShiftBoard({
             cabeçalho ter a altura dos outros. O nome inteiro fica no title. */}
         <div
           className={cn("flex min-h-[40px] items-center justify-center border-b px-1.5 text-center text-sm font-bold", SHEET_RULE, SHEET_FILL.grand)}
-          title="Total staff in Production — everyone on a line or in support, called-in included"
+          title="Total staff in Production — everyone on a line or in support; Sickness, Unpaid and Overtime are not added in"
         >
           Total staff in Pr
         </div>
@@ -993,7 +995,7 @@ function ShiftBoard({
   const training = allocations.filter(
     (a) => a.status === "training" && employeeById.has(a.employee_id),
   ).length;
-  const overtime = working.filter((a) => a.status === "overtime").length;
+  const overtime = allocations.filter((a) => a.status === "overtime" && employeeById.has(a.employee_id)).length;
 
   const dragStart = (e: React.DragEvent, employeeId: string) => {
     e.dataTransfer.setData("text/plain", employeeId);

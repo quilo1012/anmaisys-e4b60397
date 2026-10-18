@@ -191,6 +191,29 @@ export function crewBadge(shiftGroup: string | null | undefined): string | null 
 }
 
 /**
+ * The ISO weekdays somebody is due in: their pattern's, or else their crew's.
+ *
+ * A person with no pattern on file used to count as due every day. For the Fri–Mon
+ * crews that put a weekend crew under "Not placed yet" on every Tuesday — 13/10 had
+ * a column of FRI–MON badges there, people whose own card said they were at home. The
+ * crew already says which days: it is what the FRI–MON badge reads. The other crews
+ * (Day, Night, Warehouse Day) do not name their days, so without a pattern they stay
+ * due every day — guessing would hide somebody who is in.
+ */
+const CREW_DAYS: Record<string, number[]> = {
+  Weekend: [5, 6, 7, 1],
+  "Warehouse Weekend": [5, 6, 7, 1],
+};
+
+export function dueDaysOf(
+  shiftGroup: string | null | undefined,
+  pattern: { days: number[] | null } | null | undefined,
+): number[] | null {
+  if (pattern) return pattern.days ?? [];
+  return (shiftGroup && CREW_DAYS[shiftGroup]) || null;
+}
+
+/**
  * Active people with no crew on file on this date.
  *
  * The roster sorts everybody onto a board by crew, and `boardShiftFor(null)` is null,
@@ -261,7 +284,8 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
       if (boardShiftFor(held.shift_group) !== shift) return false;
       if (showAll) return true;
       const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
-      return !pattern || worksOn(pattern.days, day);
+      const days = dueDaysOf(held.shift_group, pattern);
+      return !days || worksOn(days, day);
     });
   }, [everyone, patterns, history, shift, onDate, showAll]);
 
@@ -295,7 +319,8 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
       .map((e) => {
         const held = resolveShiftOn(history, e, onDate);
         const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
-        return { ...e, offRota: !!pattern && !worksOn(pattern.days, day) };
+        const days = dueDaysOf(held.shift_group, pattern);
+        return { ...e, offRota: !!days && !worksOn(days, day) };
       });
   }, [everyone, patterns, history, shift, onDate]);
 
@@ -360,10 +385,11 @@ export function useRotaCover() {
       const pattern = held.shift_pattern_id
         ? (patterns ?? []).find((p) => p.id === held.shift_pattern_id) ?? null
         : null;
+      const days = dueDaysOf(held.shift_group, pattern);
       return {
-        known: !!pattern,
+        known: !!days,
         // Midday, so a timezone an hour either side cannot move the weekday.
-        coversDay: !!pattern && worksOn(pattern.days, new Date(`${onDate}T12:00:00`)),
+        coversDay: !!days && worksOn(days, new Date(`${onDate}T12:00:00`)),
         onThisBoard: boardShiftFor(held.shift_group) === shift,
       };
     },
