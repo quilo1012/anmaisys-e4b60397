@@ -51,11 +51,12 @@ export function askState(
   responses: Pick<OvertimeResponse, "answer" | "decision">[],
 ): AskState {
   if (request.status !== "open") return request.status;
+  // An ask with no number is never "filled": it takes whoever says yes until it closes.
   return countResponses(request, responses).short === 0 ? "filled" : "open";
 }
 
 export const ASK_STATE_LABEL: Record<AskState, string> = {
-  open: "Needs people", filled: "Filled", closed: "Closed", cancelled: "Cancelled",
+  open: "Open", filled: "Filled", closed: "Closed", cancelled: "Cancelled",
 };
 
 /**
@@ -95,7 +96,11 @@ export function summarise(
   const s = { ...EMPTY };
   for (const r of requests) {
     const rs = responsesByRequest.get(r.id) ?? [];
-    if (askState(r, rs) === "open") s.needsPeople += 1;
+    // Needs people: a number not reached, or — with no number — nobody booked yet.
+    if (askState(r, rs) === "open") {
+      const c = countResponses(r, rs);
+      if (c.short == null ? c.accepted === 0 : c.short > 0) s.needsPeople += 1;
+    }
     if (r.status === "open") {
       s.awaitingDecision += rs.filter((x) => x.answer === "yes" && x.decision === null).length;
     }

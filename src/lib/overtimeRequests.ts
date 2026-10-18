@@ -19,7 +19,11 @@ export interface OvertimeRequest {
   on_date: string;
   starts_at: string;
   ends_at: string;
-  headcount: number;
+  /**
+   * How many people the ask wanted, or null: since BLOCO 102 an ask says when, not
+   * how many, and takes everybody who says yes. Older asks keep their number.
+   */
+  headcount: number | null;
   department: string | null;
   shift_group: string | null;
   note: string | null;
@@ -62,13 +66,13 @@ export interface Reliability {
 }
 
 export interface RequestCounts {
-  headcount: number;
+  headcount: number | null;
   interested: number;
   accepted: number;
   reserve: number;
   declined: number;
-  /** How many more the supervisor still has to pick. Never negative. */
-  short: number;
+  /** How many places are still free. Never negative; null on an ask with no number. */
+  short: number | null;
 }
 
 /**
@@ -92,7 +96,7 @@ export function countResponses(
     accepted,
     reserve,
     declined,
-    short: Math.max(0, request.headcount - accepted),
+    short: request.headcount == null ? null : Math.max(0, request.headcount - accepted),
   };
 }
 
@@ -124,8 +128,9 @@ export function placesTaken(
  * who steps in when somebody drops out — so "full" is said as what a yes now means,
  * not as a closed door.
  */
-export function placesLine(places: { taken: number; headcount: number } | undefined): string | null {
-  if (!places) return null;
+export function placesLine(places: { taken: number; headcount: number | null } | undefined): string | null {
+  // An ask with no number has no places to count: everybody who says yes is in.
+  if (!places || places.headcount == null) return null;
   const left = Math.max(0, places.headcount - places.taken);
   if (left === 0) {
     return `All ${places.headcount} ${places.headcount === 1 ? "place is" : "places are"} filled — a yes puts you on the reserve list`;
@@ -311,7 +316,8 @@ export function supervisorLabel(
 ): string | null {
   if (!response || response.answer === "no") return null;
   switch (response.decision) {
-    case "accepted": return "Accepted";
+    // Since BLOCO 102 a yes books the shift itself; the supervisor is told, not asked.
+    case "accepted": return "Booked — your supervisor has been told";
     case "reserve":  return "Reserve";
     case "declined": return "Not needed this time";
   }
@@ -414,7 +420,8 @@ export function upcomingForMe<R extends Pick<OvertimeRequest, "id" | "on_date" |
  * four kinds of fact threaded onto middle dots, so the number that decides whether
  * somebody reads on carried the same weight as a note typed by hand.
  */
-export function headcountLine(request: Pick<OvertimeRequest, "headcount">): string {
+export function headcountLine(request: Pick<OvertimeRequest, "headcount">): string | null {
+  if (request.headcount == null) return null;
   return `${request.headcount} ${request.headcount === 1 ? "person" : "people"} needed`;
 }
 

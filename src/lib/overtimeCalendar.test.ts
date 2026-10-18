@@ -17,6 +17,11 @@ describe("calendarStatus", () => {
     // A reserve is not a place.
     expect(calendarStatus(ask(), [yes("reserve"), yes("reserve")], before)).toBe("needs");
   });
+  it("reads an ask with no number by whether anybody is booked — never partial or full", () => {
+    expect(calendarStatus(ask({ headcount: null }), [], before)).toBe("needs");
+    expect(calendarStatus(ask({ headcount: null }), [yes("accepted")], before)).toBe("booked");
+    expect(calendarStatus(ask({ headcount: null }), Array(30).fill(yes("accepted")), before)).toBe("booked");
+  });
   it("a night ask runs past midnight, and is completed only when it ends the next morning", () => {
     expect(calendarStatus(ask(), [], new Date(2026, 9, 21, 3))).toBe("in_progress");
     expect(calendarStatus(ask(), [], new Date(2026, 9, 21, 6))).toBe("completed");

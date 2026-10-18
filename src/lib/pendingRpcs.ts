@@ -43,6 +43,13 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
+    name: "message_overtime_supervisor",
+    block: "BLOCO 102 — 20261018160000_a_yes_is_a_booking.sql",
+    fallback:
+      "MessageSupervisorDialog turns PGRST202 into a toast asking the person to tell the " +
+      "supervisor in person; nothing else on My Overtime calls it.",
+  },
+  {
     name: "login_link_candidates",
     block: "BLOCO 91 — 20261012170000_a_supervisor_links_a_login_to_its_person.sql",
     fallback:

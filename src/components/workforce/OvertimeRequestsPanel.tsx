@@ -402,7 +402,8 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
   const [onDate, setOnDate] = useState(iso(new Date(Date.now() + 86_400_000)));
   const [startsAt, setStartsAt] = useState(SHIFT_HOURS[defaultShift].starts);
   const [endsAt, setEndsAt] = useState(SHIFT_HOURS[defaultShift].ends);
-  const [headcount, setHeadcount] = useState("4");
+  /** Optional. Empty: every yes is booked. A number: the first that many, then reserve. */
+  const [headcount, setHeadcount] = useState("");
   const [department, setDepartment] = useState<string>("all");
   const [shiftGroup, setShiftGroup] = useState<string>("all");
   const [note, setNote] = useState("");
@@ -440,17 +441,19 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
   const allDates = Array.from(new Set([onDate, ...extraDates].filter(Boolean))).sort();
 
   const payload = (date: string) => ({
-    on_date: date, starts_at: startsAt, ends_at: endsAt, headcount: Number(headcount),
+    // No number: the ask books everybody who says yes (BLOCO 102).
+    on_date: date, starts_at: startsAt, ends_at: endsAt, headcount: headcount.trim() ? Number(headcount) : null,
     department: department === "all" ? null : department,
     shift_group: shiftGroup === "all" ? null : shiftGroup,
     note: note.trim() || null,
   });
 
   const validate = (): boolean => {
-    const n = Number(headcount);
     if (!onDate) { toast.error("Pick a date."); return false; }
     if (allDates.some((d) => d < today)) { toast.error("Overtime cannot be asked for a day that has passed."); return false; }
-    if (!Number.isInteger(n) || n <= 0) { toast.error("How many people? A whole number above zero."); return false; }
+    if (headcount.trim() && (!Number.isInteger(Number(headcount)) || Number(headcount) <= 0)) {
+      toast.error("People needed: leave it empty, or a whole number above zero."); return false;
+    }
     if (startsAt === endsAt) { toast.error("Start and end cannot be the same time."); return false; }
     return true;
   };
@@ -458,12 +461,11 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
   const submit = () => {
     if (!validate()) return;
     if (allDates.length > 1) { void prepareReview(); return; }
-    const n = Number(headcount);
     createRequest.mutate(
       payload(onDate),
       {
         onSuccess: ({ push }) => {
-          const head = `Published: ${n} needed on ${fmtDate(onDate)}`;
+          const head = `Published for ${fmtDate(onDate)}`;
           // Says only what is known: a bell written is a row in the database; a phone
           // alert is "handed to the push service", not "received".
           const { tone, text } = announceSummary(head, push);
@@ -523,7 +525,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
           <DialogDescription>
             {review
               ? "Each date becomes its own ask, and everyone it applies to is told. Nothing is published until you confirm."
-              : "Say when and how many. Everyone it applies to will see it and answer yes or no."}
+              : "Say when. Everyone it applies to will see it. Whoever says yes is booked, and you get an alert."}
           </DialogDescription>
         </DialogHeader>
         {review ? (
@@ -537,7 +539,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
                   <span className="text-xs text-muted-foreground">
                     {r.duplicate
                       ? <span className="font-medium text-warning-strong">Already asked — skipped</span>
-                      : <>{headcount} needed · {department === "all" ? "Everyone" : department}</>}
+                      : <>{headcount.trim() ? `${headcount} needed · ` : ""}{department === "all" ? "Everyone" : department}</>}
                   </span>
                 </li>
               ))}
@@ -616,8 +618,14 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
             </p>
           )}
           <div className="grid gap-1.5">
-            <Label htmlFor="ot-n">People needed</Label>
-            <Input id="ot-n" type="number" min={1} inputMode="numeric" value={headcount} onChange={(e) => setHeadcount(e.target.value)} />
+            <Label htmlFor="ot-n">People needed <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <Input id="ot-n" type="number" min={1} inputMode="numeric" placeholder="Everyone who says yes"
+              value={headcount} onChange={(e) => setHeadcount(e.target.value)} aria-describedby="ot-n-hint" />
+            <p id="ot-n-hint" className="text-xs text-muted-foreground">
+              {headcount.trim()
+                ? `The first ${headcount} to say yes are booked; anyone after goes on the reserve list.`
+                : "Empty: everyone who says yes is booked, and you get an alert for each."}
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
@@ -698,12 +706,12 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
   const [edDate, setEdDate] = useState(request.on_date);
   const [edStart, setEdStart] = useState(request.starts_at.slice(0, 5));
   const [edEnd, setEdEnd] = useState(request.ends_at.slice(0, 5));
-  const [edCount, setEdCount] = useState(String(request.headcount));
+  const [edCount, setEdCount] = useState(request.headcount == null ? "" : String(request.headcount));
   const openEdit = () => {
     setEdDate(request.on_date);
     setEdStart(request.starts_at.slice(0, 5));
     setEdEnd(request.ends_at.slice(0, 5));
-    setEdCount(String(request.headcount));
+    setEdCount(request.headcount == null ? "" : String(request.headcount));
     setEditing(true);
   };
   const [addingFor, setAddingFor] = useState<string>("");
@@ -733,8 +741,10 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
   // (BLOCO 101). Not `counts.accepted`: that keeps somebody who called in sick, whose
   // place the reserve, or the next accept, is meant to take.
   const taken = placesTaken(responses, (id) => outcomeByResponse.get(id));
-  const full = taken >= request.headcount;
-  const edBelowTaken = Number(edCount) < taken;
+  // Only an ask that kept a number (from before BLOCO 102) can be full.
+  const full = request.headcount != null && taken >= request.headcount;
+  const edBadCount = !!edCount.trim() && (!Number.isInteger(Number(edCount)) || Number(edCount) <= 0);
+  const edBelowTaken = !!edCount.trim() && Number(edCount) < taken;
   const state = askState(request, responses);
   const shift = askShift(request);
   const isPast = request.on_date < iso(new Date());
@@ -788,27 +798,32 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <p className="mt-1 text-xs italic text-foreground/80">“{request.note}”</p>
             )}
           </div>
-          {/* The one question this card is for: how far from a full team. */}
+          {/* The one question this card is for: who is coming. An ask with a number
+              (from before BLOCO 102) also says how far it is from full. */}
           <div className="w-full min-w-[11rem] text-sm sm:w-auto">
             <div className="flex items-baseline justify-between gap-2">
               <span className="font-medium tabular-nums">
-                {counts.accepted} of {counts.headcount} picked
+                {counts.headcount == null
+                  ? `${counts.accepted} ${counts.accepted === 1 ? "person" : "people"} booked`
+                  : `${counts.accepted} of ${counts.headcount} picked`}
               </span>
-              {counts.short > 0 && request.status === "open" && (
+              {counts.short != null && counts.short > 0 && request.status === "open" && (
                 <span className="text-xs font-medium text-warning-strong">{counts.short} to go</span>
               )}
             </div>
-            <div
-              className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted"
-              role="img"
-              aria-label={`${counts.accepted} of ${counts.headcount} picked`}
-            >
+            {counts.headcount != null && (
               <div
-                className={cn("h-full rounded-full transition-[width]",
-                  counts.short === 0 ? "bg-success" : "bg-warning")}
-                style={{ width: `${Math.min(100, (counts.accepted / Math.max(1, counts.headcount)) * 100)}%` }}
-              />
-            </div>
+                className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted"
+                role="img"
+                aria-label={`${counts.accepted} of ${counts.headcount} picked`}
+              >
+                <div
+                  className={cn("h-full rounded-full transition-[width]",
+                    counts.short === 0 ? "bg-success" : "bg-warning")}
+                  style={{ width: `${Math.min(100, (counts.accepted / Math.max(1, counts.headcount)) * 100)}%` }}
+                />
+              </div>
+            )}
             <div className="mt-1 text-xs text-muted-foreground">
               {counts.interested} said yes{counts.reserve ? `, ${counts.reserve} on reserve` : ""}
             </div>
@@ -1038,25 +1053,25 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="ed-count">People needed</Label>
-              <Input id="ed-count" type="number" min={1} value={edCount}
+              <Label htmlFor="ed-count">People needed <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Input id="ed-count" type="number" min={1} value={edCount} placeholder="Everyone who says yes"
                 onChange={(e) => setEdCount(e.target.value)} />
             </div>
+            {/* Nobody's booking is taken away by an edit: the database refuses it too. */}
+            {edBelowTaken && (
+              <p className="flex items-start gap-1 text-xs font-medium text-destructive" role="alert">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                {taken} {taken === 1 ? "person is" : "people are"} already booked, so it can't need fewer than {taken}.
+                Move someone to reserve first, and tell them.
+              </p>
+            )}
             {/* Moving the shift moves the people on it. Said before the save, with the
                 count, because they are the ones who now have to be told. */}
             {taken > 0 && (edDate !== request.on_date || edStart !== request.starts_at.slice(0, 5) || edEnd !== request.ends_at.slice(0, 5)) && (
               <p className="flex items-start gap-1 text-xs font-medium text-warning-strong" role="status">
                 <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                {taken} {taken === 1 ? "person is" : "people are"} already accepted. They stay on it and move with it on the
+                {taken} {taken === 1 ? "person is" : "people are"} already booked. They stay on it and move with it on the
                 board — tell them the new day or hours.
-              </p>
-            )}
-            {/* Nobody's place is taken away by an edit: the database refuses it too. */}
-            {edBelowTaken && (
-              <p className="flex items-start gap-1 text-xs font-medium text-destructive" role="alert">
-                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                {taken} {taken === 1 ? "person is" : "people are"} already accepted, so it can't need fewer than {taken}.
-                Move someone to reserve first, and tell them.
               </p>
             )}
             {/* Vinte horas num turno de doze é o engano que isto existe para corrigir. */}
@@ -1068,11 +1083,11 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
           <div className="mt-2 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
             <Button
-              disabled={editRequest.isPending || !edDate || !edStart || !edEnd || Number(edCount) < 1 || edBelowTaken}
+              disabled={editRequest.isPending || !edDate || !edStart || !edEnd || edBadCount || edBelowTaken}
               onClick={() => editRequest.mutate(
                 {
                   id: request.id, on_date: edDate, starts_at: edStart, ends_at: edEnd,
-                  headcount: Number(edCount),
+                  headcount: edCount.trim() ? Number(edCount) : null,
                 },
                 {
                   onSuccess: () => { setEditing(false); toast.success("Ask updated"); },

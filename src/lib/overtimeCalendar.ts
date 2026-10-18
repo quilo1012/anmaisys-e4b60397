@@ -15,12 +15,13 @@ import { countResponses, type OvertimeRequest, type OvertimeResponse } from "@/l
 export type CalendarView = "month" | "week" | "day";
 
 export type CalendarStatus =
-  | "needs" | "partial" | "full" | "in_progress" | "completed" | "closed" | "cancelled";
+  | "needs" | "partial" | "full" | "booked" | "in_progress" | "completed" | "closed" | "cancelled";
 
 export const CALENDAR_STATUS_LABEL: Record<CalendarStatus, string> = {
   needs: "Needs staffing",
   partial: "Partially filled",
   full: "Fully booked",
+  booked: "People booked",
   in_progress: "In progress",
   completed: "Completed",
   closed: "Closed",
@@ -32,6 +33,7 @@ export const CALENDAR_STATUS_BADGE: Record<CalendarStatus, string> = {
   needs: "warning",
   partial: "warning",
   full: "success",
+  booked: "success",
   in_progress: "info",
   completed: "default",
   closed: "default",
@@ -68,6 +70,8 @@ export function calendarStatus(
   if (now >= start) return "in_progress";
   if (request.status === "closed") return "closed";
   const c = countResponses(request, responses);
+  // No number: nothing to be "partially" — somebody is booked, or nobody is yet.
+  if (c.short == null) return c.accepted > 0 ? "booked" : "needs";
   if (c.short === 0) return "full";
   return c.accepted > 0 ? "partial" : "needs";
 }

@@ -329,10 +329,11 @@ function Overtime({ from, to, shifts }: { from: string; to: string; shifts: Shif
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <KpiCard label="Places filled" value={`${c.placesFilled} / ${c.placesWanted}`} loading={isLoading}
-          icon={<HandCoins className="h-4 w-4" />} sublabel={`${c.asks} ask${c.asks === 1 ? "" : "s"}`} accent="info" onClick={go} />
-        <KpiCard label="Still to fill" value={c.stillToFill} loading={isLoading} icon={<Hourglass className="h-4 w-4" />}
-          sublabel="On open asks not started yet" accent={c.stillToFill ? "warning" : "ok"} toneValue onClick={go} />
+        <KpiCard label="People booked" value={c.booked} loading={isLoading}
+          icon={<HandCoins className="h-4 w-4" />} sublabel={`On ${c.asks} ask${c.asks === 1 ? "" : "s"}`} accent="info" onClick={go} />
+        <KpiCard label="Nobody yet" value={c.unfilled.length} loading={isLoading} icon={<Hourglass className="h-4 w-4" />}
+          sublabel={c.stillToFill ? `Open asks still short · ${c.stillToFill} numbered places free` : "Open asks nobody has said yes to"}
+          accent={c.unfilled.length ? "warning" : "ok"} toneValue onClick={go} />
         <KpiCard label="Awaiting a decision" value={c.awaitingDecision} loading={isLoading} icon={<Users className="h-4 w-4" />}
           sublabel="Said yes, nobody has accepted or declined" accent={c.awaitingDecision ? "warning" : "muted"} toneValue onClick={go} />
         <KpiCard label="Worked" value={c.worked} loading={isLoading} icon={<CheckCircle2 className="h-4 w-4" />}
@@ -340,13 +341,13 @@ function Overtime({ from, to, shifts }: { from: string; to: string; shifts: Shif
         <KpiCard label="Cancelled" value={c.cancelled} loading={isLoading} icon={<Ban className="h-4 w-4" />}
           sublabel="Asks called off" accent="muted" onClick={go} />
       </div>
-      <Panel title="Coverage by shift" description="Places filled against places asked for." loading={isLoading} to="/dashboard/overtime" toLabel="Overtime">
+      <Panel title="Booked by shift" description="People booked on overtime, by the board it lands on." loading={isLoading} to="/dashboard/overtime" toLabel="Overtime">
         <BarList
-          empty="No overtime was asked for in this period."
-          items={shifts.filter((s) => c.byShift[s].wanted > 0).map((s) => ({
+          empty="Nobody is booked on overtime in this period."
+          items={shifts.filter((s) => c.byShift[s].booked > 0).map((s) => ({
             label: `${s} shift`,
-            count: c.byShift[s].filled,
-            hint: `${c.byShift[s].filled} of ${c.byShift[s].wanted} places filled`,
+            count: c.byShift[s].booked,
+            hint: c.byShift[s].wanted > 0 ? `${c.byShift[s].filled} of ${c.byShift[s].wanted} numbered places filled` : undefined,
           }))}
         />
       </Panel>
@@ -409,11 +410,13 @@ function OvertimeAlerts({ today }: { today: string }) {
   if (isLoading) return null;
   const items: AlertItem[] = coverage.unfilled.slice(0, 5).map(({ request: r, left }) => ({
     tone: "hold",
-    text: `${left} overtime place${left === 1 ? "" : "s"} to fill — ${format(parseISO(r.on_date), "EEE dd/MM")}, ${askShift(r)}`,
+    text: left == null
+      ? `Nobody has said yes yet — ${format(parseISO(r.on_date), "EEE dd/MM")}, ${askShift(r)}`
+      : `${left} overtime place${left === 1 ? "" : "s"} to fill — ${format(parseISO(r.on_date), "EEE dd/MM")}, ${askShift(r)}`,
     detail: windowLabel(r.starts_at, r.ends_at),
     to: "/dashboard/overtime",
   }));
-  return <AlertList items={items} clear="Every overtime place in the next 7 days is filled." />;
+  return <AlertList items={items} clear="Every overtime ask in the next 7 days has somebody booked." />;
 }
 
 function LineAlerts() {
