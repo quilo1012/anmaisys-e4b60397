@@ -47,6 +47,8 @@ import { rememberLineTablet, wasLineTablet } from "@/lib/lineTabletDevice";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { safeNextPath } from "@/lib/loginReturn";
 import { AppLoading } from "@/components/AppLoading";
+import { takeSessionEndNotice } from "@/lib/sessionRestore";
+import { SessionReconnecting } from "@/components/auth/SessionReconnecting";
 
 const TABLET_KEY = "an_tablet_account_id";
 const TABLET_TS_KEY = "an_tablet_account_id_at";
@@ -113,7 +115,10 @@ export default function Login() {
     else navigate(path, { replace: true });
   }, [navigate]);
   const { toast } = useToast();
-  const { session, role, loading: authLoading, silentReLoginInFlight } = useAuth();
+  const { session, role, loading: authLoading, silentReLoginInFlight, reconnecting } = useAuth();
+  // Why the last session ended, when it ended on its own (expired, revoked). Read
+  // once: the notice belongs to this arrival at the login screen, not the next.
+  const [sessionEndNotice] = useState(() => takeSessionEndNotice());
   const { data: tabletAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
   const { data: branding } = useLoginBranding();
 
@@ -467,6 +472,9 @@ export default function Login() {
 
   const brandIconUrl = matchedTablet?.favicon_url || branding?.[brandingKey]?.url || undefined;
 
+  // A stored session that cannot be renewed for want of a network is still a
+  // session: wait for it rather than ask for the password.
+  if (reconnecting && !session && !loading && !authed) return <SessionReconnecting />;
   // A stored session is still being read, or it has been and the redirect is on its
   // way. Drawing the form here is what made an already signed-in phone flash the
   // login page — and invited a second sign-in into a session that was already open.
@@ -672,6 +680,15 @@ export default function Login() {
         {/* O que correu mal, dito onde ficou o problema — e que lá fica até à
             tentativa seguinte. Um toast já tinha desaparecido quando o operador
             voltou a olhar para o tablet. */}
+        {sessionEndNotice && !formError && (
+          <p
+            role="status"
+            className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2.5 text-sm font-medium text-foreground"
+          >
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-strong" aria-hidden="true" />
+            <span>{sessionEndNotice}</span>
+          </p>
+        )}
         {formError && (
           <p
             id="login-error"

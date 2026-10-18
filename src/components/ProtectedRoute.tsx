@@ -8,6 +8,7 @@ import { loginPathReturningTo } from "@/lib/loginReturn";
 import { Button } from "@/components/ui/button";
 import { can, roleDashMap, subscribePermissionOverrides, subscribeMobileHidden, isDeviceHidden, type Action } from "@/lib/permissions";
 import { useDeviceType } from "@/hooks/use-device-type";
+import { SessionReconnecting } from "@/components/auth/SessionReconnecting";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -18,7 +19,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles, requiredAction }: ProtectedRouteProps) {
-  const { session, role, isOwner, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut } = useAuth();
+  const { session, role, isOwner, profile, loading, authError, silentReLoginInFlight, reconnecting, retryAuth, signOut } = useAuth();
   const [, setPermissionVersion] = useState(0);
   const device = useDeviceType();
   const location = useLocation();
@@ -72,6 +73,12 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
   // few hundred ms; if it fails, the next render will redirect normally.
   if (!session && silentReLoginInFlight) {
     return <AppLoading label="Restoring session…" />;
+  }
+
+  // Signed in, but the server could not be reached to renew the session. Waiting
+  // here is the point: bouncing to /login would ask for a password nobody needs.
+  if (!session && reconnecting) {
+    return <SessionReconnecting />;
   }
 
   // No session at all — redirect to login. Arriving cold (a link from a notification,
