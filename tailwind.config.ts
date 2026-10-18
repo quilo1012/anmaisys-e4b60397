@@ -87,11 +87,13 @@ export default {
   			},
   			'shift-day': {
   				DEFAULT: 'hsl(var(--shift-day))',
-  				strong: 'hsl(var(--shift-day-strong))'
+  				strong: 'hsl(var(--shift-day-strong))',
+  				surface: 'hsl(var(--shift-day-surface))'
   			},
   			'shift-night': {
   				DEFAULT: 'hsl(var(--shift-night))',
-  				strong: 'hsl(var(--shift-night-strong))'
+  				strong: 'hsl(var(--shift-night-strong))',
+  				surface: 'hsl(var(--shift-night-surface))'
   			},
   			popover: {
   				DEFAULT: 'hsl(var(--popover))',

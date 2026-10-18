@@ -17,26 +17,7 @@ export type CalendarView = "month" | "week" | "day";
 export type CalendarStatus =
   | "needs" | "partial" | "full" | "in_progress" | "completed" | "closed" | "cancelled";
 
-export const CALENDAR_STATUS_LABEL: Record<CalendarStatus, string> = {
-  needs: "Needs staffing",
-  partial: "Partially filled",
-  full: "Fully booked",
-  in_progress: "In progress",
-  completed: "Completed",
-  closed: "Closed",
-  cancelled: "Cancelled",
-};
-
-/** The StatusBadge variant for each — one restrained colour, always beside the label. */
-export const CALENDAR_STATUS_BADGE: Record<CalendarStatus, string> = {
-  needs: "warning",
-  partial: "warning",
-  full: "success",
-  in_progress: "info",
-  completed: "default",
-  closed: "default",
-  cancelled: "cancelled",
-};
+export { CALENDAR_STATUS_LABEL, CALENDAR_STATUS_BADGE } from "@/lib/overtimeStatus";
 
 /** The ask's start and end as local instants. An end at or before the start is the next day. */
 export function askWindow(r: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at">): { start: Date; end: Date } {
