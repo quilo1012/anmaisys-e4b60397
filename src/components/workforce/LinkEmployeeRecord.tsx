@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
-import { logAuditEvent } from "@/hooks/useAuditLogs";
+import { useLoginLinkMutations } from "@/hooks/useLoginLinks";
 import { suggestEmployeeFor, type LinkableEmployee } from "@/lib/employeeAccounts";
 import { Check, Link2, Loader2, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,10 +21,15 @@ import { cn } from "@/lib/utils";
  * the badge box answers "Ask your supervisor to link your account". The screen told
  * people their supervisor could do it, and there was no screen for the supervisor.
  *
- * This is that screen. It writes `employees.user_id` through the existing
- * `employees update by matrix` policy (`workforce.manage`), so no migration is needed,
- * and it only ever writes into a record that has no login yet — the filter is in the
- * UPDATE itself, so two people linking at once cannot both win.
+ * This is that screen. It links through `link_login_to_employee` and unlinks through
+ * `unlink_login_from_employee` — the same two functions the Link accounts page calls,
+ * so there is one way into `employees.user_id` and not two.
+ *
+ * It used to UPDATE the table itself, under `workforce.manage`. That path skipped every
+ * rule the function holds: a login already linked to somebody could be given a second
+ * person (and `my_employee_id()` would then pick one of the two at random), a shared
+ * line tablet could be made into a person, and two supervisors could race. The audit
+ * row is written by the function too, so this screen no longer writes its own.
  */
 /** One read for the whole table, however many logins it has. */
 function useLinkableEmployees() {
@@ -57,6 +62,7 @@ export function LinkEmployeeRecord({
     void qc.invalidateQueries({ queryKey: ["overtime_roster"] });
   };
   const [open, setOpen] = useState(false);
+  const { link: linkLogin, unlink: unlinkLogin } = useLoginLinkMutations();
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -71,20 +77,11 @@ export function LinkEmployeeRecord({
     if (!chosen) return;
     setBusy(true);
     try {
-      const { data, error } = await supabase
-        .from("employees")
-        .update({ user_id: login.id })
-        .eq("id", chosen)
-        .is("user_id", null)
-        .select("id, full_name");
-      if (error) throw error;
-      // Zero rows is not success. Either somebody linked this record a moment ago, or
-      // this account may not change employees — and PostgREST says neither out loud.
-      if (!data?.length) {
-        throw new Error("Nothing was linked: that record already has a login, or your role cannot change employee records.");
-      }
-      logAuditEvent("employee_login_linked", "employee", chosen, { user_id: login.id, email: login.email });
-      toast({ title: "Linked", description: `${login.name ?? login.email} is now ${data[0].full_name}.` });
+      // The function refuses out loud — "already linked to …", "a shared line tablet",
+      // "not allowed" — and those refusals are the messages shown.
+      await linkLogin.mutateAsync({ userId: login.id, employeeId: chosen });
+      const who = employees.find((e) => e.id === chosen)?.full_name ?? "that person";
+      toast({ title: "Linked", description: `${login.name ?? login.email} is now ${who}.` });
       setOpen(false);
       onChanged();
     } catch (e) {
@@ -98,15 +95,7 @@ export function LinkEmployeeRecord({
     if (!linked) return;
     setBusy(true);
     try {
-      const { data, error } = await supabase
-        .from("employees")
-        .update({ user_id: null })
-        .eq("id", linked.id)
-        .eq("user_id", login.id)
-        .select("id");
-      if (error) throw error;
-      if (!data?.length) throw new Error("Nothing was unlinked: your role cannot change employee records.");
-      logAuditEvent("employee_login_unlinked", "employee", linked.id, { user_id: login.id });
+      await unlinkLogin.mutateAsync(linked.id);
       toast({ title: "Unlinked", description: `${linked.full_name} no longer has this login.` });
       onChanged();
     } catch (e) {

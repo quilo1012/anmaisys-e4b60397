@@ -60,6 +60,16 @@ const json = (body: unknown, status = 200, extra: Record<string, string> = {}) =
 const normRef = (ref: string) => ref.trim().toUpperCase().replace(/\s+/g, "");
 const emailFor = (ref: string) => `${normRef(ref).toLowerCase()}@employee.pmsystem.local`;
 
+/**
+ * What a badge number can be made of, after `normRef`.
+ *
+ * The lookup below is `ilike`, for case. `ilike` also reads `_` and `%` as wildcards,
+ * and the rate limit is keyed on the text typed: "E04_", "E0_5", "E%45" each matched
+ * the same badge and each had five fresh tries at its password. Nothing but letters,
+ * digits and the separators badges actually carry gets as far as the query.
+ */
+const REF_SHAPE = /^[A-Z0-9][A-Z0-9./-]{1,19}$/;
+
 type EmployeeRow = { id: string; full_name: string; employee_ref: string; user_id: string | null; active: boolean };
 
 Deno.serve(async (req) => {
@@ -71,6 +81,7 @@ Deno.serve(async (req) => {
     if (!parsed.success) return json({ error: "Invalid request" }, 400);
     const { mode, password, invite_code } = parsed.data;
     const ref = normRef(parsed.data.employee_ref);
+    if (!REF_SHAPE.test(ref)) return json({ error: "Invalid credentials" }, 401);
 
     const gate = checkRateLimit(ref);
     if (!gate.allowed) {
