@@ -493,22 +493,29 @@ export function useOvertimeMutations() {
       requestId: string; employeeId: string;
       window?: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at"> | null;
     }) => {
-      const { error } = await db.from("overtime_responses").upsert(
-        {
-          request_id: requestId, employee_id: employeeId, answer: "yes",
-          answered_at: new Date().toISOString(),
-          // O mesmo instantâneo que o `answer_overtime` guarda. Sem isto, um sim dado
-          // ao balcão nunca aparecia como desactualizado depois de a hora mudar — e é
-          // exactamente a pessoa que não tem login, por isso a que mais precisa de
-          // alguém se lembrar de lhe ligar.
-          answered_for_date: window?.on_date ?? null,
-          answered_for_starts_at: window?.starts_at ?? null,
-          answered_for_ends_at: window?.ends_at ?? null,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- colunas de
-          // 20261012080000; o types.ts só as conhece depois de o bloco ser colado.
-        } as any,
-        { onConflict: "request_id,employee_id" },
-      );
+      const base = {
+        request_id: requestId, employee_id: employeeId, answer: "yes",
+        answered_at: new Date().toISOString(),
+      };
+      // O mesmo instantâneo que o `answer_overtime` guarda. Sem isto, um sim dado
+      // ao balcão nunca aparecia como desactualizado depois de a hora mudar — e é
+      // exactamente a pessoa que não tem login, por isso a que mais precisa de
+      // alguém se lembrar de lhe ligar.
+      const snapshot = {
+        answered_for_date: window?.on_date ?? null,
+        answered_for_starts_at: window?.starts_at ?? null,
+        answered_for_ends_at: window?.ends_at ?? null,
+      };
+      // Colunas de 20261012080000; o types.ts só as conhece depois de o bloco ser colado.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const write = (row: object) => db.from("overtime_responses").upsert(row as any, { onConflict: "request_id,employee_id" });
+      let { error } = await write({ ...base, ...snapshot });
+      // Produção ainda não tem estas colunas (bloco 87 por colar, sonda de 18/10):
+      // o PostgREST recusa o corpo inteiro com PGRST204 e o "Add" falhava para toda
+      // a gente. O sim vale mais do que o instantâneo; grava-se sem ele.
+      if (error?.code === "PGRST204" && /answered_for_/.test(error.message ?? "")) {
+        ({ error } = await write(base));
+      }
       if (error) throw error;
     },
     onSuccess: refresh,

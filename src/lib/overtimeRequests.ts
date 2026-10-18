@@ -80,7 +80,13 @@ export interface RequestCounts {
  */
 export function countResponses(
   request: Pick<OvertimeRequest, "headcount">,
-  responses: Pick<OvertimeResponse, "answer" | "decision">[],
+  responses: (Pick<OvertimeResponse, "answer" | "decision"> & { id?: string })[],
+  /**
+   * When known, `short` counts only places still held — somebody accepted who then
+   * called in sick no longer fills one (`placesTaken`, the database's own count). Left
+   * out, every accept holds a place, which is all a caller without outcomes can say.
+   */
+  outcomeOf?: (responseId: string) => string | undefined,
 ): RequestCounts {
   const yes = responses.filter((r) => r.answer === "yes");
   const accepted = yes.filter((r) => r.decision === "accepted").length;
@@ -92,7 +98,13 @@ export function countResponses(
     accepted,
     reserve,
     declined,
-    short: Math.max(0, request.headcount - accepted),
+    short: Math.max(0, request.headcount - (outcomeOf
+      ? yes.filter((r) => {
+          if (r.decision !== "accepted") return false;
+          const o = r.id ? outcomeOf(r.id) : undefined;
+          return o === undefined || o === "attended";
+        }).length
+      : accepted)),
   };
 }
 

@@ -15,8 +15,24 @@
  * - Only rows the board can draw count (`drawable` — active people, and leavers up to
  *   their last day; see `boardPeopleOn`). Counting what is not drawn is how a column
  *   reading zero sat under a total saying ten.
- * - **Not placed** is somebody the rota has due on this board today with no row at all.
+ * - **Not placed** is somebody the rota has due on this board today with no row at all,
+ *   or with only a line-less `assigned` row (see `hasPlaceOnBoard`).
  */
+
+/**
+ * Whether a row puts somebody somewhere the board draws.
+ *
+ * `assigned` with no area is a place nobody can see: not in a column (those are keyed
+ * by area), not in the away blocks (those are other statuses), and — because the row
+ * exists — not in "Not placed yet" either. Copying a matrix that held somebody with no
+ * line wrote exactly that: on 12/10 and 19/10 a batch of people sat in the total and on
+ * no part of the screen. Such a row is treated as no place at all, so the person lands
+ * in the tray where somebody can drag them onto a line. Overtime with no area is
+ * different: it has its own block.
+ */
+export function hasPlaceOnBoard(a: { area_id: string | null; status: string }): boolean {
+  return !(a.status === "assigned" && !a.area_id);
+}
 export interface BoardTallyInput {
   allocations: ReadonlyArray<{ employee_id: string; area_id: string | null; status: string }>;
   areas: ReadonlyArray<{ id: string; kind: string }>;
@@ -45,7 +61,7 @@ export function tallyBoard({ allocations, areas, roster, drawable }: BoardTallyI
   const rows = allocations.filter((a) => drawable(a.employee_id));
   const is = (s: string) => rows.filter((a) => a.status === s);
 
-  const working = is("assigned");
+  const working = is("assigned").filter(hasPlaceOnBoard);
   const overtime = is("overtime");
   const sick = is("sick").length;
   const unpaid = is("unpaid").length;
@@ -61,7 +77,7 @@ export function tallyBoard({ allocations, areas, roster, drawable }: BoardTallyI
 
   // Any row at all places a person — away and training included — as the board's
   // "Not placed yet" tray reads it.
-  const placed = new Set(allocations.map((a) => a.employee_id));
+  const placed = new Set(allocations.filter(hasPlaceOnBoard).map((a) => a.employee_id));
   const onLines = working.filter((a) => a.area_id && production.has(a.area_id)).length;
 
   return {
