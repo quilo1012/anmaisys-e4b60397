@@ -126,8 +126,8 @@ describe("o nome e o email corrigem-se aqui", () => {
     await screen.findByLabelText(/Full name/i);
     const shift = screen.getAllByRole("combobox").find((el) => el.textContent === "Day");
     if (!shift) throw new Error("Shift selector missing");
-    fireEvent.pointerDown(shift, { button: 0, ctrlKey: false, pointerType: "mouse" });
-    fireEvent.click(await screen.findByRole("option", { name: "Weekend", exact: true }));
+    fireEvent.keyDown(shift, { key: "ArrowDown" });
+    fireEvent.click(await screen.findByRole("option", { name: /^Weekend$/ }));
     fireEvent.click(screen.getByRole("button", { name: /Save/i }));
     expect(guardar.mock.calls[0][0].patch.shift_group).toBe("Weekend");
   });
