@@ -1,3 +1,4 @@
+import { announceSummary } from "@/lib/overtimeAnnounce";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -374,12 +375,11 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
       },
       {
         onSuccess: ({ push }) => {
-          const head = `Asked for ${n} on ${fmtDate(onDate)}`;
-          if (push.error) toast.warning(`${head} — but the notification didn't go: ${push.error}`);
-          else if (push.notified === 0) toast.success(`${head}. Nobody has a login yet, so nobody was notified.`);
-          else if (push.note) toast.warning(`${head} · ${push.notified} told in-app, no phones buzzed: ${push.note}`);
-          else if (push.pushed === 0) toast.success(`${head} · ${push.notified} told in-app · nobody has turned on phone notifications yet`);
-          else toast.success(`${head} · ${push.notified} told · ${push.pushed ?? 0} phone${push.pushed === 1 ? "" : "s"} buzzed`);
+          const head = `Published: ${n} needed on ${fmtDate(onDate)}`;
+          // Says only what is known: a bell written is a row in the database; a phone
+          // alert is "handed to the push service", not "received".
+          const { tone, text } = announceSummary(head, push);
+          (tone === "warning" ? toast.warning : toast.success)(text, { duration: 8000 });
           onOpenChange(false); setNote("");
         },
         onError: (e) => toast.error((e as Error).message || "Could not create the ask"),
