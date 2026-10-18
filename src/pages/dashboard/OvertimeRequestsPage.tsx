@@ -1,5 +1,4 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { OvertimeRequestsPanel } from "@/components/workforce/OvertimeRequestsPanel";
 import { OvertimeAuditLog } from "@/components/workforce/OvertimeAuditLog";
@@ -19,7 +18,6 @@ export default function OvertimeRequestsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <BackButton />
         <WorkforceTabs />
         <OvertimeRequestsPanel />
         <OvertimeAuditLog mode="manage" />

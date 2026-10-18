@@ -35,7 +35,7 @@ export type FigureTone = "neutral" | "earned" | "owed";
 export function Figure({
   label, value, unit, tone = "neutral", lead = false, hint, bare = false, className,
 }: {
-  label: string;
+  label: React.ReactNode;
   /** Already formatted. This decides nothing about rounding — the caller knows. */
   value: string;
   /** "h", "days", "people". Set apart from the figure so the number reads alone. */
