@@ -71,6 +71,9 @@ function formatWait(min: number): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
+/** The beginning, for the server: a lower bound that keeps the read paged. */
+const ALL_TIME = new Date(0);
+
 export default function WorkOrdersPage() {
   const { user, role, profile } = useAuth();
   const navigate = useNavigate();
@@ -152,7 +155,16 @@ export default function WorkOrdersPage() {
       : statusFilter === "active"
         ? (ACTIVE_STATUSES as WOStatus[])
         : [statusFilter as WOStatus];
-  const { data: workOrders, isLoading, isError: woError, refetch: refetchWOs } = useWorkOrders({ statusIn: filterStatuses });
+  // The range goes to the server. Without it the hook stops at the 200 newest orders
+  // and the range was cut on this side: on 18/10 production held 884 orders, 653 of
+  // them older than four weeks, so a past month came back empty on the screen, in the
+  // CSV and on the print while its header still named the month. "All" and an order
+  // asked for by number read from the beginning, paged, for the same reason.
+  const { data: workOrders, isLoading, isError: woError, refetch: refetchWOs } = useWorkOrders({
+    statusIn: filterStatuses,
+    from: pinnedWo === null ? drRange.from ?? ALL_TIME : ALL_TIME,
+    to: pinnedWo === null ? drRange.to : undefined,
+  });
   const closeWO = useCloseWorkOrder();
   const createWO = useCreateWorkOrder();
   const updateWO = useUpdateWorkOrder();

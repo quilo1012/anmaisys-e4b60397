@@ -892,7 +892,10 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // Unknown is not off, exactly as everywhere else: an unrecorded rota is kept.
       const placements: BoardPlacement[] = source === null
         ? ((srcRows.data ?? []) as Array<{ employee_id: string; area_id: string | null }>)
-            .filter((r) => !isOffRota(rotaCover(r.employee_id, onDate, shift)))
+            // A matrix row with no line (somebody away on the day it was saved) says
+            // nothing about where they stand. Written as `assigned` it put them on no
+            // column and out of the tray at once; left out, they wait in the tray.
+            .filter((r) => !!r.area_id && !isOffRota(rotaCover(r.employee_id, onDate, shift)))
             .map((r) => ({ employee_id: r.employee_id, area_id: r.area_id, status: "assigned" }))
         : ((srcRows.data ?? []) as BoardPlacement[]);
       // "Fri 08 Aug", not "2026-08-08". The label is read back in a toast and on the

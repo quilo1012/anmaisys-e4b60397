@@ -1,4 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { BADGE_EMAIL_DOMAIN } from "@/lib/employeeAccounts";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -151,6 +153,13 @@ export default function MyOvertimePage() {
 function LinkMyself() {
   const { linkMe, linkMeByEmail } = useOvertimeMutations();
   const [ref, setRef] = useState("");
+  // Which login this is. Somebody with a badge login and an email login holds two
+  // accounts; only the badge one is linked, so signed in by email they are asked for
+  // a badge the database then calls "not available" (one such person on 18/10).
+  // Saying which account is open turns that into something they can act on.
+  const { user } = useAuth();
+  const signedInAs = user?.email ?? null;
+  const byEmail = !!signedInAs && !signedInAs.toLowerCase().endsWith(BADGE_EMAIL_DOMAIN);
 
   /**
    * Tentar pelo email antes de pedir o número.
@@ -221,6 +230,13 @@ function LinkMyself() {
             No number on your badge, or it isn't working? Your supervisor can link your account —
             they have the list. Five wrong tries and you'll have to ask them anyway.
           </p>
+          {byEmail && (
+            <p className="text-xs text-muted-foreground" data-testid="signed-in-as">
+              Signed in as <span className="font-medium text-foreground">{signedInAs}</span>. If you
+              already signed in before with your badge number and it says "not available", sign out
+              and sign in with your badge number instead.
+            </p>
+          )}
         </form>
       </CardContent>
     </Card>

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { escapeLikePattern } from "@/lib/leaderNameMatch";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface ProblemDescription {
@@ -62,7 +63,9 @@ export function useAddProblemDescription() {
       const { data: existing, error: selErr } = await (supabase as any)
         .from("problem_descriptions")
         .select("id")
-        .ilike("name", name)
+        // Escaped: "_" and "%" are wildcards to ILIKE, so "Seal_2" matched "SealX2"
+        // and the update below overwrote a different problem.
+        .ilike("name", escapeLikePattern(name))
         .maybeSingle();
       if (selErr) throw selErr;
 

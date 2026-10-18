@@ -736,7 +736,9 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
     );
 
   const byId = useMemo(() => new Map(roster.map((e) => [e.id, e])), [roster]);
-  const counts = countResponses(request, responses);
+  // `short` from the places still held, as the database counts them: "4 of 4" in
+  // green with somebody off sick told the supervisor there was nothing left to do.
+  const counts = countResponses(request, responses, (id) => outcomeByResponse.get(id));
   // Places held by people still coming — the number the database refuses an accept on
   // (BLOCO 101). Not `counts.accepted`: that keeps somebody who called in sick, whose
   // place the reserve, or the next accept, is meant to take.
