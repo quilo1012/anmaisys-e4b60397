@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Stage 1: shared shift/status presentation, overnight time suffixes, mobile overtime agenda, single Back button; no data or logic changes
+
 - [x] Allow managers to open/correct employee records and view rota, position and shift history without Headcount; verify Weekend option
 
 - [x] Fix 2 failing tests after qualityImport corrections

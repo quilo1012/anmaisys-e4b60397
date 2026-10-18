@@ -122,7 +122,7 @@ test("an ask on the calendar opens its card, with the decisions on it", async ({
   await open(page, 1440, "calendar");
   const cal = page.getByRole("region", { name: "Overtime calendar" });
   await cal.getByRole("radio", { name: "Week" }).click();
-  const entry = cal.getByRole("button", { name: /^18:00–06:00, Night shift, 1 of 3 filled/ });
+  const entry = cal.getByRole("button", { name: /^18:00–06:00 \+1, Night shift, 1 of 3 filled/ });
   if (await entry.count() === 0) await cal.getByRole("button", { name: "Next week" }).click();
   await entry.click();
   const sheet = page.getByRole("dialog");

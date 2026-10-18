@@ -14,16 +14,18 @@ export function shiftKind(value: string | null | undefined): ShiftKind | null {
   return null;
 }
 
-export const SHIFT_LOOK: Record<ShiftKind, { word: string; pill: string; edge: string }> = {
+export const SHIFT_LOOK: Record<ShiftKind, { word: string; pill: string; edge: string; surface: string }> = {
   day: {
     word: "Day",
-    pill: "border-shift-day/40 bg-shift-day/10 text-shift-day-strong",
+    pill: "border-shift-day bg-shift-day-surface text-shift-day-strong",
     edge: "border-l-shift-day",
+    surface: "bg-shift-day-surface text-shift-day-strong",
   },
   night: {
     word: "Night",
-    pill: "border-shift-night/40 bg-shift-night/10 text-shift-night-strong",
+    pill: "border-shift-night bg-shift-night-surface text-shift-night-strong",
     edge: "border-l-shift-night",
+    surface: "bg-shift-night-surface text-shift-night-strong",
   },
 };
 

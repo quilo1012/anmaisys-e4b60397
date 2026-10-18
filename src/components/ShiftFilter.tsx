@@ -1,4 +1,7 @@
 import { cn } from "@/lib/utils";
+import { Sun, Moon, Eclipse } from "lucide-react";
+import { SHIFT_LOOK } from "@/lib/shiftLook";
+import { Button } from "@/components/ui/button";
 
 export type ShiftValue = "ALL" | "DAY" | "NIGHT";
 
@@ -8,10 +11,10 @@ interface ShiftFilterProps {
   className?: string;
 }
 
-const OPTIONS: { value: ShiftValue; label: string; emoji: string; hint: string; ring: string }[] = [
-  { value: "ALL", label: "All", emoji: "🌗", hint: "All shifts", ring: "data-[active=true]:bg-primary data-[active=true]:text-primary-foreground" },
-  { value: "DAY", label: "Day", emoji: "☀️", hint: "06–18", ring: "data-[active=true]:bg-warning data-[active=true]:text-warning-foreground" },
-  { value: "NIGHT", label: "Night", emoji: "🌙", hint: "18–06", ring: "data-[active=true]:bg-primary data-[active=true]:text-primary-foreground" },
+const OPTIONS: { value: ShiftValue; label: string; icon: typeof Sun; hint: string; ring: string }[] = [
+  { value: "ALL", label: "All", icon: Eclipse, hint: "All shifts", ring: "bg-primary text-primary-foreground" },
+  { value: "DAY", label: "Day", icon: Sun, hint: "06–18", ring: SHIFT_LOOK.day.pill },
+  { value: "NIGHT", label: "Night", icon: Moon, hint: "18–06 +1", ring: SHIFT_LOOK.night.pill },
 ];
 
 export function ShiftFilter({ value, onChange, className }: ShiftFilterProps) {
@@ -26,26 +29,28 @@ export function ShiftFilter({ value, onChange, className }: ShiftFilterProps) {
     >
       {OPTIONS.map((opt) => {
         const active = value === opt.value;
+        const Icon = opt.icon;
         return (
-          <button
+          <Button variant="ghost"
             key={opt.value}
             type="button"
             data-active={active}
             onClick={() => onChange(opt.value)}
             title={opt.hint}
+            aria-label={opt.value === "ALL" ? "All shifts" : `${opt.label} shift`}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md px-3 h-9 text-sm font-medium transition-all",
               "hover:bg-background/80",
-              opt.ring,
+              active && opt.ring,
               active && "shadow-md scale-[1.02]"
             )}
           >
-            <span className="text-base leading-none">{opt.emoji}</span>
+            <Icon className="h-4 w-4" aria-hidden />
             <span className="hidden sm:inline">{opt.label}</span>
             <span className={cn("hidden md:inline text-2xs opacity-70", active && "opacity-90")}>
               {opt.hint !== opt.label ? opt.hint : ""}
             </span>
-          </button>
+          </Button>
         );
       })}
     </div>

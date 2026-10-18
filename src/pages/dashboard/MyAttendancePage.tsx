@@ -1,3 +1,4 @@
+import { ShiftTimeRange } from "@/components/ShiftTimeRange";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -368,7 +369,7 @@ function WhereImWorking({ today }: { today: string }) {
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
                     {sh.date === today ? "Today" : fmtDay(sh.date)}
                     <ShiftTag shift={sh.shift} />
-                    {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours}</span>}
+                    {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours.includes("–") ? <ShiftTimeRange startsAt={sh.hours.split("–")[0]} endsAt={sh.hours.split("–")[1]} /> : sh.hours}</span>}
                   </div>
                   <div className={cn("text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
                 </div>
@@ -410,7 +411,7 @@ function DayDetail({ day, shifts }: { day: MyDay; shifts: MyShift[] }) {
         {shifts.filter((sh) => !["holiday", "sick", "unpaid", "other"].includes(sh.kind)).map((sh, i) => (
           <span key={`wa-${i}`} className="contents">
             <dt className="text-muted-foreground">Work area{shifts.length > 1 ? ` (${sh.shift})` : ""}</dt>
-            <dd>{areaText(sh)}{sh.hours ? ` · ${sh.hours}` : ""}</dd>
+            <dd>{areaText(sh)}{sh.hours && <> · {sh.hours.includes("–") ? <ShiftTimeRange startsAt={sh.hours.split("–")[0]} endsAt={sh.hours.split("–")[1]} /> : sh.hours}</>}</dd>
           </span>
         ))}
         {day.requests.map((r, i) => (

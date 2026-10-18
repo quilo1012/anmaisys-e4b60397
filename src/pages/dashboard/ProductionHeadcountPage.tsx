@@ -1,3 +1,5 @@
+import { ShiftTag } from "@/components/ShiftTag";
+import { SHIFT_LOOK } from "@/lib/shiftLook";
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
@@ -308,8 +310,8 @@ function SectionLabel({
  * the same colour and no way to tell them apart.
  */
 const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; soft: string; ink: string }> = {
-  Day: { icon: Sun, rule: "border-l-warning", chip: "bg-warning/15 text-warning-strong", soft: "bg-warning/10", ink: "text-warning-strong" },
-  Night: { icon: Moon, rule: "border-l-primary", chip: "bg-primary/15 text-primary", soft: "bg-primary/10", ink: "text-primary" },
+  Day: { icon: Sun, rule: SHIFT_LOOK.day.edge, chip: SHIFT_LOOK.day.pill, soft: "bg-shift-day-surface", ink: "text-shift-day-strong" },
+  Night: { icon: Moon, rule: SHIFT_LOOK.night.edge, chip: SHIFT_LOOK.night.pill, soft: "bg-shift-night-surface", ink: "text-shift-night-strong" },
 };
 
 /**
@@ -463,14 +465,7 @@ function Chip({
       {/* Day and the Fri–Mon crew share this board, so the card has to say which is
           which. Only the ones that are not the plain day shift are labelled — a badge
           on every card is a badge that stops being read. */}
-      {crew && (
-        <span
-          title={`${crew} crew`}
-          className="shrink-0 rounded-sm border border-muted-foreground/40 bg-muted px-1 py-px text-2xs font-bold uppercase leading-tight tracking-wide text-muted-foreground"
-        >
-          {crew}
-        </span>
-      )}
+      {crew && <ShiftTag shift={crew} noun="crew" className="px-1 py-px text-2xs" />}
       {/* Half a day, said on the chip. Without it the block reads "2 away" and both
           look identical, when one of them worked the morning. */}
       {half && (

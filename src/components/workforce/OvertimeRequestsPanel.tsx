@@ -1,3 +1,8 @@
+import { ShiftTag } from "@/components/ShiftTag";
+import { ShiftTimeRange } from "@/components/ShiftTimeRange";
+import { OvertimeStatusBadge } from "@/components/workforce/OvertimeStatusBadge";
+import { OVERTIME_STATUS } from "@/lib/overtimeStatus";
+import { calendarStatus } from "@/lib/overtimeCalendar";
 import { announceSummary } from "@/lib/overtimeAnnounce";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -33,11 +38,11 @@ import {
 } from "@/hooks/useOvertimeRequests";
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
-  windowLabel, audienceLine, deskCandidates, type OvertimeRequest, type OvertimeResponse,
+  audienceLine, deskCandidates, type OvertimeRequest, type OvertimeResponse,
   type OvertimeOutcome, type Candidate, type Reliability, hoursBetween, placesTaken,
 } from "@/lib/overtimeRequests";
 import {
-  askShift, askState, ASK_STATE_LABEL, summarise, filterAsks, clashesFor, boardDatesFor, duplicateNames,
+  askShift, ASK_STATE_LABEL, summarise, filterAsks, clashesFor, boardDatesFor, duplicateNames,
   hoursLabel, DEFAULT_FILTERS, OVERTIME_SHIFTS,
   type OvertimeShift, type AskFilters, type AskState, type BoardRow, type Clash, type ShiftSummary,
 } from "@/lib/overtimeShifts";
@@ -69,9 +74,7 @@ const STORED_LABEL: Record<string, string> = {
 };
 
 /** StatusBadge's palette, one restrained colour per state. */
-const STATE_BADGE: Record<AskState, string> = {
-  open: "warning", filled: "success", closed: "default", cancelled: "cancelled",
-};
+
 
 const SHIFT_ICON: Record<OvertimeShift, typeof Sun> = { Day: Sun, Night: Moon };
 const SHIFT_HOURS: Record<OvertimeShift, { starts: string; ends: string }> = {
@@ -205,16 +208,16 @@ export function OvertimeRequestsPanel() {
       {/* The four counts, each over a different kind of row so none is counted twice:
           asks, undecided answers, accepted answers, and the hours of those. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Figure lead label="Awaiting decision" value={String(summaryShown.awaitingDecision)}
+        <Figure lead label={<span className="flex items-center gap-1.5"><OVERTIME_STATUS.partial.icon className={cn("h-3.5 w-3.5 shrink-0", OVERTIME_STATUS.partial.ink)} aria-hidden />Awaiting decision</span>} value={String(summaryShown.awaitingDecision)}
           unit={summaryShown.awaitingDecision === 1 ? "answer" : "answers"}
           tone={summaryShown.awaitingDecision > 0 ? "owed" : "neutral"}
           hint="Said yes, nobody has accepted or declined them yet" />
-        <Figure label="Asks needing people" value={String(summaryShown.needsPeople)}
+        <Figure className={cn("border-l-4", OVERTIME_STATUS.needs.edge)} label={<span className={cn("flex items-center gap-1.5", OVERTIME_STATUS.needs.ink)}><OVERTIME_STATUS.needs.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />Asks needing people</span>} value={String(summaryShown.needsPeople)}
           hint="Open, with places still to fill" />
-        <Figure label="Confirmed" value={String(summaryShown.confirmed)}
+        <Figure label={<span className={cn("flex items-center gap-1.5", OVERTIME_STATUS.full.ink)}><OVERTIME_STATUS.full.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />Confirmed</span>} value={String(summaryShown.confirmed)}
           unit={summaryShown.confirmed === 1 ? "person" : "people"}
           hint="Accepted and not dropped out" />
-        <Figure label="Scheduled overtime" value={hoursLabel(summaryShown.scheduledMinutes)}
+        <Figure label={<span className={cn("flex items-center gap-1.5", OVERTIME_STATUS.in_progress.ink)}><OVERTIME_STATUS.in_progress.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />Scheduled overtime</span>} value={hoursLabel(summaryShown.scheduledMinutes)}
           hint={`${tab === "all" ? "Both shifts" : `${tab} shift`} · ${rangeLabel.toLowerCase()}`} />
       </div>
 
@@ -281,11 +284,10 @@ export function OvertimeRequestsPanel() {
         <TabsList className="h-auto w-full justify-start overflow-x-auto sm:w-auto" aria-label="Shift">
           <TabsTrigger value="all">All shifts</TabsTrigger>
           {OVERTIME_SHIFTS.map((s) => {
-            const Icon = SHIFT_ICON[s];
             const pending = perShift[s].awaitingDecision + perShift[s].needsPeople;
             return (
               <TabsTrigger key={s} value={s} className="gap-1.5">
-                <Icon className="h-4 w-4" aria-hidden /> {s} shift
+                <ShiftTag shift={s} />
                 {pending > 0 && (
                   <span className="rounded-full bg-warning/15 px-1.5 text-2xs font-semibold tabular-nums text-warning-strong"
                     aria-label={`${pending} pending`}>
@@ -359,16 +361,14 @@ function ShiftSection({ shift, asks, summary, rangeLabel, ctx, mayManage, onCrea
   shift: OvertimeShift; asks: OvertimeRequest[]; summary: ShiftSummary; rangeLabel: string;
   ctx: CardContext; mayManage: boolean; onCreate: () => void;
 }) {
-  const Icon = SHIFT_ICON[shift];
   const headingId = `ot-shift-${shift}`;
   return (
     <section aria-labelledby={headingId} className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b pb-2">
         <h2 id={headingId} className="flex items-center gap-2 font-display text-lg font-semibold">
-          <Icon className="h-5 w-5 text-muted-foreground" aria-hidden />
-          {shift} shift
+          <ShiftTag shift={shift} />
           <span className="text-sm font-normal text-muted-foreground">
-            {SHIFT_HOURS[shift].starts}–{SHIFT_HOURS[shift].ends} · {rangeLabel}
+            <ShiftTimeRange startsAt={SHIFT_HOURS[shift].starts} endsAt={SHIFT_HOURS[shift].ends} /> · {rangeLabel}
           </span>
         </h2>
         <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
@@ -532,7 +532,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
               {review.map((r) => (
                 <li key={r.date} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                   <span className="tabular-nums">
-                    <strong>{fmtDate(r.date)}</strong> · {windowLabel(startsAt, endsAt)} · {target} shift
+                    <strong>{fmtDate(r.date)}</strong> · <ShiftTimeRange startsAt={startsAt} endsAt={endsAt} /> · {target} shift
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {r.duplicate
@@ -591,7 +591,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
                 return (
                   <Button key={s} type="button" size="sm" variant={on ? "default" : "outline"} aria-pressed={on}
                     onClick={() => { setStartsAt(SHIFT_HOURS[s].starts); setEndsAt(SHIFT_HOURS[s].ends); }}>
-                    <Icon className="mr-1.5 h-4 w-4" aria-hidden /> {s} {SHIFT_HOURS[s].starts}–{SHIFT_HOURS[s].ends}
+                    <Icon className="mr-1.5 h-4 w-4" aria-hidden /> {s} <ShiftTimeRange startsAt={SHIFT_HOURS[s].starts} endsAt={SHIFT_HOURS[s].ends} />
                   </Button>
                 );
               })}
@@ -737,7 +737,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
   const taken = placesTaken(responses, (id) => outcomeByResponse.get(id));
   const full = taken >= request.headcount;
   const edBelowTaken = Number(edCount) < taken;
-  const state = askState(request, responses);
+  const displayStatus = calendarStatus(request, responses);
   const shift = askShift(request);
   const isPast = request.on_date < iso(new Date());
 
@@ -779,9 +779,9 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              <span className="tabular-nums">{fmtDate(request.on_date)} · {windowLabel(request.starts_at, request.ends_at)}</span>
-              <span className="text-xs font-normal text-muted-foreground">{shift} shift · {hoursBetween(request.starts_at, request.ends_at)}</span>
-              <StatusBadge status={STATE_BADGE[state]} label={ASK_STATE_LABEL[state]} size="sm" />
+              <span className="tabular-nums">{fmtDate(request.on_date)} · <ShiftTimeRange startsAt={request.starts_at} endsAt={request.ends_at} /></span>
+              <ShiftTag shift={shift} /><span className="text-xs font-normal text-muted-foreground">{hoursBetween(request.starts_at, request.ends_at)}</span>
+              <OvertimeStatusBadge status={displayStatus} />
             </CardTitle>
             {/* Who can see it, as a sentence. The note is on its own line below: it
                 is the only thing on this card somebody typed. */}
@@ -855,7 +855,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
                       return (
                         <span className="mt-0.5 flex items-center gap-1 text-xs text-warning-strong">
                           <AlertTriangle className="h-3 w-3 shrink-0" />
-                          said yes to {fmtDate(seen.on_date)} · {windowLabel(seen.starts_at, seen.ends_at)}
+                          said yes to {fmtDate(seen.on_date)} · <ShiftTimeRange startsAt={seen.starts_at} endsAt={seen.ends_at} />
                         </span>
                       );
                     })()}
@@ -999,7 +999,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel this ask?</AlertDialogTitle>
             <AlertDialogDescription>
-              {fmtDate(request.on_date)} · {windowLabel(request.starts_at, request.ends_at)}.{" "}
+              {fmtDate(request.on_date)} · <ShiftTimeRange startsAt={request.starts_at} endsAt={request.ends_at} />.{" "}
               {counts.accepted > 0
                 ? `${counts.accepted} ${counts.accepted === 1 ? "person is" : "people are"} already accepted on it. Their answers are kept; the overtime the ask put on the headcount board is taken off.`
                 : "Nobody has been accepted on it yet."}
@@ -1063,7 +1063,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
             )}
             {/* Vinte horas num turno de doze é o engano que isto existe para corrigir. */}
             <p className="text-xs text-muted-foreground">
-              {windowLabel(edStart, edEnd)} · {hoursBetween(edStart, edEnd)}
+              <ShiftTimeRange startsAt={edStart} endsAt={edEnd} /> · {hoursBetween(edStart, edEnd)}
               {/^\d{2}:\d{2}/.test(edStart) && <> · {askShift({ starts_at: edStart })} shift</>}
             </p>
           </div>

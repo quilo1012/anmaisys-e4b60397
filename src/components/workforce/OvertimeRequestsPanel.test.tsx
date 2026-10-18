@@ -80,7 +80,7 @@ describe("OvertimeRequestsPanel", () => {
   it("counts match the rows: two awaiting, one confirmed, 12h scheduled", () => {
     render(<OvertimeRequestsPanel />);
     // The figure is the first of each label on the page; the rows reuse "Awaiting decision" as a badge.
-    const fig = (label: string) => screen.getAllByText(label)[0].parentElement!;
+    const fig = (label: string) => screen.getAllByText(label)[0].closest(".bg-card");
     expect(fig("Awaiting decision")).toHaveTextContent("2");
     expect(fig("Confirmed")).toHaveTextContent("1");
     expect(fig("Scheduled overtime")).toHaveTextContent("12h");
@@ -122,10 +122,10 @@ describe("OvertimeRequestsPanel — calendar", () => {
     const cal = screen.getByRole("region", { name: "Overtime calendar" });
     // Tomorrow may sit in next month's first week; the week view always holds it.
     fireEvent.click(screen.getByRole("radio", { name: "Week" }));
-    if (!within(cal).queryByRole("button", { name: /18:00–06:00, Night shift/ })) {
+    if (!within(cal).queryByRole("button", { name: /18:00–06:00 \+1, Night shift/ })) {
       fireEvent.click(within(cal).getByRole("button", { name: "Next week" }));
     }
-    const night = within(cal).getByRole("button", { name: /18:00–06:00, Night shift, 1 of 2 filled, Partially filled/ });
+    const night = within(cal).getByRole("button", { name: /18:00–06:00 \+1, Night shift, 1 of 2 filled, Partially filled/ });
     fireEvent.click(night);
     const sheet = screen.getByRole("dialog");
     expect(within(sheet).getByText("Ana Day")).toBeInTheDocument();

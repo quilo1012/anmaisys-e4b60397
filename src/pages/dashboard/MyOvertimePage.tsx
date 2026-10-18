@@ -1,3 +1,4 @@
+import { ShiftTimeRange, nextDaySuffix } from "@/components/ShiftTimeRange";
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { BADGE_EMAIL_DOMAIN } from "@/lib/employeeAccounts";
@@ -318,8 +319,8 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           : `You said no to ${fmtDate(request.on_date)}`,
         {
           description: a === "yes"
-            ? `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}. The supervisor picks the team next.`
-            : `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}.`,
+            ? `${windowLabel(request.starts_at, request.ends_at)}${nextDaySuffix(request.starts_at, request.ends_at)}, ${audienceLine(request)}. The supervisor picks the team next.`
+            : `${windowLabel(request.starts_at, request.ends_at)}${nextDaySuffix(request.starts_at, request.ends_at)}, ${audienceLine(request)}.`,
         },
       ),
       onError: (e) => toast.error((e as Error).message || "Could not save your answer", {
@@ -437,7 +438,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   </div>
                   <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                    {windowLabel(r.starts_at, r.ends_at)}
+                    <ShiftTimeRange startsAt={r.starts_at} endsAt={r.ends_at} />
                   </div>
                   {/* A sentence, not four facts on middle dots. The note gets its
                       own line because it is the only thing here a person wrote. */}
