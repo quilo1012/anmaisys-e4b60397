@@ -29,6 +29,7 @@ import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { TabletOvertimeNotice } from "@/components/workforce/TabletOvertimeNotice";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
+import { MessageSupervisorDialog } from "@/components/workforce/MessageSupervisorDialog";
 
 const NO_CLASHES: ReadonlyMap<string, string> = new Map();
 
@@ -309,19 +310,27 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
     sending.current = true;
     answer.mutate({ requestId: request.id, answer: a }, {
       onSettled: () => { sending.current = false; },
-      onSuccess: () => toast.success(
-        // The button says "Yes, I can", so the answer says you said yes. It used to
-        // say "Overtime confirmed", which is the supervisor's word and not yours —
-        // the very collapse the two-line receipt below exists to undo.
-        a === "yes"
-          ? `You said yes to ${fmtDate(request.on_date)}`
-          : `You said no to ${fmtDate(request.on_date)}`,
-        {
-          description: a === "yes"
-            ? `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}. The supervisor picks the team next.`
-            : `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}.`,
-        },
-      ),
+      // Said from the row the database wrote, not from the button pressed: since
+      // BLOCO 102 a yes comes back booked, or on reserve when a numbered ask was full;
+      // before it, undecided — and the screen must not promise a booking it did not get.
+      onSuccess: (row) => {
+        const when = `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}`;
+        if (a === "no") {
+          toast.success(`You said no to ${fmtDate(request.on_date)}`, { description: `${when}.` });
+        } else if (row?.decision === "accepted") {
+          toast.success(`You're booked for ${fmtDate(request.on_date)}`, {
+            description: `${when}. Your supervisor has been told.`,
+          });
+        } else if (row?.decision === "reserve") {
+          toast.success(`You're on the reserve list for ${fmtDate(request.on_date)}`, {
+            description: `${when}. Every place was taken; you're next if somebody drops out.`,
+          });
+        } else {
+          toast.success(`You said yes to ${fmtDate(request.on_date)}`, {
+            description: `${when}. The supervisor picks the team next.`,
+          });
+        }
+      },
       onError: (e) => toast.error((e as Error).message || "Could not save your answer", {
         description: "Nothing was changed. Check your signal and tap again.",
       }),
@@ -442,7 +451,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   {/* A sentence, not four facts on middle dots. The note gets its
                       own line because it is the only thing here a person wrote. */}
                   <div className="text-sm text-muted-foreground">
-                    {headcountLine(r)} — {audienceLine(r)}
+                    {[headcountLine(r), audienceLine(r)].filter(Boolean).join(" — ")}
                   </div>
                   {room && (
                     <div className={cn("text-sm", room.taken >= room.headcount ? "font-medium text-warning-strong" : "text-muted-foreground")}>
@@ -474,6 +483,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                       <span className="font-medium">{supervisorLabel(r, my)}</span>
                     </div>
                   )}
+                </div>
+              )}
+              {/* A yes books the shift and cannot be taken back here; running late or
+                  not coming after all is said to the supervisor, in the app's chat. */}
+              {my?.answer === "yes" && r.status !== "cancelled" && !askHasStarted(r, now) && (
+                <div className="space-y-1.5">
+                  {my.decision === "accepted" && (
+                    <p className="text-xs text-muted-foreground">Can't make it after all, or running late? Tell your supervisor.</p>
+                  )}
+                  <MessageSupervisorDialog request={r} fmtDate={fmtDate} />
                 </div>
               )}
               {canAnswer && ownHours && (

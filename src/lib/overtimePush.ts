@@ -33,7 +33,7 @@ export function newAskMessage(
   const where = r.department ? ` · ${r.department}` : "";
   return {
     title: `Overtime: ${dayLabel(r.on_date)} · ${windowLabel(r.starts_at, r.ends_at)}`,
-    body: `Need ${r.headcount}${where}. Say yes or no in the app.${r.note ? ` ${r.note}` : ""}`,
+    body: `${r.headcount != null ? `Need ${r.headcount}` : "Overtime"}${where}. Say yes or no in the app.${r.note ? ` ${r.note}` : ""}`,
     tag: `overtime-ask-${r.id}`,
     action_url: MY_OVERTIME,
     priority: "medium",

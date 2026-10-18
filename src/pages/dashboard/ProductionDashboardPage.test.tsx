@@ -114,7 +114,7 @@ describe("Production dashboard", () => {
     const attention = screen.getByRole("region", { name: "Needs attention" });
     expect(within(attention).getByText("Day: 2 due in and not placed")).toBeInTheDocument();
     expect(within(attention).getByText("Day: 1 off sick or unpaid")).toBeInTheDocument();
-    expect(within(attention).getByText("Every overtime place in the next 7 days is filled.")).toBeInTheDocument();
+    expect(within(attention).getByText("Every overtime ask in the next 7 days has somebody booked.")).toBeInTheDocument();
   });
 
   it("shows output against plan from RAG Weekly", () => {

@@ -24,6 +24,7 @@ const STATUS_BAR: Record<CalendarStatus, string> = {
   needs: "border-l-warning",
   partial: "border-l-warning",
   full: "border-l-success",
+  booked: "border-l-success",
   in_progress: "border-l-primary",
   completed: "border-l-border",
   closed: "border-l-border",
@@ -142,10 +143,15 @@ function Legend() {
   );
 }
 
+/** "3 of 4 filled", or "3 booked" on an ask with no number. */
+function filledText(e: Entry): string {
+  return e.request.headcount == null ? `${e.accepted} booked` : `${e.accepted} of ${e.request.headcount} filled`;
+}
+
 /** One ask as a compact line: hours, filled, status. A button: it opens the detail. */
 function EntryChip({ e, onSelect, compact = false }: { e: Entry; onSelect: (id: string) => void; compact?: boolean }) {
   const label = `${windowLabel(e.request.starts_at, e.request.ends_at)}, ${e.shift} shift, `
-    + `${e.accepted} of ${e.request.headcount} filled, ${CALENDAR_STATUS_LABEL[e.status]}`;
+    + `${filledText(e)}, ${CALENDAR_STATUS_LABEL[e.status]}`;
   return (
     <button
       type="button"
@@ -162,7 +168,7 @@ function EntryChip({ e, onSelect, compact = false }: { e: Entry; onSelect: (id: 
     >
       <span className="flex items-center justify-between gap-1 tabular-nums">
         <span className="truncate font-medium">{e.request.starts_at.slice(0, 5)}</span>
-        <span className="shrink-0">{e.accepted}/{e.request.headcount}</span>
+        <span className="shrink-0">{e.request.headcount == null ? `${e.accepted} in` : `${e.accepted}/${e.request.headcount}`}</span>
       </span>
       {!compact && (
         <span className="block truncate text-2xs text-muted-foreground">{CALENDAR_STATUS_LABEL[e.status]}</span>
@@ -197,7 +203,8 @@ function MonthView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onO
           {week.map((g) => {
             const entries = byDate.get(g.iso) ?? [];
             const live = entries.filter((e) => e.status !== "cancelled");
-            const short = live.reduce((n, e) => n + Math.max(0, e.request.headcount - e.accepted), 0);
+            // Only a numbered ask has places "to fill"; one with no number just has nobody yet.
+            const short = live.reduce((n, e) => n + (e.request.headcount == null ? 0 : Math.max(0, e.request.headcount - e.accepted)), 0);
             const needsAny = live.some((e) => e.status === "needs" || e.status === "partial");
             return (
               <div
@@ -234,7 +241,7 @@ function MonthView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onO
                   <button type="button" onClick={() => onOpenDay(g.iso)}
                     className="block w-full text-left text-2xs leading-tight sm:hidden">
                     <span className="font-semibold tabular-nums">{entries.length}</span> {entries.length === 1 ? "ask" : "asks"}
-                    {needsAny && <span className="block text-warning-strong">{short} to fill</span>}
+                    {needsAny && <span className="block text-warning-strong">{short > 0 ? `${short} to fill` : "Nobody yet"}</span>}
                   </button>
                 )}
                 <div className="hidden space-y-1 sm:block">
@@ -336,8 +343,8 @@ function DayView({ date, entries, canCreate, onSelect, onCreate }: {
                         {e.request.note && <span className="mt-0.5 block truncate text-xs italic">“{e.request.note}”</span>}
                       </span>
                       <span className="grid shrink-0 grid-cols-3 gap-3 text-center text-xs tabular-nums">
-                        <span><strong className="block text-base">{e.request.headcount}</strong>needed</span>
-                        <span><strong className="block text-base">{e.accepted}</strong>accepted</span>
+                        <span><strong className="block text-base">{e.request.headcount ?? "—"}</strong>needed</span>
+                        <span><strong className="block text-base">{e.accepted}</strong>booked</span>
                         <span><strong className="block text-base">{e.pending}</strong>pending</span>
                       </span>
                     </button>

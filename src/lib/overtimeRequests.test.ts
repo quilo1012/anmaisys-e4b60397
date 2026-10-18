@@ -173,7 +173,7 @@ describe("supervisorLabel", () => {
       .toBe("Waiting for the supervisor");
   });
   it("names each decision the supervisor can make", () => {
-    expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: "accepted" })).toBe("Accepted");
+    expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: "accepted" })).toBe("Booked — your supervisor has been told");
     expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: "reserve" })).toBe("Reserve");
     expect(supervisorLabel({ status: "open" }, { answer: "yes", decision: "declined" })).toBe("Not needed this time");
   });
@@ -183,7 +183,7 @@ describe("supervisorLabel", () => {
     expect(supervisorLabel({ status: "cancelled" }, { answer: "yes", decision: null })).toBe("Ask cancelled");
   });
   it("keeps a decision already made, even once the ask is closed", () => {
-    expect(supervisorLabel({ status: "closed" }, { answer: "yes", decision: "accepted" })).toBe("Accepted");
+    expect(supervisorLabel({ status: "closed" }, { answer: "yes", decision: "accepted" })).toBe("Booked — your supervisor has been told");
   });
   it("does not wait on behalf of somebody who said no", () => {
     expect(supervisorLabel({ status: "open" }, { answer: "no", decision: null })).toBeNull();

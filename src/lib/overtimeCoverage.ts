@@ -19,15 +19,24 @@ import { askShift, type OvertimeShift } from "@/lib/overtimeShifts";
 export interface OvertimeCoverage {
   asks: number;
   cancelled: number;
+  /** People booked and still coming, on every ask. */
+  booked: number;
+  /** Places asked for — only asks that carry a number (from before BLOCO 102). */
   placesWanted: number;
+  /** Booked people on those numbered asks, at most their number. */
   placesFilled: number;
+  /** Free places on numbered asks that are open and not started. */
   stillToFill: number;
   /** Yes answers on open asks nobody has decided on. */
   awaitingDecision: number;
   worked: number;
-  byShift: Record<OvertimeShift, { wanted: number; filled: number }>;
-  /** Open, not started, with places left — soonest first. */
-  unfilled: Array<{ request: OvertimeRequest; left: number }>;
+  /** Booked per board, with the numbered places beside it where there are any. */
+  byShift: Record<OvertimeShift, { booked: number; wanted: number; filled: number }>;
+  /**
+   * Open, not started, and short: a numbered ask with places left, or an ask with no
+   * number that nobody has said yes to yet (`left` null). Soonest first.
+   */
+  unfilled: Array<{ request: OvertimeRequest; left: number | null }>;
 }
 
 export function overtimeCoverage(
@@ -37,30 +46,39 @@ export function overtimeCoverage(
   now: Date = new Date(),
 ): OvertimeCoverage {
   const out: OvertimeCoverage = {
-    asks: 0, cancelled: 0, placesWanted: 0, placesFilled: 0, stillToFill: 0,
+    asks: 0, cancelled: 0, booked: 0, placesWanted: 0, placesFilled: 0, stillToFill: 0,
     awaitingDecision: 0, worked: 0,
-    byShift: { Day: { wanted: 0, filled: 0 }, Night: { wanted: 0, filled: 0 } },
+    byShift: { Day: { booked: 0, wanted: 0, filled: 0 }, Night: { booked: 0, wanted: 0, filled: 0 } },
     unfilled: [],
   };
   for (const r of requests) {
     if (r.status === "cancelled") { out.cancelled += 1; continue; }
     const responses = responsesByRequest.get(r.id) ?? [];
-    const filled = Math.min(r.headcount, placesTaken(responses, outcomeOf));
-    out.asks += 1;
-    out.placesWanted += r.headcount;
-    out.placesFilled += filled;
+    const taken = placesTaken(responses, outcomeOf);
     const shift = askShift(r);
-    out.byShift[shift].wanted += r.headcount;
-    out.byShift[shift].filled += filled;
+    out.asks += 1;
+    out.booked += taken;
+    out.byShift[shift].booked += taken;
+    if (r.headcount != null) {
+      const filled = Math.min(r.headcount, taken);
+      out.placesWanted += r.headcount;
+      out.placesFilled += filled;
+      out.byShift[shift].wanted += r.headcount;
+      out.byShift[shift].filled += filled;
+    }
     out.worked += responses.filter((x) => outcomeOf(x.id) === "attended").length;
 
     const live = r.status === "open" && !askHasStarted(r, now);
     if (live) {
       out.awaitingDecision += responses.filter((x) => x.answer === "yes" && !x.decision).length;
-      const left = r.headcount - filled;
-      if (left > 0) {
-        out.stillToFill += left;
-        out.unfilled.push({ request: r, left });
+      if (r.headcount == null) {
+        if (taken === 0) out.unfilled.push({ request: r, left: null });
+      } else {
+        const left = r.headcount - Math.min(r.headcount, taken);
+        if (left > 0) {
+          out.stillToFill += left;
+          out.unfilled.push({ request: r, left });
+        }
       }
     }
   }

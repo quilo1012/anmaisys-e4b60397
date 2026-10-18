@@ -243,8 +243,8 @@ export function useOvertimePlaces(requestIds: string[]) {
     enabled: ids.length > 0,
     meta: { schemaOptional: true },
     staleTime: 60_000,
-    queryFn: async (): Promise<Map<string, { taken: number; headcount: number }>> => {
-      const out = new Map<string, { taken: number; headcount: number }>();
+    queryFn: async (): Promise<Map<string, { taken: number; headcount: number | null }>> => {
+      const out = new Map<string, { taken: number; headcount: number | null }>();
       // The function takes at most 200 asks a call.
       for (let i = 0; i < ids.length; i += 200) {
         // BLOCO 101: the types.ts only learns the function once the block is pasted.
@@ -254,7 +254,7 @@ export function useOvertimePlaces(requestIds: string[]) {
           if ((error as { code?: string }).code === "PGRST202") return new Map();
           throw error;
         }
-        for (const r of (data ?? []) as { request_id: string; taken: number; headcount: number }[]) {
+        for (const r of (data ?? []) as { request_id: string; taken: number; headcount: number | null }[]) {
           out.set(r.request_id, { taken: r.taken, headcount: r.headcount });
         }
       }
@@ -401,15 +401,23 @@ export function useOvertimeMutations() {
 
   const createRequest = useMutation({
     mutationFn: async (input: {
-      on_date: string; starts_at: string; ends_at: string; headcount: number;
+      on_date: string; starts_at: string; ends_at: string; headcount: number | null;
       department: string | null; shift_group: string | null; note: string | null;
     }): Promise<{ request: OvertimeRequest; push: PushOutcome }> => {
       const { data, error } = await db
         .from("overtime_requests")
-        .insert({ ...input, created_by: user!.id })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- headcount is
+        // nullable from BLOCO 102; the types.ts learns it once the block is pasted.
+        .insert({ ...input, created_by: user!.id } as any)
         .select("*")
         .single();
-      if (error) throw error;
+      if (error) {
+        // An empty "People needed" before BLOCO 102 is in: the column is still NOT NULL.
+        if ((error as { code?: string }).code === "23502" && input.headcount == null) {
+          throw new Error("Leaving People needed empty needs a database update that is not in yet. Put a number in for now.");
+        }
+        throw error;
+      }
       const request = data as OvertimeRequest;
       const push = await announceAsk(announceDeps, request.id, newAskMessage(request));
       return { request, push };
@@ -480,9 +488,15 @@ export function useOvertimeMutations() {
 
   /** The employee's one write. Goes through the RPC so the rules stay in the database. */
   const answer = useMutation({
+    /**
+     * The row the database wrote, so the screen says what actually happened: since
+     * BLOCO 102 a yes comes back `accepted` (booked) or `reserve` (a numbered ask that
+     * was full); before it, undecided.
+     */
     mutationFn: async ({ requestId, answer }: { requestId: string; answer: "yes" | "no" }) => {
-      const { error } = await db.rpc("answer_overtime", { p_request_id: requestId, p_answer: answer });
+      const { data, error } = await db.rpc("answer_overtime", { p_request_id: requestId, p_answer: answer });
       if (error) throw error;
+      return data as unknown as Pick<OvertimeResponse, "answer" | "decision"> | null;
     },
     onSuccess: refresh,
   });

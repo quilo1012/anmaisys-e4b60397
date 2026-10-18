@@ -85,15 +85,46 @@ export interface DirectMessage {
  *   management → management + supervisors (never operators)
  */
 export function useDMPartners(role: string | null | undefined) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["dm_partners", role],
+    queryKey: ["dm_partners", role, user?.id],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("list_dm_partners" as any);
       if (error) throw error;
-      return (data ?? []) as DMPartner[];
+      const partners = (data ?? []) as DMPartner[];
+      return withPeopleWhoWrote(partners, user ? await wroteTo(user.id) : []);
     },
     enabled: !!role,
   });
+}
+
+/**
+ * Whoever has written to this person, by the name on their last message.
+ *
+ * `list_dm_partners` lists people by role, and an employee writing about their
+ * overtime (`message_overtime_supervisor`, BLOCO 102) has no role it lists — so the
+ * supervisor got the alert and had no thread to open. Anybody who wrote to you is
+ * somebody you can answer ("dm_insert_reply" lets the reply through), so they are
+ * added to the list. Reads only rows addressed to you, which is all RLS returns.
+ */
+async function wroteTo(userId: string): Promise<DMPartner[]> {
+  const { data, error } = await supabase
+    .from("direct_messages")
+    .select("sender_id,sender_name,created_at")
+    .eq("recipient_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) return []; // the role-scoped list still stands on its own
+  const seen = new Map<string, DMPartner>();
+  for (const r of (data ?? []) as Array<{ sender_id: string; sender_name: string }>) {
+    if (!seen.has(r.sender_id)) seen.set(r.sender_id, { user_id: r.sender_id, name: r.sender_name, email: null });
+  }
+  return [...seen.values()];
+}
+
+export function withPeopleWhoWrote(partners: DMPartner[], writers: DMPartner[]): DMPartner[] {
+  const known = new Set(partners.map((p) => p.user_id));
+  return [...partners, ...writers.filter((w) => !known.has(w.user_id))];
 }
 
 export function useDMThread(partnerId: string | null) {

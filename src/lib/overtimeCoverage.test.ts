@@ -46,8 +46,8 @@ describe("overtimeCoverage", () => {
     expect(c.worked).toBe(2);
   });
   it("splits by the board the hours land on", () => {
-    expect(c.byShift.Night).toEqual({ wanted: 2, filled: 1 });
-    expect(c.byShift.Day).toEqual({ wanted: 7, filled: 4 });
+    expect(c.byShift.Night).toEqual({ booked: 1, wanted: 2, filled: 1 });
+    expect(c.byShift.Day).toEqual({ booked: 4, wanted: 7, filled: 4 });
   });
   it("never counts more filled than wanted", () => {
     const over = overtimeCoverage(
@@ -57,5 +57,17 @@ describe("overtimeCoverage", () => {
     );
     expect(over.placesFilled).toBe(1);
     expect(over.stillToFill).toBe(0);
+  });
+
+  it("counts an ask with no number by who is booked, and flags it only while nobody is", () => {
+    const open = overtimeCoverage(
+      [ask("any", { headcount: null }), ask("empty", { headcount: null, on_date: "2026-10-21" })],
+      new Map([["any", [resp("p", "any", { decision: "accepted" }), resp("q", "any", { decision: "accepted" })]]]),
+      () => undefined, now,
+    );
+    expect(open.booked).toBe(2);
+    expect(open.placesWanted).toBe(0);
+    expect(open.stillToFill).toBe(0);
+    expect(open.unfilled.map((u) => [u.request.id, u.left])).toEqual([["empty", null]]);
   });
 });
