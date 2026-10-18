@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Stage 3: employee portal, mobile shell, clock wording and login touch targets; presentation only
+
 - [x] Stage 2: Headcount totals, calm headers, compact absence columns, scroll clearance, KPI/legend and mobile breadcrumb; presentation only
 
 - [x] Stage 1: shared shift/status presentation, overnight time suffixes, mobile overtime agenda, single Back button; no data or logic changes
