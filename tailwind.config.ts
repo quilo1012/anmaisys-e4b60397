@@ -28,6 +28,13 @@ export default {
   			'2xs': ['0.6875rem', { lineHeight: '1rem' }],
   		},
   		colors: {
+            board: {
+                header: 'hsl(var(--board-header))',
+                ink: 'hsl(var(--board-ink))',
+                sickness: 'hsl(var(--board-sickness))',
+                unpaid: 'hsl(var(--board-unpaid))',
+                training: 'hsl(var(--board-training))'
+            },
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',

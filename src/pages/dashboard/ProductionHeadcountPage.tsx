@@ -1,5 +1,6 @@
 import { ShiftTag } from "@/components/ShiftTag";
 import { SHIFT_LOOK } from "@/lib/shiftLook";
+import { OVERTIME_STATUS } from "@/lib/overtimeStatus";
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
@@ -10,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle } from "lucide-react";
+import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle, HeartPulse, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -107,10 +108,10 @@ type ViewKey = ShiftKey | "Split";
  * training already looks like on the Workforce board; the same fact should not change
  * colour between two screens.
  */
-const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
-  { status: "sick", label: "Sickness", head: "away" },
-  { status: "unpaid", label: "Unpaid", head: "away" },
-  { status: "holiday", label: "Holidays", head: "leave" },
+const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill; accent: string; icon: typeof Sun }[] = [
+  { status: "sick", label: "Sickness", head: "away", accent: "border-t-board-sickness", icon: HeartPulse },
+  { status: "unpaid", label: "Unpaid", head: "away", accent: "border-t-board-unpaid", icon: UserX },
+  { status: "holiday", label: "Holidays", head: "leave", accent: "border-t-success", icon: PlaneTakeoff },
   // "Overtime", as the supervisors asked (12/10/2026), and as the company sheet heads
   // the same column. It was "Called in" for a while, to keep it apart from timesheet
   // overtime — hours over contract in the clock. That clash is gone at the source:
@@ -118,9 +119,9 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
   // screen the word now means one thing — an overtime shift somebody was accepted for
   // (the ask → board bridge, 20261012190000) or placed on by hand. The stored status
   // was always `overtime` and stays so.
-  { status: "overtime", label: "Overtime", head: "leave" },
+  { status: "overtime", label: "Overtime", head: "leave", accent: "border-t-warning", icon: OVERTIME_STATUS.in_progress.icon },
   // Amarelo, como uma área: na planilha o Training é uma coluna de sítio, não de falta.
-  { status: "training", label: "Training", head: "heading" },
+  { status: "training", label: "Training", head: "heading", accent: "border-t-board-training", icon: GraduationCap },
 ];
 
 /**
@@ -137,15 +138,15 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
  */
 type SheetFill = "heading" | "away" | "leave" | "total" | "grand" | "leader";
 const SHEET_FILL: Record<SheetFill, string> = {
-  heading: "bg-[#FFFF00] text-black",
-  away: "bg-[#FF0000] text-white",
-  leave: "bg-[#92D050] text-black",
-  total: "bg-[#92D050] text-black",
-  grand: "bg-[#7030A0] text-white",
-  leader: "bg-[#D9D9D9] text-black",
+  heading: "bg-board-header text-board-ink",
+  away: "bg-board-header text-board-ink",
+  leave: "bg-board-header text-board-ink",
+  total: "bg-board-header text-board-ink",
+  grand: "bg-board-header text-board-ink",
+  leader: "bg-muted text-foreground",
 };
 /** A linha fina preta à volta de cada célula da folha. */
-const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
+const SHEET_RULE = "border-border";
 
 /**
  * Uma coluna da folha: o cabeçalho, uma célula por pessoa, células vazias até ao fundo
@@ -157,10 +158,13 @@ const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
  * essa fila em degraus.
  */
 function SheetColumn({
-  title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled,
+  title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled, compact = false, accent = "border-t-primary", icon: HeaderIcon,
 }: {
   /** Células já ocupadas, quando há mais do que `count` (nomes do plano, a cinzento). */
   filled?: number;
+  compact?: boolean;
+  accent?: string;
+  icon?: typeof Sun;
   /** O que vai na primeira célula vazia — o campo para escrever um nome. */
   blank?: React.ReactNode;
   title: string;
@@ -174,22 +178,23 @@ function SheetColumn({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("headcount-sheet-column flex h-full flex-col border bg-card", SHEET_RULE)}>
+    <div className={cn("headcount-sheet-column flex flex-col border bg-card", !compact && "h-full", SHEET_RULE)}>
       <div
         className={cn(
-          "flex min-h-[40px] items-center gap-1 border-b px-1.5",
-          SHEET_RULE, SHEET_FILL[head],
+          "headcount-column-header sticky top-0 z-10 flex min-h-14 items-center gap-1 border-b border-t-2 px-1.5 py-1",
+          SHEET_RULE, SHEET_FILL[head], accent,
           onHeadClick && "cursor-pointer hover:brightness-95",
         )}
         onClick={onHeadClick}
-        title={headHint}
+        title={[title, headHint].filter(Boolean).join(" — ")}
       >
         {grip}
-        <span className="headcount-column-title flex-1 truncate text-center text-sm font-bold">{title}</span>
+        {HeaderIcon && <HeaderIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+        <span className="headcount-column-title min-w-0 flex-1 text-center text-sm font-semibold leading-5">{title}</span>
       </div>
       <div className="flex flex-col">
         {children}
-        {Array.from({ length: Math.max(0, rows - (filled ?? count)) }, (_, i) =>
+        {Array.from({ length: compact ? 1 : Math.max(0, rows - (filled ?? count)) }, (_, i) =>
           i === 0 && blank ? (
             <div key={i} className={cn("h-12 shrink-0 border-b", SHEET_RULE)}>{blank}</div>
           ) : (
@@ -417,7 +422,7 @@ function Chip({
         // a Team Leader who is on a line that has not named them its leader.
         // O líder é a célula cinzenta, como na primeira linha de cada coluna da folha.
         lineLeader || leader ? cn(SHEET_FILL.leader, "font-bold")
-          : overtime ? "bg-[#92D050]/25 text-foreground"
+          : overtime ? "bg-warning/10 text-foreground"
           : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
         dimmed && "opacity-20",
@@ -919,32 +924,21 @@ function ShiftBoard({
    */
   const sheetTail = (rows: number) => (
     <>
-      <div className={cn("-mb-px -mr-px flex h-full flex-col border", SHEET_RULE)}>
-        {/* "Total staff in Pr", cortado como a folha o escreve: numa linha só, para o
-            cabeçalho ter a altura dos outros. O nome inteiro fica no title. */}
-        <div
-          className={cn("flex min-h-[40px] items-center justify-center border-b px-1.5 text-center text-sm font-bold", SHEET_RULE, SHEET_FILL.grand)}
-          title="Total staff in Production — everyone on a line or in support; Sickness, Unpaid and Overtime are not added in"
-        >
-          Total staff in Pr
-        </div>
-        <div className={cn("flex min-h-[44px] items-center justify-center font-figure text-2xl font-bold tabular-nums", SHEET_FILL.grand)}>
-          {assignedCount}
-        </div>
-        <div className="flex-1 bg-card" />
-      </div>
       {AWAY_BLOCKS.map((block) => {
         const people = peopleWith(block.status);
         return (
           <DropZone
             key={block.status}
             disabled={!canManage}
-            className="-mb-px -mr-px h-full rounded-none"
+            className="headcount-absence-column -mb-px -mr-px self-start rounded-none"
             onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
           >
             <SheetColumn
               title={block.label}
               head={block.head}
+              compact
+              accent={block.accent}
+              icon={block.icon}
               onHeadClick={canManage ? () => setPickingAway({ status: block.status, label: block.label }) : undefined}
               headHint={canManage ? `Add or remove people in ${block.label}` : undefined}
               rows={rows}
@@ -1052,13 +1046,7 @@ function ShiftBoard({
           counted the same way; they are just set in a line instead of in boxes. */}
       <div className={cn("rounded-xl border bg-card border-l-[3px]", look.rule)}>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2">
-          <div className="flex items-center gap-2">
-            <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md", look.chip)}>
-              <ShiftIcon className="h-4 w-4" />
-            </div>
-            {/* The day type is in the band above, once for both boards. */}
-            <h3 className="whitespace-nowrap text-sm font-bold leading-tight">{shift} shift</h3>
-          </div>
+          <h3><ShiftTag shift={shift} className="py-1 text-sm" /></h3>
           {/* The two numbers side by side, because apart they invite the wrong sum:
               46 assigned out of 82 due in is a shift half planned, and "46" alone
               reads like the whole answer. The rest of the rota is named underneath so
@@ -1087,9 +1075,9 @@ function ShiftBoard({
             <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
             <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
             <KpiPill icon={Wrench} label="Support" value={support} tone="" />
-            <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
+            <KpiPill icon={OVERTIME_STATUS.needs.icon} label="Away" value={away} tone="" valueTone={OVERTIME_STATUS.needs.ink} />
             {/* People on an overtime shift, not hours. */}
-            <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
+            <KpiPill icon={OVERTIME_STATUS.partial.icon} label="Overtime" value={overtime} tone="" valueTone={OVERTIME_STATUS.partial.ink} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t px-3 py-1.5 print:hidden">
@@ -1282,6 +1270,10 @@ function ShiftBoard({
         </div>
       </div>
 
+      <p className="headcount-legend text-2xs leading-relaxed text-muted-foreground print:hidden">
+        LAB: Laboratory · WH: Warehouse · TEC: Technician · QA: Quality · OFF: Office · Grey name: leader · Grey italic: unsaved matrix plan · FRI–MON: Friday–Monday crew · 14:00: sheet start time · ½ Half Day: part of shift worked
+      </p>
+
       {/* The way back from the one press on this screen that writes seventy rows.
           Copying the wrong day was a twenty-minute mistake: the only way to reverse it
           was to open seventy cards and take each person off by hand, on a tablet.
@@ -1466,6 +1458,7 @@ function ShiftBoard({
               <SheetColumn
                 title={area.name}
                 head="heading"
+                accent={section.key === "production" ? "border-t-primary" : "border-t-muted-foreground"}
                 grip={canManage ? grip : undefined}
                 onHeadClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
                 headHint={canManage ? `Add or remove people on ${area.name}` : undefined}
@@ -1833,7 +1826,7 @@ function SheetDayTabs({ date, today, onPick }: { date: string; today: string; on
   return (
     <nav
       aria-label="Days of the month"
-      className="print:hidden md:sticky md:bottom-0 md:z-10 border-t border-neutral-400 bg-muted/95 backdrop-blur"
+      className="headcount-date-strip print:hidden md:sticky md:bottom-0 md:z-20 border-t border-border bg-muted"
     >
       <div ref={strip} className="flex overflow-x-auto overscroll-x-contain">
         {days.map((d) => {
@@ -1848,11 +1841,11 @@ function SheetDayTabs({ date, today, onPick }: { date: string; today: string; on
               aria-current={active ? "date" : undefined}
               title={formatLong(d) + (d === today ? " (today)" : "")}
               className={cn(
-                "shrink-0 border-r border-neutral-400 px-3 py-2 font-figure text-xs tabular-nums",
+                "shrink-0 border-r border-border px-3 py-2 font-figure text-xs tabular-nums",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 // O separador aberto é branco e sobe sobre a linha, como no Excel.
                 active
-                  ? "-mt-px border-t-2 border-t-[#217346] bg-card font-bold text-[#217346] dark:text-[#5fd08d]"
+                  ? "-mt-px border-t-2 border-t-primary bg-card font-bold text-primary"
                   : cn("text-muted-foreground hover:bg-card/60 hover:text-foreground", weekend && "text-muted-foreground/60"),
                 d === today && !active && "underline decoration-2 underline-offset-4",
               )}

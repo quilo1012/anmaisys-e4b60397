@@ -97,6 +97,11 @@
     --shift-night: 234 89% 74%;
     --shift-night-strong: 242 47% 34%;
     --shift-night-surface: 226 100% 97%;
+    --board-header: 210 40% 96%;
+    --board-ink: 222 47% 11%;
+    --board-sickness: 0 72% 51%;
+    --board-unpaid: 0 91% 71%;
+    --board-training: 258 90% 66%;
 
     /* A superfície de autenticação.
        O cartão de login é claro por decisão, não por esquecimento: está sempre sobre o
@@ -159,6 +164,8 @@
   }
 
   .dark {
+    --board-header: 215 20% 17%;
+    --board-ink: 213 27% 95%;
     /* O escuro assenta no mesmo "ink" do claro (215°), não num cinzento à parte. */
     --background: 215 28% 8%;
     /* Lifted off the near-black page, or the header disappears into it. */
@@ -1606,6 +1613,16 @@ select:-webkit-autofill {
 html, body, #root {
   max-width: 100vw;
   overflow-x: hidden;
+}
+
+@media screen {
+  .headcount-on-screen { padding-bottom: 64px; }
+  .headcount-column-title { overflow-wrap: normal !important; word-break: normal; }
+  .headcount-date-strip { min-height: 48px; }
+  body:has(.headcount-on-screen) nav[aria-label="Breadcrumb"] > span { white-space: nowrap; overflow-wrap: normal !important; flex-shrink: 0; }
+}
+@media screen and (max-width: 767px) {
+  .headcount-columns, .headcount-away { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 
 @media (max-width: 768px) {
