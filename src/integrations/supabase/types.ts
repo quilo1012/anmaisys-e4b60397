@@ -1045,6 +1045,8 @@ export type Database = {
           shift_pattern_id: string | null
           source: string
           started_on: string | null
+          timemoto_user_id: string | null
+          timemoto_username: string | null
           updated_at: string
           user_id: string | null
         }
@@ -1068,6 +1070,8 @@ export type Database = {
           shift_pattern_id?: string | null
           source?: string
           started_on?: string | null
+          timemoto_user_id?: string | null
+          timemoto_username?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1091,6 +1095,8 @@ export type Database = {
           shift_pattern_id?: string | null
           source?: string
           started_on?: string | null
+          timemoto_user_id?: string | null
+          timemoto_username?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -1273,6 +1279,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      identity_link_attempts: {
+        Row: {
+          fails: number
+          last_fail: string | null
+          user_id: string
+        }
+        Insert: {
+          fails?: number
+          last_fail?: string | null
+          user_id: string
+        }
+        Update: {
+          fails?: number
+          last_fail?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       intouch_exclusion_map: {
         Row: {
@@ -2804,6 +2828,9 @@ export type Database = {
         Row: {
           answer: string
           answered_at: string
+          answered_for_date: string | null
+          answered_for_ends_at: string | null
+          answered_for_starts_at: string | null
           decided_at: string | null
           decided_by: string | null
           decision: string | null
@@ -2814,6 +2841,9 @@ export type Database = {
         Insert: {
           answer: string
           answered_at?: string
+          answered_for_date?: string | null
+          answered_for_ends_at?: string | null
+          answered_for_starts_at?: string | null
           decided_at?: string | null
           decided_by?: string | null
           decision?: string | null
@@ -2824,6 +2854,9 @@ export type Database = {
         Update: {
           answer?: string
           answered_at?: string
+          answered_for_date?: string | null
+          answered_for_ends_at?: string | null
+          answered_for_starts_at?: string | null
           decided_at?: string | null
           decided_by?: string | null
           decision?: string | null
@@ -6970,6 +7003,9 @@ export type Database = {
         Returns: {
           answer: string
           answered_at: string
+          answered_for_date: string | null
+          answered_for_ends_at: string | null
+          answered_for_starts_at: string | null
           decided_at: string | null
           decided_by: string | null
           decision: string | null
@@ -7192,6 +7228,74 @@ export type Database = {
         Args: { p_employee_id: string; p_user_id: string }
         Returns: undefined
       }
+      link_me_by_email: {
+        Args: never
+        Returns: {
+          active: boolean
+          created_at: string
+          current_line_id: string | null
+          department: string | null
+          email: string | null
+          employee_ref: string | null
+          employment_type: string
+          full_name: string
+          headcount_area_id: string | null
+          id: string
+          left_on: string | null
+          manager_id: string | null
+          notes: string | null
+          position: string | null
+          sheet_aliases: string | null
+          shift_group: string | null
+          shift_pattern_id: string | null
+          source: string
+          started_on: string | null
+          timemoto_user_id: string | null
+          timemoto_username: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      link_me_by_employee_ref: {
+        Args: { p_ref: string }
+        Returns: {
+          active: boolean
+          created_at: string
+          current_line_id: string | null
+          department: string | null
+          email: string | null
+          employee_ref: string | null
+          employment_type: string
+          full_name: string
+          headcount_area_id: string | null
+          id: string
+          left_on: string | null
+          manager_id: string | null
+          notes: string | null
+          position: string | null
+          sheet_aliases: string | null
+          shift_group: string | null
+          shift_pattern_id: string | null
+          source: string
+          started_on: string | null
+          timemoto_user_id: string | null
+          timemoto_username: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "employees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       link_me_to_employee: {
         Args: { p_employee_id: string }
         Returns: {
@@ -7214,6 +7318,8 @@ export type Database = {
           shift_pattern_id: string | null
           source: string
           started_on: string | null
+          timemoto_user_id: string | null
+          timemoto_username: string | null
           updated_at: string
           user_id: string | null
         }
