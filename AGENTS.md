@@ -1,6 +1,7 @@
 # Project Architecture Rules
 
 - Reuse ShiftTag/shiftLook and OVERTIME_STATUS for shift and overtime presentation; keep record-derived display separate from eligibility, filters and counts.
+- Employee response badges may override shared status wording to describe the employee's answer without relabeling it as staffing approval.
 
 - Gate employee records with dedicated employee permissions, not workforce access, so corrections do not open Headcount or payroll.
 - Record employee rota, job and shift changes server-side and display existing dated crew history alongside them, so edits from every writer remain traceable without inventing past job titles.
