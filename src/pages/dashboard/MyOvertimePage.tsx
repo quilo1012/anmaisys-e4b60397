@@ -15,6 +15,9 @@ import {
   requestIsForEmployee, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
   headcountLine, audienceLine, askIsOver, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
+import { askShift } from "@/lib/overtimeShifts";
+import { ShiftTag } from "@/components/ShiftTag";
+import { shiftEdge } from "@/lib/shiftLook";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { TabletOvertimeNotice } from "@/components/workforce/TabletOvertimeNotice";
@@ -250,8 +253,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
 
   return (
     <div className="space-y-3">
-      <div className="text-xs text-muted-foreground">
-        Signed in as {me.full_name}{me.shift_group ? `, ${me.shift_group} crew` : ""}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>Signed in as {me.full_name}</span>
+        {me.shift_group && <ShiftTag shift={me.shift_group} noun="crew" />}
       </div>
       {block && (
         <Card className="border-destructive/30 bg-destructive/5">
@@ -283,11 +287,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
              `opacity-80`, which reads as "still loading" rather than "this is over".
              It loses its buttons and gains a rule instead — the card changes form,
              which can be seen without reading it. */
-          <Card key={r.id} className={cn(r.status !== "open" && "border-dashed bg-muted/30")}>
+          /* The left edge and the tag are the shift the overtime is FOR (`askShift`,
+             the board it lands on), not the person's crew: a day packer offered a
+             night ask is looking at night work, and the card should look like it. */
+          <Card key={r.id} className={cn(shiftEdge(askShift(r)), r.status !== "open" && "border-dashed bg-muted/30")}>
             <CardContent className="space-y-3 pt-5">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-base font-medium">{fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}</div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-base font-medium">{fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}</span>
+                    <ShiftTag shift={askShift(r)} />
+                  </div>
                   {/* A sentence, not four facts on middle dots. The note gets its
                       own line because it is the only thing here a person wrote. */}
                   <div className="text-sm text-muted-foreground">
