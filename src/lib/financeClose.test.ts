@@ -693,6 +693,20 @@ describe("searchClose", () => {
     expect(searchClose(rows, "e9f3c2aa").map((r) => r.name)).toEqual(["Bruno Costa"]);
   });
 
+  // The id is hex: "42", "ab", "dee" sit inside most of them. Matched as a substring,
+  // a two-digit badge search returned 43 of 200 people, and the totals and the printed
+  // sheet came with them.
+  it("does not find somebody because a few typed characters happen to sit inside their id", () => {
+    const hex = buildClose([
+      person({ employeeId: "7f42ab1c-dee0-4000-8000-000000000042", name: "Carla Dias", employeeRef: "3001" }),
+      person({ employeeId: "11111111-0000-4000-8000-000000000001", name: "Rui Lopes", employeeRef: "1042" }),
+    ], PERIOD.from, PERIOD.to);
+    expect(searchClose(hex, "42").map((r) => r.name)).toEqual(["Rui Lopes"]);
+    expect(searchClose(hex, "ab")).toEqual([]);
+    expect(searchClose(hex, "dee")).toEqual([]);
+    expect(searchClose(hex, "7f42ab1c").map((r) => r.name)).toEqual(["Carla Dias"]);
+  });
+
   it("returns everybody for an empty search, and nobody for a name not on file", () => {
     expect(searchClose(rows, "   ")).toBe(rows);
     expect(searchClose(rows, "zé ninguém")).toEqual([]);
