@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { attendanceFromBoard, attendanceForStatus } from "@/lib/attendanceFromBoard";
+import { attendanceFromBoard, attendanceForStatus, attendanceForDay } from "@/lib/attendanceFromBoard";
 
 const mark = (status: string, date = "2026-08-02", employeeId = "e1") => ({ employeeId, date, status });
 
@@ -74,5 +74,32 @@ describe("attendanceFromBoard", () => {
 
   it("is empty for an empty board", () => {
     expect(attendanceFromBoard([])).toEqual([]);
+  });
+});
+
+/**
+ * What one hand placement writes, once the person's other board that day is read.
+ *
+ * `place()` wrote the status of the board in front of it, keyed by person and day: a
+ * sick mark on the Night board turned a day worked on the Day board into a sick day in
+ * the finance close. The import already chose the winner; a placement did not.
+ */
+describe("attendanceForDay", () => {
+  it("keeps a day worked on the other board when this board says sick", () => {
+    expect(attendanceForDay(["assigned", "sick"])).toBe("present");
+    expect(attendanceForDay(["sick", "overtime"])).toBe("present");
+  });
+
+  it("writes this board's mark when it is the only one", () => {
+    expect(attendanceForDay(["holiday"])).toBe("holiday");
+    expect(attendanceForDay(["unpaid"])).toBe("unpaid");
+  });
+
+  it("lets training beat an away mark on the other board", () => {
+    expect(attendanceForDay(["training", "sick"])).toBe("training");
+  });
+
+  it("has nothing to say about a day with no marks", () => {
+    expect(attendanceForDay([])).toBeNull();
   });
 });

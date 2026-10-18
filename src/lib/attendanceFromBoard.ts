@@ -84,3 +84,13 @@ export function attendanceFromBoard(marks: BoardMark[]): AttendanceRow[] {
   }
   return [...best.values()].map((b) => b.row);
 }
+
+/**
+ * The payroll record for one person's day, from every board mark they have that day.
+ * Null when there are none. The same winner `attendanceFromBoard` picks, for the one
+ * day a hand placement touches.
+ */
+export function attendanceForDay(statuses: string[]): AttendanceStatus | null {
+  const [row] = attendanceFromBoard(statuses.map((status) => ({ employeeId: "", date: "", status })));
+  return row?.status ?? null;
+}
