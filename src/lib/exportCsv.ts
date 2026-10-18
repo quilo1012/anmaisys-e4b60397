@@ -16,12 +16,22 @@ interface WOForExport {
 }
 
 // Quote every cell and neutralise CSV formula injection. Without this, any field
-// with a comma/quote/newline shifts the columns, and a leading =,+,-,@ executes as
-// a formula in Excel/Sheets.
+// with a comma/quote/newline shifts the columns, and a leading =,+,-,@ (or a tab or
+// carriage return ahead of one) executes as a formula in Excel/Sheets.
+// A number is left alone: prefixing -4.5 turned every negative balance in the
+// finance close into the text '-4.5, which no spreadsheet will sum.
 export function csvCell(v: unknown): string {
   let s = String(v ?? "");
-  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  if (!(typeof v === "number" && Number.isFinite(v)) && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return `"${s.replace(/"/g, '""')}"`;
+}
+
+/**
+ * The file's text, starting with a byte-order mark: without it Excel on Windows opens
+ * a double-clicked CSV as ANSI and "João" arrives as "JoÃ£o".
+ */
+export function csvText(headers: string[], rows: unknown[][]): string {
+  return "\uFEFF" + [headers.map(csvCell).join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\n");
 }
 
 /**
@@ -32,8 +42,7 @@ export function csvCell(v: unknown): string {
  * the two ends up without it.
  */
 export function downloadCsv(filename: string, headers: string[], rows: unknown[][]) {
-  const csv = [headers.map(csvCell).join(","), ...rows.map((r) => r.map(csvCell).join(","))].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([csvText(headers, rows)], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

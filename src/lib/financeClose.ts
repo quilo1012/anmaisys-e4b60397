@@ -428,9 +428,9 @@ const fold = (s: string) =>
 /**
  * The rows a search for one person returns.
  *
- * By name, by the badge number, or by the record's own id — every word typed has to
- * appear in one of them, in any order, so "silva ana" finds Ana Silva. The rows stay
- * keyed on `employeeId` throughout: two Ana Silvas are two rows, both returned, never
+ * By name, by the badge number, or by the start of the record's own id (eight characters
+ * or more) — every word typed has to appear in one of them, in any order, so "silva ana"
+ * finds Ana Silva. The rows stay keyed on `employeeId` throughout: two Ana Silvas are two rows, both returned, never
  * one row with both people's hours.
  *
  * An empty search is no search, and the rows come back untouched.
@@ -439,8 +439,11 @@ export function searchClose(rows: ClosePerson[], query: string): ClosePerson[] {
   const words = fold(query).split(" ").filter(Boolean);
   if (words.length === 0) return rows;
   return rows.filter((r) => {
-    const hay = fold(`${r.name} ${r.employeeRef ?? ""} ${r.employeeId}`);
-    return words.every((w) => hay.includes(w));
+    const hay = fold(`${r.name} ${r.employeeRef ?? ""}`);
+    const id = r.employeeId.toLowerCase();
+    // The id only by its start, and only from eight characters: it is hex, so "42" or
+    // "ab" sits inside most ids and would bring strangers into the totals and the sheet.
+    return words.every((w) => hay.includes(w) || (w.length >= 8 && id.startsWith(w)));
   });
 }
 
