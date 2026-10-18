@@ -106,6 +106,8 @@ export type Action =
   | "dashboard.engineer"
   | "dashboard.operator"
   | "dashboard.warehouse"
+  | "dashboard.production"
+  | "dashboard.maintenance"
   // Reliability / Suppliers (dedicated view actions)
   | "reliability.view"
   | "suppliers.view"
@@ -299,6 +301,11 @@ const MATRIX: Record<Action, Role[]> = {
   "dashboard.engineer": ["admin", "manager", "maintenance_manager", "engineer"],
   "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "operator"],
   "dashboard.warehouse": ["admin", "warehouse"],
+  // The department dashboards. Opening one shows only the sections whose own action
+  // the role holds — staffing needs headcount.view, overtime needs overtime.manage —
+  // so these say who gets the page, never what is on it.
+  "dashboard.production": ["admin", "manager", "production_office_admin"],
+  "dashboard.maintenance": ["admin", "manager", "maintenance_manager", "production_office_admin"],
 
   "reliability.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "suppliers.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
@@ -587,7 +594,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "notif", label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
   { key: "intouch", label: "iTouching", actions: ["intouch.view", "intouch.manage"] },
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
-  { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator", "dashboard.warehouse"] },
+  { key: "dash", label: "Dashboards", actions: ["dashboard.executive", "dashboard.manager", "dashboard.engineer", "dashboard.operator", "dashboard.warehouse", "dashboard.production", "dashboard.maintenance"] },
   { key: "users", label: "Users & Audit", actions: ["users.view", "users.manage", "employees.link_login", "audit.view"] },
   { key: "reports", label: "Reports", actions: ["reports.analytics", "reports.export", "reliability.view", "suppliers.view"] },
   { key: "system", label: "System", actions: ["system.hub", "system.clear", "system.settings", "system.shiftpasswords", "system.diagnostics", "permissions.manage"] },

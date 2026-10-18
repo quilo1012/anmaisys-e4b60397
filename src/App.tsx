@@ -409,13 +409,32 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route path="/dashboard/production-dashboard" element={<ProtectedRoute requiredAction="rag.view"><ProductionDashboardPage /></ProtectedRoute>} />
-                <Route path="/dashboard/maintenance-dashboard" element={<ProtectedRoute requiredAction="reliability.view"><MaintenanceDashboardPage /></ProtectedRoute>} />
+                {/* The first address these dashboards had, kept so a link to it still opens them. */}
+                <Route path="/dashboard/production-dashboard" element={<Navigate to="/dashboard/departments/production" replace />} />
+                <Route path="/dashboard/maintenance-dashboard" element={<Navigate to="/dashboard/departments/maintenance" replace />} />
                 <Route
                   path="/dashboard/manager"
                   element={
                     <ProtectedRoute requiredAction="dashboard.manager">
                       <ManagerDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* One dashboard per department. Each section inside asks for the action of
+                    the screen it summarises, so these actions only open the page. */}
+                <Route
+                  path="/dashboard/departments/production"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.production">
+                      <ProductionDashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/departments/maintenance"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.maintenance">
+                      <MaintenanceDashboardPage />
                     </ProtectedRoute>
                   }
                 />

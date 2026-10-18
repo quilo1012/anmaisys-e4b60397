@@ -102,6 +102,8 @@ const EXPECTED: Record<Action, Role[]> = {
   "dashboard.engineer": ["admin", "manager", "maintenance_manager", "engineer"],
   "dashboard.operator": ["admin", "manager", "maintenance_manager", "engineer", "operator"],
   "dashboard.warehouse": ["admin", "warehouse"],
+  "dashboard.production": ["admin", "manager", "production_office_admin"],
+  "dashboard.maintenance": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "reliability.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "suppliers.view": ["admin", "manager", "maintenance_manager", "production_office_admin"],
   "permissions.manage": ["admin"],

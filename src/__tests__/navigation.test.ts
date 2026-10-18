@@ -112,6 +112,9 @@ describe("sidebar", () => {
     // Headcount, which is the mistake this test exists to catch.
     const order = navItems.filter((i) => i.group === "Production").map((i) => i.title);
     expect(order).toEqual([
+      // The department's dashboard heads its group: it is the summary the rows below
+      // are the detail of, and every card on it links to one of them.
+      "Production Dashboard",
       "RAG Weekly",
       "Performance",
       "Stop Analysis",
