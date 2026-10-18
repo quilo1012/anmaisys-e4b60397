@@ -193,33 +193,6 @@ export function requestIsForEmployee(
 }
 
 /**
- * The asks this person's phone lists.
- *
- * Three tests, in order. The ask is for them by department and crew
- * (`requestIsForEmployee`). It is not over — unless they already answered it, because
- * then it is their record of what they said. And it does not land on hours that are
- * already theirs: `clashes` is `my_overtime_clashes()`, the database reading their
- * board and their rota for that date. A crew label alone cannot say that — the
- * weekend crew's Saturday is 06:00–18:00, and a Saturday 06:00–18:00 ask is the same
- * shift twice, not overtime.
- *
- * An ask they answered before the clash appeared (the board was drawn afterwards) is
- * kept, so their answer does not vanish; `canAnswer` then refuses the yes.
- */
-export function asksOfferedTo<R extends Pick<OvertimeRequest, "id" | "department" | "shift_group" | "on_date" | "starts_at" | "ends_at">>(
-  requests: R[],
-  me: { department: string | null; shift_group: string | null },
-  answered: ReadonlySet<string>,
-  clashes: ReadonlyMap<string, string>,
-  now: Date = new Date(),
-): R[] {
-  return requests
-    .filter((r) => requestIsForEmployee(r, me))
-    .filter((r) => answered.has(r.id) || !askIsOver(r, now))
-    .filter((r) => answered.has(r.id) || !clashes.has(r.id));
-}
-
-/**
  * The board an ask's hours land on: Day from 06:00 to 17:59, Night otherwise.
  *
  * The same line `factory_shift_of` draws in the database, which is what the ask →
@@ -333,6 +306,68 @@ export function askIsOver(
   const end = new Date(`${request.on_date}T${hm(request.ends_at)}:00`);
   if (crossesMidnight) end.setDate(end.getDate() + 1);
   return now.getTime() > end.getTime();
+}
+
+/**
+ * Whether the shift this ask is for has already begun.
+ *
+ * `on_date` is the day the shift starts, so a night of 18:00–06:00 begins on
+ * `on_date` at 18:00 and nothing about the next morning matters here. Once it has
+ * begun it is no longer an opportunity: nobody signs up for a shift already under
+ * way, even while `askIsOver` would still call it running.
+ */
+export function askHasStarted(
+  request: Pick<OvertimeRequest, "on_date" | "starts_at">,
+  now: Date = new Date(),
+): boolean {
+  const start = new Date(`${request.on_date}T${request.starts_at.slice(0, 5)}:00`);
+  return now.getTime() >= start.getTime();
+}
+
+/** Today as `yyyy-mm-dd` on the device's own clock — the clock `askHasStarted` reads. */
+export function localDate(now: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+}
+
+/**
+ * What My Overtime lists: shifts still ahead, and nothing else.
+ *
+ * The list used to keep every ask the person had answered, over or not, as "their
+ * record" — so a phone opened on a Monday still led with last week's mornings. That
+ * record lives elsewhere: an accepted shift is on My Attendance, and every answer
+ * stays in `overtime_responses` for the supervisor's screen and the audit. Here it
+ * is only what can still be worked:
+ *
+ * - the shift has not started (`askHasStarted`, so a night is judged by its 18:00);
+ * - an open ask for this person's department and crew that does not land on hours
+ *   already theirs (`clashes` is `my_overtime_clashes()`, the database reading their
+ *   board and rota), or one they are already on (a supervisor may add somebody from
+ *   outside the audience at the desk);
+ * - a closed (filled) ask only when this person is in it, accepted or reserve, so
+ *   "You're in" for Thursday does not vanish the moment the supervisor closes it.
+ *
+ * Cancelled asks are never listed. The query already leaves them out; repeating it
+ * here keeps the whole rule in one readable place.
+ */
+export function upcomingForMe<R extends Pick<OvertimeRequest, "id" | "on_date" | "starts_at" | "status" | "department" | "shift_group">>(
+  requests: R[],
+  employee: { department: string | null; shift_group: string | null },
+  mine: ReadonlyMap<string, Pick<OvertimeResponse, "decision">>,
+  now: Date = new Date(),
+  clashes: ReadonlyMap<string, string> = new Map(),
+): R[] {
+  return requests.filter((r) => {
+    if (askHasStarted(r, now)) return false;
+    const my = mine.get(r.id);
+    // An unanswered ask on hours already theirs is the same shift twice, not
+    // overtime: the weekend crew's Saturday 06:00–18:00 against a Saturday
+    // 06:00–18:00 ask. One answered before the board was drawn stays, so the answer
+    // does not vanish; the page then refuses the yes.
+    if (r.status === "open") return !!my || (requestIsForEmployee(r, employee) && !clashes.has(r.id));
+    if (r.status === "closed") return my?.decision === "accepted" || my?.decision === "reserve";
+    return false;
+  });
 }
 
 /**

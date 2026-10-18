@@ -8,12 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Check, X, Clock, Loader2, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  useMyEmployee, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
+  useMyEmployee, useMyUpcomingOvertime, useOvertimeResponses, useOvertimeMutations,
   useMyOvertimeBlock, useMyOvertimeClashes,
 } from "@/hooks/useOvertimeRequests";
 import {
-  asksOfferedTo, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
-  headcountLine, audienceLine, askIsOver, type OvertimeRequest,
+  upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
+  headcountLine, audienceLine, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -191,7 +191,7 @@ function LinkMyself() {
 }
 
 function AsksForMe({ me }: { me: { id: string; full_name: string; department: string | null; shift_group: string | null } }) {
-  const { data: requests = [], isLoading } = useOvertimeRequests();
+  const { data: requests = [], isLoading } = useMyUpcomingOvertime();
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
   const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
@@ -200,24 +200,24 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
 
   const mine = useMemo(() => new Map(responses.filter((r) => r.employee_id === me.id).map((r) => [r.request_id, r])), [responses, me.id]);
   /**
-   * What is still worth showing this person.
+   * The clock the list is judged by, moved on every half minute.
    *
-   * The date test was `on_date >= today` and nothing else, so an ask stayed on offer
-   * for the whole calendar day — including at 23:00, nine hours after a 06:00–14:00
-   * window had closed, with both buttons live. `askIsOver` reads the hours the ask
-   * actually carries.
-   *
-   * And the crew label was the only test of whether the hours were free, so the
-   * weekend crew was offered Saturday 06:00–18:00 on top of their own Saturday
-   * 06:00–18:00. `clashes` is the database reading their board and rota for the date.
-   *
-   * An ask already answered stays on the list even once it is over: that is the
-   * person's own record of what they said and what came of it. What goes is the
-   * offer of a shift nobody can work any more.
+   * Without it the list is only re-cut when data arrives, so a morning that began at
+   * 06:00 would sit on an idle phone, buttons live, until the next poll or tap.
+   */
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  /**
+   * Shifts still ahead, and not on hours already theirs (`clashes` is the database
+   * reading their board and rota). The rule, and why answered past asks left, is
+   * `upcomingForMe`.
    */
   const visible = useMemo(
-    () => asksOfferedTo(requests, me, new Set(mine.keys()), clashes),
-    [requests, me, mine, clashes],
+    () => upcomingForMe(requests, me, mine, now, clashes),
+    [requests, me, mine, now, clashes],
   );
 
   /**
@@ -251,7 +251,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   if (visible.length === 0) {
     return (
       <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-        No overtime on offer right now, {me.full_name.split(" ")[0]}. Check back later.
+        No upcoming overtime available, {me.full_name.split(" ")[0]}. Check back later.
       </CardContent></Card>
     );
   }
@@ -279,9 +279,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
-        // Open, undecided, and not already finished. The third was missing, which is
+        // Open, undecided, and not yet begun. The third was missing once, which is
         // how a morning that had ended was still taking answers at eleven at night.
-        const canAnswer = r.status === "open" && !my?.decision && !askIsOver(r);
+        const canAnswer = r.status === "open" && !my?.decision && !askHasStarted(r, now);
         // Answered before the board or the rota put them on these hours. Their answer
         // stays; a yes no longer can — the database would refuse it.
         const ownHours = clashes.get(r.id);

@@ -33,7 +33,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
     data: { id: "e1", full_name: "Ana Weekend", department: "Production", shift_group: "Weekend" },
     isPending: false, isLoading: false, isError: false, refetch: vi.fn(),
   }),
-  useOvertimeRequests: () => ({
+  useMyUpcomingOvertime: () => ({
     data: [ask("sat-day", "06:00:00", "18:00:00"), ask("sat-night", "18:00:00", "06:00:00")],
     isLoading: false,
   }),

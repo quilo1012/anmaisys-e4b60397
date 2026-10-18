@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { newAskMessage, decisionMessage, type PushMessage } from "@/lib/overtimePush";
+import { localDate } from "@/lib/overtimeRequests";
 import type {
   OvertimeRequest, OvertimeResponse, OvertimeDecision, OvertimeOutcome, Reliability, OvertimeRules,
 } from "@/lib/overtimeRequests";
@@ -32,6 +33,36 @@ export function useOvertimeRequests() {
         .from("overtime_requests")
         .select("*")
         .gte("on_date", since)
+        .order("on_date", { ascending: true })
+        .order("starts_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as OvertimeRequest[];
+    },
+  });
+}
+
+/**
+ * My Overtime's read: shifts from today on, open or filled, never cancelled.
+ *
+ * Narrowed in the query and not only on screen, so a phone does not download a
+ * fortnight of finished asks just to hide them. The hour-level cut (a morning that
+ * began at 06:00 is gone by 06:00) is `upcomingForMe`, because a date column cannot
+ * say it.
+ *
+ * Under the "overtime_requests" key so every answer and decision refreshes it, and
+ * polled once a minute: a supervisor closing or cancelling an ask happens on another
+ * device, and nothing else would tell this one.
+ */
+export function useMyUpcomingOvertime() {
+  return useQuery({
+    queryKey: [...KEYS.requests, "upcoming"],
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<OvertimeRequest[]> => {
+      const { data, error } = await db
+        .from("overtime_requests")
+        .select("*")
+        .gte("on_date", localDate())
+        .in("status", ["open", "closed"])
         .order("on_date", { ascending: true })
         .order("starts_at", { ascending: true });
       if (error) throw error;
