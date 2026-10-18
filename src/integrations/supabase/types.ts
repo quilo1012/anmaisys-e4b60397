@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -429,6 +429,7 @@ export type Database = {
           left_early_at: string | null
           note: string | null
           on_date: string
+          overtime_request_id: string | null
           sheet_name: string | null
           sheet_start_time: string | null
           sheet_tag: string | null
@@ -447,6 +448,7 @@ export type Database = {
           left_early_at?: string | null
           note?: string | null
           on_date: string
+          overtime_request_id?: string | null
           sheet_name?: string | null
           sheet_start_time?: string | null
           sheet_tag?: string | null
@@ -465,6 +467,7 @@ export type Database = {
           left_early_at?: string | null
           note?: string | null
           on_date?: string
+          overtime_request_id?: string | null
           sheet_name?: string | null
           sheet_start_time?: string | null
           sheet_tag?: string | null
@@ -485,6 +488,13 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_allocations_overtime_request_id_fkey"
+            columns: ["overtime_request_id"]
+            isOneToOne: false
+            referencedRelation: "overtime_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -2415,6 +2425,8 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          kind: string | null
+          overtime_request_id: string | null
           priority: string
           read_at: string | null
           title: string
@@ -2426,6 +2438,8 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          kind?: string | null
+          overtime_request_id?: string | null
           priority?: string
           read_at?: string | null
           title: string
@@ -2437,13 +2451,23 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          kind?: string | null
+          overtime_request_id?: string | null
           priority?: string
           read_at?: string | null
           title?: string
           user_id?: string
           wo_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "notifications_overtime_request_id_fkey"
+            columns: ["overtime_request_id"]
+            isOneToOne: false
+            referencedRelation: "overtime_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       operator_chat_admins: {
         Row: {
@@ -2538,6 +2562,72 @@ export type Database = {
           line_ids?: string[]
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      overtime_audit: {
+        Row: {
+          actor_id: string | null
+          actor_kind: string
+          actor_name: string | null
+          actor_role: string | null
+          employee_id: string | null
+          employee_name: string | null
+          ends_at: string | null
+          event_type: string
+          id: number
+          new_value: Json | null
+          note: string | null
+          occurred_at: string
+          old_value: Json | null
+          on_date: string | null
+          request_id: string | null
+          response_id: string | null
+          shift: string | null
+          source: string
+          starts_at: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_kind: string
+          actor_name?: string | null
+          actor_role?: string | null
+          employee_id?: string | null
+          employee_name?: string | null
+          ends_at?: string | null
+          event_type: string
+          id?: never
+          new_value?: Json | null
+          note?: string | null
+          occurred_at?: string
+          old_value?: Json | null
+          on_date?: string | null
+          request_id?: string | null
+          response_id?: string | null
+          shift?: string | null
+          source: string
+          starts_at?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_kind?: string
+          actor_name?: string | null
+          actor_role?: string | null
+          employee_id?: string | null
+          employee_name?: string | null
+          ends_at?: string | null
+          event_type?: string
+          id?: never
+          new_value?: Json | null
+          note?: string | null
+          occurred_at?: string
+          old_value?: Json | null
+          on_date?: string | null
+          request_id?: string | null
+          response_id?: string | null
+          shift?: string | null
+          source?: string
+          starts_at?: string | null
         }
         Relationships: []
       }
@@ -7062,6 +7152,11 @@ export type Database = {
           status: string
         }[]
       }
+      link_employee_account: { Args: { _user_id: string }; Returns: string }
+      link_login_to_employee: {
+        Args: { p_employee_id: string; p_user_id: string }
+        Returns: undefined
+      }
       link_me_to_employee: {
         Args: { p_employee_id: string }
         Returns: {
@@ -7209,10 +7304,13 @@ export type Database = {
         Args: { _reason: string; _wo_id: string }
         Returns: Json
       }
+      login_link_candidates: { Args: never; Returns: Json }
+      match_employee_for_user: { Args: { _user_id: string }; Returns: string }
       move_machine_to_line: {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined
       }
+      my_attendance: { Args: { p_from: string; p_to: string }; Returns: Json }
       my_employee_id: { Args: never; Returns: string }
       my_overtime_block: {
         Args: never
@@ -7238,12 +7336,74 @@ export type Database = {
           shift_group: string
         }[]
       }
+      overtime_ask_notified: {
+        Args: { p_request_id: string }
+        Returns: string[]
+      }
+      overtime_audit_actor: {
+        Args: { p_employee_id: string; p_uid: string }
+        Returns: {
+          actor_kind: string
+          actor_name: string
+          actor_role: string
+          source: string
+        }[]
+      }
+      overtime_audit_decision_event: {
+        Args: { p_new: string; p_old: string }
+        Returns: string
+      }
+      overtime_audit_diff: {
+        Args: { p_keys: string[]; p_new: Json; p_old: Json }
+        Returns: {
+          new_value: Json
+          old_value: Json
+        }[]
+      }
+      overtime_audit_outcome_event: {
+        Args: { p_outcome: string }
+        Returns: string
+      }
+      overtime_audit_write: {
+        Args: {
+          p_actor?: string
+          p_at?: string
+          p_employee_id: string
+          p_event: string
+          p_new: Json
+          p_note: string
+          p_old: Json
+          p_request_id: string
+          p_response_id: string
+          p_source?: string
+        }
+        Returns: undefined
+      }
       overtime_block_for: {
         Args: { p_employee_id: string }
         Returns: {
           blocked_until: string
           on_date: string
           reason: string
+        }[]
+      }
+      overtime_board_apply: {
+        Args: {
+          p_accepted: boolean
+          p_employee_id: string
+          p_request_id: string
+        }
+        Returns: undefined
+      }
+      overtime_board_shift: {
+        Args: { p_on_date: string; p_starts_at: string }
+        Returns: string
+      }
+      overtime_notify_targets: {
+        Args: { p_request_id: string }
+        Returns: {
+          employee_id: string
+          user_id: string
         }[]
       }
       overtime_push_targets: {
@@ -7270,6 +7430,10 @@ export type Database = {
           shift_group: string
         }[]
       }
+      overtime_schedule_clash: {
+        Args: { p_employee_id: string; p_request_id: string }
+        Returns: string
+      }
       overtime_schedule_clashes: {
         Args: { p_request_ids: string[] }
         Returns: {
@@ -7295,6 +7459,8 @@ export type Database = {
         Args: { _label?: string; _line_ids: string[]; _token: string }
         Returns: undefined
       }
+      person_name_case: { Args: { raw: string }; Returns: string }
+      person_name_tokens: { Args: { _name: string }; Returns: string[] }
       production_downtime_shift_end: {
         Args: { _occurred_date: string; _shift: string }
         Returns: string
@@ -7541,9 +7707,14 @@ export type Database = {
         Returns: undefined
       }
       shift_password_is_set: { Args: { _shift_code: string }; Returns: boolean }
+      signup_invite_code: { Args: never; Returns: string }
       snapshot_sku_products: { Args: never; Returns: Json }
       touch_device: { Args: { _token: string }; Returns: undefined }
       touch_last_seen: { Args: never; Returns: undefined }
+      unlink_login_from_employee: {
+        Args: { p_employee_id: string }
+        Returns: undefined
+      }
       unpair_device: { Args: { _device_id: string }; Returns: undefined }
       update_leader:
         | {
