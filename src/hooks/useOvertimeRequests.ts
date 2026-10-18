@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { invokeFunction } from "@/lib/invokeFunction";
+import { announceAsk, pushTo as pushToVia, type AnnounceDeps, type PushOutcome } from "@/lib/overtimeAnnounce";
 import { newAskMessage, decisionMessage, type PushMessage } from "@/lib/overtimePush";
 import { localDate } from "@/lib/overtimeRequests";
 import type {
@@ -299,47 +300,22 @@ export function useMyEmployee() {
 
 
 /**
- * Tell some logins about an ask. Best effort, on purpose.
- *
- * The ask is already saved by the time this runs. If the push fails — VAPID not set,
- * the function down, nobody linked yet — the ask still stands and the supervisor is
- * told the message did not go, not that the ask did not. A notification is a
- * courtesy; the row is the record.
+ * Tell some logins about an ask. Best effort, on purpose: the ask is already saved by
+ * the time this runs, and a notification is a courtesy — the row is the record. The
+ * logic lives in `overtimeAnnounce`, where it can be tested without a network.
  */
-export interface PushOutcome {
-  /** Logins that got the in-app bell. */
-  notified: number;
-  /** Phones that actually got a push. Null when the function did not say. */
-  pushed: number | null;
-  /** Why no phone could get one — "VAPID not configured", for instance. */
-  note: string | null;
-  error: string | null;
-}
+export type { PushOutcome } from "@/lib/overtimeAnnounce";
 
-async function pushTo(
-  requestId: string,
-  message: PushMessage,
-  employeeIds: string[] | null,
-): Promise<PushOutcome> {
-  const none: PushOutcome = { notified: 0, pushed: null, note: null, error: null };
-  const { data: ids, error: tErr } = await db.rpc("overtime_push_targets", {
-    p_request_id: requestId,
-    ...(employeeIds ? { p_employee_ids: employeeIds } : {}),
-  });
-  if (tErr) return { ...none, error: tErr.message };
-  const userIds = (ids ?? []) as string[];
-  if (userIds.length === 0) return none;
-  const { data, error } = await invokeFunction<{ sent?: number; in_app?: number; note?: string }>(
-    "send-push", { user_ids: userIds, ...message },
-  );
-  if (error) return { ...none, error: String(error.message ?? error) };
-  return {
-    notified: data?.in_app ?? userIds.length,
-    pushed: typeof data?.sent === "number" ? data.sent : null,
-    note: data?.note ?? null,
-    error: null,
-  };
-}
+const announceDeps: AnnounceDeps = {
+  // overtime_ask_notified is BLOCO 100; the generated types learn it when it is pasted.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rpc: async (fn, args) => (await (db.rpc as any)(fn, args)) as Awaited<ReturnType<AnnounceDeps["rpc"]>>,
+  invoke: async (fn, body) =>
+    (await invokeFunction<{ sent?: number; in_app?: number; note?: string }>(fn, body)) as Awaited<ReturnType<AnnounceDeps["invoke"]>>,
+};
+
+const pushTo = (requestId: string, message: PushMessage, employeeIds: string[] | null) =>
+  pushToVia(announceDeps, requestId, message, employeeIds);
 
 export function useOvertimeMutations() {
   const qc = useQueryClient();
@@ -367,7 +343,7 @@ export function useOvertimeMutations() {
         .single();
       if (error) throw error;
       const request = data as OvertimeRequest;
-      const push = await pushTo(request.id, newAskMessage(request), null);
+      const push = await announceAsk(announceDeps, request.id, newAskMessage(request));
       return { request, push };
     },
     onSuccess: refresh,

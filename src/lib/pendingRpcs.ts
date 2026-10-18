@@ -43,6 +43,13 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
+    name: "overtime_ask_notified",
+    block: "BLOCO 100 — 20261018130000_an_ask_rings_the_bell_of_who_can_take_it.sql",
+    fallback:
+      "announceAsk turns PGRST202 into the old path, pushTo: the browser targets by " +
+      "department and crew and send-push writes the bell, exactly as before the block.",
+  },
+  {
     name: "my_overtime_clashes",
     block: "BLOCO 95 — 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql",
     fallback:

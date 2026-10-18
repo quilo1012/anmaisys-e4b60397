@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -256,6 +257,19 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   );
 
   /**
+   * Arriving from the bell: `?ask=<id>` scrolls to that ask and rings it. If it is not
+   * in the list any more — cancelled, closed, started, or on hours already theirs —
+   * the page says so instead of leaving them to look for it.
+   */
+  const [params] = useSearchParams();
+  const linkedAsk = params.get("ask");
+  const linkedShown = !!linkedAsk && visible.some((r) => r.id === linkedAsk);
+  useEffect(() => {
+    if (!linkedShown) return;
+    document.getElementById(`ask-${linkedAsk}`)?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, [linkedShown, linkedAsk]);
+
+  /**
    * The answer, and a receipt that says which day it was for.
    *
    * "Marked you as interested" was true and not enough: somebody who answers three
@@ -296,6 +310,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   /** Which button is waiting on the server, so the spinner sits on the one that was tapped. */
   const inFlight = answer.isPending ? answer.variables : undefined;
 
+  const goneNotice = linkedAsk && !linkedShown ? (
+    <Card className="border-dashed bg-muted/30" role="status">
+      <CardContent className="py-4 text-sm">
+        <div className="font-medium">That overtime is no longer available</div>
+        <div className="mt-0.5 text-muted-foreground">
+          It was cancelled or closed, it has already started, or it falls on hours you are already working.
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
   if (isLoading) return <AsksSkeleton />;
   // A failed fetch is not an empty list. Saying "no overtime" when the phone simply
   // lost signal is how somebody misses the one they were waiting for.
@@ -309,6 +334,8 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   }
   if (visible.length === 0) {
     return (
+      <div className="space-y-3">
+      {goneNotice}
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
           <CalendarClock className="h-8 w-8 text-muted-foreground/60" aria-hidden />
@@ -318,6 +345,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           </p>
         </CardContent>
       </Card>
+      </div>
     );
   }
 
@@ -352,6 +380,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           </CardContent>
         </Card>
       )}
+      {goneNotice}
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
@@ -374,7 +403,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           /* The left edge and the tag are the shift the overtime is FOR (`askShift`,
              the board it lands on), not the person's crew: a day packer offered a
              night ask is looking at night work, and the card should look like it. */
-          <Card key={r.id} className={cn(shiftEdge(askShift(r)), r.status !== "open" && "border-dashed bg-muted/30")}>
+          <Card key={r.id} id={`ask-${r.id}`} className={cn(shiftEdge(askShift(r)), r.status !== "open" && "border-dashed bg-muted/30", r.id === linkedAsk && "ring-2 ring-primary")}>
             <CardContent className="space-y-3 pt-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, AlertTriangle, Wrench, Package, Activity, UserCheck } from "lucide-react";
+import { Bell, AlertTriangle, Wrench, Package, Activity, UserCheck, Hand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,6 +11,8 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { railEdge } from "@/components/ui/StatusRail";
 import { asksForNotificationPermissionAtLogin } from "@/lib/notificationPermissionPrompt";
+import { useMyNotifications } from "@/hooks/useMyNotifications";
+import { askAvailability, notificationTarget, type StoredNotification } from "@/lib/notificationFeed";
 
 type NotifType = "new_wo" | "assigned" | "status_change" | "overdue" | "low_stock" | "system_error";
 type Priority = "critical" | "high" | "medium" | "low";
@@ -244,15 +246,59 @@ export function NotificationPanel() {
     return () => { supabase.removeChannel(channel); };
   }, [user, role, addNotification]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-  const criticalCount = notifications.filter((n) => !n.read && (n.priority === "critical" || n.priority === "high")).length;
+  // The rows the server wrote — overtime asks among them — kept across reloads. The
+  // list above is only what happened while this tab was open.
+  const stored = useMyNotifications();
+  const storedUnread = stored.notifications.filter((n) => !n.read_at);
 
-  const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  // A row that lands while the app is open gets one toast. Rows already there when the
+  // feed first loads — a refresh, a reopened tab — do not: they are in the list.
+  const seenStored = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!stored.loaded) return;
+    if (seenStored.current === null) {
+      seenStored.current = new Set(stored.notifications.map((n) => n.id));
+      return;
+    }
+    for (const n of stored.notifications) {
+      if (seenStored.current.has(n.id)) continue;
+      seenStored.current.add(n.id);
+      if (n.read_at) continue;
+      const target = notificationTarget(n);
+      toast.info(n.title, {
+        description: n.body,
+        duration: 10000,
+        icon: n.kind === "overtime_new" ? <Hand className="h-5 w-5" /> : <Bell className="h-5 w-5" />,
+        action: target ? { label: n.kind === "overtime_new" ? "View" : "Open", onClick: () => navigate(target) } : undefined,
+      });
+    }
+  }, [stored.notifications, stored.loaded, navigate]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length + storedUnread.length;
+  const criticalCount =
+    notifications.filter((n) => !n.read && (n.priority === "critical" || n.priority === "high")).length
+    + storedUnread.filter((n) => n.priority === "critical" || n.priority === "high").length;
+
+  const markAllRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    if (storedUnread.length > 0) stored.markRead.mutate("all");
+  };
   const handleClick = (n: Notification) => {
     setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
     if (n.woId) { setOpen(false); navigate(`/dashboard/wo/${n.woId}`); return; }
     if (n.href) { setOpen(false); navigate(n.href); }
   };
+  const handleStoredClick = (n: StoredNotification) => {
+    if (!n.read_at) stored.markRead.mutate([n.id]);
+    const target = notificationTarget(n);
+    if (target) { setOpen(false); navigate(target); }
+  };
+
+  type Row = { at: number; stored?: StoredNotification; live?: Notification };
+  const rows: Row[] = [
+    ...stored.notifications.map((n) => ({ at: new Date(n.created_at).getTime(), stored: n })),
+    ...notifications.map((n) => ({ at: n.timestamp.getTime(), live: n })),
+  ].sort((a, b) => b.at - a.at);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -284,11 +330,13 @@ export function NotificationPanel() {
           )}
         </div>
         <ScrollArea className="h-[360px]">
-          {notifications.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-8">No notifications yet</p>
           ) : (
             <div className="divide-y">
-              {notifications.map((n) => {
+              {rows.map(({ stored: sn, live }) => {
+                if (sn) return <StoredRow key={`s-${sn.id}`} n={sn} available={sn.overtime_request_id ? askAvailability(stored.asks.get(sn.overtime_request_id)) : null} onClick={() => handleStoredClick(sn)} />;
+                const n = live!;
                 const Icon = typeIcon[n.type];
                 const styles = priorityStyles[n.priority];
                 return (
@@ -324,5 +372,46 @@ export function NotificationPanel() {
         </ScrollArea>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** One row the server wrote. An overtime ask says whether it can still be taken. */
+function StoredRow({ n, available, onClick }: {
+  n: StoredNotification;
+  available: "open" | "unavailable" | null;
+  onClick: () => void;
+}) {
+  const isOvertime = n.kind === "overtime_new";
+  const Icon = isOvertime ? Hand : Bell;
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "w-full text-left px-4 py-3 text-sm transition hover:bg-accent/50",
+        !n.read_at && "bg-primary/5",
+        n.read_at && "opacity-60",
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {!n.read_at && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Unread" />}
+            <span className="font-medium truncate">{n.title}</span>
+            {available === "open" && (
+              <span className="text-2xs px-1.5 py-0.5 rounded font-bold shrink-0 bg-success/15 text-success">Open</span>
+            )}
+            {available === "unavailable" && (
+              <span className="text-2xs px-1.5 py-0.5 rounded font-bold shrink-0 bg-muted text-muted-foreground">No longer available</span>
+            )}
+          </div>
+          {n.body && <p className="text-muted-foreground text-xs mt-1 break-words">{n.body}</p>}
+          <p className="text-muted-foreground text-2xs mt-1">
+            {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+            {isOvertime && <span className="ml-2 font-medium text-primary">View overtime →</span>}
+          </p>
+        </div>
+      </div>
+    </button>
   );
 }

@@ -12,6 +12,9 @@ const PushPayloadSchema = z.object({
   requireInteraction: z.boolean().optional(),
   action_url: z.string().max(2048).optional(),
   wo_id: z.string().uuid().optional(),
+  // False when the bell row already exists: an overtime ask's rows are written by the
+  // database when the ask is saved (BLOCO 100), so this call is for the phones only.
+  in_app: z.boolean().optional(),
 }).strict();
 type PushPayload = z.infer<typeof PushPayloadSchema>;
 
@@ -99,8 +102,9 @@ Deno.serve(async (req) => {
 
 
 
-    // Always write in-app notification (bell), even if push isn't configured
-    const { error: notifErr } = await supabase.from("notifications").insert(
+    // Write the in-app notification (bell), even if push isn't configured — unless the
+    // caller says the database has already written it.
+    const { error: notifErr } = body.in_app === false ? { error: null } : await supabase.from("notifications").insert(
       userIds.map((uid) => ({
         user_id: uid,
         wo_id: body.wo_id ?? null,
@@ -115,7 +119,7 @@ Deno.serve(async (req) => {
     // If VAPID isn't configured, skip web-push but report success for in-app delivery
     if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
       return new Response(
-        JSON.stringify({ sent: 0, failed: 0, total: 0, in_app: userIds.length, note: "VAPID not configured" }),
+        JSON.stringify({ sent: 0, failed: 0, total: 0, in_app: body.in_app === false ? 0 : userIds.length, note: "VAPID not configured" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -159,7 +163,7 @@ Deno.serve(async (req) => {
     const fail = results.length - ok;
 
     return new Response(
-      JSON.stringify({ sent: ok, failed: fail, total: results.length, in_app: userIds.length }),
+      JSON.stringify({ sent: ok, failed: fail, total: results.length, in_app: body.in_app === false ? 0 : userIds.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
