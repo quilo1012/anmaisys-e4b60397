@@ -1160,8 +1160,12 @@ export function useChangeShift(onDate: string) {
         .single();
       if (readErr) throw readErr;
 
-      const { error } = await supabase.from("employees").update({ shift_group: shiftGroup }).eq("id", employeeId);
+      const { data: changed, error } = await supabase
+        .from("employees").update({ shift_group: shiftGroup }).eq("id", employeeId).select("id");
       if (error) throw error;
+      // Zero rows is a refusal PostgREST does not say out loud: the board would show the
+      // new crew until the next load and then put them back.
+      if (!changed?.length) throw new Error("The shift was not changed: your role cannot change employee records.");
 
       // And the record of it, which is what every date-aware read actually asks.
       // See `recordPosition`: the column alone was never enough.
