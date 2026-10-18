@@ -115,6 +115,8 @@ function TelemetryInit() {
 const OperatorDashboard = lazyWithReload(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazyWithReload(() => import("./pages/dashboard/EngineerDashboard"));
 const ManagerDashboard = lazyWithReload(() => import("./pages/dashboard/ManagerDashboard"));
+const ProductionDashboardPage = lazyWithReload(() => import("./pages/dashboard/ProductionDashboardPage"));
+const MaintenanceDashboardPage = lazyWithReload(() => import("./pages/dashboard/MaintenanceDashboardPage"));
 
 const MachineHistoryPage = lazyWithReload(() => import("./pages/dashboard/MachineHistoryPage"));
 const TechnicalInfoPage = lazyWithReload(() => import("./pages/dashboard/TechnicalInfoPage"));
@@ -407,6 +409,8 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
+                <Route path="/dashboard/production-dashboard" element={<ProtectedRoute requiredAction="rag.view"><ProductionDashboardPage /></ProtectedRoute>} />
+                <Route path="/dashboard/maintenance-dashboard" element={<ProtectedRoute requiredAction="reliability.view"><MaintenanceDashboardPage /></ProtectedRoute>} />
                 <Route
                   path="/dashboard/manager"
                   element={
