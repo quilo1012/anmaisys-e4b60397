@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
+import { attendanceForDay, attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from "@/lib/copyBoard";
 import { dropReceipt, readReceipt, saveReceipt, type CopyReceipt } from "@/lib/copyUndo";
 import { keepsLeadership } from "@/lib/leaderMark";
@@ -774,7 +774,20 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // collapse into "absent", which the finance close could only report as an
       // absence of unstated kind — and the kind is what decides whether it is paid.
       // Shared with the sheet import, which is where the two last disagreed.
-      const attendance = attendanceForStatus(status);
+      //
+      // The record is per person and day, the board per shift: somebody on a line on the
+      // Day board and marked sick on the Night board worked. Read both boards' marks
+      // for the day — this one included, it was just written — and let the same winner
+      // the import picks decide. Writing this board's mark alone turned a day worked
+      // into a sick day in the finance close.
+      const { data: dayRows } = await supabase
+        .from("daily_allocations")
+        .select("status")
+        .eq("on_date", onDate)
+        .eq("employee_id", input.employeeId);
+      const attendance =
+        attendanceForDay([status, ...((dayRows ?? []) as { status: string }[]).map((r) => r.status)])
+        ?? attendanceForStatus(status);
       const { error: attErr } = await (supabase as any)
         .from("employee_attendance")
         .upsert(
