@@ -51,6 +51,21 @@ import { splitAbsences } from "@/lib/absenceKind";
 export interface ClosePersonInput {
   employeeId: string;
   name: string;
+  /**
+   * The number on the badge (`employees.employee_ref`), when one is on file.
+   *
+   * Two people share a name in this factory more often than a payroll clerk would
+   * like, and the name is the only thing the sheet used to print. The id keeps the
+   * rows apart on screen; this is what keeps them apart on paper.
+   */
+  employeeRef?: string | null;
+  /**
+   * Where the headcount board places them (`employees.headcount_area_id`) — a line,
+   * or a support area such as Hygiene or Stores. The screens call it "Line".
+   */
+  lineId?: string | null;
+  /** That area's name, switched-off areas included. Null when none is on file. */
+  lineName?: string | null;
   department: string | null;
   /**
    * The board this person is drawn on — "Day", "Night", or null when their crew is not
@@ -341,12 +356,92 @@ export function inDepartments(department: string, filter: DepartmentFilter): boo
  */
 export function filterClose(
   rows: ClosePerson[],
-  { crew, department }: { crew: string; department: DepartmentFilter },
+  { crew, department, line = [] }: {
+    crew: string; department: DepartmentFilter; line?: readonly string[];
+  },
 ): ClosePerson[] {
   return rows.filter(
     (r) => (crew === "all" || (r.shift ?? NO_CREW) === crew)
-      && inDepartments(departmentOf(r), department),
+      && inDepartments(departmentOf(r), department)
+      && (line.length === 0 || line.includes(r.lineId ?? NO_LINE)),
   );
+}
+
+/**
+ * The line somebody is placed on, when the record does not say which.
+ *
+ * Same reasoning as `NO_CREW`: a person with no line on file is still paid, and a
+ * line filter with no bucket for them would drop them from every view but "all".
+ */
+export const NO_LINE = "__no_line__";
+
+export interface CloseLineOption {
+  /** The area's id, or `NO_LINE`. Keyed on the id: two areas may share a name. */
+  id: string;
+  label: string;
+  /** People in the close placed on it. Zero is kept, and said, rather than hidden. */
+  people: number;
+  /** Switched off on the board, but still holding somebody in this period. */
+  inactive: boolean;
+}
+
+/**
+ * Every line the board knows, in the board's order, each with its head count.
+ *
+ * Read from `headcount_areas`, never written down here: the factory adds and retires
+ * lines from the board, and a list kept in code would quietly lose whoever sat on the
+ * newest one. A line with nobody on it stays in the list with a zero, because "nobody
+ * on L7 this period" is an answer and an absent entry is not. A switched-off line is
+ * left out unless somebody in the close is still placed on it — dropping it then
+ * would drop them.
+ */
+export function closeLineOptions(
+  rows: ClosePerson[],
+  areas: ReadonlyArray<{ id: string; name: string; active: boolean; sort_order: number }>,
+): CloseLineOption[] {
+  const count = new Map<string, number>();
+  for (const r of rows) {
+    const k = r.lineId ?? NO_LINE;
+    count.set(k, (count.get(k) ?? 0) + 1);
+  }
+  const known = new Set(areas.map((a) => a.id));
+  const out: CloseLineOption[] = [...areas]
+    .filter((a) => a.active || count.has(a.id))
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+    .map((a) => ({ id: a.id, label: a.name, people: count.get(a.id) ?? 0, inactive: !a.active }));
+  // An id the areas table no longer holds: still somebody's line, so still a choice.
+  for (const [id, n] of count) {
+    if (id !== NO_LINE && !known.has(id)) {
+      out.push({ id, label: "Line no longer on file", people: n, inactive: true });
+    }
+  }
+  if (count.has(NO_LINE)) {
+    out.push({ id: NO_LINE, label: "No line recorded", people: count.get(NO_LINE)!, inactive: false });
+  }
+  return out;
+}
+
+/** Lower case, accents off, spaces collapsed: "João  Gonçalves" finds "joao goncalves". */
+const fold = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * The rows a search for one person returns.
+ *
+ * By name, by the badge number, or by the record's own id — every word typed has to
+ * appear in one of them, in any order, so "silva ana" finds Ana Silva. The rows stay
+ * keyed on `employeeId` throughout: two Ana Silvas are two rows, both returned, never
+ * one row with both people's hours.
+ *
+ * An empty search is no search, and the rows come back untouched.
+ */
+export function searchClose(rows: ClosePerson[], query: string): ClosePerson[] {
+  const words = fold(query).split(" ").filter(Boolean);
+  if (words.length === 0) return rows;
+  return rows.filter((r) => {
+    const hay = fold(`${r.name} ${r.employeeRef ?? ""} ${r.employeeId}`);
+    return words.every((w) => hay.includes(w));
+  });
 }
 
 export interface CloseTotals {
@@ -440,6 +535,10 @@ export function closeToCsvRows(rows: ClosePerson[]): (string | number)[][] {
     r.unpaid,
     r.otherAbsence,
     r.partDayHours,
+    // Appended, not inserted: whatever reads this file by position keeps reading the
+    // same twenty columns it always has.
+    r.employeeRef ?? "",
+    r.lineName ?? "",
   ]);
 }
 
@@ -450,6 +549,7 @@ export const CLOSE_HEADERS = [
   "Overtime paid (h)", "Hours owed (h)",
   "Payroll OT (h)", "Delta (h)",
   "Days present", "Sick", "Holiday", "Unpaid", "Other absence", "Part day (h)",
+  "Employee no.", "Line",
 ];
 
 /** Days present and days away, per employee. */

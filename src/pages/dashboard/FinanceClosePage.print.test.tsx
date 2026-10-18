@@ -181,7 +181,10 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 
 import FinanceClosePage from "@/pages/dashboard/FinanceClosePage";
-import { CLOSE_COLUMNS } from "@/lib/financeCloseColumns";
+import { DEFAULT_PRINT_KEYS, pickPrintColumns } from "@/lib/financeCloseColumns";
+
+/** What the sheet prints when nobody has opened the print settings. */
+const PRINTED = pickPrintColumns(DEFAULT_PRINT_KEYS);
 
 async function renderClose() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -230,11 +233,11 @@ describe("a folha de papel do Finance Close", () => {
     expect(caption!.textContent).toContain("August 2026");
     expect(caption!.textContent).toContain("10/08/2026 → 06/09/2026");
     // Uma banda a menos e as colunas da direita ficam sem cabeçalho nenhum.
-    expect(caption!.getAttribute("colspan")).toBe(String(CLOSE_COLUMNS.length));
+    expect(caption!.getAttribute("colspan")).toBe(String(PRINTED.length));
 
     const foot = container.querySelector("tfoot.print-edge td");
     expect(foot).not.toBeNull();
-    expect(foot!.getAttribute("colspan")).toBe(String(CLOSE_COLUMNS.length));
+    expect(foot!.getAttribute("colspan")).toBe(String(PRINTED.length));
     // O rodapé assina a folha: treze folhas soltas numa secretária não têm outra
     // maneira de dizer de que documento vieram.
     expect(foot!.textContent).toContain("Finance Close");
@@ -246,9 +249,9 @@ describe("a folha de papel do Finance Close", () => {
     // Sem isto o navegador reparte as dezoito por igual: o nome ficava com 17,7mm
     // dos 34 que lhe cabiam e partia-se em três linhas, enquanto o Δ sobrava.
     const cols = container.querySelectorAll("table.close-register col[data-mm]");
-    expect(cols.length).toBe(CLOSE_COLUMNS.length);
+    expect(cols.length).toBe(PRINTED.length);
     expect((cols[0] as HTMLElement).style.getPropertyValue("--mm"))
-      .toBe(String(CLOSE_COLUMNS[0].mm));
+      .toBe(String(PRINTED[0].mm));
   });
 
   it("troca as oito caixas por um resumo com o total da fábrica", async () => {

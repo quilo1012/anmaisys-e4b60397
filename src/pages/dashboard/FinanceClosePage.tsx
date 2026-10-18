@@ -12,14 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calculator, ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown } from "lucide-react";
+import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { downloadCsv } from "@/lib/exportCsv";
 import { exportClosePdf, exportCloseExcel, type CloseExportInput } from "@/lib/financeCloseExports";
-import { CLOSE_COLUMNS, closeBandSpans } from "@/lib/financeCloseColumns";
+import { CLOSE_COLUMNS, closeBandSpans, pickPrintColumns, printOrientation } from "@/lib/financeCloseColumns";
+import { ClosePrintSettings, ClosePrintTable, usePrintColumnKeys } from "@/components/workforce/FinanceClosePrint";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useEmployees, useOvertimeEntries } from "@/hooks/useWorkforce";
 import { boardShiftFor } from "@/hooks/useHeadcount";
@@ -27,7 +29,7 @@ import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
   closeCrews, filterByCrew, crewLabel, NO_CREW,
   closeDepartments, departmentLabel, filterClose, inDepartments, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
-  summaryCrewRows,
+  summaryCrewRows, searchClose, closeLineOptions, NO_LINE,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 import { plannedBoardDates, periodElapsedTo } from "@/lib/shiftBalance";
@@ -38,9 +40,6 @@ import { currentShift } from "@/lib/operationalShift";
 
 /** `10/08/2026`. A fábrica lê as datas ao contrário, e esta folha lê-se lá. */
 const fmtDate = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
-
-/** A largura somada das colunas, para o papel as repartir em proporção. */
-const CLOSE_MM_TOTAL = CLOSE_COLUMNS.reduce((s, c) => s + c.mm, 0);
 
 /**
  * The pay period handed to finance: overtime and time off, per person.
@@ -134,7 +133,7 @@ export default function FinanceClosePage() {
       const db = supabase as any;
       const [emp, clocked, opening, payroll, manual, board, rotas] = await Promise.all([
         db.from("employees")
-          .select("id, full_name, department, shift_group, shift_pattern_id, shift_patterns(name, days)")
+          .select("id, full_name, employee_ref, headcount_area_id, department, shift_group, shift_pattern_id, shift_patterns(name, days)")
           .eq("active", true),
         // Paged, because this is what somebody is paid from. A pay period holds more
         // than a thousand attendance rows and PostgREST caps an unbounded select there
@@ -221,6 +220,8 @@ export default function FinanceClosePage() {
         const board = boardShiftFor(e.shift_group);
         byId.set(e.id, {
           employeeId: e.id, name: e.full_name, department: e.department ?? null,
+          employeeRef: (e.employee_ref ?? "").trim() || null,
+          lineId: e.headcount_area_id ?? null,
           shift: crew,
           openingBalanceMin: null, clockedBalanceMin: null,
           payrollOtHours: null, absences: {}, daysPresent: 0,
@@ -307,6 +308,30 @@ export default function FinanceClosePage() {
   });
 
   /**
+   * The board's areas — every line and support area, switched-off ones included.
+   *
+   * Read here rather than written down, so a line added on the board is a line here.
+   * The switched-off ones are read too: Pill Line is inactive and still has people
+   * placed on it, and a close that could not name their line would print a blank.
+   */
+  const { data: areas = [] } = useQuery({
+    queryKey: ["finance-close-areas"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("headcount_areas")
+        .select("id, name, active, sort_order");
+      if (error) throw error;
+      return (data ?? []) as { id: string; name: string; active: boolean; sort_order: number }[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  /** The close's rows with their line named. No figure changes: only a label is added. */
+  const closeRows = useMemo(() => {
+    const name = new Map(areas.map((a) => [a.id, a.name]));
+    return rows.map((r) => ({ ...r, lineName: r.lineId ? name.get(r.lineId) ?? null : null }));
+  }, [rows, areas]);
+
+  /**
    * One crew, or the whole factory.
    *
    * The night crew is sixty people on a rota of its own and the Fri–Mon crew is forty
@@ -336,7 +361,7 @@ export default function FinanceClosePage() {
    * department.
    */
   const [deptFilter, setDeptFilter] = useState<string[]>([]);
-  const departments = useMemo(() => closeDepartments(rows), [rows]);
+  const departments = useMemo(() => closeDepartments(closeRows), [closeRows]);
   // Departments are read off the WHOLE period, not off the chosen crew: narrowing both
   // ways round would make each select rewrite the other's options as you used them.
   // A ticked department the new period does not hold drops out of the filter rather
@@ -350,20 +375,49 @@ export default function FinanceClosePage() {
   const toggleDepartment = (d: string) => setDeptFilter((cur) =>
     (cur.includes(d) ? cur.filter((x) => x !== d) : [...cur, d]));
 
+  /**
+   * Lines, ticked like the departments. Every area the board knows is offered, with
+   * how many people of this close sit on it — a line with nobody is offered with a
+   * zero rather than left out, so "nobody on L7" is something the screen can say.
+   * Keyed on the area's id, not its name.
+   */
+  const [lineFilter, setLineFilter] = useState<string[]>([]);
+  const lineOptions = useMemo(() => closeLineOptions(closeRows, areas), [closeRows, areas]);
+  const line = useMemo(
+    () => lineFilter.filter((l) => lineOptions.some((o) => o.id === l)),
+    [lineFilter, lineOptions],
+  );
+  const allLines = line.length === 0;
+  const lineLabel = (id: string) => lineOptions.find((o) => o.id === id)?.label ?? "—";
+  const lineNames = line.map(lineLabel).join(" + ");
+  const toggleLine = (id: string) => setLineFilter((cur) =>
+    (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+
+  /**
+   * One person, or a few, by name or badge number. Narrows everything the filters
+   * narrow — the table, the subtotals, the figures and the paper — so the printed
+   * total is always the total of the rows printed above it.
+   */
+  const [search, setSearch] = useState("");
+  const query = search.trim();
+
   // The crews are read off the chosen department, so picking Warehouse does not leave
   // Night in the list offering a view of nobody.
   const inDept = useMemo(
-    () => filterClose(rows, { crew: "all", department }),
-    [rows, department],
+    () => filterClose(closeRows, { crew: "all", department, line }),
+    [closeRows, department, line],
   );
   const crews = useMemo(() => closeCrews(inDept), [inDept]);
   // A crew that emptied when the period or the department changed must not leave the
   // page showing nothing with a filter nobody can see the effect of.
   const crew = shiftFilter !== "all" && !crews.includes(shiftFilter) ? "all" : shiftFilter;
-  const shown = useMemo(
-    () => filterClose(rows, { crew, department }),
-    [rows, crew, department],
+  /** Everything but the search: what "Showing 3 of 41" is out of. */
+  const filtered = useMemo(
+    () => filterClose(closeRows, { crew, department, line }),
+    [closeRows, crew, department, line],
   );
+  const shown = useMemo(() => searchClose(filtered, query), [filtered, query]);
+  const inDeptSearched = useMemo(() => searchClose(inDept, query), [inDept, query]);
 
   const totals = useMemo(() => closeTotals(shown), [shown]);
   /**
@@ -371,15 +425,17 @@ export default function FinanceClosePage() {
    * Within the chosen department, so the subtotals still add up to the table below.
    */
   const byShift = useMemo(
-    () => crews.map((s) => ({ shift: s, ...closeTotals(filterByCrew(inDept, s)) }))
+    () => crews.map((s) => ({ shift: s, ...closeTotals(filterByCrew(inDeptSearched, s)) }))
       .filter((t) => t.people > 0),
-    [inDept, crews],
+    [inDeptSearched, crews],
   );
 
   /** What the page is showing, said out loud — it is printed and handed to somebody. */
   const scope = [
     allDepartments ? null : departmentNames,
     crew === "all" ? null : crewLabel(crew),
+    allLines ? null : lineNames,
+    query ? `matching “${query}”` : null,
   ].filter(Boolean).join(" · ");
 
   /**
@@ -413,7 +469,24 @@ export default function FinanceClosePage() {
     totals,
     byCrew: byShift.map((t) => ({ crew: crewLabel(t.shift), totals: t })),
     fileBase,
+    columns: printColumns,
   });
+
+  /* ─── Paper ───────────────────────────────────────────────────────────── */
+  const [printKeys, setPrintKeys] = usePrintColumnKeys();
+  const [printOpen, setPrintOpen] = useState(false);
+  const printColumns = useMemo(() => pickPrintColumns(printKeys), [printKeys]);
+  const orientation = printOrientation(printColumns);
+  const printCaption = `Finance Close · ${period?.name ?? "No period"} · ${fmtDate(from)} → ${fmtDate(periodEnd)}`
+    + `${stillRunning ? ` · counted to ${fmtDate(to)}` : ""}`
+    + `${scope ? ` · ${scope} only` : ""}`;
+  const printFooter = `Finance Close · ${period?.name ?? "No period"} · ${shown.length} people`
+    + `${scope ? ` · ${scope}` : ""} · printed ${fmtDate(today)}`;
+  /** Closed first, then printed: an open dialog over the page would print over it. */
+  const printNow = () => {
+    setPrintOpen(false);
+    window.setTimeout(() => window.print(), 300);
+  };
 
   /**
    * The register below, narrowed to the same crew.
@@ -424,10 +497,14 @@ export default function FinanceClosePage() {
    * file" instead of hiding them.
    */
   const otShown = useMemo(() => {
-    if (crew === "all" && allDepartments) return otEntries ?? [];
+    if (crew === "all" && allDepartments && allLines && !query) return otEntries ?? [];
+    // The search reads the same rows the close does, so the register shows exactly the
+    // people the table above it found.
+    const found = query ? new Set(shown.map((r) => r.employeeId)) : null;
     const byId = new Map((otEmployees ?? []).map((e) => [e.id, {
       crew: e.shift_group ?? NO_CREW,
       department: (e.department ?? "").trim() || NO_DEPARTMENT,
+      line: e.headcount_area_id ?? NO_LINE,
     }]));
     return (otEntries ?? []).filter((e) => {
       const who = byId.get(e.employee_id);
@@ -436,9 +513,11 @@ export default function FinanceClosePage() {
       // reconciling the register will be looking for them.
       if (!who) return false;
       return (crew === "all" || who.crew === crew)
-        && inDepartments(who.department, department);
+        && inDepartments(who.department, department)
+        && (allLines || line.includes(who.line))
+        && (!found || found.has(e.employee_id));
     });
-  }, [otEntries, otEmployees, crew, department, allDepartments]);
+  }, [otEntries, otEmployees, crew, department, allDepartments, line, allLines, query, shown]);
   const num = (n: number | null) => (n == null ? "—" : n.toFixed(2));
 
   return (
@@ -451,7 +530,10 @@ export default function FinanceClosePage() {
           `print-landscape` porque as larguras destas dezoito colunas somam 264mm: não
           cabem em pé de maneira nenhuma. `print-dense` porque são duzentas e uma
           pessoas, e o padding de ecrã por fila custa folhas. */}
-      <div className="space-y-4 print-content print-landscape print-dense close-sheet">
+      {/* `close-portrait` when the ticked columns fit standing up — see
+          `printOrientation` and `@page finance-close-portrait`. */}
+      <div className={`space-y-4 print-content print-landscape print-dense close-sheet${
+        orientation === "portrait" ? " close-portrait" : ""}`}>
         <BackButton className="print:hidden" />
         <WorkforceTabs />
 
@@ -530,7 +612,9 @@ export default function FinanceClosePage() {
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="secondary" className="print:hidden" onClick={() => window.print()}>
+          {/* Opens the print settings first: which columns go on paper is decided before
+              the paper, not discovered on it. */}
+          <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setPrintOpen(true)}>
             <Printer className="mr-1.5 h-4 w-4" /> Print
           </Button>
           {/* Three formats for three jobs, behind one button. The PDF is the sheet you
@@ -757,6 +841,93 @@ export default function FinanceClosePage() {
           </span>
         </p>
 
+        {/* Search, lines and the paper: the controls that act on the register below,
+            kept beside it rather than in the title band with the period. */}
+        <section aria-label="Find and print" className="flex flex-wrap items-center gap-2 print:hidden">
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setSearch(""); }}
+              placeholder="Search by employee name or number"
+              aria-label="Search by employee"
+              className="h-9 pl-8 pr-8"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" aria-label="Lines" className="h-9 justify-between gap-2 font-normal">
+                <Rows3 className="h-4 w-4 opacity-60" />
+                <span className="max-w-[180px] truncate">
+                  {allLines ? "Every line" : line.length <= 2 ? lineNames : `${line.length} lines`}
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="max-h-[60vh] w-72 overflow-y-auto p-1">
+              <Label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 font-normal hover:bg-muted">
+                <Checkbox checked={allLines} onCheckedChange={() => setLineFilter([])} />
+                Every line
+              </Label>
+              <div className="my-1 h-px bg-border" />
+              {lineOptions.length === 0 && (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                  No lines are set up on the headcount board.
+                </p>
+              )}
+              {lineOptions.map((o) => (
+                <Label key={o.id} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 font-normal hover:bg-muted">
+                  <Checkbox checked={line.includes(o.id)} onCheckedChange={() => toggleLine(o.id)} />
+                  <span className={`flex-1 truncate ${o.people === 0 ? "text-muted-foreground" : ""}`}>
+                    {o.label}{o.inactive && <span className="text-2xs text-muted-foreground"> · switched off</span>}
+                  </span>
+                  <span className="font-figure text-xs tabular-nums text-muted-foreground"
+                    title={o.people === 0 ? "Nobody in this close is placed on this line" : undefined}>
+                    {o.people}
+                  </span>
+                </Label>
+              ))}
+            </PopoverContent>
+          </Popover>
+
+          <span className="text-xs text-muted-foreground" aria-live="polite" data-testid="close-count">
+            {query || !allLines
+              ? <>Showing <b className="text-foreground">{shown.length}</b> of {query ? filtered.length : closeRows.length}</>
+              : <>{shown.length} {shown.length === 1 ? "person" : "people"}</>}
+          </span>
+
+          <Button size="sm" variant="outline" className="ml-auto h-9" onClick={() => setPrintOpen(true)}>
+            <Settings2 className="mr-1.5 h-4 w-4" /> Print settings
+            <span className="ml-1.5 text-xs text-muted-foreground">
+              {printColumns.length}/{CLOSE_COLUMNS.length}
+            </span>
+          </Button>
+        </section>
+
+        <ClosePrintSettings
+          open={printOpen}
+          onOpenChange={setPrintOpen}
+          keys={printKeys}
+          onKeysChange={setPrintKeys}
+          rows={shown}
+          caption={printCaption}
+          footer={printFooter}
+          onPrint={printNow}
+        />
+
         <Card>
           <CardContent className="p-0">
             {isLoading ? (
@@ -766,47 +937,34 @@ export default function FinanceClosePage() {
               // message read as "the factory recorded nothing" when it meant "nobody in
               // Warehouse works nights".
               <div className="p-6 text-center text-sm text-muted-foreground">
-                {scope
+                {query
+                  ? <>No employee matches <b>“{query}”</b>{filtered.length < closeRows.length ? " with the filters above" : ""}.{" "}
+                      <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setSearch("")}>Clear the search</Button></>
+                  : !allLines && filtered.length === 0
+                  ? <>Nobody in this close is placed on <b>{lineNames}</b>{scope !== lineNames ? <> within <b>{scope}</b></> : null}.
+                      Lines are assigned on the employee&apos;s record.</>
+                  : scope
                   ? <>Nobody in <b>{scope}</b> in this period.</>
                   : <>Nothing recorded in this period. Overtime arrives from a TimeMoto import on the
                      Attendance page, or from the office keying it into the overtime register.</>}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table className="close-register">
-                  {/* As larguras do PDF, aplicadas à folha do navegador. Só contam em
-                      `@media print`, onde a tabela passa a `table-layout: fixed`; no
-                      ecrã o `--mm` não é lido por regra nenhuma.
-                      Vão como PROPORÇÃO do total, não em milímetros: as dezoito somam
-                      274mm e a folha deitada, com margens, dá 277 — em milímetros
-                      absolutos qualquer margem um pouco maior empurrava o Part day
-                      para fora do papel sem aviso. Em proporção a tabela cabe sempre. */}
-                  <colgroup>
-                    {CLOSE_COLUMNS.map((c) => (
-                      <col
-                        key={c.key}
-                        data-mm=""
-                        style={{ "--mm": c.mm, "--mm-total": CLOSE_MM_TOTAL } as React.CSSProperties}
-                      />
-                    ))}
-                  </colgroup>
+              <>
+              {/* The sheet: only the ticked columns, so it can change without the
+                  screen changing. See FinanceClosePrint.tsx. */}
+              <ClosePrintTable
+                rows={shown}
+                columns={printColumns}
+                caption={printCaption}
+                footer={printFooter}
+                className="hidden print:table close-register w-full"
+              />
+              <div className="overflow-x-auto print:hidden">
+                <Table className="close-screen">
+                  {/* Ecrã apenas. As larguras do papel, a legenda que se repete em cada
+                      folha e o rodapé que a assina vivem na `ClosePrintTable`, que lê
+                      só as colunas escolhidas nas definições de impressão. */}
                   <TableHeader>
-                    {/* Papel apenas. Duzentas e uma pessoas são onze folhas, e o
-                        `<thead>` é o único grupo que o browser repete em cada uma
-                        delas: esta é a única linha que pode dizer à folha sete de que
-                        fecho, de que período e de que filtro é que estas horas são. A
-                        banda do título só sai na primeira.
-                        O padding de topo dela é também a margem de topo das folhas
-                        dois em diante — o `@page` corre a `margin: 0` e o espaço vem do
-                        padding do body, que o fluxo assenta uma única vez. Ver
-                        `.print-caption` no index.css. */}
-                    <TableRow className="hidden print-caption-row hover:bg-transparent">
-                      <TableHead colSpan={CLOSE_COLUMNS.length} className="print-caption">
-                        Finance Close · {period?.name ?? "No period"} · {fmtDate(from)} → {fmtDate(periodEnd)}
-                        {stillRunning ? ` · counted to ${fmtDate(to)}` : ""}
-                        {scope ? ` · ${scope} only` : ""}
-                      </TableHead>
-                    </TableRow>
                     {/* A banded row above the column names, because this row carries
                         two answers that must never be added: the board says whether
                         somebody turned up, the clocks say how long they stayed.
@@ -854,8 +1012,11 @@ export default function FinanceClosePage() {
                     {shown.map((r) => (
                       <TableRow key={r.employeeId}>
                         <TableCell className="font-medium">{r.name}</TableCell>
+                        <TableCell className="font-figure text-xs tabular-nums text-muted-foreground">{r.employeeRef ?? "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.shift ?? "—"}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{r.department ?? "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.lineName ?? "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{r.patternName ?? "—"}</TableCell>
 
                         {/* Shifts. Whole numbers, so no decimals — a half shift is not
                             a thing the board can record. */}
@@ -908,6 +1069,7 @@ export default function FinanceClosePage() {
                         <TableCell className="text-right font-figure tabular-nums">{r.sick || "—"}</TableCell>
                         <TableCell className="text-right font-figure tabular-nums">{r.holiday || "—"}</TableCell>
                         <TableCell className="text-right font-figure tabular-nums">{r.unpaid || "—"}</TableCell>
+                        <TableCell className="text-right font-figure tabular-nums">{r.otherAbsence || "—"}</TableCell>
                         {/* Hours, where every column beside it is days — a day cut
                             short is not a day off, and rounding it to one would say
                             Elias Soares had a whole day away when he worked two hours
@@ -919,24 +1081,9 @@ export default function FinanceClosePage() {
                       </TableRow>
                     ))}
                   </TableBody>
-                  {/* Um rodapé vazio que também se repete, pela mesma razão que a
-                      legenda acima leva padding: segura a última fila de cada folha
-                      longe do bordo, onde nenhuma impressora de escritório chega. */}
-                  {/* Um rodapé que se repete — um `tfoot` repete-se em cada folha, como
-                      o `thead` — e que faz duas coisas: segura a última fila longe do
-                      bordo que a impressora não alcança, e assina a folha. Treze folhas
-                      soltas em cima de uma secretária não têm outra maneira de dizer de
-                      que documento vieram. */}
-                  <tfoot className="hidden print-edge">
-                    <tr>
-                      <td colSpan={CLOSE_COLUMNS.length}>
-                        Finance Close · {period?.name ?? "No period"} · {shown.length} people
-                        {scope ? ` · ${scope}` : ""} · printed {fmtDate(today)}
-                      </td>
-                    </tr>
-                  </tfoot>
                 </Table>
               </div>
+              </>
             )}
           </CardContent>
         </Card>
