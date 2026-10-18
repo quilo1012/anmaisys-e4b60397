@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useSignupQr } from "@/hooks/useSignupQr";
 import { tabletSignupPath } from "@/lib/signupQr";
 import { publicOrigin } from "@/lib/publicOrigin";
+import { Button } from "@/components/ui/button";
 
 /**
  * Register on your own phone, not on the tablet in front of you.
@@ -64,14 +65,15 @@ export function SignupQrCard({
       <p className={`max-w-[16rem] text-center text-xs ${muted}`}>
         Or create it here — the tablet stays signed in as the line, not as you.
       </p>
-      <Link
-        to={tabletSignupPath(inviteCode)}
+      <Button asChild variant="outline"
         className={tone === "auth"
-          ? "inline-flex h-10 items-center justify-center rounded-lg bg-auth-brand px-5 text-sm font-semibold text-white shadow-sm hover:bg-auth-brand/90"
-          : "inline-flex h-10 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"}
+          ? "min-h-11 border-auth-line bg-auth-paper px-5 text-auth-ink hover:bg-auth-paper hover:text-auth-brand"
+          : "min-h-11 px-5"}
       >
+        <Link to={tabletSignupPath(inviteCode)}>
         Create account
-      </Link>
+        </Link>
+      </Button>
       {/* What the scan gets you, said before the scan rather than after.
           Without the code the form opens with a box labelled "From your supervisor",
           and somebody who walked away from the tablet to fill it in has no way back

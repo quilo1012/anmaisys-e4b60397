@@ -71,7 +71,7 @@ export function ModuleHeader({
     <header
       className={cn(
         "rounded-xl bg-[hsl(var(--section))] text-white shadow-sm",
-        compact ? "px-4 py-2" : "p-4",
+        compact ? "px-3 py-2 md:px-4" : "p-3 md:p-4",
         // Ink on paper: the navy would print as a solid block and the page is meant to
         // be handed to somebody.
         "print:bg-white print:p-0 print:text-black print:shadow-none",
@@ -80,11 +80,11 @@ export function ModuleHeader({
     >
       <div className={cn("flex flex-wrap items-center justify-between", compact ? "gap-x-3 gap-y-2" : "gap-3")}>
         {brand && (
-          <div className="md:hidden">
+          <div className="hidden md:block lg:hidden">
             <img
               src={appliedMark}
               alt="Applied Nutrition"
-              className="h-9 w-9 shrink-0 rounded-md object-cover ring-1 ring-white/20 print:ring-0"
+              className="h-9 w-auto max-w-28 shrink-0 rounded-md object-contain print:ring-0"
             />
           </div>
         )}

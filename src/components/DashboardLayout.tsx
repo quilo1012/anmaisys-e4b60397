@@ -2,7 +2,8 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
-import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
+import { getCurrentFactoryShift } from "@/lib/shifts";
+import { SHIFT_LOOK } from "@/lib/shiftLook";
 import {
   Sidebar,
   SidebarContent,
@@ -332,6 +333,7 @@ function LiveClock() {
   const timeShort = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const timeLong = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   const date = now.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const clockShift = getCurrentFactoryShift(now).shiftCode;
   return (
     <div className="hidden xs:flex sm:flex text-xs sm:text-sm font-figure text-muted-foreground items-center">
       <span className="font-semibold text-foreground sm:hidden">{timeShort}</span>
@@ -342,8 +344,9 @@ function LiveClock() {
           banner is gone; this is the one fact in it that was not already here, and
           on a system where a night starting Monday is filed under Monday, knowing
           which shift you are looking at is not decoration. */}
-      <span className="ml-2 hidden rounded bg-muted px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wider lg:inline">
-        {SHIFT_LABEL[getCurrentFactoryShift().shiftCode]}
+      <span className={cn("ml-2 hidden items-center gap-1 rounded border px-1.5 py-0.5 text-2xs font-semibold lg:inline-flex", SHIFT_LOOK[clockShift].pill)}>
+        {clockShift === "night" ? <Moon className="h-3 w-3" aria-hidden /> : <Sun className="h-3 w-3" aria-hidden />}
+        {clockShift === "night" ? "Now: night hours (18:00–06:00)" : "Now: day hours (06:00–18:00)"}
       </span>
     </div>
   );
@@ -830,6 +833,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   const isMobile = useIsMobile();
   const device = useDeviceType();
+  const phoneHeader = device === "mobile";
   const filteredItems = effectiveRole
     ? navItems.filter((item) => navItemShows(item, effectiveRole as AppRole, device))
     : [];
@@ -932,6 +936,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} crashCount={crashCount} />
             </SidebarContent>
             <div className="mt-auto border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">
+              {phoneHeader && (
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {(effectiveRole === "engineer" || effectiveRole === "admin") && <AudioStatusButton />}
+                  <NotificationPanel />
+                  <PushOnboarding />
+                  <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"}>
+                    {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                  </Button>
+                </div>
+              )}
               <div className="mb-3 flex items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mb-2">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground">
                   {profile?.name?.charAt(0).toUpperCase() || "?"}
@@ -977,7 +991,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <header
               className={cn(
                 "border-b bg-card flex items-center print:hidden",
-                isMobile
+                phoneHeader
                   ? cn(
                       "sticky top-0 z-30 h-11 px-2 gap-1 flex-nowrap overflow-hidden transition-[height] duration-200 motion-reduce:transition-none",
                       headerHidden && "h-0 border-b-0",
@@ -993,13 +1007,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
               <BackButton />
-              {isMobile && currentPageTitle && (
+              {phoneHeader && currentPageTitle && (
                 <span className="truncate text-sm font-semibold text-foreground" aria-current="page">
                   {currentPageTitle}
                 </span>
               )}
               {currentPageTitle && (
-                <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
+                <nav aria-label="Breadcrumb" className="hidden md:flex items-center gap-1.5 text-sm min-w-0">
                   <span className="text-muted-foreground">Home</span>
                   <span className="text-muted-foreground/60">/</span>
                   <span className="font-semibold text-foreground truncate" aria-current="page" aria-live="polite">
@@ -1012,7 +1026,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   <OnlineEngineersPanel />
                 </div>
               )}
-              <div className="ml-auto flex items-center gap-1 sm:gap-2 min-w-0">
+              <div className="ml-auto hidden md:flex items-center gap-1 sm:gap-2 min-w-0">
                 {showStoppedBadge && (
                   <Button
                     variant="ghost"

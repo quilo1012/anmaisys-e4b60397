@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import type { NavItem } from "@/components/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
+import { Button } from "@/components/ui/button";
 
 /** Bottom tab bar for mobile: Home + the role's top screens + a Menu that opens the full drawer. */
 export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
@@ -21,17 +22,18 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
   const Tab = ({ active, icon: Icon, label, onClick }: {
     active: boolean; icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void;
   }) => (
-    <button
+    <Button
+      variant="ghost"
       type="button"
       onClick={onClick}
       className={cn(
-        "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-2xs transition-colors",
+        "flex h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-none px-1 py-1.5 text-2xs transition-colors",
         active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />
-      <span className="max-w-[68px] truncate leading-tight">{label}</span>
-    </button>
+      <span className="max-w-full text-center leading-tight">{label}</span>
+    </Button>
   );
 
   return (
@@ -41,9 +43,9 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
       aria-label="Primary"
     >
       {/* Straight to the role's dashboard — /dashboard/home only redirects there now. */}
-      <Tab active={pathname === home} icon={Home} label="Home" onClick={() => navigate(home)} />
+      <Tab active={pathname === home} icon={Home} label={role === "employee" ? "My Overtime" : "Home"} onClick={() => navigate(home)} />
       {tabs.map((t) => (
-        <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={t.shortTitle ?? t.title} onClick={() => navigate(t.url)} />
+        <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={role === "employee" ? t.title : t.shortTitle ?? t.title} onClick={() => navigate(t.url)} />
       ))}
       <Tab active={false} icon={Menu} label="Menu" onClick={openMenu} />
     </nav>
