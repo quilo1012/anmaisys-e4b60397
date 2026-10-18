@@ -121,6 +121,16 @@ describe("o separador Overtime nao culpa a pessoa por uma tabela vazia", () => {
  * activos estao em MAIUSCULAS e vinte e tres tem so um nome, todos do import.
  */
 describe("o nome e o email corrigem-se aqui", () => {
+  it("can save the Weekend shift", async () => {
+    mount(true);
+    await screen.findByLabelText(/Full name/i);
+    const shift = screen.getAllByRole("combobox").find((el) => el.textContent === "Day");
+    if (!shift) throw new Error("Shift selector missing");
+    fireEvent.pointerDown(shift, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(await screen.findByRole("option", { name: "Weekend", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /Save/i }));
+    expect(guardar.mock.calls[0][0].patch.shift_group).toBe("Weekend");
+  });
   it("abre o nome num campo, nao so no titulo", async () => {
     mount(true);
     const campo = (await screen.findByLabelText(/Full name/i)) as HTMLInputElement;

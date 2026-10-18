@@ -1,6 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { can, dashboardPathFor, roleDashMap, type Role } from "@/lib/permissions";
 
+describe("managers correct employee records without Headcount", () => {
+  it("allows employee viewing and corrections", () => {
+    expect(can("manager", "employees.view")).toBe(true);
+    expect(can("manager", "employees.manage")).toBe(true);
+  });
+  it("does not open Headcount or payroll", () => {
+    expect(can("manager", "headcount.view")).toBe(false);
+    expect(can("manager", "headcount.manage")).toBe(false);
+    expect(can("manager", "workforce.view")).toBe(false);
+  });
+  it("does not allow operators to edit employee records", () => {
+    expect(can("operator", "employees.manage")).toBe(false);
+  });
+});
+
 describe("dashboardPathFor", () => {
   it("admin → manager dashboard", () => {
     expect(dashboardPathFor("admin")).toBe("/dashboard/manager");
