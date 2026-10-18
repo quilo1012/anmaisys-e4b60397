@@ -17,6 +17,7 @@ import { isFunctionUnreachable } from "@/lib/edgeFunctionUnreachable";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { signupErrorMessage, withConnectionRetry } from "@/lib/signupConnection";
 import { roleTitle, type Role } from "@/lib/permissions";
+import { readInviteCode, forgetInviteCode, INVALID_INVITE_MESSAGE } from "@/lib/signupInviteCode";
 import { createClient } from "@supabase/supabase-js";
 
 /**
@@ -48,6 +49,24 @@ function JoinsAs({ role }: { role: string | null }) {
   );
 }
 
+/** What the invite field says under itself: where the code came from, and whether it is still good. */
+function InviteHint({ fromLink, check }: { fromLink: boolean; check: "checking" | "ok" | "bad" | null }) {
+  if (fromLink && check === "bad") {
+    return <p role="alert" className="text-xs font-medium text-destructive-strong">{INVALID_INVITE_MESSAGE}</p>;
+  }
+  return (
+    <p className="text-xs text-auth-ink-muted">
+      {!fromLink
+        ? "From the sign-up sheet where you clock in, or your supervisor."
+        : check === "checking"
+        ? "Filled in from the link you opened — checking it…"
+        : check === "ok"
+        ? "Filled in from the link you opened. It's valid — you can carry on."
+        : "Filled in from the link you opened."}
+    </p>
+  );
+}
+
 export default function SignUp() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -60,13 +79,29 @@ export default function SignUp() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
     (supabase.rpc as any)("self_signup_role").then(({ data }: { data: string | null }) => setAutoRole(data ?? null));
   }, []);
-  const [code, setCode] = useState(() => {
-    try { return new URLSearchParams(window.location.search).get("code")?.trim() ?? ""; } catch { return ""; }
-  });
+  // Read once: from the address, or from this tab if the address lost it on the way.
+  const [arrived] = useState(() => readInviteCode(window.location.search));
+  const [code, setCode] = useState(arrived.code);
   /** Whether the code came with the link, which decides what the field says about it. */
-  const [fromLink] = useState(() => {
-    try { return !!new URLSearchParams(window.location.search).get("code")?.trim(); } catch { return false; }
-  });
+  const fromLink = arrived.fromLink && code === arrived.code;
+  /**
+   * A code that came with the link is checked as soon as the page opens, so somebody
+   * holding last month's sheet finds out before typing a password, not after. Only
+   * `false` is a refusal: a dropped connection says nothing about the code, and the
+   * submit asks the server again either way.
+   */
+  const [linkCheck, setLinkCheck] = useState<"checking" | "ok" | "bad" | null>(arrived.fromLink ? "checking" : null);
+  useEffect(() => {
+    if (!arrived.fromLink) return;
+    let alive = true;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
+    Promise.resolve((supabase.rpc as any)("check_invite_code", { code: arrived.code }))
+      .then(({ data, error }: { data: boolean | null; error: unknown }) => {
+        if (alive) setLinkCheck(!error && data === true ? "ok" : !error && data === false ? "bad" : null);
+      })
+      .catch(() => { if (alive) setLinkCheck(null); });
+    return () => { alive = false; };
+  }, [arrived]);
   /**
    * Opened on a shared tablet: from the tablet's own button (`?tablet=1`) or with the
    * tablet signed in. Then the account is created and nobody is signed in as it here.
@@ -121,6 +156,7 @@ export default function SignUp() {
         throw fnErr;
       }
       if (!data?.access_token || !data?.refresh_token) throw new Error("Could not create the account.");
+      forgetInviteCode();
       // On a tablet the account exists and is linked; the tokens are simply not used.
       // Taking them would sign the line's tablet in as this one person.
       if (onTablet) { setDone(true); setSubmitting(false); return; }
@@ -152,7 +188,7 @@ export default function SignUp() {
         () => (supabase.rpc as any)("check_invite_code", { code: code.trim() }),
       );
       if (rpcErr) throw rpcErr;
-      if (!ok) { setError("That invite code isn't valid any more — it may have expired, or sign-up is closed. Ask your supervisor for a new one."); setSubmitting(false); return; }
+      if (!ok) { setError(INVALID_INVITE_MESSAGE); setSubmitting(false); return; }
 
       // 2) Create the account. Lands PENDING (active=false, no role) via the DB trigger.
       const auth = onTablet ? detachedAuthClient().auth : supabase.auth;
@@ -171,6 +207,7 @@ export default function SignUp() {
         },
       }));
       if (signErr) throw signErr;
+      forgetInviteCode();
       // Don't leave a half-session around — the account still needs approval. On a
       // tablet there is none to clear, and signing out would sign the tablet out.
       if (!onTablet) await supabase.auth.signOut();
@@ -276,11 +313,7 @@ export default function SignUp() {
           {/* Arriving by the link or the printed QR fills this in. Saying so stops the
               reader checking a field that is already right, and says where the code
               came from for the ones who have to go and find it. */}
-          <p className="text-xs text-auth-ink-muted">
-            {fromLink
-              ? "Filled in from the link you opened."
-              : "From the sign-up sheet where you clock in, or your supervisor."}
-          </p>
+          <InviteHint fromLink={fromLink} check={linkCheck} />
         </div>
 
         <JoinsAs role="employee" />
@@ -333,11 +366,7 @@ export default function SignUp() {
               somebody who switched tabs to escape a number they did not know arrived
               at a second box with even less to go on — "Ask your administrator", in a
               factory where the administrator is not who you ask. */}
-          <p className="text-xs text-auth-ink-muted">
-            {fromLink
-              ? "Filled in from the link you opened."
-              : "From the sign-up sheet where you clock in, or your supervisor."}
-          </p>
+          <InviteHint fromLink={fromLink} check={linkCheck} />
         </div>
 
         <JoinsAs role={autoRole} />
