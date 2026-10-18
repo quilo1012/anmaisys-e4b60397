@@ -30,7 +30,16 @@ export default function ResetPassword() {
     const hash = window.location.hash;
     const params = new URLSearchParams(hash.replace(/^#/, ""));
     if (params.get("type") === "recovery") setRecoveryMode(true);
+    // The client runs PKCE, so the link in the email lands here as `?code=…`, not with
+    // `#type=recovery`. supabase-js trades the code for a session and says so with
+    // PASSWORD_RECOVERY — or, when it finished before this page subscribed, only with
+    // the session itself. Reading the hash alone sent everyone back to "send me a link".
+    const arrivedWithCode = new URLSearchParams(window.location.search).has("code");
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || (arrivedWithCode && session)) setRecoveryMode(true);
+    });
     setReady(true);
+    return () => data.subscription.unsubscribe();
   }, []);
 
   const handleSendLink = async (e: React.FormEvent) => {
