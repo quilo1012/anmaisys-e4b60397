@@ -415,9 +415,23 @@ describe("copyLastLikeDay, from the matrix", () => {
   it("keeps somebody whose rota nobody has recorded", async () => {
     // Eleven of the night crew have no rota on file. Unknown is not off, and dropping
     // them would quietly shrink every board the matrix fills.
-    answer = matrixOf([{ employee_id: "bruno", area_id: null }]);
+    answer = matrixOf([{ employee_id: "bruno", area_id: "line-2" }]);
     await copyMatrix();
     expect((boardWrite()?.payload as unknown[]).length).toBe(1);
+  });
+
+  it("leaves somebody the matrix holds with no line in the tray, not on an invisible row", async () => {
+    // `assigned` with no area is drawn in no column and keeps the person out of
+    // "Not placed yet": 14 people sat like that on 12/10 and 19/10.
+    answer = matrixOf([{ employee_id: "bruno", area_id: null }]);
+    const { result } = renderHook(() => useAllocationMutations(ON_DATE, "Night"), { wrapper: wrapper() });
+    await waitFor(() => {
+      expect(recorded.some((r) => r.table === "shift_patterns")).toBe(true);
+      expect(recorded.some((r) => r.table === "employees" && (r.select ?? "").includes("full_name"))).toBe(true);
+    });
+    result.current.copyLastLikeDay.mutate({ kind: "matrix", matrix: "normal" });
+    await waitFor(() => expect(result.current.copyLastLikeDay.isError).toBe(true));
+    expect(boardWrite()).toBeUndefined();
   });
 
   it("says nobody is due rather than writing an empty day", async () => {

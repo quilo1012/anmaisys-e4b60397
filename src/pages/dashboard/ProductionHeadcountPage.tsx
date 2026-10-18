@@ -39,7 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
-import { tallyBoard } from "@/lib/boardTally";
+import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
 import { useShiftPatterns } from "@/hooks/useWorkforce";
@@ -819,11 +819,23 @@ function ShiftBoard({
       })
       .sort((a, b) => a.shown.localeCompare(b.shown));
 
-  const unassigned = roster.filter((e) => !byEmployee.has(e.id));
+  // A row that places nobody anywhere (`assigned` with no line) is no place: the person
+  // goes to the tray rather than vanishing from the board. Somebody the rota does not
+  // have due today but who holds such a row is added too — the row is still a fact.
+  const placedHere = (id: string) => {
+    const a = byEmployee.get(id);
+    return !!a && hasPlaceOnBoard(a);
+  };
+  const rosterIds = new Set([...roster, ...noCrew].map((e) => e.id));
+  const linelessOffRoster = allocations
+    .filter((a) => !hasPlaceOnBoard(a) && !rosterIds.has(a.employee_id))
+    .map((a) => employeeById.get(a.employee_id))
+    .filter((p): p is HeadcountEmployee => !!p);
+  const unassigned = [...roster.filter((e) => !placedHere(e.id)), ...linelessOffRoster];
   // Sem crew no cadastro, ninguém os punha em board nenhum. Não são "por colocar" do
   // turno — o rota não os põe cá — por isso ficam numa bandeja à parte, em ambos os
   // boards, até alguém os colocar ou lhes dar um crew.
-  const noCrewUnplaced = noCrew.filter((e) => !byEmployee.has(e.id));
+  const noCrewUnplaced = noCrew.filter((e) => !placedHere(e.id));
 
   // Quem está no ecrã hoje — colocados, ausentes e por colocar — e, entre eles, quem
   // partilha o nome com outro. Só esses levam o número ao lado.

@@ -459,3 +459,19 @@ describe("placesLine", () => {
     expect(placesLine({ taken: 1, headcount: 1 })).toMatch(/^All 1 place is filled/);
   });
 });
+
+describe("countResponses, places still held", () => {
+  const rs = [
+    { id: "a", answer: "yes" as const, decision: "accepted" as const },
+    { id: "b", answer: "yes" as const, decision: "accepted" as const },
+  ];
+  it("counts every accept as a place when outcomes are not known", () => {
+    expect(countResponses({ headcount: 2 }, rs).short).toBe(0);
+  });
+  it("frees the place of somebody accepted who called in sick", () => {
+    const outcomes = new Map([["b", "called_sick"]]);
+    const c = countResponses({ headcount: 2 }, rs, (id) => outcomes.get(id));
+    expect(c.short).toBe(1);
+    expect(c.accepted).toBe(2);
+  });
+});
