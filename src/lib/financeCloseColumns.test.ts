@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildClose, type ClosePersonInput } from "@/lib/financeClose";
 import {
   CLOSE_COLUMNS, closeBandSpans, closeExportValues, closeDisplayValues, BAND_LABELS,
+  ALL_PRINT_KEYS, DEFAULT_PRINT_KEYS, MIN_PRINT_KEYS, pickPrintColumns, printOrientation,
 } from "@/lib/financeCloseColumns";
 
 const PERIOD = { from: "2026-07-13", to: "2026-08-09" };
@@ -47,7 +48,8 @@ describe("the bands over the close", () => {
   });
 
   it("gives the naming columns no band, so the header does not label a name as a figure", () => {
-    expect(closeBandSpans()[0]).toEqual({ band: "who", label: null, span: 3 });
+    // Name, badge number, crew, department, line and rota.
+    expect(closeBandSpans()[0]).toEqual({ band: "who", label: null, span: 6 });
   });
 
   it("never merges two bands that happen to sit side by side", () => {
@@ -117,5 +119,58 @@ describe("the values the PDF prints", () => {
     const r = one({ shift: null, department: null });
     expect(at(closeDisplayValues(r), "shift")).toBe("—");
     expect(at(closeDisplayValues(r), "department")).toBe("—");
+  });
+});
+
+/**
+ * What goes on paper.
+ *
+ * The sheet used to be the screen, printed, so a column could only leave the paper
+ * by leaving the screen too. The choice is now a list of keys, read back in the
+ * close's own order so a band can never be split by the order things were ticked in.
+ */
+describe("the columns chosen for paper", () => {
+  it("prints every column but the rota until somebody chooses", () => {
+    expect(pickPrintColumns(DEFAULT_PRINT_KEYS).map((c) => c.key))
+      .toEqual(CLOSE_COLUMNS.filter((c) => c.key !== "rota").map((c) => c.key));
+  });
+
+  it("selects all of them", () => {
+    expect(pickPrintColumns(ALL_PRINT_KEYS)).toEqual(CLOSE_COLUMNS);
+  });
+
+  it("clears to the name and nothing else — a row of figures with no name cannot be paid from", () => {
+    expect(pickPrintColumns(MIN_PRINT_KEYS).map((c) => c.key)).toEqual(["name"]);
+    expect(pickPrintColumns([]).map((c) => c.key)).toEqual(["name"]);
+  });
+
+  it("keeps the close's order whatever order the boxes were ticked in", () => {
+    const picked = pickPrintColumns(["partDayHours", "overtimeHours", "employeeRef"]).map((c) => c.key);
+    expect(picked).toEqual(["name", "employeeRef", "overtimeHours", "partDayHours"]);
+  });
+
+  it("ignores a key saved for a column that no longer exists", () => {
+    expect(pickPrintColumns(["gone", "sick"]).map((c) => c.key)).toEqual(["name", "sick"]);
+  });
+
+  it("draws one band per run of chosen columns, with the right spans", () => {
+    const cols = pickPrintColumns(["overtimeHours", "payrollOtHours", "sick"]);
+    expect(closeBandSpans(cols).map((b) => [b.band, b.span])).toEqual([
+      ["who", 1], ["clockedHours", 2], ["daysAway", 1],
+    ]);
+  });
+
+  it("stands the page up when the chosen widths fit across A4 portrait, and lays it down when not", () => {
+    expect(printOrientation(pickPrintColumns(["employeeRef", "overtimeHours", "owedHours"]))).toBe("portrait");
+    expect(printOrientation(pickPrintColumns(DEFAULT_PRINT_KEYS))).toBe("landscape");
+  });
+
+  it("prints the badge number, the line and the other absences it used to drop", () => {
+    const r = one({ employeeRef: "1042", lineName: "Line 3", absences: { Training: 2 } });
+    const cols = pickPrintColumns(["employeeRef", "line", "otherAbsence"]);
+    expect(closeDisplayValues(r, cols)).toEqual(["Ana Silva", "1042", "Line 3", "2"]);
+    // Unrecorded is a dash on paper and an empty cell in the workbook, never "0".
+    expect(closeDisplayValues(one(), cols)).toEqual(["Ana Silva", "—", "—", "—"]);
+    expect(at(closeExportValues(one()), "employeeRef")).toBeNull();
   });
 });

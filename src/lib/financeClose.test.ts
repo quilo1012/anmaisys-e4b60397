@@ -3,6 +3,7 @@ import {
   summaryCrewRows,
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, closeCrews, filterByCrew, NO_CREW,
   closeDepartments, filterClose, departmentLabel, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
+  searchClose, closeLineOptions, NO_LINE,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 
@@ -655,5 +656,107 @@ describe("summaryCrewRows", () => {
 
   it("does not repeat a lone crew as a row and again as the total", () => {
     expect(summaryCrewRows([{ shift: "Day" }], "all")).toEqual([]);
+  });
+});
+
+/**
+ * Finding one person.
+ *
+ * The rows are keyed on the record's id from the query to the paper, so a search for
+ * a name two people share returns two rows — never one row carrying both of them.
+ */
+describe("searchClose", () => {
+  const rows = buildClose([
+    person({ employeeId: "a1", name: "Ana Silva", employeeRef: "1001", clockedBalanceMin: 120 }),
+    person({ employeeId: "a2", name: "Ana Silva", employeeRef: "1002", clockedBalanceMin: -60 }),
+    person({ employeeId: "j1", name: "João Gonçalves", employeeRef: "2040" }),
+    person({ employeeId: "e9f3c2aa-0000-4000-8000-000000000001", name: "Bruno Costa", employeeRef: null }),
+  ], PERIOD.from, PERIOD.to);
+
+  it("finds by name, in any order and without the accents", () => {
+    expect(searchClose(rows, "joao").map((r) => r.employeeId)).toEqual(["j1"]);
+    expect(searchClose(rows, "  GONÇALVES   joão ").map((r) => r.employeeId)).toEqual(["j1"]);
+  });
+
+  it("keeps two people with one name apart, each with their own figures", () => {
+    const found = searchClose(rows, "ana silva");
+    expect(found.map((r) => r.employeeId).sort()).toEqual(["a1", "a2"]);
+    expect(found.find((r) => r.employeeId === "a1")!.overtimeHours).toBe(2);
+    expect(found.find((r) => r.employeeId === "a2")!.owedHours).toBe(1);
+  });
+
+  it("finds by badge number, which tells the two apart", () => {
+    expect(searchClose(rows, "1002").map((r) => r.employeeId)).toEqual(["a2"]);
+  });
+
+  it("finds by the record's own id", () => {
+    expect(searchClose(rows, "e9f3c2aa").map((r) => r.name)).toEqual(["Bruno Costa"]);
+  });
+
+  it("returns everybody for an empty search, and nobody for a name not on file", () => {
+    expect(searchClose(rows, "   ")).toBe(rows);
+    expect(searchClose(rows, "zé ninguém")).toEqual([]);
+  });
+
+  it("narrows what the filters already narrowed, and changes no figure", () => {
+    const night = buildClose([
+      person({ employeeId: "a1", name: "Ana Silva", shift: "Day", clockedBalanceMin: 120 }),
+      person({ employeeId: "a2", name: "Ana Silva", shift: "Night", clockedBalanceMin: 300 }),
+    ], PERIOD.from, PERIOD.to);
+    const found = searchClose(filterClose(night, { crew: "Night", department: "all" }), "ana");
+    expect(found.map((r) => r.employeeId)).toEqual(["a2"]);
+    expect(closeTotals(found).overtimeHours).toBe(5);
+  });
+});
+
+describe("the line filter and the lines on offer", () => {
+  const AREAS = [
+    { id: "l1", name: "Line 1", active: true, sort_order: 1 },
+    { id: "l2", name: "Line 2", active: true, sort_order: 2 },
+    { id: "hy", name: "Hygiene", active: true, sort_order: 10 },
+    { id: "pill", name: "Pill Line", active: false, sort_order: 5 },
+    { id: "old", name: "Old Line", active: false, sort_order: 6 },
+  ];
+  const rows = buildClose([
+    person({ employeeId: "p1", lineId: "l1" }),
+    person({ employeeId: "p2", lineId: "l1" }),
+    person({ employeeId: "p3", lineId: "pill" }),
+    person({ employeeId: "p4", lineId: "hy", department: "Hygiene" }),
+    person({ employeeId: "p5", lineId: null }),
+    person({ employeeId: "p6", lineId: "deleted-area" }),
+  ], PERIOD.from, PERIOD.to);
+
+  it("offers every line on the board, in the board's order, with its head count", () => {
+    expect(closeLineOptions(rows, AREAS).map((o) => [o.label, o.people])).toEqual([
+      ["Line 1", 2], ["Line 2", 0], ["Pill Line", 1], ["Hygiene", 1],
+      ["Line no longer on file", 1], ["No line recorded", 1],
+    ]);
+  });
+
+  it("keeps an empty line on offer, and a switched-off one only while somebody is on it", () => {
+    const opts = closeLineOptions(rows, AREAS);
+    expect(opts.find((o) => o.id === "l2")?.people).toBe(0);
+    expect(opts.find((o) => o.id === "pill")?.inactive).toBe(true);
+    expect(opts.some((o) => o.id === "old")).toBe(false);
+  });
+
+  it("filters by line id, the unplaced bucket included, alongside department and crew", () => {
+    const ids = (line: string[], department: string[] = []) =>
+      filterClose(rows, { crew: "all", department, line }).map((r) => r.employeeId);
+    expect(ids(["l1"])).toEqual(["p1", "p2"]);
+    expect(ids([NO_LINE])).toEqual(["p5"]);
+    expect(ids(["l1", "hy"], ["Hygiene"])).toEqual(["p4"]);
+    expect(ids(["l2"])).toEqual([]);
+    expect(ids([])).toHaveLength(6);
+  });
+
+  it("carries the badge number and the line to the CSV after the columns it always had", () => {
+    const [row] = closeToCsvRows(buildClose(
+      [person({ employeeRef: "1001", lineName: "Line 1" })], PERIOD.from, PERIOD.to,
+    ));
+    expect(CLOSE_HEADERS.slice(-2)).toEqual(["Employee no.", "Line"]);
+    expect(row.slice(-2)).toEqual(["1001", "Line 1"]);
+    expect(CLOSE_HEADERS[0]).toBe("Employee");
+    expect(CLOSE_HEADERS[19]).toBe("Part day (h)");
   });
 });

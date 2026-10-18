@@ -58,12 +58,27 @@ export interface CloseColumn {
    * only one of them belongs in a SUM.
    */
   dashWhenZero?: boolean;
+  /**
+   * Printed whatever the print settings say. Only the name: a row of figures with no
+   * name on it cannot be paid from, and "Clear all" must not be able to produce one.
+   */
+  alwaysPrinted?: boolean;
+  /** Left out of the printed sheet until somebody ticks it. Still on screen and in Excel. */
+  printOff?: boolean;
 }
 
 export const CLOSE_COLUMNS: CloseColumn[] = [
-  { key: "name", header: "Employee", band: "who", align: "left", value: (r) => r.name, mm: 34, wch: 26 },
+  { key: "name", header: "Employee", band: "who", align: "left", value: (r) => r.name, mm: 34, wch: 26, alwaysPrinted: true },
+  // The badge number, beside the name: it is what tells two Ana Silvas apart on paper.
+  { key: "employeeRef", header: "Emp. no.", band: "who", align: "left", value: (r) => r.employeeRef ?? null, mm: 13, wch: 10 },
   { key: "shift", header: "Shift", band: "who", align: "left", value: (r) => r.shift, mm: 17, wch: 16 },
   { key: "department", header: "Department", band: "who", align: "left", value: (r) => r.department, mm: 21, wch: 16 },
+  // Where the board places them. Read from `headcount_areas`, so a line added on the
+  // board appears here without a code change.
+  { key: "line", header: "Line", band: "who", align: "left", value: (r) => r.lineName ?? null, mm: 19, wch: 16 },
+  // The CSV always carried the rota and the screen never did. Off the paper by default
+  // because it is wide and the shift beside it usually says the same.
+  { key: "rota", header: "Rota", band: "who", align: "left", value: (r) => r.patternName, mm: 18, wch: 16, printOff: true },
 
   { key: "shiftsDue", header: "Due", band: "shifts", align: "right", value: (r) => r.shiftsDue, mm: 10, wch: 8 },
   { key: "shiftsWorked", header: "Worked", band: "shifts", align: "right", value: (r) => r.shiftsWorked, mm: 13, wch: 9 },
@@ -81,6 +96,10 @@ export const CLOSE_COLUMNS: CloseColumn[] = [
   { key: "sick", header: "Sick", band: "daysAway", align: "right", value: (r) => r.sick, mm: 10, wch: 8, dashWhenZero: true },
   { key: "holiday", header: "Holiday", band: "daysAway", align: "right", value: (r) => r.holiday, mm: 13, wch: 9, dashWhenZero: true },
   { key: "unpaid", header: "Unpaid", band: "daysAway", align: "right", value: (r) => r.unpaid, mm: 12, wch: 9, dashWhenZero: true },
+  // Every absence that is not sick, holiday or unpaid — training, compassionate, a
+  // code the clocks invented. The CSV carried it; the screen and the paper dropped it,
+  // so a day away of that kind was on no printed page at all.
+  { key: "otherAbsence", header: "Other", band: "daysAway", align: "right", value: (r) => r.otherAbsence, mm: 11, wch: 8, dashWhenZero: true },
 
   { key: "partDayHours", header: "Part day (h)", band: "boardHours", align: "right", value: (r) => r.partDayHours, mm: 14, wch: 12, dashWhenZero: true },
 ];
@@ -146,4 +165,42 @@ export function closeDisplayValues(
       ? String(v)
       : v.toFixed(2);
   });
+}
+
+/* ─── What goes on paper ──────────────────────────────────────────────────── */
+
+/** The columns printed when nobody has chosen. */
+export const DEFAULT_PRINT_KEYS: string[] = CLOSE_COLUMNS.filter((c) => !c.printOff).map((c) => c.key);
+
+/** Every column that can be printed, i.e. all of them. "Select all". */
+export const ALL_PRINT_KEYS: string[] = CLOSE_COLUMNS.map((c) => c.key);
+
+/** "Clear all": everything but the name, which cannot be cleared. */
+export const MIN_PRINT_KEYS: string[] = CLOSE_COLUMNS.filter((c) => c.alwaysPrinted).map((c) => c.key);
+
+/**
+ * The columns a selection prints, in the close's own order.
+ *
+ * The order is the definition's and not the order things were ticked in: the bands
+ * are drawn over runs of neighbouring columns, and a column ticked out of order would
+ * split "Hours · from the clocks" in two. Unknown keys (a column renamed since the
+ * choice was saved) are ignored, and the name is always there.
+ */
+export function pickPrintColumns(keys: readonly string[]): CloseColumn[] {
+  const want = new Set(keys);
+  return CLOSE_COLUMNS.filter((c) => c.alwaysPrinted || want.has(c.key));
+}
+
+/** A4 portrait, less the close's 10 mm margins: what fits standing up. */
+export const PORTRAIT_MM = 190;
+
+/**
+ * Which way up the paper goes for these columns.
+ *
+ * The widths are proportions, so anything fits on landscape; portrait is chosen only
+ * when the columns' natural widths fit across it, so a narrow selection — name and the
+ * hours — is printed as an ordinary page rather than a strip down a sideways one.
+ */
+export function printOrientation(columns: readonly CloseColumn[]): "portrait" | "landscape" {
+  return columns.reduce((s, c) => s + c.mm, 0) <= PORTRAIT_MM ? "portrait" : "landscape";
 }

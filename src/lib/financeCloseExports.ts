@@ -29,6 +29,7 @@ import {
 } from "@/lib/reportTheme";
 import {
   CLOSE_COLUMNS, closeBandSpans, closeDisplayValues, closeExportValues,
+  type CloseColumn,
 } from "@/lib/financeCloseColumns";
 import type { ClosePerson, CloseTotals } from "@/lib/financeClose";
 
@@ -56,6 +57,12 @@ export interface CloseExportInput {
   generatedBy?: string | null;
   /** Filename without an extension. */
   fileBase: string;
+  /**
+   * The columns the PDF prints — the print settings' choice, so the PDF handed over and
+   * the sheet printed from the screen are the same document. All of them when omitted.
+   * The workbook ignores this: it is the one payroll sums, and it keeps every column.
+   */
+  columns?: CloseColumn[];
 }
 
 /** The subtitle both formats carry: which period, and which slice of it. */
@@ -105,7 +112,8 @@ const hrs = (n: number) => `${n.toFixed(2)} h`;
 // ============================================================
 
 /**
- * Landscape, and not by preference.
+ * Landscape, and not by preference — and still landscape when the print settings
+ * narrow the columns: the eight figure cards across the top need the width.
  *
  * Eighteen columns across a portrait A4 leaves nine millimetres each — narrower than
  * "Opening bank" and far narrower than a name. The close was already unprintable once,
@@ -179,7 +187,8 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   // ── The people ─────────────────────────────────────────────────────────
   // Two header rows: the bands, then the names. Read off CLOSE_COLUMNS, so the spans
   // cannot go adrift the way the screen's hand-written colSpans did.
-  const bandRow = closeBandSpans().map((b) => ({
+  const cols = input.columns ?? CLOSE_COLUMNS;
+  const bandRow = closeBandSpans(cols).map((b) => ({
     content: b.label ?? "",
     colSpan: b.span,
     styles: { halign: "center" as const, fillColor: NAVY, textColor: 255, fontSize: 6.5, fontStyle: "bold" as const },
@@ -195,16 +204,16 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
    * margin or paper size instead of having to be re-tuned by hand.
    */
   const usableW = pageW - M * 2;
-  const scale = usableW / CLOSE_COLUMNS.reduce((a, c) => a + c.mm, 0);
+  const scale = usableW / cols.reduce((a, c) => a + c.mm, 0);
   const columnStyles: Record<number, any> = {};
-  CLOSE_COLUMNS.forEach((c, i) => {
+  cols.forEach((c, i) => {
     columnStyles[i] = { cellWidth: c.mm * scale, halign: c.align };
   });
 
   autoTable(doc, {
     startY: y,
-    head: [bandRow, CLOSE_COLUMNS.map((c) => c.header)],
-    body: input.rows.map((r) => closeDisplayValues(r)),
+    head: [bandRow, cols.map((c) => c.header)],
+    body: input.rows.map((r) => closeDisplayValues(r, cols)),
     theme: "grid",
     styles: { fontSize: 6.4, cellPadding: 1.2, lineColor: CARD_BORDER, lineWidth: 0.1, overflow: "linebreak" },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 6.4 },
