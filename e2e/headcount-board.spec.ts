@@ -103,7 +103,7 @@ test("os sectores estão na banda de apoio, e o Runner na de produção", async 
         band = (el.textContent ?? "").replace(/\d+/g, "").trim().toUpperCase();
         return;
       }
-      el.querySelectorAll("[data-slot='card-title'], .truncate.text-sm.font-bold").forEach((t) => {
+      el.querySelectorAll(".headcount-column-title").forEach((t) => {
         const name = (t.textContent ?? "").trim();
         if (name) out[name] = band;
       });
@@ -127,10 +127,10 @@ test("cada coluna acaba num Total, como cada coluna da planilha", async ({ page 
   const columns = await page.evaluate(() => {
     const out: { name: string; total: string | null; totalBelowNames: boolean }[] = [];
     document.querySelectorAll(".headcount-columns > *").forEach((col) => {
-      const name = (col.querySelector(".truncate.text-sm.font-bold")?.textContent ?? "").trim();
+      const name = (col.querySelector(".headcount-column-title")?.textContent ?? "").trim();
       if (!name) return;
       const foot = [...col.querySelectorAll("div")].find((d) => d.firstElementChild?.textContent?.trim() === "Total");
-      const title = col.querySelector(".truncate.text-sm.font-bold");
+      const title = col.querySelector(".headcount-column-title");
       out.push({
         name,
         total: foot ? (foot.lastElementChild?.textContent ?? "").trim() : null,
@@ -206,8 +206,11 @@ test("quem falta colocar não estica as colunas da folha", async ({ page }) => {
   const rows = await page.evaluate(() => {
     const byRow = new Map<number, number[]>();
     document.querySelectorAll(".headcount-sheet-column").forEach((col) => {
+      // As faltas agora são compactas, por pedido; só as áreas alinham Totais.
+      if (col.closest(".headcount-absence-column")) return;
       const head = Math.round(col.getBoundingClientRect().top);
-      const total = [...col.querySelectorAll("span")].find((s) => s.textContent?.trim() === "Total")!;
+      const total = [...col.querySelectorAll("span")].find((s) => s.textContent?.trim() === "Total");
+      if (!total) return;
       byRow.set(head, [...(byRow.get(head) ?? []), Math.round(total.getBoundingClientRect().top)]);
     });
     return [...byRow.values()].map((tops) => new Set(tops).size);
