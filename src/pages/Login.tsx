@@ -32,7 +32,6 @@ import {
   authIcon,
   authInlineBtn,
   authLabel,
-  authLink,
 } from "@/components/auth/authStyles";
 import {
   clearLoginLockout,
@@ -49,6 +48,7 @@ import { safeNextPath } from "@/lib/loginReturn";
 import { AppLoading } from "@/components/AppLoading";
 import { takeSessionEndNotice } from "@/lib/sessionRestore";
 import { SessionReconnecting } from "@/components/auth/SessionReconnecting";
+import { Button } from "@/components/ui/button";
 
 const TABLET_KEY = "an_tablet_account_id";
 const TABLET_TS_KEY = "an_tablet_account_id_at";
@@ -487,13 +487,7 @@ export default function Login() {
       brandIconUrl={brandIconUrl}
       maxWidthClass="max-w-lg"
       title="Sign in"
-      subtitle={
-        onPersonalPhone
-          ? "Use your work email or the ID on your badge."
-          : hasTablets
-            ? "Use your work email, or the name of the tablet you're standing at."
-            : "Use your work email."
-      }
+      subtitle={hasTablets ? "Use your work email, employee ID or tablet name." : "Use your work email or employee ID."}
     >
       <form
         onSubmit={handleSubmit}
@@ -505,7 +499,7 @@ export default function Login() {
             Um campo só. O que se escreve é que diz o que se é. */}
         <div className="space-y-1.5">
           <label htmlFor="identifier" className={authLabel}>
-            {onPersonalPhone ? "Email or employee ID" : hasTablets ? "Email or tablet" : "Email"}
+            {hasTablets ? "Email, employee ID or tablet name" : "Email or employee ID"}
           </label>
           <div className="relative" ref={comboRef}>
             {matchedTablet ? (
@@ -528,7 +522,7 @@ export default function Login() {
               }}
               onFocus={() => { if (hasTablets && !identifier) setListOpen(true); }}
               onKeyDown={onIdentifierKeyDown}
-              placeholder={onPersonalPhone ? "E045 or you@appliednutrition.com" : hasTablets ? "you@appliednutrition.com, E045, or Line 3" : "you@appliednutrition.com or E045"}
+              placeholder={hasTablets ? "Email, E045 or tablet name" : "Email or E045"}
               required
               autoComplete="username"
               spellCheck={false}
@@ -640,13 +634,13 @@ export default function Login() {
               Password
             </label>
             {!matchedTablet && (
-              <button
+              <Button variant="ghost"
                 type="button"
                 onClick={() => navigate("/reset-password")}
-                className="rounded text-xs font-medium text-auth-ink-muted underline-offset-4 transition-colors hover:text-auth-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40"
+                className="min-h-11 px-2 text-xs font-medium text-auth-ink-muted hover:bg-transparent hover:text-auth-brand hover:underline"
               >
                 Forgot password?
-              </button>
+              </Button>
             )}
           </div>
           <div className="relative">
@@ -657,7 +651,7 @@ export default function Login() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => { setPassword(e.target.value); setFormError(null); }}
-              placeholder="••••••••"
+              placeholder="Your password"
               minLength={6}
               required
               autoComplete="current-password"
@@ -665,15 +659,14 @@ export default function Login() {
               aria-describedby={formError ? "login-error" : undefined}
               className={authFieldIconedAction}
             />
-            <button
+            <Button variant="ghost" size="icon"
               type="button"
               onClick={() => setShowPassword((s) => !s)}
-              className={authInlineBtn}
+              className={`${authInlineBtn} h-11 w-11 hover:bg-transparent`}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              tabIndex={-1}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -744,13 +737,13 @@ export default function Login() {
       {showCreateAccount && (
         <p className="mt-6 text-sm text-auth-ink-muted">
           Don't have an account?{" "}
-          <button
+          <Button variant="outline"
             type="button"
             onClick={() => navigate(signupPath(inviteCode))}
-            className={authLink}
+            className="mt-2 min-h-11 w-full border-auth-line bg-auth-paper text-auth-ink hover:bg-auth-paper hover:text-auth-brand"
           >
             Create account
-          </button>
+          </Button>
         </p>
       )}
     </AuthShell>

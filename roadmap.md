@@ -1,5 +1,8 @@
 # Roadmap
 
+- [x] Stage 3: employee portal, mobile shell, clock wording and login touch targets; presentation only; 162 focused tests and public login checks passed, automatic build OK
+- [ ] Stage 3 authenticated visual check of My Overtime/My Attendance and employee navigation — blocked: requesting user has no mintable app account/session; sign in in preview
+
 - [x] Stage 2: Headcount totals, calm headers, compact absence columns, scroll clearance, KPI/legend and mobile breadcrumb; presentation only
 
 - [x] Stage 1: shared shift/status presentation, overnight time suffixes, mobile overtime agenda, single Back button; no data or logic changes

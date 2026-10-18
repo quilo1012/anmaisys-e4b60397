@@ -140,6 +140,7 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   const [selected, setSelected] = useState<MyDay | null>(null);
   const currentKey = choices.find((c) => c.from === range.from && c.to === range.to)?.key ?? "custom";
   const todayDay = days.find((d) => d.date === today) ?? null;
+  const noClockData = data.clocks.length === 0;
 
   return (
     <>
@@ -188,8 +189,8 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
       </Card>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Tile label="Hours worked" value={fmtHours(s.workedHours)} note="On the clock" />
-        <Tile label="Hours scheduled" value={fmtHours(s.scheduledHours)} note="On the days recorded" />
+        <Tile label="Hours worked" value={noClockData && s.workedHours === 0 ? "—" : fmtHours(s.workedHours)} note={noClockData ? "No clock data yet" : "On the clock"} />
+        <Tile label="Hours scheduled" value={noClockData && s.scheduledHours === 0 ? "—" : fmtHours(s.scheduledHours)} note={noClockData ? "No clock data yet" : "On the days recorded"} />
         <Tile label="Days present" value={String(s.daysPresent)} note={s.shiftsDue != null ? `of ${s.shiftsDue} on your rota` : undefined} />
         <Tile label="Holiday left" value={s.leave.remaining == null ? "Not available" : `${s.leave.remaining} d`}
           note={s.leave.total == null ? "No allowance on file for your rota" : `${s.leave.taken} taken · ${s.leave.booked} booked`} />
@@ -246,7 +247,7 @@ function Tile({ label, value, note }: { label: string; value: string; note?: str
   return (
     <Card><CardContent className="p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="font-figure text-xl tabular-nums">{value}</div>
+      <div className="font-sans text-xl font-semibold tabular-nums">{value}</div>
       {note && <div className="text-2xs text-muted-foreground">{note}</div>}
     </CardContent></Card>
   );
@@ -364,14 +365,14 @@ function WhereImWorking({ today }: { today: string }) {
         ) : (
           <ul className="divide-y text-sm">
             {shifts.map((sh, i) => (
-              <li key={`${sh.date}-${sh.shift}-${i}`} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2 pl-3 pr-4", shiftEdge(sh.shift))}>
+              <li key={`${sh.date}-${sh.shift}-${i}`} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2 pl-3 pr-4", shiftEdge(sh.shift), sh.date === today && "py-5") }>
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
-                    {sh.date === today ? "Today" : fmtDay(sh.date)}
+                  <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 font-medium", sh.date === today && "text-lg")}>
+                    {sh.date === today ? `Today · ${fmtDay(sh.date)}` : fmtDay(sh.date)}
                     <ShiftTag shift={sh.shift} />
                     {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours.includes("–") ? <ShiftTimeRange startsAt={sh.hours.split("–")[0]} endsAt={sh.hours.split("–")[1]} /> : sh.hours}</span>}
                   </div>
-                  <div className={cn("text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
+                  <div className={cn(sh.date === today ? "mt-2 text-sm" : "text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
                 </div>
                 {sh.kind !== "scheduled" && <Badge variant="outline">{KIND_LABEL[sh.kind]}</Badge>}
               </li>
@@ -400,7 +401,7 @@ function DayDetail({ day, shifts }: { day: MyDay; shifts: MyShift[] }) {
         <dt className="text-muted-foreground">Source</dt><dd>{src}</dd>
         <dt className="text-muted-foreground">On your rota</dt><dd>{day.due ? "Yes" : "No"}</dd>
         {c && <>
-          <dt className="text-muted-foreground">Clock in / out</dt><dd>{c.start_time ?? "—"} – {c.end_time ?? "—"}</dd>
+          <dt className="text-muted-foreground">Clock in / out</dt><dd>{c.start_time && c.end_time ? <ShiftTimeRange startsAt={c.start_time} endsAt={c.end_time} /> : `${c.start_time ?? "—"} – ${c.end_time ?? "—"}`}</dd>
           <dt className="text-muted-foreground">Worked</dt><dd>{fmtMin(c.worked_minutes)}</dd>
           <dt className="text-muted-foreground">Scheduled</dt><dd>{fmtMin(c.scheduled_minutes)}</dd>
           <dt className="text-muted-foreground">Balance</dt><dd>{fmtMin(c.balance_minutes)}</dd>
