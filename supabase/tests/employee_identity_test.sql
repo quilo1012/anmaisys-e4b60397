@@ -41,6 +41,12 @@ DECLARE
   u_two uuid := gen_random_uuid();
   e_first uuid; e_second uuid;
 BEGIN
+  -- employees.user_id references auth.users since block 96; the ROLLBACK removes these.
+  INSERT INTO auth.users (id, email, instance_id, aud, role)
+  SELECT u, 'zz-' || u || '@example.invalid', '00000000-0000-0000-0000-000000000000',
+         'authenticated', 'authenticated'
+    FROM unnest(ARRAY[u_one, u_two]) u;
+
   INSERT INTO public.employees (full_name, department, shift_group, active)
   VALUES ('ZZ Identity First', 'Production', 'Day', true) RETURNING id INTO e_first;
   INSERT INTO public.employees (full_name, department, shift_group, active)
