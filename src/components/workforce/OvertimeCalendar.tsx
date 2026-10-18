@@ -2,14 +2,19 @@ import { useMemo } from "react";
 import { ChevronLeft, ChevronRight, Plus, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/DateField";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { OvertimeStatusBadge } from "@/components/workforce/OvertimeStatusBadge";
+import { OVERTIME_STATUS } from "@/lib/overtimeStatus";
+import { ShiftTag } from "@/components/ShiftTag";
+import { SHIFT_LOOK, shiftKind } from "@/lib/shiftLook";
+import { ShiftTimeRange, nextDaySuffix } from "@/components/ShiftTimeRange";
+import { useDeviceType } from "@/hooks/use-device-type";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { countResponses, windowLabel, audienceLine, type OvertimeRequest, type OvertimeResponse } from "@/lib/overtimeRequests";
 import { askShift, OVERTIME_SHIFTS, type OvertimeShift } from "@/lib/overtimeShifts";
 import {
   calendarStatus, monthGrid, weekDays, viewTitle, stepAnchor, isoDate,
-  CALENDAR_STATUS_LABEL, CALENDAR_STATUS_BADGE, type CalendarView, type CalendarStatus,
+  CALENDAR_STATUS_LABEL, type CalendarView, type CalendarStatus,
 } from "@/lib/overtimeCalendar";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -20,15 +25,7 @@ export const TOGGLE_ON = "data-[state=on]:border-primary data-[state=on]:bg-prim
 const MONTH_CELL_MAX = 3;
 
 /** The thin bar at the start of each entry. Colour only repeats the label beside it. */
-const STATUS_BAR: Record<CalendarStatus, string> = {
-  needs: "border-l-warning",
-  partial: "border-l-warning",
-  full: "border-l-success",
-  in_progress: "border-l-primary",
-  completed: "border-l-border",
-  closed: "border-l-border",
-  cancelled: "border-l-border",
-};
+const STATUS_BAR = Object.fromEntries(Object.entries(OVERTIME_STATUS).map(([k, v]) => [k, v.edge])) as Record<CalendarStatus, string>;
 
 interface Props {
   view: CalendarView;
@@ -61,6 +58,7 @@ interface Entry {
 export function OvertimeCalendar({
   view, anchor, onViewChange, onAnchorChange, asks, responsesByRequest, mayManage, onSelect, onCreate,
 }: Props) {
+  const device = useDeviceType();
   const today = isoDate(new Date());
   const now = new Date();
 
@@ -111,7 +109,8 @@ export function OvertimeCalendar({
         </ToggleGroup>
       </div>
 
-      {view === "month" && (
+      {view === "month" && (device === "mobile" ?
+        <AgendaView anchor={anchor} byDate={byDate} canCreateOn={canCreateOn} onSelect={onSelect} onCreate={onCreate} /> :
         <MonthView anchor={anchor} today={today} byDate={byDate} canCreateOn={canCreateOn}
           onSelect={onSelect} onCreate={onCreate}
           onOpenDay={(d) => { onAnchorChange(d); onViewChange("day"); }} />
@@ -134,26 +133,35 @@ export function OvertimeCalendar({
 function Legend() {
   const shown: CalendarStatus[] = ["needs", "partial", "full", "in_progress", "completed", "closed", "cancelled"];
   return (
-    <ul className="flex flex-wrap gap-x-3 gap-y-1 border-t pt-2 text-2xs text-muted-foreground" aria-label="Legend">
-      {shown.map((s) => (
-        <li key={s} className={cn("border-l-[3px] pl-1.5", STATUS_BAR[s])}>{CALENDAR_STATUS_LABEL[s]}</li>
-      ))}
-    </ul>
+    <div className="space-y-3 border-t pt-3 text-xs" aria-label="Legend">
+      <div className="flex flex-wrap items-center gap-2" aria-label="Shift legend">
+        <span className="mr-1 font-semibold text-muted-foreground">Shift</span>
+        <ShiftTag shift="Day" /><ShiftTag shift="Night" />
+      </div>
+      <div className="flex flex-wrap items-center gap-2" aria-label="Status legend">
+        <span className="mr-1 font-semibold text-muted-foreground">Status</span>
+        {shown.map((s) => <OvertimeStatusBadge key={s} status={s} />)}
+      </div>
+    </div>
   );
 }
 
 /** One ask as a compact line: hours, filled, status. A button: it opens the detail. */
 function EntryChip({ e, onSelect, compact = false }: { e: Entry; onSelect: (id: string) => void; compact?: boolean }) {
-  const label = `${windowLabel(e.request.starts_at, e.request.ends_at)}, ${e.shift} shift, `
+  const label = `${windowLabel(e.request.starts_at, e.request.ends_at)}${nextDaySuffix(e.request.starts_at, e.request.ends_at)}, ${e.shift} shift, `
     + `${e.accepted} of ${e.request.headcount} filled, ${CALENDAR_STATUS_LABEL[e.status]}`;
+  const kind = shiftKind(e.shift);
+  const Icon = SHIFT_ICON[e.shift];
+  const StatusIcon = OVERTIME_STATUS[e.status].icon;
   return (
-    <button
+    <Button variant="ghost"
       type="button"
       onClick={(ev) => { ev.stopPropagation(); onSelect(e.request.id); }}
       aria-label={label}
       title={label}
       className={cn(
-        "block w-full rounded-md border border-l-[3px] bg-background px-1.5 py-1 text-left text-xs",
+        "block h-auto w-full whitespace-normal rounded-md border border-l-[3px] px-1.5 py-1.5 text-left text-xs",
+        kind && SHIFT_LOOK[kind].surface,
         "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         STATUS_BAR[e.status],
         (e.status === "cancelled" || e.status === "completed") && "text-muted-foreground",
@@ -161,13 +169,14 @@ function EntryChip({ e, onSelect, compact = false }: { e: Entry; onSelect: (id: 
       )}
     >
       <span className="flex items-center justify-between gap-1 tabular-nums">
-        <span className="truncate font-medium">{e.request.starts_at.slice(0, 5)}</span>
+        <span className="flex min-w-0 items-center gap-1 font-medium"><Icon className="h-3 w-3 shrink-0" aria-hidden /><ShiftTimeRange startsAt={e.request.starts_at} endsAt={e.request.ends_at} /></span>
         <span className="shrink-0">{e.accepted}/{e.request.headcount}</span>
       </span>
       {!compact && (
-        <span className="block truncate text-2xs text-muted-foreground">{CALENDAR_STATUS_LABEL[e.status]}</span>
+        <span className={cn("mt-1 flex items-start gap-1 text-xs", OVERTIME_STATUS[e.status].ink)}><StatusIcon className="mt-0.5 h-3 w-3 shrink-0" aria-hidden /><span>{CALENDAR_STATUS_LABEL[e.status]}</span></span>
       )}
-    </button>
+      {(e.request.department || e.request.shift_group) && <span className="mt-1 block truncate text-xs" title={audienceLine(e.request)}>{audienceLine(e.request)}</span>}
+    </Button>
   );
 }
 
@@ -179,6 +188,34 @@ interface GridProps {
   onSelect: (id: string) => void;
   onCreate: (d: string) => void;
   onOpenDay: (d: string) => void;
+}
+
+/** Full-width month entries below 768px; the same records and selection handlers. */
+function AgendaView({ anchor, byDate, canCreateOn, onSelect, onCreate }: Pick<GridProps, "anchor" | "byDate" | "canCreateOn" | "onSelect" | "onCreate">) {
+  const days = monthGrid(anchor).flat().filter((d) => d.inMonth && (byDate.get(d.iso)?.length ?? 0) > 0);
+  return <div aria-label="Month agenda" className="space-y-5">
+    {days.length === 0 && <p className="py-4 text-sm text-muted-foreground">No overtime asks this month.</p>}
+    {days.map((d) => <section key={d.iso} className="space-y-2">
+      <div className="flex items-center justify-between gap-2 border-b pb-2">
+        <h3 className="text-sm font-semibold">{viewTitle("day", d.iso)}</h3>
+        {canCreateOn(d.iso) && <Button size="icon" variant="ghost" aria-label={`New ask on ${d.iso}`} onClick={() => onCreate(d.iso)}><Plus className="h-4 w-4" /></Button>}
+      </div>
+      {(byDate.get(d.iso) ?? []).map((e) => {
+        const look = OVERTIME_STATUS[e.status];
+        const kind = shiftKind(e.shift);
+        return <Button key={e.request.id} variant="ghost" onClick={() => onSelect(e.request.id)}
+          aria-label={`${windowLabel(e.request.starts_at, e.request.ends_at)}${nextDaySuffix(e.request.starts_at, e.request.ends_at)}, ${e.shift} shift, ${e.accepted} of ${e.request.headcount} filled, ${look.label}`}
+          className={cn("flex h-auto w-full flex-col items-stretch gap-3 whitespace-normal rounded-md border border-l-4 p-3 text-left", look.edge, kind && SHIFT_LOOK[kind].surface)}>
+          <span className="flex flex-wrap items-center justify-between gap-2"><ShiftTag shift={e.shift} /><ShiftTimeRange startsAt={e.request.starts_at} endsAt={e.request.ends_at} /></span>
+          <span className="text-sm">{audienceLine(e.request)}</span>
+          <span className="flex flex-wrap items-center justify-between gap-2"><OvertimeStatusBadge status={e.status} /><span className="text-xs tabular-nums">{e.accepted}/{e.request.headcount} filled</span></span>
+          <span className="h-2 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${e.accepted} of ${e.request.headcount} filled`}>
+            <span className={cn("block h-full", look.fill)} style={{ width: `${Math.min(100, e.accepted / Math.max(1, e.request.headcount) * 100)}%` }} />
+          </span>
+        </Button>;
+      })}
+    </section>)}
+  </div>;
 }
 
 function MonthView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onOpenDay }: GridProps) {
@@ -284,12 +321,11 @@ function WeekView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onOp
               )}
             </div>
             {OVERTIME_SHIFTS.map((s) => {
-              const Icon = SHIFT_ICON[s];
               const mine = entries.filter((e) => e.shift === s);
               return (
                 <div key={s} className="mb-2 last:mb-0">
                   <div className="mb-1 flex items-center gap-1 text-2xs uppercase tracking-wider text-muted-foreground">
-                    <Icon className="h-3 w-3" aria-hidden /> {s}
+                    <ShiftTag shift={s} />
                   </div>
                   {mine.length === 0
                     ? <div className="text-2xs text-muted-foreground/70">—</div>
@@ -311,12 +347,11 @@ function DayView({ date, entries, canCreate, onSelect, onCreate }: {
   return (
     <div className="space-y-3">
       {OVERTIME_SHIFTS.map((s) => {
-        const Icon = SHIFT_ICON[s];
         const mine = entries.filter((e) => e.shift === s);
         return (
           <section key={s} aria-label={`${s} shift, ${date}`} className="space-y-2">
             <h3 className="flex items-center gap-2 border-b pb-1 text-sm font-semibold">
-              <Icon className="h-4 w-4 text-muted-foreground" aria-hidden /> {s} shift
+              <ShiftTag shift={s} />
             </h3>
             {mine.length === 0 ? (
               <p className="text-sm text-muted-foreground">No {s.toLowerCase()}-shift overtime on this day.</p>
@@ -329,8 +364,8 @@ function DayView({ date, entries, canCreate, onSelect, onCreate }: {
                         STATUS_BAR[e.status])}>
                       <span className="min-w-0">
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium tabular-nums">{windowLabel(e.request.starts_at, e.request.ends_at)}</span>
-                          <StatusBadge status={CALENDAR_STATUS_BADGE[e.status]} label={CALENDAR_STATUS_LABEL[e.status]} size="sm" />
+                          <span className="font-medium tabular-nums"><ShiftTimeRange startsAt={e.request.starts_at} endsAt={e.request.ends_at} /></span>
+                          <OvertimeStatusBadge status={e.status} />
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">For: {audienceLine(e.request)}</span>
                         {e.request.note && <span className="mt-0.5 block truncate text-xs italic">“{e.request.note}”</span>}
