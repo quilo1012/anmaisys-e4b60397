@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { can } from "@/lib/permissions";
 import {
   useOvertimeRequests, useOvertimeResponsesFor, useOvertimeOutcomesFor, useOvertimeReliability,
-  useOvertimeMutations, useOvertimeRoster, useOvertimeBoardRows, type RosterName,
+  useOvertimeMutations, useOvertimeRoster, useOvertimeBoardRows, useOvertimeScheduleClashes, type RosterName,
 } from "@/hooks/useOvertimeRequests";
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
@@ -130,6 +130,7 @@ export function OvertimeRequestsPanel() {
   const summaryShown = tab === "all" ? total : perShift[tab];
 
   const { data: board = [] } = useOvertimeBoardRows(boardDatesFor(filtered));
+  const { data: schedule } = useOvertimeScheduleClashes(filtered.map((r) => r.id));
   const others = useMemo(
     () => requests.map((r) => ({ request: r, responses: responsesByRequest.get(r.id) ?? [] })),
     [requests, responsesByRequest],
@@ -147,7 +148,7 @@ export function OvertimeRequestsPanel() {
   const loading = isLoading || (requests.length > 0 && responsesLoading);
 
   const ctx: CardContext = {
-    roster, reliability, outcomeByResponse, responsesByRequest, others, board, dupNames,
+    roster, reliability, outcomeByResponse, responsesByRequest, others, board, schedule, dupNames,
   };
 
   return (
@@ -284,6 +285,8 @@ interface CardContext {
   responsesByRequest: Map<string, OvertimeResponse[]>;
   others: { request: OvertimeRequest; responses: OvertimeResponse[] }[];
   board: BoardRow[];
+  /** The database's reading of each person's own hours, by `scheduleClashKey`. */
+  schedule: Map<string, string> | undefined;
   dupNames: Set<string>;
 }
 
@@ -554,7 +557,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
   const saidNo = responses.filter((r) => r.answer === "no")
     .map((r) => byId.get(r.employee_id)).filter(Boolean).map((e) => displayName(e!, ctx));
 
-  const clashOf = (employeeId: string) => clashesFor(employeeId, request, ctx.others, ctx.board);
+  const clashOf = (employeeId: string) => clashesFor(employeeId, request, ctx.others, ctx.board, ctx.schedule);
 
   // Not narrowed by the ask's crew or department: those say who is asked, and a
   // supervisor may add anybody — a Day person on Night overtime included. Those

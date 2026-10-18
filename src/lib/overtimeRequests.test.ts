@@ -3,7 +3,7 @@ import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
   myAnswerLabel, supervisorLabel, headcountLine, audienceLine, askIsOver,
-  type Reliability, type OvertimeResponse, type Candidate, hoursBetween, deskCandidates, overtimeBoardFor } from "./overtimeRequests";
+  type Reliability, type OvertimeResponse, type Candidate, hoursBetween, deskCandidates, overtimeBoardFor, asksOfferedTo } from "./overtimeRequests";
 
 const rel = (o: Partial<Reliability> = {}): Reliability => ({
   employee_id: "e", sick_this_month: 0, absent_this_month: 0,
@@ -325,5 +325,32 @@ describe("cross-shift overtime", () => {
 
   it("still keeps the ask's audience for the employee's own phone", () => {
     expect(requestIsForEmployee({ department: null, shift_group: "Night" }, people[0])).toBe(false);
+  });
+});
+
+describe("asksOfferedTo — the phone does not offer hours that are already the person's", () => {
+  const now = new Date("2026-10-15T12:00:00");
+  const a = (id: string, p: Partial<{ department: string | null; shift_group: string | null; on_date: string; starts_at: string; ends_at: string }> = {}) => ({
+    id, department: null, shift_group: null, on_date: "2026-10-17", starts_at: "06:00", ends_at: "18:00", ...p,
+  });
+  const weekendCrew = { department: "Production", shift_group: "Weekend" };
+  const satDay = a("sat-day");
+  const satNight = a("sat-night", { starts_at: "18:00", ends_at: "06:00" });
+  const clashes = new Map([["sat-day", "Your rota has you on the day shift on Sat 17/10, 06:00–18:00"]]);
+
+  it("hides Saturday Day overtime from somebody rostered Saturday Day", () => {
+    expect(asksOfferedTo([satDay, satNight], weekendCrew, new Set(), clashes, now).map((r) => r.id))
+      .toEqual(["sat-night"]);
+  });
+  it("still offers it to somebody whose hours it does not touch", () => {
+    expect(asksOfferedTo([satDay], { department: "Production", shift_group: "Day" }, new Set(), new Map(), now))
+      .toEqual([satDay]);
+  });
+  it("keeps an ask the person already answered, so their answer does not vanish", () => {
+    expect(asksOfferedTo([satDay], weekendCrew, new Set(["sat-day"]), clashes, now)).toEqual([satDay]);
+  });
+  it("keeps the department and crew narrowing and the finished-window rule", () => {
+    expect(asksOfferedTo([a("wh", { department: "Warehouse" })], weekendCrew, new Set(), new Map(), now)).toEqual([]);
+    expect(asksOfferedTo([a("past", { on_date: "2026-10-14" })], weekendCrew, new Set(), new Map(), now)).toEqual([]);
   });
 });

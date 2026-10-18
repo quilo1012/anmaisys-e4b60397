@@ -193,6 +193,33 @@ export function requestIsForEmployee(
 }
 
 /**
+ * The asks this person's phone lists.
+ *
+ * Three tests, in order. The ask is for them by department and crew
+ * (`requestIsForEmployee`). It is not over — unless they already answered it, because
+ * then it is their record of what they said. And it does not land on hours that are
+ * already theirs: `clashes` is `my_overtime_clashes()`, the database reading their
+ * board and their rota for that date. A crew label alone cannot say that — the
+ * weekend crew's Saturday is 06:00–18:00, and a Saturday 06:00–18:00 ask is the same
+ * shift twice, not overtime.
+ *
+ * An ask they answered before the clash appeared (the board was drawn afterwards) is
+ * kept, so their answer does not vanish; `canAnswer` then refuses the yes.
+ */
+export function asksOfferedTo<R extends Pick<OvertimeRequest, "id" | "department" | "shift_group" | "on_date" | "starts_at" | "ends_at">>(
+  requests: R[],
+  me: { department: string | null; shift_group: string | null },
+  answered: ReadonlySet<string>,
+  clashes: ReadonlyMap<string, string>,
+  now: Date = new Date(),
+): R[] {
+  return requests
+    .filter((r) => requestIsForEmployee(r, me))
+    .filter((r) => answered.has(r.id) || !askIsOver(r, now))
+    .filter((r) => answered.has(r.id) || !clashes.has(r.id));
+}
+
+/**
  * The board an ask's hours land on: Day from 06:00 to 17:59, Night otherwise.
  *
  * The same line `factory_shift_of` draws in the database, which is what the ask →

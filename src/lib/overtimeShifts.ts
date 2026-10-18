@@ -173,6 +173,9 @@ export function filterAsks(
 
 /* -------------------------------------------------------------- conflicts */
 
+/** `${requestId}:${employeeId}` — how `overtime_schedule_clashes` rows are keyed. */
+export const scheduleClashKey = (requestId: string, employeeId: string) => `${requestId}:${employeeId}`;
+
 /** One row of `daily_allocations`, as much of it as a clash needs. */
 export interface BoardRow {
   on_date: string;
@@ -219,12 +222,18 @@ const OFF_STATUS: Record<string, string> = {
  *
  * `overtime` rows on the board are skipped: they are what an accepted ask writes, so
  * this ask's own acceptance would otherwise clash with itself.
+ *
+ * `schedule` is the database's answer to the same question, read by hours and with
+ * the rota for days the board has not been drawn yet (`overtime_schedule_clashes`,
+ * keyed by `scheduleClashKey`). It is what the employee's phone obeys, so the desk
+ * refuses what the phone would: a block, added when the board alone found none.
  */
 export function clashesFor(
   employeeId: string,
   request: OvertimeRequest,
   others: { request: OvertimeRequest; responses: OvertimeResponse[] }[],
   board: BoardRow[],
+  schedule?: ReadonlyMap<string, string>,
 ): Clash[] {
   const out: Clash[] = [];
   const shift = askShift(request);
@@ -253,6 +262,9 @@ export function clashesFor(
       out.push({ severity: "warn", text: `No rest: rostered ${b.shift.toLowerCase()} ${fmt(b.on_date)}` });
     }
   }
+
+  const own = schedule?.get(scheduleClashKey(request.id, employeeId));
+  if (own && !out.some((c) => c.severity === "block")) out.unshift({ severity: "block", text: own });
   return out;
 }
 
