@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Fix log-audit-event 400 in Manage Users and missing overtime answer snapshot columns; verify production drift before changes
+
 - [x] Allow managers to open/correct employee records and view rota, position and shift history without Headcount; verify Weekend option
 
 - [x] Fix 2 failing tests after qualityImport corrections
