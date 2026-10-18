@@ -18,6 +18,7 @@ import {
 import { askShift } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
 import { shiftEdge } from "@/lib/shiftLook";
+import { OvertimeAuditLog } from "@/components/workforce/OvertimeAuditLog";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { TabletOvertimeNotice } from "@/components/workforce/TabletOvertimeNotice";
@@ -87,6 +88,7 @@ export default function MyOvertimePage() {
           <>
             <OvertimePushNudge />
             <AsksForMe me={me} />
+            <OvertimeAuditLog mode="mine" />
           </>
         ) : (
           <LinkMyself />

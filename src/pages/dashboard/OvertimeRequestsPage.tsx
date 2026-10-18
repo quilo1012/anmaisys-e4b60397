@@ -2,6 +2,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { BackButton } from "@/components/BackButton";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { OvertimeRequestsPanel } from "@/components/workforce/OvertimeRequestsPanel";
+import { OvertimeAuditLog } from "@/components/workforce/OvertimeAuditLog";
 
 /**
  * Overtime, before it is worked.
@@ -21,6 +22,7 @@ export default function OvertimeRequestsPage() {
         <BackButton />
         <WorkforceTabs />
         <OvertimeRequestsPanel />
+        <OvertimeAuditLog mode="manage" />
       </div>
     </DashboardLayout>
   );
