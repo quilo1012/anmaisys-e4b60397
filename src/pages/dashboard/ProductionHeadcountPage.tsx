@@ -120,21 +120,19 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill; accent
   // (the ask → board bridge, 20261012190000) or placed on by hand. The stored status
   // was always `overtime` and stays so.
   { status: "overtime", label: "Overtime", head: "leave", accent: "border-t-warning", icon: OVERTIME_STATUS.in_progress.icon },
-  // Amarelo, como uma área: na planilha o Training é uma coluna de sítio, não de falta.
+  // Training continua a ser uma coluna de sítio, não de falta; no ecrã leva um bordo violeta.
   { status: "training", label: "Training", head: "heading", accent: "border-t-board-training", icon: GraduationCap },
 ];
 
 /**
- * As cores da planilha, as mesmas que o export escreve (`SHEET_LOOKS` em
- * `lib/headcountSheet.ts`): amarelo nos cabeçalhos, verde nos Totais, nas férias e nas
- * horas extra, vermelho nas faltas, cinzento no líder, roxo no total da produção.
+ * As cores do ecrã são neutras; os bordos finos distinguem as categorias.
+ * O export e a impressão continuam a usar `SHEET_LOOKS` em `lib/headcountSheet.ts`.
  *
  * O board era um ecrã de cartões e a folha um quadro de células, e quem passava de um
  * para o outro tinha de reaprender onde estava cada coisa. Agora o board É a folha:
  * as mesmas cores no mesmo sítio, e as mesmas pessoas na mesma célula.
  *
- * Cores fixas e não tokens do tema, de propósito: são as da folha da empresa, e uma
- * célula amarela tem de ser amarela de noite também, com o texto preto que a folha usa.
+ * Tokens do tema no ecrã; os Totais não indicam cobertura sem metas de pessoal.
  */
 type SheetFill = "heading" | "away" | "leave" | "total" | "grand" | "leader";
 const SHEET_FILL: Record<SheetFill, string> = {
@@ -150,12 +148,12 @@ const SHEET_RULE = "border-border";
 
 /**
  * Uma coluna da folha: o cabeçalho, uma célula por pessoa, células vazias até ao fundo
- * da banda, e `Total` com o número por baixo, os dois a verde.
+ * da banda, e `Total` com o número por baixo, os dois neutros.
  *
  * As vazias não são enfeite. Na folha todas as colunas de uma banda têm a mesma altura
- * e os Totais ficam todos na mesma linha, por isso lê-se a fila verde de um lado ao
+ * e os Totais ficam todos na mesma linha, por isso lê-se a fila de um lado ao
  * outro sem procurar. Uma coluna que encolhe para o tamanho dos seus nomes partia
- * essa fila em degraus.
+ * essa fila em degraus. As faltas são compactas: nomes e uma célula livre apenas.
  */
 function SheetColumn({
   title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled, compact = false, accent = "border-t-primary", icon: HeaderIcon,
@@ -190,7 +188,7 @@ function SheetColumn({
       >
         {grip}
         {HeaderIcon && <HeaderIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />}
-        <span className="headcount-column-title min-w-0 flex-1 text-center text-sm font-semibold leading-5">{title}</span>
+        <span className="headcount-column-title min-w-0 flex-1 line-clamp-2 text-center text-sm font-semibold leading-5">{title}</span>
       </div>
       <div className="flex flex-col">
         {children}
@@ -202,7 +200,7 @@ function SheetColumn({
           ),
         )}
       </div>
-      {/* `Total` e o número por baixo, que é como cada coluna da planilha acaba. */}
+      {/* `Total` neutro: número gravado, não uma indicação de cobertura de pessoal. */}
       <div className="mt-auto flex flex-col">
         <span className={cn("border-b py-1 text-center text-xs font-semibold", SHEET_RULE, SHEET_FILL.total)}>Total</span>
         <span className={cn("py-1 text-center font-figure text-sm font-bold tabular-nums", SHEET_FILL.total)}>{count}</span>
@@ -623,7 +621,7 @@ function KpiPill({
 }) {
   return (
     <div className={cn("flex items-center gap-1.5 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"))}>
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", highlight ? "" : "text-muted-foreground")} />
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", valueTone || (highlight ? "" : "text-muted-foreground"))} />
       <span className={cn("font-figure text-xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
       <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
     </div>
@@ -919,8 +917,8 @@ function ShiftBoard({
   const awayInSupport = supportShown;
 
   /**
-   * O fim da segunda banda: `Total staff in Production` a roxo, e depois as faltas, as
-   * horas extra e a formação, cada uma na sua coluna com a cor que a folha lhe dá.
+   * O fim da segunda banda: faltas, horas extra e formação, em colunas compactas.
+   * O total da produção fica só nos indicadores acima, sem repetir uma coluna.
    */
   const sheetTail = (rows: number) => (
     <>
@@ -1019,7 +1017,6 @@ function ShiftBoard({
   const isDimmed = (n: string) => !!term && !n.toLowerCase().includes(term);
 
   const look = LOOK[shift] ?? LOOK.Day;
-  const ShiftIcon = look.icon;
 
   if (rosterLoading || allocLoading) {
     return <Skeleton className="h-64 w-full" />;
@@ -1271,7 +1268,7 @@ function ShiftBoard({
       </div>
 
       <p className="headcount-legend text-2xs leading-relaxed text-muted-foreground print:hidden">
-        LAB: Laboratory · WH: Warehouse · TEC: Technician · QA: Quality · OFF: Office · Grey name: leader · Grey italic: unsaved matrix plan · FRI–MON: Friday–Monday crew · 14:00: sheet start time · ½ Half Day: part of shift worked
+        LAB: Laboratory · WH: Warehouse role/crew · TEC: Technician · QA: Quality · OFF: Office · Grey highlight: leader · Grey italic: unsaved matrix plan · Faded name: search non-match · FRI–MON: Friday–Monday crew · 14:00: sheet start time · ½ Half Day: part of shift worked
       </p>
 
       {/* The way back from the one press on this screen that writes seventy rows.
