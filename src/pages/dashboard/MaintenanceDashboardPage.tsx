@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import DashboardLayout from "@/components/DashboardLayout";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { woKpis, pmDueSoon, type WoRow } from "@/lib/departmentKpis";
 import { getCurrentShiftStart } from "@/lib/shifts";
