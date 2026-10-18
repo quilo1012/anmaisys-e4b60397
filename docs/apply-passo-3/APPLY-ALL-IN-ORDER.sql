@@ -11505,9 +11505,10 @@ grant execute on function public.my_attendance(date, date) to authenticated;
 -- ================================================================
 --
 -- A OVERTIME NAO E OFERECIDA EM HORAS QUE JA SAO DA PESSOA: o telemovel deixa de
--- mostrar, e o answer_overtime recusa o sim, quando o board ou a escala dessa data
--- ja a poem a trabalhar essas horas (ou ja tem overtime aceite nelas). Precisa do
--- BLOCO 80 e do BLOCO 93 antes; pára com uma mensagem se faltarem. Idempotente.
+-- mostrar, e um trigger recusa o sim, quando o board ou a escala dessa data ja a
+-- poem a trabalhar essas horas (ou ja tem overtime aceite nelas). Nao toca no
+-- answer_overtime, por isso a ordem face ao 78-a-89 nao importa. Precisa do
+-- BLOCO 93; para com uma mensagem se faltar. Idempotente.
 --
 
 -- Overtime is not offered on hours the person is already rostered for.
@@ -11548,26 +11549,25 @@ grant execute on function public.my_attendance(date, date) to authenticated;
 --     phone stops offering them.
 --   * `overtime_schedule_clashes(asks[])` — the same answer for the supervisor's
 --     screen, for everybody active, behind `overtime.manage`.
---   * `answer_overtime` refuses a "yes" that clashes. A "no" is still always allowed.
---     Everything else in it is 20261012080000 unchanged.
+--   * A "yes" that clashes is refused where it is written: a trigger on
+--     `overtime_responses`, so `answer_overtime` itself is not redefined. The catch-up
+--     paste (APLICAR-78-a-89) redefines that function; a second copy here would be
+--     rolled back by it, or roll it back, depending on which was pasted last. A "no"
+--     is always allowed. A supervisor answering at the desk is not stopped here —
+--     their screen refuses the accept from the same rule — and neither is a write with
+--     no session (the SQL editor, a backfill).
 --
--- No trigger on acceptance: the reserve that steps in when somebody drops out is
+-- No check on acceptance itself: the reserve that steps in when somebody drops out is
 -- promoted inside `record_overtime_outcome`, and a raise there would lose the outcome
--- being recorded. The supervisor's screen refuses the accept instead, from the same
--- function.
+-- being recorded. The supervisor's screen refuses the accept instead.
 --
--- Needs BLOCO 80 (answered_for_* on overtime_responses) and BLOCO 93
--- (daily_allocations.overtime_request_id). Stops with a message if either is missing.
+-- Needs BLOCO 93 (daily_allocations.overtime_request_id). Stops with a message if it
+-- is missing. Independent of 78–89.
 --
 -- Idempotent.
 
 do $$
 begin
-  if not exists (select 1 from information_schema.columns
-                  where table_schema = 'public' and table_name = 'overtime_responses'
-                    and column_name = 'answered_for_date') then
-    raise exception 'Paste APLICAR-78-a-89.sql first: overtime_responses.answered_for_date is missing';
-  end if;
   if not exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'daily_allocations'
                     and column_name = 'overtime_request_id') then
@@ -11773,85 +11773,35 @@ $$;
 revoke all on function public.overtime_schedule_clashes(uuid[]) from public, anon;
 grant execute on function public.overtime_schedule_clashes(uuid[]) to authenticated;
 
--- ── 4. The answer refuses a yes on top of the person's own hours ────────────
-create or replace function public.answer_overtime(p_request_id uuid, p_answer text)
-returns public.overtime_responses
+-- ── 4. A yes on top of the person's own hours is refused where it is written ──
+create or replace function public.overtime_response_schedule_guard()
+returns trigger
 language plpgsql security definer set search_path = public
 as $$
 declare
-  v_emp     uuid := public.my_employee_id();
-  v_req     public.overtime_requests;
-  v_dept    text;
-  v_shift   text;
-  v_row     public.overtime_responses;
-  v_block   record;
-  v_clash   text;
+  v_clash text;
 begin
-  if v_emp is null then
-    raise exception 'No employee record is linked to this login' using errcode = 'P0001';
-  end if;
-  if p_answer not in ('yes', 'no') then
-    raise exception 'Answer must be yes or no' using errcode = 'P0001';
-  end if;
+  -- Only a new yes nobody has decided on yet, from a signed-in person who does not
+  -- manage overtime: the employee answering on their own phone.
+  if new.answer is distinct from 'yes' or new.decision is not null then return new; end if;
+  if tg_op = 'UPDATE' and old.answer = 'yes' then return new; end if;
+  if auth.uid() is null or public.can_manage_overtime(auth.uid()) then return new; end if;
 
-  select * into v_req from public.overtime_requests where id = p_request_id;
-  if v_req.id is null or v_req.status <> 'open' then
-    raise exception 'This overtime is no longer open' using errcode = 'P0001';
+  -- Overtime on top of your own shift is the same hours twice, not overtime.
+  v_clash := public.overtime_schedule_clash(new.employee_id, new.request_id);
+  if v_clash is not null then
+    raise exception 'These hours are already yours: %', v_clash using errcode = 'P0001';
   end if;
-
-  -- Who the answerer is, as the ask measures them.
-  select department, shift_group into v_dept, v_shift
-    from public.employees where id = v_emp;
-
-  if v_req.department is not null and v_req.department is distinct from v_dept then
-    raise exception 'This overtime is for % and you are not in it', v_req.department
-      using errcode = 'P0001';
-  end if;
-  if v_req.shift_group is not null and v_req.shift_group is distinct from v_shift then
-    raise exception 'This overtime is for the % crew', v_req.shift_group
-      using errcode = 'P0001';
-  end if;
-
-  if exists (select 1 from public.overtime_responses
-              where request_id = p_request_id and employee_id = v_emp and decision is not null) then
-    raise exception 'The supervisor has already decided on your answer' using errcode = 'P0001';
-  end if;
-  -- A "no" is always allowed: it is information, not a request.
-  if p_answer = 'yes' then
-    select * into v_block from public.overtime_block_for(v_emp);
-    if v_block.blocked_until is not null then
-      raise exception 'You can''t sign up for overtime until %. (Missed overtime on %.)',
-        to_char(v_block.blocked_until, 'DD/MM'), to_char(v_block.on_date, 'DD/MM')
-        using errcode = 'P0001';
-    end if;
-    -- Overtime on top of your own shift is the same hours twice, not overtime.
-    v_clash := public.overtime_schedule_clash(v_emp, p_request_id);
-    if v_clash is not null then
-      raise exception 'These hours are already yours: %', v_clash using errcode = 'P0001';
-    end if;
-  end if;
-
-  insert into public.overtime_responses (
-    request_id, employee_id, answer,
-    answered_for_date, answered_for_starts_at, answered_for_ends_at)
-  values (
-    p_request_id, v_emp, p_answer,
-    v_req.on_date, v_req.starts_at, v_req.ends_at)
-  on conflict (request_id, employee_id)
-  do update set answer    = excluded.answer,
-                answered_at = now(),
-                -- Mudar de ideias e responder ao turno de AGORA, por isso o
-                -- instantaneo anda com a resposta e nao fica no primeiro valor.
-                answered_for_date      = excluded.answered_for_date,
-                answered_for_starts_at = excluded.answered_for_starts_at,
-                answered_for_ends_at   = excluded.answered_for_ends_at
-  returning * into v_row;
-  return v_row;
+  return new;
 end;
 $$;
 
-revoke all on function public.answer_overtime(uuid, text) from public, anon;
-grant execute on function public.answer_overtime(uuid, text) to authenticated;
+revoke all on function public.overtime_response_schedule_guard() from public, anon, authenticated;
+
+drop trigger if exists overtime_response_schedule_guard_t on public.overtime_responses;
+create trigger overtime_response_schedule_guard_t
+  before insert or update of answer on public.overtime_responses
+  for each row execute function public.overtime_response_schedule_guard();
 
 -- ================================================================
 -- BLOCO 96

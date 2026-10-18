@@ -47,8 +47,8 @@ const PENDING: readonly PendingRpc[] = [
     block: "BLOCO 95 — 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql",
     fallback:
       "useMyOvertimeClashes turns PGRST202 into an empty map, so MyOvertimePage lists the " +
-      "asks it listed before the block — by department and crew only — and answer_overtime " +
-      "is still the old one, which accepts the same yes.",
+      "asks it listed before the block — by department and crew only — and with no guard " +
+      "trigger yet the database accepts the same yes, as it did before.",
   },
   {
     name: "overtime_schedule_clashes",
