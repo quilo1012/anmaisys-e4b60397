@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { toast } from "sonner";
 import { attendanceForDay, attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from "@/lib/copyBoard";
@@ -1364,5 +1365,51 @@ export function useSetShiftPattern(onDate: string) {
       toast.success("Rota changed. Which days they are due in follows it from this day on.");
     },
     onError: (e: Error) => toast.error(e.message ?? "Could not change the rota"),
+  });
+}
+
+export interface TrendRow { on_date: string; employee_id: string; status: string }
+
+/**
+ * Board rows over a period, and who the board can draw on each date.
+ *
+ * Both shifts, three columns only: the trend counts statuses per day and needs nothing
+ * else. Paged, because a month of two boards is well past PostgREST's thousand rows
+ * and a short read would draw the last days of the month as a staffing collapse.
+ *
+ * `drawableOn` is `boardPeopleOn`'s rule, by date: active people always, and a leaver
+ * up to their last day. A leaver with no leaving date stays out, as on the board.
+ */
+export function useBoardTrend(from: string, to: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["dept-dashboard", "board-trend", from, to],
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const [rows, people] = await Promise.all([
+        fetchAllRows<TrendRow>({
+          range: (a, b) => supabase
+            .from("daily_allocations")
+            .select("on_date,employee_id,status")
+            .gte("on_date", from).lte("on_date", to)
+            .order("on_date", { ascending: true }).order("id", { ascending: true })
+            .range(a, b) as never,
+        }),
+        fetchAllRows<{ id: string; active: boolean; left_on: string | null }>({
+          range: (a, b) => (supabase as any)
+            .from("employees")
+            .select("id,active,left_on")
+            .order("id", { ascending: true })
+            .range(a, b),
+        }),
+      ]);
+      const byId = new Map(people.map((p) => [p.id, p]));
+      const drawableOn = (employeeId: string, onDate: string) => {
+        const p = byId.get(employeeId);
+        if (!p) return false;
+        return p.active || (!!p.left_on && onDate <= p.left_on);
+      };
+      return { rows, drawableOn };
+    },
   });
 }

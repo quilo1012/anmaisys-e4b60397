@@ -151,7 +151,9 @@ export const navItems: NavItem[] = [
   // line here, which is the point of hiding it this way rather than deleting it.
 
 
-  // Maintenance
+  // Maintenance. Each department opens on its own dashboard: the rows under it are
+  // the screens its cards link into.
+  { title: "Maintenance Dashboard", shortTitle: "Overview", url: "/dashboard/departments/maintenance", icon: LayoutDashboard, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "dashboard.maintenance" },
   { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "wo.view" },
     { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
   { title: "Problem Analysis", shortTitle: "Analysis", url: "/dashboard/maintenance-analysis", icon: Search, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "reliability.view" },
@@ -174,6 +176,7 @@ export const navItems: NavItem[] = [
   // It was previously Production Control, RAG Weekly, Performance, SKU Products,
   // Quality — with Headcount declared sixty lines below among the admin screens, so
   // it landed last with nothing near it to say why.
+  { title: "Production Dashboard", shortTitle: "Overview", url: "/dashboard/departments/production", icon: LayoutDashboard, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "dashboard.production" },
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "rag.view" },
   // The leader scorecard has no row of its own: it is opened from Performance, on
   // the leader the page is already filtered to, so the week and the shift travel
@@ -673,6 +676,8 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/roles": "Role rules",
   "/dashboard/people": "Employee",
   "/dashboard/headcount": "Production Headcount",
+  "/dashboard/departments/production": "Production Dashboard",
+  "/dashboard/departments/maintenance": "Maintenance Dashboard",
   "/dashboard/overtime": "Overtime",
   "/dashboard/my-overtime": "My Overtime",
   "/dashboard/my-attendance": "My Attendance",

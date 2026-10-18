@@ -115,6 +115,8 @@ function TelemetryInit() {
 const OperatorDashboard = lazyWithReload(() => import("./pages/dashboard/OperatorDashboard"));
 const EngineerDashboard = lazyWithReload(() => import("./pages/dashboard/EngineerDashboard"));
 const ManagerDashboard = lazyWithReload(() => import("./pages/dashboard/ManagerDashboard"));
+const ProductionDashboardPage = lazyWithReload(() => import("./pages/dashboard/ProductionDashboardPage"));
+const MaintenanceDashboardPage = lazyWithReload(() => import("./pages/dashboard/MaintenanceDashboardPage"));
 
 const MachineHistoryPage = lazyWithReload(() => import("./pages/dashboard/MachineHistoryPage"));
 const TechnicalInfoPage = lazyWithReload(() => import("./pages/dashboard/TechnicalInfoPage"));
@@ -412,6 +414,24 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="dashboard.manager">
                       <ManagerDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* One dashboard per department. Each section inside asks for the action of
+                    the screen it summarises, so these actions only open the page. */}
+                <Route
+                  path="/dashboard/departments/production"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.production">
+                      <ProductionDashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/departments/maintenance"
+                  element={
+                    <ProtectedRoute requiredAction="dashboard.maintenance">
+                      <MaintenanceDashboardPage />
                     </ProtectedRoute>
                   }
                 />

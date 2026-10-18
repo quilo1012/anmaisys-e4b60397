@@ -39,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
+import { tallyBoard } from "@/lib/boardTally";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
 import { useShiftPatterns } from "@/hooks/useWorkforce";
@@ -851,10 +852,10 @@ function ShiftBoard({
   // last one, so they count there and nowhere after; a row for anybody else the board
   // cannot draw stays out of the total. Counting what is not drawn is how a column
   // reading zero sat under a total saying ten.
-  const working = allocations.filter(
-    (a) => a.status === "assigned" && employeeById.has(a.employee_id),
-  );
-  const assignedCount = working.length;
+  // The rules live in `tallyBoard`, which the Production dashboard reads too, so the
+  // dashboard and this board cannot come to different totals.
+  const tally = tallyBoard({ allocations, areas, roster, drawable: (id) => employeeById.has(id) });
+  const assignedCount = tally.working;
 
   /**
    * Um dia que ainda não aconteceu e que ninguém planeou, mostrado como o rota o põe.
@@ -981,21 +982,11 @@ function ShiftBoard({
       })}
     </>
   );
-  const productionIds = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
-  const onLines = working.filter((a) => a.area_id && productionIds.has(a.area_id)).length;
-  const support = assignedCount - onLines;
-  const away = allocations.filter(
-    (a) => (a.status === "sick" || a.status === "unpaid" || a.status === "holiday")
-      && employeeById.has(a.employee_id),
-  ).length;
-  // Deliberately outside `away` and outside `working`: a person in training is here
-  // and is paid, and counting them as away would tell a supervisor to ring them. They
-  // are said on their own line instead, and only when there are any — a permanent
-  // "0 training" is a number nobody reads.
-  const training = allocations.filter(
-    (a) => a.status === "training" && employeeById.has(a.employee_id),
-  ).length;
-  const overtime = allocations.filter((a) => a.status === "overtime" && employeeById.has(a.employee_id)).length;
+  const { onLines, support, overtime, training } = tally;
+  // Training is outside `away` and outside working: a person in training is here and
+  // is paid, and counting them as away would tell a supervisor to ring them. It is
+  // said on its own line instead, and only when there are any.
+  const away = tally.away.total;
 
   const dragStart = (e: React.DragEvent, employeeId: string) => {
     e.dataTransfer.setData("text/plain", employeeId);

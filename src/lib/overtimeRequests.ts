@@ -106,7 +106,7 @@ export function countResponses(
  * the supervisor press it and read a refusal.
  */
 export function placesTaken(
-  responses: Pick<OvertimeResponse, "id" | "decision">[],
+  responses: readonly Pick<OvertimeResponse, "id" | "decision">[],
   outcomeOf: (responseId: string) => string | undefined,
 ): number {
   return responses.filter((r) => {

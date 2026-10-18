@@ -47,6 +47,8 @@ import { ShiftFilter } from "@/components/ShiftFilter";
 import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
+import { ACTIVE_STATUSES } from "@/lib/maintenanceProblemAnalysis";
+import { readLinkedRange } from "@/lib/woListLink";
 
 const statusConfig = new Proxy({} as Record<string, { label: string; className: string }>, {
   get: (_t, key: string) => getWoStatusConfig(key),
@@ -75,8 +77,13 @@ export default function WorkOrdersPage() {
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange("today"));
-  const [drPreset, setDrPreset] = useState<DateRangePreset>("today");
+  // `?range=` lets a dashboard card open the list on the period it counted. Without
+  // it the list opens on today, and a card saying "6 in progress" opened onto the one
+  // created today.
+  const linkedRange = readLinkedRange(searchParams.get("range"));
+  const startRange: DateRangePreset = linkedRange ?? "today";
+  const [drRange, setDrRange] = useState<DateRange>(() => getPresetRange(startRange));
+  const [drPreset, setDrPreset] = useState<DateRangePreset>(startRange);
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
 
   /**
@@ -117,7 +124,10 @@ export default function WorkOrdersPage() {
   // Sem "warehouse_service": as ordens de armazém já não chegam a este ecrã — o
   // `useWorkOrders` deixa-as no servidor. Um filtro para um tipo que a lista não
   // tem é uma escolha que devolve sempre zero.
-  const [typeFilter, setTypeFilter] = useState<"all" | "corrective" | "preventive">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "corrective" | "preventive">(() => {
+    const t = searchParams.get("type");
+    return t === "corrective" || t === "preventive" ? t : "all";
+  });
 
   const ALL_COLUMNS = [
     { key: "wo", label: "WO#" },
@@ -139,7 +149,9 @@ export default function WorkOrdersPage() {
   const filterStatuses =
     statusFilter === "all" || statusFilter === "stale"
       ? undefined
-      : [statusFilter as WOStatus];
+      : statusFilter === "active"
+        ? (ACTIVE_STATUSES as WOStatus[])
+        : [statusFilter as WOStatus];
   const { data: workOrders, isLoading, isError: woError, refetch: refetchWOs } = useWorkOrders({ statusIn: filterStatuses });
   const closeWO = useCloseWorkOrder();
   const createWO = useCreateWorkOrder();
@@ -589,7 +601,8 @@ export default function WorkOrdersPage() {
                   value={drRange}
                   preset={drPreset}
                   onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
-                  storageKey={OPS_RANGE_KEY}
+                  // A linked range wins over the one remembered from last time.
+                  storageKey={linkedRange ? undefined : OPS_RANGE_KEY}
                 />
                 <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
               </div>
@@ -714,6 +727,7 @@ export default function WorkOrdersPage() {
                 <SelectTrigger className="w-full md:w-[150px] h-9 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Not finished</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="received">Received</SelectItem>
                   <SelectItem value="arrived">Arrived</SelectItem>
