@@ -103,7 +103,7 @@ test("os sectores estão na banda de apoio, e o Runner na de produção", async 
         band = (el.textContent ?? "").replace(/\d+/g, "").trim().toUpperCase();
         return;
       }
-      el.querySelectorAll("[data-slot='card-title'], .truncate.text-sm.font-bold").forEach((t) => {
+      el.querySelectorAll("[data-slot='card-title'], .headcount-column-title").forEach((t) => {
         const name = (t.textContent ?? "").trim();
         if (name) out[name] = band;
       });
@@ -127,10 +127,10 @@ test("cada coluna acaba num Total, como cada coluna da planilha", async ({ page 
   const columns = await page.evaluate(() => {
     const out: { name: string; total: string | null; totalBelowNames: boolean }[] = [];
     document.querySelectorAll(".headcount-columns > *").forEach((col) => {
-      const name = (col.querySelector(".truncate.text-sm.font-bold")?.textContent ?? "").trim();
+      const name = (col.querySelector(".headcount-column-title")?.textContent ?? "").trim();
       if (!name) return;
       const foot = [...col.querySelectorAll("div")].find((d) => d.firstElementChild?.textContent?.trim() === "Total");
-      const title = col.querySelector(".truncate.text-sm.font-bold");
+      const title = col.querySelector(".headcount-column-title");
       out.push({
         name,
         total: foot ? (foot.lastElementChild?.textContent ?? "").trim() : null,
@@ -156,8 +156,9 @@ test("o nome cabe inteiro, e os Totais de uma banda ficam na mesma fila", async 
   // Com o FRI–MON ao lado do nome, uma coluna de 150px mostrava "Sandro V…". O nome
   // passou para uma linha sua; aqui mede-se que nenhum nome da banda é cortado.
   const cut = await page.evaluate(() =>
-    [...document.querySelectorAll(".headcount-columns .headcount-chip .truncate")]
-      .filter((el) => el.scrollWidth > el.clientWidth + 1)
+    // Uma linha (com marcas) ou duas (sem): cortado é o que não cabe em nenhuma das duas direcções.
+    [...document.querySelectorAll(".headcount-columns .headcount-chip-name")]
+      .filter((el) => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)
       .map((el) => el.textContent),
   );
   expect(cut, `nomes cortados: ${cut.join(", ")}`).toEqual([]);

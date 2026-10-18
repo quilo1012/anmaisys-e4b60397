@@ -120,6 +120,7 @@ test("every header action is still reachable at 1366", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: /find a person/i })).toBeVisible();
   // As cinco contagens continuam lá, cada uma com o seu nome.
   for (const label of [/total staff/i, /on lines/i, /support/i, /away/i, /overtime/i]) {
-    await expect(page.locator(".headcount-kpis").getByText(label).first()).toBeVisible();
+    // O total vai à cabeça, grande (`headcount-summary`); os outros quatro dividem-no.
+    await expect(page.locator(".headcount-summary, .headcount-kpis").getByText(label).first()).toBeVisible();
   }
 });
