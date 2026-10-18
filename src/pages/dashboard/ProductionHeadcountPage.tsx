@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Star, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle } from "lucide-react";
+import { Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -172,18 +172,30 @@ function SheetColumn({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn("headcount-sheet-column flex h-full flex-col border bg-card", SHEET_RULE)}>
+    <div className={cn("headcount-sheet-column group/col flex h-full flex-col border bg-card", SHEET_RULE)}>
       <div
         className={cn(
-          "flex min-h-[40px] items-center gap-1 border-b px-1.5",
+          "relative flex min-h-[40px] items-center border-b px-1",
           SHEET_RULE, SHEET_FILL[head],
           onHeadClick && "cursor-pointer hover:brightness-95",
         )}
         onClick={onHeadClick}
         title={headHint}
       >
-        {grip}
-        <span className="headcount-column-title flex-1 truncate text-center text-sm font-bold">{title}</span>
+        {/* A pega e o "+" só aparecem onde há rato, ao passar pela coluna: doze pegas
+            sempre à vista eram ruído na fila amarela. Num tablet (sem hover) ficam. */}
+        {grip && (
+          <span className="absolute inset-y-0 left-0.5 flex items-center [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/col:opacity-100">{grip}</span>
+        )}
+        {/* Duas linhas, partidas nos espaços: "Capsules Machine 1" lia-se "Capsu…" numa
+            coluna de 113px, e o cabeçalho é o que diz que coluna é. */}
+        <span className="headcount-column-title line-clamp-2 flex-1 text-center text-sm font-bold leading-tight [overflow-wrap:normal]" title={title}>{title}</span>
+        {onHeadClick && (
+          <UserPlus
+            aria-hidden
+            className="absolute right-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-0 transition-opacity group-hover/col:opacity-70 no-print"
+          />
+        )}
       </div>
       <div className="flex flex-col">
         {children}
@@ -195,13 +207,27 @@ function SheetColumn({
           ),
         )}
       </div>
-      {/* `Total` e o número por baixo, que é como cada coluna da planilha acaba. */}
-      <div className="mt-auto flex flex-col">
-        <span className={cn("border-b py-1 text-center text-xs font-semibold", SHEET_RULE, SHEET_FILL.total)}>Total</span>
-        <span className={cn("py-1 text-center font-figure text-sm font-bold tabular-nums", SHEET_FILL.total)}>{count}</span>
+      {/* `Total` e o número, o verde com que cada coluna da planilha acaba — numa célula
+          só, lado a lado: em duas eram 56px de verde por banda para dizer um número. */}
+      <div className={cn("mt-auto flex h-8 items-center justify-between px-2.5", SHEET_FILL.total)}>
+        <span className="text-xs font-semibold">Total</span>
+        <span className="font-figure text-base font-bold tabular-nums">{count}</span>
       </div>
     </div>
   );
+}
+
+/**
+ * As faixas de uma banda: todas numa fila, como na folha, enquanto couberem.
+ *
+ * `auto-fill` com um mínimo fixo de 150px partia a banda de produção em 12 + 1 num
+ * portátil — o Runner sozinho numa segunda fila, com um ecrã de células vazias ao lado.
+ * O mínimo passa a ser o maior de dois: 1/n da largura (as n colunas numa fila só) ou
+ * 112px (abaixo disso um nome não se lê). Num tablet, onde n colunas não cabem, volta a
+ * partir em filas — mas em filas cheias.
+ */
+function bandTracks(n: number) {
+  return `repeat(auto-fill, minmax(max(112px, calc(100% / ${Math.max(1, n)} - 1px)), 1fr))`;
 }
 
 function toISO(d: Date) {
@@ -385,6 +411,7 @@ function Chip({
   // Células brancas, como na folha. A cor fica para os cabeçalhos e para o líder; um
   // nome numa coluna de Holidays já diz o que é pela coluna onde está.
   const plain = "bg-card text-foreground";
+  const marked = !!(startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
   const tones: Record<string, string> = {
     production: plain, support: plain, away: plain, overtime: plain, training: plain, roster: plain,
   };
@@ -407,7 +434,7 @@ function Chip({
         // "Sandro V…" — numa folha que existe para se lerem nomes.
         // Altura fixa, com ou sem marcas: é a mesma em todas as células, por isso os
         // Totais de uma banda continuam numa só fila.
-        "headcount-chip flex h-12 w-full max-w-full shrink-0 flex-col overflow-hidden items-center justify-center gap-0.5 border-b px-2 py-1 text-center text-sm font-medium",
+        "headcount-chip flex h-12 w-full max-w-full shrink-0 flex-col overflow-hidden items-center justify-center gap-0.5 border-b px-1.5 py-1 text-center text-[13px] font-medium",
         SHEET_RULE,
         // The leader of *this* line wears the line's own colour — border and wash from
         // the bay, the way the column header already does — so scanning the board says
@@ -433,12 +460,15 @@ function Chip({
           O LEAD fica, pequeno, porque o cinzento sozinho não se lê num ecrã ao sol. */}
       {leader && <span className="sr-only">Lead: </span>}
       <span className="flex max-w-full items-baseline justify-center gap-1">
-        <span className="truncate">{name}</span>
+        {/* Duas linhas quando a célula não leva marcas, partidas nos espaços — numa coluna
+            estreita "Ezaquiel Dos Santos" cabe inteiro assim, e cortado não se lê. Com
+            marcas o nome tem uma linha, e o nome todo fica no tooltip. */}
+        <span className={cn("headcount-chip-name leading-tight [overflow-wrap:normal]", marked ? "truncate text-xs tracking-tight" : "line-clamp-2")}>{name}</span>
         {personRef && (
           <span className="shrink-0 font-figure text-2xs font-semibold text-muted-foreground">{personRef}</span>
         )}
       </span>
-      {(startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew)) && (
+      {marked && (
       <span className="flex max-w-full flex-wrap items-center justify-center gap-1 leading-none">
       {startTime && (
         <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
@@ -542,7 +572,7 @@ function SortableColumn({ id, children }: { id: string; children: (grip: React.R
           // the board nobody could find, on a screen used through gloves. Full
           // contrast and a real hit area — the drag still only starts from here, so
           // the heading keeps opening the picker.
-          className="-ml-1 grid h-8 w-6 shrink-0 place-items-center cursor-grab touch-none rounded text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing no-print"
+          className="grid h-8 w-5 shrink-0 place-items-center cursor-grab touch-none rounded text-black/60 hover:bg-black/10 hover:text-black active:cursor-grabbing no-print"
           title="Drag to move this column"
           onClick={(e) => e.stopPropagation()}
           {...listeners}
@@ -622,10 +652,12 @@ function KpiPill({
   label: string; value: number; tone: string; highlight?: boolean; valueTone?: string;
 }) {
   return (
-    <div className={cn("flex items-center gap-1.5 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"))}>
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", highlight ? "" : "text-muted-foreground")} />
-      <span className={cn("font-figure text-xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
-      <span className="text-2xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+    <div className={cn("flex items-center gap-2 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"))}>
+      <Icon className={cn("h-4 w-4 shrink-0", highlight ? "" : "text-muted-foreground")} />
+      <div className="flex flex-col">
+        <span className={cn("font-figure text-xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
+        <span className="mt-0.5 text-2xs font-medium text-muted-foreground">{label}</span>
+      </div>
     </div>
   );
 }
@@ -1056,33 +1088,43 @@ function ShiftBoard({
               46 assigned out of 82 due in is a shift half planned, and "46" alone
               reads like the whole answer. The rest of the rota is named underneath so
               nobody has to work out where the other 36 went. */}
-          <div className="shrink-0 sm:border-l sm:pl-4">
-            <div className="flex items-baseline gap-1.5">
-              <b className={cn("font-figure text-lg font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
-              <span className="whitespace-nowrap text-2xs font-bold uppercase tracking-wider text-muted-foreground">
-                / {roster.length} {showAll ? "on this shift" : "on the rota"}
+          {/* O número da folha — Total staff in Production — uma vez, grande, e contra o
+              rota. Estava duas vezes nesta barra ("57 / 40 on the rota" e "57 total staff
+              in production"), e a segunda lia-se como outra coisa. */}
+          <div className="headcount-summary shrink-0 sm:border-l sm:pl-4">
+            <div className="flex items-baseline gap-2">
+              <b className={cn("font-figure text-3xl font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
+              <span className="whitespace-nowrap text-sm font-semibold leading-tight">
+                total staff in production
+                <span className="ml-1 font-normal text-muted-foreground">
+                  of {roster.length} {showAll ? "on this shift" : "on the rota"}
+                </span>
               </span>
             </div>
-            <div className="mt-1 h-1 w-36 overflow-hidden rounded-full bg-border">
+            <div className="mt-1.5 h-1 w-full min-w-[11rem] overflow-hidden rounded-full bg-border">
               <div
                 className={cn("h-full rounded-full", look.rule.replace("border-l-", "bg-"))}
                 style={{ width: `${roster.length ? Math.min(100, (assignedCount / roster.length) * 100) : 0}%` }}
               />
             </div>
-            <div className="mt-0.5 whitespace-nowrap text-2xs text-muted-foreground">
-              {unassigned.length} unallocated · {away} away
-              {training > 0 && <> · {training} training</>}
-              {noCrewUnplaced.length > 0 && <> · {noCrewUnplaced.length} with no crew</>}
-            </div>
           </div>
-          {/* `headcount-kpis`: the print sheet sets these five in one row. See index.css. */}
-          <div className="headcount-kpis flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-x-4 gap-y-1 sm:border-l sm:pl-4">
-            <KpiPill icon={Users} label="Total staff in production" value={assignedCount} tone={cn(look.soft, look.ink)} highlight />
+          {/* `headcount-kpis`: the print sheet sets these in one row. See index.css.
+              Como se divide o número de cima, e o que fica fora dele. */}
+          <div className="headcount-kpis flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-x-6 gap-y-1.5 sm:border-l sm:pl-4">
             <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
             <KpiPill icon={Wrench} label="Support" value={support} tone="" />
+            <span aria-hidden className="hidden h-7 w-px bg-border sm:block" />
             <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
             {/* People on an overtime shift, not hours. */}
             <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
+            {training > 0 && <KpiPill icon={Users} label="Training" value={training} tone="" />}
+            <KpiPill
+              icon={UserX}
+              label={noCrewUnplaced.length > 0 ? `Unplaced · ${noCrewUnplaced.length} no crew` : "Unplaced"}
+              value={unassigned.length}
+              tone=""
+              valueTone={unassigned.length ? "text-warning-strong" : "text-muted-foreground"}
+            />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t px-3 py-1.5 print:hidden">
@@ -1272,6 +1314,14 @@ function ShiftBoard({
               </AlertDialogContent>
             </AlertDialog>
           )}
+          {/* O que as cores das células querem dizer, à vista de quem chega ao board pela
+              primeira vez. São as da folha; só faltava a chave. */}
+          <ul aria-label="Key" className="ml-auto hidden flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground lg:flex">
+            <li className="flex items-center gap-1.5"><span className={cn("h-3 w-4 border", SHEET_RULE, SHEET_FILL.leader)} />Leader</li>
+            <li className="flex items-center gap-1.5"><span className={cn("h-3 w-4 border bg-[#92D050]/25", SHEET_RULE)} />Overtime on a line</li>
+            <li className="flex items-center gap-1.5"><span className="rounded-sm border border-muted-foreground/40 bg-muted px-1 text-[9px] font-bold leading-tight">FRI–MON</span>Crew</li>
+            <li className="flex items-center gap-1.5"><span className="italic">Grey italic</span>Planned, not saved</li>
+          </ul>
         </div>
       </div>
 
@@ -1445,7 +1495,10 @@ function ShiftBoard({
         <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
         {/* Colunas encostadas, como as da folha: a linha fina entre duas é uma só, e
             não um corredor de cartões. Tantas lado a lado quantas o ecrã deixar. */}
-        <div className="headcount-columns grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
+        <div
+          className="headcount-columns grid gap-0"
+          style={{ gridTemplateColumns: bandTracks(ofKind.length + (section.key === "support" && awayInSupport ? 1 + AWAY_BLOCKS.length : 0)) }}
+        >
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
@@ -1826,7 +1879,9 @@ function SheetDayTabs({ date, today, onPick }: { date: string; today: string; on
   return (
     <nav
       aria-label="Days of the month"
-      className="print:hidden md:sticky md:bottom-0 md:z-10 border-t border-neutral-400 bg-muted/95 backdrop-blur"
+      // Opaca e com sombra para cima: a 95% via-se a banda de apoio a passar por baixo
+      // das abas, e parecia que as colunas estavam partidas a meio.
+      className="print:hidden md:sticky md:bottom-0 md:z-10 border-t border-neutral-400 bg-muted shadow-[0_-4px_12px_-6px_rgba(0,0,0,0.25)]"
     >
       <div ref={strip} className="flex overflow-x-auto overscroll-x-contain">
         {days.map((d) => {

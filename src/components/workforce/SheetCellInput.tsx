@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { matchCellName, type CellCandidate } from "@/lib/cellNameMatch";
 
@@ -55,8 +56,16 @@ export function SheetCellInput<T extends CellCandidate>({
         aria-expanded={open && hits.length > 0}
         aria-controls={listId}
         aria-autocomplete="list"
-        className="h-full w-full bg-transparent px-2 text-center text-sm placeholder:text-muted-foreground/40 focus:bg-primary/5 focus:outline-none focus:placeholder:text-muted-foreground/70"
+        // "Type a name" em todas as colunas era a palavra mais repetida do board. Fica um
+        // "+" discreto; o texto aparece ao passar pela coluna ou ao tocar na célula.
+        className="peer h-full w-full bg-transparent px-2 text-center text-sm placeholder:text-transparent focus:bg-primary/5 focus:outline-none focus:placeholder:text-muted-foreground/70 group-hover/col:placeholder:text-muted-foreground/50"
       />
+      {!typed && (
+        <Plus
+          aria-hidden
+          className="pointer-events-none absolute inset-0 m-auto h-4 w-4 text-muted-foreground/35 group-hover/col:opacity-0 peer-focus:opacity-0"
+        />
+      )}
       {open && typed.trim() && (
         <ul
           id={listId}
