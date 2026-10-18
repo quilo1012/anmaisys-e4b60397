@@ -18,7 +18,7 @@ import {
   useMyOvertimeBlock, useMyOvertimeClashes, useOvertimePlaces,
 } from "@/hooks/useOvertimeRequests";
 import {
-  upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel,
+  upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
   headcountLine, audienceLine, placesLine, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";

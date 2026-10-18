@@ -1,4 +1,5 @@
 import { ShiftTag } from "@/components/ShiftTag";
+import { SHIFT_LOOK } from "@/lib/shiftLook";
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
@@ -309,8 +310,8 @@ function SectionLabel({
  * the same colour and no way to tell them apart.
  */
 const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; soft: string; ink: string }> = {
-  Day: { icon: Sun, rule: "border-l-warning", chip: "bg-warning/15 text-warning-strong", soft: "bg-warning/10", ink: "text-warning-strong" },
-  Night: { icon: Moon, rule: "border-l-primary", chip: "bg-primary/15 text-primary", soft: "bg-primary/10", ink: "text-primary" },
+  Day: { icon: Sun, rule: SHIFT_LOOK.day.edge, chip: SHIFT_LOOK.day.pill, soft: "bg-shift-day-surface", ink: "text-shift-day-strong" },
+  Night: { icon: Moon, rule: SHIFT_LOOK.night.edge, chip: SHIFT_LOOK.night.pill, soft: "bg-shift-night-surface", ink: "text-shift-night-strong" },
 };
 
 /**
