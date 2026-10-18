@@ -59,7 +59,7 @@ export function Figure({
       // only colour in the row, so it is the thing the eye finds.
       className={cn(bare ? "min-w-0" : "rounded-xl border bg-card p-3", className)}
     >
-      <div className="truncate text-2xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className={cn("text-2xs font-semibold uppercase tracking-wider text-muted-foreground", typeof label === "string" ? "truncate" : "whitespace-normal [&>span]:items-start")}>
         {label}
       </div>
 
