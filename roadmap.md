@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Allow managers to open/correct employee records and view rota, position and shift history without Headcount; verify Weekend option
+- [x] Allow managers to open/correct employee records and view rota, position and shift history without Headcount; verify Weekend option
 
 - [x] Fix 2 failing tests after qualityImport corrections
 - [x] Report: removed shift time range, added "- No issues today." fallback
