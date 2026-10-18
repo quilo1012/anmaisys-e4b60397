@@ -32,7 +32,6 @@ import {
   authIcon,
   authInlineBtn,
   authLabel,
-  authLink,
 } from "@/components/auth/authStyles";
 import {
   clearLoginLockout,

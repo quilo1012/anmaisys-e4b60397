@@ -1,5 +1,5 @@
 import { ShiftTimeRange, nextDaySuffix } from "@/components/ShiftTimeRange";
-import { Fragment, useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { BADGE_EMAIL_DOMAIN } from "@/lib/employeeAccounts";
 import { toast } from "sonner";
