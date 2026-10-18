@@ -43,13 +43,6 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
-    name: "overtime_places",
-    block: "BLOCO 101 — 20261018140000_an_ask_holds_only_the_places_it_has.sql",
-    fallback:
-      "useOvertimePlaces turns PGRST202 into an empty map, and MyOvertimePage then says " +
-      "only how many people are needed, exactly as before the block.",
-  },
-  {
     name: "login_link_candidates",
     block: "BLOCO 91 — 20261012170000_a_supervisor_links_a_login_to_its_person.sql",
     fallback:

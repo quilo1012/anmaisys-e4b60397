@@ -33,6 +33,12 @@ describe("isPendingRpc", () => {
     expect(isPendingRpc("Could not find the function public.answer_overtime in the schema cache")).toBe(false);
   });
 
+  it("overtime_places já aplicada não fica na lista de funções pendentes", () => {
+    expect(isPendingRpc(
+      "Could not find the function public.overtime_places(p_request_ids) in the schema cache",
+    )).toBe(false);
+  });
+
   it("aguenta mensagem ausente", () => {
     for (const nada of [null, undefined, ""]) expect(isPendingRpc(nada)).toBe(false);
   });
