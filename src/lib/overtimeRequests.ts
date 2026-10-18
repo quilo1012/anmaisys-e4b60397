@@ -96,6 +96,43 @@ export function countResponses(
   };
 }
 
+/**
+ * How many places the ask has given away: accepted, and still coming.
+ *
+ * Somebody accepted who then dropped out (any outcome but 'attended') no longer holds a
+ * place — that is the gap `record_overtime_outcome` fills from the reserve. The database
+ * counts the same way (`overtime_places_taken`, BLOCO 101) and refuses an accept past
+ * the headcount, so the screen greys Accept out on the same number instead of letting
+ * the supervisor press it and read a refusal.
+ */
+export function placesTaken(
+  responses: Pick<OvertimeResponse, "id" | "decision">[],
+  outcomeOf: (responseId: string) => string | undefined,
+): number {
+  return responses.filter((r) => {
+    if (r.decision !== "accepted") return false;
+    const outcome = outcomeOf(r.id);
+    return outcome === undefined || outcome === "attended";
+  }).length;
+}
+
+/**
+ * What the floor reads about room on an ask, or null when it cannot be known (the
+ * counts are not in yet, or BLOCO 101 is not pasted).
+ *
+ * A full ask still takes a yes — the supervisor puts it on reserve, and the reserve is
+ * who steps in when somebody drops out — so "full" is said as what a yes now means,
+ * not as a closed door.
+ */
+export function placesLine(places: { taken: number; headcount: number } | undefined): string | null {
+  if (!places) return null;
+  const left = Math.max(0, places.headcount - places.taken);
+  if (left === 0) {
+    return `All ${places.headcount} ${places.headcount === 1 ? "place is" : "places are"} filled — a yes puts you on the reserve list`;
+  }
+  return `${left} of ${places.headcount} ${places.headcount === 1 ? "place" : "places"} left`;
+}
+
 export type ReliabilityTone = "good" | "warn" | "bad";
 
 export interface OvertimeRules {

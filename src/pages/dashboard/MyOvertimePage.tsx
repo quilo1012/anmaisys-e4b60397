@@ -12,11 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   useMyEmployee, useMyUpcomingOvertime, useOvertimeResponses, useOvertimeMutations,
-  useMyOvertimeBlock, useMyOvertimeClashes,
+  useMyOvertimeBlock, useMyOvertimeClashes, useOvertimePlaces,
 } from "@/hooks/useOvertimeRequests";
 import {
   upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
-  headcountLine, audienceLine, type OvertimeRequest,
+  headcountLine, audienceLine, placesLine, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -255,6 +255,10 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
     () => upcomingForMe(requests, me, mine, now, clashes),
     [requests, me, mine, now, clashes],
   );
+  // Room left on each open ask. Counts only: the floor cannot read anyone else's answer.
+  const { data: places } = useOvertimePlaces(
+    visible.filter((r) => r.status === "open").map((r) => r.id),
+  );
 
   /**
    * Arriving from the bell: `?ask=<id>` scrolls to that ask and rings it. If it is not
@@ -384,6 +388,8 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
+        // Room is only news to somebody still deciding; once picked, it is not their question.
+        const room = r.status === "open" && !my?.decision ? places?.get(r.id) : undefined;
         // Open, undecided, and not yet begun. The third was missing once, which is
         // how a morning that had ended was still taking answers at eleven at night.
         const canAnswer = r.status === "open" && !my?.decision && !askHasStarted(r, now);
@@ -422,6 +428,11 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   <div className="text-sm text-muted-foreground">
                     {headcountLine(r)} — {audienceLine(r)}
                   </div>
+                  {room && (
+                    <div className={cn("text-sm", room.taken >= room.headcount ? "font-medium text-warning-strong" : "text-muted-foreground")}>
+                      {placesLine(room)}
+                    </div>
+                  )}
                 </div>
                 <Badge variant="outline" className={cn("shrink-0 font-normal", tone)}>
                   {my?.decision === "accepted" && <Check className="mr-1 h-3 w-3" />}

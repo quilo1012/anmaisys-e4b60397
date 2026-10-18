@@ -230,6 +230,39 @@ export function useOvertimeScheduleClashes(requestIds: string[]) {
   });
 }
 
+/**
+ * Places taken and wanted per ask, for anybody signed in — the floor included, whose
+ * read policy on `overtime_responses` shows them only their own row. Counts, never
+ * names. An empty map until BLOCO 101 is pasted: the card then says only how many
+ * people are needed, as it did before.
+ */
+export function useOvertimePlaces(requestIds: string[]) {
+  const ids = [...requestIds].sort();
+  return useQuery({
+    queryKey: ["overtime_places", ...ids],
+    enabled: ids.length > 0,
+    meta: { schemaOptional: true },
+    staleTime: 60_000,
+    queryFn: async (): Promise<Map<string, { taken: number; headcount: number }>> => {
+      const out = new Map<string, { taken: number; headcount: number }>();
+      // The function takes at most 200 asks a call.
+      for (let i = 0; i < ids.length; i += 200) {
+        // BLOCO 101: the types.ts only learns the function once the block is pasted.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (db.rpc as any)("overtime_places", { p_request_ids: ids.slice(i, i + 200) });
+        if (error) {
+          if ((error as { code?: string }).code === "PGRST202") return new Map();
+          throw error;
+        }
+        for (const r of (data ?? []) as { request_id: string; taken: number; headcount: number }[]) {
+          out.set(r.request_id, { taken: r.taken, headcount: r.headcount });
+        }
+      }
+      return out;
+    },
+  });
+}
+
 export interface OutcomeRow {
   response_id: string;
   outcome: OvertimeOutcome;
@@ -363,6 +396,7 @@ export function useOvertimeMutations() {
     void qc.invalidateQueries({ queryKey: ["overtime_board_rows"] });
     void qc.invalidateQueries({ queryKey: ["my_overtime_clashes"] });
     void qc.invalidateQueries({ queryKey: ["overtime_schedule_clashes"] });
+    void qc.invalidateQueries({ queryKey: ["overtime_places"] });
   };
 
   const createRequest = useMutation({

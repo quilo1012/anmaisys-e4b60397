@@ -46,6 +46,7 @@ const hooks = vi.hoisted(() => {
     useOvertimeResponses: vi.fn(() => ({ data: [] })),
     useMyOvertimeBlock: vi.fn(() => ({ data: null })),
     useMyOvertimeClashes: () => ({ data: undefined }),
+    useOvertimePlaces: () => ({ data: undefined }),
     useOvertimeMutations: vi.fn(() => ({
       answer: { mutate: vi.fn() }, linkMe: { mutate: vi.fn(), isPending: false },
     })),
