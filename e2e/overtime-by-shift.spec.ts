@@ -48,11 +48,12 @@ const BOARD = [
   { on_date: day(1), shift: "Day", employee_id: "e1", status: "overtime" },
 ];
 
-async function open(page: Page, width: number) {
-  await page.addInitScript(([ref, s]) => {
+async function open(page: Page, width: number, mode: "list" | "calendar" = "list") {
+  await page.addInitScript(([ref, s, m]) => {
     window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(s));
+    window.localStorage.setItem("overtime.mode", m);
     window.sessionStorage.setItem("pin-ok:workforce", "1");
-  }, [REF, SESSION] as const);
+  }, [REF, SESSION, mode] as const);
   await page.route(/supabase\.co/, async (route: Route) => {
     const url = route.request().url();
     const json = (d: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(d) });
@@ -70,7 +71,7 @@ async function open(page: Page, width: number) {
   await page.setViewportSize({ width, height: 1400 });
   await page.goto("/dashboard/overtime");
   await expect(page.getByRole("heading", { name: "Overtime Management" })).toBeVisible({ timeout: 20000 });
-  await expect(page.getByText("Welligton Segat").first()).toBeVisible({ timeout: 15000 });
+  if (mode === "list") await expect(page.getByText("Welligton Segat").first()).toBeVisible({ timeout: 15000 });
 }
 
 for (const [label, width] of [["desktop", 1440], ["tablet", 1005], ["phone", 390]] as const) {
@@ -97,4 +98,33 @@ test("the Night tab shows only night asks", async ({ page }) => {
   await expect(page.getByRole("region", { name: /Day shift/ })).toHaveCount(0);
   await expect(page.getByText("Line 3, packing", { exact: false })).toHaveCount(0);
   await expect(page.getByRole("region", { name: /Night shift/ }).getByText("Daniel Quilo")).toBeVisible();
+});
+
+for (const [label, width] of [["desktop", 1440], ["tablet", 1005], ["phone", 390]] as const) {
+  test(`the overtime calendar fits the ${label} (${width}px)`, async ({ page }) => {
+    await open(page, width, "calendar");
+    const cal = page.getByRole("region", { name: "Overtime calendar" });
+    await expect(cal).toBeVisible();
+    for (const v of ["Month", "Week", "Day"]) {
+      await cal.getByRole("radio", { name: v }).click();
+      if (v === "Month") await page.screenshot({ path: `e2e/.results/overtime-calendar-month-${label}.png` });
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `${v} view scrolls sideways`).toBeLessThanOrEqual(0);
+    }
+    await cal.getByRole("radio", { name: "Week" }).click();
+    await expect(cal.getByRole("radio", { name: "Week" })).toHaveAttribute("aria-checked", "true");
+    await expect(cal.getByRole("radio", { name: "Day" })).toHaveAttribute("aria-checked", "false");
+    await page.screenshot({ path: `e2e/.results/overtime-calendar-${label}.png`, fullPage: true });
+  });
+}
+
+test("an ask on the calendar opens its card, with the decisions on it", async ({ page }) => {
+  await open(page, 1440, "calendar");
+  const cal = page.getByRole("region", { name: "Overtime calendar" });
+  await cal.getByRole("radio", { name: "Week" }).click();
+  const entry = cal.getByRole("button", { name: /^18:00–06:00, Night shift, 1 of 3 filled/ });
+  if (await entry.count() === 0) await cal.getByRole("button", { name: "Next week" }).click();
+  await entry.click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByRole("button", { name: "Accept Welligton Segat" })).toBeDisabled();
 });

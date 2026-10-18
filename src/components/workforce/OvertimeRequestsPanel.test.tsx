@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 
 /**
@@ -41,6 +41,8 @@ const board = [{ on_date: tomorrow, shift: "Night", employee_id: "e-night", stat
 const mutation = () => ({ mutate: vi.fn(), isPending: false });
 vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeRequests: () => ({ data: requests, isLoading: false, isError: false }),
+  useOvertimeRequestsBetween: () => ({ data: requests, isLoading: false, isError: false }),
+  asksOnDates: vi.fn(async () => []),
   useOvertimeResponsesFor: () => ({ data: responses, isLoading: false }),
   useOvertimeOutcomesFor: () => ({ data: [] }),
   useOvertimeReliability: () => ({ data: new Map() }),
@@ -54,6 +56,9 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
 }));
 
 import { OvertimeRequestsPanel } from "./OvertimeRequestsPanel";
+
+// These read the list. The calendar has its own tests below.
+beforeEach(() => window.localStorage.setItem("overtime.mode", "list"));
 
 describe("OvertimeRequestsPanel", () => {
   it("files each ask under the shift it is for, not the person's crew", () => {
@@ -87,5 +92,31 @@ describe("OvertimeRequestsPanel", () => {
     expect(within(night).getByText(/Already rostered on the night shift/)).toBeInTheDocument();
     expect(within(night).getByRole("button", { name: "Accept Bruno Night" })).toBeDisabled();
     expect(within(night).getByRole("button", { name: "Reserve Bruno Night" })).toBeEnabled();
+  });
+});
+
+describe("OvertimeRequestsPanel — calendar", () => {
+  beforeEach(() => window.localStorage.removeItem("overtime.mode"));
+
+  it("opens on the calendar, and an ask on it opens the same card the list shows", () => {
+    render(<OvertimeRequestsPanel />);
+    const cal = screen.getByRole("region", { name: "Overtime calendar" });
+    // Tomorrow may sit in next month's first week; the week view always holds it.
+    fireEvent.click(screen.getByRole("radio", { name: "Week" }));
+    if (!within(cal).queryByRole("button", { name: /18:00–06:00, Night shift/ })) {
+      fireEvent.click(within(cal).getByRole("button", { name: "Next week" }));
+    }
+    const night = within(cal).getByRole("button", { name: /18:00–06:00, Night shift, 1 of 2 filled, Partially filled/ });
+    fireEvent.click(night);
+    const sheet = screen.getByRole("dialog");
+    expect(within(sheet).getByText("Ana Day")).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Accept Bruno Night" })).toBeDisabled();
+  });
+
+  it("the List toggle brings the shift sections back", () => {
+    render(<OvertimeRequestsPanel />);
+    fireEvent.click(screen.getByRole("radio", { name: /List/ }));
+    expect(screen.getByRole("region", { name: /Night shift/ })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Overtime calendar" })).not.toBeInTheDocument();
   });
 });

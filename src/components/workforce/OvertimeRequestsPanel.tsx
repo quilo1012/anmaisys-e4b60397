@@ -14,13 +14,22 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Check, Clock, X, UserPlus, Loader2, Pencil, AlertTriangle, Ban, Sun, Moon, RotateCcw } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  Plus, Check, Clock, X, UserPlus, Loader2, Pencil, AlertTriangle, Ban, Sun, Moon, RotateCcw, CalendarDays, List,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { can } from "@/lib/permissions";
 import {
   useOvertimeRequests, useOvertimeResponsesFor, useOvertimeOutcomesFor, useOvertimeReliability,
   useOvertimeMutations, useOvertimeRoster, useOvertimeBoardRows, useOvertimeScheduleClashes, type RosterName,
+  useOvertimeRequestsBetween, asksOnDates,
 } from "@/hooks/useOvertimeRequests";
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
@@ -34,6 +43,8 @@ import {
 } from "@/lib/overtimeShifts";
 import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
 import { answeredForDifferentHours, countStale, windowAnswered } from "@/lib/staleOvertimeAnswer";
+import { OvertimeCalendar, TOGGLE_ON } from "@/components/workforce/OvertimeCalendar";
+import { viewRange, viewTitle, duplicateOf, type CalendarView } from "@/lib/overtimeCalendar";
 
 const fmtDate = (d: string) => d.split("-").reverse().join("/");
 const iso = (d: Date) =>
@@ -73,6 +84,14 @@ const RANGE_LABEL: Record<AskFilters["range"], string> = {
 };
 
 type ShiftTab = "all" | OvertimeShift;
+type Mode = "calendar" | "list";
+
+/** Calendar or list, remembered per browser. A convenience only: unreadable storage means calendar. */
+const MODE_KEY = "overtime.mode";
+const readMode = (): Mode => {
+  try { return window.localStorage.getItem(MODE_KEY) === "list" ? "list" : "calendar"; } catch { return "calendar"; }
+};
+const saveMode = (m: Mode) => { try { window.localStorage.setItem(MODE_KEY, m); } catch { /* not kept */ } };
 
 /**
  * Overtime Management: ask, choose, then say what happened — split by the shift the
@@ -91,7 +110,18 @@ type ShiftTab = "all" | OvertimeShift;
 export function OvertimeRequestsPanel() {
   const { role } = useAuth();
   const mayManage = can(role, "overtime.manage");
-  const { data: requests = [], isLoading, isError, error, refetch } = useOvertimeRequests();
+  const [mode, setModeState] = useState<Mode>(readMode);
+  const setMode = (m: Mode) => { setModeState(m); saveMode(m); };
+  const [calView, setCalView] = useState<CalendarView>("month");
+  const [anchor, setAnchor] = useState(() => iso(new Date()));
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [createOn, setCreateOn] = useState<string | null>(null);
+  const range = viewRange(calView, anchor);
+  // The list keeps its own read (today on, plus fourteen days back); the calendar
+  // reads whatever dates it is showing. Only the one on screen is fetched.
+  const listQuery = useOvertimeRequests();
+  const calQuery = useOvertimeRequestsBetween(range.from, range.to, mode === "calendar");
+  const { data: requests = [], isLoading, isError, error, refetch } = mode === "calendar" ? calQuery : listQuery;
   const { data: roster = [] } = useOvertimeRoster();
   const { data: reliability } = useOvertimeReliability();
   const { data: responses = [], isLoading: responsesLoading } = useOvertimeResponsesFor(requests.map((r) => r.id));
@@ -113,9 +143,11 @@ export function OvertimeRequestsPanel() {
     [outcomes],
   );
 
+  // On the calendar the dates are the calendar's; the date filter is the list's.
   const filtered = useMemo(
-    () => filterAsks(requests, responsesByRequest, filters, today),
-    [requests, responsesByRequest, filters, today],
+    () => filterAsks(requests, responsesByRequest,
+      mode === "calendar" ? { ...filters, range: "date", date: "" } : filters, today),
+    [requests, responsesByRequest, filters, today, mode],
   );
   const byShift = useMemo(() => {
     const m: Record<OvertimeShift, OvertimeRequest[]> = { Day: [], Night: [] };
@@ -143,9 +175,13 @@ export function OvertimeRequestsPanel() {
   const dupNames = useMemo(() => duplicateNames(roster), [roster]);
 
   const filtersChanged = JSON.stringify(filters) !== JSON.stringify(DEFAULT_FILTERS);
-  const rangeLabel = filters.range === "date"
-    ? (filters.date ? fmtDate(filters.date) : "Any date")
-    : RANGE_LABEL[filters.range];
+  const rangeLabel = mode === "calendar"
+    ? viewTitle(calView, anchor)
+    : filters.range === "date"
+      ? (filters.date ? fmtDate(filters.date) : "Any date")
+      : RANGE_LABEL[filters.range];
+  const selected = selectedId ? requests.find((r) => r.id === selectedId) ?? null : null;
+  const calendarAsks = tab === "all" ? filtered : byShift[tab];
   const loading = isLoading || (requests.length > 0 && responsesLoading);
 
   const ctx: CardContext = {
@@ -159,7 +195,7 @@ export function OvertimeRequestsPanel() {
         description="Manage overtime requests, approvals and shift coverage."
       >
         {mayManage && (
-          <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>
+          <Button size="sm" variant="secondary" onClick={() => { setCreateOn(null); setCreating(true); }}>
             <Plus className="mr-1.5 h-4 w-4" aria-hidden />
             <span className="hidden sm:inline">New overtime ask</span><span className="sm:hidden">New ask</span>
           </Button>
@@ -185,6 +221,15 @@ export function OvertimeRequestsPanel() {
       {/* Filters. Compact, one row on a desk, wrapping on a phone. */}
       <div className="flex flex-wrap items-end gap-2 rounded-xl border bg-card p-3" role="group" aria-label="Filters">
         <div className="grid gap-1">
+          <span className="text-2xs uppercase tracking-wider text-muted-foreground">View</span>
+          <ToggleGroup type="single" value={mode} onValueChange={(v) => v && setMode(v as Mode)}
+            variant="outline" size="sm" aria-label="Calendar or list">
+            <ToggleGroupItem value="calendar" className={cn("h-9 gap-1.5", TOGGLE_ON)}><CalendarDays className="h-4 w-4" aria-hidden />Calendar</ToggleGroupItem>
+            <ToggleGroupItem value="list" className={cn("h-9 gap-1.5", TOGGLE_ON)}><List className="h-4 w-4" aria-hidden />List</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+        {mode === "list" && (<>
+        <div className="grid gap-1">
           <Label htmlFor="ot-f-range" className="text-2xs uppercase tracking-wider text-muted-foreground">Date</Label>
           <Select value={filters.range} onValueChange={(v) => setFilters((f) => ({ ...f, range: v as AskFilters["range"] }))}>
             <SelectTrigger id="ot-f-range" className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
@@ -201,6 +246,7 @@ export function OvertimeRequestsPanel() {
             <DateField value={filters.date} onChange={(d) => setFilters((f) => ({ ...f, date: d }))} aria-label="Overtime date" />
           </div>
         )}
+        </>)}
         <div className="grid gap-1">
           <Label htmlFor="ot-f-state" className="text-2xs uppercase tracking-wider text-muted-foreground">Status</Label>
           <Select value={filters.state} onValueChange={(v) => setFilters((f) => ({ ...f, state: v as AskFilters["state"] }))}>
@@ -261,19 +307,37 @@ export function OvertimeRequestsPanel() {
         <div className="space-y-3" aria-busy="true">
           {[0, 1].map((i) => <div key={i} className="h-32 animate-pulse rounded-xl border bg-muted/40" />)}
         </div>
+      ) : mode === "calendar" ? (
+        <OvertimeCalendar
+          view={calView} anchor={anchor} onViewChange={setCalView} onAnchorChange={setAnchor}
+          asks={calendarAsks} responsesByRequest={responsesByRequest} mayManage={mayManage}
+          onSelect={setSelectedId}
+          onCreate={(d) => { setCreateOn(d); setCreating(true); }}
+        />
       ) : (
         (tab === "all" ? OVERTIME_SHIFTS : [tab]).map((s) => (
           <ShiftSection
             key={s} shift={s} asks={byShift[s]} summary={perShift[s]} rangeLabel={rangeLabel}
             ctx={ctx} mayManage={mayManage}
-            onCreate={() => { setTab(s); setCreating(true); }}
+            onCreate={() => { setTab(s); setCreateOn(null); setCreating(true); }}
           />
         ))
       )}
 
+      {/* The calendar's detail: the same card the list shows, with every decision on it. */}
+      <Sheet open={selected !== null} onOpenChange={(v) => { if (!v) setSelectedId(null); }}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
+          <SheetHeader className="mb-3">
+            <SheetTitle>Overtime ask</SheetTitle>
+            <SheetDescription>Who said yes, who is picked, and what is still to fill.</SheetDescription>
+          </SheetHeader>
+          {selected && <RequestCard request={selected} ctx={ctx} mayManage={mayManage} />}
+        </SheetContent>
+      </Sheet>
+
       <NewRequestDialog
         open={creating} onOpenChange={setCreating}
-        defaultShift={tab === "all" ? "Day" : tab} roster={roster}
+        defaultShift={tab === "all" ? "Day" : tab} defaultDate={createOn} roster={roster}
       />
     </div>
   );
@@ -329,8 +393,10 @@ function ShiftSection({ shift, asks, summary, rangeLabel, ctx, mayManage, onCrea
   );
 }
 
-function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
-  open: boolean; onOpenChange: (v: boolean) => void; defaultShift: OvertimeShift; roster: RosterName[];
+function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roster }: {
+  open: boolean; onOpenChange: (v: boolean) => void; defaultShift: OvertimeShift;
+  /** The day pressed on the calendar, or null for tomorrow. */
+  defaultDate: string | null; roster: RosterName[];
 }) {
   const { createRequest } = useOvertimeMutations();
   const [onDate, setOnDate] = useState(iso(new Date(Date.now() + 86_400_000)));
@@ -340,14 +406,24 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
   const [department, setDepartment] = useState<string>("all");
   const [shiftGroup, setShiftGroup] = useState<string>("all");
   const [note, setNote] = useState("");
-  const [seenDefault, setSeenDefault] = useState<OvertimeShift | null>(null);
+  const [seenDefault, setSeenDefault] = useState<string | null>(null);
+  /** More dates with the same hours and people — one ask each. */
+  const [extraDates, setExtraDates] = useState<string[]>([]);
+  const [pickDate, setPickDate] = useState("");
+  /** The review before several asks go out: each date, and any duplicate found. */
+  const [review, setReview] = useState<{ date: string; duplicate: boolean }[] | null>(null);
+  const [publishing, setPublishing] = useState(false);
 
-  // Opening from the Night tab starts on the night's hours. Only on opening: once the
-  // supervisor has typed a time, switching tabs behind the dialog must not undo it.
-  if (open && seenDefault !== defaultShift) {
-    setSeenDefault(defaultShift);
+  // Opening from the Night tab starts on the night's hours, and from a calendar day on
+  // that day. Only on opening: once the supervisor has typed a time, switching tabs
+  // behind the dialog must not undo it.
+  const openKey = `${defaultShift}|${defaultDate ?? ""}`;
+  if (open && seenDefault !== openKey) {
+    setSeenDefault(openKey);
     setStartsAt(SHIFT_HOURS[defaultShift].starts);
     setEndsAt(SHIFT_HOURS[defaultShift].ends);
+    if (defaultDate) setOnDate(defaultDate);
+    setExtraDates([]); setReview(null);
   }
   if (!open && seenDefault !== null) setSeenDefault(null);
 
@@ -360,19 +436,31 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
     [roster],
   );
   const target = /^\d{2}:\d{2}/.test(startsAt) ? askShift({ starts_at: startsAt }) : null;
+  const today = iso(new Date());
+  const allDates = Array.from(new Set([onDate, ...extraDates].filter(Boolean))).sort();
+
+  const payload = (date: string) => ({
+    on_date: date, starts_at: startsAt, ends_at: endsAt, headcount: Number(headcount),
+    department: department === "all" ? null : department,
+    shift_group: shiftGroup === "all" ? null : shiftGroup,
+    note: note.trim() || null,
+  });
+
+  const validate = (): boolean => {
+    const n = Number(headcount);
+    if (!onDate) { toast.error("Pick a date."); return false; }
+    if (allDates.some((d) => d < today)) { toast.error("Overtime cannot be asked for a day that has passed."); return false; }
+    if (!Number.isInteger(n) || n <= 0) { toast.error("How many people? A whole number above zero."); return false; }
+    if (startsAt === endsAt) { toast.error("Start and end cannot be the same time."); return false; }
+    return true;
+  };
 
   const submit = () => {
+    if (!validate()) return;
+    if (allDates.length > 1) { void prepareReview(); return; }
     const n = Number(headcount);
-    if (!onDate) { toast.error("Pick a date."); return; }
-    if (!Number.isInteger(n) || n <= 0) { toast.error("How many people? A whole number above zero."); return; }
-    if (startsAt === endsAt) { toast.error("Start and end cannot be the same time."); return; }
     createRequest.mutate(
-      {
-        on_date: onDate, starts_at: startsAt, ends_at: endsAt, headcount: n,
-        department: department === "all" ? null : department,
-        shift_group: shiftGroup === "all" ? null : shiftGroup,
-        note: note.trim() || null,
-      },
+      payload(onDate),
       {
         onSuccess: ({ push }) => {
           const head = `Published: ${n} needed on ${fmtDate(onDate)}`;
@@ -387,17 +475,112 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
     );
   };
 
+  /** Read what is already on those dates, fresh, and show the list before anything is written. */
+  const prepareReview = async () => {
+    try {
+      const existing = await asksOnDates(allDates);
+      setReview(allDates.map((date) => ({
+        date,
+        duplicate: duplicateOf({ on_date: date, starts_at: startsAt, ends_at: endsAt,
+          department: department === "all" ? null : department }, existing) !== null,
+      })));
+    } catch (e) {
+      toast.error((e as Error).message || "Could not check the dates");
+    }
+  };
+
+  /**
+   * One ask per date, one after another, skipping the duplicates. Each is its own
+   * write with its own announcement — the same path a single ask takes — so a
+   * failure part-way says which dates went out and which did not.
+   */
+  const publishAll = async () => {
+    if (!review) return;
+    setPublishing(true);
+    const done: string[] = []; const failed: string[] = [];
+    for (const row of review) {
+      if (row.duplicate) continue;
+      try { await createRequest.mutateAsync(payload(row.date)); done.push(row.date); }
+      catch { failed.push(row.date); }
+    }
+    setPublishing(false);
+    const skipped = review.filter((r) => r.duplicate).length;
+    const parts = [`Published ${done.length} ${done.length === 1 ? "ask" : "asks"}`];
+    if (skipped) parts.push(`${skipped} skipped as duplicates`);
+    if (failed.length) parts.push(`failed: ${failed.map(fmtDate).join(", ")}`);
+    (failed.length ? toast.error : toast.success)(parts.join(" · "), { duration: 10000 });
+    if (!failed.length) { onOpenChange(false); setNote(""); setExtraDates([]); setReview(null); }
+    else setReview(review.filter((r) => failed.includes(r.date)).map((r) => ({ ...r, duplicate: false })));
+  };
+
+  const toPublish = review?.filter((r) => !r.duplicate).length ?? 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New overtime ask</DialogTitle>
-          <DialogDescription>Say when and how many. Everyone it applies to will see it and answer yes or no.</DialogDescription>
+          <DialogTitle>{review ? "Review before publishing" : "New overtime ask"}</DialogTitle>
+          <DialogDescription>
+            {review
+              ? "Each date becomes its own ask, and everyone it applies to is told. Nothing is published until you confirm."
+              : "Say when and how many. Everyone it applies to will see it and answer yes or no."}
+          </DialogDescription>
         </DialogHeader>
+        {review ? (
+          <div className="grid gap-3">
+            <ul className="divide-y rounded-lg border text-sm" aria-label="Asks to publish">
+              {review.map((r) => (
+                <li key={r.date} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                  <span className="tabular-nums">
+                    <strong>{fmtDate(r.date)}</strong> · {windowLabel(startsAt, endsAt)} · {target} shift
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {r.duplicate
+                      ? <span className="font-medium text-warning-strong">Already asked — skipped</span>
+                      : <>{headcount} needed · {department === "all" ? "Everyone" : department}</>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setReview(null)} disabled={publishing}>Back</Button>
+              <Button onClick={() => void publishAll()} disabled={publishing || toPublish === 0}>
+                {publishing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Publish {toPublish} {toPublish === 1 ? "ask" : "asks"}
+              </Button>
+            </div>
+          </div>
+        ) : (
         <div className="grid gap-3">
           <div className="grid gap-1.5">
             <Label>Date</Label>
-            <DateField value={onDate} onChange={setOnDate} aria-label="Date" />
+            <DateField value={onDate} onChange={setOnDate} min={today} aria-label="Date" />
+          </div>
+          {/* The same ask on other days: one ask per date, reviewed before anything goes out. */}
+          <div className="grid gap-1.5">
+            <Label>Also on (optional)</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <DateField value={pickDate} onChange={setPickDate} min={today} aria-label="Another date" />
+              <Button type="button" size="sm" variant="outline" disabled={!pickDate || allDates.includes(pickDate)}
+                onClick={() => { setExtraDates((d) => [...d, pickDate]); setPickDate(""); }}>
+                <Plus className="mr-1 h-4 w-4" /> Add date
+              </Button>
+            </div>
+            {extraDates.length > 0 && (
+              <ul className="flex flex-wrap gap-1.5" aria-label="Other dates">
+                {[...extraDates].sort().map((d) => (
+                  <li key={d}>
+                    <Badge variant="outline" className="gap-1 font-normal tabular-nums">
+                      {fmtDate(d)}
+                      <button type="button" aria-label={`Remove ${fmtDate(d)}`}
+                        onClick={() => setExtraDates((xs) => xs.filter((x) => x !== d))}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label>Target shift</Label>
@@ -466,9 +649,10 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, roster }: {
           </div>
           <Button onClick={submit} disabled={createRequest.isPending}>
             {createRequest.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Post the ask
+            {allDates.length > 1 ? `Review ${allDates.length} asks` : "Post the ask"}
           </Button>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -523,6 +707,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
     setEditing(true);
   };
   const [addingFor, setAddingFor] = useState<string>("");
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   /**
    * Open, close or cancel — and say so when the write is refused.
@@ -779,7 +964,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <Button size="sm" variant="ghost" onClick={openEdit}>
                 <Pencil className="mr-1 h-4 w-4" /> Edit
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => changeStatus("cancelled")}>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmCancel(true)}>
                 Cancel ask
               </Button>
               <Button size="sm" variant="secondary" onClick={() => changeStatus("closed")}>
@@ -797,6 +982,29 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
         )}
       </CardContent>
     </Card>
+
+      {/* Cancelling takes the shift away from everyone already picked, and their rows
+          off the board, so it is asked twice — with the count of who it touches. */}
+      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this ask?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {fmtDate(request.on_date)} · {windowLabel(request.starts_at, request.ends_at)}.{" "}
+              {counts.accepted > 0
+                ? `${counts.accepted} ${counts.accepted === 1 ? "person is" : "people are"} already accepted on it. Their answers are kept; the overtime the ask put on the headcount board is taken off.`
+                : "Nobody has been accepted on it yet."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={() => changeStatus("cancelled")}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Cancel ask
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="sm:max-w-md">
