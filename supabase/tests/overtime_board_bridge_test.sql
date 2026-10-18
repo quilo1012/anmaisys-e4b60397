@@ -34,6 +34,7 @@ DECLARE
   v_creator uuid;
   u_a uuid := gen_random_uuid();
   u_b uuid := gen_random_uuid();
+  u_booked uuid := gen_random_uuid();
   e_a uuid; e_b uuid; e_manual uuid; e_booked uuid;
   ask_1 uuid; ask_2 uuid;
   resp_a uuid; resp_b uuid; resp_2 uuid;
@@ -49,6 +50,14 @@ BEGIN
     RAISE EXCEPTION 'No auth.users row exists to own the test ask';
   END IF;
 
+  -- Since 20261018100000_one_login_is_one_person.sql `employees.user_id` references
+  -- auth.users, so each throwaway person needs a throwaway login. The ROLLBACK at the
+  -- end takes them away with everything else.
+  INSERT INTO auth.users (id, email, instance_id, aud, role)
+  SELECT u, 'zz-' || u || '@example.invalid', '00000000-0000-0000-0000-000000000000',
+         'authenticated', 'authenticated'
+    FROM unnest(ARRAY[u_a, u_b, u_booked]) u;
+
   INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
   VALUES ('ZZ Bridge A', 'Production', 'Day', true, u_a) RETURNING id INTO e_a;
   INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
@@ -56,7 +65,7 @@ BEGIN
   INSERT INTO public.employees (full_name, department, shift_group, active)
   VALUES ('ZZ Bridge Manual', 'Production', 'Day', true) RETURNING id INTO e_manual;
   INSERT INTO public.employees (full_name, department, shift_group, active, user_id)
-  VALUES ('ZZ Bridge Booked Off', 'Production', 'Day', true, gen_random_uuid())
+  VALUES ('ZZ Bridge Booked Off', 'Production', 'Day', true, u_booked)
   RETURNING id INTO e_booked;
 
   INSERT INTO public.overtime_requests
@@ -65,7 +74,10 @@ BEGIN
   RETURNING id INTO ask_1;
   INSERT INTO public.overtime_requests
     (on_date, starts_at, ends_at, headcount, department, shift_group, status, created_by)
-  VALUES (current_date + 30, '06:00', '14:00', 4, NULL, NULL, 'open', v_creator)
+  -- The evening of the same day: one person on two asks with the same hours would be
+  -- the same shift twice, which answer_overtime refuses (block 95) and the board's
+  -- one-row-per-person-per-shift key cannot hold anyway.
+  VALUES (current_date + 30, '19:00', '23:00', 4, NULL, NULL, 'open', v_creator)
   RETURNING id INTO ask_2;
 
   the_shift := public.overtime_board_shift(current_date + 30, '06:00');

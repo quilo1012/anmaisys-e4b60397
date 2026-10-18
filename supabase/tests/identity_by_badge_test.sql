@@ -78,23 +78,20 @@ begin
     end if;
   end;
 
-  -- ── 3. An ambiguous badge links NOBODY ───────────────────────────────────
+  -- ── 3. An ambiguous badge cannot exist, so it links NOBODY ───────────────
   --
-  -- The first draft updated by badge directly, so both of these would have been
-  -- linked to the same login and the caller handed the first.
+  -- The first draft updated by badge directly, so two rows with one badge would both
+  -- have been linked to the same login. Since 20261018100000_one_login_is_one_person.sql
+  -- the database refuses the second row (`employees_employee_ref_norm_key`, compared
+  -- trimmed and upper-cased), so the ambiguity is stopped where it would be written.
   insert into public.employees (full_name, employee_ref, active)
   values ('Test Dup A', 'ZZ9003', true) returning id into v_dup_a;
-  insert into public.employees (full_name, employee_ref, active)
-  values ('Test Dup B', ' zz9003 ', true) returning id into v_dup_b;
-
   begin
-    perform public.link_me_by_employee_ref('ZZ9003');
-    raise exception 'FAILED: an ambiguous badge was accepted';
-  exception when sqlstate 'P0001' then
-    get stacked diagnostics v_msg = message_text;
-    if v_msg not like '%more than one%' then
-      raise exception 'FAILED: wrong refusal for an ambiguous badge: %', v_msg;
-    end if;
+    insert into public.employees (full_name, employee_ref, active)
+    values ('Test Dup B', ' zz9003 ', true) returning id into v_dup_b;
+    raise exception 'FAILED: a second employee was given a badge already in use';
+  exception when unique_violation then
+    null;
   end;
 
   -- A count, into an integer. It went into the uuid above and failed every run with

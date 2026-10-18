@@ -92,6 +92,18 @@ describe("filters", () => {
     const onDate = filterAsks(asks, new Map(), { ...DEFAULT_FILTERS, range: "date", date: "2026-10-15" }, today);
     expect(onDate.map((r) => r.id)).toEqual(["c"]);
   });
+  it("Past 14 days keeps the history the phone no longer shows, closed and cancelled too", () => {
+    const asks = [
+      ask("worked", { on_date: "2026-10-06", status: "closed" }),
+      ask("called-off", { on_date: "2026-10-08", status: "cancelled" }),
+      ask("last-night", { on_date: "2026-10-12", starts_at: "18:00:00", ends_at: "06:00:00", status: "closed" }),
+      ask("too-old", { on_date: "2026-09-20", status: "closed" }),
+      ask("ahead", { on_date: "2026-10-20" }),
+    ];
+    const past = filterAsks(asks, new Map(), { ...DEFAULT_FILTERS, range: "past14" }, today);
+    expect(past.map((r) => r.id).sort()).toEqual(["called-off", "last-night", "worked"]);
+    expect(asks).toHaveLength(5);
+  });
 });
 
 describe("clashesFor", () => {
