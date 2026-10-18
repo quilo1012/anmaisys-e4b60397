@@ -8,12 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Check, X, Clock, Loader2, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  useMyEmployee, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
+  useMyEmployee, useMyUpcomingOvertime, useOvertimeResponses, useOvertimeMutations,
   useMyOvertimeBlock,
 } from "@/hooks/useOvertimeRequests";
 import {
-  requestIsForEmployee, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
-  headcountLine, audienceLine, askIsOver, type OvertimeRequest,
+  upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
+  headcountLine, audienceLine, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -186,7 +186,7 @@ function LinkMyself() {
 }
 
 function AsksForMe({ me }: { me: { id: string; full_name: string; department: string | null; shift_group: string | null } }) {
-  const { data: requests = [], isLoading } = useOvertimeRequests();
+  const { data: requests = [], isLoading } = useMyUpcomingOvertime();
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
   const { answer } = useOvertimeMutations();
@@ -194,23 +194,18 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
 
   const mine = useMemo(() => new Map(responses.filter((r) => r.employee_id === me.id).map((r) => [r.request_id, r])), [responses, me.id]);
   /**
-   * What is still worth showing this person.
+   * The clock the list is judged by, moved on every half minute.
    *
-   * The date test was `on_date >= today` and nothing else, so an ask stayed on offer
-   * for the whole calendar day — including at 23:00, nine hours after a 06:00–14:00
-   * window had closed, with both buttons live. `askIsOver` reads the hours the ask
-   * actually carries.
-   *
-   * An ask already answered stays on the list even once it is over: that is the
-   * person's own record of what they said and what came of it. What goes is the
-   * offer of a shift nobody can work any more.
+   * Without it the list is only re-cut when data arrives, so a morning that began at
+   * 06:00 would sit on an idle phone, buttons live, until the next poll or tap.
    */
-  const visible = useMemo(
-    () => requests
-      .filter((r) => requestIsForEmployee(r, me))
-      .filter((r) => mine.has(r.id) || !askIsOver(r)),
-    [requests, me, mine],
-  );
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  /** Shifts still ahead — the rule, and why answered past asks left, is `upcomingForMe`. */
+  const visible = useMemo(() => upcomingForMe(requests, me, mine, now), [requests, me, mine, now]);
 
   /**
    * The answer, and a receipt that says which day it was for.
@@ -243,7 +238,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   if (visible.length === 0) {
     return (
       <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-        No overtime on offer right now, {me.full_name.split(" ")[0]}. Check back later.
+        No upcoming overtime available, {me.full_name.split(" ")[0]}. Check back later.
       </CardContent></Card>
     );
   }
@@ -270,9 +265,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
-        // Open, undecided, and not already finished. The third was missing, which is
+        // Open, undecided, and not yet begun. The third was missing once, which is
         // how a morning that had ended was still taking answers at eleven at night.
-        const canAnswer = r.status === "open" && !my?.decision && !askIsOver(r);
+        const canAnswer = r.status === "open" && !my?.decision && !askHasStarted(r, now);
         const tone =
           my?.decision === "accepted" ? "bg-success/15 text-success border-success/30"
           : my?.decision === "reserve" ? "bg-warning/15 text-warning border-warning/30"
