@@ -50,28 +50,6 @@ const PENDING: readonly PendingRpc[] = [
       "only how many people are needed, exactly as before the block.",
   },
   {
-    name: "overtime_ask_notified",
-    block: "BLOCO 100 — 20261018130000_an_ask_rings_the_bell_of_who_can_take_it.sql",
-    fallback:
-      "announceAsk turns PGRST202 into the old path, pushTo: the browser targets by " +
-      "department and crew and send-push writes the bell, exactly as before the block.",
-  },
-  {
-    name: "my_overtime_clashes",
-    block: "BLOCO 95 — 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql",
-    fallback:
-      "useMyOvertimeClashes turns PGRST202 into an empty map, so MyOvertimePage lists the " +
-      "asks it listed before the block — by department and crew only — and with no guard " +
-      "trigger yet the database accepts the same yes, as it did before.",
-  },
-  {
-    name: "overtime_schedule_clashes",
-    block: "BLOCO 95 — 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql",
-    fallback:
-      "useOvertimeScheduleClashes turns PGRST202 into an empty map, and clashesFor then " +
-      "blocks an accept from the board rows alone, exactly as it did before the block.",
-  },
-  {
     name: "login_link_candidates",
     block: "BLOCO 91 — 20261012170000_a_supervisor_links_a_login_to_its_person.sql",
     fallback:
