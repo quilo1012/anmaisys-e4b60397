@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useSignupQr } from "@/hooks/useSignupQr";
 import { tabletSignupPath } from "@/lib/signupQr";
+import { publicOrigin } from "@/lib/publicOrigin";
 
 /**
  * Register on your own phone, not on the tablet in front of you.
@@ -31,7 +32,9 @@ export function SignupQrCard({
    */
   inviteCode,
 }: { origin?: string; tone?: "auth" | "page"; inviteCode?: string | null }) {
-  const base = origin ?? (typeof window !== "undefined" ? window.location.origin : "");
+  // Scanned by a phone, so the address must be one a phone can open — not the
+  // preview or a local dev server the tablet happens to be showing.
+  const base = origin ?? publicOrigin();
   const { src, failed } = useSignupQr(base, inviteCode);
   const carriesCode = !!(inviteCode ?? "").trim();
 

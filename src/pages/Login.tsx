@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -43,7 +43,10 @@ import { resolveIdentity, suggestTablets } from "@/lib/loginIdentity";
 import { classifyLoginFailure, NOT_ACTIVATED_MESSAGE } from "@/lib/loginFailure";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
 import { signupPath } from "@/lib/signupQr";
-import { rememberLineTablet } from "@/lib/lineTabletDevice";
+import { rememberLineTablet, wasLineTablet } from "@/lib/lineTabletDevice";
+import { useDeviceType } from "@/hooks/use-device-type";
+import { safeNextPath } from "@/lib/loginReturn";
+import { AppLoading } from "@/components/AppLoading";
 
 const TABLET_KEY = "an_tablet_account_id";
 const TABLET_TS_KEY = "an_tablet_account_id_at";
@@ -100,11 +103,17 @@ export default function Login() {
   const landAfterLogin = (r: string | null | undefined) => dashboardPathFor(r as Role | null);
   const [searchParams] = useSearchParams();
   // Consent flow (and other deep-links) preserve where to send the user
-  // after sign-in. Only same-origin relative paths are honored.
-  const nextParam = searchParams.get("next");
-  const safeNext = nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : null;
+  // after sign-in. Only same-origin relative paths are honored — see `safeNextPath`.
+  const safeNext = safeNextPath(searchParams.get("next"));
+  // Inside the app this is a route change, not a page load: a full reload made the
+  // phone read the session from storage a second time, behind a blank screen. The
+  // OAuth consent page keeps the hard navigation it was written with.
+  const goNext = useCallback((path: string) => {
+    if (path.startsWith("/.lovable/")) window.location.href = path;
+    else navigate(path, { replace: true });
+  }, [navigate]);
   const { toast } = useToast();
-  const { session, role, loading: authLoading } = useAuth();
+  const { session, role, loading: authLoading, silentReLoginInFlight } = useAuth();
   const { data: tabletAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
   const { data: branding } = useLoginBranding();
 
@@ -115,6 +124,10 @@ export default function Login() {
   const [listOpen, setListOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authed, setAuthed] = useState(false);
+  // A second Enter or a double tap lands before React has re-rendered the disabled
+  // button, and each one was a separate sign-in request — two "Signed in" toasts, or a
+  // failure counted twice against the lockout. The ref closes the door synchronously.
+  const submittingRef = useRef(false);
   // Why the sign-in failed, kept on screen until the next attempt.
   //
   // Every failure path used to end in a toast and nothing else. A toast is gone in
@@ -155,7 +168,13 @@ export default function Login() {
   // A condição era só `!matchedTablet`, por isso o link ficava visível enquanto o
   // operador escolhia da lista — que é exactamente quando ele está a olhar. Some
   // assim que há postos e o que está escrito ainda não é um endereço.
-  const showCreateAccount = !matchedTablet && !(hasTablets && !isEmail);
+  //
+  // Num telemóvel que nunca foi posto de linha, o QR é o ecrã errado: "lê isto com o
+  // teu telemóvel" a quem já está no telemóvel, e um quadrado que ocupava meio ecrã
+  // por baixo do botão de entrar. Aí fica só o link, como no computador sem postos.
+  const device = useDeviceType();
+  const onPersonalPhone = device === "mobile" && !wasLineTablet();
+  const showCreateAccount = !matchedTablet && (onPersonalPhone || !(hasTablets && !isEmail));
 
   // ── Rate limit state ────────────────────────────────────────
   // Identity used as the rate-limit key (tablet account id or email).
@@ -208,13 +227,9 @@ export default function Login() {
   // Redirect when authenticated
   useEffect(() => {
     if (!authLoading && session && role) {
-      if (safeNext) {
-        window.location.href = safeNext;
-        return;
-      }
-      navigate(landAfterLogin(role), { replace: true });
+      goNext(safeNext ?? landAfterLogin(role));
     }
-  }, [authLoading, navigate, role, session, safeNext]);
+  }, [authLoading, goNext, role, session, safeNext]);
 
   // Fecha a lista ao clicar fora dela.
   useEffect(() => {
@@ -293,6 +308,7 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
     setFormError(null);
 
     if (!identifier.trim()) {
@@ -321,6 +337,7 @@ export default function Login() {
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
     try {
       if (matchedTablet) {
@@ -406,11 +423,7 @@ export default function Login() {
           role: roleResult || "unknown",
           mode: matchedTablet ? "tablet" : "staff",
         });
-        if (safeNext) {
-          window.location.href = safeNext;
-          return;
-        }
-        navigate(landAfterLogin(roleResult as string), { replace: true });
+        goNext(safeNext ?? landAfterLogin(roleResult as string));
       }
     } catch (error: unknown) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -447,11 +460,19 @@ export default function Login() {
       // é, em vez de obrigar a procurá-lo.
       if (!isNetwork) requestAnimationFrame(() => passwordRef.current?.focus());
     } finally {
+      submittingRef.current = false;
       setLoading(false);
     }
   };
 
   const brandIconUrl = matchedTablet?.favicon_url || branding?.[brandingKey]?.url || undefined;
+
+  // A stored session is still being read, or it has been and the redirect is on its
+  // way. Drawing the form here is what made an already signed-in phone flash the
+  // login page — and invited a second sign-in into a session that was already open.
+  // Not while this form is the one signing in: it has its own "Signing in…" state.
+  const restoring = !loading && !authed && (authLoading || silentReLoginInFlight || (!!session && !!role));
+  if (restoring) return <AppLoading label={session ? "Opening your dashboard…" : "Checking your sign-in…"} />;
 
   return (
     <AuthShell
@@ -459,9 +480,11 @@ export default function Login() {
       maxWidthClass="max-w-lg"
       title="Sign in"
       subtitle={
-        hasTablets
-          ? "Use your work email, or the name of the tablet you're standing at."
-          : "Use your work email."
+        onPersonalPhone
+          ? "Use your work email or the ID on your badge."
+          : hasTablets
+            ? "Use your work email, or the name of the tablet you're standing at."
+            : "Use your work email."
       }
     >
       <form
@@ -474,7 +497,7 @@ export default function Login() {
             Um campo só. O que se escreve é que diz o que se é. */}
         <div className="space-y-1.5">
           <label htmlFor="identifier" className={authLabel}>
-            {hasTablets ? "Email or tablet" : "Email"}
+            {onPersonalPhone ? "Email or employee ID" : hasTablets ? "Email or tablet" : "Email"}
           </label>
           <div className="relative" ref={comboRef}>
             {matchedTablet ? (
@@ -497,7 +520,7 @@ export default function Login() {
               }}
               onFocus={() => { if (hasTablets && !identifier) setListOpen(true); }}
               onKeyDown={onIdentifierKeyDown}
-              placeholder={hasTablets ? "you@appliednutrition.com, E045, or Line 3" : "you@appliednutrition.com or E045"}
+              placeholder={onPersonalPhone ? "E045 or you@appliednutrition.com" : hasTablets ? "you@appliednutrition.com, E045, or Line 3" : "you@appliednutrition.com or E045"}
               required
               autoComplete="username"
               spellCheck={false}

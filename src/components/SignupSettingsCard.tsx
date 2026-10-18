@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useSignupQr } from "@/hooks/useSignupQr";
 import { signupQrPayload } from "@/lib/signupQr";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { writeSignupLabel } from "@/lib/signupLabel";
 import {
   EXPIRY_CHOICES, DEFAULT_EXPIRY, expiryFromChoice, expiryLabel, isExpired, type ExpiryChoice,
@@ -42,7 +43,7 @@ const cfg = () => supabase.from("signup_config");
  * code at all. The login page's QR carries none — see `signupQrPayload`.
  */
 function InviteQr({ code }: { code: string }) {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const origin = publicOrigin();
   const { src, failed } = useSignupQr(origin, code);
   if (failed || !origin) return null;
 
@@ -175,7 +176,8 @@ export function SignupSettingsCard() {
             </div>
 
             {code.trim() && (() => {
-              const origin = typeof window !== "undefined" ? window.location.origin : "";
+              // Pasted into a group chat and opened on phones: never the preview's address.
+              const origin = publicOrigin();
               const link = `${origin}/signup?code=${encodeURIComponent(code.trim())}`;
               // The message is what gets pasted into the group, so it says what the person
               // is signing up for — otherwise the first question in the group is "what is this".

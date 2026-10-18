@@ -47,7 +47,7 @@ export function AuthShell({
   const hasBanner = (backgroundImages?.length ?? 0) > 0;
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-auth-paper lg:grid lg:grid-cols-[minmax(0,44%)_minmax(0,56%)]">
+    <div className="flex min-h-[100dvh] w-full flex-col bg-auth-paper lg:grid lg:grid-cols-[minmax(0,44%)_minmax(0,56%)]">
       {/* ── Placa da marca ─────────────────────────────────────────── */}
       <aside
         className="relative isolate hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12"
@@ -117,43 +117,45 @@ export function AuthShell({
 
       {/* ── Faixa da marca em ecrã estreito ────────────────────────── */}
       <header
-        className="flex items-center px-6 py-5 sm:px-8 lg:hidden"
+        className="flex items-center px-5 py-3 sm:px-8 sm:py-5 lg:hidden"
         style={{
           backgroundImage:
             "linear-gradient(100deg, hsl(var(--auth-field-top)) 0%, hsl(var(--auth-field)) 100%)",
         }}
       >
-        <img src={brandMark} alt="Applied Nutrition" className="w-36 select-none" />
+        <img src={brandMark} alt="Applied Nutrition" className="w-28 select-none sm:w-36" />
         <span className="ml-auto font-figure text-2xs uppercase tracking-[0.18em] text-white/55">
           PMSystem
         </span>
       </header>
 
       {/* ── Formulário ─────────────────────────────────────────────── */}
-      <main className="flex flex-1 items-center justify-center px-6 py-10 sm:px-10 lg:py-14">
+      {/* Num telemóvel o formulário começa em cima, não ao centro: centrado, o teclado
+          que abre ao tocar no campo empurrava-o para fora e o ecrã saltava. */}
+      <main className="flex flex-1 items-start justify-center px-5 py-6 sm:items-center sm:px-10 sm:py-10 lg:py-14">
         <div
           className={`w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500`}
         >
-          <div className="mb-8">
+          <div className="mb-5 sm:mb-8">
             {brandIconUrl && (
               <img
                 src={brandIconUrl}
                 alt=""
-                className="mb-5 h-10 w-10 rounded-md object-contain"
+                className="mb-4 h-9 w-9 rounded-md object-contain sm:mb-5 sm:h-10 sm:w-10"
               />
             )}
-            <h1 className="font-display text-3xl font-bold tracking-tight text-auth-ink">
+            <h1 className="font-display text-2xl font-bold tracking-tight text-auth-ink sm:text-3xl">
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-2 text-sm leading-relaxed text-auth-ink-muted">{subtitle}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-auth-ink-muted sm:mt-2">{subtitle}</p>
             )}
             {badge && <div className="mt-4">{badge}</div>}
           </div>
 
           {children}
 
-          <p className="mt-10 border-t border-auth-line pt-5 font-figure text-2xs uppercase tracking-[0.14em] text-auth-ink-muted lg:hidden">
+          <p className="mt-8 border-t border-auth-line pt-4 font-figure text-2xs uppercase tracking-[0.14em] text-auth-ink-muted lg:hidden">
             Encrypted · Role-based access · Audited · © {year} Applied Nutrition
           </p>
         </div>
