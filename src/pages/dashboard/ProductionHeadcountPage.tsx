@@ -1823,7 +1823,7 @@ function SheetDayTabs({ date, today, onPick }: { date: string; today: string; on
   return (
     <nav
       aria-label="Days of the month"
-      className="headcount-date-strip print:hidden md:sticky md:bottom-0 md:z-20 border-t border-border bg-muted"
+      className="headcount-date-strip print:hidden relative border-t border-border bg-muted"
     >
       <div ref={strip} className="flex overflow-x-auto overscroll-x-contain">
         {days.map((d) => {

@@ -78,7 +78,8 @@ async function headerHeight(page: Page) {
   });
 }
 
-for (const [w, h, budget] of [[1366, 768, 340], [1920, 1080, 320]] as const) {
+// A legenda pedida ocupa até duas linhas, sem retirar acções ou contagens.
+for (const [w, h, budget] of [[1366, 768, 380], [1920, 1080, 360]] as const) {
   test(`at ${w}×${h} the grid starts within ${budget}px of the page top`, async ({ page }) => {
     await open(page, w, h);
     const px = await headerHeight(page);
