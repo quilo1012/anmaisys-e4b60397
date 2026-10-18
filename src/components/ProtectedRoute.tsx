@@ -1,8 +1,10 @@
-import { Navigate, Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { Navigate, Link, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Database } from "@/integrations/supabase/types";
-import { Loader2, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
+import { RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
+import { AppLoading } from "@/components/AppLoading";
+import { loginPathReturningTo } from "@/lib/loginReturn";
 import { Button } from "@/components/ui/button";
 import { can, roleDashMap, subscribePermissionOverrides, subscribeMobileHidden, isDeviceHidden, type Action } from "@/lib/permissions";
 import { useDeviceType } from "@/hooks/use-device-type";
@@ -19,6 +21,9 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
   const { session, role, isOwner, profile, loading, authError, silentReLoginInFlight, retryAuth, signOut } = useAuth();
   const [, setPermissionVersion] = useState(0);
   const device = useDeviceType();
+  const location = useLocation();
+  const hadSession = useRef(false);
+  if (session) hadSession.current = true;
 
   useEffect(() => {
     const a = subscribePermissionOverrides(() => setPermissionVersion((v) => v + 1));
@@ -59,35 +64,27 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
 
   // Still resolving session or role — show spinner
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="flex flex-col items-center gap-3 text-center text-muted-foreground">
-          <img src="/favicon.png" alt="" aria-hidden="true" className="h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10" />
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="text-sm">Loading AN Maintenance…</span>
-        </div>
-      </div>
-    );
+    return <AppLoading label="Loading AN Maintenance…" />;
   }
 
   // Silent re-login in progress (shared tablet refresh-token recovery) — wait
   // instead of bouncing the user to /login. The recovery completes within a
   // few hundred ms; if it fails, the next render will redirect normally.
   if (!session && silentReLoginInFlight) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="flex flex-col items-center gap-3 text-center text-muted-foreground">
-          <img src="/favicon.png" alt="" aria-hidden="true" className="h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10" />
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="text-sm">Restoring session…</span>
-        </div>
-      </div>
-    );
+    return <AppLoading label="Restoring session…" />;
   }
 
-  // No session at all — redirect to login
+  // No session at all — redirect to login. Arriving cold (a link from a notification,
+  // a bookmark) comes back here afterwards; it used to land on the role's home page,
+  // so the person had to find what they had tapped a second time. Signing out while
+  // on this page does not: the next person on a shared tablet may not be allowed here.
   if (!session) {
-    return <Navigate to="/login" replace />;
+    return (
+      <Navigate
+        to={hadSession.current ? "/login" : loginPathReturningTo(location.pathname + location.search)}
+        replace
+      />
+    );
   }
 
   // Account inactive — block immediately, even before role resolves.
@@ -123,15 +120,7 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
 
   // Session exists but role not yet available (shouldn't happen after loading, but guard)
   if (!role) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="flex flex-col items-center gap-3 text-center text-muted-foreground">
-          <img src="/favicon.png" alt="" aria-hidden="true" className="h-12 w-12 rounded-xl object-contain shadow-lg ring-1 ring-white/10" />
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="text-sm">Loading permissions…</span>
-        </div>
-      </div>
-    );
+    return <AppLoading label="Loading permissions…" />;
   }
 
   // Role loaded — evaluate access.

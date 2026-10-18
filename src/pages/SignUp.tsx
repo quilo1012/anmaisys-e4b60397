@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -128,7 +128,20 @@ export default function SignUp() {
   const [door, setDoor] = useState<"badge" | "email">("badge");
   const [employeeRef, setEmployeeRef] = useState("");
 
-  const submitBadge = async (e: React.FormEvent) => {
+  /**
+   * One request per tap. `disabled={submitting}` only lands on the next render, and a
+   * double tap on a phone gets there first — two sign-ups for one person, the second
+   * answered "already registered" over the top of the first one's success.
+   */
+  const inFlight = useRef(false);
+  const once = (fn: (e: React.FormEvent) => Promise<void>) => async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try { await fn(e); } finally { inFlight.current = false; }
+  };
+
+  const submitBadge = once(async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     const ref = employeeRef.trim().toUpperCase();
@@ -170,9 +183,9 @@ export default function SignUp() {
       setError(signupErrorMessage(err, "Could not create the account."));
       setSubmitting(false);
     }
-  };
+  });
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = once(async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     if (!name.trim()) { setError("Enter your name."); return; }
@@ -217,7 +230,7 @@ export default function SignUp() {
     } finally {
       setSubmitting(false);
     }
-  };
+  });
 
   if (done) {
     return (
@@ -278,7 +291,7 @@ export default function SignUp() {
             should find it exactly where they get stuck.
           */}
           <details className="group rounded-md border border-auth-line bg-auth-field/40">
-            <summary className="cursor-pointer list-none px-3 py-2 text-xs font-medium text-auth-ink marker:content-none">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center px-3 py-2 text-xs font-medium text-auth-ink marker:content-none">
               Don't know your ID?
             </summary>
             <div className="space-y-2 border-t border-auth-line px-3 py-2.5 text-xs text-auth-ink-muted">
