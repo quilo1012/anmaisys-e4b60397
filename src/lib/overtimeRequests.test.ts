@@ -3,7 +3,8 @@ import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
   myAnswerLabel, supervisorLabel, headcountLine, audienceLine, askIsOver, askHasStarted, upcomingForMe, localDate,
-  type Reliability, type OvertimeResponse, type Candidate, hoursBetween, deskCandidates, overtimeBoardFor } from "./overtimeRequests";
+  type Reliability, type OvertimeResponse, type Candidate, hoursBetween, deskCandidates, overtimeBoardFor,
+  placesTaken, placesLine } from "./overtimeRequests";
 
 const rel = (o: Partial<Reliability> = {}): Reliability => ({
   employee_id: "e", sick_this_month: 0, absent_this_month: 0,
@@ -426,5 +427,35 @@ describe("upcomingForMe — the phone does not offer hours that are already the 
   });
   it("keeps the department and crew narrowing", () => {
     expect(upcomingForMe([a("wh", { department: "Warehouse" })], weekendCrew, none, now, new Map())).toEqual([]);
+  });
+});
+
+describe("placesTaken", () => {
+  const outcomes = new Map([["sick", "called_sick"], ["came", "attended"]]);
+  const of = (id: string) => outcomes.get(id);
+  it("counts accepted people who are still coming, as the database does", () => {
+    expect(placesTaken([
+      { id: "a", decision: "accepted" },
+      { id: "came", decision: "accepted" },
+      { id: "sick", decision: "accepted" },
+      { id: "r", decision: "reserve" },
+      { id: "d", decision: "declined" },
+      { id: "n", decision: null },
+    ], of)).toBe(2);
+  });
+});
+
+describe("placesLine", () => {
+  it("says nothing when the counts are unknown", () => {
+    expect(placesLine(undefined)).toBeNull();
+  });
+  it("says how many are left", () => {
+    expect(placesLine({ taken: 1, headcount: 4 })).toBe("3 of 4 places left");
+    expect(placesLine({ taken: 0, headcount: 1 })).toBe("1 of 1 place left");
+  });
+  it("says what a yes means once it is full, even past full", () => {
+    expect(placesLine({ taken: 4, headcount: 4 })).toBe("All 4 places are filled — a yes puts you on the reserve list");
+    expect(placesLine({ taken: 3, headcount: 2 })).toMatch(/^All 2 places are filled/);
+    expect(placesLine({ taken: 1, headcount: 1 })).toMatch(/^All 1 place is filled/);
   });
 });

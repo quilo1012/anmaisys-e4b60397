@@ -34,7 +34,7 @@ import {
 import {
   countResponses, sortCandidates, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   windowLabel, audienceLine, deskCandidates, type OvertimeRequest, type OvertimeResponse,
-  type OvertimeOutcome, type Candidate, type Reliability, hoursBetween,
+  type OvertimeOutcome, type Candidate, type Reliability, hoursBetween, placesTaken,
 } from "@/lib/overtimeRequests";
 import {
   askShift, askState, ASK_STATE_LABEL, summarise, filterAsks, clashesFor, boardDatesFor, duplicateNames,
@@ -729,6 +729,12 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
 
   const byId = useMemo(() => new Map(roster.map((e) => [e.id, e])), [roster]);
   const counts = countResponses(request, responses);
+  // Places held by people still coming — the number the database refuses an accept on
+  // (BLOCO 101). Not `counts.accepted`: that keeps somebody who called in sick, whose
+  // place the reserve, or the next accept, is meant to take.
+  const taken = placesTaken(responses, (id) => outcomeByResponse.get(id));
+  const full = taken >= request.headcount;
+  const edBelowTaken = Number(edCount) < taken;
   const state = askState(request, responses);
   const shift = askShift(request);
   const isPast = request.on_date < iso(new Date());
@@ -909,7 +915,8 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
                         name={employee.full_name}
                         decision={response.decision}
                         disabled={!mayManage || request.status !== "open" || decide.isPending}
-                        acceptBlockedBy={blockedBy?.text ?? null}
+                        acceptBlockedBy={blockedBy?.text
+                          ?? (full ? `${request.headcount === 1 ? "the only place is" : `all ${request.headcount} places are`} filled — put them on reserve, or raise the number needed` : null)}
                         onDecide={(d) => onDecide(response.id, d)}
                       />
                     )}
@@ -1035,6 +1042,23 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <Input id="ed-count" type="number" min={1} value={edCount}
                 onChange={(e) => setEdCount(e.target.value)} />
             </div>
+            {/* Moving the shift moves the people on it. Said before the save, with the
+                count, because they are the ones who now have to be told. */}
+            {taken > 0 && (edDate !== request.on_date || edStart !== request.starts_at.slice(0, 5) || edEnd !== request.ends_at.slice(0, 5)) && (
+              <p className="flex items-start gap-1 text-xs font-medium text-warning-strong" role="status">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                {taken} {taken === 1 ? "person is" : "people are"} already accepted. They stay on it and move with it on the
+                board — tell them the new day or hours.
+              </p>
+            )}
+            {/* Nobody's place is taken away by an edit: the database refuses it too. */}
+            {edBelowTaken && (
+              <p className="flex items-start gap-1 text-xs font-medium text-destructive" role="alert">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                {taken} {taken === 1 ? "person is" : "people are"} already accepted, so it can't need fewer than {taken}.
+                Move someone to reserve first, and tell them.
+              </p>
+            )}
             {/* Vinte horas num turno de doze é o engano que isto existe para corrigir. */}
             <p className="text-xs text-muted-foreground">
               {windowLabel(edStart, edEnd)} · {hoursBetween(edStart, edEnd)}
@@ -1044,7 +1068,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
           <div className="mt-2 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
             <Button
-              disabled={editRequest.isPending || !edDate || !edStart || !edEnd || Number(edCount) < 1}
+              disabled={editRequest.isPending || !edDate || !edStart || !edEnd || Number(edCount) < 1 || edBelowTaken}
               onClick={() => editRequest.mutate(
                 {
                   id: request.id, on_date: edDate, starts_at: edStart, ends_at: edEnd,

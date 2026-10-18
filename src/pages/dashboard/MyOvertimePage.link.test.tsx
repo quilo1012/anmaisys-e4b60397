@@ -46,6 +46,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeResponses: () => ({ data: [] }),
   useMyOvertimeBlock: () => ({ data: null }),
   useMyOvertimeClashes: () => ({ data: undefined }),
+  useOvertimePlaces: () => ({ data: undefined }),
   useOvertimeMutations: () => ({
     answer: { mutate: vi.fn() },
     linkMe: { mutate: hooks.linkMutate, isPending: false },

@@ -93,6 +93,25 @@ describe("OvertimeRequestsPanel", () => {
     expect(within(night).getByRole("button", { name: "Accept Bruno Night" })).toBeDisabled();
     expect(within(night).getByRole("button", { name: "Reserve Bruno Night" })).toBeEnabled();
   });
+
+  // The database refuses an accept past the headcount (BLOCO 101); the button says so first.
+  it("will not accept past the headcount, but still takes a reserve", () => {
+    const day = requests[0];
+    day.headcount = 1;
+    responses.push({ id: "r4", request_id: "day", employee_id: "e-day", answer: "yes", decision: "accepted",
+      answered_at: "2026-10-12T10:07:00Z", decided_at: null });
+    try {
+      render(<OvertimeRequestsPanel />);
+      const region = screen.getByRole("region", { name: /Day shift/ });
+      const accept = within(region).getByRole("button", { name: "Accept Carla" });
+      expect(accept).toBeDisabled();
+      expect(accept).toHaveAttribute("title", expect.stringMatching(/the only place is filled/));
+      expect(within(region).getByRole("button", { name: "Reserve Carla" })).toBeEnabled();
+    } finally {
+      day.headcount = 2;
+      responses.pop();
+    }
+  });
 });
 
 describe("OvertimeRequestsPanel — calendar", () => {
