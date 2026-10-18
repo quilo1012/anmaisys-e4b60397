@@ -43,6 +43,40 @@ export function useOvertimeRequests() {
 }
 
 /**
+ * The asks between two dates, for the calendar. Any month can be opened, so this is
+ * not cut at fourteen days back like the list. Under the "overtime_requests" key so
+ * every mutation's refresh reaches it.
+ */
+export function useOvertimeRequestsBetween(from: string, to: string, enabled = true) {
+  return useQuery({
+    queryKey: [...KEYS.requests, "between", from, to],
+    enabled,
+    queryFn: async (): Promise<OvertimeRequest[]> => {
+      const { data, error } = await db
+        .from("overtime_requests")
+        .select("*")
+        .gte("on_date", from)
+        .lte("on_date", to)
+        .order("on_date", { ascending: true })
+        .order("starts_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as OvertimeRequest[];
+    },
+  });
+}
+
+/**
+ * The asks on these dates, read fresh — what a bulk publication checks for duplicates
+ * just before it writes, so a date outside the calendar's month is checked too.
+ */
+export async function asksOnDates(dates: string[]): Promise<OvertimeRequest[]> {
+  if (dates.length === 0) return [];
+  const { data, error } = await db.from("overtime_requests").select("*").in("on_date", dates);
+  if (error) throw error;
+  return (data ?? []) as OvertimeRequest[];
+}
+
+/**
  * My Overtime's read: shifts from today on, open or filled, never cancelled.
  *
  * Narrowed in the query and not only on screen, so a phone does not download a
