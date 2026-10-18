@@ -8,18 +8,23 @@ import { Badge } from "@/components/ui/badge";
 import { Check, X, Clock, Loader2, Ban } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  useMyEmployee, useOvertimeRequests, useOvertimeResponses, useOvertimeMutations,
-  useMyOvertimeBlock,
+  useMyEmployee, useMyUpcomingOvertime, useOvertimeResponses, useOvertimeMutations,
+  useMyOvertimeBlock, useMyOvertimeClashes,
 } from "@/hooks/useOvertimeRequests";
 import {
-  requestIsForEmployee, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
-  headcountLine, audienceLine, askIsOver, type OvertimeRequest,
+  upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
+  headcountLine, audienceLine, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
+import { askShift } from "@/lib/overtimeShifts";
+import { ShiftTag } from "@/components/ShiftTag";
+import { shiftEdge } from "@/lib/shiftLook";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { TabletOvertimeNotice } from "@/components/workforce/TabletOvertimeNotice";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
+
+const NO_CLASHES: ReadonlyMap<string, string> = new Map();
 
 const fmtDate = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
@@ -186,30 +191,33 @@ function LinkMyself() {
 }
 
 function AsksForMe({ me }: { me: { id: string; full_name: string; department: string | null; shift_group: string | null } }) {
-  const { data: requests = [], isLoading } = useOvertimeRequests();
+  const { data: requests = [], isLoading } = useMyUpcomingOvertime();
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
+  const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
   const { answer } = useOvertimeMutations();
   const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
   const mine = useMemo(() => new Map(responses.filter((r) => r.employee_id === me.id).map((r) => [r.request_id, r])), [responses, me.id]);
   /**
-   * What is still worth showing this person.
+   * The clock the list is judged by, moved on every half minute.
    *
-   * The date test was `on_date >= today` and nothing else, so an ask stayed on offer
-   * for the whole calendar day — including at 23:00, nine hours after a 06:00–14:00
-   * window had closed, with both buttons live. `askIsOver` reads the hours the ask
-   * actually carries.
-   *
-   * An ask already answered stays on the list even once it is over: that is the
-   * person's own record of what they said and what came of it. What goes is the
-   * offer of a shift nobody can work any more.
+   * Without it the list is only re-cut when data arrives, so a morning that began at
+   * 06:00 would sit on an idle phone, buttons live, until the next poll or tap.
+   */
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  /**
+   * Shifts still ahead, and not on hours already theirs (`clashes` is the database
+   * reading their board and rota). The rule, and why answered past asks left, is
+   * `upcomingForMe`.
    */
   const visible = useMemo(
-    () => requests
-      .filter((r) => requestIsForEmployee(r, me))
-      .filter((r) => mine.has(r.id) || !askIsOver(r)),
-    [requests, me, mine],
+    () => upcomingForMe(requests, me, mine, now, clashes),
+    [requests, me, mine, now, clashes],
   );
 
   /**
@@ -243,15 +251,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   if (visible.length === 0) {
     return (
       <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-        No overtime on offer right now, {me.full_name.split(" ")[0]}. Check back later.
+        No upcoming overtime available, {me.full_name.split(" ")[0]}. Check back later.
       </CardContent></Card>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="text-xs text-muted-foreground">
-        Signed in as {me.full_name}{me.shift_group ? `, ${me.shift_group} crew` : ""}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>Signed in as {me.full_name}</span>
+        {me.shift_group && <ShiftTag shift={me.shift_group} noun="crew" />}
       </div>
       {block && (
         <Card className="border-destructive/30 bg-destructive/5">
@@ -270,9 +279,12 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
-        // Open, undecided, and not already finished. The third was missing, which is
+        // Open, undecided, and not yet begun. The third was missing once, which is
         // how a morning that had ended was still taking answers at eleven at night.
-        const canAnswer = r.status === "open" && !my?.decision && !askIsOver(r);
+        const canAnswer = r.status === "open" && !my?.decision && !askHasStarted(r, now);
+        // Answered before the board or the rota put them on these hours. Their answer
+        // stays; a yes no longer can — the database would refuse it.
+        const ownHours = clashes.get(r.id);
         const tone =
           my?.decision === "accepted" ? "bg-success/15 text-success border-success/30"
           : my?.decision === "reserve" ? "bg-warning/15 text-warning border-warning/30"
@@ -283,11 +295,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
              `opacity-80`, which reads as "still loading" rather than "this is over".
              It loses its buttons and gains a rule instead — the card changes form,
              which can be seen without reading it. */
-          <Card key={r.id} className={cn(r.status !== "open" && "border-dashed bg-muted/30")}>
+          /* The left edge and the tag are the shift the overtime is FOR (`askShift`,
+             the board it lands on), not the person's crew: a day packer offered a
+             night ask is looking at night work, and the card should look like it. */
+          <Card key={r.id} className={cn(shiftEdge(askShift(r)), r.status !== "open" && "border-dashed bg-muted/30")}>
             <CardContent className="space-y-3 pt-5">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-base font-medium">{fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}</div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-base font-medium">{fmtDate(r.on_date)} · {windowLabel(r.starts_at, r.ends_at)}</span>
+                    <ShiftTag shift={askShift(r)} />
+                  </div>
                   {/* A sentence, not four facts on middle dots. The note gets its
                       own line because it is the only thing here a person wrote. */}
                   <div className="text-sm text-muted-foreground">
@@ -320,12 +338,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   )}
                 </div>
               )}
+              {canAnswer && ownHours && (
+                <p className="text-sm text-muted-foreground">
+                  These hours are already yours — {ownHours.charAt(0).toLowerCase() + ownHours.slice(1)}.
+                </p>
+              )}
               {canAnswer && (
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     size="lg" variant={my?.answer === "yes" ? "default" : "outline"}
                     className={cn("h-12", my?.answer === "yes" && "bg-success text-success-foreground hover:bg-success/90")}
-                    disabled={answer.isPending || !!block} onClick={() => reply(r, "yes")}
+                    disabled={answer.isPending || !!block || !!ownHours} onClick={() => reply(r, "yes")}
                   >
                     <Check className="mr-2 h-5 w-5" /> Yes, I can
                   </Button>

@@ -85,6 +85,14 @@ export default {
   				foreground: 'hsl(var(--warning-foreground))',
   				strong: 'hsl(var(--warning-strong))'
   			},
+  			'shift-day': {
+  				DEFAULT: 'hsl(var(--shift-day))',
+  				strong: 'hsl(var(--shift-day-strong))'
+  			},
+  			'shift-night': {
+  				DEFAULT: 'hsl(var(--shift-night))',
+  				strong: 'hsl(var(--shift-night-strong))'
+  			},
   			popover: {
   				DEFAULT: 'hsl(var(--popover))',
   				foreground: 'hsl(var(--popover-foreground))'

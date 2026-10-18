@@ -42,9 +42,10 @@ const hooks = vi.hoisted(() => {
     ask,
     useMyEmployee: vi.fn(() => ({ data: eduardo, isLoading: false })),
     useUnlinkedEmployees: vi.fn(() => ({ data: [], isLoading: false })),
-    useOvertimeRequests: vi.fn(() => ({ data: [ask], isLoading: false })),
+    useMyUpcomingOvertime: vi.fn(() => ({ data: [ask], isLoading: false })),
     useOvertimeResponses: vi.fn(() => ({ data: [] })),
     useMyOvertimeBlock: vi.fn(() => ({ data: null })),
+    useMyOvertimeClashes: () => ({ data: undefined }),
     useOvertimeMutations: vi.fn(() => ({
       answer: { mutate: vi.fn() }, linkMe: { mutate: vi.fn(), isPending: false },
     })),

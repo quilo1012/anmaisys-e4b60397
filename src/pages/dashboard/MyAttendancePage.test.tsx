@@ -119,5 +119,7 @@ describe("My Attendance", () => {
     const card = screen.getByTestId("where-im-working");
     expect(card).toHaveTextContent("Gel Line");
     expect(card).toHaveTextContent("Work area not yet assigned");
+    // Each row says its shift in words, with the icon and colour beside them.
+    expect(card.querySelector('[data-shift="day"]')).toHaveTextContent("Day shift");
   });
 });
