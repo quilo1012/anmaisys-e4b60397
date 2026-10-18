@@ -152,6 +152,7 @@ export const navItems: NavItem[] = [
 
 
   // Maintenance
+  { title: "Maintenance Dashboard", shortTitle: "Overview", url: "/dashboard/maintenance-dashboard", icon: Gauge, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "reliability.view" },
   { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "wo.view" },
     { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
   { title: "Problem Analysis", shortTitle: "Analysis", url: "/dashboard/maintenance-analysis", icon: Search, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "reliability.view" },
@@ -174,6 +175,7 @@ export const navItems: NavItem[] = [
   // It was previously Production Control, RAG Weekly, Performance, SKU Products,
   // Quality — with Headcount declared sixty lines below among the admin screens, so
   // it landed last with nothing near it to say why.
+  { title: "Production Dashboard", shortTitle: "Overview", url: "/dashboard/production-dashboard", icon: Gauge, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "rag.view" },
   { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "rag.view" },
   // The leader scorecard has no row of its own: it is opened from Performance, on
   // the leader the page is already filtered to, so the week and the shift travel
