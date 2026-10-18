@@ -50,6 +50,24 @@ describe("tallyBoard", () => {
   });
 });
 
+describe("tallyBoard, a row with no line", () => {
+  it("does not count an assigned row with no area as working, and leaves the person not placed", () => {
+    const t = tallyBoard({
+      allocations: [
+        { employee_id: "a", area_id: "l1", status: "assigned" },
+        { employee_id: "b", area_id: null, status: "assigned" },
+        { employee_id: "c", area_id: null, status: "overtime" },
+      ],
+      areas: [{ id: "l1", kind: "production" }],
+      roster: [{ id: "a" }, { id: "b" }],
+      drawable: () => true,
+    });
+    expect(t.working).toBe(1);
+    expect(t.notPlaced).toBe(1);
+    expect(t.overtime).toBe(1);
+  });
+});
+
 describe("boardTrend", () => {
   it("gives every day a point, empty days as zero", () => {
     const days = boardTrend(
