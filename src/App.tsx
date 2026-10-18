@@ -174,6 +174,7 @@ const IntouchMachineMapPage = lazyWithReload(() => import("./pages/dashboard/Int
 const IntouchStopCodesPage = lazyWithReload(() => import("./pages/dashboard/IntouchStopCodesPage"));
 // DowntimeHeatmapPage consolidated into DowntimePage as the "Heatmap" tab.
 const PMIntelligencePage = lazyWithReload(() => import("./pages/dashboard/PMIntelligencePage"));
+const MaintenanceProblemAnalysisPage = lazyWithReload(() => import("./pages/dashboard/MaintenanceProblemAnalysisPage"));
 
 
 
@@ -830,6 +831,14 @@ const App = () => (
                   element={<Navigate to="/dashboard/downtime" replace />}
                 />
 
+                <Route
+                  path="/dashboard/maintenance-analysis"
+                  element={
+                    <ProtectedRoute requiredAction="reliability.view">
+                      <MaintenanceProblemAnalysisPage />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/dashboard/pm-intelligence"
                   element={

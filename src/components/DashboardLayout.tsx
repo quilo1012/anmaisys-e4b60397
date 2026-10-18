@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2 } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -154,6 +154,7 @@ export const navItems: NavItem[] = [
   // Maintenance
   { title: "Maintenance Orders", shortTitle: "Orders", url: "/dashboard/work-orders", icon: ClipboardList, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "wo.view" },
     { title: "Downtime & Reliability", shortTitle: "Downtime", url: "/dashboard/downtime", icon: Clock, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "downtime.view" },
+  { title: "Problem Analysis", shortTitle: "Analysis", url: "/dashboard/maintenance-analysis", icon: Search, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "reliability.view" },
   { title: "PM Intelligence", shortTitle: "PM Intel", url: "/dashboard/pm-intelligence", icon: Brain, roles: ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"], group: "Maintenance", action: "pm.view" },
 
   // Assets
@@ -650,6 +651,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/stop-analysis": "Stop Analysis",
   "/dashboard/downtime-map": "Downtime Heatmap",
   "/dashboard/pm-intelligence": "PM Intelligence",
+  "/dashboard/maintenance-analysis": "Maintenance Problem Analysis",
   "/dashboard/control-center": "Control Center",
   "/dashboard/preventive": "Preventive Maintenance",
   "/dashboard/warehouse": "Warehouse",

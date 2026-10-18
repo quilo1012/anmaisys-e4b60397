@@ -281,7 +281,6 @@ const NO_MENU_ROW: Partial<Record<Action, string>> = {
   "workforce.view": "OFF THE MENU — seventeen people have no shift pattern, so the board would read as a rota when it is still an import. Reason recorded on the Headcount item.",
   "controlcenter.view": "OFF THE MENU — not being opened; route untouched.",
   "suppliers.view": "OFF THE MENU — part of Reports, taken off on the same pass.",
-  "reliability.view": "OFF THE MENU — /dashboard/reliability; the Downtime & Reliability row goes to /dashboard/downtime.",
   "production.target.view": "REACHED FROM ANOTHER SCREEN — My Production is the operator's own screen; every other role reads targets on Performance and Production Control.",
   "sku.view": "REACHED FROM ANOTHER SCREEN — the SKU Products row gates on sku.manage, which is the narrower right.",
   "production.performance.view": "REACHED FROM ANOTHER SCREEN for the operator — a button on My Production. Every other role holding it has the Performance row.",
