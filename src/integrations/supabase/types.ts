@@ -7406,6 +7406,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      overtime_places: {
+        Args: { p_request_ids: string[] }
+        Returns: {
+          headcount: number
+          request_id: string
+          taken: number
+        }[]
+      }
+      overtime_places_taken: { Args: { p_request_id: string }; Returns: number }
       overtime_push_targets: {
         Args: { p_employee_ids?: string[]; p_request_id: string }
         Returns: string[]
