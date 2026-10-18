@@ -80,7 +80,7 @@ create index if not exists overtime_audit_request_idx  on public.overtime_audit 
 
 comment on table public.overtime_audit is
   'Append-only history of overtime and the employee events that affect it. Written only '
-  'by triggers. See 20261018090000.';
+  'by triggers. See 20261018110000.';
 
 -- ---------------------------------------------------------------------------
 -- 1. Who did it, from the session — never from anything the caller sends

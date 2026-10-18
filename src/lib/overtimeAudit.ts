@@ -1,7 +1,7 @@
 /**
  * Reading `overtime_audit` rows as sentences.
  *
- * The table is written only by database triggers (20261018090000); nothing here
+ * The table is written only by database triggers (20261018110000); nothing here
  * writes. Pure functions, so the wording can be tested without a database.
  */
 

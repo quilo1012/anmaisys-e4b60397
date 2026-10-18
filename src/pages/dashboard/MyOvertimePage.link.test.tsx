@@ -42,9 +42,10 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   // Sem funcionário ligado — é este o estado que abre o ecrã de ligação.
   useMyEmployee: () => ({ data: null, isLoading: false }),
   useUnlinkedEmployees: hooks.unlinked,
-  useOvertimeRequests: () => ({ data: [], isLoading: false }),
+  useMyUpcomingOvertime: () => ({ data: [], isLoading: false }),
   useOvertimeResponses: () => ({ data: [] }),
   useMyOvertimeBlock: () => ({ data: null }),
+  useMyOvertimeClashes: () => ({ data: undefined }),
   useOvertimeMutations: () => ({
     answer: { mutate: vi.fn() },
     linkMe: { mutate: hooks.linkMutate, isPending: false },

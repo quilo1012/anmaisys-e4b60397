@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   askShift, windowMinutes, hoursLabel, askState, summarise, filterAsks, inRange, clashesFor,
-  boardDatesFor, duplicateNames, DEFAULT_FILTERS, type BoardRow,
+  scheduleClashKey, boardDatesFor, duplicateNames, DEFAULT_FILTERS, type BoardRow,
 } from "./overtimeShifts";
 import type { OvertimeRequest, OvertimeResponse, OvertimeOutcome } from "./overtimeRequests";
 
@@ -126,6 +126,30 @@ describe("clashesFor", () => {
       .toEqual({ severity: "warn", text: "On holiday 14/10" });
     expect(clashesFor("e1", nightAsk, [], [board({ shift: "Day" })])[0].text).toMatch(/No rest/);
     expect(clashesFor("e1", nightAsk, [], [board({ on_date: "2026-10-15", shift: "Day" })])[0].text).toMatch(/No rest/);
+  });
+});
+
+describe("clashesFor — the database's reading of the person's own hours", () => {
+  const satDay = ask("s", { on_date: "2026-10-17", starts_at: "06:00", ends_at: "18:00" });
+  const own = new Map([[scheduleClashKey("s", "e1"),
+    "Your rota has you on the day shift on Sat 17/10, 06:00–18:00"]]);
+
+  it("blocks the accept when the rota covers the hours and the board is not drawn", () => {
+    expect(clashesFor("e1", satDay, [], [], own)).toEqual([
+      { severity: "block", text: "Your rota has you on the day shift on Sat 17/10, 06:00–18:00" },
+    ]);
+  });
+  it("is about that person on that ask only", () => {
+    expect(clashesFor("e2", satDay, [], [], own)).toEqual([]);
+    expect(clashesFor("e1", ask("t", { on_date: "2026-10-17" }), [], [], own)).toEqual([]);
+  });
+  it("does not say it twice when the board already found the same shift", () => {
+    const c = clashesFor("e1", satDay, [],
+      [{ on_date: "2026-10-17", shift: "Day", employee_id: "e1", status: "assigned" }], own);
+    expect(c.filter((x) => x.severity === "block")).toHaveLength(1);
+  });
+  it("without the block pasted, the board alone decides as before", () => {
+    expect(clashesFor("e1", satDay, [], [], undefined)).toEqual([]);
   });
 });
 

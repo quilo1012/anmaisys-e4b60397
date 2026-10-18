@@ -46,6 +46,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeReliability: () => ({ data: new Map() }),
   useOvertimeRoster: () => ({ data: roster }),
   useOvertimeBoardRows: () => ({ data: board }),
+  useOvertimeScheduleClashes: () => ({ data: undefined }),
   useOvertimeMutations: () => ({
     createRequest: mutation(), editRequest: mutation(), setRequestStatus: mutation(),
     decide: mutation(), recordOutcome: mutation(), answerFor: mutation(),

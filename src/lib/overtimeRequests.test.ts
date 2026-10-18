@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   countResponses, reliabilityTone, reliabilityLabel, attendedLabel, blockedLabel,
   sortCandidates, requestIsForEmployee, myStatusLabel, windowLabel,
-  myAnswerLabel, supervisorLabel, headcountLine, audienceLine, askIsOver,
+  myAnswerLabel, supervisorLabel, headcountLine, audienceLine, askIsOver, askHasStarted, upcomingForMe, localDate,
   type Reliability, type OvertimeResponse, type Candidate, hoursBetween, deskCandidates, overtimeBoardFor } from "./overtimeRequests";
 
 const rel = (o: Partial<Reliability> = {}): Reliability => ({
@@ -267,6 +267,80 @@ describe("askIsOver", () => {
   });
 });
 
+/**
+ * My Overtime lists shifts still ahead, and only those.
+ *
+ * It used to keep every ask the person had answered, over or not, so a phone opened
+ * on Monday led with last week's mornings. Times here are built on the local clock
+ * (month is 0-based) because that is the clock the screen reads.
+ */
+describe("askHasStarted", () => {
+  it("is false a minute before the start and true from the start on", () => {
+    const a = { on_date: "2026-10-08", starts_at: "06:00:00" };
+    expect(askHasStarted(a, new Date(2026, 9, 8, 5, 59))).toBe(false);
+    expect(askHasStarted(a, new Date(2026, 9, 8, 6, 0))).toBe(true);
+  });
+
+  it("judges a night by its evening start, not by the morning it ends", () => {
+    const night = { on_date: "2026-10-08", starts_at: "18:00" };
+    expect(askHasStarted(night, new Date(2026, 9, 8, 17, 0))).toBe(false);
+    expect(askHasStarted(night, new Date(2026, 9, 8, 23, 0))).toBe(true);
+    expect(askHasStarted(night, new Date(2026, 9, 9, 3, 0))).toBe(true);
+  });
+});
+
+describe("localDate", () => {
+  it("is the device's date, not UTC's", () => {
+    expect(localDate(new Date(2026, 9, 8, 0, 30))).toBe("2026-10-08");
+  });
+});
+
+describe("upcomingForMe", () => {
+  const me = { department: "Packing", shift_group: "Day" };
+  const now = new Date(2026, 9, 8, 12, 0);
+  const ask = (id: string, o: Partial<{ on_date: string; starts_at: string; status: "open" | "closed" | "cancelled"; department: string | null; shift_group: string | null }> = {}) =>
+    ({ id, on_date: "2026-10-09", starts_at: "06:00", status: "open" as const, department: null, shift_group: null, ...o });
+  const ids = (rs: { id: string }[]) => rs.map((r) => r.id);
+  const none = new Map();
+
+  it("drops an answered ask whose shift is in the past", () => {
+    const past = ask("past", { on_date: "2026-10-07" });
+    expect(ids(upcomingForMe([past], me, new Map([["past", { decision: "accepted" }]]), now))).toEqual([]);
+  });
+
+  it("drops today's morning once it has begun, keeps tonight's night", () => {
+    const morning = ask("morning", { on_date: "2026-10-08", starts_at: "06:00" });
+    const night = ask("night", { on_date: "2026-10-08", starts_at: "18:00" });
+    expect(ids(upcomingForMe([morning, night], me, none, now))).toEqual(["night"]);
+  });
+
+  it("drops a night that started yesterday, though it runs until this morning", () => {
+    const night = ask("n", { on_date: "2026-10-07", starts_at: "18:00" });
+    expect(ids(upcomingForMe([night], me, none, new Date(2026, 9, 8, 3, 0)))).toEqual([]);
+  });
+
+  it("never lists a cancelled ask, answered or not", () => {
+    const c = ask("c", { status: "cancelled" });
+    expect(ids(upcomingForMe([c], me, new Map([["c", { decision: "accepted" }]]), now))).toEqual([]);
+  });
+
+  it("lists a filled ask only when this person is on it", () => {
+    const closed = ask("x", { status: "closed" });
+    expect(ids(upcomingForMe([closed], me, none, now))).toEqual([]);
+    expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: null }]]), now))).toEqual([]);
+    expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: "declined" }]]), now))).toEqual([]);
+    expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: "accepted" }]]), now))).toEqual(["x"]);
+    expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: "reserve" }]]), now))).toEqual(["x"]);
+  });
+
+  it("offers an open ask only to its audience, unless the person is already on it", () => {
+    const night = ask("o", { shift_group: "Night" });
+    expect(ids(upcomingForMe([night], me, none, now))).toEqual([]);
+    expect(ids(upcomingForMe([night], me, new Map([["o", { decision: "accepted" }]]), now))).toEqual(["o"]);
+    expect(ids(upcomingForMe([ask("all")], me, none, now))).toEqual(["all"]);
+  });
+});
+
 describe("hoursBetween", () => {
   it("a noite normal", () => {
     expect(hoursBetween("18:00", "06:00")).toBe("12h");
@@ -325,5 +399,32 @@ describe("cross-shift overtime", () => {
 
   it("still keeps the ask's audience for the employee's own phone", () => {
     expect(requestIsForEmployee({ department: null, shift_group: "Night" }, people[0])).toBe(false);
+  });
+});
+
+describe("upcomingForMe — the phone does not offer hours that are already the person's", () => {
+  const now = new Date("2026-10-15T12:00:00");
+  const a = (id: string, p: Partial<{ department: string | null; shift_group: string | null; on_date: string; starts_at: string }> = {}) => ({
+    id, status: "open" as const, department: null, shift_group: null, on_date: "2026-10-17", starts_at: "06:00", ...p,
+  });
+  const weekendCrew = { department: "Production", shift_group: "Weekend" };
+  const satDay = a("sat-day");
+  const satNight = a("sat-night", { starts_at: "18:00" });
+  const clashes = new Map([["sat-day", "Your rota has you on the day shift on Sat 17/10, 06:00–18:00"]]);
+  const none = new Map();
+
+  it("hides Saturday Day overtime from somebody rostered Saturday Day", () => {
+    expect(upcomingForMe([satDay, satNight], weekendCrew, none, now, clashes).map((r) => r.id))
+      .toEqual(["sat-night"]);
+  });
+  it("still offers it to somebody whose hours it does not touch", () => {
+    expect(upcomingForMe([satDay], { department: "Production", shift_group: "Day" }, none, now, new Map()))
+      .toEqual([satDay]);
+  });
+  it("keeps an ask the person already answered, so their answer does not vanish", () => {
+    expect(upcomingForMe([satDay], weekendCrew, new Map([["sat-day", { decision: null }]]), now, clashes)).toEqual([satDay]);
+  });
+  it("keeps the department and crew narrowing", () => {
+    expect(upcomingForMe([a("wh", { department: "Warehouse" })], weekendCrew, none, now, new Map())).toEqual([]);
   });
 });

@@ -29,9 +29,10 @@ const me = vi.hoisted(() => ({ state: vi.fn() }));
 
 vi.mock("@/hooks/useOvertimeRequests", () => ({
   useMyEmployee: me.state,
-  useOvertimeRequests: () => ({ data: [], isLoading: false }),
+  useMyUpcomingOvertime: () => ({ data: [], isLoading: false }),
   useOvertimeResponses: () => ({ data: [] }),
   useMyOvertimeBlock: () => ({ data: null }),
+  useMyOvertimeClashes: () => ({ data: undefined }),
   useOvertimeMutations: () => ({
     answer: { mutate: vi.fn() },
     linkMe: { mutate: vi.fn(), isPending: false },

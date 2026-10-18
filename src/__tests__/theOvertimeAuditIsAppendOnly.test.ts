@@ -4,12 +4,12 @@ import { resolve } from "node:path";
 import { EVENT_LABEL } from "@/lib/overtimeAudit";
 
 /**
- * The overtime audit (20261018090000) as text: what it promises about who can write,
+ * The overtime audit (20261018110000) as text: what it promises about who can write,
  * who can read, and what it never copies. Run against a real Postgres when it was
  * written; this keeps the promises from being edited away quietly.
  */
 const sql = readFileSync(
-  resolve(__dirname, "../..", "supabase/migrations/20261018090000_overtime_keeps_its_own_record.sql"), "utf8",
+  resolve(__dirname, "../..", "supabase/migrations/20261018110000_overtime_keeps_its_own_record.sql"), "utf8",
 ).toLowerCase();
 
 describe("the overtime audit", () => {

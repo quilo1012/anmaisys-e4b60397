@@ -43,6 +43,21 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
+    name: "my_overtime_clashes",
+    block: "BLOCO 95 — 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql",
+    fallback:
+      "useMyOvertimeClashes turns PGRST202 into an empty map, so MyOvertimePage lists the " +
+      "asks it listed before the block — by department and crew only — and answer_overtime " +
+      "is still the old one, which accepts the same yes.",
+  },
+  {
+    name: "overtime_schedule_clashes",
+    block: "BLOCO 95 — 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql",
+    fallback:
+      "useOvertimeScheduleClashes turns PGRST202 into an empty map, and clashesFor then " +
+      "blocks an accept from the board rows alone, exactly as it did before the block.",
+  },
+  {
     name: "login_link_candidates",
     block: "BLOCO 91 — 20261012170000_a_supervisor_links_a_login_to_its_person.sql",
     fallback:

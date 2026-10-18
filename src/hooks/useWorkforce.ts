@@ -275,60 +275,6 @@ export function useSetAttendance(onDate: string) {
   });
 }
 
-/**
- * Move someone to an area, on one day, and say so on the record.
- *
- * The day's attendance row holds where they worked that day; the movement row holds
- * that somebody moved them, from where and by whom. Nobody works the same line every
- * day, so writing this onto the employee would rewrite every day they have already
- * worked — the default on `employees` only ever seeds a day nobody has touched.
- */
-export function useMoveEmployee() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      employee, toLineId, fromLineName, toLineName, movedBy, onDate, keepStatus,
-    }: {
-      employee: Employee; toLineId: string | null; onDate: string;
-      fromLineName: string | null; toLineName: string | null; movedBy?: string | null;
-      /** Whatever the day already said, so placing somebody does not overwrite it. */
-      keepStatus?: AttendanceStatus | null;
-    }) => {
-      // Present only when nothing had been said yet. Putting somebody on a line is
-      // saying where they are, not that they turned up — and somebody already marked
-      // Holiday who gets dragged onto a line should stay on holiday until a person
-      // decides otherwise, rather than being quietly marked in.
-      const { error } = await db
-        .from("employee_attendance")
-        .upsert(
-          {
-            employee_id: employee.id,
-            on_date: onDate,
-            headcount_area_id: toLineId,
-            status: keepStatus ?? "present",
-          },
-          { onConflict: "employee_id,on_date" },
-        );
-      if (error) throw error;
-      const { error: histError } = await db.from("employee_movements").insert({
-        employee_id: employee.id,
-        from_line: fromLineName,
-        to_line: toLineName,
-        from_department: employee.department,
-        to_department: employee.department,
-        moved_by: movedBy ?? null,
-      });
-      // The move itself succeeded. A failed history write is worth knowing about but
-      // must not roll the board back under the user.
-      if (histError) console.error("[workforce] movement not recorded:", histError);
-    },
-    onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ["employee_attendance", vars.onDate] });
-      qc.invalidateQueries({ queryKey: ["employee_movements", vars.employee.id] });
-    },
-  });
-}
-
 export interface ShiftPosition {
   employee_id: string;
   shift_group: string | null;
@@ -375,47 +321,6 @@ export function resolveShiftOn(
   return found
     ? { shift_group: found.shift_group, shift_pattern_id: found.shift_pattern_id }
     : { shift_group: employee.shift_group, shift_pattern_id: employee.shift_pattern_id };
-}
-
-/**
- * Move somebody to another shift from a date.
- *
- * Writes the history row and the current columns together. The history is what any
- * past day is read through; the columns are what the rest of the app shows when it is
- * not asking about a date, and letting them drift apart is how the two disagree.
- */
-export function useChangeShift() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: {
-      employeeId: string;
-      shiftGroup: string | null;
-      shiftPatternId: string | null;
-      effectiveFrom: string;
-      changedBy?: string | null;
-    }) => {
-      const { error } = await db.from("employee_shift_history").upsert(
-        {
-          employee_id: input.employeeId,
-          shift_group: input.shiftGroup,
-          shift_pattern_id: input.shiftPatternId,
-          effective_from: input.effectiveFrom,
-          changed_by: input.changedBy ?? null,
-        },
-        { onConflict: "employee_id,effective_from" },
-      );
-      if (error) throw error;
-      const { error: curErr } = await db
-        .from("employees")
-        .update({ shift_group: input.shiftGroup, shift_pattern_id: input.shiftPatternId })
-        .eq("id", input.employeeId);
-      if (curErr) throw curErr;
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["employees"] });
-      qc.invalidateQueries({ queryKey: ["employee_shift_history"] });
-    },
-  });
 }
 
 /**

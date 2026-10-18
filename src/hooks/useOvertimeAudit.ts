@@ -9,7 +9,7 @@ const db = supabase as any;
 
 export type OvertimeAuditResult =
   | { state: "ready"; rows: OvertimeAuditRow[]; more: boolean }
-  /** BLOCO 95 has not been pasted: the table does not exist yet. */
+  /** BLOCO 98 has not been pasted: the table does not exist yet. */
   | { state: "notSetUp" };
 
 /**
