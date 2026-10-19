@@ -268,7 +268,7 @@ export function useDMUnreadBySender() {
  * thread is the "Message supervisor" dialog on My Overtime, so the toast goes there.
  */
 export function dmInboxPath(role: string | null | undefined) {
-  return role === "employee" ? "/dashboard/my-overtime" : "/dashboard/messages";
+  return role === "employee" ? "/dashboard/my-overtime?chat=supervisor" : "/dashboard/messages";
 }
 
 /** Total unread messages for current user. */
@@ -311,7 +311,7 @@ export function useDMUnreadCount() {
           const inbox = dmInboxPath(role);
           const onMessagesPage =
             typeof window !== "undefined" &&
-            window.location.pathname === inbox;
+            window.location.pathname === inbox.split("?")[0];
 
           // Discreet, MSN-style: announce a new message with the logo, but never
           // the message content — the user opens the chat to read it.
@@ -353,4 +353,32 @@ export function useDMUnreadCount() {
   }, [user, role, queryClient, navigate]);
 
   return query;
+}
+
+/**
+ * The signed-in employee's supervisor on file (`employees.manager_id`), via
+ * `my_supervisor()` (BLOCO 107).
+ *
+ * `null` is "nobody is on file"; `notSetUp` is "the block is not pasted yet", when the
+ * chat keeps writing to whoever posted the ask, as it did before.
+ */
+export function useMySupervisor(enabled = true) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["my_supervisor", user?.id],
+    enabled: enabled && !!user,
+    staleTime: 5 * 60_000,
+    meta: { schemaOptional: true },
+    queryFn: async (): Promise<{ notSetUp: boolean; supervisor: { user_id: string; full_name: string } | null }> => {
+      // BLOCO 107: the types.ts only learns the function once the block is pasted.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("my_supervisor");
+      if (error) {
+        if ((error as { code?: string }).code === "PGRST202") return { notSetUp: true, supervisor: null };
+        throw error;
+      }
+      const row = ((data ?? []) as { user_id: string; full_name: string }[])[0] ?? null;
+      return { notSetUp: false, supervisor: row };
+    },
+  });
 }

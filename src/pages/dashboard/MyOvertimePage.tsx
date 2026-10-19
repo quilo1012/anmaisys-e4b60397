@@ -30,6 +30,7 @@ import { TabletOvertimeNotice } from "@/components/workforce/TabletOvertimeNotic
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
 import { MessageSupervisorDialog } from "@/components/workforce/MessageSupervisorDialog";
+import { useMySupervisor } from "@/hooks/useDirectMessages";
 
 const NO_CLASHES: ReadonlyMap<string, string> = new Map();
 
@@ -124,6 +125,7 @@ export default function MyOvertimePage() {
         ) : me ? (
           <>
             <OvertimePushNudge />
+            <MySupervisorChat />
             <AsksForMe me={me} />
             <OvertimeAuditLog mode="mine" />
           </>
@@ -135,6 +137,32 @@ export default function MyOvertimePage() {
   );
 }
 
+
+/**
+ * The conversation with the supervisor on file, without needing an ask to hang it on.
+ *
+ * Silent until BLOCO 107 is pasted (the per-ask button still writes to whoever posted
+ * the ask then). `?chat=supervisor` — the link on the bell row and the message toast —
+ * opens it straight away.
+ */
+function MySupervisorChat() {
+  const { data } = useMySupervisor();
+  const [params] = useSearchParams();
+  if (!data || data.notSetUp) return null;
+  if (!data.supervisor) {
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="no-supervisor">
+        No supervisor is on file for you yet — the office can set your manager on your record.
+      </p>
+    );
+  }
+  return (
+    <MessageSupervisorDialog
+      label={`Message ${data.supervisor.full_name}`}
+      defaultOpen={params.get("chat") === "supervisor"}
+    />
+  );
+}
 
 /**
  * Who you are, in the one way that is yours alone.
