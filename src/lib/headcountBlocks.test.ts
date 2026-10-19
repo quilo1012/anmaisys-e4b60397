@@ -68,7 +68,8 @@ describe("sheetBandOf", () => {
 
   it("põe os sectores no apoio, que é onde a planilha os tem", () => {
     // Hygiene, Quality, WH team e Maintenance estão na segunda banda da folha de
-    // Outubro, ao lado do Lab e do Office.
+    // Outubro. O Lab, o Blender Room e o Office, esses vão para a primeira — a prova
+    // está mais abaixo, em «põe o Lab, o Blender Room e o Office na produção».
     expect(sheetBandOf({ section: "sectors", kind: "production" })).toBe("support");
     expect(sheetBandOf({ section: "sectors", kind: "support" })).toBe("support");
   });
