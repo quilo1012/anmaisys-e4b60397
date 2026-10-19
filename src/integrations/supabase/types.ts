@@ -7545,6 +7545,10 @@ export type Database = {
         Args: { p_on_date: string; p_starts_at: string }
         Returns: string
       }
+      overtime_book_waiting_yeses: {
+        Args: never
+        Returns: Record<string, unknown>
+      }
       overtime_notify_targets: {
         Args: { p_request_id: string }
         Returns: {
