@@ -6,6 +6,7 @@
 - Record employee rota, job and shift changes server-side and display existing dated crew history alongside them, so edits from every writer remain traceable without inventing past job titles.
 
 - Mount start-of-shift tablet acknowledgements inside `OperatorLineGuard`, because only authenticated operator line screens may display them.
+- Pin the areas the factory reads as production to the Production band in `headcountBlocks`, not in the stored `section`, because direct SQL rewrites that column and the board must not change shape between mornings; `kind` still decides what the totals count.
 
 ## Which database you are looking at
 

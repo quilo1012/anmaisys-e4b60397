@@ -690,7 +690,8 @@ describe("the day laid out as the company's sheet", () => {
 
   it("prints two machines as the one column the sheet has", () => {
     const l = layout([al("e1", "assigned", "c1"), al("e2", "assigned", "c2")]);
-    expect(l.top.map((c) => c.label)).toEqual(["Line 1", "Pill line"]);
+    // Office is a production column now, so it comes out with the lines.
+    expect(l.top.map((c) => c.label)).toEqual(["Line 1", "Pill line", "Office"]);
     expect(l.top[1].names).toHaveLength(2);
   });
 
@@ -714,7 +715,9 @@ describe("the day laid out as the company's sheet", () => {
   });
 
   it("leaves Training off the sheet until somebody is on it", () => {
-    expect(layout([]).bottom.map((c) => c.label)).toEqual(["Office", "Absence", "Holidays", "Overtime staff"]);
+    // Office draws with the lines, so the bottom band carries the states only.
+    expect(layout([]).top.map((c) => c.label)).toEqual(["Line 1", "Pill line", "Office"]);
+    expect(layout([]).bottom.map((c) => c.label)).toEqual(["Absence", "Holidays", "Overtime staff"]);
     expect(layout([al("e1", "training", null)]).bottom.map((c) => c.label)).toContain("Training");
   });
 
@@ -726,7 +729,7 @@ describe("the day laid out as the company's sheet", () => {
       employeeById: new Map(crew.map((p) => [p.id, p])),
     });
     expect(l.top[0].names.map((n) => n.name)).toEqual(["Felipe Nascimento", "Maria Souza Santos"]);
-    expect(l.bottom[0].names.map((n) => n.name)).toEqual(["Maria Lima Santos"]);
+    expect(l.top.find((c) => c.label === "Office")!.names.map((n) => n.name)).toEqual(["Maria Lima Santos"]);
   });
 
   it("gives a closed area no column", () => {

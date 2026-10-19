@@ -85,8 +85,8 @@ test("o board desenha as duas bandas da planilha, e não três", async ({ page }
   await openBoard(page);
 
   // Eram Production, Sectors e Support. A folha da empresa tem duas bandas, e a
-  // Hygiene, a Quality, o WH team e a Maintenance estão na segunda, ao lado do Lab e
-  // do Office. O ecrã e o papel passam a arrumar a mesma gente da mesma maneira.
+  // Hygiene, a Quality, o WH team e a Maintenance estão na segunda. O ecrã e o papel
+  // passam a arrumar a mesma gente da mesma maneira.
   const seen = await bands(page);
   expect(seen, `bandas no ecrã: ${seen.join(" | ")}`).not.toContain("SECTORS");
   expect(seen.filter((b) => b === "PRODUCTION" || b === "SUPPORT")).toEqual(["PRODUCTION", "SUPPORT"]);

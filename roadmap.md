@@ -3,6 +3,8 @@
 - [x] Fill unplaced Headcount employees from habitual positions or each person's previous worked day; 65 tests and matrix browser check passed; authenticated 21 Oct Day shows 95 suggestions without saving production rows.
 
 - [x] Fix audit activation action mismatch; deploy log-audit-event; 20 regression tests passed. Verify overtime snapshot columns already exist in production (21 responses); no schema/data changes needed
+- [x] Draw Lab, Blender Room and Office in the Production band of the Headcount board; 93 sheet/block tests passed, live board shows all three under Production with totals unchanged
+
 - [ ] Verify both reported flows signed in — blocked by unavailable authenticated browser session; no live activation or audit test rows created
 
 - [x] Allow managers to open/correct employee records and view rota, position and shift history without Headcount; verify Weekend option

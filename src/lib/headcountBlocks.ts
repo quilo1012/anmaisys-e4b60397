@@ -46,7 +46,26 @@ export const SHEET_BANDS = ["production", "support"] as const;
 
 export type SheetBand = (typeof SHEET_BANDS)[number];
 
-export function sheetBandOf(area: { section: string | null; kind: string }): SheetBand {
+/**
+ * Áreas que se desenham na banda de produção seja qual for a secção gravada.
+ *
+ * O Lab, o Blender Room e o Office fazem parte de correr as linhas — é assim que a
+ * fábrica os lê, e o board já os teve aí. A coluna `section` já os levou para
+ * produção (`20260807160000`) e voltou a trazê-los para os sectores: escreve-a SQL
+ * directo, não a app — o board só grava `sort_order` — e um quadro que muda de forma
+ * a cada escrita deixa de ser a mesma folha duas manhãs seguidas. A regra mora aqui,
+ * onde o board, o export e o papel a lêem todos, e não numa coluna que se reescreve.
+ *
+ * Só a banda muda. `kind` continua a decidir o que as contagens contam, por isso
+ * "On lines" e "Support" não se mexem.
+ */
+export const PRODUCTION_BAND_AREAS = ["lab", "blender room", "office"] as const;
+
+export function sheetBandOf(
+  area: { name?: string; section: string | null; kind: string },
+): SheetBand {
+  const name = (area.name ?? "").trim().toLowerCase();
+  if ((PRODUCTION_BAND_AREAS as readonly string[]).includes(name)) return "production";
   return blockOf(area) === "production" ? "production" : "support";
 }
 
