@@ -40,6 +40,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
+import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
 import { useShiftPatterns } from "@/hooks/useWorkforce";
@@ -54,7 +55,7 @@ import {
   useAllocationMutations,
   useCopyableDays,
   useHeadcountMatrix,
-  useLastWorkedDay,
+  usePreviousWorkingPlaces,
   useSaveMatrix,
   useChangeShift,
   useReorderAreas,
@@ -935,61 +936,39 @@ function ShiftBoard({
   const assignedCount = tally.working;
 
   /**
-   * Um dia que ainda não aconteceu e que ninguém planeou, mostrado como o rota o põe.
-   *
-   * O board só tem o que foi gravado, e amanhã é gravado amanhã de manhã. Quem
-   * abria o dia seguinte para saber em que linha ia estar via colunas vazias e o nome
-   * em "Not placed yet" — a pergunta era "onde vou estar?", e o sítio estava no
-   * matrix, a um menu de distância. Aqui aparece a cinzento, na coluna onde o matrix
-   * do dia (changeover às segundas e sextas, standard nos outros) põe cada pessoa que o
-   * rota traz. Nada é gravado: "Save this plan" faz a mesma cópia do menu, e os nomes
-   * a cinzento são exactamente as linhas que ela escreve.
-   *
-   * Só quando o dia está por planear — ninguém colocado numa coluna: um dia que
-   * alguém começou a arrumar é a palavra dessa pessoa, não do matrix. Contava-se
-   * qualquer pessoa "a trabalhar", e uma linha que ninguém arrumou bastava para apagar
-   * o plano inteiro: a overtime aceite (que chega sem coluna, pela ponte) ou um
-   * holiday marcado com antecedência deixavam o dia 17 com toda a gente em "Not
-   * placed yet". Uma linha sem coluna não é arrumar o dia.
+   * Cada pessoa por colocar recebe o sítio habitual, ou o seu próprio último dia
+   * trabalhado neste turno — o último board pode ser de outro crew. Um board parcial
+   * continua a sugerir os restantes; ausências e linhas gravadas ficam intactas.
+   * Nada é gravado até "Save this plan", e dias passados nunca são preenchidos.
    */
-  const todayIso = (() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
-  })();
-  const placedOnArea = allocations.some((a) => !!a.area_id);
+  const todayIso = currentShift().operationalDate;
   const planKind: "normal" | "changeover" = [1, 5].includes(new Date(`${onDate}T12:00:00`).getDay()) ? "changeover" : "normal";
   const plan = matrix.matrices.find((m) => m.kind === planKind);
-  const matrixGhosts = useMemo(() => {
-    const out = new Map<string, HeadcountEmployee[]>();
-    if (onDate <= todayIso || placedOnArea || !plan) return out;
-    for (const r of plan.due) {
-      // Só para colunas que o board desenha; uma área desactivada deixaria a pessoa
-      // fora da coluna e fora da bandeja ao mesmo tempo.
-      if (!r.area_id || !areas.some((x) => x.id === r.area_id) || byEmployee.has(r.employee_id)) continue;
-      const p = employeeById.get(r.employee_id);
-      if (!p) continue;
-      out.set(r.area_id, [...(out.get(r.area_id) ?? []), p]);
-    }
-    for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
-    return out;
-  }, [onDate, todayIso, placedOnArea, plan, byEmployee, employeeById, areas]);
-  // Sem matrix para o dia, sugere onde cada pessoa esteve no último dia trabalhado
-  // deste turno. Só sugestão: "Save this plan" corre a mesma cópia do botão.
-  const useLastDay = !placedOnArea && matrixGhosts.size === 0;
-  const { data: lastDay } = useLastWorkedDay(onDate, shift, useLastDay);
+  const previousPlaces = usePreviousWorkingPlaces(onDate, shift, onDate >= todayIso);
+  const suggestedRows = useMemo(() => {
+    if (!previousPlaces.isSuccess || matrix.isLoading) return [];
+    return suggestHeadcountPlaces({
+      dueIds: onShift.filter((p) => !p.offRota).map((p) => p.id),
+      savedIds: [...byEmployee.keys()],
+      awayIds: previousPlaces.data.awayIds,
+      areaIds: areas.map((a) => a.id),
+      primary: plan?.rows ?? [],
+      secondary: matrix.matrices.find((m) => m.kind !== planKind)?.rows ?? [],
+      previous: previousPlaces.data.previous,
+      onDate, today: todayIso,
+    });
+  }, [previousPlaces.isSuccess, previousPlaces.data, matrix.isLoading, matrix.matrices, onShift, byEmployee, areas, plan, planKind, onDate, todayIso]);
   const ghostByArea = useMemo(() => {
-    if (!useLastDay || !lastDay) return matrixGhosts;
     const out = new Map<string, HeadcountEmployee[]>();
-    for (const r of lastDay.rows) {
-      if (!areas.some((x) => x.id === r.area_id) || byEmployee.has(r.employee_id)) continue;
+    for (const r of suggestedRows) {
+      if (!r.area_id) continue;
       const p = employeeById.get(r.employee_id);
       if (!p) continue;
       out.set(r.area_id, [...(out.get(r.area_id) ?? []), p]);
     }
     for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
     return out;
-  }, [useLastDay, lastDay, matrixGhosts, areas, byEmployee, employeeById]);
-  const ghostFromLastDay = useLastDay && !!lastDay && ghostByArea !== matrixGhosts;
+  }, [suggestedRows, employeeById]);
   const ghostCount = [...ghostByArea.values()].reduce((n, l) => n + l.length, 0);
   const ghostIds = new Set([...ghostByArea.values()].flat().map((p) => p.id));
   const ghostsIn = (areaId: string) => ghostByArea.get(areaId) ?? [];
@@ -1529,15 +1508,13 @@ function ShiftBoard({
           <p className="text-sm">
             <span className="font-bold">Not planned yet.</span>{" "}
             <span className="text-muted-foreground">
-              {ghostFromLastDay && lastDay
-                ? `The ${ghostCount} names in grey italic are where each person worked on ${lastDay.on_date.split("-").reverse().join("/")}, the last ${shift.toLowerCase()} day worked. Nothing is saved until you save it.`
-                : `The ${ghostCount} names in grey italic are where the ${plan?.label} matrix puts the people due in. Nothing is saved until you save it.`}
+              {`${ghostCount} suggested positions · not saved`}
             </span>
           </p>
           {canManage && (
             <Button
               size="sm"
-              onClick={() => runCopy(ghostFromLastDay && lastDay ? { kind: "day", on_date: lastDay.on_date } : { kind: "matrix", matrix: planKind })}
+              onClick={() => runCopy({ kind: "suggested", rows: suggestedRows })}
               disabled={copyLastLikeDay.isPending}
             >
               Save this plan
@@ -1656,7 +1633,7 @@ function ShiftBoard({
                       <div
                         key={`plan-${p.id}`}
                         data-planned
-                        title={`${p.full_name} — planned by the ${plan?.label ?? "matrix"}, not saved yet`}
+                        title={`${p.full_name} — habitual or previous working position, not saved yet`}
                         className={cn("flex h-12 shrink-0 flex-col items-center justify-center border-b px-2 text-center text-sm italic text-muted-foreground", SHEET_RULE)}
                       >
                         <span className="max-w-full truncate">{p.full_name}</span>
