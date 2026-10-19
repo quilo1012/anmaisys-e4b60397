@@ -1600,6 +1600,32 @@ select:-webkit-autofill {
 }
 #root {
   padding-top: var(--app-banner-h);
+  /* `viewport-fit=cover` (index.html) lets the page run under a phone's rounded
+     corners and notch so the bottom bar can sit on the home indicator. The sides
+     pay for it in landscape: these give the notch back to the content. Zero on
+     every device without one. */
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* ===========================================================================
+ * Card padding, one value per width.
+ *
+ * shadcn's Card writes `p-6` — 24px each side. On a 390px phone, inside the
+ * shell's own 12px gutter, that left 318px for content and every card read as a
+ * narrow column floating in white. 16px below 640px, 24px from there up, so the
+ * desktop is exactly what it was. A variable rather than `p-4 sm:p-6` in
+ * card.tsx because callers override single sides (`pt-4`, `px-3`): tailwind-merge
+ * would drop `pt-0` for their `pt-4` but keep `sm:pt-0`, and on a laptop their
+ * top padding would silently vanish.
+ * =========================================================================== */
+:root {
+  --card-pad: 1rem;
+}
+@media (min-width: 640px) {
+  :root {
+    --card-pad: 1.5rem;
+  }
 }
 
 /* ===========================================================================

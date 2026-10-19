@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 /**
  * Back, in the same place on every screen.
@@ -17,7 +18,7 @@ import { dashboardPathFor, type Role } from "@/lib/permissions";
  *   back to their own dashboard.
  * - On that dashboard it renders nothing, because there is nowhere above it.
  */
-export function BackButton({ className }: { className?: string } = {}) {
+export function BackButton({ className, iconOnly = false }: { className?: string; iconOnly?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { role } = useAuth();
@@ -34,11 +35,11 @@ export function BackButton({ className }: { className?: string } = {}) {
       variant="ghost"
       size="sm"
       aria-label="Go back"
-      className={`h-9 shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground ${className ?? ""}`}
+      className={cn("h-9 shrink-0 gap-1.5 px-2 text-muted-foreground hover:text-foreground", className)}
       onClick={() => (hasHistory ? navigate(-1) : navigate(home))}
     >
-      <ArrowLeft className="h-4 w-4" />
-      <span className="hidden sm:inline text-sm">Back</span>
+      <ArrowLeft className="h-5 w-5 sm:h-4 sm:w-4" />
+      {!iconOnly && <span className="hidden sm:inline text-sm">Back</span>}
     </Button>
   );
 }

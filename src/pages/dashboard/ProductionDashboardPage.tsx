@@ -8,6 +8,7 @@ import {
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { SectionHeading } from "@/components/ui/SectionHeading";
+import { ControlPlate, ControlField } from "@/components/ui/ControlPlate";
 import { DateField } from "@/components/ui/DateField";
 import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/reports/KpiCard";
@@ -80,29 +81,44 @@ export default function ProductionDashboardPage() {
         title="Production Dashboard"
         description="Who is on the lines, the overtime asked for, and what the lines made."
         icon={<Factory />}
-        actions={
-          <Button variant="outline" size="sm" onClick={() => void qc.invalidateQueries()} aria-label="Refresh all figures">
-            <RefreshCw className="mr-1 h-4 w-4" /> Refresh
-          </Button>
-        }
       />
 
       {/* The two dates answer different questions, so they are two controls with their
-          own labels: the board is one day; trends, overtime and output are a period. */}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <label className="space-y-1 text-xs font-medium text-muted-foreground">
-          <span className="block">Board day</span>
-          <DateField value={day} onChange={(d) => d && setDay(d)} aria-label="Board day" />
-        </label>
-        <div className="space-y-1 text-xs font-medium text-muted-foreground">
-          <span className="block">Period</span>
-          <DateRangeFilter value={range} preset={preset} onChange={(r, p) => { setRange(r); setPreset(p); }} />
-        </div>
-        <div className="space-y-1 text-xs font-medium text-muted-foreground">
-          <span className="block">Shift</span>
-          <ShiftFilter value={shift} onChange={setShift} />
-        </div>
-      </div>
+          own labels: the board is one day; trends, overtime and output are a period.
+          On a phone they sit in a two-column plate — day and period side by side, the
+          shift full width under them with Refresh — instead of three stacked rows of
+          different widths that took the first screen before a single figure. */}
+      <ControlPlate className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3 sm:flex">
+        <ControlField label="Board day" className="min-w-0">
+          <DateField value={day} onChange={(d) => d && setDay(d)} aria-label="Board day" className="w-full sm:w-[8.5rem]" />
+        </ControlField>
+        <ControlField label="Period" className="min-w-0">
+          <DateRangeFilter value={range} preset={preset} onChange={(r, p) => { setRange(r); setPreset(p); }} className="h-10 w-full sm:w-auto" />
+        </ControlField>
+        <ControlField label="Shift" className="col-span-2 min-w-0 sm:col-span-1">
+          <div className="flex items-center gap-2">
+            <ShiftFilter value={shift} onChange={setShift} fill className="sm:w-auto" />
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 shrink-0 sm:hidden"
+              onClick={() => void qc.invalidateQueries()}
+              aria-label="Refresh all figures"
+              title="Refresh all figures"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </ControlField>
+        <Button
+          variant="outline"
+          className="hidden h-10 gap-1.5 self-end sm:ml-auto sm:inline-flex"
+          onClick={() => void qc.invalidateQueries()}
+          aria-label="Refresh all figures"
+        >
+          <RefreshCw className="h-4 w-4" /> Refresh
+        </Button>
+      </ControlPlate>
 
       <div className="space-y-6">
         <section aria-label="Needs attention">

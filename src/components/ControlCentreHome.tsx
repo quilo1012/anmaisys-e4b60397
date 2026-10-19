@@ -209,9 +209,14 @@ export function ControlCentreHome() {
     l.live.state === "PLANNED_STOP" || l.live.state === "UNPLANNED_STOP" || l.live.state === "STOPPED_NO_CODE",
   ).length;
 
+  // One grid, so the phone can read it in a different order from the desktop without
+  // a second copy of anything: on a phone "Needs a person" comes first, because it is
+  // the only block that is a list of things to do — the tiles under it are the
+  // context. From 1024px the order is the one the eye already takes across a wide
+  // screen: the four tiles, then the list beside the line panel.
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 lg:col-span-2 xl:grid-cols-4">
         {showProduction && (
         <Tile
           title="Production"
@@ -267,8 +272,7 @@ export function ControlCentreHome() {
         )}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="order-first lg:order-none">
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="h-4 w-4 text-warning-strong" /> Needs a person
@@ -287,7 +291,7 @@ export function ControlCentreHome() {
                   type="button"
                   onClick={() => navigate(a.to)}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-lg border p-2 text-left transition-colors hover:bg-accent/50",
+                    "flex min-h-12 w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     a.tone === "danger" ? "border-destructive/40 bg-destructive/5" : "border-warning/40 bg-warning/5",
                   )}
                 >
@@ -315,7 +319,7 @@ export function ControlCentreHome() {
                 key={l.id}
                 type="button"
                 onClick={() => navigate(`/dashboard/downtime?line=${encodeURIComponent(l.name)}`)}
-                className="flex items-center gap-2 rounded-lg border p-2 text-left text-sm transition-colors hover:bg-accent/50"
+                className="flex min-h-11 items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title={[
                   l.live.ageSeconds == null
                     ? "iTouching has never reported this machine"
@@ -345,10 +349,9 @@ export function ControlCentreHome() {
           </CardContent>
         </Card>
         )}
-      </div>
 
       {showPm && opportunities.length > 0 && (
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <CardTitle className="text-base">Preventive opportunities</CardTitle>
@@ -392,17 +395,26 @@ function Tile({
     muted: "text-muted-foreground",
   } as const;
   return (
-    <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={onClick}>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide">
-          {icon} {title}
+    <Card
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      className="min-w-0 cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <CardHeader className="px-3 pb-1.5 pt-3 sm:p-[var(--card-pad)] sm:pb-2">
+        <CardTitle className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide sm:text-sm">
+          {icon} <span className="truncate">{title}</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-1">
+      <CardContent className="space-y-1 px-3 pb-3 sm:p-[var(--card-pad)] sm:pt-0">
         {rows.map((r) => (
+          // Two columns on a phone leave a label ~140px: it wraps to a second line
+          // rather than being cut — "Preventive opportunities" cut to "Preventive o…"
+          // is a different number.
           <div key={r.label} className="flex items-baseline justify-between gap-2">
-            <span className="truncate text-xs text-muted-foreground">{r.label}</span>
-            <span className={cn("font-figure text-xl font-bold", r.tone && toneClass[r.tone])}>{r.value}</span>
+            <span className="min-w-0 text-xs leading-tight text-muted-foreground">{r.label}</span>
+            <span className={cn("shrink-0 font-figure text-lg font-bold sm:text-xl", r.tone && toneClass[r.tone])}>{r.value}</span>
           </div>
         ))}
         {footer && <p className="pt-1 text-2xs text-muted-foreground">{footer}</p>}

@@ -114,15 +114,35 @@ export function AuthShell({
       {/* ── Faixa da marca em ecrã estreito ────────────────────────── */}
       {/* Baixa em todas as larguras: no Galaxy Tab A9 deitado (~600px de altura) a
           faixa de 98px empurrava o QR e o Create account para fora do ecrã. */}
+      {/* Num telemóvel com altura (≥640px) a faixa cresce para uma capa: a marca, o
+          nome do sistema e uma linha sobre ele, e o formulário sobe por cima dela numa
+          folha de cantos redondos. Era uma tira de 58px com o logótipo a 96px e o resto
+          do ecrã em branco por baixo do botão. O tablet deitado e o telemóvel deitado
+          (pouca altura) ficam com a tira baixa — a razão do comentário acima mantém-se. */}
       <header
-        className="flex items-center px-5 py-2.5 sm:px-8 lg:hidden"
+        className="relative isolate flex items-center overflow-hidden px-5 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] sm:px-8 lg:hidden [@media(max-width:639px)_and_(min-height:640px)]:flex-col [@media(max-width:639px)_and_(min-height:640px)]:items-start [@media(max-width:639px)_and_(min-height:640px)]:pb-10 [@media(max-width:639px)_and_(min-height:640px)]:pt-[max(1.75rem,env(safe-area-inset-top))]"
         style={{
           backgroundImage:
-            "linear-gradient(100deg, hsl(var(--auth-field-top)) 0%, hsl(var(--auth-field)) 100%)",
+            "linear-gradient(160deg, hsl(var(--auth-field-top)) 0%, hsl(var(--auth-field)) 60%, hsl(var(--auth-panel-deep)) 100%)",
         }}
       >
-        <img src={brandMark} alt="Applied Nutrition" className="w-24 select-none sm:w-28" />
-        <span className="ml-auto text-sm font-semibold text-white/75">PMSystem</span>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 opacity-[0.05]"
+          style={{
+            backgroundImage:
+              "linear-gradient(hsl(0 0% 100%) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100%) 1px, transparent 1px)",
+            backgroundSize: "40px 40px",
+          }}
+        />
+        <img src={brandMark} alt="Applied Nutrition" className="w-24 select-none sm:w-28 [@media(max-width:639px)_and_(min-height:640px)]:w-32" />
+        <span className="ml-auto text-sm font-semibold text-white/75 [@media(max-width:639px)_and_(min-height:640px)]:hidden">PMSystem</span>
+        <div className="hidden [@media(max-width:639px)_and_(min-height:640px)]:mt-6 [@media(max-width:639px)_and_(min-height:640px)]:block">
+          <p className="font-display text-[26px] font-bold leading-none tracking-tight text-white">PMSystem</p>
+          <p className="mt-2 max-w-[18rem] text-sm leading-snug text-white/70">
+            Planning, lines, quality and stock for the Applied Nutrition factory.
+          </p>
+        </div>
       </header>
 
       {/* ── Formulário ─────────────────────────────────────────────── */}
@@ -131,7 +151,7 @@ export function AuthShell({
       {/* Sempre ancorado em cima, também no computador. Centrado, a coluna mudava de
           altura enquanto se escrevia — o QR dá lugar ao link quando o campo passa a
           ser um email — e o título "Sign in" saltava 130px a meio da escrita. */}
-      <main className="flex flex-1 items-start justify-center px-5 py-6 sm:px-10 sm:py-8 lg:pb-14 lg:pt-[max(3.5rem,14vh)]">
+      <main className="relative flex flex-1 items-start justify-center bg-auth-paper px-5 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-10 sm:py-8 lg:pb-14 lg:pt-[max(3.5rem,14vh)] [@media(max-width:639px)_and_(min-height:640px)]:-mt-5 [@media(max-width:639px)_and_(min-height:640px)]:rounded-t-[1.25rem] [@media(max-width:639px)_and_(min-height:640px)]:pt-7">
         <div
           className={`w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500`}
         >

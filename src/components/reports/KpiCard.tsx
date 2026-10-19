@@ -126,16 +126,16 @@ export function KpiCard({
         className,
       )}
     >
-      <CardContent className="pt-4 pb-3">
+      <CardContent className="px-3 pb-3 pt-3 sm:px-[var(--card-pad)] sm:pt-4">
         <div className="flex items-center gap-2 text-muted-foreground mb-1">
           {icon}
-          <span className="text-xs font-medium">{label}</span>
+          <span className="min-w-0 text-xs font-medium leading-tight">{label}</span>
           {tooltip && <KpiInfoTooltip text={tooltip} />}
         </div>
         {loading ? (
           <Skeleton className="h-8 w-20 mt-1" />
         ) : (
-          <p className={cn("text-3xl font-bold leading-tight tabular-nums", toned, highlight && "text-destructive-strong", valueClassName)}>
+          <p className={cn("text-[28px] font-bold leading-tight tabular-nums sm:text-3xl", toned, highlight && "text-destructive-strong", valueClassName)}>
             {value}
           </p>
         )}

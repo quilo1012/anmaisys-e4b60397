@@ -18,25 +18,40 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
   const { role } = useAuth();
   const home = dashboardPathFor(role as Role | null);
 
-  const Tab = ({ active, icon: Icon, label, onClick }: {
-    active: boolean; icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void;
+  /**
+   * One tab: a 64px-wide pill behind the icon marks where you are — colour alone
+   * did it before, and a blue icon among grey ones is easy to miss in a bright
+   * factory. The whole column is the target (≥56px tall), not just the glyph.
+   */
+  const Tab = ({ active, icon: Icon, label, onClick, badge }: {
+    active: boolean; icon: React.ComponentType<{ className?: string }>; label: string; onClick: () => void; badge?: boolean;
   }) => (
     <button
       type="button"
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-2xs transition-colors",
+        "group flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 pb-1 pt-1.5 text-[11px] font-medium leading-none transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <Icon className="h-5 w-5 shrink-0" />
-      <span className="max-w-[68px] truncate leading-tight">{label}</span>
+      <span
+        className={cn(
+          "relative flex h-8 w-14 items-center justify-center rounded-full transition-colors",
+          active ? "bg-primary/10" : "group-active:bg-muted",
+        )}
+      >
+        <Icon className="h-5 w-5 shrink-0" />
+        {badge && <span className="absolute right-3 top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-card" aria-hidden />}
+      </span>
+      <span className={cn("max-w-[72px] truncate", active && "font-semibold")}>{label}</span>
     </button>
   );
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card shadow-[0_-1px_8px_rgba(0,0,0,0.06)] lg:hidden print:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-card/95 px-[max(0.25rem,env(safe-area-inset-left))] shadow-[0_-1px_8px_rgba(0,0,0,0.06)] backdrop-blur supports-[backdrop-filter]:bg-card/90 lg:hidden print:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Primary"
     >

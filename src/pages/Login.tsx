@@ -694,7 +694,7 @@ export default function Login() {
               onClick={() => setShowPassword((s) => !s)}
               className={authInlineBtn}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              tabIndex={-1}
+              aria-pressed={showPassword}
             >
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>

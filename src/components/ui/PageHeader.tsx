@@ -73,11 +73,15 @@ export function PageHeader({
     );
   }
 
+  // On a phone the shell's top bar already names the screen, so this is the second
+  // time the title is said: it shrinks from 27px to 22px, the icon tile goes (it was
+  // 40px of a 366px row), the description is held to two lines, and the actions take
+  // their own full-width row instead of wrapping one button at a time.
   return (
-    <div className={cn("mb-8 flex flex-wrap items-end justify-between gap-5", className)}>
+    <div className={cn("mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-8 sm:gap-5", className)}>
       <div className="flex min-w-0 items-center gap-3">
         {icon && (
-          <div className="flex shrink-0 items-center justify-center rounded-md bg-muted p-2 text-muted-foreground">
+          <div className="hidden shrink-0 items-center justify-center rounded-md bg-muted p-2 text-muted-foreground sm:flex">
             {icon}
           </div>
         )}
@@ -91,17 +95,17 @@ export function PageHeader({
             </div>
           )}
           <div className="flex items-center gap-2">
-            <h1 className="truncate font-display text-[27px] font-bold leading-tight tracking-[-0.02em] text-foreground">
+            <h1 className="truncate font-display text-[22px] font-bold leading-tight tracking-[-0.02em] text-foreground sm:text-[27px]">
               {title}
             </h1>
             {badge}
           </div>
           {description && (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-muted-foreground sm:line-clamp-none sm:text-sm">{description}</p>
           )}
         </div>
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
     </div>
   );
 }

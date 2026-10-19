@@ -771,7 +771,7 @@ export default function ProductionPerformancePage() {
               lêem-se como o que são — e o painel volta a começar no primeiro número. */}
           <ControlPlate className="gap-x-3">
             <ControlField label="Date range" className="w-full lg:w-auto">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5">
               <Button variant="outline" size="icon" aria-label="Previous period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
                   const from = parseISO(date), to = parseISO(endDate);
@@ -793,9 +793,9 @@ export default function ProductionPerformancePage() {
                 aria-label="From"
                 value={range.from}
                 onChange={setAnchor}
-                className="min-w-0 flex-1 sm:w-[7.75rem] sm:flex-none"
+                className="min-w-0 flex-1 px-1.5 text-[13px] min-[400px]:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
               />
-              <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">to</span>
+              <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground hidden min-[400px]:inline">to</span>
               {/* `range.to`, not `endDate`. On a week or a month the far end is DERIVED,
                   and this box used to show a state those periods never wrote — so a
                   monthly board sat there reading "04 Oct" while reporting on September.
@@ -806,7 +806,7 @@ export default function ProductionPerformancePage() {
                 value={range.to}
                 min={range.from}
                 onChange={(v) => setFilters(withFarEnd(filters, v))}
-                className="min-w-0 flex-1 sm:w-[7.75rem] sm:flex-none"
+                className="min-w-0 flex-1 px-1.5 text-[13px] min-[400px]:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
               />
               <Button variant="outline" size="icon" aria-label="Next period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
