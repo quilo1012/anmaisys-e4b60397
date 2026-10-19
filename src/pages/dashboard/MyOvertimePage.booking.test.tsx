@@ -46,6 +46,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useMyOvertimeBlock: () => ({ data: null }),
   useMyOvertimeClashes: () => ({ data: state.clashes }),
   useOvertimePlaces: () => ({ data: state.places }),
+  useOvertimeOutcomesFor: () => ({ data: [] }),
   useOvertimeMutations: () => ({
     answer: {
       // The database's own row comes back, as `answer_overtime` returns it.
