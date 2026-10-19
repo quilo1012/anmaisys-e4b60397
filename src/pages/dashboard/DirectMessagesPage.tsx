@@ -1,570 +1,413 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { DashboardLayout } from "@/components/DashboardLayout";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAuth } from "@/contexts/AuthContext";
-import {
-  useDMPartners,
-  useDMThread,
-  useSendDM,
-  useMarkDMRead,
-  useDMUnreadBySender,
-  type DMPartner,
-} from "@/hooks/useDirectMessages";
-import { MessageCircle, Send, Loader2, Search, Mic, Captions, X } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
-import { invokeFunction } from "@/lib/invokeFunction";
-import { supabase } from "@/integrations/supabase/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { ArrowLeft, Camera, Info, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { ConversationList, type ListFilter } from "@/components/chat/ConversationList";
+import { MessageThread, type UIMessage } from "@/components/chat/MessageThread";
+import { Composer } from "@/components/chat/Composer";
+import { CreateGroupDialog, GroupInfoSheet } from "@/components/chat/GroupDialogs";
+import { useAuth } from "@/contexts/AuthContext";
+import { useDMPartners, useDMUnreadBySender, useMarkDMRead, useMySupervisor } from "@/hooks/useDirectMessages";
+import {
+  chatFilePath, uploadWithProgress, useChatPeople, useConversationLive, useDMSummaries,
+  useDMThreadPaged, useGroupThread, useMarkGroupRead, useMyAvatarPath, useMyGroups, useSendDirect,
+  useSendGroupMessage, useSetMyPhoto, type UploadedFile,
+} from "@/hooks/useChat";
+import {
+  avatarProblem, groupFolder, matchesSearch, mergeMessages, pairFolder, parseConversationKey, sortConversations,
+  type ConversationKey, type ConversationSummary,
+} from "@/lib/chat";
+import { can, type Role } from "@/lib/permissions";
+import { invokeFunction } from "@/lib/invokeFunction";
 import { logSystemError } from "@/lib/telemetry";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 
-/** Plays a private voice note: resolves a short-lived signed URL for the stored path. */
-function VoiceNote({ path }: { path: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    let ok = true;
-    (async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase.storage.from("dm-audio").createSignedUrl(path, 3600);
-        if (error) throw error;
-        if (ok) setUrl(data?.signedUrl ?? null);
-      } catch { /* ignore — show a retry affordance */ } finally { if (ok) setLoading(false); }
-    })();
-    return () => { ok = false; };
-  }, [path]);
-  if (loading) return <div className="mt-1 flex items-center gap-1 text-xs opacity-70"><Loader2 className="h-3 w-3 animate-spin" /> Loading voice…</div>;
-  if (!url) return <div className="mt-1 text-xs opacity-70">Voice message unavailable</div>;
-  return <audio controls src={url} className="mt-1 max-w-full h-9" />;
+interface Pending extends UIMessage {
+  conv: ConversationKey;
+  files: File[];
+  replyTo?: string | null;
+  /** Written through the employee's door to the supervisor on file (BLOCO 107). */
+  door: boolean;
 }
 
-type TranslationState = {
-  text?: string;
-  loading?: boolean;
-  error?: boolean;
-  show?: boolean;
-};
+const errText = (e: unknown) => (e as { message?: string })?.message ?? "Something went wrong";
 
-function initials(name: string) {
-  const parts = (name || "?").trim().split(/\s+/);
-  const first = parts[0]?.[0] ?? "?";
-  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return (first + last).toUpperCase();
+/** A file already in storage from an earlier try is not a failure on the retry. */
+async function upload(path: string, f: File, onProgress: (x: number) => void) {
+  try {
+    await uploadWithProgress("chat-files", path, f, onProgress);
+  } catch (e) {
+    if (/exists|duplicate/i.test(errText(e))) return;
+    throw e;
+  }
 }
 
+/**
+ * Messages: private conversations and department/team groups in one place.
+ *
+ * Who may write to whom, who is in which group and who reads what is decided by the
+ * database (RLS and the BLOCO 107/108 functions); this screen only draws what it is
+ * given. A private conversation is the pair of people — there is no conversation row,
+ * so the same two people can never have two.
+ */
 export default function DirectMessagesPage() {
   const { user, role } = useAuth();
-  const { data: partners = [], isLoading: partnersLoading } = useDMPartners(role);
+  const me = user?.id ?? "";
+  const [params, setParams] = useSearchParams();
+
+  // The bell links to `?group=<id>`; everything else to `?c=dm:<id>` / `?c=group:<id>`.
+  useEffect(() => {
+    const g = params.get("group");
+    if (g && !params.get("c")) setParams({ c: `group:${g}` }, { replace: true });
+  }, [params, setParams]);
+  const active = parseConversationKey(params.get("c"));
+  const activeKey = active ? (`${active.kind}:${active.id}` as ConversationKey) : null;
+  const select = useCallback((k: ConversationKey | null) => setParams(k ? { c: k } : {}), [setParams]);
+
+  const partners = useDMPartners(role);
+  const summaries = useDMSummaries();
   const { data: unreadBySender = {} } = useDMUnreadBySender();
-  const [filter, setFilter] = useState("");
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [text, setText] = useState("");
-  const [translations, setTranslations] = useState<Record<string, TranslationState>>({});
-  const [transcriptions, setTranscriptions] = useState<Record<string, { text?: string; loading?: boolean; error?: string }>>({});
+  const groups = useMyGroups();
+  const mySup = useMySupervisor(role === "employee");
+  const groupsNotSetUp = groups.data?.notSetUp ?? false;
+  const myAvatar = useMyAvatarPath();
+  const setPhoto = useSetMyPhoto();
+  const photoInput = useRef<HTMLInputElement>(null);
 
-  // Convert an existing voice note to text (server-side, Gemini via the AI
-  // gateway) — the browser can only transcribe live mic, not a stored file.
-  const handleTranscribe = async (id: string, path: string) => {
-    const existing = transcriptions[id];
-    if (existing?.text || existing?.loading) return;
-    setTranscriptions((p) => ({ ...p, [id]: { loading: true } }));
-    try {
-      const { data, error } = await invokeFunction<{ text?: string; error?: string }>("transcribe-audio", { path });
-      if (error || data?.error) throw new Error(data?.error || error?.message || "Failed");
-      let text = (data?.text || "").trim();
-      // Transcription comes back verbatim in the spoken language; translate it to
-      // English for the admin view (reuses the deployed translate-message fn).
-      if (text) {
-        try {
-          const { data: tr } = await invokeFunction<{ translated?: string }>("translate-message", { text });
-          const en = (tr?.translated || "").trim();
-          if (en) text = en;
-        } catch { /* keep the original transcript if translation fails */ }
-      }
-      setTranscriptions((p) => ({ ...p, [id]: { text: text || "(no speech detected)" } }));
-    } catch (e: any) {
-      // Surface the real reason (not-deployed 404, unsupported audio format,
-      // rate limit / credits, etc.) instead of a silent "failed" — otherwise the
-      // cause is invisible and impossible to fix.
-      const msg = (e?.message || "Transcription failed").toString();
-      setTranscriptions((p) => ({ ...p, [id]: { error: msg } }));
-      toast.error(msg);
-      logSystemError("API_ERROR", `Voice transcription failed: ${msg}`, { metadata: { messageId: id, path } });
-    }
-  };
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const dmIds = useMemo(() => {
+    const ids = new Set<string>((partners.data ?? []).map((p) => p.user_id));
+    for (const s of summaries.data ?? []) ids.add(s.partner_id);
+    ids.delete(me);
+    return [...ids];
+  }, [partners.data, summaries.data, me]);
+  const people = useChatPeople(useMemo(() => [...dmIds, me].filter(Boolean), [dmIds, me]));
 
-  // Voice dictation: speak → the browser transcribes into the message box. No
-  // audio is uploaded or stored — the operator reviews the text and sends it as
-  // a normal message. Uses the built-in Web Speech API (hidden if unsupported).
-  const [listening, setListening] = useState(false);
-  const recognitionRef = useRef<any>(null);
-  const dictationBaseRef = useRef("");
-  const speechSupported =
-    typeof window !== "undefined" &&
-    !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
-
-  const toggleDictation = () => {
-    if (!speechSupported) return;
-    if (listening) {
-      try { recognitionRef.current?.stop(); } catch { /* ignore */ }
-      return;
-    }
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const rec = new SR();
-    rec.lang = navigator.language || "en-GB"; // follows the tablet's language
-    rec.continuous = true;
-    rec.interimResults = true;
-    dictationBaseRef.current = text.trim() ? text.trim() + " " : "";
-    rec.onresult = (e: any) => {
-      let transcript = "";
-      for (let i = 0; i < e.results.length; i++) transcript += e.results[i][0].transcript;
-      setText(dictationBaseRef.current + transcript);
-    };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    recognitionRef.current = rec;
-    setListening(true);
-    try { rec.start(); } catch { setListening(false); }
-  };
-
-  useEffect(() => () => { try { recognitionRef.current?.stop(); } catch { /* ignore */ } }, []);
-
-  // Voice note: record audio and SEND it (distinct from dictation above, which
-  // only fills the text box). Stored in the private dm-audio bucket; played via a
-  // short-lived signed URL.
-  const [recording, setRecording] = useState(false);
-  const [uploadingAudio, setUploadingAudio] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const audioStreamRef = useRef<MediaStream | null>(null);
-  const cancelSendRef = useRef(false);
-  const recordRecognitionRef = useRef<any>(null);
-  const recordTranscriptRef = useRef("");
-  const audioSupported =
-    typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia &&
-    typeof MediaRecorder !== "undefined";
-
-  const stopStream = () => { audioStreamRef.current?.getTracks().forEach((t) => t.stop()); audioStreamRef.current = null; };
-  const stopRecordTranscription = () => { try { recordRecognitionRef.current?.stop(); } catch { /* ignore */ } recordRecognitionRef.current = null; };
-
-  const uploadAndSendAudio = async (blob: Blob) => {
-    if (!activeId || !user) return;
-    setUploadingAudio(true);
-    try {
-      const ext = (blob.type.includes("mp4") || blob.type.includes("mpeg")) ? "mp4" : "webm";
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("dm-audio").upload(path, blob, { contentType: blob.type || "audio/webm" });
-      if (upErr) throw upErr;
-      // Send the transcribed speech as the message text (audio player still shows);
-      // fall back to a label if transcription is unsupported or empty.
-      const spoken = recordTranscriptRef.current.trim();
-      await sendMsg.mutateAsync({ recipientId: activeId, message: spoken || "🎤 Voice message", audioUrl: path });
-    } catch (e: any) {
-      const msg = e?.message || "Failed to send voice message";
-      toast.error(msg);
-      logSystemError("RLS_ERROR", `Voice note send failed: ${msg}`, { metadata: { recipientId: activeId } });
-    } finally {
-      setUploadingAudio(false);
-    }
-  };
-
-  const startRecording = async () => {
-    if (!activeId || !audioSupported) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioStreamRef.current = stream;
-      audioChunksRef.current = [];
-      cancelSendRef.current = false;
-      const mr = new MediaRecorder(stream);
-      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.onstop = async () => {
-        stopStream();
-        if (cancelSendRef.current) return;
-        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
-        if (blob.size > 0) await uploadAndSendAudio(blob);
+  const conversations = useMemo<ConversationSummary[]>(() => {
+    const byPartner = new Map((summaries.data ?? []).map((s) => [s.partner_id, s]));
+    const partnerInfo = new Map((partners.data ?? []).map((p) => [p.user_id, p]));
+    const dms: ConversationSummary[] = dmIds.map((id) => {
+      const s = byPartner.get(id);
+      const p = partnerInfo.get(id);
+      const person = people.data?.[id];
+      const body = s ? (s.last_has_audio && /^🎤/.test(s.last_body) ? "🎤 Voice message" : s.last_body) : null;
+      return {
+        key: `dm:${id}` as ConversationKey, kind: "dm" as const, id,
+        name: person?.name ?? p?.name ?? "Someone",
+        subtitle: p?.line_labels ?? person?.job ?? null,
+        avatarPath: person?.avatar_path ?? null,
+        lastAt: s?.last_at ?? null,
+        preview: s ? `${s.last_from_me ? "You: " : ""}${body}` : null,
+        unread: unreadBySender[id] ?? s?.unread ?? 0,
       };
-      mediaRecorderRef.current = mr;
-      mr.start();
+    });
+    const gs: ConversationSummary[] = (groups.data?.groups ?? []).map((g) => ({
+      key: `group:${g.id}` as ConversationKey, kind: "group" as const, id: g.id, name: g.name,
+      subtitle: g.kind === "team" ? `Team · ${g.department} · ${g.team}` : `Department · ${g.department}`,
+      avatarPath: g.avatar_path,
+      lastAt: g.last_at,
+      preview: g.last_at ? `${g.last_sender_name ?? "Someone"}: ${g.last_body || (g.last_has_files ? "📎 File" : "")}` : null,
+      unread: g.unread,
+    }));
+    return sortConversations([...gs, ...dms]);
+  }, [dmIds, summaries.data, partners.data, people.data, groups.data, unreadBySender]);
 
-      // Transcribe the speech in parallel (best-effort) so the voice note also
-      // carries the text of what was said.
-      recordTranscriptRef.current = "";
-      if (speechSupported) {
-        try {
-          const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-          const rec = new SR();
-          rec.lang = navigator.language || "en-GB";
-          rec.continuous = true;
-          rec.interimResults = true;
-          rec.onresult = (e: any) => {
-            let t = "";
-            for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-            recordTranscriptRef.current = t;
-          };
-          recordRecognitionRef.current = rec;
-          rec.start();
-        } catch { /* transcription is best-effort */ }
-      }
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<ListFilter>("all");
+  const shown = conversations.filter((c) => (filter === "all" || c.kind === filter) && matchesSearch(c, search));
+  const current = conversations.find((c) => c.key === activeKey) ?? null;
+  const group = active?.kind === "group" ? groups.data?.groups.find((g) => g.id === active.id) ?? null : null;
 
-      setRecording(true);
-    } catch {
-      stopStream();
-      toast.error("Microphone permission is needed to record a voice message.");
-    }
-  };
-
-  const stopAndSend = () => { cancelSendRef.current = false; stopRecordTranscription(); try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } setRecording(false); };
-  const cancelRecording = () => { cancelSendRef.current = true; recordTranscriptRef.current = ""; stopRecordTranscription(); try { mediaRecorderRef.current?.stop(); } catch { /* ignore */ } stopStream(); setRecording(false); };
-
-  useEffect(() => () => { stopStream(); stopRecordTranscription(); }, []);
-
-  const handleTranslate = async (id: string, text: string) => {
-    const existing = translations[id];
-    if (existing?.text) {
-      setTranslations((s) => ({ ...s, [id]: { ...existing, show: !existing.show } }));
-      return;
-    }
-    setTranslations((s) => ({ ...s, [id]: { loading: true } }));
-    const { data, error } = await invokeFunction<{ translated: string }>(
-      "translate-message",
-      { text },
-    );
-    if (error || !data?.translated) {
-      setTranslations((s) => ({ ...s, [id]: { error: true } }));
-      return;
-    }
-    setTranslations((s) => ({ ...s, [id]: { text: data.translated, show: true } }));
-  };
-
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    const list = !q
-      ? partners
-      : partners.filter(
-          (p) => p.name?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q),
-        );
-    // Conversations with unread messages float to the top so you see who wrote.
-    return [...list].sort(
-      (a, b) => ((unreadBySender[b.user_id] ?? 0) > 0 ? 1 : 0) - ((unreadBySender[a.user_id] ?? 0) > 0 ? 1 : 0),
-    );
-  }, [partners, filter, unreadBySender]);
-
-  // Auto-select first partner (esp. for operators who have 1 admin usually)
+  // A wide screen opens the first conversation; a phone starts on the list.
   useEffect(() => {
-    if (!activeId && partners.length > 0) setActiveId(partners[0].user_id);
-  }, [partners, activeId]);
+    if (!activeKey && conversations.length > 0 && window.matchMedia("(min-width: 768px)").matches) {
+      setParams({ c: conversations[0].key }, { replace: true });
+    }
+  }, [activeKey, conversations, setParams]);
 
-  const active: DMPartner | undefined = partners.find((p) => p.user_id === activeId);
-  const { data: thread = [], isLoading: threadLoading } = useDMThread(activeId);
-  const sendMsg = useSendDM();
-  const markRead = useMarkDMRead(activeId);
+  // ── The open conversation ──
+  const dmThread = useDMThreadPaged(active?.kind === "dm" ? active.id : null);
+  const groupThread = useGroupThread(active?.kind === "group" ? active.id : null);
+  const thread = active?.kind === "group" ? groupThread : dmThread;
+  useConversationLive(active);
+  const [pending, setPending] = useState<Pending[]>([]);
+  const [replyTo, setReplyTo] = useState<UIMessage | null>(null);
+  useEffect(() => { setReplyTo(null); }, [activeKey]);
 
+  const groupSenders = useMemo(() => [...new Set(groupThread.messages.map((m) => m.sender_id))], [groupThread.messages]);
+  const groupPeople = useChatPeople(groupSenders);
+
+  const serverMessages: UIMessage[] = useMemo(() => {
+    if (active?.kind === "group") {
+      return groupThread.messages.map((m) => ({
+        id: m.id, sender_id: m.sender_id, sender_name: groupPeople.data?.[m.sender_id]?.name ?? "Someone",
+        body: m.body, created_at: m.created_at, reply_to_id: m.reply_to_id, attachments: m.chat_attachments ?? [],
+      }));
+    }
+    return dmThread.messages.map((m) => ({
+      id: m.id, sender_id: m.sender_id, sender_name: m.sender_name, body: m.message, created_at: m.created_at,
+      read_at: m.read_at, audio_path: m.audio_url, attachments: m.chat_attachments ?? [],
+    }));
+  }, [active?.kind, groupThread.messages, dmThread.messages, groupPeople.data]);
+
+  // A message on its way gives way to the server's copy as soon as that arrives.
+  const serverIds = useMemo(() => new Set(serverMessages.map((m) => m.id)), [serverMessages]);
+  useEffect(() => { setPending((p) => p.filter((x) => !serverIds.has(x.id))); }, [serverIds]);
+  const messages = useMemo(
+    () => mergeMessages(serverMessages, pending.filter((p) => p.conv === activeKey && !serverIds.has(p.id))),
+    [serverMessages, pending, activeKey, serverIds],
+  );
+
+  const threadPeople = useMemo(() => {
+    const out: Record<string, { name: string; avatar_path: string | null }> = {};
+    for (const src of [people.data, groupPeople.data]) for (const [id, p] of Object.entries(src ?? {})) out[id] = p;
+    return out;
+  }, [people.data, groupPeople.data]);
+
+  // Reading: whenever the open thread changes while the page is in view.
+  const markDM = useMarkDMRead(active?.kind === "dm" ? active.id : null);
+  const markGroup = useMarkGroupRead();
+  const lastServerId = serverMessages[serverMessages.length - 1]?.id;
   useEffect(() => {
-    if (activeId) markRead.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, thread.length]);
+    if (!active || document.visibilityState !== "visible") return;
+    if (active.kind === "dm") markDM.mutate();
+    else if (!groupsNotSetUp) markGroup.mutate(active.id);
+  }, [activeKey, lastServerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [thread]);
+  // ── Sending ──
+  const sendGroup = useSendGroupMessage();
+  const sendDirect = useSendDirect();
+  const supervisorId = mySup.data?.supervisor?.user_id ?? null;
+  const supervisorDoor = role === "employee" && active?.kind === "dm" && active.id === supervisorId;
 
-  const handleSend = async () => {
-    const msg = text.trim();
-    if (!msg || !activeId) return;
-    setText("");
+  const patch = (id: string, p: Partial<Pending>) => setPending((all) => all.map((x) => (x.id === id ? { ...x, ...p } : x)));
+
+  const deliver = async (m: Pending) => {
+    const target = parseConversationKey(m.conv)!;
+    patch(m.id, { status: "sending", error: undefined, progress: m.files.length ? 0 : undefined });
     try {
-      await sendMsg.mutateAsync({ recipientId: activeId, message: msg });
+      const folder = target.kind === "group" ? groupFolder(target.id) : pairFolder(me, target.id);
+      const done: UploadedFile[] = [];
+      const total = m.files.reduce((n, f) => n + f.size, 0) || 1;
+      let sent = 0;
+      for (const [i, f] of m.files.entries()) {
+        const path = chatFilePath(folder, m.id, f, i);
+        await upload(path, f, (x) => patch(m.id, { progress: (sent + x * f.size) / total }));
+        sent += f.size;
+        done.push({ path, name: f.name });
+      }
+      if (target.kind === "group") {
+        await sendGroup.mutateAsync({ id: m.id, groupId: target.id, body: m.body, replyTo: m.replyTo, files: done });
+      } else {
+        const id = await sendDirect.mutateAsync({ id: m.id, partnerId: target.id, body: m.body, supervisorDoor: m.door, files: done });
+        // The supervisor's door chooses its own id; the copy shown goes when the real one arrives.
+        if (id !== m.id) setPending((all) => all.filter((x) => x.id !== m.id));
+      }
     } catch (e) {
-      setText(msg);
+      patch(m.id, { status: "failed", error: errText(e).slice(0, 80) });
+      logSystemError("API_ERROR", `Chat send failed: ${errText(e)}`, { metadata: { conversation: m.conv } });
     }
   };
 
-  const isStaff =
-    role === "admin" ||
-    role === "supervisor" ||
-    role === "manager" ||
-    role === "maintenance_manager" ||
-    role === "warehouse";
-  const title = isStaff ? "Chat with Operators" : "Chat with Team";
+  const onSend = (text: string, files: File[]) => {
+    if (!activeKey || !me) return;
+    const m: Pending = {
+      id: crypto.randomUUID(), conv: activeKey, sender_id: me, sender_name: "You", body: text,
+      created_at: new Date().toISOString(), attachments: [], status: "sending", files,
+      replyTo: replyTo?.id ?? null, reply_to_id: replyTo?.id ?? null, door: supervisorDoor,
+    };
+    setPending((p) => [...p, m]);
+    setReplyTo(null);
+    void deliver(m);
+  };
+
+  const onVoice = async (blob: Blob, transcript: string) => {
+    if (active?.kind !== "dm" || !me) return;
+    try {
+      const ext = blob.type.includes("mp4") || blob.type.includes("mpeg") ? "mp4" : "webm";
+      const path = `${me}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("dm-audio").upload(path, blob, { contentType: blob.type || "audio/webm" });
+      if (error) throw error;
+      await sendDirect.mutateAsync({ id: crypto.randomUUID(), partnerId: active.id, body: transcript || "🎤 Voice message", supervisorDoor: false, audioPath: path });
+    } catch (e) {
+      toast.error(errText(e));
+      logSystemError("RLS_ERROR", `Voice note send failed: ${errText(e)}`, { metadata: { recipientId: active.id } });
+    }
+  };
+
+  // ── Translate / convert to text, on private messages (as before) ──
+  type Extra = { tr?: string; showTr?: boolean; trBusy?: boolean; trFail?: boolean; tx?: string; txBusy?: boolean; txFail?: string };
+  const [extras, setExtras] = useState<Record<string, Extra>>({});
+  const translate = async (m: UIMessage) => {
+    const x = extras[m.id];
+    if (x?.tr) { setExtras((s) => ({ ...s, [m.id]: { ...x, showTr: !x.showTr } })); return; }
+    setExtras((s) => ({ ...s, [m.id]: { ...x, trBusy: true, trFail: false } }));
+    const { data, error } = await invokeFunction<{ translated: string }>("translate-message", { text: m.body });
+    setExtras((s) => ({ ...s, [m.id]: { ...s[m.id], trBusy: false, ...(error || !data?.translated ? { trFail: true } : { tr: data.translated, showTr: true }) } }));
+  };
+  const transcribe = async (m: UIMessage) => {
+    if (!m.audio_path) return;
+    setExtras((s) => ({ ...s, [m.id]: { ...s[m.id], txBusy: true, txFail: undefined } }));
+    try {
+      const { data, error } = await invokeFunction<{ text?: string; error?: string }>("transcribe-audio", { path: m.audio_path });
+      if (error || data?.error) throw new Error(data?.error || error?.message || "Failed");
+      setExtras((s) => ({ ...s, [m.id]: { ...s[m.id], txBusy: false, tx: (data?.text || "").trim() || "(no speech detected)" } }));
+    } catch (e) {
+      setExtras((s) => ({ ...s, [m.id]: { ...s[m.id], txBusy: false, txFail: errText(e) } }));
+    }
+  };
+  const renderExtras = (m: UIMessage) => {
+    const x = extras[m.id] ?? {};
+    return (
+      <>
+        {m.sender_id !== me && m.body && (
+          x.trBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : (
+            <button type="button" onClick={() => translate(m)} className={cn("hover:text-foreground hover:underline", x.trFail && "text-destructive-strong")}>
+              {x.trFail ? "Translation failed · Retry" : x.tr ? (x.showTr ? "Show original" : "Show translation") : "Translate"}
+            </button>
+          )
+        )}
+        {m.audio_path && !x.tx && (
+          x.txBusy ? <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span> : (
+            <button type="button" onClick={() => transcribe(m)} className={cn("hover:text-foreground hover:underline", x.txFail && "text-destructive-strong")} title={x.txFail}>
+              {x.txFail ? "Failed · Retry" : "Convert to text"}
+            </button>
+          )
+        )}
+      </>
+    );
+  };
+  const shownMessages = useMemo(() => messages.map((m) => {
+    const x = extras[m.id];
+    if (!x) return m;
+    const extra = [x.showTr && x.tr ? `\n— ${x.tr}` : "", x.tx ? `\n🎤 ${x.tx}` : ""].join("");
+    return extra ? { ...m, body: m.body + extra } : m;
+  }), [messages, extras]);
+
+  // ── Layout ──
+  const [newGroup, setNewGroup] = useState(false);
+  const [info, setInfo] = useState(false);
+  const canCreateGroup = can(role as Role, "chat.groups.manage") && !groupsNotSetUp;
+  const listLoading = partners.isLoading || groups.isLoading;
+  const listError = partners.error ? errText(partners.error) : groups.error ? errText(groups.error) : null;
+
+  const changeMyPhoto = async (f: File | undefined) => {
+    if (!f) return;
+    const problem = avatarProblem(f);
+    if (problem) { toast.error(problem); return; }
+    try { await setPhoto.mutateAsync(f); toast.success("Photo updated"); }
+    catch (e) { toast.error(errText(e)); }
+  };
+
+  const myName = people.data?.[me]?.name ?? "You";
+  const listHeader = (
+    <div className="flex items-center gap-3">
+      <div className="relative">
+        <ChatAvatar name={myName} path={myAvatar.data?.path ?? null} />
+        {myAvatar.data && !myAvatar.data.notSetUp && (
+          <>
+            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+              onChange={(e) => { changeMyPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+            <button type="button" onClick={() => photoInput.current?.click()} disabled={setPhoto.isPending}
+              className="absolute -bottom-1 -right-1 rounded-full border bg-background p-1 shadow-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Change your photo" title="Change your photo (JPEG, PNG or WebP, up to 2 MB)">
+              {setPhoto.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
+            </button>
+          </>
+        )}
+      </div>
+      <div className="min-w-0">
+        <h1 className="text-base font-semibold leading-tight">Messages</h1>
+        <p className="truncate text-xs text-muted-foreground">Private conversations and your groups</p>
+      </div>
+    </div>
+  );
+
+  const loadingThread = thread.isLoading && messages.length === 0;
+  const threadError = thread.error ? errText(thread.error) : null;
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
-        <PageHeader
-          title={title}
-          description="Direct messages between people in the system."
-          icon={<MessageCircle className="h-5 w-5" />}
-        />
+      <div className="h-[calc(100dvh-10rem)] min-h-[420px] lg:h-[calc(100dvh-7rem)]">
+        <div className="grid h-full min-h-0 overflow-hidden rounded-xl border bg-card md:grid-cols-[300px_1fr] lg:grid-cols-[340px_1fr]">
+          <aside className={cn("min-h-0 border-r", active ? "hidden md:block" : "block")} aria-label="Conversations">
+            <ConversationList
+              conversations={shown}
+              activeKey={activeKey}
+              onSelect={select}
+              search={search}
+              onSearch={setSearch}
+              filter={filter}
+              onFilter={setFilter}
+              loading={listLoading}
+              error={listError}
+              onRetry={() => { partners.refetch(); groups.refetch(); summaries.refetch(); }}
+              groupsNotSetUp={groupsNotSetUp}
+              canCreateGroup={canCreateGroup}
+              onNewGroup={() => setNewGroup(true)}
+              header={listHeader}
+            />
+          </aside>
 
-        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
-          {/* Users sidebar */}
-          <Card className="h-[70vh] flex flex-col">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Users</CardTitle>
-              <div className="relative mt-2">
-                <Search className="h-4 w-4 absolute left-2 top-2.5 text-muted-foreground" />
-                <Input
-                  placeholder="Filter by name..."
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  className="pl-8 h-9"
-                />
+          <section className={cn("min-h-0 flex-col", active ? "flex" : "hidden md:flex")} aria-label={current ? `Conversation with ${current.name}` : "Conversation"}>
+            {!active ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-muted-foreground">
+                <MessageCircle className="h-10 w-10 opacity-40" aria-hidden />
+                <p className="text-sm">Choose a conversation.</p>
               </div>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-hidden p-0">
-              <ScrollArea className="h-full">
-                <div className="p-2 space-y-1">
-                  {partnersLoading ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : filtered.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-6">
-                      No users found.
+            ) : (
+              <>
+                <header className="flex items-center gap-3 border-b px-3 py-2.5 sm:px-4">
+                  <Button size="icon" variant="ghost" className="h-9 w-9 md:hidden" onClick={() => select(null)} aria-label="Back to conversations">
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                  <ChatAvatar name={current?.name ?? "…"} path={current?.avatarPath} group={active.kind === "group"} />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-sm font-semibold">{current?.name ?? "Conversation"}</h2>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {group ? `${group.member_count} members · ${current?.subtitle}` : current?.subtitle ?? "Private conversation"}
                     </p>
-                  ) : (
-                    filtered.map((p) => {
-                      const unread = unreadBySender[p.user_id] ?? 0;
-                      return (
-                      <button
-                        key={p.user_id}
-                        onClick={() => setActiveId(p.user_id)}
-                        className={cn(
-                          "w-full flex items-center gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-accent",
-                          activeId === p.user_id && "bg-accent",
-                        )}
-                      >
-                        <div className="relative h-9 w-9 shrink-0">
-                          <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
-                            {initials(p.name)}
-                          </div>
-                          {unread > 0 && (
-                            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm truncate", unread > 0 ? "font-bold text-foreground" : "font-medium")}>{p.name}</p>
-                          {p.line_labels && (
-                            <p className="text-2xs text-muted-foreground truncate">
-                              {p.line_labels}
-                            </p>
-                          )}
-                        </div>
-                        {unread > 0 && (
-                          <span className="ml-1 shrink-0 rounded-full bg-primary px-2 py-0.5 text-2xs font-semibold text-primary-foreground">
-                            {unread}
-                          </span>
-                        )}
-                      </button>
-                      );
-                    })
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {/* Chat pane */}
-          <Card className="h-[70vh] flex flex-col">
-            <CardHeader className="pb-3 border-b">
-              <CardTitle className="text-base">
-                {active ? active.name : "Select a user to start chatting"}
-              </CardTitle>
-              {active?.email && (
-                <p className="text-xs text-muted-foreground">{active.email}</p>
-              )}
-            </CardHeader>
-            <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
-              {!active ? (
-                <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-                  Select a user from the left
-                </div>
-              ) : (
-                <>
-                  <ScrollArea className="flex-1 px-4 py-3">
-                    {threadLoading ? (
-                      <div className="flex justify-center py-8">
-                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : thread.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-8">
-                        No messages yet.
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {thread.map((m) => {
-                          const isOwn = m.sender_id === user?.id;
-                          return (
-                            <div
-                              key={m.id}
-                              className={cn(
-                                "flex flex-col",
-                                isOwn ? "items-end" : "items-start",
-                              )}
-                            >
-                              <div
-                                className={cn(
-                                  "max-w-[75%] rounded-lg px-3 py-2 text-sm break-words",
-                                  isOwn
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted",
-                                )}
-                              >
-                                {!isOwn && (
-                                  <p className="text-2xs font-semibold opacity-70 mb-0.5">
-                                    {m.sender_name}
-                                  </p>
-                                )}
-                                <p className="whitespace-pre-wrap">{m.message}</p>
-                                {m.audio_url && <VoiceNote path={m.audio_url} />}
-                                {m.audio_url && transcriptions[m.id]?.text && (
-                                  <p className="whitespace-pre-wrap mt-1 pt-1 border-t border-current/20 italic opacity-90 text-sm">
-                                    {transcriptions[m.id]!.text}
-                                  </p>
-                                )}
-                                {(() => {
-                                  const t = translations[m.id];
-                                  if (t?.show && t.text) {
-                                    return (
-                                      <p className="whitespace-pre-wrap mt-1 pt-1 border-t border-current/20 italic opacity-90">
-                                        {t.text}
-                                      </p>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-2xs text-muted-foreground">
-                                  {format(new Date(m.created_at), "dd/MM HH:mm")}
-                                  {isOwn && m.read_at && " · Read"}
-                                </span>
-                                {(() => {
-                                  const t = translations[m.id];
-                                  if (t?.loading) {
-                                    return (
-                                      <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                                    );
-                                  }
-                                  if (t?.error) {
-                                    return (
-                                      <button
-                                        onClick={() => handleTranslate(m.id, m.message)}
-                                        className="text-2xs text-destructive-strong hover:underline"
-                                      >
-                                        Translation failed · Retry
-                                      </button>
-                                    );
-                                  }
-                                  const label = t?.text
-                                    ? t.show
-                                      ? "Show original"
-                                      : "Show translation"
-                                    : "Translate";
-                                  return (
-                                    <button
-                                      onClick={() => handleTranslate(m.id, m.message)}
-                                      className="text-2xs text-muted-foreground hover:text-foreground hover:underline"
-                                    >
-                                      {label}
-                                    </button>
-                                  );
-                                })()}
-                                {m.audio_url && (() => {
-                                  const tr = transcriptions[m.id];
-                                  if (tr?.loading) return <span className="flex items-center gap-1 text-2xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span>;
-                                  if (tr?.error) return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} title={tr.error} className="text-2xs text-destructive-strong hover:underline max-w-[220px] truncate">Failed: {tr.error} · Retry</button>;
-                                  if (tr?.text) return null;
-                                  return <button onClick={() => handleTranscribe(m.id, m.audio_url!)} className="text-2xs text-muted-foreground hover:text-foreground hover:underline">Convert to text</button>;
-                                })()}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        <div ref={bottomRef} />
-                      </div>
-                    )}
-                  </ScrollArea>
-                  <div className="border-t p-2 flex gap-2">
-                    <Input
-                      placeholder="Type a message..."
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSend();
-                        }
-                      }}
-                      className="flex-1 h-12"
-                    />
-                    {recording ? (
-                      <>
-                        <div className="flex items-center px-2 text-xs font-medium text-destructive-strong whitespace-nowrap">
-                          <span className="animate-pulse">● Rec</span>
-                        </div>
-                        <Button size="icon" variant="ghost" className="h-12 w-12 touch-manipulation" onClick={cancelRecording} disabled={uploadingAudio} title="Cancel" aria-label="Cancel recording">
-                          <X className="h-5 w-5" />
-                        </Button>
-                        <Button size="icon" variant="destructive" className="h-12 w-12 touch-manipulation" onClick={stopAndSend} disabled={uploadingAudio} title="Stop & send voice message" aria-label="Stop and send voice message">
-                          {uploadingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        {speechSupported && (
-                          <Button
-                            size="icon"
-                            variant={listening ? "destructive" : "outline"}
-                            className="h-12 w-12 touch-manipulation"
-                            onClick={toggleDictation}
-                            title={listening ? "Stop dictation" : "Dictate to text"}
-                            aria-label={listening ? "Stop dictation" : "Dictate to text"}
-                          >
-                            <Captions className={cn("h-5 w-5", listening && "animate-pulse")} />
-                          </Button>
-                        )}
-                        {audioSupported && (
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-12 w-12 touch-manipulation"
-                            onClick={startRecording}
-                            disabled={!activeId || uploadingAudio}
-                            title="Record voice message"
-                            aria-label="Record voice message"
-                          >
-                            {uploadingAudio ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-                          </Button>
-                        )}
-                        <Button
-                          size="icon"
-                          className="h-12 w-12 touch-manipulation"
-                          aria-label="Send message"
-                          onClick={handleSend}
-                          disabled={!text.trim() || sendMsg.isPending}
-                        >
-                          {sendMsg.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Send className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </>
-                    )}
                   </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                  {group && (
+                    <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => setInfo(true)} aria-label="Group details and members">
+                      <Info className="h-5 w-5" />
+                    </Button>
+                  )}
+                </header>
+                <MessageThread
+                  messages={shownMessages}
+                  meId={me}
+                  people={threadPeople}
+                  isGroup={active.kind === "group"}
+                  loading={loadingThread}
+                  error={threadError}
+                  onRetryLoad={() => thread.refetch()}
+                  hasOlder={!!thread.hasNextPage}
+                  loadingOlder={thread.isFetchingNextPage}
+                  onLoadOlder={() => thread.fetchNextPage()}
+                  onRetrySend={(m) => { const p = pending.find((x) => x.id === m.id); if (p) void deliver(p); }}
+                  onReply={active.kind === "group" ? setReplyTo : undefined}
+                  renderExtras={active.kind === "dm" ? renderExtras : undefined}
+                  emptyText={active.kind === "group" ? "No messages in this group yet. Say hello." : "No messages yet. Write the first one."}
+                />
+                <Composer
+                  resetKey={activeKey!}
+                  onSend={onSend}
+                  onVoice={active.kind === "dm" && !supervisorDoor ? onVoice : undefined}
+                  replyTo={replyTo ? { name: threadPeople[replyTo.sender_id]?.name ?? replyTo.sender_name, body: replyTo.body } : null}
+                  onCancelReply={() => setReplyTo(null)}
+                  placeholder={current ? `Message ${current.name}` : "Write a message"}
+                />
+              </>
+            )}
+          </section>
         </div>
       </div>
+      <CreateGroupDialog open={newGroup} onOpenChange={setNewGroup} onCreated={(id) => select(`group:${id}`)} />
+      {group && <GroupInfoSheet group={group} open={info} onOpenChange={setInfo} meId={me} isAdmin={role === "admin"} />}
     </DashboardLayout>
   );
 }

@@ -7,8 +7,10 @@ import {
 /**
  * The invite link and the badge used to make `operator` accounts, and operator logs
  * production and raises maintenance calls. `employee` is the account for somebody whose
- * business here is their own overtime and their own attendance — so it holds those two
- * and nothing else, and a later edit that hands it one more action fails here first.
+ * business here is their own overtime, their own attendance and their own conversations
+ * (Messages, since 19/10: RLS shows each person only the conversations they are in) —
+ * so it holds those three and nothing else, and a later edit that hands it one more
+ * action fails here first.
  */
 describe("employee", () => {
   afterEach(() => setPermissionOverrides({}));
@@ -21,9 +23,17 @@ describe("employee", () => {
     expect(can("employee", "attendance.view_own")).toBe(true);
   });
 
+  it("can open their own conversations", () => {
+    expect(can("employee", "chat.dm")).toBe(true);
+  });
+
+  it("cannot create groups", () => {
+    expect(can("employee", "chat.groups.manage")).toBe(false);
+  });
+
   it("holds nothing else", () => {
     expect(ALL_ACTIONS.filter((a) => can("employee", a)).sort())
-      .toEqual(["attendance.view_own", "overtime.respond"]);
+      .toEqual(["attendance.view_own", "chat.dm", "overtime.respond"]);
   });
 
   it("cannot publish overtime asks", () => {
@@ -50,7 +60,7 @@ describe("the employee ceiling", () => {
 
   const COMPANY_WIDE = [
     "headcount.view", "workforce.view", "workforce.manage", "attendance.manage",
-    "overtime.manage", "reports.analytics", "users.view",
+    "overtime.manage", "reports.analytics", "users.view", "chat.groups.manage",
   ] as const;
 
   it("ignores a Permissions-screen grant of anything company-wide", () => {
@@ -66,8 +76,8 @@ describe("the employee ceiling", () => {
     expect(can("employee", "attendance.view_own")).toBe(false);
   });
 
-  it("is exactly the two self-service actions", () => {
-    expect([...EMPLOYEE_CEILING].sort()).toEqual(["attendance.view_own", "overtime.respond"]);
+  it("is exactly the three self-service actions", () => {
+    expect([...EMPLOYEE_CEILING].sort()).toEqual(["attendance.view_own", "chat.dm", "overtime.respond"]);
   });
 
   it("does not touch any other role's grants", () => {

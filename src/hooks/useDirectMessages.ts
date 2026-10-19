@@ -89,13 +89,38 @@ export function useDMPartners(role: string | null | undefined) {
   return useQuery({
     queryKey: ["dm_partners", role, user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_dm_partners" as any);
-      if (error) throw error;
-      const partners = (data ?? []) as DMPartner[];
+      const partners = role === "employee" ? await mySupervisorAsPartner() : await listedPartners();
       return withPeopleWhoWrote(partners, user ? await wroteTo(user.id) : []);
     },
     enabled: !!role,
   });
+}
+
+/**
+ * `list_dm_partners` answers "Forbidden" to a role it has no branch for (the
+ * production office admin, the quality supervisor…). That is "nobody to start a
+ * conversation with", not a broken screen: they still answer whoever writes to them.
+ */
+async function listedPartners(): Promise<DMPartner[]> {
+  const { data, error } = await supabase.rpc("list_dm_partners" as any);
+  if (error) {
+    if (/forbidden/i.test(error.message ?? "")) return [];
+    throw error;
+  }
+  return (data ?? []) as DMPartner[];
+}
+
+/**
+ * An employee starts a conversation with one person: the supervisor on file
+ * (`my_supervisor`, BLOCO 107). Anybody else who writes to them is added by
+ * `wroteTo`, and they may answer (`dm_insert_reply`).
+ */
+async function mySupervisorAsPartner(): Promise<DMPartner[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)("my_supervisor");
+  if (error) return [];
+  return ((data ?? []) as { user_id: string; full_name: string }[])
+    .map((s) => ({ user_id: s.user_id, name: s.full_name, email: null, line_labels: "Your supervisor" }));
 }
 
 /**

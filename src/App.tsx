@@ -870,7 +870,7 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                {/* Messages temporarily disabled — re-enable by restoring the ProtectedRoute + chat.dm roles */}
+                {/* Messages: private conversations and department/team groups (BLOCO 108). */}
                 <Route
                   path="/dashboard/messages"
                   element={

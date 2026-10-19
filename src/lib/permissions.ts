@@ -92,6 +92,7 @@ export type Action =
   // Chat / DM
   | "chat.line"
   | "chat.dm"
+  | "chat.groups.manage"
   | "chat.settings"
   // Notifications
   | "notifications.view"
@@ -291,7 +292,13 @@ const MATRIX: Record<Action, Role[]> = {
   "leaders.manage": ["admin", "manager", "production_office_admin"],
 
   "chat.line": [...ALL, "warehouse", "quality_supervisor", "production_office_admin"],
-  "chat.dm": ["admin", "manager", "operator"],
+  // Messages: private conversations and the groups a person is in. What each person
+  // reads is decided by the database (only their own conversations, only the groups
+  // they are in), so the employee holds it inside the ceiling.
+  "chat.dm": ["admin", "manager", "operator", "supervisor", "production_office_admin", "employee"],
+  // Create department/team groups and manage their members — within the departments
+  // the person runs; the database checks it again (`chat_can_manage_groups`, BLOCO 108).
+  "chat.groups.manage": ["admin", "supervisor", "production_office_admin"],
   // Who may name the chat administrators the operators write to.
   "chat.settings": ["admin", "manager"],
 
@@ -427,9 +434,12 @@ export function roleHolds(role: Role, action: Action): boolean {
  * grant brought the menu row back (`navItemShows`) and `has_action` honoured it in the
  * database. A ceiling rather than a default, so a grant beyond it does nothing on
  * either side. `has_action` carries the same list in SQL
- * (20261012160000_an_employee_sees_only_their_own.sql).
+ * (20261012160000_an_employee_sees_only_their_own.sql) — except `chat.dm`, which no
+ * database check asks `has_action` about: Messages is guarded by participation (RLS on
+ * `direct_messages` and the group tables), so the employee reads their own
+ * conversations and nothing else whatever the screen allows (BLOCO 108).
  */
-export const EMPLOYEE_CEILING: readonly Action[] = ["overtime.respond", "attendance.view_own"];
+export const EMPLOYEE_CEILING: readonly Action[] = ["overtime.respond", "attendance.view_own", "chat.dm"];
 
 /** Whether a grant of this action to this role could take effect at all. */
 export function roleMayHold(role: Role, action: Action): boolean {
@@ -599,7 +609,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
-  { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm", "chat.settings"] },
+  { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm", "chat.groups.manage", "chat.settings"] },
   { key: "notif", label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
   { key: "intouch", label: "iTouching", actions: ["intouch.view", "intouch.manage"] },
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
@@ -611,7 +621,8 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
 
 export const ACTION_LABELS: Partial<Record<Action, string>> = {
   "chat.line": "Line Chat",
-  "chat.dm": "Contact Supervisor / Manager",
+  "chat.dm": "Messages",
+  "chat.groups.manage": "Create & manage groups",
 };
 
 export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
@@ -669,7 +680,8 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "leaders.view": "See line leaders and their PINs.",
   "leaders.manage": "Add, edit or deactivate line leaders.",
   "chat.line": "Use the per-line chat button and screen.",
-  "chat.dm": "Send direct messages to Supervisor / Manager.",
+  "chat.dm": "Open Messages: private conversations and the groups the person is in.",
+  "chat.groups.manage": "Create department or team groups and change who is in them, for the departments the person runs.",
   "chat.settings": "Choose who the operators reach when they write from a line.",
   "notifications.view": "See the notifications center.",
   "notifications.manage": "Configure and clear notifications.",
