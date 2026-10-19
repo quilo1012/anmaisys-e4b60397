@@ -50,22 +50,49 @@ Deno.serve(async (req) => {
       // Sem a chave do Claude, usa o Lovable AI Gateway em vez de falhar com 500.
       const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
       if (!LOVABLE_KEY) return json({ error: "No AI key configured" }, 500);
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const r = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_KEY}` },
+        headers: {
+          "Content-Type": "application/json",
+          "Lovable-API-Key": LOVABLE_KEY,
+          "X-Lovable-AIG-SDK": "fetch",
+        },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
-          messages: [{ role: "system", content: system }, { role: "user", content: text }],
+          model: "openai/gpt-6-astra",
+          instructions: system,
+          input: text,
+          reasoning: { effort: "low" },
+          store: false,
+          stream: true,
+          max_output_tokens: 1024,
         }),
       });
-      if (!r.ok) {
+      if (!r.ok || !r.body) {
         if (r.status === 429) return json({ error: "AI rate limit exceeded" }, 429);
         if (r.status === 402) return json({ error: "AI credits exhausted" }, 402);
         return json({ error: `AI error: ${(await r.text()).slice(0, 300)}` }, 502);
       }
-      const j = await r.json();
-      const out = String(j?.choices?.[0]?.message?.content ?? "").trim();
-      return json({ translated: out || text });
+      // Lê o stream SSE e junta os deltas de texto.
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "", out = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const l of lines) {
+          if (!l.startsWith("data:")) continue;
+          const d = l.slice(5).trim();
+          if (!d || d === "[DONE]") continue;
+          try {
+            const ev = JSON.parse(d);
+            if (ev.type === "response.output_text.delta" && typeof ev.delta === "string") out += ev.delta;
+          } catch { /* ignore partial */ }
+        }
+      }
+      return json({ translated: out.trim() || text });
     }
 
     const resp = await fetch(ANTHROPIC_URL, {
