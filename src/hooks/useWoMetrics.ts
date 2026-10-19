@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { WAREHOUSE_WO_TYPE } from "@/lib/woKinds";
 
 export interface WoMetrics {
   id: string;
@@ -65,15 +66,35 @@ export function useAllWoMetrics(opts?: { from?: Date; to?: Date }) {
   const toKey = opts?.to?.toISOString() ?? "all";
   return useQuery({
     queryKey: ["wo_metrics_all", fromKey, toKey],
-    queryFn: () => fetchAllRows<WoMetrics>({
-      range: (a, b) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- view not in the generated types
-        let q = (supabase as any).from("v_wo_metrics").select("*");
-        if (opts?.from) q = q.gte("created_at", opts.from.toISOString());
-        if (opts?.to) q = q.lte("created_at", opts.to.toISOString());
-        return q.order("created_at", { ascending: true }).order("id", { ascending: true }).range(a, b);
-      },
-    }),
+    queryFn: async () => {
+      // The view has no `wo_type`, and it is security_invoker: the warehouse policy
+      // exempts admin, so admin's MTTR and response times took in warehouse orders
+      // (74 of 884 on 18/10) that every other role and every other maintenance figure
+      // leave out. Their ids are read apart and dropped here, the same rule
+      // `useWorkOrders` applies on the server.
+      const [rows, warehouse] = await Promise.all([
+        fetchAllRows<WoMetrics>({
+          range: (a, b) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- view not in the generated types
+            let q = (supabase as any).from("v_wo_metrics").select("*");
+            if (opts?.from) q = q.gte("created_at", opts.from.toISOString());
+            if (opts?.to) q = q.lte("created_at", opts.to.toISOString());
+            return q.order("created_at", { ascending: true }).order("id", { ascending: true }).range(a, b);
+          },
+        }),
+        fetchAllRows<{ id: string }>({
+          range: (a, b) => {
+            let q = supabase.from("work_orders").select("id").eq("wo_type", WAREHOUSE_WO_TYPE);
+            if (opts?.from) q = q.gte("created_at", opts.from.toISOString());
+            if (opts?.to) q = q.lte("created_at", opts.to.toISOString());
+            return q.order("id", { ascending: true }).range(a, b) as never;
+          },
+        }),
+      ]);
+      if (warehouse.length === 0) return rows;
+      const skip = new Set(warehouse.map((w) => w.id));
+      return rows.filter((r) => !skip.has(r.id));
+    },
     refetchInterval: 60_000,
   });
 }
