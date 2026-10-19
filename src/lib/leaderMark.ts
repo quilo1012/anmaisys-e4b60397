@@ -32,3 +32,42 @@ export function keepsLeadership(
     && next.areaId === (prev?.area_id ?? null)
   );
 }
+
+/**
+ * Whether somebody's job is to lead a line.
+ *
+ * Read off `position`. "Team Leader" used to sit in `department`, and the board still
+ * looked for it there after #393 moved every job title into `position` — so from 07/08
+ * no Team Leader on the board was recognised as one, and a supervisor had to press LEAD
+ * on Everton Eduardo every single day he was placed. `department` is still asked, as a
+ * fallback, for a record nobody has given a position.
+ */
+export function isTeamLeader(
+  person: { position?: string | null; department?: string | null } | null | undefined,
+): boolean {
+  const job = person?.position?.trim() || person?.department?.trim() || "";
+  return /team\s*lead/i.test(job);
+}
+
+/**
+ * Whether this placement should take the column's mark without anybody pressing LEAD.
+ *
+ * A Team Leader put to work on a line leads it — unless the line already has a
+ * leader that day and shift, because the index allows one and a Team Leader helping
+ * on somebody else's line is not the one running it. Supervisors are left out: they
+ * look after several lines and lead none of them in particular.
+ */
+export function claimsLeadership(input: {
+  teamLeader: boolean;
+  areaId: string | null;
+  status: AllocStatus;
+  /** Somebody else already holds the mark on this column, this day and shift. */
+  columnTaken: boolean;
+}): boolean {
+  return (
+    input.teamLeader
+    && (input.status === "assigned" || input.status === "overtime")
+    && input.areaId !== null
+    && !input.columnTaken
+  );
+}

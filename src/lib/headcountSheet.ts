@@ -1,7 +1,7 @@
 // `xlsx-js-style`, not `xlsx`: the same library and the same API, and the only one of
 // the two that writes a cell's fill. Every other coloured export in the app uses it.
 import XLSX from "xlsx-js-style";
-import { keepsLeadership } from "@/lib/leaderMark";
+import { claimsLeadership, keepsLeadership } from "@/lib/leaderMark";
 import { sheetBandOf } from "@/lib/headcountBlocks";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { boardShiftFor } from "@/hooks/useHeadcount";
@@ -986,6 +986,8 @@ export function rowsToImport(input: {
   cover: (employeeId: string, date: string, shift: string) => RotaCover;
   /** The leaders already standing on the days being written. */
   leaders: StandingLeader[];
+  /** Whose job is Team Leader. Each takes a column nobody leads — see `claimsLeadership`. */
+  teamLeaders?: ReadonlySet<string>;
 }): ImportRow[] {
   const key = (on_date: string, shift: string, employee_id: string) =>
     `${on_date}|${shift}|${employee_id}`;
@@ -995,7 +997,7 @@ export function rowsToImport(input: {
     input.leaders.map((l) => [key(l.on_date, l.shift, l.employee_id), l.area_id ?? null]),
   );
 
-  return input.matched.map((m) => {
+  const rows = input.matched.map((m) => {
     const status = statusForPlacement(
       m.status,
       m.status,
@@ -1020,6 +1022,31 @@ export function rowsToImport(input: {
       sheet_tag: m.sheetTag ?? null,
     };
   });
+
+  // A Team Leader the sheet puts on a line leads it when nobody else does. Taken
+  // columns are the marks this import keeps plus the standing leaders it does not
+  // touch; first come first served after that, so the index never sees two.
+  if (input.teamLeaders?.size) {
+    const col = (on_date: string, shift: string, area: string) => `${on_date}|${shift}|${area}`;
+    const writing = new Set(rows.map((r) => key(r.on_date, r.shift, r.employee_id)));
+    const taken = new Set<string>();
+    for (const l of input.leaders) {
+      if (l.area_id && !writing.has(key(l.on_date, l.shift, l.employee_id))) taken.add(col(l.on_date, l.shift, l.area_id));
+    }
+    for (const r of rows) if (r.is_leader && r.area_id) taken.add(col(r.on_date, r.shift, r.area_id));
+    for (const r of rows) {
+      if (r.is_leader || !r.area_id) continue;
+      const c = col(r.on_date, r.shift, r.area_id);
+      if (claimsLeadership({
+        teamLeader: input.teamLeaders.has(r.employee_id),
+        areaId: r.area_id, status: r.status, columnTaken: taken.has(c),
+      })) {
+        r.is_leader = true;
+        taken.add(c);
+      }
+    }
+  }
+  return rows;
 }
 
 /** Every date from `from` to `to`, inclusive. */

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { attendanceForDay, attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from "@/lib/copyBoard";
 import { dropReceipt, readReceipt, saveReceipt, type CopyReceipt } from "@/lib/copyUndo";
-import { keepsLeadership } from "@/lib/leaderMark";
+import { claimsLeadership, isTeamLeader, keepsLeadership } from "@/lib/leaderMark";
 import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftPosition } from "./useWorkforce";
 import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
@@ -33,6 +33,8 @@ export type HeadcountEmployee = {
   full_name: string;
   shift_group: string | null;
   department: string | null;
+  /** The job — "Team Leader" lives here, not in `department`. See `isTeamLeader`. */
+  position?: string | null;
   /** Which rota they are on. Null means unrecorded, which is not the same as off. */
   shift_pattern_id: string | null;
   /** O número de funcionário. Separa no ecrã duas pessoas com o mesmo nome. */
@@ -258,6 +260,44 @@ export function boardPeopleOn<T extends { id: string; left_on?: string | null }>
   return out;
 }
 
+/**
+ * Give each Team Leader just written onto a board the mark of the line they stand on,
+ * when nobody holds it. `claimsLeadership` is the rule; this only reads what it needs
+ * and writes one person at a time, so a column reached twice is only claimed once.
+ * Returns the error message, or null.
+ */
+async function markTeamLeaders(
+  onDate: string,
+  shift: string,
+  placed: Array<{ employee_id: string; area_id: string | null; status: AllocStatus }>,
+): Promise<string | null> {
+  const working = placed.filter((p) => p.area_id && (p.status === "assigned" || p.status === "overtime"));
+  if (!working.length) return null;
+  const { data: jobs, error: jobErr } = await supabase
+    .from("employees").select("id,position,department").in("id", working.map((p) => p.employee_id));
+  if (jobErr) return jobErr.message;
+  const leaders = new Set(
+    ((jobs ?? []) as Array<{ id: string; position: string | null; department: string | null }>)
+      .filter(isTeamLeader).map((e) => e.id),
+  );
+  const mine = working.filter((p) => leaders.has(p.employee_id));
+  if (!mine.length) return null;
+  const { data: held, error: heldErr } = await supabase
+    .from("daily_allocations").select("area_id")
+    .eq("on_date", onDate).eq("shift", shift).eq("is_leader", true);
+  if (heldErr) return heldErr.message;
+  const taken = new Set(((held ?? []) as Array<{ area_id: string | null }>).map((r) => r.area_id));
+  for (const p of mine) {
+    if (!claimsLeadership({ teamLeader: true, areaId: p.area_id, status: p.status, columnTaken: taken.has(p.area_id) })) continue;
+    const { error } = await supabase
+      .from("daily_allocations").update({ is_leader: true })
+      .eq("on_date", onDate).eq("shift", shift).eq("employee_id", p.employee_id);
+    if (error && !/one_leader_per_area/.test(error.message ?? "")) return error.message;
+    taken.add(p.area_id);
+  }
+  return null;
+}
+
 export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   const { data: patterns } = useShiftPatterns();
   const { data: history } = useShiftHistory();
@@ -267,7 +307,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,shift_pattern_id,sheet_aliases")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -333,7 +373,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,shift_pattern_id,sheet_aliases,left_on")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,left_on")
         .eq("active", false)
         .not("left_on", "is", null);
       if (error) throw error;
@@ -367,7 +407,7 @@ export function useRotaCover() {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,shift_pattern_id,sheet_aliases")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -761,6 +801,14 @@ export function useAllocationMutations(onDate: string, shift: string) {
         );
       if (error) throw error;
 
+      // A Team Leader put on a line leads it without anybody pressing LEAD, unless the
+      // line already has a leader this day and shift. Everton Eduardo had to be marked
+      // by hand every day he was placed.
+      const leadErr = await markTeamLeaders(onDate, shift, [
+        { employee_id: input.employeeId, area_id: status === "assigned" || status === "overtime" ? input.areaId : null, status },
+      ]);
+      if (leadErr) toast.warning(`Placed, but could not mark them as the line's leader: ${leadErr}`);
+
       // The board and the payroll record have to say the same thing.
       //
       // Marking somebody off here wrote only `daily_allocations`, so a holiday put on
@@ -975,6 +1023,14 @@ export function useAllocationMutations(onDate: string, shift: string) {
         .select("employee_id,status");
       if (upErr) throw upErr;
       const inserted = (written ?? []) as Array<{ employee_id: string; status: string }>;
+
+      // The Team Leaders the copy just placed lead the lines nobody leads yet, as a
+      // placement by hand does. Not fatal: the copy is what was asked for.
+      const leadErr = await markTeamLeaders(
+        onDate, shift,
+        inserted.map((r) => ({ employee_id: r.employee_id, area_id: payload.find((p) => p.employee_id === r.employee_id)?.area_id ?? null, status: r.status as AllocStatus })),
+      );
+      if (leadErr) toast.warning(`Copied, but the Team Leaders could not be marked: ${leadErr}`);
 
       // Payroll hears about it too, for the same reason `place` tells it: a day filled
       // only from here would otherwise be a full board the finance close cannot see.

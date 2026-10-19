@@ -342,12 +342,18 @@ const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; sof
  * The line leader, picked out.
  *
  * A supervisor scanning a column wants to know it has a leader before they want
- * anybody's name. It comes off `department`, which was typed by hand over months —
+ * anybody's name. It comes off `position`, which was typed by hand over months —
  * hence a pattern rather than an exact list.
  */
-function isLeader(department: string | null | undefined) {
-  return !!department && /team\s*lead|supervisor/i.test(department);
+function isLeader(person: { position?: string | null; department?: string | null }) {
+  // The job is in `position` since #393; `department` only for a record with none.
+  const job = person.position?.trim() || person.department?.trim() || "";
+  return /team\s*lead|supervisor/i.test(job);
 }
+
+/** The role mark comes off the job first, for the same reason as `isLeader`. */
+const roleOf = (person: { position?: string | null; department?: string | null }) =>
+  roleStripe(person.position) ?? roleStripe(person.department);
 
 function Chip({
   name,
@@ -816,7 +822,7 @@ function ShiftBoard({
         startTime: a.sheet_start_time ?? null,
         tag: a.sheet_tag ?? null,
         overtime: a.status === "overtime",
-        // The day's own leader wins. `department` is only the fallback, so a board
+        // The day's own leader wins. The job (`isLeader`) is only the fallback, so a board
         // nobody has named a leader on still shows the Team Leaders it has.
         leader: a.is_leader ?? false,
       });
@@ -826,8 +832,8 @@ function ShiftBoard({
       list.sort((a, b) => {
         // The leader marked on this particular line and shift always takes the first
         // position, even when another Team Leader is helping on the same line.
-        const la = a.leader ? 0 : isLeader(a.person.department) ? 1 : 2;
-        const lb = b.leader ? 0 : isLeader(b.person.department) ? 1 : 2;
+        const la = a.leader ? 0 : isLeader(a.person) ? 1 : 2;
+        const lb = b.leader ? 0 : isLeader(b.person) ? 1 : 2;
         return la - lb || a.shown.localeCompare(b.shown);
       });
     }
@@ -1006,7 +1012,7 @@ function ShiftBoard({
                   tag={p.tag}
                   onOpen={() => setEditing(p.id)}
                   dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
-                  role={roleStripe(p.department)}
+                  role={roleOf(p)}
                   tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
                   half={byEmployee.get(p.id)?.half_day === true}
                   leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
@@ -1548,10 +1554,10 @@ function ShiftBoard({
                         sheetName={sheetName}
                         startTime={startTime}
                         tag={tag}
-                        leader={leadsToday || isLeader(p.department)}
+                        leader={leadsToday || isLeader(p)}
                         lineLeader={leadsToday}
                         lineName={area.name}
-                        role={roleStripe(p.department)}
+                        role={roleOf(p)}
                         dimmed={isDimmed(shown) && isDimmed(p.full_name)}
                         overtime={isOt}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
@@ -1809,7 +1815,7 @@ function ShiftBoard({
                       name={p.full_name}
                       personRef={refOf.get(p.id)}
                       dimmed={isDimmed(p.full_name)}
-                      role={roleStripe(p.department)}
+                      role={roleOf(p)}
                       tone="roster"
                       crew={crewBadge(p.shift_group)}
                       onOpen={() => setEditing(p.id)}
@@ -1848,7 +1854,7 @@ function ShiftBoard({
                     name={p.full_name}
                     personRef={refOf.get(p.id)}
                     dimmed={isDimmed(p.full_name)}
-                    role={roleStripe(p.department)}
+                    role={roleOf(p)}
                     tone="roster"
                     crew={null}
                     onOpen={() => setEditing(p.id)}
