@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  calendarStatus, monthGrid, weekDays, viewRange, stepAnchor, viewTitle, duplicateOf, mondayOf,
+  calendarStatus, monthGrid, weekDays, viewRange, stepAnchor, viewTitle, duplicateOf, mondayOf, endsNextDay, CALENDAR_STATUS_BADGE,
 } from "./overtimeCalendar";
 
 const ask = (over: Partial<Parameters<typeof calendarStatus>[0]> = {}) => ({
@@ -64,5 +64,18 @@ describe("duplicateOf", () => {
   });
   it("a cancelled ask can be asked again", () => {
     expect(duplicateOf({ on_date: "2026-10-21", starts_at: "06:00", ends_at: "18:00", department: null }, existing)).toBeNull();
+  });
+});
+
+describe("endsNextDay", () => {
+  it("is true for a night ask and false for a day ask", () => {
+    expect(endsNextDay({ starts_at: "18:00:00", ends_at: "06:00:00" })).toBe(true);
+    expect(endsNextDay({ starts_at: "06:00:00", ends_at: "18:00:00" })).toBe(false);
+  });
+});
+
+describe("CALENDAR_STATUS_BADGE", () => {
+  it("does not paint nobody-yet and partly-filled the same colour", () => {
+    expect(CALENDAR_STATUS_BADGE.needs).not.toBe(CALENDAR_STATUS_BADGE.partial);
   });
 });

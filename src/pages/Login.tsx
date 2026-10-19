@@ -643,7 +643,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => navigate("/reset-password")}
-                className="rounded text-xs font-medium text-auth-ink-muted underline-offset-4 transition-colors hover:text-auth-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40"
+                className="-my-3 inline-flex min-h-11 items-center rounded px-1 text-xs font-medium text-auth-ink-muted underline-offset-4 transition-colors hover:text-auth-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40"
               >
                 Forgot password?
               </button>
@@ -747,7 +747,7 @@ export default function Login() {
           <button
             type="button"
             onClick={() => navigate(signupPath(inviteCode))}
-            className={authLink}
+            className={`${authLink} inline-flex min-h-11 items-center px-1`}
           >
             Create account
           </button>
