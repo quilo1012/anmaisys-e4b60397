@@ -8,14 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Clock, Loader2, Ban, CalendarClock } from "lucide-react";
+import { Check, X, XCircle, Clock, Loader2, Ban, CalendarClock } from "lucide-react";
 import { LoadFailed } from "@/components/portal/LoadFailed";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   useMyEmployee, useMyUpcomingOvertime, useOvertimeResponses, useOvertimeMutations,
-  useMyOvertimeBlock, useMyOvertimeClashes, useOvertimePlaces,
+  useMyOvertimeBlock, useMyOvertimeClashes, useOvertimePlaces, useOvertimeOutcomesFor,
 } from "@/hooks/useOvertimeRequests";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
   upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
   headcountLine, audienceLine, placesLine, type OvertimeRequest,
@@ -276,10 +277,15 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
   const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
-  const { answer } = useOvertimeMutations();
+  const { answer, cancelMyBooking } = useOvertimeMutations();
+  const { confirm, confirmDialog } = useConfirm();
   const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
   const mine = useMemo(() => new Map(responses.filter((r) => r.employee_id === me.id).map((r) => [r.request_id, r])), [responses, me.id]);
+  // What came of my own answers — a booking I cancelled reads "Cancelled by you",
+  // not "Booked", however the decision row still stands.
+  const myResponseIds = useMemo(() => [...mine.values()].map((r) => r.id), [mine]);
+  const { data: myOutcomes = [] } = useOvertimeOutcomesFor(myResponseIds);
   /**
    * The clock the list is judged by, moved on every half minute.
    *
@@ -367,6 +373,34 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   /** Which button is waiting on the server, so the spinner sits on the one that was tapped. */
   const inFlight = answer.isPending ? answer.variables : undefined;
 
+  /**
+   * Taking back a booking. Confirmed in words first, because the place goes to the
+   * reserve list at once — and if the shift is close, the database counts it as a
+   * late cancellation, which the person should hear before they tap, not after.
+   */
+  const cancelling = useRef(false);
+  const cancelBooking = async (request: OvertimeRequest) => {
+    if (cancelling.current) return;
+    const ok = await confirm({
+      title: "Cancel this booking?",
+      description: `You are booked for overtime on ${fmtDate(request.on_date)}, ${windowLabel(request.starts_at, request.ends_at)}. Your place goes to the next person on the reserve list straight away. If the shift is close, this counts as a late cancellation.`,
+      confirmText: "Yes, cancel it",
+      cancelText: "Keep my booking",
+      destructive: true,
+    });
+    if (!ok) return;
+    cancelling.current = true;
+    cancelMyBooking.mutate({ requestId: request.id }, {
+      onSettled: () => { cancelling.current = false; },
+      onSuccess: (res) => toast.success(`Booking cancelled for ${fmtDate(request.on_date)}`, {
+        description: res.outcome === "cancelled_late"
+          ? "The shift was close, so this counts as a late cancellation."
+          : "Your place has been freed.",
+      }),
+      onError: (e) => toast.error((e as Error).message || "Could not cancel your booking"),
+    });
+  };
+
   const goneNotice = linkedAsk && !linkedShown ? (
     <Card className="border-dashed bg-muted/30" role="status">
       <CardContent className="py-4 text-sm">
@@ -441,6 +475,11 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
+        // A booking I took back. The decision row still says accepted — the outcome
+        // is what happened after, and it is what the card must show.
+        const myCancel = my ? myOutcomes.find((o) => o.response_id === my.id
+          && (o.outcome === "cancelled_in_time" || o.outcome === "cancelled_late")) : undefined;
+        const canCancel = my?.decision === "accepted" && !myCancel && r.status === "open" && !askHasStarted(r, now);
         // Room is only news to somebody still deciding; once picked, it is not their question.
         const room = r.status === "open" && !my?.decision ? places?.get(r.id) : undefined;
         // Open, undecided, and not yet begun. The third was missing once, which is
