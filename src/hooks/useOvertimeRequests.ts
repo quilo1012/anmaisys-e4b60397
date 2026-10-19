@@ -604,6 +604,40 @@ export function useOvertimeMutations() {
   });
 
   /**
+   * The employee taking back a booking they can no longer make.
+   *
+   * The RPC does the whole move in the database: it writes the outcome (in time or
+   * late, by the same rule the supervisor's record uses), takes the person off the
+   * headcount board, and hands the place to the longest-waiting reserve — who comes
+   * back here so the push can tell them their place opened.
+   */
+  const cancelMyBooking = useMutation({
+    mutationFn: async ({ requestId, note }: { requestId: string; note?: string }): Promise<{
+      outcome: "cancelled_in_time" | "cancelled_late";
+      promotedEmployeeId: string | null;
+    }> => {
+      const { data, error } = await db.rpc("cancel_my_overtime", {
+        p_request_id: requestId, p_note: note ?? null,
+      });
+      if (error) throw error;
+      const row = (data as {
+        outcome: "cancelled_in_time" | "cancelled_late";
+        promoted_response_id: string | null;
+        promoted_employee_id: string | null;
+      }[] | null)?.[0];
+      if (!row) throw new Error("Nothing was cancelled. Check your signal and try again.");
+      if (row.promoted_employee_id) {
+        const { data: req } = await db.from("overtime_requests")
+          .select("id, on_date, starts_at, ends_at").eq("id", requestId).single();
+        const message = req ? decisionMessage(req, "accepted") : null;
+        if (message) await pushTo(requestId, message, [row.promoted_employee_id]);
+      }
+      return { outcome: row.outcome, promotedEmployeeId: row.promoted_employee_id };
+    },
+    onSuccess: refresh,
+  });
+
+  /**
    * Who you are, said with the number on your badge rather than picked off a list.
    *
    * It used to take an employee id chosen from `overtime_unlinked_names()` — every
@@ -663,5 +697,5 @@ export function useOvertimeMutations() {
     },
   });
 
-  return { createRequest, editRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, linkMe, linkMeByEmail, saveRules };
+  return { createRequest, editRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, cancelMyBooking, linkMe, linkMeByEmail, saveRules };
 }

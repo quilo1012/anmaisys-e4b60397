@@ -41,6 +41,8 @@ import {
   hoursLabel, DEFAULT_FILTERS, OVERTIME_SHIFTS,
   type OvertimeShift, type AskFilters, type AskState, type BoardRow, type Clash, type ShiftSummary,
 } from "@/lib/overtimeShifts";
+import { ShiftTag } from "@/components/ShiftTag";
+import { shiftEdge } from "@/lib/shiftLook";
 import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
 import { answeredForDifferentHours, countStale, windowAnswered } from "@/lib/staleOvertimeAnswer";
 import { OvertimeCalendar, TOGGLE_ON } from "@/components/workforce/OvertimeCalendar";
@@ -784,13 +786,14 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
 
   return (
     <>
-    <Card className={cn(request.status !== "open" && "opacity-80")}>
+    <Card className={cn(shiftEdge(shift), request.status !== "open" && "opacity-80")}>
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
               <span className="tabular-nums">{fmtDate(request.on_date)} · {windowLabel(request.starts_at, request.ends_at)}</span>
-              <span className="text-xs font-normal text-muted-foreground">{shift} shift · {hoursBetween(request.starts_at, request.ends_at)}</span>
+              <ShiftTag shift={shift} />
+              <span className="text-xs font-normal text-muted-foreground">{hoursBetween(request.starts_at, request.ends_at)}</span>
               <StatusBadge status={STATE_BADGE[state]} label={ASK_STATE_LABEL[state]} size="sm" />
             </CardTitle>
             {/* Who can see it, as a sentence. The note is on its own line below: it
