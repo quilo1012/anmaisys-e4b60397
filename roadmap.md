@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Fix Maikon's 21 Oct Night overtime overlapping his rota; Day retained, Night declined, SQL rollback regressions and 29 tests passed; live Night board shows Office suggestion and zero overtime.
+
 - [x] Fill unplaced Headcount employees from habitual positions or each person's previous worked day; 65 tests and matrix browser check passed; authenticated 21 Oct Day shows 95 suggestions without saving production rows.
 
 - [x] Fix audit activation action mismatch; deploy log-audit-event; 20 regression tests passed. Verify overtime snapshot columns already exist in production (21 responses); no schema/data changes needed

@@ -7082,6 +7082,10 @@ export type Database = {
           line: string
         }[]
       }
+      dm_from_employee: {
+        Args: { p_name: string; p_text: string; p_to: string }
+        Returns: string
+      }
       dm_wrote_to_me: { Args: { p_from: string }; Returns: boolean }
       factory_shift_key: { Args: { _ts: string }; Returns: string }
       factory_shift_of: { Args: { at: string }; Returns: string }
@@ -7448,6 +7452,7 @@ export type Database = {
       }
       login_link_candidates: { Args: never; Returns: Json }
       match_employee_for_user: { Args: { _user_id: string }; Returns: string }
+      message_my_supervisor: { Args: { p_message: string }; Returns: string }
       message_overtime_supervisor: {
         Args: { p_message: string; p_request_id: string }
         Returns: string
@@ -7480,6 +7485,13 @@ export type Database = {
           full_name: string
           id: string
           shift_group: string
+        }[]
+      }
+      my_supervisor: {
+        Args: never
+        Returns: {
+          full_name: string
+          user_id: string
         }[]
       }
       overtime_ask_notified: {
@@ -7868,6 +7880,7 @@ export type Database = {
       shift_password_is_set: { Args: { _shift_code: string }; Returns: boolean }
       signup_invite_code: { Args: never; Returns: string }
       snapshot_sku_products: { Args: never; Returns: Json }
+      supervisor_login_of: { Args: { p_employee: string }; Returns: string }
       touch_device: { Args: { _token: string }; Returns: undefined }
       touch_last_seen: { Args: never; Returns: undefined }
       unlink_login_from_employee: {
