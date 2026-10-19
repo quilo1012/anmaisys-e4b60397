@@ -47,7 +47,7 @@ export function ShiftFilter({ value, onChange, className, fill = false }: ShiftF
               active && "shadow-md scale-[1.02]"
             )}
           >
-            <span className={cn("text-base leading-none", fill && "hidden min-[400px]:inline")}>{opt.emoji}</span>
+            <span className={cn("text-base leading-none", fill && "hidden xs:inline")}>{opt.emoji}</span>
             <span className={fill ? "inline" : "hidden sm:inline"}>{opt.label}</span>
             <span className={cn("hidden text-2xs opacity-70", fill ? "xl:inline" : "md:inline", active && "opacity-90")}>
               {opt.hint !== opt.label ? opt.hint : ""}

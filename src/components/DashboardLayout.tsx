@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +48,7 @@ import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { MobileAppHeader } from "@/components/shell/MobileAppHeader";
+import { ShellTitleContext } from "@/components/shell/shellTitle";
 import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { OvertimeOfferAlert } from "@/components/workforce/OvertimeOfferAlert";
@@ -443,8 +444,26 @@ function RailFlyout({
 
 function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCount }: { filteredItems: NavItem[]; permissionOverrideCount: number; dmUnread: number; crashCount: number }) {
   const location = useLocation();
-  const { state } = useSidebar();
-  const iconCollapsed = state === "collapsed";
+  const { state, isMobile: inDrawer, setOpenMobile } = useSidebar();
+  // `state` is the desktop rail's. A phone keeps it "collapsed" (the rail is its
+  // default), and the drawer was drawing itself as a rail: "OVE", "MAI", "PRO"
+  // stubs instead of the group names, and items pressed against the edge.
+  const iconCollapsed = state === "collapsed" && !inDrawer;
+
+  // Choosing a page closes the drawer. Nothing did: the page changed underneath and
+  // the menu stayed over it, so every trip through the menu cost a second tap on the
+  // dimmed edge to see where you had gone.
+  //
+  // Only on a CHANGE of route. This list mounts when the drawer opens (it lives inside
+  // the sheet), so an effect that also ran on mount closed the drawer the instant it
+  // opened — the first version of this did exactly that.
+  const routeKey = `${location.pathname}${location.search}`;
+  const openedAt = useRef(routeKey);
+  useEffect(() => {
+    if (openedAt.current === routeKey) return;
+    openedAt.current = routeKey;
+    if (inDrawer) setOpenMobile(false);
+  }, [routeKey, inDrawer, setOpenMobile]);
   // Assets folded into Maintenance. Machines, Problems and Stock are what maintenance
   // works on — three items in a group of their own bought a heading and a click for
   // nothing, and on a laptop the sidebar ran past the fold.
@@ -507,7 +526,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
               <button
                 type="button"
                 onClick={() => setOpenGroup((prev) => (prev === group.label ? null : group.label))}
-                className="flex w-full items-center justify-between px-2 py-1.5 text-2xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors"
+                className="flex w-full items-center justify-between px-2 py-1.5 text-2xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors [[data-mobile=true]_&]:min-h-11 [[data-mobile=true]_&]:text-xs"
                 aria-expanded={isOpen}
               >
                 <span>{group.label}</span>
@@ -525,7 +544,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                           asChild
                           tooltip={kids.length ? `${item.title} (${kids.length} pages)` : item.title}
                           className={cn(
-                            "h-9 rounded-md transition-colors",
+                            "h-9 rounded-md transition-colors [[data-mobile=true]_&]:h-11",
                             "group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10",
                             "group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:!p-0",
                             "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg",
@@ -753,6 +772,46 @@ function SidebarStateControl({ uiState, onSelect }: { uiState: SidebarUiState; o
 }
 
 
+/**
+ * The top of the menu. On a desktop it is the Applied Nutrition lockup, full width,
+ * as it has always been. In the phone's drawer it is one 56px row — the mark, the
+ * system's name, and a close button — because the lockup was 90px of the drawer's
+ * first screen and the drawer had no visible way to close at all (its sheet hides
+ * the default ×; you had to know to tap the dimmed page).
+ */
+function SidebarBrand() {
+  const { isMobile, setOpenMobile } = useSidebar();
+  if (isMobile) {
+    return (
+      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-sidebar-border pl-4 pr-1.5 pt-[env(safe-area-inset-top)]">
+        <img src="/android-chrome-192x192.png" alt="" className="h-8 w-8 shrink-0 rounded-md" />
+        <span className="flex-1 font-display text-base font-bold tracking-tight text-sidebar-foreground">PMSystem</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-11 w-11 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          onClick={() => setOpenMobile(false)}
+          aria-label="Close menu"
+        >
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+      <img
+        src={appliedLogo}
+        alt="Applied Nutrition"
+        className="block w-full h-auto rounded-md object-cover group-data-[collapsible=icon]:hidden"
+      />
+      <div className="hidden group-data-[collapsible=icon]:flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-accent/40 ring-1 ring-sidebar-border/60 overflow-hidden">
+        <img src={appliedLogo} alt="AN" className="h-full w-full object-cover" />
+      </div>
+    </div>
+  );
+}
+
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const { role, profile, signOut } = useAuth();
   const { dark, toggle: toggleDark } = useDarkMode();
@@ -925,16 +984,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="flex h-[calc(100dvh-var(--app-banner-h))] w-full overflow-hidden">
           <Sidebar collapsible={sidebarUiState === "hidden" ? "offcanvas" : "icon"} className="border-r border-sidebar-border print:hidden">
 
-            <div className="border-b border-sidebar-border p-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-              <img
-                src={appliedLogo}
-                alt="Applied Nutrition"
-                className="block w-full h-auto rounded-md object-cover group-data-[collapsible=icon]:hidden"
-              />
-              <div className="hidden group-data-[collapsible=icon]:flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-accent/40 ring-1 ring-sidebar-border/60 overflow-hidden">
-                <img src={appliedLogo} alt="AN" className="h-full w-full object-cover" />
-              </div>
-            </div>
+            <SidebarBrand />
 
             <SidebarContent>
               <SidebarNav filteredItems={filteredItems} permissionOverrideCount={permissionOverrideCount} dmUnread={dmUnread} crashCount={crashCount} />
@@ -981,6 +1031,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               <PushOnboarding />
               <MobileAppHeader
                 leading={device !== "mobile" ? <SidebarStateControl uiState={sidebarUiState} onSelect={applySidebarState} /> : undefined}
+                menuButton={device === "mobile"}
                 extra={role === "admin" || role === "manager" || role === "maintenance_manager" ? <OnlineEngineersPanel /> : undefined}
                 title={currentPageTitle}
                 isHome={location.pathname === homePath}
@@ -1067,7 +1118,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 "focus-visible:outline-none",
               )}
             >
-              <div className="min-w-0 w-full">{children}</div>
+              <div className="min-w-0 w-full">
+                <ShellTitleContext.Provider value={currentPageTitle}>{children}</ShellTitleContext.Provider>
+              </div>
             </div>
 
             <MobileTabBar tabs={mobileTabs} />

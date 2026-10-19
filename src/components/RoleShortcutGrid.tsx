@@ -83,12 +83,15 @@ export function RoleShortcutGrid() {
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigate(it.url); } }}
                   className="group cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.99]"
                 >
-                  <CardContent className="flex items-center gap-3 p-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  {/* Two-up on a phone leaves 140–175px a tile. The hover chevron
+                      (invisible on touch anyway) and 16px padding left "Machines" 63px,
+                      and it broke in two; below 480px the icon sits above the label. */}
+                  <CardContent className="flex flex-col items-start gap-2 p-3 xs:flex-row xs:items-center xs:gap-2.5 sm:gap-3 sm:p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:h-10 sm:w-10">
                       <Icon className="h-5 w-5" />
                     </div>
                     <span className="min-w-0 flex-1 text-sm font-medium leading-tight">{it.title}</span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                    <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 sm:block" />
                   </CardContent>
                 </Card>
               );

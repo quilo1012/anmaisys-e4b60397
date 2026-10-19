@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes } from "lucide-react";
+import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
 
@@ -157,6 +158,7 @@ export default function SKUProductsPage() {
   const [editing, setEditing] = useState<Partial<Sku> | null>(null);
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement | null>(null);
   const [cleaning, setCleaning] = useState(false);
 
   const cleanupBatchSkus = async () => {
@@ -358,35 +360,69 @@ export default function SKUProductsPage() {
              of it — New SKU among them, the screen's primary action — was clipped by the
              overflow-x guard in index.css. Cut on a 390px phone AND on an 820px line
              tablet. Same shape as the header on LineProductionScreen. */
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={cleanupBatchSkus} disabled={cleaning}>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            {/* On a phone the five file chores go behind one "More" button and New SKU
+                takes the row: as six labelled buttons they wrapped into three rows, a
+                third of the first screen, before the list started. Same handlers. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-10 gap-1.5 sm:hidden" aria-label="More SKU actions">
+                  <MoreHorizontal className="h-4 w-4" /> More
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => importInput.current?.click()} disabled={importing}>
+                  <Upload className="h-4 w-4" />{importing ? "Importing..." : "Import XLSX"}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11 gap-2" onSelect={exportAll} disabled={isLoading || !all.length}>
+                  <Download className="h-4 w-4" />{isLoading ? "Loading..." : `Export all (${all.length})`}
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11 gap-2" onSelect={downloadTemplate}>
+                  <Download className="h-4 w-4" />Template XLSX
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="min-h-11 gap-2" onSelect={restorePrevious} disabled={importing}>
+                  <Undo2 className="h-4 w-4" />Restore previous import
+                </DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11 gap-2" onSelect={cleanupBatchSkus} disabled={cleaning}>
+                  <Eraser className="h-4 w-4" />{cleaning ? "Cleaning..." : "Remove batch SKUs"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="outline" onClick={cleanupBatchSkus} disabled={cleaning} className="hidden sm:inline-flex">
               <Eraser className="h-4 w-4 mr-1" />{cleaning ? "Cleaning..." : "Remove batch SKUs"}
             </Button>
-            <Button variant="outline" onClick={exportAll} disabled={isLoading || !all.length} title="Download every SKU in the system as Excel">
+            <Button variant="outline" onClick={exportAll} disabled={isLoading || !all.length} title="Download every SKU in the system as Excel" className="hidden sm:inline-flex">
               <Download className="h-4 w-4 mr-1" />{isLoading ? "Loading..." : `Export all (${all.length})`}
             </Button>
-            <Button variant="outline" onClick={downloadTemplate}>
+            <Button variant="outline" onClick={downloadTemplate} className="hidden sm:inline-flex">
               <Download className="h-4 w-4 mr-1" />Template XLSX
             </Button>
-            <label>
-              <input
-                type="file"
-                accept=".xlsx,.csv"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (file) await handleImport(file);
-                  e.currentTarget.value = "";
-                }}
-              />
+            {/* Outside the label and not display:none, so the phone's "More → Import"
+                can click it too — iOS Safari ignores .click() on a hidden file input. */}
+            <input
+              id="sku-import-input"
+              ref={importInput}
+              type="file"
+              accept=".xlsx,.csv"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (file) await handleImport(file);
+                e.currentTarget.value = "";
+              }}
+            />
+            <label htmlFor="sku-import-input" className="hidden sm:block">
               <Button variant="outline" disabled={importing} asChild><span><Upload className="h-4 w-4 mr-1" />{importing ? "Importing..." : "Import XLSX"}</span></Button>
             </label>
-            <Button variant="outline" onClick={restorePrevious} disabled={importing} title="Undo the last import — restore the SKUs to how they were before it">
+            <Button variant="outline" onClick={restorePrevious} disabled={importing} title="Undo the last import — restore the SKUs to how they were before it" className="hidden sm:inline-flex">
               <Undo2 className="h-4 w-4 mr-1" />Restore previous import
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => setEditing({ active: true })}><Plus className="h-4 w-4 mr-1" />New SKU</Button>
+                <Button onClick={() => setEditing({ active: true })} className="h-10 flex-1 sm:h-10 sm:flex-none"><Plus className="h-4 w-4 mr-1" />New SKU</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>{editing?.id ? "Edit SKU" : "New SKU"}</DialogTitle></DialogHeader>

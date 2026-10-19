@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -114,8 +115,10 @@ export function ControlReadout({
       <span className="font-display text-2xs font-bold uppercase leading-none tracking-[0.12em] text-muted-foreground">
         {label}
       </span>
-      <div className="flex h-9 flex-col justify-center">
-        <div className="flex items-baseline gap-1.5">
+      {/* No fixed height below 640px: in a three-across phone row "40,571 / 67,485"
+          does not fit one line, and the plan wraps under the figure instead. */}
+      <div className="flex min-h-9 flex-col justify-center sm:h-9">
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
           <span className={cn("font-figure text-lg font-bold leading-none", tone ?? "text-foreground")}>
             {value}
           </span>
@@ -126,6 +129,59 @@ export function ControlReadout({
         {hint && <div className="mt-1 truncate text-2xs leading-none text-muted-foreground">{hint}</div>}
       </div>
     </div>
+  );
+}
+
+/**
+ * The plate's secondary knobs, folded away on a phone.
+ *
+ * On a 390px phone the Performance plate was six controls stacked in pairs — about
+ * 330px of the first screen — and Production Control's five were taller still. The
+ * primary knob (the dates) stays out; the rest sit behind one row that says what
+ * they are set to, so a filter that is on is never invisible: "Day · Night · Line 3".
+ *
+ * From 640px up the toggle disappears and the children are laid out exactly where
+ * they were (`sm:contents`), so the desktop plate is untouched.
+ */
+export function ControlDisclosure({
+  summary,
+  active = 0,
+  children,
+  className,
+}: {
+  /** What the folded knobs are set to, in words. */
+  summary: string;
+  /** How many of them are away from their default; shown as a count. */
+  active?: number;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const id = React.useId();
+  return (
+    <>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(
+          "flex min-h-11 w-full items-center gap-2.5 rounded-md border border-input bg-background px-3 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden",
+          className,
+        )}
+      >
+        <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="shrink-0 font-medium">Filters</span>
+        {active > 0 && (
+          <span className="shrink-0 rounded-full bg-primary px-1.5 text-2xs font-semibold leading-5 text-primary-foreground">{active}</span>
+        )}
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{summary}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      <div id={id} className={cn("w-full sm:contents", open ? "grid grid-cols-2 gap-3" : "hidden")}>
+        {children}
+      </div>
+    </>
   );
 }
 

@@ -415,7 +415,7 @@ export default function AttendancePage() {
           {/* The tab strip is a control, and on paper a control is a row of grey boxes
               saying which one you could have pressed. Which record this IS gets said in
               the band above instead. */}
-          <TabsList className="no-print">
+          <TabsList className="no-print flex h-auto w-full flex-wrap justify-start sm:inline-flex sm:w-auto">
             <TabsTrigger value="clocks">Clocks (TimeMoto)</TabsTrigger>
             <TabsTrigger value="marks">Board marks</TabsTrigger>
             {/* The third tab is where the two above are put side by side. It belongs

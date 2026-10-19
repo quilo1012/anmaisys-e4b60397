@@ -7,7 +7,7 @@ import { canAdjustProductionControl } from "@/lib/productionControlAccess";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ControlPlate, ControlRow, ControlField, ControlDivider, ControlReadout } from "@/components/ui/ControlPlate";
+import { ControlPlate, ControlRow, ControlField, ControlDivider, ControlReadout, ControlDisclosure } from "@/components/ui/ControlPlate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1524,7 +1524,7 @@ export default function ShiftHistoryPage() {
             deles que valem alguma coisa. */}
         <ControlPlate>
           <ControlRow>
-            <ControlField label="Period" className="min-w-[20rem] flex-1">
+            <ControlField label="Period" className="w-full sm:w-auto sm:min-w-[20rem] sm:flex-1">
               <DateRangeFilter
                 className="w-full"
                 steppable
@@ -1542,13 +1542,25 @@ export default function ShiftHistoryPage() {
               />
             </ControlField>
             <ControlDivider />
-            <ControlField label="Shift" className="w-[8.5rem]">
+            {/* Phones: the dates stay out, the four filters fold behind one row that
+                says how they are set. Fixed widths only from 640px — a 20rem period
+                box on a 320px phone was wider than the phone. */}
+            <ControlDisclosure
+              summary={[
+                fShift === "__all__" ? "All shifts" : fShift === "DAY" ? "Day" : "Night",
+                fLine === "__all__" ? "All lines" : lineLabel(fLine),
+                fLeader === "__all__" ? "All leaders" : fLeader,
+                fSku === "__all__" ? "All SKUs" : fSku,
+              ].join(" · ")}
+              active={[fShift, fLine, fLeader, fSku].filter((v) => v !== "__all__").length}
+            >
+            <ControlField label="Shift" className="min-w-0 sm:w-[8.5rem]">
               <Select value={fShift} onValueChange={setFShift}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="__all__">All shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
               </Select>
             </ControlField>
-            <ControlField label="Filler line" className="w-[12rem]">
+            <ControlField label="Filler line" className="min-w-0 sm:w-[12rem]">
               <Select value={fLine} onValueChange={setFLine}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1567,13 +1579,13 @@ export default function ShiftHistoryPage() {
                 </SelectContent>
               </Select>
             </ControlField>
-            <ControlField label="Leader" className="w-[11rem]">
+            <ControlField label="Leader" className="min-w-0 sm:w-[11rem]">
               <Select value={fLeader} onValueChange={setFLeader}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </ControlField>
-            <ControlField label="SKU" className="min-w-[14rem] flex-1">
+            <ControlField label="SKU" className="col-span-2 min-w-0 sm:min-w-[14rem] sm:flex-1">
               <SkuCombobox skus={skus} value={fSku} onChange={setFSku} allowAll placeholder="All SKUs" />
             </ControlField>
             {hasFilter && (
@@ -1586,7 +1598,8 @@ export default function ShiftHistoryPage() {
                 Clear filters
               </Button>
             )}
-            <div className="ml-auto flex items-end gap-4">
+            </ControlDisclosure>
+            <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(5.75rem,1fr))] gap-3 sm:ml-auto sm:flex sm:w-auto sm:items-end sm:gap-4">
               <ControlDivider />
               <ControlReadout
                 label="Produced"
