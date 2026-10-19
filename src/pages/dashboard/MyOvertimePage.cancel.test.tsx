@@ -5,7 +5,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 
@@ -74,23 +74,24 @@ function renderPage() {
 }
 
 describe("cancelling a booking", () => {
-  it("a confirmed booking offers Cancel booking, which asks before it acts", () => {
+  it("a confirmed booking offers Cancel booking, which asks before it acts", async () => {
     state.responses = [booked]; state.outcomes = []; state.cancelled = null;
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: /cancel booking/i }));
     expect(state.cancelled).toBeNull(); // the dialog asks first
     fireEvent.click(screen.getByRole("button", { name: /yes, cancel it/i }));
-    expect(state.cancelled).toEqual({ requestId: "a1" });
+    await waitFor(() => expect(state.cancelled).toEqual({ requestId: "a1" }));
     expect(toast.success).toHaveBeenLastCalledWith(
       expect.stringMatching(/^Booking cancelled/), expect.anything(),
     );
   });
 
-  it("keeping the booking in the dialog changes nothing", () => {
+  it("keeping the booking in the dialog changes nothing", async () => {
     state.responses = [booked]; state.outcomes = []; state.cancelled = null;
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: /cancel booking/i }));
     fireEvent.click(screen.getByRole("button", { name: /keep my booking/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(state.cancelled).toBeNull();
   });
 
