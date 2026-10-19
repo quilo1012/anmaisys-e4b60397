@@ -2,7 +2,7 @@ import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable"
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sheetBandOf } from "@/lib/headcountBlocks";
+import { sheetBandOf, isTrainingArea, foldTrainingArea } from "@/lib/headcountBlocks";
 import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -596,16 +596,20 @@ function DropZone({
   onDrop,
   disabled,
   className,
+  id,
 }: {
   children: React.ReactNode;
   /** Given the employee the browser says was dropped. Empty means "not one of ours". */
   onDrop: (employeeId: string) => void;
   disabled: boolean;
   className?: string;
+  /** Where a figure in the summary strip jumps to. */
+  id?: string;
 }) {
   const [over, setOver] = useState(false);
   return (
     <div
+      id={id}
       onDragOver={(e) => {
         if (disabled) return;
         e.preventDefault();
@@ -652,26 +656,45 @@ function HeaderAction({
 }
 
 function KpiPill({
-  icon: Icon, label, value, tone, highlight, valueTone,
+  icon: Icon, label, value, tone, highlight, valueTone, onClick, jumpTo,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string; value: number; tone: string; highlight?: boolean; valueTone?: string;
+  /** Takes the reader to the column or block the figure counts. */
+  onClick?: () => void;
+  /** What the jump lands on, for the tooltip and the accessible name. */
+  jumpTo?: string;
 }) {
-  return (
-    <div className={cn("flex items-center gap-2 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"))}>
+  const body = (
+    <>
       <Icon className={cn("h-4 w-4 shrink-0", highlight ? "" : "text-muted-foreground")} />
-      <div className="flex flex-col">
+      <div className="flex flex-col items-start">
         <span className={cn("font-figure text-xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
         <span className="mt-0.5 text-2xs font-medium text-muted-foreground">{label}</span>
       </div>
-    </div>
+    </>
+  );
+  const look = cn("flex items-center gap-2 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"));
+  if (!onClick) return <div className={look}>{body}</div>;
+  // A number that says "5 overtime" is a question — who? — and the answer is a column
+  // two screens to the right. Pressing the figure goes there.
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`Go to ${jumpTo ?? label}`}
+      aria-label={`${value} ${label} — go to ${jumpTo ?? label}`}
+      className={cn(look, "-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:pointer-events-none")}
+    >
+      {body}
+    </button>
   );
 }
 
 function ShiftBoard({
   onDate,
   shift,
-  areas,
+  areas: allAreas,
   canManage,
   onSync,
 }: {
@@ -745,7 +768,10 @@ function ShiftBoard({
   const { data: patterns = [] } = useShiftPatterns();
   // A little distance first, so a tap on the heading is not read as a drag.
   const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
+  const { data: savedAllocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
+  // One Training column, not two: the area of that name is read as the Training state.
+  const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
+  const allocations = useMemo(() => foldTrainingArea(savedAllocations, allAreas), [savedAllocations, allAreas]);
   const { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader } = useAllocationMutations(onDate, shift);
   const { data: copyableDays = [], isLoading: copyableLoading } = useCopyableDays(onDate, shift);
   const matrix = useHeadcountMatrix(shift, onDate);
@@ -957,6 +983,30 @@ function ShiftBoard({
   const awayInSupport = supportShown;
 
   /**
+   * Os números da barra de cima levam à coluna que contam.
+   *
+   * Overtime e Training estão no fim da segunda banda, muitas vezes fora do ecrã à
+   * direita e em baixo; quem lê "5 Overtime" quer ver quem são. Uma secção dobrada ou
+   * escondida pelo filtro abre-se primeiro, senão o salto caía num sítio invisível.
+   * O realce dura o suficiente para o olho encontrar a coluna depois do scroll.
+   */
+  const jumpId = (key: string) => `headcount-${shift.toLowerCase()}-${key}`;
+  const jumpTo = (key: string) => {
+    if (key === "production" || key === "support") {
+      setVisibleBlocks((v) => ({ ...v, [key]: true }));
+      setOpenSections((o) => ({ ...o, [key]: true }));
+    }
+    // Depois do render que abre a secção.
+    window.setTimeout(() => {
+      const el = document.getElementById(jumpId(key));
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+      window.setTimeout(() => el.classList.remove("ring-2", "ring-primary", "ring-offset-2"), 1600);
+    }, 60);
+  };
+
+  /**
    * O fim da segunda banda: `Total staff in Production` a roxo, e depois as faltas, as
    * horas extra e a formação, cada uma na sua coluna com a cor que a folha lhe dá.
    */
@@ -981,6 +1031,7 @@ function ShiftBoard({
         return (
           <DropZone
             key={block.status}
+            id={jumpId(block.status)}
             disabled={!canManage}
             className="-mb-px -mr-px h-full rounded-none"
             onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
@@ -1129,19 +1180,23 @@ function ShiftBoard({
           {/* `headcount-kpis`: the print sheet sets these in one row. See index.css.
               Como se divide o número de cima, e o que fica fora dele. */}
           <div className="headcount-kpis flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-x-6 gap-y-1.5 sm:border-l sm:pl-4">
-            <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
-            <KpiPill icon={Wrench} label="Support" value={support} tone="" />
+            <KpiPill icon={Factory} label="On lines" value={onLines} tone="" onClick={() => jumpTo("production")} jumpTo="the lines" />
+            <KpiPill icon={Wrench} label="Support" value={support} tone="" onClick={() => jumpTo("support")} jumpTo="Support" />
             <span aria-hidden className="hidden h-7 w-px bg-border sm:block" />
-            <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
+            {/* Away is three columns; it lands on the first, Sickness, with Unpaid and
+                Holidays beside it. */}
+            <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} onClick={() => jumpTo("sick")} jumpTo="Sickness, Unpaid and Holidays" />
             {/* People on an overtime shift, not hours. */}
-            <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
-            {training > 0 && <KpiPill icon={Users} label="Training" value={training} tone="" />}
+            <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} onClick={() => jumpTo("overtime")} jumpTo="the Overtime column" />
+            <KpiPill icon={Users} label="Training" value={training} tone="" valueTone={training ? "" : "text-muted-foreground"} onClick={() => jumpTo("training")} jumpTo="the Training column" />
             <KpiPill
               icon={UserX}
               label={noCrewUnplaced.length > 0 ? `Unplaced · ${noCrewUnplaced.length} no crew` : "Unplaced"}
               value={unassigned.length}
               tone=""
               valueTone={unassigned.length ? "text-warning-strong" : "text-muted-foreground"}
+              onClick={trayPeople.length > 0 ? () => jumpTo("unplaced") : undefined}
+              jumpTo="Not placed yet"
             />
           </div>
         </div>
@@ -1482,7 +1537,7 @@ function ShiftBoard({
           ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length) : []),
         ) + 1;
         return (
-        <div key={section.key}>
+        <div key={section.key} id={jumpId(section.key)}>
         <SectionLabel
           accent={section.accent}
           count={inSection}
@@ -1794,7 +1849,7 @@ function ShiftBoard({
           as células alinharem com as colunas de cima. Larga-se aqui quem se quer tirar
           de uma linha. */}
       {trayPeople.length > 0 && (
-        <section aria-label={`Not placed yet: ${trayPeople.length}`} className="mt-6">
+        <section id={jumpId("unplaced")} aria-label={`Not placed yet: ${trayPeople.length}`} className="mt-6">
           <DropZone disabled={!canManage} onDrop={(employeeId) => handleDrop("roster")(employeeId)} className="rounded-none">
             <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 border bg-muted px-3 py-2", SHEET_RULE)}>
               <h3 className="text-sm font-bold text-foreground">
