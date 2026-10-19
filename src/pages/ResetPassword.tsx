@@ -94,7 +94,7 @@ export default function ResetPassword() {
   }
 
   const recoveryBadge = (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-success/10 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-success-strong ring-1 ring-success sm:gap-1.5">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-auth-success/10 px-2 py-1 text-2xs font-medium uppercase tracking-wider text-auth-success ring-1 ring-auth-success sm:gap-1.5">
       <KeyRound className="h-3 w-3" /> Recovery
     </span>
   );
@@ -144,8 +144,8 @@ export default function ResetPassword() {
     <AuthShell title="Reset password" subtitle="Enter your email and we'll send you a recovery link.">
       {sent ? (
         <div className="space-y-4">
-          <div className="rounded-lg border border-success/30 bg-success/10 p-4 text-center">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-success-strong" />
+          <div className="rounded-lg border border-auth-success/30 bg-auth-success/10 p-4 text-center">
+            <CheckCircle2 className="mx-auto h-8 w-8 text-auth-success" />
             <h3 className="mt-2 text-sm font-medium text-auth-ink">Recovery email sent</h3>
             <p className="mt-1 text-xs text-auth-ink">
               Check your inbox for the password reset link. If it doesn't arrive, check your spam folder.
