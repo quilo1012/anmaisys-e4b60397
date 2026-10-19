@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
@@ -11,6 +11,7 @@ import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus"
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftPosition } from "./useWorkforce";
 import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
 import type { PreviousPlace } from "@/lib/headcountSuggestions";
+import { boardSlotOf, type ConfirmedAsk } from "@/lib/boardOvertime";
 
 export type HeadcountArea = {
   id: string;
@@ -79,6 +80,8 @@ export type Allocation = {
   sheet_name?: string | null;
   sheet_start_time?: string | null;
   sheet_tag?: string | null;
+  /** Set on a row the overtime bridge made for that ask (BLOCO 93); null on planned rows. */
+  overtime_request_id?: string | null;
 };
 
 /**
@@ -445,11 +448,82 @@ export function useAllocations(onDate: string, shift: string) {
     queryFn: async (): Promise<Allocation[]> => {
       const { data, error } = await supabase
         .from("daily_allocations")
-        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,note,is_leader,sheet_name,sheet_start_time,sheet_tag")
+        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,note,is_leader,sheet_name,sheet_start_time,sheet_tag,overtime_request_id")
         .eq("on_date", onDate)
         .eq("shift", shift);
       if (error) throw error;
       return (data ?? []) as Allocation[];
+    },
+  });
+}
+
+const plusOneDay = (iso: string) => {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * Confirmed overtime that belongs to this board, by employee: the source the board's
+ * hours are laid over (`boardOvertime.ts`). Read from the answers themselves, so an
+ * ask edited or cancelled after it was confirmed is read as it now stands.
+ *
+ * Kept fresh three ways: a change to an answer or to the board arrives by realtime
+ * (once BLOCO 106 puts those tables in the publication), the query refetches every
+ * 30 seconds and on focus, and a failure here never takes the board down with it — it
+ * falls back to the shift hours the board always showed.
+ */
+export function useConfirmedOvertime(onDate: string, shift: string) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    const refresh = () => {
+      void qc.invalidateQueries({ queryKey: ["headcount-confirmed-overtime"] });
+      void qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+    };
+    const channel = supabase
+      .channel(`board_overtime_${Math.random().toString(36).slice(2, 8)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "overtime_responses" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "daily_allocations" }, refresh)
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [qc]);
+
+  return useQuery({
+    queryKey: ["headcount-confirmed-overtime", onDate, shift],
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    queryFn: async (): Promise<Map<string, ConfirmedAsk[]>> => {
+      const out = new Map<string, ConfirmedAsk[]>();
+      // A night board reaches into the next morning, so its 02:00 ask is on the next date.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("overtime_responses")
+        .select("request_id,employee_id,overtime_requests!inner(on_date,starts_at,ends_at,status),overtime_outcomes(outcome)")
+        .eq("decision", "accepted")
+        .in("overtime_requests.on_date", [onDate, plusOneDay(onDate)])
+        .neq("overtime_requests.status", "cancelled");
+      if (error) {
+        console.warn("[headcount] confirmed overtime not read; board shows shift hours only:", error.message);
+        return out;
+      }
+      type Row = {
+        request_id: string; employee_id: string;
+        overtime_requests: { on_date: string; starts_at: string; ends_at: string; status: string } | null;
+        overtime_outcomes: { outcome: string }[] | { outcome: string } | null;
+      };
+      for (const r of (data ?? []) as Row[]) {
+        const q = r.overtime_requests;
+        if (!q) continue;
+        // Somebody who dropped out no longer holds the hours (the same rule as the places).
+        const outcomes = Array.isArray(r.overtime_outcomes) ? r.overtime_outcomes : r.overtime_outcomes ? [r.overtime_outcomes] : [];
+        if (outcomes.some((o) => o.outcome !== "attended")) continue;
+        const slot = boardSlotOf(q.on_date, q.starts_at);
+        if (slot.date !== onDate || slot.shift !== shift) continue;
+        const list = out.get(r.employee_id) ?? [];
+        list.push({ request_id: r.request_id, employee_id: r.employee_id, on_date: q.on_date, starts_at: q.starts_at, ends_at: q.ends_at });
+        out.set(r.employee_id, list);
+      }
+      return out;
     },
   });
 }
