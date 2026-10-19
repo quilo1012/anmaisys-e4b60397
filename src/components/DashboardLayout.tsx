@@ -58,6 +58,7 @@ import { useHeartbeat } from "@/hooks/useHeartbeat";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { BackButton } from "@/components/BackButton";
 import { useDMUnreadCount, unlockDMAudio } from "@/hooks/useDirectMessages";
+import { useGroupAlerts } from "@/hooks/useChat";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -281,7 +282,7 @@ export const navItems: NavItem[] = [
   // reporting.
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "operator"], group: "Overview", action: "chat.dm" },
+  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "operator", "supervisor", "production_office_admin", "employee"], group: "Overview", action: "chat.dm" },
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
@@ -821,7 +822,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { data: stoppedLinesCount = 0 } = useStoppedLinesCount();
-  const { data: dmUnread = 0 } = useDMUnreadCount();
+  const { data: dmUnreadOnly = 0 } = useDMUnreadCount();
+  // Group messages ring here too, and count toward the same badge (BLOCO 108).
+  const groupUnread = useGroupAlerts(can(role, "chat.dm"));
+  const dmUnread = dmUnreadOnly + groupUnread;
   const { data: crashCount = 0 } = useTelemetryCrashCount(role === "admin");
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [permissionVersion, setPermissionVersion] = useState(0);
