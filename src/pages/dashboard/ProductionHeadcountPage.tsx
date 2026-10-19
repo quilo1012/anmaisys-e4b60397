@@ -1189,9 +1189,9 @@ function ShiftBoard({
             <KpiPill
               icon={UserX}
               label={noCrewUnplaced.length > 0 ? `Unplaced · ${noCrewUnplaced.length} no crew` : "Unplaced"}
-              value={unassigned.length}
+              value={trayPeople.length}
               tone=""
-              valueTone={unassigned.length ? "text-warning-strong" : "text-muted-foreground"}
+              valueTone={trayPeople.length ? "text-warning-strong" : "text-muted-foreground"}
               onClick={trayPeople.length > 0 ? () => jumpTo("unplaced") : undefined}
               jumpTo="Not placed yet"
             />
