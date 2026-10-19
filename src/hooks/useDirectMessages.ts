@@ -260,9 +260,20 @@ export function useDMUnreadBySender() {
   });
 }
 
+/**
+ * Where a new-message toast takes this person.
+ *
+ * Messages is closed to the `employee` login (`chat.dm`), so "Open" sent the person
+ * whose supervisor had just replied to a screen they cannot see. Their side of the
+ * thread is the "Message supervisor" dialog on My Overtime, so the toast goes there.
+ */
+export function dmInboxPath(role: string | null | undefined) {
+  return role === "employee" ? "/dashboard/my-overtime" : "/dashboard/messages";
+}
+
 /** Total unread messages for current user. */
 export function useDMUnreadCount() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -297,16 +308,17 @@ export function useDMUnreadCount() {
           const row = (payload.new || {}) as Partial<DirectMessage>;
           const senderName = row.sender_name || "New message";
 
+          const inbox = dmInboxPath(role);
           const onMessagesPage =
             typeof window !== "undefined" &&
-            window.location.pathname === "/dashboard/messages";
+            window.location.pathname === inbox;
 
           // Discreet, MSN-style: announce a new message with the logo, but never
           // the message content — the user opens the chat to read it.
           if (!onMessagesPage) {
             showDMToast({
               senderName,
-              onOpen: () => navigate("/dashboard/messages"),
+              onOpen: () => navigate(inbox),
             });
           }
 
@@ -338,7 +350,7 @@ export function useDMUnreadCount() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, queryClient, navigate]);
+  }, [user, role, queryClient, navigate]);
 
   return query;
 }

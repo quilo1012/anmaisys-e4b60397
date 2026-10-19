@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, MessageSquare, Send } from "lucide-react";
+import { Check, CheckCheck, Loader2, MessageSquare, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDMThread } from "@/hooks/useDirectMessages";
+import { useDMThread, useDMUnreadBySender, useMarkDMRead } from "@/hooks/useDirectMessages";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -23,6 +23,15 @@ import { windowLabel, type OvertimeRequest } from "@/lib/overtimeRequests";
  * operators and staff write. The supervisor reads and answers it in Messages, and the
  * answer shows here, because both sides read the same `direct_messages` thread.
  */
+/** "14:05" today, "Mon 19/10 14:05" before that. */
+function sentAt(iso: string, now = new Date()) {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === now.toDateString()) return time;
+  const day = d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(",", "");
+  return `${day} ${time}`;
+}
+
 export function MessageSupervisorDialog({ request, fmtDate }: {
   request: Pick<OvertimeRequest, "id" | "on_date" | "starts_at" | "ends_at" | "created_by">;
   fmtDate: (iso: string) => string;
@@ -32,6 +41,16 @@ export function MessageSupervisorDialog({ request, fmtDate }: {
   const { user } = useAuth();
   const qc = useQueryClient();
   const thread = useDMThread(open ? request.created_by : null);
+  // The supervisor's reply has to be findable without opening every booked shift: the
+  // button says how many are unread, and opening the thread reads them.
+  const { data: unreadBy = {} } = useDMUnreadBySender();
+  const unread = request.created_by ? unreadBy[request.created_by] ?? 0 : 0;
+  const markRead = useMarkDMRead(request.created_by);
+  const { mutate: markThreadRead } = markRead;
+  const lastId = thread.data?.at(-1)?.id;
+  useEffect(() => {
+    if (open && unread > 0) markThreadRead();
+  }, [open, unread, lastId, markThreadRead]);
 
   const send = useMutation({
     mutationFn: async (message: string) => {
@@ -65,6 +84,14 @@ export function MessageSupervisorDialog({ request, fmtDate }: {
       <DialogTrigger asChild>
         <Button variant="outline" size="lg" className="h-11 w-full">
           <MessageSquare className="mr-2 h-4 w-4" /> Message supervisor
+          {unread > 0 && (
+            <span
+              className="ml-2 rounded-full bg-destructive px-2 py-0.5 text-xs font-bold tabular-nums text-destructive-foreground"
+              aria-label={`${unread} unread ${unread === 1 ? "reply" : "replies"}`}
+            >
+              {unread}
+            </span>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
@@ -90,6 +117,16 @@ export function MessageSupervisorDialog({ request, fmtDate }: {
                 )}>
                   {!mine && <div className="text-xs font-medium text-muted-foreground">{m.sender_name}</div>}
                   <div className="whitespace-pre-wrap break-words">{m.message}</div>
+                  {/* When, and — on your own messages — whether it has been read. */}
+                  <div className={cn(
+                    "mt-0.5 flex items-center justify-end gap-1 text-[10px] tabular-nums",
+                    mine ? "text-primary-foreground/75" : "text-muted-foreground",
+                  )}>
+                    <time dateTime={m.created_at}>{sentAt(m.created_at)}</time>
+                    {mine && (m.read_at
+                      ? <CheckCheck className="h-3 w-3" aria-label="Seen" />
+                      : <Check className="h-3 w-3" aria-label="Sent" />)}
+                  </div>
                 </div>
               </div>
             );
