@@ -10,6 +10,7 @@ import { claimsLeadership, isTeamLeader, keepsLeadership } from "@/lib/leaderMar
 import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftPosition } from "./useWorkforce";
 import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
+import type { PreviousPlace } from "@/lib/headcountSuggestions";
 
 export type HeadcountArea = {
   id: string;
@@ -489,6 +490,32 @@ export function useLastWorkedDay(onDate: string, shift: string, enabled = true) 
   });
 }
 
+/** Read each person's earlier working positions and booked absences; never write on opening. */
+export function usePreviousWorkingPlaces(onDate: string, shift: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["headcount-previous-places", onDate, shift],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [previous, attendance] = await Promise.all([
+        fetchAllRows<PreviousPlace>({
+          range: (from, to) => supabase.from("daily_allocations")
+            .select("employee_id,area_id,status,on_date")
+            .eq("shift", shift).lt("on_date", onDate)
+            .in("status", ["assigned", "overtime"]).not("area_id", "is", null)
+            .order("on_date", { ascending: false }).order("id").range(from, to),
+        }),
+        supabase.from("employee_attendance").select("employee_id,status").eq("on_date", onDate),
+      ]);
+      if (attendance.error) throw attendance.error;
+      return {
+        previous,
+        awayIds: (attendance.data ?? []).filter((r) => r.status !== "present").map((r) => r.employee_id),
+      };
+    },
+  });
+}
+
 /**
  * Where a copy takes its placements from.
  *
@@ -499,7 +526,8 @@ export function useLastWorkedDay(onDate: string, shift: string, enabled = true) 
 export type CopySource =
   | { kind: "last" }
   | { kind: "day"; on_date: string }
-  | { kind: "matrix"; matrix: MatrixKind };
+  | { kind: "matrix"; matrix: MatrixKind }
+  | { kind: "suggested"; rows: BoardPlacement[] };
 
 /**
  * Which of a board's two standards.
@@ -962,7 +990,9 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // Where the placements come from, and what this day already says. Read together
       // because the second decides who is left out of the first.
       const [srcRows, hereRows] = await Promise.all([
-        source === null
+        from.kind === "suggested"
+          ? Promise.resolve({ data: from.rows, error: null })
+          : source === null
           ? matrixTable().select("employee_id,area_id").eq("shift", shift).eq("kind", matrixKind)
           : supabase.from("daily_allocations").select("employee_id,area_id,status").eq("shift", shift).eq("on_date", source),
         supabase.from("daily_allocations").select("employee_id").eq("shift", shift).eq("on_date", onDate),
@@ -974,7 +1004,9 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // rota does not put on this board on this date is dropped here rather than
       // written down as working outside their rota — they are simply not due.
       // Unknown is not off, exactly as everywhere else: an unrecorded rota is kept.
-      const placements: BoardPlacement[] = source === null
+      const placements: BoardPlacement[] = from.kind === "suggested"
+        ? from.rows.filter((r) => !!r.area_id && !isOffRota(rotaCover(r.employee_id, onDate, shift)))
+        : source === null
         ? ((srcRows.data ?? []) as Array<{ employee_id: string; area_id: string | null }>)
             // A matrix row with no line (somebody away on the day it was saved) says
             // nothing about where they stand. Written as `assigned` it put them on no
@@ -984,7 +1016,9 @@ export function useAllocationMutations(onDate: string, shift: string) {
         : ((srcRows.data ?? []) as BoardPlacement[]);
       // "Fri 08 Aug", not "2026-08-08". The label is read back in a toast and on the
       // undo strip, where an ISO date is a string somebody has to decode.
-      const label = source === null
+      const label = from.kind === "suggested"
+        ? "habitual and previous working positions"
+        : source === null
         ? `the ${shift} ${MATRIX_KINDS.find((k) => k.kind === matrixKind)?.label ?? ""} matrix`
         : dayLabel(source);
 
@@ -1105,6 +1139,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
       qc.invalidateQueries({ queryKey: ["employee_attendance_range"] });
       // This day has just become one of the days another day can be copied from.
       qc.invalidateQueries({ queryKey: ["headcount-copyable-days"] });
+      qc.invalidateQueries({ queryKey: ["headcount-previous-places"] });
       // Nobody to copy is not a failure — it is the answer to the question, and a red
       // toast for it reads like the button is broken again.
       if (r.written === 0) {
