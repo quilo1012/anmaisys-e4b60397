@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { StatusRail, type RailState } from "@/components/ui/StatusRail";
-import { ControlPlate, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
+import { ControlPlate, ControlDisclosure, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
 import { ConsoleCell } from "@/components/ui/ConsoleStrip";
 import { scorecardPath, scorecardLinkPeriod } from "@/lib/scorecardRoute";
 import { LineIndicators } from "@/components/production/LineIndicators";
@@ -793,9 +793,9 @@ export default function ProductionPerformancePage() {
                 aria-label="From"
                 value={range.from}
                 onChange={setAnchor}
-                className="min-w-0 flex-1 px-1.5 text-[13px] min-[400px]:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
+                className="min-w-0 flex-1 px-1.5 text-[13px] xs:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
               />
-              <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground hidden min-[400px]:inline">to</span>
+              <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground hidden xs:inline">to</span>
               {/* `range.to`, not `endDate`. On a week or a month the far end is DERIVED,
                   and this box used to show a state those periods never wrote — so a
                   monthly board sat there reading "04 Oct" while reporting on September.
@@ -806,7 +806,7 @@ export default function ProductionPerformancePage() {
                 value={range.to}
                 min={range.from}
                 onChange={(v) => setFilters(withFarEnd(filters, v))}
-                className="min-w-0 flex-1 px-1.5 text-[13px] min-[400px]:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
+                className="min-w-0 flex-1 px-1.5 text-[13px] xs:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
               />
               <Button variant="outline" size="icon" aria-label="Next period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
@@ -824,6 +824,15 @@ export default function ProductionPerformancePage() {
 
             <ControlDivider />
 
+            <ControlDisclosure
+              summary={[
+                period.charAt(0).toUpperCase() + period.slice(1),
+                shift === "all" ? "Both shifts" : shift === "DAY" ? "Day" : "Night",
+                lineFilter === "__all__" ? "All lines" : lineFilter,
+                leaderFilter === "__all__" ? "All leaders" : leaderFilter,
+              ].join(" · ")}
+              active={(lineFilter !== "__all__" ? 1 : 0) + (leaderFilter !== "__all__" ? 1 : 0)}
+            >
             <ControlField label="Period" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={period} onValueChange={(v) => setFilters(withPeriod(filters, v as Period))}>
                 <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
@@ -878,6 +887,7 @@ export default function ProductionPerformancePage() {
                 </Link>
               </Button>
             )}
+            </ControlDisclosure>
 
             {/* O que está de facto a ser mostrado, resolvido, e o que se faz com ele.
                 Com o período em semana ou em mês, as duas caixas de data não dizem
@@ -1251,10 +1261,10 @@ export default function ProductionPerformancePage() {
                       {/* `mt-auto`: a medida encosta ao fundo do cartão. É o que faz com
                           que os quatro números grandes de uma fila assentem na mesma
                           linha, seja qual for o que cada linha tenha para dizer acima. */}
-                      <div className="mt-auto flex items-end justify-between gap-3 pt-5">
+                      <div className="mt-auto flex items-end justify-between gap-3 pt-3 sm:pt-5">
                         <div className="min-w-0">
                           <div className="font-display text-2xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Made</div>
-                          <div className="mt-1 font-figure text-[2.5rem] font-bold leading-none tracking-[-0.02em] text-foreground">
+                          <div className="mt-1 font-figure text-[2rem] font-bold leading-none tracking-[-0.02em] text-foreground sm:text-[2.5rem]">
                             {l.actual.toLocaleString("en-US")}
                           </div>
                           <div className="mt-1.5 font-figure text-xs text-muted-foreground">
@@ -1287,7 +1297,7 @@ export default function ProductionPerformancePage() {
                               escrito: a cinco horas de doze, -91% contra o plano do dia
                               inteiro não é um veredicto por si; -91% contra 42% do
                               turno passado é. */}
-                          <div className={`mt-1 font-figure text-[2rem] font-bold leading-none tracking-[-0.02em] ${effColor}`}>
+                          <div className={`mt-1 font-figure text-[1.75rem] font-bold leading-none tracking-[-0.02em] sm:text-[2rem] ${effColor}`}>
                             {planVarianceLabel(l.actual, l.target)}
                           </div>
                           {/* O outro metade da conta da cor, em surdina. A ranhura fica

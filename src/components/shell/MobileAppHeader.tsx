@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { LogOut, Moon, PowerOff, Sun } from "lucide-react";
+import { BellRing, LogOut, Menu, Moon, PowerOff, Sun, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,11 +10,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { BackButton } from "@/components/BackButton";
+import { useSidebar } from "@/components/ui/sidebar";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { getCurrentFactoryShift } from "@/lib/shifts";
+import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { cn } from "@/lib/utils";
-import appliedLogo from "@/assets/appliedlogo.jpeg";
 
 /**
  * The phone's top bar. One row, 56px, four zones that never trade places:
@@ -31,7 +32,15 @@ import appliedLogo from "@/assets/appliedlogo.jpeg";
  * scrolling to its foot.
  *
  * The title is the shell's (routeTitles), so it is the same words as the sidebar
- * row that opened the screen.
+ * row that opened the screen — less a trailing "Dashboard", which on a 390px bar
+ * is the word that pushed "Production" into an ellipsis (see `shortTitle`).
+ *
+ * Second pass (19/10, evening): the bar carried five things on the right. Now it
+ * carries what needs a person — the stopped-lines badge, and the alert sound ONLY
+ * while it is muted, because then it is a fault — plus the bell and the account.
+ * Sound on is the normal state and lives in the account menu with the theme.
+ * On the home screen the left slot is the menu (there is nothing to go back to);
+ * everywhere else it is Back, and the tab bar's Menu is one thumb away.
  */
 export function MobileAppHeader({
   title,
@@ -46,6 +55,7 @@ export function MobileAppHeader({
   onToggleDark,
   onSignOut,
   isHome,
+  menuButton = false,
   leading,
   extra,
 }: {
@@ -63,11 +73,15 @@ export function MobileAppHeader({
   onToggleDark: () => void;
   onSignOut: () => void;
   isHome: boolean;
+  /** Phones: a menu button that opens the navigation drawer. Tablets have `leading`. */
+  menuButton?: boolean;
   /** Tablets only: the sidebar layout control, which is their way back to a hidden menu. */
   leading?: React.ReactNode;
   /** Shown from 768px, where there is room: who is online, and the like. */
   extra?: React.ReactNode;
 }) {
+  const { isMobile: hasDrawer, setOpenMobile, setOpen } = useSidebar();
+  const openMenu = () => (hasDrawer ? setOpenMobile(true) : setOpen(true));
   return (
     <header
       className="sticky top-0 z-30 border-b bg-card/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-card/85 print:hidden"
@@ -81,18 +95,18 @@ export function MobileAppHeader({
       >
         {leading}
         {isHome ? (
-          <img
-            src={appliedLogo}
-            alt="Applied Nutrition"
-            className="mx-1.5 h-8 w-8 shrink-0 rounded-md object-cover ring-1 ring-border"
-          />
+          menuButton && (
+            <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" onClick={openMenu} aria-label="Open menu">
+              <Menu className="h-5 w-5" />
+            </Button>
+          )
         ) : (
-          <BackButton iconOnly className="h-10 w-10 justify-center px-0" />
+          <BackButton iconOnly className="h-11 w-11 justify-center px-0" />
         )}
 
-        <div className="min-w-0 flex-1 px-0.5">
-          <p className="truncate text-[15px] font-semibold leading-tight text-foreground" aria-current="page">
-            {title || "PMSystem"}
+        <div className={cn("min-w-0 flex-1", isHome && !menuButton ? "pl-2" : "pl-0.5")}>
+          <p className="truncate text-[17px] font-semibold leading-tight tracking-[-0.01em] text-foreground" aria-current="page">
+            {shortTitle(title)}
           </p>
           <ShiftLine />
         </div>
@@ -111,7 +125,7 @@ export function MobileAppHeader({
               <span className="font-figure text-xs font-bold">{stoppedCount}</span>
             </Button>
           )}
-          {showAudio && <AudioStatusButton compact />}
+          {showAudio && <MutedAlertSound />}
           <NotificationPanel />
           <AccountMenu
             name={profileName}
@@ -119,11 +133,31 @@ export function MobileAppHeader({
             dark={dark}
             onToggleDark={onToggleDark}
             onSignOut={onSignOut}
+            alertSound={showAudio}
           />
         </div>
       </div>
     </header>
   );
+}
+
+/**
+ * "Production Dashboard" → "Production", "Maintenance Dashboard" → "Maintenance".
+ * A bare "Dashboard" stays: it is the whole name. Nothing else is rewritten — the
+ * other titles are already the sidebar's words.
+ */
+export function shortTitle(title: string): string {
+  const t = (title || "").trim();
+  if (!t) return "PMSystem";
+  const short = t.replace(/\s+Dashboard$/i, "");
+  return short || t;
+}
+
+/** The alert-sound control, in the bar only while the sound is off: that is a fault. */
+function MutedAlertSound() {
+  const { audioEnabled, volume } = useCriticalAlert();
+  if (audioEnabled && volume > 0) return null;
+  return <AudioStatusButton compact />;
 }
 
 /**
@@ -156,13 +190,18 @@ export function AccountMenu({
   dark,
   onToggleDark,
   onSignOut,
+  alertSound = false,
 }: {
   name: string | null | undefined;
   roleLabel: string;
   dark: boolean;
   onToggleDark: () => void;
   onSignOut: () => void;
+  /** Engineers and admins: mute / unmute and test the critical-order siren here. */
+  alertSound?: boolean;
 }) {
+  const { audioEnabled, volume, setVolume, testSound, promptEnableAudio } = useCriticalAlert();
+  const soundOn = audioEnabled && volume > 0;
   const initial = name?.trim().charAt(0).toUpperCase() || "?";
   return (
     <DropdownMenu>
@@ -186,6 +225,32 @@ export function AccountMenu({
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {alertSound && (
+          <>
+            <DropdownMenuItem
+              className="min-h-11 gap-2"
+              onSelect={() => {
+                if (soundOn) return setVolume(0);
+                if (volume === 0) setVolume(1);
+                if (!audioEnabled) {
+                  try { sessionStorage.removeItem("an_audio_prompted"); } catch { /* ignore */ }
+                  promptEnableAudio();
+                }
+              }}
+            >
+              {soundOn ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              {soundOn ? "Mute alert sound" : "Turn alert sound on"}
+              <span className="ml-auto text-2xs text-muted-foreground">{soundOn ? `${Math.round(volume * 100)}%` : "Off"}</span>
+            </DropdownMenuItem>
+            {soundOn && (
+              <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => testSound()}>
+                <BellRing className="h-4 w-4" />
+                Test siren
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem className="min-h-11 gap-2" onSelect={onToggleDark}>
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           {dark ? "Light mode" : "Dark mode"}

@@ -150,3 +150,65 @@ test.describe("notifications on the narrowest phone", () => {
     expect(b.x + b.width).toBeLessThanOrEqual(320);
   });
 });
+
+test.describe("the navigation drawer on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("opens from the top bar, names its groups, closes with × and on choosing a page", async ({ page }) => {
+    await stubSupabase(page, true);
+    await page.goto("/dashboard/manager");
+
+    // Home: the left slot is the menu, not Back.
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.locator("[data-mobile=true]");
+    await expect(drawer).toBeVisible();
+    // Opened and STAYED open — the first version closed itself on mount.
+    await page.waitForTimeout(400);
+    await expect(drawer).toBeVisible();
+    // Real group names, not the desktop rail's three-letter stubs.
+    await expect(drawer.getByRole("button", { name: /^Maintenance/ })).toBeVisible();
+    await expect(drawer.getByText("MAI", { exact: true })).toHaveCount(0);
+
+    await drawer.getByRole("button", { name: "Close menu" }).click();
+    await expect(drawer).toHaveCount(0);
+
+    // The tab bar's Menu opens the same drawer; choosing a page closes it.
+    await page.getByRole("navigation", { name: "Primary" }).getByRole("button", { name: "Menu" }).click();
+    await expect(drawer).toBeVisible();
+    await drawer.getByRole("link", { name: "Analytics" }).click();
+    await expect(page).toHaveURL(/\/dashboard\/analytics$/);
+    await expect(drawer).toHaveCount(0);
+    // Off the home screen the left slot is Back.
+    await expect(page.getByRole("button", { name: "Go back" })).toBeVisible();
+  });
+});
+
+test.describe("login on a phone", () => {
+  test.use({ viewport: { width: 360, height: 740 } });
+  test("says Welcome back, and the fields and button are 52px", async ({ page }) => {
+    await stubSupabase(page, false);
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+    await expect(page.getByText("Sign in to your workspace")).toBeVisible();
+    expect((await page.locator("#identifier").boundingBox())!.height).toBeGreaterThanOrEqual(52);
+    expect((await page.locator("#password").boundingBox())!.height).toBeGreaterThanOrEqual(52);
+    await expect(page.locator("#identifier")).toHaveAttribute("autocomplete", "username");
+    await expect(page.locator("#password")).toHaveAttribute("autocomplete", "current-password");
+  });
+});
+
+test.describe("filters fold on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  for (const path of ["/dashboard/production-performance", "/dashboard/shift-history"]) {
+    test(`${path}: secondary filters behind one row`, async ({ page }) => {
+      await stubSupabase(page, true);
+      await page.goto(path);
+      const toggle = page.getByRole("button", { name: /Filters/ });
+      await expect(toggle).toBeVisible();
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await expect(page.getByText("Leader", { exact: true })).toBeHidden();
+      await toggle.click();
+      await expect(page.getByText("Leader", { exact: true })).toBeVisible();
+    });
+  }
+});

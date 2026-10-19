@@ -17,7 +17,7 @@ export const authLabel = "text-sm font-medium text-auth-ink";
 // menor que 16px quando se lhe toca, e a página ficava ampliada e torta depois de
 // escrever a password. A partir de `sm` volta aos 14px de sempre.
 const fieldBase =
-  "h-12 w-full rounded-lg border border-auth-line bg-auth-paper text-base text-auth-ink sm:text-sm " +
+  "h-[52px] w-full rounded-lg border border-auth-line bg-auth-paper text-base text-auth-ink sm:h-12 sm:text-sm " +
   "transition-colors placeholder:text-auth-ink-muted/70 hover:border-auth-ink-muted/50 " +
   "focus:border-auth-brand focus:outline-none focus:ring-2 focus:ring-auth-brand/20";
 
@@ -49,7 +49,7 @@ export const authInlineBtn =
 
 /** Forma e foco de um botão de ação; a cor vem de quem o usa. */
 export const authBtnBase =
-  "inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold " +
+  "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-lg text-[15px] font-semibold sm:h-12 sm:text-sm " +
   "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40 " +
   "focus-visible:ring-offset-2 active:scale-[0.99] disabled:pointer-events-none";
 

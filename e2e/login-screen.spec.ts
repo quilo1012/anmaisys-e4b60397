@@ -18,7 +18,7 @@ async function open(page: Page) {
     return json(null);
   });
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible({ timeout: 20000 });
 }
 
 /** Contraste WCAG entre a cor do texto de um elemento e o branco do papel. */
@@ -36,12 +36,12 @@ test("o título não salta enquanto se escreve o email", async ({ page }) => {
   await open(page);
   // A entrada da coluna desliza 8px; mede-se depois de ela assentar.
   await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)));
-  const before = (await page.getByRole("heading", { name: "Sign in" }).boundingBox())!.y;
+  const before = (await page.getByRole("heading", { name: "Welcome back" }).boundingBox())!.y;
   // Com postos, o QR está à vista; um email troca-o pelo link. Centrada, a coluna
   // encolhia e o título descia 128px a meio da escrita.
   await page.fill("#identifier", "ana@appliednutrition.uk");
   await expect(page.getByText("Work account. What you can open follows your role.")).toBeVisible();
-  const after = (await page.getByRole("heading", { name: "Sign in" }).boundingBox())!.y;
+  const after = (await page.getByRole("heading", { name: "Welcome back" }).boundingBox())!.y;
   expect(after).toBe(before);
 });
 

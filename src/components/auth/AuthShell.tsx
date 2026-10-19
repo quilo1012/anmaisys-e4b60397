@@ -111,38 +111,20 @@ export function AuthShell({
         </div>
       </aside>
 
-      {/* ── Faixa da marca em ecrã estreito ────────────────────────── */}
-      {/* Baixa em todas as larguras: no Galaxy Tab A9 deitado (~600px de altura) a
-          faixa de 98px empurrava o QR e o Create account para fora do ecrã. */}
-      {/* Num telemóvel com altura (≥640px) a faixa cresce para uma capa: a marca, o
-          nome do sistema e uma linha sobre ele, e o formulário sobe por cima dela numa
-          folha de cantos redondos. Era uma tira de 58px com o logótipo a 96px e o resto
-          do ecrã em branco por baixo do botão. O tablet deitado e o telemóvel deitado
-          (pouca altura) ficam com a tira baixa — a razão do comentário acima mantém-se. */}
+      {/* ── Marca em ecrã estreito ──────────────────────────────────
+          Sem faixa nem capa. A faixa azul de 58px e, depois, a capa com grelha eram
+          decoração por cima de um formulário que é tudo o que a página tem para
+          fazer; num telemóvel empurravam o botão de entrar para baixo do teclado.
+          Fica a marca numa linha, em papel, à mesma margem do formulário — e uma
+          aresta de 3px no azul da casa, a única cor antes do botão. */}
       <header
-        className="relative isolate flex items-center overflow-hidden px-5 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] sm:px-8 lg:hidden [@media(max-width:639px)_and_(min-height:640px)]:flex-col [@media(max-width:639px)_and_(min-height:640px)]:items-start [@media(max-width:639px)_and_(min-height:640px)]:pb-10 [@media(max-width:639px)_and_(min-height:640px)]:pt-[max(1.75rem,env(safe-area-inset-top))]"
-        style={{
-          backgroundImage:
-            "linear-gradient(160deg, hsl(var(--auth-field-top)) 0%, hsl(var(--auth-field)) 60%, hsl(var(--auth-panel-deep)) 100%)",
-        }}
+        className="flex items-center gap-2.5 border-t-[3px] border-auth-brand px-6 pb-2 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-10 lg:hidden"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 opacity-[0.05]"
-          style={{
-            backgroundImage:
-              "linear-gradient(hsl(0 0% 100%) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100%) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-        <img src={brandMark} alt="Applied Nutrition" className="w-24 select-none sm:w-28 [@media(max-width:639px)_and_(min-height:640px)]:w-32" />
-        <span className="ml-auto text-sm font-semibold text-white/75 [@media(max-width:639px)_and_(min-height:640px)]:hidden">PMSystem</span>
-        <div className="hidden [@media(max-width:639px)_and_(min-height:640px)]:mt-6 [@media(max-width:639px)_and_(min-height:640px)]:block">
-          <p className="font-display text-[26px] font-bold leading-none tracking-tight text-white">PMSystem</p>
-          <p className="mt-2 max-w-[18rem] text-sm leading-snug text-white/70">
-            Planning, lines, quality and stock for the Applied Nutrition factory.
-          </p>
-        </div>
+        {/* The AN atom on its own — the square app icon. appliedlogo.jpeg is the wide
+            lockup; cropped to a square it read "APPLIE / NUTRI". */}
+        <img src="/android-chrome-192x192.png" alt="" className="h-8 w-8 select-none rounded-lg" />
+        <span className="font-display text-[15px] font-bold tracking-tight text-auth-ink">PMSystem</span>
+        <span className="ml-auto text-xs text-auth-ink-muted">Applied Nutrition</span>
       </header>
 
       {/* ── Formulário ─────────────────────────────────────────────── */}
@@ -151,11 +133,11 @@ export function AuthShell({
       {/* Sempre ancorado em cima, também no computador. Centrado, a coluna mudava de
           altura enquanto se escrevia — o QR dá lugar ao link quando o campo passa a
           ser um email — e o título "Sign in" saltava 130px a meio da escrita. */}
-      <main className="relative flex flex-1 items-start justify-center bg-auth-paper px-5 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-10 sm:py-8 lg:pb-14 lg:pt-[max(3.5rem,14vh)] [@media(max-width:639px)_and_(min-height:640px)]:-mt-5 [@media(max-width:639px)_and_(min-height:640px)]:rounded-t-[1.25rem] [@media(max-width:639px)_and_(min-height:640px)]:pt-7">
+      <main className="flex flex-1 items-start justify-center px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-8 sm:px-10 sm:py-10 lg:pb-14 lg:pt-[max(3.5rem,14vh)]">
         <div
           className={`w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500`}
         >
-          <div className="mb-5 sm:mb-8">
+          <div className="mb-7 sm:mb-8">
             {brandIconUrl && (
               <img
                 src={brandIconUrl}
@@ -163,20 +145,20 @@ export function AuthShell({
                 className="mb-4 h-9 w-9 rounded-md object-contain sm:mb-5 sm:h-10 sm:w-10"
               />
             )}
-            <h1 className="font-display text-2xl font-bold tracking-tight text-auth-ink sm:text-3xl">
+            <h1 className="font-display text-[28px] font-bold leading-[1.1] tracking-[-0.02em] text-auth-ink sm:text-3xl">
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-1.5 text-sm leading-relaxed text-auth-ink-muted sm:mt-2">{subtitle}</p>
+              <p className="mt-2 text-[15px] leading-relaxed text-auth-ink-muted sm:text-sm">{subtitle}</p>
             )}
             {badge && <div className="mt-4">{badge}</div>}
           </div>
 
           {children}
 
-          <p className="mt-8 border-t border-auth-line pt-4 text-xs leading-relaxed text-auth-ink-muted lg:hidden">
-            Encrypted connection, access by role, every action audited.
-            <br />© {year} Applied Nutrition
+          <p className="mt-10 flex items-start gap-2 border-t border-auth-line pt-4 text-xs leading-relaxed text-auth-ink-muted lg:hidden">
+            <ShieldCheck className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Encrypted connection, access by role, every action audited. © {year} Applied Nutrition</span>
           </p>
         </div>
       </main>

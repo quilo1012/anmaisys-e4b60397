@@ -1661,18 +1661,26 @@ html, body, #root {
     height: auto;
   }
   /* Long words / URLs shouldn't blow out cards.
-     IMPORTANT: exclude tables — overflow-wrap:anywhere on a narrow <td>
-     collapses text to one character per line (the "M-a-c-h-i-n-e vertical"
-     bug on mobile). Tables get horizontal scroll via their wrapper. */
+     IMPORTANT: exclude tables — a narrow <td> would collapse text to one
+     character per line (the "M-a-c-h-i-n-e vertical" bug on mobile). Tables
+     get horizontal scroll via their wrapper.
+
+     `break-word`, not `anywhere`. Both break a word that cannot fit a line on
+     its own — a URL, a batch code — so the guard still holds. The difference is
+     that `anywhere` also tells the layout every word is one character wide, so
+     grid cells and flex rows shrank short labels until they snapped:
+     "PRODUCE D", "ATTAINME NT", "130 / 7", "Dash board" in the quick links, on
+     every phone, every day (19/10). With `break-word` a label keeps its width
+     and the row makes room for it. e2e/no-broken-words.spec.ts holds it. */
   main p,
   main h1,
   main h2,
   main h3 {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   main span:not(table span):not(th span):not(td span),
   main div:not(table div):not(th div):not(td div) {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   /* Table cells: never break letter-by-letter. Wrap on word boundaries and
      let the wrapper scroll horizontally when the row is wider than screen. */

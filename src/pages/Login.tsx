@@ -497,14 +497,8 @@ export default function Login() {
     <AuthShell
       brandIconUrl={brandIconUrl}
       maxWidthClass="max-w-lg"
-      title="Sign in"
-      subtitle={
-        onPersonalPhone
-          ? "Use your work email or the ID on your badge."
-          : hasTablets
-            ? "Use your work email, your badge ID, or the name of the tablet you're at."
-            : "Use your work email or the ID on your badge."
-      }
+      title="Welcome back"
+      subtitle="Sign in to your workspace"
     >
       <form
         onSubmit={handleSubmit}
