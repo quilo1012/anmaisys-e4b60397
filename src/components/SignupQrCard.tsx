@@ -55,33 +55,44 @@ export function SignupQrCard({
     );
   }
 
+  // Uma secção do formulário, alinhada à esquerda como ele, e não uma coluna
+  // centrada de quatro peças. O QR ao lado do texto cabe no tablet deitado (~600px
+  // de altura), onde por baixo ficava fora do ecrã. "Create account" é secundário:
+  // neste ecrã o botão cheio é o de entrar, e havia dois azuis a pedir o mesmo dedo.
+  const primary = tone === "auth"
+    ? "border-auth-line bg-auth-paper text-auth-ink hover:bg-auth-ink/[0.04] focus-visible:ring-auth-brand/40"
+    : "border-border bg-background text-foreground hover:bg-muted focus-visible:ring-ring";
+  const rule = tone === "auth" ? "border-auth-line" : "border-border";
+  const ink = tone === "auth" ? "text-auth-ink" : "text-foreground";
   return (
-    <div className="mt-6 flex flex-col items-center gap-2">
-      <p className={`text-sm ${muted}`}>New here? Scan this with your own phone.</p>
-      {src
-        ? <img src={src} alt="QR code to the registration page" className="h-36 w-36 rounded bg-white p-1.5" />
-        : <div className={`h-36 w-36 animate-pulse rounded ${placeholder}`} aria-hidden />}
-      <p className={`max-w-[16rem] text-center text-xs ${muted}`}>
-        Or create it here — the tablet stays signed in as the line, not as you.
-      </p>
-      <Link
-        to={tabletSignupPath(inviteCode)}
-        className={tone === "auth"
-          ? "inline-flex h-10 items-center justify-center rounded-lg bg-auth-brand px-5 text-sm font-semibold text-white shadow-sm hover:bg-auth-brand/90"
-          : "inline-flex h-10 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"}
-      >
-        Create account
-      </Link>
-      {/* What the scan gets you, said before the scan rather than after.
-          Without the code the form opens with a box labelled "From your supervisor",
-          and somebody who walked away from the tablet to fill it in has no way back
-          to find out where it comes from. */}
-      <p className={`max-w-[16rem] text-center text-xs ${muted}`}>
-        {carriesCode
-          ? "The invite code is already in this square and in the button — you won't be asked for it."
-          : "You'll need the invite code from the sign-up sheet where you clock in."}
-      </p>
-    </div>
+    <section aria-labelledby="signup-qr-title" className={`mt-6 border-t pt-5 ${rule}`}>
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+        {src
+          ? <img src={src} alt="QR code to the registration page" className="h-28 w-28 shrink-0 rounded-md border border-black/5 bg-white p-1.5" />
+          : <div className={`h-28 w-28 shrink-0 animate-pulse rounded-md ${placeholder}`} aria-hidden />}
+        <div className="min-w-[12rem] flex-1">
+          <h2 id="signup-qr-title" className={`text-sm font-semibold ${ink}`}>New to the system?</h2>
+          <p className={`mt-1 text-sm leading-snug ${muted}`}>
+            Scan the code with your own phone to register.
+          </p>
+          <Link
+            to={tabletSignupPath(inviteCode)}
+            className={`mt-3 inline-flex h-10 items-center justify-center rounded-lg border px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 ${primary}`}
+          >
+            Create account here
+          </Link>
+          {/* What the scan gets you, said before the scan rather than after.
+              Without the code the form opens with a box labelled "From your supervisor",
+              and somebody who walked away from the tablet to fill it in has no way back
+              to find out where it comes from. */}
+          <p className={`mt-2 text-xs leading-snug ${muted}`}>
+            {carriesCode
+              ? "The invite code is already included, so you won't be asked for it. The tablet stays signed in as the line."
+              : "You'll need the invite code from the sign-up sheet where you clock in."}
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 

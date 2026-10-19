@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import brandMark from "@/assets/applied-nutrition-white.png";
 import { SiteBannerImages } from "@/components/SiteBannerImages";
+import { ShieldCheck } from "lucide-react";
 
 interface AuthShellProps {
   /** Optional override for the brand mark shown above the form (per-tablet branding). */
@@ -83,56 +84,54 @@ export function AuthShell({
           className="relative w-56 max-w-full select-none"
         />
 
+        {/* O nome do sistema como se escreve, não em maiúsculas espaçadas com um
+            rótulo por cima: era a moldura de modelo genérico, e a placa dizia
+            "PRODUCTION MANAGEMENT / PMSYSTEM" a quem só queria saber onde estava. */}
         <div className="relative max-w-md">
-          <p className="font-figure text-2xs uppercase tracking-[0.22em] text-white/55">
-            Production management
-          </p>
-          <h2 className="mt-3 font-display text-5xl font-bold uppercase leading-none tracking-tight text-white">
+          <h2 className="font-display text-4xl font-bold leading-[1.05] tracking-tight text-white xl:text-5xl">
             PMSystem
           </h2>
-          <p className="mt-5 text-sm leading-relaxed text-white/70">
-            Planning, lines, quality and stock in one system — from the shop floor
-            to the office.
+          <p className="mt-4 max-w-sm text-base leading-relaxed text-white/75">
+            Planning, lines, quality and stock for the Applied Nutrition factory, from
+            the shop floor to the office.
           </p>
         </div>
 
-        {/* Placa de dados: as mesmas três garantias que estavam em emojis, na voz
-            de utilidade da app em vez de em pictogramas. */}
-        <dl className="relative flex flex-wrap gap-x-10 gap-y-4 border-t border-white/15 pt-6 font-figure text-2xs uppercase tracking-[0.14em]">
-          {[
-            ["Connection", "Encrypted"],
-            ["Access", "Role-based"],
-            ["Actions", "Audited"],
-          ].map(([term, value]) => (
-            <div key={term}>
-              <dt className="text-white/40">{term}</dt>
-              <dd className="mt-1 text-white/80">{value}</dd>
-            </div>
-          ))}
-          <div className="ml-auto self-end text-white/35 normal-case tracking-normal">
-            © {year} Applied Nutrition
-          </div>
-        </dl>
+        {/* As três garantias em frases, na letra do resto da página. */}
+        <div className="relative flex flex-wrap items-end gap-x-8 gap-y-3 border-t border-white/15 pt-6 text-sm text-white/70">
+          <ul className="flex flex-wrap gap-x-6 gap-y-2">
+            {["Encrypted connection", "Access by role", "Every action audited"].map((t) => (
+              <li key={t} className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-white/45" aria-hidden="true" />
+                {t}
+              </li>
+            ))}
+          </ul>
+          <p className="ml-auto text-xs text-white/40">© {year} Applied Nutrition</p>
+        </div>
       </aside>
 
       {/* ── Faixa da marca em ecrã estreito ────────────────────────── */}
+      {/* Baixa em todas as larguras: no Galaxy Tab A9 deitado (~600px de altura) a
+          faixa de 98px empurrava o QR e o Create account para fora do ecrã. */}
       <header
-        className="flex items-center px-5 py-3 sm:px-8 sm:py-5 lg:hidden"
+        className="flex items-center px-5 py-2.5 sm:px-8 lg:hidden"
         style={{
           backgroundImage:
             "linear-gradient(100deg, hsl(var(--auth-field-top)) 0%, hsl(var(--auth-field)) 100%)",
         }}
       >
-        <img src={brandMark} alt="Applied Nutrition" className="w-28 select-none sm:w-36" />
-        <span className="ml-auto font-figure text-2xs uppercase tracking-[0.18em] text-white/55">
-          PMSystem
-        </span>
+        <img src={brandMark} alt="Applied Nutrition" className="w-24 select-none sm:w-28" />
+        <span className="ml-auto text-sm font-semibold text-white/75">PMSystem</span>
       </header>
 
       {/* ── Formulário ─────────────────────────────────────────────── */}
       {/* Num telemóvel o formulário começa em cima, não ao centro: centrado, o teclado
           que abre ao tocar no campo empurrava-o para fora e o ecrã saltava. */}
-      <main className="flex flex-1 items-start justify-center px-5 py-6 sm:items-center sm:px-10 sm:py-10 lg:py-14">
+      {/* Sempre ancorado em cima, também no computador. Centrado, a coluna mudava de
+          altura enquanto se escrevia — o QR dá lugar ao link quando o campo passa a
+          ser um email — e o título "Sign in" saltava 130px a meio da escrita. */}
+      <main className="flex flex-1 items-start justify-center px-5 py-6 sm:px-10 sm:py-8 lg:pb-14 lg:pt-[max(3.5rem,14vh)]">
         <div
           className={`w-full ${maxWidthClass} motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-500`}
         >
@@ -155,8 +154,9 @@ export function AuthShell({
 
           {children}
 
-          <p className="mt-8 border-t border-auth-line pt-4 font-figure text-2xs uppercase tracking-[0.14em] text-auth-ink-muted lg:hidden">
-            Encrypted · Role-based access · Audited · © {year} Applied Nutrition
+          <p className="mt-8 border-t border-auth-line pt-4 text-xs leading-relaxed text-auth-ink-muted lg:hidden">
+            Encrypted connection, access by role, every action audited.
+            <br />© {year} Applied Nutrition
           </p>
         </div>
       </main>

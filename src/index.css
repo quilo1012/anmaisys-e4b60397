@@ -119,6 +119,14 @@
     --auth-panel-deep: 211 46% 9%;
     --auth-paper: 0 0% 100%;
     --auth-line: 214 24% 88%;
+    /* As cores de estado do papel claro. O <html> traz sempre `.dark`, e os
+       `--destructive-strong` / `--warning-strong` / `--success-strong` desse tema são
+       os claros, feitos para a página quase preta: sobre este papel branco o erro do
+       login lia-se salmão a ~2.6:1, e o aviso de sessão terminada (`text-foreground`)
+       era branco sobre branco. Fixos, como o resto do `--auth-*`. */
+    --auth-danger: 3 73% 41%;
+    --auth-warning: 36 95% 31%;
+    --auth-success: 154 81% 26%;
 
     /* O ecrã de parede, e os de linha.
        Fixos como os de autenticação, e pela razão inversa: um ecrã pendurado sobre a

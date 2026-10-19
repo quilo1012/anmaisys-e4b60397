@@ -72,7 +72,10 @@ export default {
   				'ink-muted': 'hsl(var(--auth-ink-muted))',
   				'panel-deep': 'hsl(var(--auth-panel-deep))',
   				paper: 'hsl(var(--auth-paper))',
-  				line: 'hsl(var(--auth-line))'
+  				line: 'hsl(var(--auth-line))',
+  				danger: 'hsl(var(--auth-danger))',
+  				warning: 'hsl(var(--auth-warning))',
+  				success: 'hsl(var(--auth-success))'
   			},
   			success: {
   				DEFAULT: 'hsl(var(--success))',
