@@ -166,6 +166,11 @@ export const navItems: NavItem[] = [
   // people who keep the parts could not open the parts screen from the menu.
   { title: "Stock", url: "/dashboard/stock", icon: Package, roles: ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "production_office_admin"], group: "Maintenance", action: "stock.view" },
 
+  // Production, Quality and the overtime rows carry neither maintenance_manager nor
+  // engineer: on 19/10/2026 the maintenance side asked for them off its menu, since
+  // its work is the Maintenance group above. Only the rows went — the matrix still
+  // grants the actions, so a link from another screen still opens.
+  //
   // Production. The order is the group's argument, and the sidebar renders these in
   // array order, so it is written here rather than left to whoever appends next:
   // the reviews first (RAG Weekly, Performance — how the week and the lines went),
@@ -177,7 +182,7 @@ export const navItems: NavItem[] = [
   // Quality — with Headcount declared sixty lines below among the admin screens, so
   // it landed last with nothing near it to say why.
   { title: "Production Dashboard", shortTitle: "Overview", url: "/dashboard/departments/production", icon: LayoutDashboard, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "dashboard.production" },
-  { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "rag.view" },
+  { title: "RAG Weekly", url: "/dashboard/rag-weekly", icon: Gauge, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "rag.view" },
   // The leader scorecard has no row of its own: it is opened from Performance, on
   // the leader the page is already filtered to, so the week and the shift travel
   // with the link. A menu row would have opened it on nobody in particular.
@@ -190,7 +195,7 @@ export const navItems: NavItem[] = [
   // quality_supervisor is here for the scorecard, not for the trend. This row is
   // the only way to a leader's card, and the two people who approve the week had
   // one row in the whole sidebar — Quality.
-  { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "quality_supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.performance.view" },
+  { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "quality_supervisor", "production_office_admin"], group: "Production", action: "production.performance.view" },
   // Em Production e não em Maintenance de propósito: o Downtime & Reliability, ao lado
   // das ordens, mede avarias — e as avarias são 4% das horas que a linha não anda. Os
   // outros 96% são preparação, limpeza e espera, e a dona disso é a produção.
@@ -199,9 +204,9 @@ export const navItems: NavItem[] = [
   // `permissions.ts`: o `navItemShows()` cruza esta lista com o `can()`, por isso um
   // `operator` escrito aqui não devolve o ecrã sozinho — mas deixa as duas listas a
   // dizer coisas diferentes, que é como este ecrã apareceu a quem não o devia ver.
-  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
+  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
-  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
+  { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and
   // Finance Close are reached from the tab bar on the board rather than from here:
   // they are one job seen from four angles, and four menu rows said they were four
@@ -221,10 +226,10 @@ export const navItems: NavItem[] = [
   // Sem `operator`: essas contas são de LINHA, não de pessoa — ver
   // `operator_line_accounts` e a migração 20261009090000, que já recusa ligá-las a um
   // funcionário. Um turno inteiro ao mesmo tablet respondia como a mesma pessoa.
-  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
+  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
   // The signed-in person's own record. Same people as My Overtime; the database answers
   // it from the session alone (`my_attendance`), so it can only ever be their own.
-  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
+  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["admin", "manager", "production_office_admin", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
@@ -262,7 +267,7 @@ export const navItems: NavItem[] = [
   // not left for the next reader to discover as a failure.
   // engineer and co_engineer hold quality.view. The row listed neither, so the
   // screen opened only for somebody who typed the URL.
-  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "quality_supervisor", "engineer", "production_office_admin"], group: "Quality", action: "quality.view" },
+  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "quality_supervisor", "production_office_admin"], group: "Quality", action: "quality.view" },
 
   // Analytics and Messages sit in Overview rather than each holding a group of its
   // own. The argument that dissolved Assets applies harder to a group of one: a

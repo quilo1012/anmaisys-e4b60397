@@ -287,7 +287,13 @@ const NO_MENU_ROW: Partial<Record<Action, string>> = {
   "suppliers.view": "OFF THE MENU — part of Reports, taken off on the same pass.",
   "production.target.view": "REACHED FROM ANOTHER SCREEN — My Production is the operator's own screen; every other role reads targets on Performance and Production Control.",
   "sku.view": "REACHED FROM ANOTHER SCREEN — the SKU Products row gates on sku.manage, which is the narrower right.",
-  "production.performance.view": "REACHED FROM ANOTHER SCREEN for the operator — a button on My Production. Every other role holding it has the Performance row.",
+  "production.performance.view": "REACHED FROM ANOTHER SCREEN for the operator — a button on My Production. OFF THE MENU for the maintenance_manager — see stopanalysis.view. Every other role holding it has the Performance row.",
+  // 19/10/2026: the maintenance manager and the engineers asked for Production,
+  // Quality and Overtime off their menu — they work the Maintenance group. The rights
+  // are untouched; only the rows went, so a link from another screen still opens.
+  "stopanalysis.view": "OFF THE MENU for the engineer and the maintenance_manager — the whole Production group was taken off their menu on request (19/10/2026).",
+  "quality.view": "OFF THE MENU for the engineer — taken off on the same request as stopanalysis.view (19/10/2026).",
+  "rag.view": "OFF THE MENU for the maintenance_manager — taken off on the same request as stopanalysis.view (19/10/2026).",
   "wo.view": "OPEN GAP for the engineer — the engineer dashboard is the way to a WO today, and giving engineers the full Maintenance Orders row is a decision nobody has taken.",
   "downtime.view": "OPEN GAP for the engineer — holds it, reaches downtime through the WO it belongs to.",
   "machines.view": "OPEN GAP for the engineer — holds it, no row.",
