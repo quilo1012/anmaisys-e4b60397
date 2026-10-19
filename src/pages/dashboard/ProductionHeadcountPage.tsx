@@ -54,6 +54,7 @@ import {
   useAllocationMutations,
   useCopyableDays,
   useHeadcountMatrix,
+  useLastWorkedDay,
   useSaveMatrix,
   useChangeShift,
   useReorderAreas,
@@ -958,7 +959,7 @@ function ShiftBoard({
   const placedOnArea = allocations.some((a) => !!a.area_id);
   const planKind: "normal" | "changeover" = [1, 5].includes(new Date(`${onDate}T12:00:00`).getDay()) ? "changeover" : "normal";
   const plan = matrix.matrices.find((m) => m.kind === planKind);
-  const ghostByArea = useMemo(() => {
+  const matrixGhosts = useMemo(() => {
     const out = new Map<string, HeadcountEmployee[]>();
     if (onDate <= todayIso || placedOnArea || !plan) return out;
     for (const r of plan.due) {
@@ -972,6 +973,23 @@ function ShiftBoard({
     for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
     return out;
   }, [onDate, todayIso, placedOnArea, plan, byEmployee, employeeById, areas]);
+  // Sem matrix para o dia, sugere onde cada pessoa esteve no último dia trabalhado
+  // deste turno. Só sugestão: "Save this plan" corre a mesma cópia do botão.
+  const useLastDay = !placedOnArea && matrixGhosts.size === 0;
+  const { data: lastDay } = useLastWorkedDay(onDate, shift, useLastDay);
+  const ghostByArea = useMemo(() => {
+    if (!useLastDay || !lastDay) return matrixGhosts;
+    const out = new Map<string, HeadcountEmployee[]>();
+    for (const r of lastDay.rows) {
+      if (!areas.some((x) => x.id === r.area_id) || byEmployee.has(r.employee_id)) continue;
+      const p = employeeById.get(r.employee_id);
+      if (!p) continue;
+      out.set(r.area_id, [...(out.get(r.area_id) ?? []), p]);
+    }
+    for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return out;
+  }, [useLastDay, lastDay, matrixGhosts, areas, byEmployee, employeeById]);
+  const ghostFromLastDay = useLastDay && !!lastDay && ghostByArea !== matrixGhosts;
   const ghostCount = [...ghostByArea.values()].reduce((n, l) => n + l.length, 0);
   const ghostIds = new Set([...ghostByArea.values()].flat().map((p) => p.id));
   const ghostsIn = (areaId: string) => ghostByArea.get(areaId) ?? [];
@@ -1511,11 +1529,17 @@ function ShiftBoard({
           <p className="text-sm">
             <span className="font-bold">Not planned yet.</span>{" "}
             <span className="text-muted-foreground">
-              The {ghostCount} names in grey italic are where the {plan?.label} matrix puts the people due in. Nothing is saved until you save it.
+              {ghostFromLastDay && lastDay
+                ? `The ${ghostCount} names in grey italic are where each person worked on ${lastDay.on_date.split("-").reverse().join("/")}, the last ${shift.toLowerCase()} day worked. Nothing is saved until you save it.`
+                : `The ${ghostCount} names in grey italic are where the ${plan?.label} matrix puts the people due in. Nothing is saved until you save it.`}
             </span>
           </p>
           {canManage && (
-            <Button size="sm" onClick={() => runCopy({ kind: "matrix", matrix: planKind })} disabled={copyLastLikeDay.isPending}>
+            <Button
+              size="sm"
+              onClick={() => runCopy(ghostFromLastDay && lastDay ? { kind: "day", on_date: lastDay.on_date } : { kind: "matrix", matrix: planKind })}
+              disabled={copyLastLikeDay.isPending}
+            >
               Save this plan
             </Button>
           )}

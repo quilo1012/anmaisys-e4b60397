@@ -454,6 +454,42 @@ export function useAllocations(onDate: string, shift: string) {
 }
 
 /**
+ * The last earlier day this board had somebody working, with where each one stood.
+ * Read only to suggest the day on screen; nothing is written until somebody saves it,
+ * through the same copy the toolbar button runs.
+ */
+export function useLastWorkedDay(onDate: string, shift: string, enabled = true) {
+  return useQuery({
+    queryKey: ["headcount-last-worked-day", onDate, shift],
+    enabled,
+    queryFn: async (): Promise<{ on_date: string; rows: { employee_id: string; area_id: string }[] } | null> => {
+      const { data: last, error } = await supabase
+        .from("daily_allocations")
+        .select("on_date")
+        .eq("shift", shift)
+        .lt("on_date", onDate)
+        .in("status", ["assigned", "overtime"])
+        .not("area_id", "is", null)
+        .order("on_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      const day = (last as { on_date: string } | null)?.on_date;
+      if (!day) return null;
+      const { data, error: rowsErr } = await supabase
+        .from("daily_allocations")
+        .select("employee_id,area_id")
+        .eq("shift", shift)
+        .eq("on_date", day)
+        .in("status", ["assigned", "overtime"])
+        .not("area_id", "is", null);
+      if (rowsErr) throw rowsErr;
+      return { on_date: day, rows: (data ?? []) as { employee_id: string; area_id: string }[] };
+    },
+  });
+}
+
+/**
  * Where a copy takes its placements from.
  *
  * `last` is the button itself and the answer most mornings. `day` is a date off the
