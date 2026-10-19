@@ -262,11 +262,13 @@ const MATRIX: Record<Action, Role[]> = {
   "overtime.manage": ["admin", "manager", "production_office_admin"],
   // `employee` holds this and `attendance.view_own` and nothing else: the login the
   // invite link and the badge hand out. See EMPLOYEE_CEILING.
-  "overtime.respond": ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
+  "overtime.respond": ["admin", "manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
   // My Attendance: the signed-in person's own clock, marks, leave and balance — never
   // anybody else's, whoever holds it. The database answers it through `my_attendance()`,
   // which is keyed on `my_employee_id()`, so the same people as `overtime.respond`.
-  "attendance.view_own": ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
+  // No `engineer` (19/10/2026): taken off the engineer's sidebar on request, with
+  // `overtime.respond` above, so the route guard agrees with the menu.
+  "attendance.view_own": ["admin", "manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"],
   "downtime.adjust": ["admin", "manager", "maintenance_manager", "engineer"],
   // Rewriting a stoppage number that is already on the record is deliberately
   // narrower than `downtime.adjust`: it changes how a line and an engineer are
