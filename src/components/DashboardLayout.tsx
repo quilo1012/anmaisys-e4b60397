@@ -221,10 +221,10 @@ export const navItems: NavItem[] = [
   // Sem `operator`: essas contas são de LINHA, não de pessoa — ver
   // `operator_line_accounts` e a migração 20261009090000, que já recusa ligá-las a um
   // funcionário. Um turno inteiro ao mesmo tablet respondia como a mesma pessoa.
-  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
+  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
   // The signed-in person's own record. Same people as My Overtime; the database answers
   // it from the session alone (`my_attendance`), so it can only ever be their own.
-  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["admin", "manager", "production_office_admin", "engineer", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
+  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["admin", "manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
