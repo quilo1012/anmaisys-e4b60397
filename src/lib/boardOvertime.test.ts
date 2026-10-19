@@ -29,6 +29,7 @@ describe("a placement with confirmed overtime", () => {
     expect(h.base).toBe(6);
     expect(h.overtime).toBe(2);
     expect(h.shiftLabel).toBe("06:00–12:00");
+    expect(h.short).toBe("06–14");
   });
 
   it("2. a half day made into a 12-hour day reads 06:00–18:00, 12h", () => {
@@ -52,6 +53,7 @@ describe("a placement with confirmed overtime", () => {
   it("5. a gap stays a gap", () => {
     const h = placementHours({ ...plain, half_day: true }, D, "Day", [ask("a", D, "14:00", "16:00")]);
     expect(h.label).toBe("06:00–12:00 + 14:00–16:00");
+    expect(h.short).toBe("06–12+14–16");
     expect(h.total).toBe(8);
   });
 
@@ -68,6 +70,8 @@ describe("a placement with confirmed overtime", () => {
     expect(h.total).toBe(12);
     const early = placementHours({ ...plain, left_early_at: "02:00" }, D, "Night", [ask("b", NEXT, "02:00", "05:00")]);
     expect(early.label).toBe("18:00–05:00");
+    expect(placementHours(plain, D, "Day", [ask("c", D, "18:00", "18:30")]).short).toBe("06–18");
+    expect(placementHours({ ...plain, status: "overtime", overtime_request_id: "d" }, D, "Day", [ask("d", D, "06:30", "14:00")]).short).toBe("06:30–14");
     expect(early.total).toBe(11);
   });
 

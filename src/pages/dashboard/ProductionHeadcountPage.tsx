@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle } from "lucide-react";
+import { Check, Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -485,18 +485,26 @@ function Chip({
         )}
       </span>
       {marked && (
-      <span className="flex max-w-full flex-wrap items-center justify-center gap-1 leading-none">
+      // One line, never two: the cell is a fixed 48px so the band's Totals stay in one
+      // row, and a second line of marks pushed the name off the top and the crew off
+      // the bottom. What does not fit is cut at the right, after the hours.
+      <span className="flex max-w-full flex-nowrap items-center justify-center gap-1 overflow-hidden leading-none">
       {workHours && (
         <span
           data-testid="board-work-hours"
+          aria-label={`Confirmed overtime, on ${workHours.label}`}
           title={[
             workHours.shiftLabel ? `Shift ${workHours.shiftLabel}` : null,
             workHours.overtimeLabels.length ? `confirmed overtime ${workHours.overtimeLabels.join(", ")}` : null,
             `${Number.isInteger(workHours.total) ? workHours.total : workHours.total.toFixed(1)}h on`,
           ].filter(Boolean).join(" · ")}
-          className="shrink-0 rounded-sm border border-[#92D050] bg-[#92D050]/25 px-1 py-px font-figure text-[10px] font-bold leading-tight text-foreground"
+          // The sheet's overtime green, as an edge rather than a fill: the card already
+          // sits in the Overtime column or wears the green wash, and a third green
+          // block on it read as one smudge.
+          className="inline-flex shrink-0 items-center gap-px rounded-sm border-l-[3px] border-[#5E9E1E] bg-[#92D050]/20 py-px pl-px pr-0.5 font-figure text-[11px] font-semibold tabular-nums tracking-tight leading-tight text-foreground"
         >
-          {workHours.label}
+          <Check aria-hidden className="h-2 w-2 shrink-0 text-[#4B8217]" strokeWidth={4} />
+          {workHours.short}
         </span>
       )}
       {startTime && (
@@ -525,7 +533,7 @@ function Chip({
       {crew && (
         <span
           title={`${crew} crew`}
-          className="shrink-0 rounded-sm border border-muted-foreground/40 bg-muted px-1 py-px text-2xs font-bold uppercase leading-tight tracking-wide text-muted-foreground"
+          className="shrink-0 rounded-sm border border-muted-foreground/40 bg-muted px-0.5 py-px text-2xs font-bold uppercase leading-tight text-muted-foreground"
         >
           {crew}
         </span>

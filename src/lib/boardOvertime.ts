@@ -40,6 +40,11 @@ export interface PlacementHours {
   total: number;
   /** "06:00–14:00", or "06:00–12:00 + 14:00–16:00" when there is a gap. */
   label: string;
+  /**
+   * The same, the way the sheet would write it in a cell: "06–14", "06:30–14",
+   * "06–12+14–16". The card has one line for its marks; the full label is the tooltip.
+   */
+  short: string;
   /** The shift part alone, for the detail line ("Shift 06:00–12:00"). Null for a bridge row. */
   shiftLabel: string | null;
   /** The confirmed overtime that reached this placement, in order. */
@@ -126,6 +131,10 @@ function merge(windows: Array<[number, number]>): Array<[number, number]> {
   return out;
 }
 
+/** "06" for 06:00, "06:30" otherwise. */
+const hour = (min: number): string => { const c = clock(min); return c.endsWith(":00") ? c.slice(0, 2) : c; };
+const showShort = ([a, b]: [number, number]) => `${hour(a)}–${hour(b)}`;
+
 const span = (ws: Array<[number, number]>) => ws.reduce((n, [a, b]) => n + (b - a), 0);
 const show = ([a, b]: [number, number]) => `${clock(a)}–${clock(b)}`;
 
@@ -154,7 +163,7 @@ export function placementHours(
   // A bridge row whose ask is not (or no longer) confirmed: the old reading, a full shift.
   if (!base && mine.length === 0) {
     const whole: [number, number] = shift === "Night" ? [1080, 1800] : [360, 1080];
-    return { base: 0, overtime: SHIFT_MIN / 60, total: SHIFT_MIN / 60, label: show(whole), shiftLabel: null, overtimeLabels: [] };
+    return { base: 0, overtime: SHIFT_MIN / 60, total: SHIFT_MIN / 60, label: show(whole), short: showShort(whole), shiftLabel: null, overtimeLabels: [] };
   }
 
   const all = merge([...(base ? [base] : []), ...mine]);
@@ -165,6 +174,7 @@ export function placementHours(
     overtime: (total - baseMin) / 60,
     total: total / 60,
     label: all.map(show).join(" + "),
+    short: all.map(showShort).join("+"),
     shiftLabel: base ? show(base) : null,
     overtimeLabels: mine.map(show),
   };

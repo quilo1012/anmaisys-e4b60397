@@ -37,10 +37,14 @@ const ALLOCS = EMP.filter((e) => !e.id.startsWith("u")).map((e, i) => ({
   half_day: i === 0, left_early_at: null, arrived_late_at: null, note: null, is_leader: i % 7 === 0,
   overtime_request_id: null,
 }));
+// Welligton Segat (e1, Fri–Mon crew) is on the board only through his confirmed ask:
+// the bridge's row, in the Overtime column — the card that ran out of room.
+Object.assign(ALLOCS[1], { area_id: null, status: "overtime", overtime_request_id: "q3" });
 // Felipe Pinelli (e2) is on a full day and has a confirmed ask on the NIGHT board:
 // it must not stretch his day card.
 const CONFIRMED = [
   { request_id: "q1", employee_id: "e0", overtime_requests: { on_date: today, starts_at: "12:00:00", ends_at: "14:00:00", status: "open" }, overtime_outcomes: [] },
+  { request_id: "q3", employee_id: "e1", overtime_requests: { on_date: today, starts_at: "06:00:00", ends_at: "14:00:00", status: "open" }, overtime_outcomes: [] },
   { request_id: "q2", employee_id: "e2", overtime_requests: { on_date: today, starts_at: "18:00:00", ends_at: "20:00:00", status: "open" }, overtime_outcomes: [] },
 ];
 
@@ -65,9 +69,9 @@ async function stub(page: Page) {
   });
 }
 
-async function openBoard(page: Page) {
+async function openBoard(page: Page, width = 1600) {
   await stub(page);
-  await page.setViewportSize({ width: 1600, height: 1400 });
+  await page.setViewportSize({ width, height: 1400 });
   await page.goto("/dashboard/headcount");
   await page.getByRole("tab", { name: "Day" }).click();
   await page.locator(".headcount-columns").first().waitFor({ state: "visible", timeout: 20000 });
@@ -84,9 +88,28 @@ async function openBoard(page: Page) {
 test("a half day stretched by confirmed overtime reads 06:00–14:00 on the card", async ({ page }) => {
   await openBoard(page);
   const pedro = page.locator(".headcount-columns .headcount-chip", { hasText: "Pedro Assis" }).first();
-  await expect(pedro.getByTestId("board-work-hours")).toHaveText("06:00–14:00", { timeout: 15000 });
+  await expect(pedro.getByTestId("board-work-hours")).toHaveText("06–14", { timeout: 15000 });
   await expect(pedro.getByTestId("board-work-hours")).toHaveAttribute("title", /Shift 06:00–12:00 · confirmed overtime 12:00–14:00 · 8h on/);
   await pedro.screenshot({ path: "test-results/board-confirmed-overtime-chip.png" });
+});
+
+// 1005px is the line tablet (Galaxy Tab A9), where the columns are narrowest.
+for (const width of [1600, 1005]) test(`a card in the Overtime column keeps its name, hours and crew inside the cell (${width}px)`, async ({ page }) => {
+  await openBoard(page, width);
+  const card = page.locator(".headcount-chip", { hasText: "Welligton Segat" }).first();
+  await expect(card.getByTestId("board-work-hours")).toHaveText("06–14", { timeout: 15000 });
+  await expect(card.getByTitle(/crew$/)).toBeVisible();
+  // Every part of the card is inside the card's own box: nothing cut at the top or bottom.
+  const inside = await card.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return [...el.querySelectorAll<HTMLElement>("span")].every((s) => {
+      const r = s.getBoundingClientRect();
+      return r.height === 0 || (r.top >= box.top - 0.5 && r.bottom <= box.bottom + 0.5
+        && r.left >= box.left - 0.5 && r.right <= box.right + 0.5);
+    });
+  });
+  expect(inside, "a mark spills out of the cell, or is cut at its edge").toBe(true);
+  await card.screenshot({ path: `test-results/board-overtime-column-card-${width}.png` });
 });
 
 test("an ask for the night does not stretch the day card", async ({ page }) => {
