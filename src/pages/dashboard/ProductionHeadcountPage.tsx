@@ -1529,11 +1529,17 @@ function ShiftBoard({
           <p className="text-sm">
             <span className="font-bold">Not planned yet.</span>{" "}
             <span className="text-muted-foreground">
-              The {ghostCount} names in grey italic are where the {plan?.label} matrix puts the people due in. Nothing is saved until you save it.
+              {ghostFromLastDay && lastDay
+                ? `The ${ghostCount} names in grey italic are where each person worked on ${lastDay.on_date.split("-").reverse().join("/")}, the last ${shift.toLowerCase()} day worked. Nothing is saved until you save it.`
+                : `The ${ghostCount} names in grey italic are where the ${plan?.label} matrix puts the people due in. Nothing is saved until you save it.`}
             </span>
           </p>
           {canManage && (
-            <Button size="sm" onClick={() => runCopy({ kind: "matrix", matrix: planKind })} disabled={copyLastLikeDay.isPending}>
+            <Button
+              size="sm"
+              onClick={() => runCopy(ghostFromLastDay && lastDay ? { kind: "day", on_date: lastDay.on_date } : { kind: "matrix", matrix: planKind })}
+              disabled={copyLastLikeDay.isPending}
+            >
               Save this plan
             </Button>
           )}
