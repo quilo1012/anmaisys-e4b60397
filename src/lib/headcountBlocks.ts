@@ -49,3 +49,36 @@ export type SheetBand = (typeof SHEET_BANDS)[number];
 export function sheetBandOf(area: { section: string | null; kind: string }): SheetBand {
   return blockOf(area) === "production" ? "production" : "support";
 }
+
+/**
+ * Uma área chamada "Training".
+ *
+ * A folha da empresa tem Training como uma coluna ao lado das linhas, e alguém criou
+ * uma área com esse nome para o import ter onde a pôr. O board já tinha a sua coluna
+ * Training — o estado `training`, ao fim da segunda banda — e passou a desenhar duas,
+ * uma vazia e outra cheia, conforme o caminho por onde a pessoa lá chegou. A área é
+ * ainda `kind = production`, por isso quem estava nela contava em "On lines".
+ */
+export function isTrainingArea(area: { name: string }): boolean {
+  return area.name.trim().toLowerCase() === "training";
+}
+
+/**
+ * As linhas gravadas na área Training, lidas como o estado `training`.
+ *
+ * Só a leitura muda: a linha fica gravada como está, e arrastar a pessoa para outro
+ * sítio escreve por cima, como sempre. Overtime continua overtime — é a maneira como o
+ * dia conta, não o sítio — e cai na coluna Overtime.
+ */
+export function foldTrainingArea<T extends { area_id: string | null; status: string }>(
+  allocations: readonly T[],
+  areas: readonly { id: string; name: string }[],
+): T[] {
+  const ids = new Set(areas.filter(isTrainingArea).map((a) => a.id));
+  if (ids.size === 0) return allocations as T[];
+  return allocations.map((a) =>
+    a.area_id && ids.has(a.area_id)
+      ? ({ ...a, area_id: null, status: a.status === "overtime" ? "overtime" : "training" } as T)
+      : a,
+  );
+}
