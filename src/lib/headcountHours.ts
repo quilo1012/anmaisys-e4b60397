@@ -1,4 +1,5 @@
 import type { Allocation, HeadcountArea } from "@/hooks/useHeadcount";
+import { placementHours, type ConfirmedAsk } from "@/lib/boardOvertime";
 
 /**
  * The hours a shift actually cost, by line.
@@ -80,19 +81,40 @@ export function hoursByArea({
   shift,
   areas,
   areaNameById,
+  boardDate,
+  confirmedAsks,
 }: {
   allocations: ReadonlyArray<Allocation>;
   shift: string;
   areas: ReadonlyArray<HeadcountArea>;
   areaNameById?: ReadonlyMap<string, string>;
+  /**
+   * The board's date, and the confirmed overtime asks of the people on it. With both,
+   * a placement counts the hours it really covers — the shift plus the confirmed
+   * overtime laid over it (see `boardOvertime.ts`). Without them, the old reading.
+   */
+  boardDate?: string;
+  confirmedAsks?: ReadonlyMap<string, ReadonlyArray<ConfirmedAsk>>;
 }): { rows: HoursRow[]; totals: HoursTotals } {
   const by = new Map<string, HoursTotals>();
   for (const a of allocations) {
     if (a.status !== "assigned" && a.status !== "overtime") continue;
     const key = a.area_id ?? NO_AREA_KEY;
     const r = by.get(key) ?? empty();
-    const h = allocationHours(a, shift);
-    if (a.status === "overtime") { r.otPeople++; r.ot += h; } else { r.people++; r.hours += h; }
+    if (boardDate && confirmedAsks) {
+      const ph = placementHours(a, boardDate, shift, confirmedAsks.get(a.employee_id) ?? []);
+      if (a.status === "overtime") {
+        // The whole row is overtime: a day off their rota, or the bridge's row for an ask.
+        r.otPeople++; r.ot += ph.total;
+      } else {
+        r.people++; r.hours += ph.base;
+        // A shift stretched by confirmed overtime: the extra hours are overtime, once.
+        if (ph.overtime > 0) { r.otPeople++; r.ot += ph.overtime; }
+      }
+    } else {
+      const h = allocationHours(a, shift);
+      if (a.status === "overtime") { r.otPeople++; r.ot += h; } else { r.people++; r.hours += h; }
+    }
     by.set(key, r);
   }
 

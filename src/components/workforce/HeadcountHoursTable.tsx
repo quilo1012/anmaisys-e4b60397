@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAllocations, useAllAreaNames, type HeadcountArea } from "@/hooks/useHeadcount";
+import { useAllocations, useAllAreaNames, useConfirmedOvertime, type HeadcountArea } from "@/hooks/useHeadcount";
 import { hoursByArea, SHIFT_H } from "@/lib/headcountHours";
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
@@ -20,10 +20,11 @@ export function HeadcountHoursTable({ date, shift, areas }: { date: string; shif
   // Every area ever, the switched-off ones included, so an off-board row can name the
   // line instead of pointing at a gap.
   const { data: areaNameById } = useAllAreaNames();
+  const { data: confirmedAsks } = useConfirmedOvertime(date, shift);
 
   const { rows, totals } = useMemo(
-    () => hoursByArea({ allocations, shift, areas, areaNameById }),
-    [allocations, areas, shift, areaNameById],
+    () => hoursByArea({ allocations, shift, areas, areaNameById, boardDate: date, confirmedAsks }),
+    [allocations, areas, shift, areaNameById, date, confirmedAsks],
   );
 
   const offBoard = rows.filter((r) => r.offBoard);
@@ -34,7 +35,7 @@ export function HeadcountHoursTable({ date, shift, areas }: { date: string; shif
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Hours by line — {date} · {shift} shift</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Hours = people placed × {SHIFT_H}h shift (half day 6h, late arrival / early leave deducted). Overtime = people placed as overtime.
+          Hours = people placed × {SHIFT_H}h shift (half day 6h, late arrival / early leave deducted). Overtime = confirmed overtime hours: a whole overtime placement, or the hours an accepted ask adds to someone's shift.
         </p>
       </CardHeader>
       <CardContent className="overflow-x-auto">

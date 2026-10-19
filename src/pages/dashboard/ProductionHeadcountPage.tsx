@@ -39,6 +39,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
+import { placementHours, type PlacementHours } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
 import { useRole } from "@/hooks/useRole";
@@ -52,6 +53,7 @@ import {
   useHeadcountAreas,
   useShiftRoster,
   useAllocations,
+  useConfirmedOvertime,
   useAllocationMutations,
   useCopyableDays,
   useHeadcountMatrix,
@@ -375,6 +377,7 @@ function Chip({
   leftOn,
   startTime,
   tag,
+  workHours,
   draggable,
   onOpen,
   onDragStart,
@@ -388,6 +391,11 @@ function Chip({
   startTime?: string | null;
   /** "training" written in brackets on the sheet. */
   tag?: string | null;
+  /**
+   * The hours this person is really on for, when confirmed overtime reaches this board:
+   * "06:00–14:00" for a half day stretched to 14:00. Null when it is the plain shift.
+   */
+  workHours?: PlacementHours | null;
   tone: "production" | "support" | "away" | "overtime" | "roster" | "training";
   leader?: boolean;
   /** Named role — LEAD, SUP, TEC, LAB, WH, OFF — when the department says one. */
@@ -419,7 +427,7 @@ function Chip({
   // Células brancas, como na folha. A cor fica para os cabeçalhos e para o líder; um
   // nome numa coluna de Holidays já diz o que é pela coluna onde está.
   const plain = "bg-card text-foreground";
-  const marked = !!(startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
+  const marked = !!(workHours || startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
   const tones: Record<string, string> = {
     production: plain, support: plain, away: plain, overtime: plain, training: plain, roster: plain,
   };
@@ -478,6 +486,19 @@ function Chip({
       </span>
       {marked && (
       <span className="flex max-w-full flex-wrap items-center justify-center gap-1 leading-none">
+      {workHours && (
+        <span
+          data-testid="board-work-hours"
+          title={[
+            workHours.shiftLabel ? `Shift ${workHours.shiftLabel}` : null,
+            workHours.overtimeLabels.length ? `confirmed overtime ${workHours.overtimeLabels.join(", ")}` : null,
+            `${Number.isInteger(workHours.total) ? workHours.total : workHours.total.toFixed(1)}h on`,
+          ].filter(Boolean).join(" · ")}
+          className="shrink-0 rounded-sm border border-[#92D050] bg-[#92D050]/25 px-1 py-px font-figure text-[10px] font-bold leading-tight text-foreground"
+        >
+          {workHours.label}
+        </span>
+      )}
       {startTime && (
         <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
           {startTime}
@@ -771,6 +792,8 @@ function ShiftBoard({
   // A little distance first, so a tap on the heading is not read as a drag.
   const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const { data: savedAllocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
+  // Confirmed overtime laid over each placement, so the card says the hours really worked.
+  const { data: confirmedAsks } = useConfirmedOvertime(onDate, shift);
   // One Training column, not two: the area of that name is read as the Training state.
   const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
   const allocations = useMemo(() => foldTrainingArea(savedAllocations, allAreas), [savedAllocations, allAreas]);
@@ -798,6 +821,14 @@ function ShiftBoard({
     allocations.forEach((a) => m.set(a.employee_id, a));
     return m;
   }, [allocations]);
+  /** Null unless confirmed overtime reaches this person's placement on this board. */
+  const workHoursOf = (employeeId: string): PlacementHours | null => {
+    const a = byEmployee.get(employeeId);
+    const asks = confirmedAsks?.get(employeeId);
+    if (!a || !asks?.length) return null;
+    const h = placementHours(a, onDate, shift, asks);
+    return h.overtimeLabels.length ? h : null;
+  };
 
   // Everyone active, not only whoever is eligible today: a saved allocation is a fact
   // and has to show in its column. If the person stops being eligible the card stays,
@@ -1058,6 +1089,7 @@ function ShiftBoard({
                   sheetName={p.sheetName}
                   startTime={p.startTime}
                   tag={p.tag}
+                  workHours={workHoursOf(p.id)}
                   onOpen={() => setEditing(p.id)}
                   dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
                   role={roleOf(p)}
@@ -1610,6 +1642,7 @@ function ShiftBoard({
                         sheetName={sheetName}
                         startTime={startTime}
                         tag={tag}
+                        workHours={workHoursOf(p.id)}
                         leader={leadsToday || isLeader(p)}
                         lineLeader={leadsToday}
                         lineName={area.name}
