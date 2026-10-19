@@ -138,7 +138,7 @@ describe("copyLastLikeDay, choosing the day", () => {
     await waitFor(() => expect(result.current.copyLastLikeDay.isSuccess).toBe(true));
     expect(sourceQuery()).toBeUndefined();
     expect(boardWrite()?.payload).toEqual([
-      { employee_id: "ana", area_id: "line-1", status: "overtime", on_date: ON_DATE, shift: "Night" },
+      { employee_id: "ana", area_id: "line-1", status: "assigned", on_date: ON_DATE, shift: "Night" },
     ]);
     expect(boardWrite()?.options).toMatchObject({ ignoreDuplicates: true });
     expect(result.current.copyLastLikeDay.data?.written).toBe(1);
