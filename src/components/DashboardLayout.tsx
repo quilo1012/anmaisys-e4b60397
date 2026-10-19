@@ -199,7 +199,7 @@ export const navItems: NavItem[] = [
   // `permissions.ts`: o `navItemShows()` cruza esta lista com o `can()`, por isso um
   // `operator` escrito aqui não devolve o ecrã sozinho — mas deixa as duas listas a
   // dizer coisas diferentes, que é como este ecrã apareceu a quem não o devia ver.
-  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
+  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "maintenance_manager", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and
@@ -260,9 +260,8 @@ export const navItems: NavItem[] = [
   // dissolved Assets, Reports and Communication — a heading over a single row — and
   // the exception is written into the sidebar test beside System and Administration,
   // not left for the next reader to discover as a failure.
-  // engineer and co_engineer hold quality.view. The row listed neither, so the
-  // screen opened only for somebody who typed the URL.
-  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "quality_supervisor", "engineer", "production_office_admin"], group: "Quality", action: "quality.view" },
+  // No `engineer` (19/10/2026): the engineer's sidebar is maintenance only.
+  { title: "Quality", url: "/dashboard/quality", icon: AlertTriangle, roles: ["admin", "manager", "quality_supervisor", "production_office_admin"], group: "Quality", action: "quality.view" },
 
   // Analytics and Messages sit in Overview rather than each holding a group of its
   // own. The argument that dissolved Assets applies harder to a group of one: a
