@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { sameTitle, useShellTitle } from "@/components/shell/shellTitle";
 // The plain mark, not public/appliedlogo.jpeg — that one is the "Applied Nutrition
 // MAINTENANCE" lockup with the gear and spanners, and has no business on a
 // production screen. Same import the print header uses.
@@ -67,6 +68,7 @@ export function ModuleHeader({
   children?: React.ReactNode;
   className?: string;
 }) {
+  const echoes = sameTitle(useShellTitle(), title);
   return (
     <header
       className={cn(
@@ -75,6 +77,9 @@ export function ModuleHeader({
         // Ink on paper: the navy would print as a solid block and the page is meant to
         // be handed to somebody.
         "print:bg-white print:p-0 print:text-black print:shadow-none",
+        // Nothing left to draw on a phone once the title is the top bar's.
+        echoes && !children && !brand && "hidden sm:block",
+        compact && "px-3 sm:px-4",
         className,
       )}
     >
@@ -90,13 +95,20 @@ export function ModuleHeader({
         )}
         {compact ? (
           <h1
-            className="shrink-0 font-display text-lg font-bold leading-tight tracking-tight"
+            className={cn(
+              "shrink-0 font-display text-lg font-bold leading-tight tracking-tight",
+              // Same words as the phone's top bar: kept for a screen reader, not drawn.
+              echoes && "sr-only sm:not-sr-only",
+            )}
             title={description}
           >
             {title}
           </h1>
         ) : (
-          <div className="min-w-0 flex-1">
+          // `min-w-[12rem]`: with only `min-w-0` the controls beside it squeezed this
+          // column to one letter a line on a phone ("W / O / R / K / F…") instead of
+          // wrapping under it.
+          <div className={cn("min-w-[12rem] flex-1", echoes && "hidden sm:block")}>
             <div className="font-display text-2xs font-semibold uppercase tracking-[0.18em] text-white/60 print:text-black/50">
               {module}
             </div>
@@ -107,7 +119,9 @@ export function ModuleHeader({
           </div>
         )}
         {children && (
-          <div className={cn("flex flex-wrap items-center gap-2", compact && "min-w-0 flex-1 justify-end")}>{children}</div>
+          // Below 640px the controls start at the left edge and wrap in reading order;
+          // right-aligned, they stacked into a ragged column under the title.
+          <div className={cn("flex flex-wrap items-center gap-2", compact && "min-w-0 flex-1 justify-start sm:justify-end")}>{children}</div>
         )}
       </div>
     </header>

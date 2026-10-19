@@ -16,3 +16,10 @@ export function sameTitle(a: string, b: string) {
   const norm = (t: string) => t.trim().toLowerCase().replace(/\s+dashboard$/, "");
   return !!a && !!b && norm(a) === norm(b);
 }
+
+/**
+ * True inside DashboardLayout's content area. The shell's top bar already carries
+ * Back on every screen, so a page that also drew its own BackButton — eight of them
+ * did — spent a whole row on a second arrow. BackButton reads this and stays out.
+ */
+export const InShellContentContext = createContext<boolean>(false);

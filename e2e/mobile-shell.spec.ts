@@ -212,3 +212,34 @@ test.describe("filters fold on a phone", () => {
     });
   }
 });
+
+test.describe("busy screens on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("Maintenance Orders: one More menu, filters folded, the list starts on the first screen", async ({ page }) => {
+    await stubSupabase(page, true);
+    await page.goto("/dashboard/work-orders");
+    await expect(page.getByRole("button", { name: "More order actions" })).toBeVisible();
+    // Clear orders is not a loose red button on a phone; it is in the menu.
+    await expect(page.getByRole("button", { name: "Clear orders" })).toBeHidden();
+    const toggle = page.getByRole("button", { name: /Filters/ });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#wo-filters")).toBeHidden();
+    await toggle.click();
+    await expect(page.locator("#wo-filters")).toBeVisible();
+    await page.getByRole("button", { name: "More order actions" }).click();
+    await expect(page.getByRole("menuitem", { name: /Clear orders/ })).toBeVisible();
+  });
+
+  for (const path of ["/dashboard/people", "/dashboard/overtime", "/dashboard/leave"]) {
+    test(`${path}: one Back, and the workforce tabs are one row`, async ({ page }) => {
+      await stubSupabase(page, true);
+      await page.goto(path);
+      await expect(page.getByRole("navigation", { name: "Workforce sections" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Go back" })).toHaveCount(1);
+      const tabs = await page.getByRole("navigation", { name: "Workforce sections" }).getByRole("link").all();
+      const tops = new Set(await Promise.all(tabs.map(async (t) => Math.round((await t.boundingBox())!.y))));
+      expect(tops.size).toBe(1);
+    });
+  }
+});

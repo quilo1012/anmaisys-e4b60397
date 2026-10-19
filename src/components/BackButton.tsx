@@ -4,6 +4,8 @@ import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { useContext } from "react";
+import { InShellContentContext } from "@/components/shell/shellTitle";
 
 /**
  * Back, in the same place on every screen.
@@ -23,8 +25,11 @@ export function BackButton({ className, iconOnly = false }: { className?: string
   const location = useLocation();
   const { role } = useAuth();
   const home = dashboardPathFor(role as Role | null);
+  const duplicate = useContext(InShellContentContext);
 
   if (location.pathname === home) return null;
+  // The shell's bar has one already; see InShellContentContext.
+  if (duplicate) return null;
 
   // React Router marks the first entry of a session "default" — that is the
   // new-tab / pasted-link case, where there is nothing behind us.

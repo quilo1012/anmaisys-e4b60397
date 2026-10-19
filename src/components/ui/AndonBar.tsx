@@ -64,34 +64,36 @@ export function AndonBar({
   return (
     <div
       className={cn(
-        "rounded-lg px-5 py-4 sm:px-6 sm:py-5",
+        "rounded-lg px-4 py-3.5 sm:px-6 sm:py-5",
         FIELD[state],
         className,
       )}
       role="status"
       aria-live="polite"
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+      {/* On a phone the verdict and the figure share one row — wrapped, the figure
+          fell to a third line and the lamp was 175px tall before a single line card. */}
+      <div className="flex items-center justify-between gap-x-4 gap-y-3 sm:flex-wrap sm:gap-x-6">
         <div className="min-w-0">
-          <div className="font-display text-2xl font-bold uppercase leading-none tracking-[0.08em] sm:text-[2rem]">
+          <div className="font-display text-xl font-bold uppercase leading-none tracking-[0.06em] sm:text-[2rem] sm:tracking-[0.08em]">
             {verdict}
           </div>
           {/* This line is what the number was measured against — without it, as the
               note at the top of this file says, 104% is a number with no question.
               It was 11px at 80% opacity, which measured 4.0–4.15:1: under AA, on
               the one piece of text that gives the figure beside it its meaning. */}
-          <div className="mt-2 text-sm font-semibold uppercase tracking-[0.12em] sm:text-base">
+          <div className="mt-1.5 text-xs font-semibold uppercase leading-snug tracking-[0.08em] sm:mt-2 sm:text-base sm:tracking-[0.12em]">
             {basis}
           </div>
         </div>
-        <div className="flex items-baseline gap-4 sm:gap-6">
+        <div className="flex shrink-0 items-baseline gap-4 sm:gap-6">
           {detail && (
             <div className="hidden text-right font-figure text-sm font-bold opacity-90 sm:block">
               {detail}
             </div>
           )}
           {value && (
-            <div className="font-figure text-[2.75rem] font-bold leading-none tracking-[-0.03em] sm:text-[3.5rem]">
+            <div className="shrink-0 font-figure text-[2.5rem] font-bold leading-none tracking-[-0.03em] sm:text-[3.5rem]">
               {value}
             </div>
           )}

@@ -48,7 +48,7 @@ import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { MobileAppHeader } from "@/components/shell/MobileAppHeader";
-import { ShellTitleContext } from "@/components/shell/shellTitle";
+import { InShellContentContext, ShellTitleContext } from "@/components/shell/shellTitle";
 import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { OvertimeOfferAlert } from "@/components/workforce/OvertimeOfferAlert";
@@ -700,6 +700,9 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/departments/production": "Production Dashboard",
   "/dashboard/departments/maintenance": "Maintenance Dashboard",
   "/dashboard/overtime": "Overtime",
+  "/dashboard/attendance": "Attendance",
+  "/dashboard/leave": "Annual Leave",
+  "/dashboard/finance-close": "Finance Close",
   "/dashboard/my-overtime": "My Overtime",
   "/dashboard/my-attendance": "My Attendance",
   "/dashboard/link-accounts": "Link accounts",
@@ -921,7 +924,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const [sidebarUiState, setSidebarUiState] = useState<SidebarUiState>(
     () => readSavedSidebarState() ?? (defaultSidebarOpen ? "expanded" : "rail"),
   );
-  const currentPageTitle = routeTitles[location.pathname] ?? "";
+  // A route missing from routeTitles used to leave the phone's bar saying "PMSystem"
+  // (Attendance did). The sidebar row that opens the screen is the next best name.
+  const currentPageTitle =
+    routeTitles[location.pathname] ??
+    navItems.find((i) => i.url.split("?")[0] === location.pathname)?.title ??
+    "";
 
   // The window never scrolls — this div does. The mobile header collapses its own
   // height while scrolling down so the 44px goes back to the content.
@@ -1119,7 +1127,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               )}
             >
               <div className="min-w-0 w-full">
-                <ShellTitleContext.Provider value={currentPageTitle}>{children}</ShellTitleContext.Provider>
+                <ShellTitleContext.Provider value={currentPageTitle}><InShellContentContext.Provider value={true}>{children}</InShellContentContext.Provider></ShellTitleContext.Provider>
               </div>
             </div>
 

@@ -109,12 +109,15 @@ export function Figure({
  * Finance Close has six, Attendance four. Growing from the content cannot be off by
  * one.
  *
- * The lead takes about half again the width of its neighbours. On a phone they stack
- * and the lead is simply first, which is the same claim made by position.
+ * The lead takes about half again the width of its neighbours. On a phone the lead
+ * spans the row and the rest go two-up; the lead is first, which is the same claim
+ * made by position.
  */
 export function FigureRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap [&>*]:min-w-[9rem] [&>*]:flex-1 [&>*:first-child]:sm:flex-[1.6]">
+    // Phone: the lead across the full width, the rest two-up beneath it. Stacked one
+    // per row, Finance Close's six figures were three screens of scrolling.
+    <div className="grid grid-cols-2 gap-3 [&>*:first-child]:col-span-2 [&>*]:min-w-0 sm:flex sm:flex-row sm:flex-wrap sm:[&>*]:min-w-[9rem] sm:[&>*]:flex-1 [&>*:first-child]:sm:flex-[1.6]">
       {children}
     </div>
   );
