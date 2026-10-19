@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/hooks/useRole";
-import { Users, Contact, CalendarDays, Clock, Calculator, HandCoins } from "lucide-react";
+import { Users, Contact, CalendarDays, Clock, Calculator, HandCoins, UserCog } from "lucide-react";
 
 /**
  * The screens that are all about the same people, joined at the top.
@@ -24,6 +24,7 @@ const TABS = [
   { to: "/dashboard/attendance", label: "Attendance", icon: Clock },
   { to: "/dashboard/overtime", label: "Overtime", icon: HandCoins },
   { to: "/dashboard/finance-close", label: "Finance Close", icon: Calculator },
+  { to: "/users/manage", label: "User Management", icon: UserCog },
 ];
 
 export function WorkforceTabs() {
@@ -31,7 +32,8 @@ export function WorkforceTabs() {
   const visibleTabs = TABS.filter((t) => can(
     t.to === "/dashboard/people" ? "employees.view" :
     t.to === "/dashboard/headcount" ? "headcount.view" :
-    t.to === "/dashboard/overtime" ? "overtime.manage" : "workforce.view",
+    t.to === "/dashboard/overtime" ? "overtime.manage" :
+    t.to === "/users/manage" ? "users.manage" : "workforce.view",
   ));
   return (
     <nav

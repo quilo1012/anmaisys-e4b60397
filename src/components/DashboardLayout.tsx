@@ -213,19 +213,19 @@ export const navItems: NavItem[] = [
   // still an import. The route, the screen, the hooks and the data all remain —
   // /dashboard/workforce still opens for an admin who types it.
   { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
-  { title: "Employee", url: "/dashboard/people", icon: Users, roles: ["admin", "manager"], group: "Production", action: "employees.view" },
+  { title: "Employee", url: "/dashboard/people", icon: Users, roles: ["manager"], group: "Production", action: "employees.view" },
   // Overtime is asked for before it is worked, and the ask is the manager's: it is
   // the one Workforce screen a manager reaches without the admin-only board, so it
   // gets a row of its own rather than living only on the board's tab bar.
-  { title: "Overtime", url: "/dashboard/overtime", icon: HandCoins, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
+  { title: "Overtime", url: "/dashboard/overtime", icon: HandCoins, roles: ["manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
   // The floor's side of the same thing: the asks that apply to you, and Yes / No.
   // Sem `operator`: essas contas são de LINHA, não de pessoa — ver
   // `operator_line_accounts` e a migração 20261009090000, que já recusa ligá-las a um
   // funcionário. Um turno inteiro ao mesmo tablet respondia como a mesma pessoa.
-  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["admin", "manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
+  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
   // The signed-in person's own record. Same people as My Overtime; the database answers
   // it from the session alone (`my_attendance`), so it can only ever be their own.
-  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["admin", "manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
+  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do

@@ -273,6 +273,7 @@ const ROLES_WITH_PEOPLE: Role[] = [
  * An entry here is a decision on the record. A missing entry is a test failure.
  */
 const NO_MENU_ROW: Partial<Record<Action, string>> = {
+  "employees.view": "REACHED FROM THE HEADCOUNT TABS — the admin opens Employee beside the board, not from the menu.",
   "production.view": "NO SCREEN — a capability behind production sessions, not a page.",
   "planner.view": "NO SCREEN — the planner is a separate application.",
   "smarttarget.view": "NO SCREEN — no route in this app.",

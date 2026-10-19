@@ -2192,27 +2192,34 @@ export default function ProductionHeadcountPage() {
                 tooltip), which is what lets the band stay one line on a laptop. Sync
                 keeps a word at every width: it is the one pressed every morning. */}
             <span aria-hidden className="mx-1 hidden h-6 w-px bg-white/20 sm:block print:hidden" />
-            {canManage && (
-              <>
-                {/* The sheet the office types every morning, one press away. It opens the
-                    same preview the file path uses — nothing is saved until it is confirmed. */}
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-8 print:hidden"
-                  aria-label="Sync from SharePoint"
-                  title="Sync from SharePoint — read today's sheet and preview it before anything is saved"
-                  onClick={openSync}
-                >
-                  <CloudDownload className="h-4 w-4 2xl:mr-2" />
-                  <span className="ml-1.5 2xl:hidden">Sync</span>
-                  <span className="hidden 2xl:inline">Sync from SharePoint</span>
+            {/* All board actions behind one menu, so the header stays clean. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="secondary" className="h-8 gap-1.5 print:hidden" aria-label="Board actions">
+                  <CloudDownload className="h-4 w-4" />
+                  Actions
+                  <ChevronDown className="h-3.5 w-3.5 opacity-70" />
                 </Button>
-                <HeaderAction icon={Upload} label="Import" title="Import a sheet from a file" onClick={() => { setSyncing(false); setSheet("import"); }} />
-              </>
-            )}
-            <HeaderAction icon={Download} label="Export" title="Export this day as a sheet" onClick={() => setSheet("export")} />
-            <HeaderAction icon={Printer} label="Print" title="Print the board" onClick={() => window.print()} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {canManage && (
+                  <>
+                    <DropdownMenuItem onClick={openSync} className="gap-2">
+                      <CloudDownload className="h-4 w-4" /> Sync from SharePoint
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { setSyncing(false); setSheet("import"); }} className="gap-2">
+                      <Upload className="h-4 w-4" /> Import from file
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuItem onClick={() => setSheet("export")} className="gap-2">
+                  <Download className="h-4 w-4" /> Export this day
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => window.print()} className="gap-2">
+                  <Printer className="h-4 w-4" /> Print the board
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
         </>
       </ModuleHeader>
 
