@@ -2786,7 +2786,7 @@ export type Database = {
           created_by: string
           department: string | null
           ends_at: string
-          headcount: number
+          headcount: number | null
           id: string
           note: string | null
           on_date: string
@@ -2800,7 +2800,7 @@ export type Database = {
           created_by: string
           department?: string | null
           ends_at: string
-          headcount: number
+          headcount?: number | null
           id?: string
           note?: string | null
           on_date: string
@@ -2814,7 +2814,7 @@ export type Database = {
           created_by?: string
           department?: string | null
           ends_at?: string
-          headcount?: number
+          headcount?: number | null
           id?: string
           note?: string | null
           on_date?: string
@@ -7082,6 +7082,7 @@ export type Database = {
           line: string
         }[]
       }
+      dm_wrote_to_me: { Args: { p_from: string }; Returns: boolean }
       factory_shift_key: { Args: { _ts: string }; Returns: string }
       factory_shift_of: { Args: { at: string }; Returns: string }
       finish_wo_with_pin: {
@@ -7447,6 +7448,10 @@ export type Database = {
       }
       login_link_candidates: { Args: never; Returns: Json }
       match_employee_for_user: { Args: { _user_id: string }; Returns: string }
+      message_overtime_supervisor: {
+        Args: { p_message: string; p_request_id: string }
+        Returns: string
+      }
       move_machine_to_line: {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined

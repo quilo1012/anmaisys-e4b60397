@@ -52,7 +52,7 @@ function JoinsAs({ role }: { role: string | null }) {
 /** What the invite field says under itself: where the code came from, and whether it is still good. */
 function InviteHint({ fromLink, check }: { fromLink: boolean; check: "checking" | "ok" | "bad" | null }) {
   if (fromLink && check === "bad") {
-    return <p role="alert" className="text-xs font-medium text-destructive-strong">{INVALID_INVITE_MESSAGE}</p>;
+    return <p role="alert" className="text-xs font-medium text-auth-danger">{INVALID_INVITE_MESSAGE}</p>;
   }
   return (
     <p className="text-xs text-auth-ink-muted">
@@ -236,7 +236,7 @@ export default function SignUp() {
     return (
       <AuthShell title="Account created" subtitle="One more step">
         <div className="space-y-4 text-center">
-          <CheckCircle2 className="mx-auto h-12 w-12 text-success-strong" />
+          <CheckCircle2 className="mx-auto h-12 w-12 text-auth-success" />
           <p className="text-sm text-auth-ink">
             {onTablet && door === "badge"
               ? <>Your account is ready. Sign in on your own phone with your badge number and the password you just chose — this tablet stays signed in as the line.</>
@@ -330,7 +330,7 @@ export default function SignUp() {
         </div>
 
         <JoinsAs role="employee" />
-        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
+        {error && <p className="rounded-md bg-auth-danger/10 px-3 py-2 text-sm text-auth-danger">{error}</p>}
 
         {/* A saída, onde a pessoa encalhou. Dizer que não funciona e deixá-la no mesmo
             ecrã é deixá-la a carregar no botão outra vez. */}
@@ -383,7 +383,7 @@ export default function SignUp() {
         </div>
 
         <JoinsAs role={autoRole} />
-        {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive-strong">{error}</p>}
+        {error && <p className="rounded-md bg-auth-danger/10 px-3 py-2 text-sm text-auth-danger">{error}</p>}
 
         <button type="submit" disabled={submitting}
           className={authPrimaryBtn}>

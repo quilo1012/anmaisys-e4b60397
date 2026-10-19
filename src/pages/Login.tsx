@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
   AlertCircle,
-  ArrowRight,
   CheckCircle2,
   ChevronDown,
   Eye,
@@ -12,6 +11,7 @@ import {
   Loader2,
   Lock,
   Mail,
+  IdCard,
   ShieldAlert,
   Tablet,
 } from "lucide-react";
@@ -180,6 +180,10 @@ export default function Login() {
   const device = useDeviceType();
   const onPersonalPhone = device === "mobile" && !wasLineTablet();
   const showCreateAccount = !matchedTablet && (onPersonalPhone || !(hasTablets && !isEmail));
+  // A lista de postos num telemóvel pessoal era uma seta ao lado de um campo que diz
+  // "Email or employee ID": oferecia o que a etiqueta não prometia. Escrever o nome
+  // de um posto continua a funcionar; só deixa de ser oferecido.
+  const offerTablets = hasTablets && !onPersonalPhone;
 
   // ── Rate limit state ────────────────────────────────────────
   // Identity used as the rate-limit key (tablet account id or email).
@@ -285,7 +289,7 @@ export default function Login() {
       setActiveIndex(-1);
       return;
     }
-    if (!hasTablets || suggestions.length === 0) return;
+    if (!offerTablets || suggestions.length === 0) return;
 
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -330,6 +334,13 @@ export default function Login() {
         : "Not recognised. Use your work email address or your employee ID (like E045).";
       setFormError(msg);
       toast({ title: "Not recognised", description: msg, variant: "destructive" });
+      return;
+    }
+
+    if (password.length < 6) {
+      const msg = password ? "Passwords here are at least 6 characters." : "Enter your password.";
+      setFormError(msg);
+      requestAnimationFrame(() => passwordRef.current?.focus());
       return;
     }
 
@@ -491,21 +502,25 @@ export default function Login() {
         onPersonalPhone
           ? "Use your work email or the ID on your badge."
           : hasTablets
-            ? "Use your work email, or the name of the tablet you're standing at."
-            : "Use your work email."
+            ? "Use your work email, your badge ID, or the name of the tablet you're at."
+            : "Use your work email or the ID on your badge."
       }
     >
       <form
         onSubmit={handleSubmit}
         className={`space-y-4 ${loading || authed ? "pointer-events-none opacity-70" : ""}`}
         autoComplete="on"
+        // A bolha do browser ("Please lengthen this text to 6 characters…") é de outro
+        // desenho, noutra língua conforme o browser, e some ao tocar. O formulário diz
+        // o que falta na sua própria caixa de erro, que fica.
+        noValidate
         aria-busy={loading}
       >
         {/* ── Identidade ─────────────────────────────────────────
             Um campo só. O que se escreve é que diz o que se é. */}
         <div className="space-y-1.5">
           <label htmlFor="identifier" className={authLabel}>
-            {onPersonalPhone ? "Email or employee ID" : hasTablets ? "Email or tablet" : "Email"}
+            {onPersonalPhone ? "Email or employee ID" : hasTablets ? "Email, employee ID or tablet" : "Email or employee ID"}
           </label>
           <div className="relative" ref={comboRef}>
             {matchedTablet ? (
@@ -524,11 +539,12 @@ export default function Login() {
                 // Só abre enquanto houver escolha por fazer. Abrir sempre punha um
                 // painel de doze linhas por cima do campo da password e do botão de
                 // entrar — a lista tapava precisamente o que vinha a seguir.
-                if (hasTablets) setListOpen(true);
+                if (offerTablets) setListOpen(true);
               }}
-              onFocus={() => { if (hasTablets && !identifier) setListOpen(true); }}
+              onFocus={() => { if (offerTablets && !identifier) setListOpen(true); }}
               onKeyDown={onIdentifierKeyDown}
-              placeholder={onPersonalPhone ? "E045 or you@appliednutrition.com" : hasTablets ? "you@appliednutrition.com, E045, or Line 3" : "you@appliednutrition.com or E045"}
+              // .uk: é o domínio das contas reais. O .com do exemplo não existe.
+              placeholder={onPersonalPhone ? "E045 or your work email" : hasTablets ? "name@appliednutrition.uk, E045 or Line 3" : "name@appliednutrition.uk or E045"}
               required
               autoComplete="username"
               spellCheck={false}
@@ -539,9 +555,9 @@ export default function Login() {
               aria-activedescendant={
                 listOpen && activeIndex >= 0 ? `tablet-option-${suggestions[activeIndex]?.id}` : undefined
               }
-              className={hasTablets && canChoose ? authFieldIconedAction : authFieldIconed}
+              className={offerTablets && canChoose ? authFieldIconedAction : authFieldIconed}
             />
-            {hasTablets && canChoose && (
+            {offerTablets && canChoose && (
               <button
                 type="button"
                 onClick={() => setListOpen((o) => !o)}
@@ -553,7 +569,7 @@ export default function Login() {
               </button>
             )}
 
-            {listOpen && hasTablets && (accountsLoading || canChoose) && (
+            {listOpen && offerTablets && (accountsLoading || canChoose) && (
               <ul
                 id="tablet-list"
                 ref={listRef}
@@ -590,7 +606,7 @@ export default function Login() {
                           </span>
                           <span
                             className={`block truncate text-2xs ${
-                              acc.line_names?.length ? "text-auth-ink-muted" : "text-warning-strong"
+                              acc.line_names?.length ? "text-auth-ink-muted" : "text-auth-warning"
                             }`}
                           >
                             {lineText}
@@ -605,29 +621,37 @@ export default function Login() {
           </div>
 
           {/* O que o sistema reconheceu, dito antes de submeter. */}
-          <p className="flex min-h-[1.25rem] items-center gap-1.5 font-figure text-2xs uppercase tracking-[0.08em]">
+          {/* Na letra do formulário, não em maiúsculas monoespaçadas: é uma frase para
+              ler, não uma etiqueta de máquina. */}
+          <p className="flex min-h-[1.25rem] items-center gap-1.5 text-xs">
             {matchedTablet ? (
-              <span className="flex items-center gap-1.5 text-auth-brand">
-                <Tablet className="h-3 w-3" />
+              <span className="flex items-center gap-1.5 font-medium text-auth-brand">
+                <Tablet className="h-3.5 w-3.5" />
                 {/* Diz a LINHA, não só que é um tablet. É a última oportunidade de
                     alguém reparar que está prestes a escrever produção no sítio
                     errado — e a única, porque depois de entrar o ecrã já assume. */}
                 {matchedTablet.line_names?.length
-                  ? `${matchedTablet.line_names.join(" · ")} · Operator access`
-                  : "Shared tablet · No line assigned"}
+                  ? `Operator access for ${matchedTablet.line_names.join(", ")}`
+                  : "Shared tablet with no line assigned"}
               </span>
             ) : isEmail ? (
               <span className="flex items-center gap-1.5 text-auth-ink-muted">
-                <Mail className="h-3 w-3" />
-                Work account · Access follows your role
+                <Mail className="h-3.5 w-3.5" />
+                Work account. What you can open follows your role.
+              </span>
+            ) : matchedEmployee ? (
+              // O número do crachá também é reconhecido — e não o dizia.
+              <span className="flex items-center gap-1.5 text-auth-ink-muted">
+                <IdCard className="h-3.5 w-3.5" />
+                Employee {matchedEmployee}
               </span>
             ) : unrecognised && !canChoose ? (
               // Só avisa quando não há mais nada a orientar. Com postos a aparecerem
               // na lista, é a lista a resposta — dizer "não é um tablet" por baixo de
               // oito tablets seria contradizer o que está no ecrã.
-              <span className="flex items-center gap-1.5 text-warning-strong">
-                <AlertCircle className="h-3 w-3" />
-                {hasTablets ? "Not a tablet — finish the email address" : "Enter a full email address"}
+              <span className="flex items-center gap-1.5 text-auth-warning">
+                <AlertCircle className="h-3.5 w-3.5" />
+                {hasTablets ? "Not a tablet name. Finish the email, or use an ID like E045." : "Finish the email address, or use an ID like E045."}
               </span>
             ) : null}
           </p>
@@ -683,9 +707,9 @@ export default function Login() {
         {sessionEndNotice && !formError && (
           <p
             role="status"
-            className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2.5 text-sm font-medium text-foreground"
+            className="flex items-start gap-2 rounded-lg border border-auth-warning/40 bg-auth-warning/[0.08] px-3 py-2.5 text-sm font-medium text-auth-ink"
           >
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning-strong" aria-hidden="true" />
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-auth-warning" aria-hidden="true" />
             <span>{sessionEndNotice}</span>
           </p>
         )}
@@ -693,7 +717,7 @@ export default function Login() {
           <p
             id="login-error"
             role="alert"
-            className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/[0.06] px-3 py-2.5 text-sm font-medium text-destructive-strong"
+            className="flex items-start gap-2 rounded-lg border border-auth-danger/30 bg-auth-danger/[0.06] px-3 py-2.5 text-sm font-medium text-auth-danger"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <span>{formError}</span>
@@ -706,7 +730,7 @@ export default function Login() {
           disabled={loading || authed || lockedMsLeft > 0}
           aria-live="polite"
           className={`${authBtnBase} mt-2 text-white shadow-sm ${
-            authed ? "bg-success" : "bg-auth-brand hover:bg-auth-brand/90 disabled:opacity-60"
+            authed ? "bg-auth-success" : "bg-auth-brand hover:bg-auth-brand/90 disabled:opacity-60"
           }`}
         >
           {lockedMsLeft > 0 ? (
@@ -722,15 +746,13 @@ export default function Login() {
               <Loader2 className="h-4 w-4 animate-spin" /> Signing in…
             </>
           ) : (
-            <>
-              Sign in <ArrowRight className="h-4 w-4" />
-            </>
+            "Sign in"
           )}
         </button>
 
         {/* Remaining-attempts hint */}
         {lockedMsLeft === 0 && remaining < 5 && (
-          <p className="pt-1 text-center text-2xs text-warning-strong">
+          <p className="pt-1 text-center text-2xs text-auth-warning">
             {remaining} attempt{remaining === 1 ? "" : "s"} remaining before lockout
           </p>
         )}

@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { can } from "@/lib/permissions";
 import { currentShift } from "@/lib/operationalShift";
 import { tallyBoard, boardTrend, type BoardTally } from "@/lib/boardTally";
+import { foldTrainingArea, isTrainingArea } from "@/lib/headcountBlocks";
 import { overtimeCoverage } from "@/lib/overtimeCoverage";
 import { windowLabel, type OvertimeResponse } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
@@ -150,10 +151,15 @@ function fmtRange(from: string, to: string) {
 function useBoardTally(shift: Shift, day: string) {
   const { data: roster = [], boardById, isLoading: rl } = useShiftRoster(shift, day);
   const { data: allocations = [], isLoading: al, error } = useAllocations(day, shift);
-  const { data: areas = [], isLoading: ar } = useHeadcountAreas();
+  const { data: allAreas = [], isLoading: ar } = useHeadcountAreas();
+  // The board reads the Training area as the Training column (`foldTrainingArea`), so
+  // this reads it the same way — or the dashboard would count them on a line.
+  const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
   const tally = useMemo(
-    () => tallyBoard({ allocations, areas, roster, drawable: (id) => boardById.has(id) }),
-    [allocations, areas, roster, boardById],
+    () => tallyBoard({
+      allocations: foldTrainingArea(allocations, allAreas), areas, roster, drawable: (id) => boardById.has(id),
+    }),
+    [allocations, allAreas, areas, roster, boardById],
   );
   return { tally, areas, isLoading: rl || al || ar, error };
 }

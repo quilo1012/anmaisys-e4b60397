@@ -55,8 +55,10 @@ async function stub(page: Page) {
   });
 }
 
-async function openBoard(page: Page) {
+async function openBoard(page: Page, before?: (page: Page) => Promise<void>) {
   await stub(page);
+  // A route added after `stub` wins over it, for a test that needs other data.
+  if (before) await before(page);
   await page.setViewportSize({ width: 1600, height: 1400 });
   await page.goto("/dashboard/headcount");
   // O board abre no turno que está a correr: depois das 18:00 é o Night, onde este
@@ -265,4 +267,37 @@ test("um dia por planear mostra a cinzento onde o matrix põe cada pessoa", asyn
   const col = ghost.locator("xpath=ancestor::*[contains(@class,'headcount-sheet-column')]");
   await expect(col.locator(".headcount-column-title")).toHaveText("Line 3");
   await expect(page.getByRole("region", { name: /not placed yet/i }).getByText("Pedro Assis", { exact: true })).toHaveCount(0);
+});
+
+test("uma área chamada Training não faz uma segunda coluna Training", async ({ page }) => {
+  // Em produção existe uma área "Training" (kind production) ao lado do estado
+  // `training`: o board desenhava duas colunas Training e contava a área em On lines.
+  const withTraining = [...AREAS, { ...AREAS[0], id: "tr", name: "Training", sort_order: 999 }];
+  const allocs = ALLOCS.map((a, i) => (i === 0 ? { ...a, area_id: "tr", status: "assigned" } : a));
+  await openBoard(page, async (p) => {
+    await p.route(/rest\/v1\/headcount_areas/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withTraining) }));
+    await p.route(/rest\/v1\/daily_allocations/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(allocs) }));
+  });
+
+  // Os títulos de coluna no ecrã: folhas do DOM com o texto exacto, fora da folha de
+  // impressão escondida e fora da legenda.
+  const heads = await page.evaluate(() =>
+    [...document.querySelectorAll("body *")].filter((el) =>
+      el.children.length === 0
+      && (el.textContent ?? "").trim() === "Training"
+      && !el.closest("button, .headcount-kpis")
+      && (el as HTMLElement).offsetParent !== null).length,
+  );
+  expect(heads, "colunas com o título Training").toBe(1);
+  // Quem estava na área aparece na coluna Training.
+  await expect(page.locator("#headcount-day-training").getByText(EMP[0].full_name)).toBeVisible();
+});
+
+test("carregar no Overtime da barra leva à coluna Overtime", async ({ page }) => {
+  await openBoard(page);
+  await page.setViewportSize({ width: 1366, height: 600 });
+  const col = page.locator("#headcount-day-overtime");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.getByRole("button", { name: /Overtime — go to the Overtime column/ }).first().click();
+  await expect(col).toBeInViewport({ timeout: 5000 });
 });

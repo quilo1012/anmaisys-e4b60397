@@ -2,7 +2,7 @@ import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable"
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sheetBandOf } from "@/lib/headcountBlocks";
+import { sheetBandOf, isTrainingArea, foldTrainingArea } from "@/lib/headcountBlocks";
 import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -54,6 +54,7 @@ import {
   useAllocationMutations,
   useCopyableDays,
   useHeadcountMatrix,
+  useLastWorkedDay,
   useSaveMatrix,
   useChangeShift,
   useReorderAreas,
@@ -342,12 +343,18 @@ const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; sof
  * The line leader, picked out.
  *
  * A supervisor scanning a column wants to know it has a leader before they want
- * anybody's name. It comes off `department`, which was typed by hand over months —
+ * anybody's name. It comes off `position`, which was typed by hand over months —
  * hence a pattern rather than an exact list.
  */
-function isLeader(department: string | null | undefined) {
-  return !!department && /team\s*lead|supervisor/i.test(department);
+function isLeader(person: { position?: string | null; department?: string | null }) {
+  // The job is in `position` since #393; `department` only for a record with none.
+  const job = person.position?.trim() || person.department?.trim() || "";
+  return /team\s*lead|supervisor/i.test(job);
 }
+
+/** The role mark comes off the job first, for the same reason as `isLeader`. */
+const roleOf = (person: { position?: string | null; department?: string | null }) =>
+  roleStripe(person.position) ?? roleStripe(person.department);
 
 function Chip({
   name,
@@ -590,16 +597,20 @@ function DropZone({
   onDrop,
   disabled,
   className,
+  id,
 }: {
   children: React.ReactNode;
   /** Given the employee the browser says was dropped. Empty means "not one of ours". */
   onDrop: (employeeId: string) => void;
   disabled: boolean;
   className?: string;
+  /** Where a figure in the summary strip jumps to. */
+  id?: string;
 }) {
   const [over, setOver] = useState(false);
   return (
     <div
+      id={id}
       onDragOver={(e) => {
         if (disabled) return;
         e.preventDefault();
@@ -646,26 +657,45 @@ function HeaderAction({
 }
 
 function KpiPill({
-  icon: Icon, label, value, tone, highlight, valueTone,
+  icon: Icon, label, value, tone, highlight, valueTone, onClick, jumpTo,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string; value: number; tone: string; highlight?: boolean; valueTone?: string;
+  /** Takes the reader to the column or block the figure counts. */
+  onClick?: () => void;
+  /** What the jump lands on, for the tooltip and the accessible name. */
+  jumpTo?: string;
 }) {
-  return (
-    <div className={cn("flex items-center gap-2 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"))}>
+  const body = (
+    <>
       <Icon className={cn("h-4 w-4 shrink-0", highlight ? "" : "text-muted-foreground")} />
-      <div className="flex flex-col">
+      <div className="flex flex-col items-start">
         <span className={cn("font-figure text-xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
         <span className="mt-0.5 text-2xs font-medium text-muted-foreground">{label}</span>
       </div>
-    </div>
+    </>
+  );
+  const look = cn("flex items-center gap-2 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"));
+  if (!onClick) return <div className={look}>{body}</div>;
+  // A number that says "5 overtime" is a question — who? — and the answer is a column
+  // two screens to the right. Pressing the figure goes there.
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`Go to ${jumpTo ?? label}`}
+      aria-label={`${value} ${label} — go to ${jumpTo ?? label}`}
+      className={cn(look, "-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:pointer-events-none")}
+    >
+      {body}
+    </button>
   );
 }
 
 function ShiftBoard({
   onDate,
   shift,
-  areas,
+  areas: allAreas,
   canManage,
   onSync,
 }: {
@@ -739,7 +769,10 @@ function ShiftBoard({
   const { data: patterns = [] } = useShiftPatterns();
   // A little distance first, so a tap on the heading is not read as a drag.
   const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-  const { data: allocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
+  const { data: savedAllocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
+  // One Training column, not two: the area of that name is read as the Training state.
+  const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
+  const allocations = useMemo(() => foldTrainingArea(savedAllocations, allAreas), [savedAllocations, allAreas]);
   const { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader } = useAllocationMutations(onDate, shift);
   const { data: copyableDays = [], isLoading: copyableLoading } = useCopyableDays(onDate, shift);
   const matrix = useHeadcountMatrix(shift, onDate);
@@ -816,7 +849,7 @@ function ShiftBoard({
         startTime: a.sheet_start_time ?? null,
         tag: a.sheet_tag ?? null,
         overtime: a.status === "overtime",
-        // The day's own leader wins. `department` is only the fallback, so a board
+        // The day's own leader wins. The job (`isLeader`) is only the fallback, so a board
         // nobody has named a leader on still shows the Team Leaders it has.
         leader: a.is_leader ?? false,
       });
@@ -826,8 +859,8 @@ function ShiftBoard({
       list.sort((a, b) => {
         // The leader marked on this particular line and shift always takes the first
         // position, even when another Team Leader is helping on the same line.
-        const la = a.leader ? 0 : isLeader(a.person.department) ? 1 : 2;
-        const lb = b.leader ? 0 : isLeader(b.person.department) ? 1 : 2;
+        const la = a.leader ? 0 : isLeader(a.person) ? 1 : 2;
+        const lb = b.leader ? 0 : isLeader(b.person) ? 1 : 2;
         return la - lb || a.shown.localeCompare(b.shown);
       });
     }
@@ -926,7 +959,7 @@ function ShiftBoard({
   const placedOnArea = allocations.some((a) => !!a.area_id);
   const planKind: "normal" | "changeover" = [1, 5].includes(new Date(`${onDate}T12:00:00`).getDay()) ? "changeover" : "normal";
   const plan = matrix.matrices.find((m) => m.kind === planKind);
-  const ghostByArea = useMemo(() => {
+  const matrixGhosts = useMemo(() => {
     const out = new Map<string, HeadcountEmployee[]>();
     if (onDate <= todayIso || placedOnArea || !plan) return out;
     for (const r of plan.due) {
@@ -940,6 +973,23 @@ function ShiftBoard({
     for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
     return out;
   }, [onDate, todayIso, placedOnArea, plan, byEmployee, employeeById, areas]);
+  // Sem matrix para o dia, sugere onde cada pessoa esteve no último dia trabalhado
+  // deste turno. Só sugestão: "Save this plan" corre a mesma cópia do botão.
+  const useLastDay = !placedOnArea && matrixGhosts.size === 0;
+  const { data: lastDay } = useLastWorkedDay(onDate, shift, useLastDay);
+  const ghostByArea = useMemo(() => {
+    if (!useLastDay || !lastDay) return matrixGhosts;
+    const out = new Map<string, HeadcountEmployee[]>();
+    for (const r of lastDay.rows) {
+      if (!areas.some((x) => x.id === r.area_id) || byEmployee.has(r.employee_id)) continue;
+      const p = employeeById.get(r.employee_id);
+      if (!p) continue;
+      out.set(r.area_id, [...(out.get(r.area_id) ?? []), p]);
+    }
+    for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return out;
+  }, [useLastDay, lastDay, matrixGhosts, areas, byEmployee, employeeById]);
+  const ghostFromLastDay = useLastDay && !!lastDay && ghostByArea !== matrixGhosts;
   const ghostCount = [...ghostByArea.values()].reduce((n, l) => n + l.length, 0);
   const ghostIds = new Set([...ghostByArea.values()].flat().map((p) => p.id));
   const ghostsIn = (areaId: string) => ghostByArea.get(areaId) ?? [];
@@ -949,6 +999,30 @@ function ShiftBoard({
   const supportShown = blockVisible("support") && openSections["support"] !== false
     && areas.some((a) => sheetBandOf(a) === "support");
   const awayInSupport = supportShown;
+
+  /**
+   * Os números da barra de cima levam à coluna que contam.
+   *
+   * Overtime e Training estão no fim da segunda banda, muitas vezes fora do ecrã à
+   * direita e em baixo; quem lê "5 Overtime" quer ver quem são. Uma secção dobrada ou
+   * escondida pelo filtro abre-se primeiro, senão o salto caía num sítio invisível.
+   * O realce dura o suficiente para o olho encontrar a coluna depois do scroll.
+   */
+  const jumpId = (key: string) => `headcount-${shift.toLowerCase()}-${key}`;
+  const jumpTo = (key: string) => {
+    if (key === "production" || key === "support") {
+      setVisibleBlocks((v) => ({ ...v, [key]: true }));
+      setOpenSections((o) => ({ ...o, [key]: true }));
+    }
+    // Depois do render que abre a secção.
+    window.setTimeout(() => {
+      const el = document.getElementById(jumpId(key));
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+      window.setTimeout(() => el.classList.remove("ring-2", "ring-primary", "ring-offset-2"), 1600);
+    }, 60);
+  };
 
   /**
    * O fim da segunda banda: `Total staff in Production` a roxo, e depois as faltas, as
@@ -975,6 +1049,7 @@ function ShiftBoard({
         return (
           <DropZone
             key={block.status}
+            id={jumpId(block.status)}
             disabled={!canManage}
             className="-mb-px -mr-px h-full rounded-none"
             onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
@@ -1006,7 +1081,7 @@ function ShiftBoard({
                   tag={p.tag}
                   onOpen={() => setEditing(p.id)}
                   dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
-                  role={roleStripe(p.department)}
+                  role={roleOf(p)}
                   tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
                   half={byEmployee.get(p.id)?.half_day === true}
                   leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
@@ -1123,19 +1198,23 @@ function ShiftBoard({
           {/* `headcount-kpis`: the print sheet sets these in one row. See index.css.
               Como se divide o número de cima, e o que fica fora dele. */}
           <div className="headcount-kpis flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-x-6 gap-y-1.5 sm:border-l sm:pl-4">
-            <KpiPill icon={Factory} label="On lines" value={onLines} tone="" />
-            <KpiPill icon={Wrench} label="Support" value={support} tone="" />
+            <KpiPill icon={Factory} label="On lines" value={onLines} tone="" onClick={() => jumpTo("production")} jumpTo="the lines" />
+            <KpiPill icon={Wrench} label="Support" value={support} tone="" onClick={() => jumpTo("support")} jumpTo="Support" />
             <span aria-hidden className="hidden h-7 w-px bg-border sm:block" />
-            <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} />
+            {/* Away is three columns; it lands on the first, Sickness, with Unpaid and
+                Holidays beside it. */}
+            <KpiPill icon={PlaneTakeoff} label="Away" value={away} tone="" valueTone={away ? "text-warning-strong" : ""} onClick={() => jumpTo("sick")} jumpTo="Sickness, Unpaid and Holidays" />
             {/* People on an overtime shift, not hours. */}
-            <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} />
-            {training > 0 && <KpiPill icon={Users} label="Training" value={training} tone="" />}
+            <KpiPill icon={Clock3} label="Overtime" value={overtime} tone="" valueTone={overtime ? "text-primary" : ""} onClick={() => jumpTo("overtime")} jumpTo="the Overtime column" />
+            <KpiPill icon={Users} label="Training" value={training} tone="" valueTone={training ? "" : "text-muted-foreground"} onClick={() => jumpTo("training")} jumpTo="the Training column" />
             <KpiPill
               icon={UserX}
               label={noCrewUnplaced.length > 0 ? `Unplaced · ${noCrewUnplaced.length} no crew` : "Unplaced"}
               value={unassigned.length}
               tone=""
               valueTone={unassigned.length ? "text-warning-strong" : "text-muted-foreground"}
+              onClick={trayPeople.length > 0 ? () => jumpTo("unplaced") : undefined}
+              jumpTo="Not placed yet"
             />
           </div>
         </div>
@@ -1450,11 +1529,17 @@ function ShiftBoard({
           <p className="text-sm">
             <span className="font-bold">Not planned yet.</span>{" "}
             <span className="text-muted-foreground">
-              The {ghostCount} names in grey italic are where the {plan?.label} matrix puts the people due in. Nothing is saved until you save it.
+              {ghostFromLastDay && lastDay
+                ? `The ${ghostCount} names in grey italic are where each person worked on ${lastDay.on_date.split("-").reverse().join("/")}, the last ${shift.toLowerCase()} day worked. Nothing is saved until you save it.`
+                : `The ${ghostCount} names in grey italic are where the ${plan?.label} matrix puts the people due in. Nothing is saved until you save it.`}
             </span>
           </p>
           {canManage && (
-            <Button size="sm" onClick={() => runCopy({ kind: "matrix", matrix: planKind })} disabled={copyLastLikeDay.isPending}>
+            <Button
+              size="sm"
+              onClick={() => runCopy(ghostFromLastDay && lastDay ? { kind: "day", on_date: lastDay.on_date } : { kind: "matrix", matrix: planKind })}
+              disabled={copyLastLikeDay.isPending}
+            >
               Save this plan
             </Button>
           )}
@@ -1476,7 +1561,7 @@ function ShiftBoard({
           ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length) : []),
         ) + 1;
         return (
-        <div key={section.key}>
+        <div key={section.key} id={jumpId(section.key)}>
         <SectionLabel
           accent={section.accent}
           count={inSection}
@@ -1548,10 +1633,10 @@ function ShiftBoard({
                         sheetName={sheetName}
                         startTime={startTime}
                         tag={tag}
-                        leader={leadsToday || isLeader(p.department)}
+                        leader={leadsToday || isLeader(p)}
                         lineLeader={leadsToday}
                         lineName={area.name}
-                        role={roleStripe(p.department)}
+                        role={roleOf(p)}
                         dimmed={isDimmed(shown) && isDimmed(p.full_name)}
                         overtime={isOt}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
@@ -1788,7 +1873,7 @@ function ShiftBoard({
           as células alinharem com as colunas de cima. Larga-se aqui quem se quer tirar
           de uma linha. */}
       {trayPeople.length > 0 && (
-        <section aria-label={`Not placed yet: ${trayPeople.length}`} className="mt-6">
+        <section id={jumpId("unplaced")} aria-label={`Not placed yet: ${trayPeople.length}`} className="mt-6">
           <DropZone disabled={!canManage} onDrop={(employeeId) => handleDrop("roster")(employeeId)} className="rounded-none">
             <div className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 border bg-muted px-3 py-2", SHEET_RULE)}>
               <h3 className="text-sm font-bold text-foreground">
@@ -1809,7 +1894,7 @@ function ShiftBoard({
                       name={p.full_name}
                       personRef={refOf.get(p.id)}
                       dimmed={isDimmed(p.full_name)}
-                      role={roleStripe(p.department)}
+                      role={roleOf(p)}
                       tone="roster"
                       crew={crewBadge(p.shift_group)}
                       onOpen={() => setEditing(p.id)}
@@ -1848,7 +1933,7 @@ function ShiftBoard({
                     name={p.full_name}
                     personRef={refOf.get(p.id)}
                     dimmed={isDimmed(p.full_name)}
-                    role={roleStripe(p.department)}
+                    role={roleOf(p)}
                     tone="roster"
                     crew={null}
                     onOpen={() => setEditing(p.id)}
