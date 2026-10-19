@@ -172,7 +172,8 @@ const MATRIX: Record<Action, Role[]> = {
   // operador sem ninguém dar por isso — foi assim que esta linha e o menu passaram a
   // dizer o contrário do que a fábrica tinha decidido. A lista vai por extenso
   // exactamente por essa razão.
-  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin", "quality_supervisor"],
+  // Sem `engineer` desde 19/10/2026: o menu do engenheiro é só manutenção.
+  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "production_office_admin", "quality_supervisor"],
 
   "machines.view": [...ALL, "warehouse", "production_office_admin"],
   "machines.manage": ["admin", "manager", "production_office_admin"],
@@ -230,7 +231,8 @@ const MATRIX: Record<Action, Role[]> = {
 
   "smarttarget.view": ["admin", "production_office_admin"],
 
-  "quality.view": ["admin", "manager", "quality_supervisor", "engineer", "production_office_admin"],
+  // No `engineer` (19/10/2026): the engineer's sidebar is maintenance only.
+  "quality.view": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "quality.manage": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   // Headcount, attendance and overtime. Admin only, viewing included: the module is
   // still paused and off the menu, and the route stays live, so anyone holding this

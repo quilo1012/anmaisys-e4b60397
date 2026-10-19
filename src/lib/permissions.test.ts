@@ -63,7 +63,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "scorecard.fill": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "scorecard.approve": ["admin", "manager", "quality_supervisor"],
   "smarttarget.view": ["admin", "production_office_admin"],
-  "quality.view": ["admin", "manager", "engineer", "quality_supervisor", "production_office_admin"],
+  "quality.view": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "quality.manage": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "workforce.view": ["admin"],
   "workforce.manage": ["admin"],
@@ -82,7 +82,7 @@ const EXPECTED: Record<Action, Role[]> = {
   // `operator` fora desde 03/10/2026, por decisão. Se este teste voltar a falhar em
   // `operator cannot stopanalysis.view`, alguém devolveu o ecrã à linha — confirmar
   // que foi de propósito antes de mexer nesta lista.
-  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin", "quality_supervisor"],
+  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "production_office_admin", "quality_supervisor"],
   "reports.export": ["admin", "manager", "production_office_admin"],
   "pm.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
   "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
