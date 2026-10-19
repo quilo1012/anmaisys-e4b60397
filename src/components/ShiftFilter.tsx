@@ -6,6 +6,11 @@ interface ShiftFilterProps {
   value: ShiftValue;
   onChange: (v: ShiftValue) => void;
   className?: string;
+  /**
+   * Stretch across the row and always say the words. On a phone the default form is
+   * three emoji in a 150px box — 🌗 ☀️ 🌙 — and "which one is All?" is a fair question.
+   */
+  fill?: boolean;
 }
 
 const OPTIONS: { value: ShiftValue; label: string; emoji: string; hint: string; ring: string }[] = [
@@ -14,13 +19,14 @@ const OPTIONS: { value: ShiftValue; label: string; emoji: string; hint: string; 
   { value: "NIGHT", label: "Night", emoji: "🌙", hint: "18–06", ring: "data-[active=true]:bg-primary data-[active=true]:text-primary-foreground" },
 ];
 
-export function ShiftFilter({ value, onChange, className }: ShiftFilterProps) {
+export function ShiftFilter({ value, onChange, className, fill = false }: ShiftFilterProps) {
   return (
     <div
       role="group"
       aria-label="Shift filter"
       className={cn(
         "inline-flex items-center gap-1 rounded-lg border bg-muted/40 p-1 shadow-sm",
+        fill && "flex w-full",
         className
       )}
     >
@@ -37,12 +43,13 @@ export function ShiftFilter({ value, onChange, className }: ShiftFilterProps) {
               "inline-flex items-center gap-1.5 rounded-md px-3 h-9 text-sm font-medium transition-all",
               "hover:bg-background/80",
               opt.ring,
+              fill && "flex-1 justify-center whitespace-nowrap px-2 [overflow-wrap:normal]",
               active && "shadow-md scale-[1.02]"
             )}
           >
-            <span className="text-base leading-none">{opt.emoji}</span>
-            <span className="hidden sm:inline">{opt.label}</span>
-            <span className={cn("hidden md:inline text-2xs opacity-70", active && "opacity-90")}>
+            <span className={cn("text-base leading-none", fill && "hidden min-[400px]:inline")}>{opt.emoji}</span>
+            <span className={fill ? "inline" : "hidden sm:inline"}>{opt.label}</span>
+            <span className={cn("hidden text-2xs opacity-70", fill ? "xl:inline" : "md:inline", active && "opacity-90")}>
               {opt.hint !== opt.label ? opt.hint : ""}
             </span>
           </button>

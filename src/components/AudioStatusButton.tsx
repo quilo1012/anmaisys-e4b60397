@@ -17,7 +17,14 @@ import { cn } from "@/lib/utils";
  * Green pill = audio unlocked. Red pulsing pill = blocked/muted (one tap on
  * the button + Enable inside the popover re-unlocks it).
  */
-export function AudioStatusButton() {
+export function AudioStatusButton({ compact = false }: {
+  /**
+   * The phone's top bar: an icon the size of its neighbours instead of a pill.
+   * Muted still reads as a fault — red glyph, red dot — but it no longer outshouts
+   * the screen's own title on every page.
+   */
+  compact?: boolean;
+} = {}) {
   const {
     audioEnabled,
     promptEnableAudio,
@@ -36,6 +43,24 @@ export function AudioStatusButton() {
   return (
     <Popover>
       <PopoverTrigger asChild>
+        {compact ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={effectivelyOn ? `Alert sound on at ${pct}%` : "Alert sound muted — tap to configure"}
+          aria-pressed={effectivelyOn}
+          className={cn("relative h-10 w-10 shrink-0", effectivelyOn ? "text-muted-foreground" : "text-destructive-strong")}
+        >
+          <Icon className="h-5 w-5" />
+          <span
+            className={cn(
+              "absolute right-2 top-2 h-2 w-2 rounded-full ring-2 ring-card",
+              effectivelyOn ? "bg-success" : "bg-destructive motion-safe:animate-pulse",
+            )}
+            aria-hidden="true"
+          />
+        </Button>
+        ) : (
         <Button
           variant={effectivelyOn ? "outline" : "destructive"}
           size="sm"
@@ -58,6 +83,7 @@ export function AudioStatusButton() {
             aria-hidden="true"
           />
         </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 space-y-4">
         <div className="flex items-center justify-between gap-3">

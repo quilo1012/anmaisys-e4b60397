@@ -76,7 +76,17 @@ export function DateField({
         >
           {/* Um travessão, e não a data de hoje: um campo vazio que se pinta com hoje
               está a responder por quem ainda não respondeu. */}
-          <span className="truncate">{selected ? format(selected, "dd MMM yyyy") : "—"}</span>
+          {/* Two-digit year below 400px only. Two of these, between two step arrows,
+              on a 360px phone leave each box ~80px — "19 Oct 20…" again. "19 Oct 26"
+              keeps the year; the four-digit one comes back as soon as it fits. */}
+          {selected ? (
+            <>
+              <span className="truncate min-[400px]:hidden">{format(selected, "dd MMM yy")}</span>
+              <span className="hidden truncate min-[400px]:inline">{format(selected, "dd MMM yyyy")}</span>
+            </>
+          ) : (
+            <span className="truncate">—</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-2" align="start">

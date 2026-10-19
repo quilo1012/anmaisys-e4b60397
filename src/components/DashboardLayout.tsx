@@ -47,6 +47,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { MobileAppHeader } from "@/components/shell/MobileAppHeader";
 import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { OvertimeOfferAlert } from "@/components/workforce/OvertimeOfferAlert";
@@ -773,6 +774,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     }
   };
 
+  // An operator's tablet is shared and its password is the supervisor's, so leaving
+  // it asks first. Everybody else signs out straight away.
+  const requestSignOut = () => {
+    if (role === "operator") setSignOutConfirmOpen(true);
+    else void performSignOut();
+  };
+
   useHeartbeat();
 
   useEffect(() => {
@@ -950,13 +958,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 size="sm"
                 title="Sign Out"
                 className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-                onClick={() => {
-                  if (role === "operator") {
-                    setSignOutConfirmOpen(true);
-                  } else {
-                    void performSignOut();
-                  }
-                }}
+                onClick={requestSignOut}
               >
                 <LogOut className="h-4 w-4 group-data-[collapsible=icon]:mr-0 mr-2" />
                 <span className="group-data-[collapsible=icon]:hidden">Sign Out</span>
@@ -974,17 +976,28 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </a>
 
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-            <header
-              className={cn(
-                "border-b bg-card flex items-center print:hidden",
-                isMobile
-                  ? cn(
-                      "sticky top-0 z-30 h-11 px-2 gap-1 flex-nowrap overflow-hidden transition-[height] duration-200 motion-reduce:transition-none",
-                      headerHidden && "h-0 border-b-0",
-                    )
-                  : "min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3",
-              )}
-            >
+            {isMobile ? (
+              <>
+              <PushOnboarding />
+              <MobileAppHeader
+                leading={device !== "mobile" ? <SidebarStateControl uiState={sidebarUiState} onSelect={applySidebarState} /> : undefined}
+                extra={role === "admin" || role === "manager" || role === "maintenance_manager" ? <OnlineEngineersPanel /> : undefined}
+                title={currentPageTitle}
+                isHome={location.pathname === homePath}
+                hidden={headerHidden}
+                stoppedCount={showStoppedBadge ? stoppedLinesCount : 0}
+                onStoppedClick={() => navigate(stoppedTarget)}
+                stoppedLabel={awaitingResumeSummary(stoppedLinesCount).ariaLabel}
+                showAudio={effectiveRole === "engineer" || effectiveRole === "admin"}
+                profileName={profile?.name}
+                roleLabel={role ? roleTitle[role] : ""}
+                dark={dark}
+                onToggleDark={toggleDark}
+                onSignOut={requestSignOut}
+              />
+              </>
+            ) : (
+            <header className="border-b bg-card flex items-center print:hidden min-h-14 flex-wrap px-2 sm:px-4 py-1.5 gap-2 sm:gap-3">
               {/* Shown on tablets too: below 1024px the sidebar has no drawer of its own,
                   so hiding this control left a hidden menu with no way back on the very
                   devices used on the floor. Only a phone (tab bar navigation) hides it. */}
@@ -993,11 +1006,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   most screens had none at all, and a kiosk tablet has no browser
                   button to fall back on. */}
               <BackButton />
-              {isMobile && currentPageTitle && (
-                <span className="truncate text-sm font-semibold text-foreground" aria-current="page">
-                  {currentPageTitle}
-                </span>
-              )}
               {currentPageTitle && (
                 <nav aria-label="Breadcrumb" className="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
                   <span className="text-muted-foreground">Home</span>
@@ -1031,10 +1039,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <NotificationPanel />
                 <PushOnboarding />
                 {/* Language toggle removed by request — app stays in English. */}
-                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className={cn("shrink-0", isMobile && "h-9 w-9")}>
+                <Button variant="ghost" size="icon" onClick={toggleDark} title={dark ? "Light mode" : "Dark mode"} className="shrink-0">
                   {dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
-                {!isMobile && role && (
+                {role && (
                   <span
                     className={`hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide ${roleBadgeClass[role] ?? "bg-muted text-muted-foreground"}`}
                     aria-label={`Current role: ${roleTitle[role]}`}
@@ -1042,9 +1050,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     {roleTitle[role]}
                   </span>
                 )}
-                {!isMobile && <LiveClock />}
+                <LiveClock />
               </div>
             </header>
+            )}
             {/* The offline notice moved to AppBanners, mounted once at the top of
                 the app: it lived here, and the two screens that need it most —
                 line-production and the wall display — do not use this layout. */}
