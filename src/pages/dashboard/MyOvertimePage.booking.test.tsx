@@ -48,6 +48,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimePlaces: () => ({ data: state.places }),
   useOvertimeOutcomesFor: () => ({ data: [] }),
   useOvertimeMutations: () => ({
+    cancelMyBooking: { mutate: vi.fn(), isPending: false },
     answer: {
       // The database's own row comes back, as `answer_overtime` returns it.
       mutate: (_v: unknown, o: { onSuccess?: (row: unknown) => void; onSettled?: () => void }) => {
