@@ -8,14 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Clock, Loader2, Ban, CalendarClock } from "lucide-react";
+import { Check, X, XCircle, Clock, Loader2, Ban, CalendarClock } from "lucide-react";
 import { LoadFailed } from "@/components/portal/LoadFailed";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
   useMyEmployee, useMyUpcomingOvertime, useOvertimeResponses, useOvertimeMutations,
-  useMyOvertimeBlock, useMyOvertimeClashes, useOvertimePlaces,
+  useMyOvertimeBlock, useMyOvertimeClashes, useOvertimePlaces, useOvertimeOutcomesFor,
 } from "@/hooks/useOvertimeRequests";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
   upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
   headcountLine, audienceLine, placesLine, type OvertimeRequest,
@@ -276,10 +277,15 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
   const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
-  const { answer } = useOvertimeMutations();
+  const { answer, cancelMyBooking } = useOvertimeMutations();
+  const { confirm, confirmDialog } = useConfirm();
   const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
   const mine = useMemo(() => new Map(responses.filter((r) => r.employee_id === me.id).map((r) => [r.request_id, r])), [responses, me.id]);
+  // What came of my own answers — a booking I cancelled reads "Cancelled by you",
+  // not "Booked", however the decision row still stands.
+  const myResponseIds = useMemo(() => [...mine.values()].map((r) => r.id), [mine]);
+  const { data: myOutcomes = [] } = useOvertimeOutcomesFor(myResponseIds);
   /**
    * The clock the list is judged by, moved on every half minute.
    *
@@ -367,6 +373,34 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   /** Which button is waiting on the server, so the spinner sits on the one that was tapped. */
   const inFlight = answer.isPending ? answer.variables : undefined;
 
+  /**
+   * Taking back a booking. Confirmed in words first, because the place goes to the
+   * reserve list at once — and if the shift is close, the database counts it as a
+   * late cancellation, which the person should hear before they tap, not after.
+   */
+  const cancelling = useRef(false);
+  const cancelBooking = async (request: OvertimeRequest) => {
+    if (cancelling.current) return;
+    const ok = await confirm({
+      title: "Cancel this booking?",
+      description: `You are booked for overtime on ${fmtDate(request.on_date)}, ${windowLabel(request.starts_at, request.ends_at)}. Your place goes to the next person on the reserve list straight away. If the shift is close, this counts as a late cancellation.`,
+      confirmText: "Yes, cancel it",
+      cancelText: "Keep my booking",
+      destructive: true,
+    });
+    if (!ok) return;
+    cancelling.current = true;
+    cancelMyBooking.mutate({ requestId: request.id }, {
+      onSettled: () => { cancelling.current = false; },
+      onSuccess: (res) => toast.success(`Booking cancelled for ${fmtDate(request.on_date)}`, {
+        description: res.outcome === "cancelled_late"
+          ? "The shift was close, so this counts as a late cancellation."
+          : "Your place has been freed.",
+      }),
+      onError: (e) => toast.error((e as Error).message || "Could not cancel your booking"),
+    });
+  };
+
   const goneNotice = linkedAsk && !linkedShown ? (
     <Card className="border-dashed bg-muted/30" role="status">
       <CardContent className="py-4 text-sm">
@@ -441,6 +475,11 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {visible.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
+        // A booking I took back. The decision row still says accepted — the outcome
+        // is what happened after, and it is what the card must show.
+        const myCancel = my ? myOutcomes.find((o) => o.response_id === my.id
+          && (o.outcome === "cancelled_in_time" || o.outcome === "cancelled_late")) : undefined;
+        const canCancel = my?.decision === "accepted" && !myCancel && r.status === "open" && !askHasStarted(r, now);
         // Room is only news to somebody still deciding; once picked, it is not their question.
         const room = r.status === "open" && !my?.decision ? places?.get(r.id) : undefined;
         // Open, undecided, and not yet begun. The third was missing once, which is
@@ -487,10 +526,11 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     </div>
                   )}
                 </div>
-                <Badge variant="outline" className={cn("shrink-0 font-normal", tone)}>
-                  {my?.decision === "accepted" && <Check className="mr-1 h-3 w-3" />}
-                  {my?.decision === "reserve" && <Clock className="mr-1 h-3 w-3" />}
-                  {status}
+                <Badge variant="outline" className={cn("shrink-0 font-normal", myCancel ? "bg-muted text-muted-foreground" : tone)}>
+                  {myCancel && <XCircle className="mr-1 h-3 w-3" />}
+                  {!myCancel && my?.decision === "accepted" && <Check className="mr-1 h-3 w-3" />}
+                  {!myCancel && my?.decision === "reserve" && <Clock className="mr-1 h-3 w-3" />}
+                  {myCancel ? "Cancelled by you" : status}
                 </Badge>
               </div>
               {r.note && <p className="text-sm italic text-foreground/80">“{r.note}”</p>}
@@ -511,16 +551,40 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                       <span className="font-medium">{supervisorLabel(r, my)}</span>
                     </div>
                   )}
+                  {myCancel && (
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Booking</span>
+                      <span className="font-medium">
+                        Cancelled by you{myCancel.outcome === "cancelled_late" ? " — counted as late" : ""}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
-              {/* A yes books the shift and cannot be taken back here; running late or
-                  not coming after all is said to the supervisor, in the app's chat. */}
-              {my?.answer === "yes" && r.status !== "cancelled" && !askHasStarted(r, now) && (
+              {/* A yes books the shift. Running late is said to the supervisor in the
+                  app's chat; not coming at all is the Cancel booking button, which
+                  frees the place for the reserve list. Once cancelled, both go away. */}
+              {my?.answer === "yes" && !myCancel && r.status !== "cancelled" && !askHasStarted(r, now) && (
                 <div className="space-y-1.5">
                   {my.decision === "accepted" && (
-                    <p className="text-xs text-muted-foreground">Can't make it after all, or running late? Tell your supervisor.</p>
+                    <p className="text-xs text-muted-foreground">Can't make it after all, or running late? Tell your supervisor — or cancel the booking and free your place.</p>
                   )}
-                  <MessageSupervisorDialog request={r} fmtDate={fmtDate} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <MessageSupervisorDialog request={r} fmtDate={fmtDate} />
+                    {canCancel && (
+                      <Button
+                        variant="outline" size="sm"
+                        className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                        disabled={cancelMyBooking.isPending}
+                        onClick={() => void cancelBooking(r)}
+                      >
+                        {cancelMyBooking.isPending
+                          ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          : <XCircle className="mr-1.5 h-3.5 w-3.5" />}
+                        Cancel booking
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
               {canAnswer && ownHours && (
@@ -557,6 +621,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           </Card>
         );
       })}
+      {confirmDialog}
     </div>
   );
 }

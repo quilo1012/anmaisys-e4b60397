@@ -38,7 +38,9 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useMyOvertimeBlock: () => ({ data: null }),
   useMyOvertimeClashes: () => ({ data: new Map() }),
   useOvertimePlaces: () => ({ data: undefined }),
+  useOvertimeOutcomesFor: () => ({ data: [] }),
   useOvertimeMutations: () => ({
+    cancelMyBooking: { mutate: vi.fn(), isPending: false },
     answer: { mutate: state.mutate, isPending: false },
     linkMe: { mutate: vi.fn(), isPending: false },
     linkMeByEmail: { mutate: vi.fn(), isPending: false },

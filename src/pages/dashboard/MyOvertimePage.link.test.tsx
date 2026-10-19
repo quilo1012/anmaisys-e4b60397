@@ -47,7 +47,9 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useMyOvertimeBlock: () => ({ data: null }),
   useMyOvertimeClashes: () => ({ data: undefined }),
   useOvertimePlaces: () => ({ data: undefined }),
+  useOvertimeOutcomesFor: () => ({ data: [] }),
   useOvertimeMutations: () => ({
+    cancelMyBooking: { mutate: vi.fn(), isPending: false },
     answer: { mutate: vi.fn() },
     linkMe: { mutate: hooks.linkMutate, isPending: false },
     // A tentativa silenciosa pelo email, que corre antes de este formulário aparecer.
