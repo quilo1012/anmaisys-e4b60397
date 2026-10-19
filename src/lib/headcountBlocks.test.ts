@@ -87,10 +87,42 @@ describe("sheetBandOf", () => {
     expect(sheetBandOf({ section: "qualquer coisa", kind: "support" })).toBe("support");
   });
 
+  it("põe o Lab, o Blender Room e o Office na produção", () => {
+    // A fábrica lê estas três como parte de correr as linhas. A coluna `section`
+    // grava-as como sectores, e foi SQL directo que o fez — se a regra vivesse na
+    // coluna, bastava uma escrita para o quadro mudar de forma.
+    for (const name of ["Lab", "Blender Room", "Office"]) {
+      expect(sheetBandOf({ name, section: "sectors", kind: "support" }), name).toBe("production");
+    }
+  });
+
+  it("reconhece o nome com espaços e maiúsculas diferentes", () => {
+    expect(sheetBandOf({ name: "  BLENDER ROOM ", section: "sectors", kind: "support" }))
+      .toBe("production");
+    expect(sheetBandOf({ name: "office", section: null, kind: "support" })).toBe("production");
+  });
+
+  it("não move mais nenhuma área por causa do nome", () => {
+    // Quem não está na lista continua a ser desenhado pela secção. Se a lista passasse
+    // a mandar em tudo, o WH Team ia ter com o Lab sem que alguém o tivesse pedido.
+    for (const name of ["WH Team", "Maintenance", "Hygiene", "Quality"]) {
+      expect(sheetBandOf({ name, section: "sectors", kind: "support" }), name).toBe("support");
+    }
+  });
+
+  it("não mexe no que as contagens contam", () => {
+    // A banda diz onde a coluna é desenhada; `kind` diz o que conta em "On lines".
+    // O Lab muda de banda e continua a não contar como linha.
+    expect(sheetBandOf({ name: "Lab", section: "sectors", kind: "support" })).toBe("production");
+    expect(blockOf({ section: "sectors", kind: "support" })).not.toBe("production");
+  });
+
   it("nunca devolve uma terceira banda", () => {
     for (const section of ["production", "sectors", "support", null, "typo"]) {
       for (const kind of ["production", "support"]) {
-        expect(SHEET_BANDS).toContain(sheetBandOf({ section, kind }));
+        for (const name of [undefined, "Lab", "WH Team", "typo room"]) {
+          expect(SHEET_BANDS).toContain(sheetBandOf({ name, section, kind }));
+        }
       }
     }
   });
