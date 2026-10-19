@@ -49,6 +49,7 @@ import { useDeviceType } from "@/hooks/use-device-type";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
+import { OvertimeOfferAlert } from "@/components/workforce/OvertimeOfferAlert";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
@@ -1063,6 +1064,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <MobileTabBar tabs={mobileTabs} />
           </main>
         </div>
+        {/* The overtime ask, as a modal like the Maintenance Order alert. Only for
+            roles that may answer; it stays silent until the login is linked to an
+            employee and an ask is waiting on them. */}
+        {can(role, "overtime.respond") && <OvertimeOfferAlert />}
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
