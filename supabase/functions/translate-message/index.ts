@@ -37,9 +37,6 @@ Deno.serve(async (req) => {
       return json({ error: `text must be at most ${MAX_TEXT_LENGTH} characters` }, 400);
     }
 
-    const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500);
-
     // No Claude o system prompt é um campo de topo, não uma mensagem com role.
     const system =
       mode === "polish"
@@ -47,6 +44,56 @@ Deno.serve(async (req) => {
         : mode === "part_search"
         ? "You translate spare part names used in a factory maintenance warehouse from Portuguese (or any language) into the English term printed on the part catalogue. Reply with ONLY the short English part name, 1 to 3 words, no punctuation, no explanation. Examples: 'rolamento' -> 'bearing', 'correia dentada' -> 'timing belt', 'parafuso' -> 'screw', 'mangueira de ar' -> 'air hose'. If the text is already English, return it unchanged."
         : "You are a translator. Translate the user's message to natural English. Return ONLY the translation, no quotes or notes. If the text is already English, return it unchanged.";
+
+    const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_KEY) {
+      // Sem a chave do Claude, usa o Lovable AI Gateway em vez de falhar com 500.
+      const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_KEY) return json({ error: "No AI key configured" }, 500);
+      const r = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Lovable-API-Key": LOVABLE_KEY,
+          "X-Lovable-AIG-SDK": "fetch",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-6-astra",
+          instructions: system,
+          input: text,
+          reasoning: { effort: "low" },
+          store: false,
+          stream: true,
+          max_output_tokens: 1024,
+        }),
+      });
+      if (!r.ok || !r.body) {
+        if (r.status === 429) return json({ error: "AI rate limit exceeded" }, 429);
+        if (r.status === 402) return json({ error: "AI credits exhausted" }, 402);
+        return json({ error: `AI error: ${(await r.text()).slice(0, 300)}` }, 502);
+      }
+      // Lê o stream SSE e junta os deltas de texto.
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "", out = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const l of lines) {
+          if (!l.startsWith("data:")) continue;
+          const d = l.slice(5).trim();
+          if (!d || d === "[DONE]") continue;
+          try {
+            const ev = JSON.parse(d);
+            if (ev.type === "response.output_text.delta" && typeof ev.delta === "string") out += ev.delta;
+          } catch { /* ignore partial */ }
+        }
+      }
+      return json({ translated: out.trim() || text });
+    }
 
     const resp = await fetch(ANTHROPIC_URL, {
       method: "POST",
