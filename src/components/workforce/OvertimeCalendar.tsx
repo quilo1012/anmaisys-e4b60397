@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { countResponses, windowLabel, audienceLine, type OvertimeRequest, type OvertimeResponse } from "@/lib/overtimeRequests";
 import { askShift, OVERTIME_SHIFTS, type OvertimeShift } from "@/lib/overtimeShifts";
 import {
-  calendarStatus, monthGrid, weekDays, viewTitle, stepAnchor, isoDate,
+  calendarStatus, endsNextDay, monthGrid, weekDays, viewTitle, stepAnchor, isoDate,
   CALENDAR_STATUS_LABEL, CALENDAR_STATUS_BADGE, type CalendarView, type CalendarStatus,
 } from "@/lib/overtimeCalendar";
 
@@ -21,7 +21,7 @@ const MONTH_CELL_MAX = 3;
 
 /** The thin bar at the start of each entry. Colour only repeats the label beside it. */
 const STATUS_BAR: Record<CalendarStatus, string> = {
-  needs: "border-l-warning",
+  needs: "border-l-destructive",
   partial: "border-l-warning",
   full: "border-l-success",
   booked: "border-l-success",
@@ -150,8 +150,11 @@ function filledText(e: Entry): string {
 
 /** One ask as a compact line: hours, filled, status. A button: it opens the detail. */
 function EntryChip({ e, onSelect, compact = false }: { e: Entry; onSelect: (id: string) => void; compact?: boolean }) {
+  const nextDay = endsNextDay(e.request);
   const label = `${windowLabel(e.request.starts_at, e.request.ends_at)}, ${e.shift} shift, `
-    + `${filledText(e)}, ${CALENDAR_STATUS_LABEL[e.status]}`;
+    + `${filledText(e)}, ${CALENDAR_STATUS_LABEL[e.status]}${nextDay ? ", ends the next day" : ""}`;
+  // Day and Night were told apart only by 06:00 against 18:00; the icon says it at a glance.
+  const Icon = SHIFT_ICON[e.shift];
   return (
     <button
       type="button"
@@ -167,7 +170,11 @@ function EntryChip({ e, onSelect, compact = false }: { e: Entry; onSelect: (id: 
       )}
     >
       <span className="flex items-center justify-between gap-1 tabular-nums">
-        <span className="truncate font-medium">{e.request.starts_at.slice(0, 5)}</span>
+        <span className="flex min-w-0 items-center gap-1 font-medium">
+          <Icon className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="truncate">{e.request.starts_at.slice(0, 5)}</span>
+          {nextDay && <sup className="shrink-0 text-2xs text-muted-foreground">+1</sup>}
+        </span>
         <span className="shrink-0">{e.request.headcount == null ? `${e.accepted} in` : `${e.accepted}/${e.request.headcount}`}</span>
       </span>
       {!compact && (
@@ -211,7 +218,7 @@ function MonthView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onO
                 role="gridcell" key={g.iso} data-date={g.iso}
                 aria-label={`${g.iso}: ${entries.length} ${entries.length === 1 ? "ask" : "asks"}`}
                 className={cn(
-                  "group relative min-h-[4.5rem] border-r p-1 last:border-r-0 sm:min-h-[7rem]",
+                  "group relative min-h-[4.5rem] border-r p-1 last:border-r-0 lg:min-h-[7rem]",
                   !g.inMonth && "bg-muted/30 text-muted-foreground",
                   g.iso < today && "bg-muted/20",
                 )}
@@ -230,21 +237,22 @@ function MonthView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onO
                   {canCreateOn(g.iso) && (
                     <button
                       type="button" onClick={() => onCreate(g.iso)} aria-label={`New ask on ${g.iso}`}
-                      className="hidden h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:flex group-hover:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+                      className="hidden h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:flex group-hover:flex lg:flex lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
-                {/* A phone has no room for chips: a count, and the open-gap word if any. */}
+                {/* Below a desk a seventh of the width cut every chip to "06…" and "Needs st…":
+                    a count, and the open-gap word if any, until there is room. */}
                 {entries.length > 0 && (
                   <button type="button" onClick={() => onOpenDay(g.iso)}
-                    className="block w-full text-left text-2xs leading-tight sm:hidden">
+                    className="block w-full text-left text-2xs leading-tight lg:hidden">
                     <span className="font-semibold tabular-nums">{entries.length}</span> {entries.length === 1 ? "ask" : "asks"}
-                    {needsAny && <span className="block text-warning-strong">{short > 0 ? `${short} to fill` : "Nobody yet"}</span>}
+                    {needsAny && <span className="block text-destructive-strong">{short > 0 ? `${short} to fill` : "Nobody yet"}</span>}
                   </button>
                 )}
-                <div className="hidden space-y-1 sm:block">
+                <div className="hidden space-y-1 lg:block">
                   {entries.slice(0, MONTH_CELL_MAX).map((e) => (
                     <EntryChip key={e.request.id} e={e} onSelect={onSelect} />
                   ))}
@@ -267,14 +275,14 @@ function MonthView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onO
 function WeekView({ anchor, today, byDate, canCreateOn, onSelect, onCreate, onOpenDay }: GridProps) {
   const days = weekDays(anchor);
   return (
-    // Seven columns from a desk; on a phone the days stack, because seven columns of
-    // 50px cannot hold a time and a count.
-    <div className="grid gap-2 md:grid-cols-7 md:gap-0 md:overflow-hidden md:rounded-lg md:border">
+    // Seven columns from a desk; below that the days stack, because seven columns of
+    // a tablet's width cannot hold a time, a count and a status.
+    <div className="grid gap-2 lg:grid-cols-7 lg:gap-0 lg:overflow-hidden lg:rounded-lg lg:border">
       {days.map((d, i) => {
         const entries = byDate.get(d) ?? [];
         return (
           <div key={d} data-date={d} className={cn(
-            "rounded-lg border p-2 md:rounded-none md:border-0 md:border-r md:last:border-r-0",
+            "rounded-lg border p-2 lg:rounded-none lg:border-0 lg:border-r lg:last:border-r-0",
             d < today && "bg-muted/20",
           )}>
             <div className="mb-2 flex items-center justify-between gap-1">
@@ -336,7 +344,10 @@ function DayView({ date, entries, canCreate, onSelect, onCreate }: {
                         STATUS_BAR[e.status])}>
                       <span className="min-w-0">
                         <span className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium tabular-nums">{windowLabel(e.request.starts_at, e.request.ends_at)}</span>
+                          <span className="font-medium tabular-nums">
+                            {windowLabel(e.request.starts_at, e.request.ends_at)}
+                            {endsNextDay(e.request) && <span className="ml-1 text-xs font-normal text-muted-foreground">next day</span>}
+                          </span>
                           <StatusBadge status={CALENDAR_STATUS_BADGE[e.status]} label={CALENDAR_STATUS_LABEL[e.status]} size="sm" />
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">For: {audienceLine(e.request)}</span>

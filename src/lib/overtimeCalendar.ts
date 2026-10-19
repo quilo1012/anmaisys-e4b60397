@@ -28,9 +28,14 @@ export const CALENDAR_STATUS_LABEL: Record<CalendarStatus, string> = {
   cancelled: "Cancelled",
 };
 
-/** The StatusBadge variant for each — one restrained colour, always beside the label. */
+/**
+ * The StatusBadge variant for each — one restrained colour, always beside the label.
+ *
+ * "Needs staffing" (nobody yet) and "Partially filled" used to share the amber, so a
+ * month of asks could not say which days had nobody at all. Nobody is the red.
+ */
 export const CALENDAR_STATUS_BADGE: Record<CalendarStatus, string> = {
-  needs: "warning",
+  needs: "error",
   partial: "warning",
   full: "success",
   booked: "success",
@@ -50,6 +55,11 @@ export function askWindow(r: Pick<OvertimeRequest, "on_date" | "starts_at" | "en
   const end = new Date(y, m - 1, d, eh, em);
   if (end <= start) end.setDate(end.getDate() + 1);
   return { start, end };
+}
+
+/** True when the hours run past midnight — an 18:00–06:00 ends on the next day. */
+export function endsNextDay(r: Pick<OvertimeRequest, "starts_at" | "ends_at">): boolean {
+  return r.ends_at.slice(0, 5) <= r.starts_at.slice(0, 5);
 }
 
 /**
