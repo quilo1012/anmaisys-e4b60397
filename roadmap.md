@@ -18,7 +18,7 @@
 - [x] Employee panel: Yuri Correa missing option + shift Night vs Tue–Fri days rota
 
 ## Employee Management System improvements (uploaded doc 19/10) — staged, all items approved
-- [ ] Stage 1 — Overtime: (A) quantity optional when opening an ask, (B) employee can cancel a confirmed booking, (C) Day vs Night overtime colours
+- [x] Stage 1 — Overtime: (A) quantity optional when opening an ask, (B) employee can cancel a confirmed booking, (C) Day vs Night overtime colours
 - [ ] Stage 2 — Communication Centre: messages off Overview, dedicated centre, team/all announcements, Teams-like notifications
 - [ ] Stage 3 — Meeting scheduling: schedule/update/cancel with notifications and reminders
 - [ ] Stage 4 — Attendance notifications: late arrivals, missing clock-in/out alerts, employee attendance summaries
