@@ -349,6 +349,15 @@ describe("rowsToImport, and the leader mark", () => {
     expect(rows([sheet("l1")], [])[0].is_leader).toBe(false);
   });
 
+  it("makes a Team Leader the leader of a line nobody leads", () => {
+    expect(rowsToImport({ matched: [sheet("l5")], leaders: [], cover: () => ON, teamLeaders: new Set([sheet("l5").employeeId]) })[0].is_leader).toBe(true);
+  });
+
+  it("leaves a line with a standing leader to that leader", () => {
+    const other = { on_date: sheet("l5").date, shift: sheet("l5").shift, employee_id: "somebody-else", area_id: "l5" };
+    expect(rowsToImport({ matched: [sheet("l5")], leaders: [other], cover: () => ON, teamLeaders: new Set([sheet("l5").employeeId]) })[0].is_leader).toBe(false);
+  });
+
   it("does not read one day's leader onto another day", () => {
     // The index is per day and per board: leading Line 1 on Friday says nothing about
     // Saturday, and a range import writes both in one statement.

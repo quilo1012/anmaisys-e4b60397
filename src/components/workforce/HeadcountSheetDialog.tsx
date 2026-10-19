@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isTeamLeader } from "@/lib/leaderMark";
 // The styled build: `writeFile` from plain `xlsx` drops every fill the workbook carries.
 import XLSX from "xlsx-js-style";
 import { toast } from "sonner";
@@ -457,7 +458,16 @@ export function HeadcountSheetDialog({
           .range(a, b),
       });
 
-      const rows = rowsToImport({ matched: preview.matched, cover: rotaCover, leaders });
+      // Whose job is Team Leader, so the import marks them as the board would.
+      const ids = [...new Set(preview.matched.map((m) => m.employeeId))];
+      const { data: jobs } = await supabase
+        .from("employees").select("id,position,department").in("id", ids);
+      const teamLeaders = new Set(
+        ((jobs ?? []) as { id: string; position: string | null; department: string | null }[])
+          .filter(isTeamLeader).map((e) => e.id),
+      );
+
+      const rows = rowsToImport({ matched: preview.matched, cover: rotaCover, leaders, teamLeaders });
       // Upsert on the day/shift/person key the table already enforces, so importing
       // the same sheet twice moves people rather than duplicating them. Anyone
       // already on the day and absent from the file is left alone — the file says
