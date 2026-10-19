@@ -160,28 +160,53 @@ export function ControlDisclosure({
   const id = React.useId();
   return (
     <>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "flex min-h-11 w-full items-center gap-2.5 rounded-md border border-input bg-background px-3 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden",
-          className,
-        )}
-      >
-        <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="shrink-0 font-medium">Filters</span>
-        {active > 0 && (
-          <span className="shrink-0 rounded-full bg-primary px-1.5 text-2xs font-semibold leading-5 text-primary-foreground">{active}</span>
-        )}
-        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{summary}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
-      </button>
+      <FiltersToggle open={open} onToggle={() => setOpen((o) => !o)} controls={id} summary={summary} active={active} className={className} />
       <div id={id} className={cn("w-full sm:contents", open ? "grid grid-cols-2 gap-3" : "hidden")}>
         {children}
       </div>
     </>
+  );
+}
+
+/**
+ * The phone-only row that opens a screen's secondary filters. ControlDisclosure owns
+ * its state; a screen whose filters live in several containers (Maintenance Orders)
+ * holds the state itself and uses this button alone.
+ */
+export function FiltersToggle({
+  open,
+  onToggle,
+  controls,
+  summary,
+  active = 0,
+  className,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  controls?: string;
+  summary: string;
+  active?: number;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={onToggle}
+      className={cn(
+        "flex min-h-11 w-full items-center gap-2.5 rounded-md border border-input bg-background px-3 text-left text-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:hidden",
+        className,
+      )}
+    >
+      <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="shrink-0 font-medium">Filters</span>
+      {active > 0 && (
+        <span className="shrink-0 rounded-full bg-primary px-1.5 text-2xs font-semibold leading-5 text-primary-foreground">{active}</span>
+      )}
+      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{summary}</span>
+      <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+    </button>
   );
 }
 

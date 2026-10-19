@@ -62,6 +62,14 @@ const ROUTES = [
   "/dashboard/downtime",
   "/dashboard/quality",
   "/dashboard/rag-weekly",
+  "/dashboard/attendance",
+  "/dashboard/people",
+  "/dashboard/leave",
+  "/dashboard/overtime",
+  "/dashboard/finance-close",
+  "/dashboard/reliability",
+  "/dashboard/stock",
+  "/dashboard/machines",
 ];
 
 for (const width of [320, 390]) {

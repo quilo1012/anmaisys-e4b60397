@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, UserPlus, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal, WifiOff } from "lucide-react";
+import { ClipboardList, XCircle, Loader2, Download, Plus, Pencil, Search, UserPlus, LayoutGrid, List, ChevronLeft, ChevronRight, Printer, CheckCircle, AlertTriangle, SlidersHorizontal, WifiOff, MoreHorizontal } from "lucide-react";
 import { useWorkOrders, useCloseWorkOrder, useCreateWorkOrder, useUpdateWorkOrder, useMoveWorkOrderStage, stageOfStatus, type WOStage, type WOStatus, type WorkOrder } from "@/hooks/useWorkOrders";
 import { usePartsCountByWOs } from "@/hooks/useStock";
 import { useMachines, useLines } from "@/hooks/useMachines";
@@ -44,6 +44,9 @@ import { WO_TERMINAL_STATUSES, isWoOpen } from "@/lib/woStatus";
 import { SLA_TARGETS } from "@/lib/sla";
 import { getWoStatusConfig } from "@/lib/woStatusConfig";
 import { ShiftFilter } from "@/components/ShiftFilter";
+import { cn } from "@/lib/utils";
+import { FiltersToggle } from "@/components/ui/ControlPlate";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useOpsShift, OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { DateRangeFilter, getPresetRange, type DateRange, type DateRangePreset } from "@/components/DateRangeFilter";
@@ -120,6 +123,8 @@ export default function WorkOrdersPage() {
   // #12 Default period filter is "Today" for every role — no longer forced to "All"
   // for admin/manager (that override was hiding today's WOs on first load).
   const [lineStoppedFilter, setLineStoppedFilter] = useState<"all" | "stopped" | "running">("all");
+  // Phones: the filter selects fold behind one row (see FiltersToggle).
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // Corrective is not a stored value: it is everything that is neither warehouse
   // service nor planned preventive work. Naming it that way keeps the filter honest
   // about the 300+ orders raised before the type existed, which are production rows
@@ -531,100 +536,10 @@ export default function WorkOrdersPage() {
     </div>
   );
 
-  return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <PageHeader
-          className="print:hidden"
-          title="Maintenance Orders"
-          description="Manage and track all maintenance orders"
-          icon={<ClipboardList className="h-5 w-5" />}
-          actions={
-            <>
-              {role === "admin" && (
-                <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)}>
-                  <AlertTriangle className="h-4 w-4 mr-2" /> Clear orders
-                </Button>
-              )}
-              <Button size="sm" onClick={() => setShowCreate(true)}><Plus className="h-4 w-4 mr-2" /> New order</Button>
-            </>
-          }
-        />
-
-        {/* Said out loud, because one row where a list usually is reads as a broken
-            filter. It also has to be undoable in one click — arriving here from a
-            stoppage often ends with wanting the rest of the day too. */}
-        {pinnedWo !== null && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs print:hidden">
-            <span className="font-medium">
-              Showing one order: <span className="font-mono font-semibold">WO #{pinnedWo}</span>
-            </span>
-            <span className="text-muted-foreground">All other filters are ignored while it is pinned.</span>
-            <Button variant="outline" size="sm" className="ml-auto h-11" onClick={clearPinnedWo}>
-              Show all orders
-            </Button>
-          </div>
-        )}
-
-        <Card>
-          {/* Whole toolbar off the paper: the buttons were already dropped by the print
-              stylesheet, which left the search box and filter selects printing as empty
-              outlines above the report header. */}
-          <CardHeader className="space-y-4 border-b bg-muted/30 print:hidden">
-            {/* Row 1 — Search + Status pills */}
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="relative flex-1 min-w-[240px] max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search order no., requester, machine…"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 h-9 bg-background"
-                />
-              </div>
-            </div>
-
-            {/* Row 2 — View toggle + Unified date range + Shift */}
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-3 flex-wrap">
-                <div role="group" aria-label="View mode" className="inline-flex items-center gap-1 rounded-md border bg-background p-1 shadow-sm">
-                  <Button
-                    variant={viewMode === "table" ? "secondary" : "ghost"}
-                    size="icon"
-                    aria-label="Table view"
-                    aria-pressed={viewMode === "table"}
-                    onClick={() => setViewMode("table")}
-                    className="h-11 w-11"
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === "board" ? "secondary" : "ghost"}
-                    size="icon"
-                    aria-label="Board view"
-                    aria-pressed={viewMode === "board"}
-                    onClick={() => setViewMode("board")}
-                    className="h-11 w-11"
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
-                </div>
-                <DateRangeFilter
-                  value={drRange}
-                  preset={drPreset}
-                  onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
-                  // A linked range wins over the one remembered from last time.
-                  storageKey={linkedRange ? undefined : OPS_RANGE_KEY}
-                />
-                <ShiftFilter value={shiftFilter} onChange={setShiftFilter} />
-              </div>
-
-
-              <div className="inline-flex items-center gap-1 rounded-md border bg-background p-0.5 shadow-sm">
-                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs" onClick={() => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); }}>
-                  <Download className="h-3.5 w-3.5 mr-1" /> CSV
-                </Button>
-                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs" onClick={async () => {
+  // The three report actions, named so the phone's "More" menu and the desktop
+  // toolbar call the same code. Moved verbatim from the toolbar's inline handlers.
+  const exportCsv = () => { if (filteredWOs) exportWorkOrdersCsv(filteredWOs, undefined, partsCounts); };
+  const exportPdf = async () => {
                   if (!filteredWOs) return;
                   // Client-side defense-in-depth: block before any network call.
                   if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
@@ -686,10 +601,8 @@ export default function WorkOrdersPage() {
                   } catch (err: any) {
                     toast({ title: "Cannot generate PDF", description: err?.message ?? "Failed to generate report.", variant: "destructive" });
                   }
-                }}>
-                  <FileText className="h-3.5 w-3.5 mr-1" /> PDF
-                </Button>
-                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs no-print" onClick={() => {
+                };
+  const printList = () => {
                   if (role !== "admin" && (role !== "manager" && role !== "maintenance_manager")) {
                     toast({ title: "Cannot print", description: "You don't have permission to print reports.", variant: "destructive" });
                     return;
@@ -713,7 +626,140 @@ export default function WorkOrdersPage() {
                       setPrintMode(false);
                     }
                   }, 120);
-                }}>
+                };
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        <PageHeader
+          className="print:hidden"
+          title="Maintenance Orders"
+          description="Manage and track all maintenance orders"
+          icon={<ClipboardList className="h-5 w-5" />}
+          actions={
+            <>
+              {/* Phones: one menu for the reports and, for an admin, Clear orders — a
+                  red button that wipes the list sat first in the row, ahead of New
+                  order, on the one screen engineers open most. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-10 gap-1.5 sm:hidden" aria-label="More order actions">
+                    <MoreHorizontal className="h-4 w-4" /> More
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-60">
+                  <DropdownMenuItem className="min-h-11 gap-2" onSelect={exportCsv}><Download className="h-4 w-4" /> Export CSV</DropdownMenuItem>
+                  <DropdownMenuItem className="min-h-11 gap-2" onSelect={() => void exportPdf()}><FileText className="h-4 w-4" /> PDF report</DropdownMenuItem>
+                  <DropdownMenuItem className="min-h-11 gap-2" onSelect={printList}><Printer className="h-4 w-4" /> Print list</DropdownMenuItem>
+                  {role === "admin" && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="min-h-11 gap-2 text-destructive-strong focus:text-destructive-strong" onSelect={() => setShowClearWOs(true)}>
+                        <AlertTriangle className="h-4 w-4" /> Clear orders…
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {role === "admin" && (
+                <Button variant="destructive" size="sm" onClick={() => setShowClearWOs(true)} className="hidden sm:inline-flex">
+                  <AlertTriangle className="h-4 w-4 mr-2" /> Clear orders
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setShowCreate(true)} className="h-10 flex-1 sm:h-9 sm:flex-none"><Plus className="h-4 w-4 mr-2" /> New order</Button>
+            </>
+          }
+        />
+
+        {/* Said out loud, because one row where a list usually is reads as a broken
+            filter. It also has to be undoable in one click — arriving here from a
+            stoppage often ends with wanting the rest of the day too. */}
+        {pinnedWo !== null && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs print:hidden">
+            <span className="font-medium">
+              Showing one order: <span className="font-mono font-semibold">WO #{pinnedWo}</span>
+            </span>
+            <span className="text-muted-foreground">All other filters are ignored while it is pinned.</span>
+            <Button variant="outline" size="sm" className="ml-auto h-11" onClick={clearPinnedWo}>
+              Show all orders
+            </Button>
+          </div>
+        )}
+
+        <Card>
+          {/* Whole toolbar off the paper: the buttons were already dropped by the print
+              stylesheet, which left the search box and filter selects printing as empty
+              outlines above the report header. */}
+          <CardHeader className="space-y-3 border-b bg-muted/30 p-3 sm:space-y-4 sm:p-[var(--card-pad)] print:hidden">
+            {/* Row 1 — Search + Status pills */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="relative min-w-0 flex-1 sm:min-w-[240px] sm:max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search order no., requester, machine…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9 bg-background"
+                />
+              </div>
+            </div>
+
+            {/* Row 2 — View toggle + Unified date range + Shift */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex w-full items-center gap-3 flex-wrap sm:w-auto">
+                <div role="group" aria-label="View mode" className={cn("items-center gap-1 rounded-md border bg-background p-1 shadow-sm", filtersOpen ? "inline-flex" : "hidden sm:inline-flex")}>
+                  <Button
+                    variant={viewMode === "table" ? "secondary" : "ghost"}
+                    size="icon"
+                    aria-label="Table view"
+                    aria-pressed={viewMode === "table"}
+                    onClick={() => setViewMode("table")}
+                    className="h-11 w-11"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant={viewMode === "board" ? "secondary" : "ghost"}
+                    size="icon"
+                    aria-label="Board view"
+                    aria-pressed={viewMode === "board"}
+                    onClick={() => setViewMode("board")}
+                    className="h-11 w-11"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </Button>
+                </div>
+                <DateRangeFilter
+                  value={drRange}
+                  preset={drPreset}
+                  onChange={(r, p) => { setDrRange(r); setDrPreset(p); }}
+                  // A linked range wins over the one remembered from last time.
+                  storageKey={linkedRange ? undefined : OPS_RANGE_KEY}
+                />
+                <ShiftFilter value={shiftFilter} onChange={setShiftFilter} className={filtersOpen ? undefined : "hidden sm:inline-flex"} />
+                <FiltersToggle
+                  open={filtersOpen}
+                  onToggle={() => setFiltersOpen((o) => !o)}
+                  controls="wo-filters"
+                  className="w-auto min-w-0 flex-1"
+                  summary={[
+                    statusFilter === "all" ? "All statuses" : statusFilter.replace("_", " "),
+                    lineFilter === "all" ? "All lines" : lineFilter,
+                    shiftFilter === "ALL" ? "Both shifts" : shiftFilter === "DAY" ? "Day" : "Night",
+                  ].join(" · ")}
+                  active={[statusFilter !== "all", lineFilter !== "all", problemFilter !== "all", machineFilter !== "all", typeFilter !== "all", lineStoppedFilter !== "all", shiftFilter !== "ALL"].filter(Boolean).length}
+                />
+              </div>
+
+
+              <div className="hidden items-center gap-1 rounded-md border bg-background p-0.5 shadow-sm sm:inline-flex">
+                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs" onClick={exportCsv}>
+                  <Download className="h-3.5 w-3.5 mr-1" /> CSV
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs" onClick={exportPdf}>
+                  <FileText className="h-3.5 w-3.5 mr-1" /> PDF
+                </Button>
+                <Button variant="ghost" size="sm" className="h-9 px-2.5 text-xs no-print" onClick={printList}>
                   <Printer className="h-3.5 w-3.5 mr-1" /> Print
                 </Button>
                 <Popover>
@@ -734,7 +780,7 @@ export default function WorkOrdersPage() {
             </div>
 
             {/* Row 3 — Dropdown filters */}
-            <div className="grid grid-cols-2 md:flex md:items-center gap-2 md:flex-wrap filters-section">
+            <div id="wo-filters" className={cn("grid-cols-2 md:flex md:items-center gap-2 md:flex-wrap filters-section", filtersOpen ? "grid" : "hidden sm:grid")}>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full md:w-[150px] h-9 bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
                 <SelectContent>
