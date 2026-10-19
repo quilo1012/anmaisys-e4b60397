@@ -2,6 +2,8 @@
 
 - Build Headcount suggestions per employee from standing matrix positions then same-shift working history, and save through the existing copy safeguards; a partial board must not suppress suggestions or overwrite saved records.
 
+- Overtime-generated allocations never suppress the employee's normal rota in clash checks; only a manual allocation on their regular board replaces that day's rota, so cross-shift overtime cannot hide rostered hours.
+
 - Gate employee records with dedicated employee permissions, not workforce access, so corrections do not open Headcount or payroll.
 - Record employee rota, job and shift changes server-side and display existing dated crew history alongside them, so edits from every writer remain traceable without inventing past job titles.
 
