@@ -7029,6 +7029,14 @@ export type Database = {
         Returns: number
       }
       can_manage_overtime: { Args: { uid: string }; Returns: boolean }
+      cancel_my_overtime: {
+        Args: { p_note?: string; p_request_id: string }
+        Returns: {
+          outcome: string
+          promoted_employee_id: string
+          promoted_response_id: string
+        }[]
+      }
       check_invite_code: { Args: { code: string }; Returns: boolean }
       cleanup_batch_skus: {
         Args: never
