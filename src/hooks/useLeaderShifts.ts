@@ -9,7 +9,9 @@ export interface ActiveLeader { name: string; shift: string | null }
 /** Active leaders plus the shifts each was seen opening a line on in the last 90 days. */
 export function useLeaderShifts() {
   const leadersQuery = useQuery({
-    queryKey: ["line_leaders_active"],
+    // Keep the family prefix for add-leader invalidation, but never share the
+    // id/name-only cache used by Quality Actions.
+    queryKey: ["line_leaders_active", "name-shift"],
     queryFn: async () => {
       const { data, error } = await supabase.from("line_leaders").select("name, shift").eq("active", true).order("name");
       if (error) throw error;
