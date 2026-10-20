@@ -205,11 +205,11 @@ export interface PagedDM {
  * crew, so it shows the current shift only — the same rule `useDMThread` has.
  */
 export function useDMThreadPaged(partnerId: string | null) {
-  const { user, role } = useAuth();
+  const { user, role, session } = useAuth();
   const isOperator = role === "operator";
   const shift = getCurrentFactoryShift();
   const shiftToken = isOperator ? `${shift.sessionDate}-${shift.shiftCode}` : "all";
-  return usePagedThread<PagedDM>(["dm_thread", user?.id, partnerId, "paged", shiftToken], !!user && !!partnerId, async (withFiles, before) => {
+  return usePagedThread<PagedDM>(["dm_thread", user?.id, partnerId, "paged", shiftToken], !!session && !!partnerId, async (withFiles, before) => {
     let s = (supabase.from("direct_messages") as any)
       .select(withFiles ? "*, chat_attachments(id,storage_path,file_name,content_type,size_bytes)" : "*")
       .or(`and(sender_id.eq.${user!.id},recipient_id.eq.${partnerId}),and(sender_id.eq.${partnerId},recipient_id.eq.${user!.id})`)
@@ -500,10 +500,10 @@ export function useSetMyPhoto() {
 }
 
 export function useMyAvatarPath() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   return useQuery({
     queryKey: ["my_avatar", user?.id],
-    enabled: !!user,
+    enabled: !!session,
     meta: { schemaOptional: true },
     queryFn: async () => {
       const { data, error } = await (supabase.from("profiles") as any).select("avatar_path").eq("id", user!.id).maybeSingle();
