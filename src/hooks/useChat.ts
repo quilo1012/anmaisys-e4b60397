@@ -113,10 +113,13 @@ export function useSignedUrl(bucket: "avatars" | "chat-files", path: string | nu
 }
 
 export function useMyGroups(enabled = true) {
-  const { user } = useAuth();
+  // Gate on the session, not the user: during silent re-login the user is restored
+  // from the last session while there is no token yet, and the request would go out
+  // as anon — 42501 "permission denied", filed as RLS_ERROR by the telemetry.
+  const { user, session } = useAuth();
   return useQuery({
     queryKey: ["chat_my_groups", user?.id],
-    enabled: enabled && !!user,
+    enabled: enabled && !!session,
     meta: { schemaOptional: true },
     queryFn: async (): Promise<{ notSetUp: boolean; groups: GroupSummary[] }> => {
       const { data, error } = await rpc("chat_my_groups");
@@ -130,10 +133,10 @@ export function useMyGroups(enabled = true) {
 }
 
 export function useDMSummaries() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   return useQuery({
     queryKey: ["dm_summaries", user?.id],
-    enabled: !!user,
+    enabled: !!session,
     meta: { schemaOptional: true },
     queryFn: async (): Promise<DMSummary[]> => {
       const { data, error } = await rpc("chat_my_dm_summaries");
