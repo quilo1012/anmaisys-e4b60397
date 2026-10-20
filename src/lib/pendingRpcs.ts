@@ -73,29 +73,6 @@ const PENDING: readonly PendingRpc[] = [
       "Ask your supervisor to link your account.' — the one sentence that is true and " +
       "actionable while the function is missing.",
   },
-  {
-    name: "chat_my_groups",
-    block: "BLOCO 108 — 20261019160000_conversations_have_groups_photos_and_files.sql",
-    fallback:
-      "useMyGroups turns PGRST202 into `notSetUp`; Messages lists the private conversations " +
-      "as before and says groups are being set up, instead of an empty Groups list that " +
-      "would read as \"you are in no group\".",
-  },
-  {
-    name: "chat_my_dm_summaries",
-    block: "BLOCO 108 — 20261019160000_conversations_have_groups_photos_and_files.sql",
-    fallback:
-      "useDMSummaries returns no summaries; the conversation list still shows every person " +
-      "from list_dm_partners and the unread counts from direct_messages, only without the " +
-      "last-message line.",
-  },
-  {
-    name: "chat_people",
-    block: "BLOCO 108 — 20261019160000_conversations_have_groups_photos_and_files.sql",
-    fallback:
-      "useChatPeople returns nobody; every avatar falls back to the person's initials and " +
-      "the name comes from the conversation itself.",
-  },
 ];
 
 /**
