@@ -211,8 +211,18 @@ export function sortConversations(list: readonly ConversationSummary[]): Convers
     || a.name.localeCompare(b.name));
 }
 
+/** Lower case, no accents, single spaces: "  Quiló " and "quilo" are the same word. */
+export function foldForSearch(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Every word typed must appear in the name or the job, in any order, accents and case
+ * ignored: "daniel", "quilo", "Quiló", "dan qui" and "quilo daniel" all find Daniel Quiló.
+ */
 export function matchesSearch(c: ConversationSummary, q: string): boolean {
-  const s = q.trim().toLowerCase();
-  if (!s) return true;
-  return [c.name, c.subtitle ?? ""].some((v) => v.toLowerCase().includes(s));
+  const words = foldForSearch(q).split(" ").filter(Boolean);
+  if (!words.length) return true;
+  const hay = foldForSearch(`${c.name} ${c.subtitle ?? ""}`);
+  return words.every((w) => hay.includes(w));
 }

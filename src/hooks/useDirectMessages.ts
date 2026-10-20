@@ -89,11 +89,30 @@ export function useDMPartners(role: string | null | undefined) {
   return useQuery({
     queryKey: ["dm_partners", role, user?.id],
     queryFn: async () => {
-      const partners = role === "employee" ? await mySupervisorAsPartner() : await listedPartners();
+      const partners = (await contactablePeople())
+        ?? (role === "employee" ? await mySupervisorAsPartner() : await listedPartners());
       return withPeopleWhoWrote(partners, user ? await wroteTo(user.id) : []);
     },
     enabled: !!role,
   });
+}
+
+/**
+ * Everybody the insert rule lets this person start a conversation with
+ * (`chat_contactable_people`, BLOCO 109) — the same expression as `dm_insert_routing`,
+ * plus an employee's supervisor on file. `list_dm_partners` picked by role instead and
+ * never listed an employee login, so an admin allowed to write to all 24 found none
+ * of them (20/10/2026). `null` while the block is not pasted: the old lists stand in.
+ */
+async function contactablePeople(): Promise<DMPartner[] | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)("chat_contactable_people");
+  if (error) {
+    if (error.code === "PGRST202") return null;
+    throw error;
+  }
+  return ((data ?? []) as { user_id: string; name: string; job: string | null }[])
+    .map((p) => ({ user_id: p.user_id, name: p.name, email: null, line_labels: p.job }));
 }
 
 /**

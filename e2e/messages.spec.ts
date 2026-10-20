@@ -13,6 +13,8 @@ const PROJECT_REF = "ybtrzqzliepknpzqdajx";
 const ME = "00000000-0000-4000-8000-0000000000ad";
 const ANA = "11111111-1111-4111-8111-111111111111";
 const GROUP = "22222222-2222-4222-8222-222222222222";
+const DANIEL = "55555555-5555-4555-8555-555555555555";
+const BEN = "66666666-6666-4666-8666-666666666666";
 const FAKE_SESSION = {
   access_token: "fixture-access-token",
   refresh_token: "fixture-refresh-token",
@@ -47,6 +49,13 @@ async function stub(page: Page, calls: Calls) {
     if (url.includes("/auth/v1/token")) return json(FAKE_SESSION);
     if (url.includes("/rpc/get_user_role")) return json("supervisor");
     if (url.includes("/rpc/has_role") || url.includes("/rpc/is_owner")) return json(false);
+    if (url.includes("/rpc/chat_contactable_people")) {
+      return json([
+        { user_id: ANA, name: "Ana Silva", avatar_path: null, job: "Operator · Packing" },
+        { user_id: DANIEL, name: "Daniel Quiló", avatar_path: null, job: "Admin" },
+        { user_id: BEN, name: "Ben Ward", avatar_path: null, job: "Employee · Blending" },
+      ]);
+    }
     if (url.includes("/rpc/list_dm_partners")) return json([{ user_id: ANA, name: "Ana Silva", email: null, line_labels: "Packing" }]);
     if (url.includes("/rpc/chat_my_dm_summaries")) {
       return json([{ partner_id: ANA, last_at: at(5), last_body: "Can I swap Saturday?", last_from_me: false, last_has_audio: false, unread: 1 }]);
@@ -163,6 +172,27 @@ test.describe("on a desk", () => {
     await page.goto(`/dashboard/messages?group=${GROUP}`);
     await expect(page).toHaveURL(new RegExp(`c=group(%3A|:)${GROUP}`));
     await expect(page.getByText("Line 3 is down")).toBeVisible();
+  });
+});
+
+test.describe("search", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("finds everybody the rule lets you write to, accents or not, and opens them", async ({ page }) => {
+    await stub(page, { send: [], failNextSend: false });
+    await page.goto("/dashboard/communication");
+    const list = page.getByRole("complementary", { name: "Conversations" });
+    const search = page.getByRole("textbox", { name: "Search conversations" });
+    for (const q of ["Daniel Quiló", "daniel", "Quiló", "quilo"]) {
+      await search.fill(q);
+      await expect(list.getByRole("button", { name: /Daniel Quiló/ }), q).toBeVisible();
+      await expect(list.getByRole("button", { name: /Ben Ward/ }), q).toHaveCount(0);
+    }
+    await search.fill("ben");
+    await expect(list.getByRole("button", { name: /Ben Ward/ })).toBeVisible();
+    await list.getByRole("button", { name: /Ben Ward/ }).click();
+    await expect(page).toHaveURL(new RegExp(`c=dm(%3A|:)${BEN}`));
+    await expect(page.getByRole("heading", { name: "Ben Ward" })).toBeVisible();
   });
 });
 

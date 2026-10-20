@@ -104,6 +104,15 @@ describe("the conversation list", () => {
     expect(out.map((x) => x.name)).toEqual(["Unread", "New", "Old", "Never"]);
   });
 
+  it("finds a name whatever the accents, case, spaces or word order", () => {
+    const daniel = c("Daniel Quiló", 0, null);
+    for (const q of ["Daniel Quiló", "daniel quilo", "DANIEL", "Quiló", "quilo", "  quil  ", "quilo daniel", "dan qui"]) {
+      expect(matchesSearch(daniel, q), q).toBe(true);
+    }
+    expect(matchesSearch(daniel, "daniel almeida")).toBe(false);
+    expect(matchesSearch(c("Ana Quilo", 0, null), "quiló")).toBe(true);
+  });
+
   it("finds by name or job", () => {
     expect(matchesSearch(c("Ana Silva", 0, null), "silva")).toBe(true);
     expect(matchesSearch(c("Ana Silva", 0, null), "superv")).toBe(true);
