@@ -287,10 +287,10 @@ export function useGroupAlerts(enabled: boolean) {
         qc.invalidateQueries({ queryKey: ["chat_my_groups"] });
         if (!row || row.sender_id === user.id) return;
         const here = new URLSearchParams(window.location.search).get("c");
-        if (window.location.pathname === "/dashboard/messages" && here === `group:${row.group_id}`) return;
+        if (window.location.pathname === "/dashboard/communication" && here === `group:${row.group_id}`) return;
         showDMToast({
           senderName: names.current[row.group_id] ?? "A group",
-          onOpen: () => navigate(`/dashboard/messages?c=group:${row.group_id}`),
+          onOpen: () => navigate(`/dashboard/communication?c=group:${row.group_id}`),
         });
       })
       .subscribe();
@@ -480,7 +480,7 @@ export function useSetMyPhoto() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (file: File | null) => {
+    mutationFn: async ({ file, previous }: { file: File | null; previous?: string | null }) => {
       if (!user) throw new Error("Sign in first");
       let path: string | null = null;
       if (file) {
@@ -490,6 +490,10 @@ export function useSetMyPhoto() {
       }
       const { error } = await rpc("set_avatar", { p_path: path });
       if (error) throw error;
+      // The old file is nobody's now; tidy it away (best effort — the row is the record).
+      if (previous && previous !== path && previous.startsWith(`${user.id}/`)) {
+        await supabase.storage.from("avatars").remove([previous]).catch(() => {});
+      }
       return path;
     },
     onSuccess: () => {
@@ -499,19 +503,29 @@ export function useSetMyPhoto() {
   });
 }
 
-export function useMyAvatarPath() {
+/**
+ * The signed-in person's photo, through `chat_people` (SECURITY DEFINER).
+ *
+ * NOT `profiles.select("avatar_path")`: `profiles` is readable column by column
+ * (20260724130000_secure_labor_rate.sql keeps `labor_rate` out), and a column added
+ * later is not in that list. Reading it straight from the table answered
+ * "permission denied for table profiles" to everybody, admin included, on 20/10 — the
+ * "You do not have access to this" on Messages — and hid the photo button.
+ * Guarded by src/__tests__/profilesAreReadOnlyByGrantedColumns.test.ts.
+ */
+export function useMyPhoto() {
   const { user, session } = useAuth();
   return useQuery({
     queryKey: ["my_avatar", user?.id],
-    enabled: !!session,
+    enabled: !!session && !!user,
     meta: { schemaOptional: true },
-    queryFn: async () => {
-      const { data, error } = await (supabase.from("profiles") as any).select("avatar_path").eq("id", user!.id).maybeSingle();
+    queryFn: async (): Promise<{ notSetUp: boolean; path: string | null }> => {
+      const { data, error } = await rpc("chat_people", { p_ids: [user!.id] });
       if (error) {
-        if (error.code === "42703") return { notSetUp: true, path: null as string | null };
+        if (notThere(error)) return { notSetUp: true, path: null };
         throw error;
       }
-      return { notSetUp: false, path: (data?.avatar_path ?? null) as string | null };
+      return { notSetUp: false, path: ((data ?? []) as ChatPerson[])[0]?.avatar_path ?? null };
     },
   });
 }

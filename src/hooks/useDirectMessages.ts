@@ -293,7 +293,7 @@ export function useDMUnreadBySender() {
  * thread is the "Message supervisor" dialog on My Overtime, so the toast goes there.
  */
 export function dmInboxPath(role: string | null | undefined) {
-  return role === "employee" ? "/dashboard/my-overtime?chat=supervisor" : "/dashboard/messages";
+  return role === "employee" ? "/dashboard/my-overtime?chat=supervisor" : "/dashboard/communication";
 }
 
 /** Total unread messages for current user. */

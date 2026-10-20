@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BellRing, LogOut, Menu, Moon, PowerOff, Sun, Volume2, VolumeX } from "lucide-react";
+import { BellRing, LogOut, Menu, Moon, PowerOff, Sun, Volume2, VolumeX, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { getCurrentFactoryShift } from "@/lib/shifts";
+import { MyAvatar } from "@/components/chat/ChatAvatar";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,7 @@ export function MobileAppHeader({
   dark,
   onToggleDark,
   onSignOut,
+  onEditPhoto,
   isHome,
   menuButton = false,
   leading,
@@ -72,6 +74,8 @@ export function MobileAppHeader({
   dark: boolean;
   onToggleDark: () => void;
   onSignOut: () => void;
+  /** Opens "Your photo"; the account button then shows the photo too. */
+  onEditPhoto?: () => void;
   isHome: boolean;
   /** Phones: a menu button that opens the navigation drawer. Tablets have `leading`. */
   menuButton?: boolean;
@@ -133,6 +137,7 @@ export function MobileAppHeader({
             dark={dark}
             onToggleDark={onToggleDark}
             onSignOut={onSignOut}
+            onEditPhoto={onEditPhoto}
             alertSound={showAudio}
           />
         </div>
@@ -190,6 +195,7 @@ export function AccountMenu({
   dark,
   onToggleDark,
   onSignOut,
+  onEditPhoto,
   alertSound = false,
 }: {
   name: string | null | undefined;
@@ -197,6 +203,7 @@ export function AccountMenu({
   dark: boolean;
   onToggleDark: () => void;
   onSignOut: () => void;
+  onEditPhoto?: () => void;
   /** Engineers and admins: mute / unmute and test the critical-order siren here. */
   alertSound?: boolean;
 }) {
@@ -212,9 +219,13 @@ export function AccountMenu({
           className="h-10 w-10 shrink-0 rounded-full"
           aria-label={`Account${name ? `: ${name}` : ""}`}
         >
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-            {initial}
-          </span>
+          {onEditPhoto ? (
+            <MyAvatar size="sm" />
+          ) : (
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+              {initial}
+            </span>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
@@ -250,6 +261,12 @@ export function AccountMenu({
             )}
             <DropdownMenuSeparator />
           </>
+        )}
+        {onEditPhoto && (
+          <DropdownMenuItem className="min-h-11 gap-2" onSelect={onEditPhoto}>
+            <Camera className="h-4 w-4" />
+            Your photo
+          </DropdownMenuItem>
         )}
         <DropdownMenuItem className="min-h-11 gap-2" onSelect={onToggleDark}>
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}

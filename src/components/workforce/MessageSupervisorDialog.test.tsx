@@ -68,7 +68,7 @@ describe("MessageSupervisorDialog", () => {
 describe("dmInboxPath", () => {
   it("sends an employee to My Overtime, where their thread is, and everyone else to Messages", () => {
     expect(dmInboxPath("employee")).toBe("/dashboard/my-overtime?chat=supervisor");
-    expect(dmInboxPath("manager")).toBe("/dashboard/messages");
+    expect(dmInboxPath("manager")).toBe("/dashboard/communication");
   });
 });
 

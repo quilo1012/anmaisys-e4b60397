@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, Camera, Info, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -9,15 +9,16 @@ import { ConversationList, type ListFilter } from "@/components/chat/Conversatio
 import { MessageThread, type UIMessage } from "@/components/chat/MessageThread";
 import { Composer } from "@/components/chat/Composer";
 import { CreateGroupDialog, GroupInfoSheet } from "@/components/chat/GroupDialogs";
+import { ProfilePhotoDialog } from "@/components/chat/ProfilePhotoDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDMPartners, useDMUnreadBySender, useMarkDMRead, useMySupervisor } from "@/hooks/useDirectMessages";
 import {
   chatFilePath, uploadWithProgress, useChatPeople, useConversationLive, useDMSummaries,
-  useDMThreadPaged, useGroupThread, useMarkGroupRead, useMyAvatarPath, useMyGroups, useSendDirect,
-  useSendGroupMessage, useSetMyPhoto, type UploadedFile,
+  useDMThreadPaged, useGroupThread, useMarkGroupRead, useMyPhoto, useMyGroups, useSendDirect,
+  useSendGroupMessage, type UploadedFile,
 } from "@/hooks/useChat";
 import {
-  avatarProblem, groupFolder, matchesSearch, mergeMessages, pairFolder, parseConversationKey, sortConversations,
+  groupFolder, matchesSearch, mergeMessages, pairFolder, parseConversationKey, sortConversations,
   type ConversationKey, type ConversationSummary,
 } from "@/lib/chat";
 import { can, type Role } from "@/lib/permissions";
@@ -47,7 +48,7 @@ async function upload(path: string, f: File, onProgress: (x: number) => void) {
 }
 
 /**
- * Messages: private conversations and department/team groups in one place.
+ * The Communication Hub: private conversations and department/team groups in one place.
  *
  * Who may write to whom, who is in which group and who reads what is decided by the
  * database (RLS and the BLOCO 107/108 functions); this screen only draws what it is
@@ -74,9 +75,8 @@ export default function DirectMessagesPage() {
   const groups = useMyGroups();
   const mySup = useMySupervisor(role === "employee");
   const groupsNotSetUp = groups.data?.notSetUp ?? false;
-  const myAvatar = useMyAvatarPath();
-  const setPhoto = useSetMyPhoto();
-  const photoInput = useRef<HTMLInputElement>(null);
+  const myPhoto = useMyPhoto();
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const dmIds = useMemo(() => {
     const ids = new Set<string>((partners.data ?? []).map((p) => p.user_id));
@@ -294,33 +294,21 @@ export default function DirectMessagesPage() {
   const listLoading = partners.isLoading || groups.isLoading;
   const listError = partners.error ? errText(partners.error) : groups.error ? errText(groups.error) : null;
 
-  const changeMyPhoto = async (f: File | undefined) => {
-    if (!f) return;
-    const problem = avatarProblem(f);
-    if (problem) { toast.error(problem); return; }
-    try { await setPhoto.mutateAsync(f); toast.success("Photo updated"); }
-    catch (e) { toast.error(errText(e)); }
-  };
-
   const myName = people.data?.[me]?.name ?? "You";
   const listHeader = (
     <div className="flex items-center gap-3">
       <div className="relative">
-        <ChatAvatar name={myName} path={myAvatar.data?.path ?? null} />
-        {myAvatar.data && !myAvatar.data.notSetUp && (
-          <>
-            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-              onChange={(e) => { changeMyPhoto(e.target.files?.[0]); e.target.value = ""; }} />
-            <button type="button" onClick={() => photoInput.current?.click()} disabled={setPhoto.isPending}
-              className="absolute -bottom-1 -right-1 rounded-full border bg-background p-1 shadow-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Change your photo" title="Change your photo (JPEG, PNG or WebP, up to 2 MB)">
-              {setPhoto.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
-            </button>
-          </>
+        <ChatAvatar name={myName} path={myPhoto.data?.path ?? null} />
+        {myPhoto.data && !myPhoto.data.notSetUp && (
+          <button type="button" onClick={() => setPhotoOpen(true)}
+            className="absolute -bottom-1 -right-1 rounded-full border bg-background p-1 shadow-sm hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Change your photo" title="Change your photo">
+            <Camera className="h-3 w-3" />
+          </button>
         )}
       </div>
       <div className="min-w-0">
-        <h1 className="text-base font-semibold leading-tight">Messages</h1>
+        <h1 className="text-base font-semibold leading-tight">Communication Hub</h1>
         <p className="truncate text-xs text-muted-foreground">Private conversations and your groups</p>
       </div>
     </div>
@@ -406,6 +394,7 @@ export default function DirectMessagesPage() {
           </section>
         </div>
       </div>
+      <ProfilePhotoDialog open={photoOpen} onOpenChange={setPhotoOpen} />
       <CreateGroupDialog open={newGroup} onOpenChange={setNewGroup} onCreated={(id) => select(`group:${id}`)} />
       {group && <GroupInfoSheet group={group} open={info} onOpenChange={setInfo} meId={me} isAdmin={role === "admin"} />}
     </DashboardLayout>

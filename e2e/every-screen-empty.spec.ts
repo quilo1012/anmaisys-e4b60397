@@ -146,7 +146,7 @@ const ECRAS = [
   "/dashboard/users", "/dashboard/permissions", "/dashboard/settings", "/dashboard/suppliers",
   "/dashboard/sku-products", "/dashboard/production-performance", "/dashboard/quality",
   "/dashboard/shift-history", "/dashboard/rag-weekly", "/dashboard/line-production",
-  "/dashboard/pm-intelligence", "/dashboard/messages",
+  "/dashboard/pm-intelligence", "/dashboard/messages", "/dashboard/communication",
 ];
 
 /** The two sizes this factory actually holds. The wall display is its own screen. */
