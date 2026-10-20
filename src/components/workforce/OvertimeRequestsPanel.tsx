@@ -38,7 +38,7 @@ import {
 } from "@/lib/overtimeRequests";
 import {
   askShift, askState, ASK_STATE_LABEL, summarise, filterAsks, clashesFor, boardDatesFor, duplicateNames,
-  hoursLabel, DEFAULT_FILTERS, OVERTIME_SHIFTS,
+  hoursLabel, windowMinutes, DEFAULT_FILTERS, OVERTIME_SHIFTS,
   type OvertimeShift, type AskFilters, type AskState, type BoardRow, type Clash, type ShiftSummary,
 } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -79,6 +79,19 @@ const SHIFT_ICON: Record<OvertimeShift, typeof Sun> = { Day: Sun, Night: Moon };
 const SHIFT_HOURS: Record<OvertimeShift, { starts: string; ends: string }> = {
   Day: { starts: "06:00", ends: "18:00" }, Night: { starts: "18:00", ends: "06:00" },
 };
+
+/** Overtime is not always a full 12-hour shift: common lengths, picked in one tap. */
+const DURATION_HOURS = [2, 3, 4, 6, 8, 10, 12] as const;
+/** Common start times — the two shift starts first, then the usual half-shift cuts. */
+const START_PRESETS = ["06:00", "10:00", "12:00", "14:00", "18:00", "22:00"] as const;
+
+/** `start` plus `hours`, wrapped past midnight, as HH:MM. */
+function addHours(start: string, hours: number): string {
+  const m = /^(\d{2}):(\d{2})/.exec(start);
+  if (!m) return "";
+  const total = (Number(m[1]) * 60 + Number(m[2]) + hours * 60) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 
 const RANGE_LABEL: Record<AskFilters["range"], string> = {
   upcoming: "Upcoming", today: "Today", tomorrow: "Tomorrow", next7: "Next 7 days",
@@ -587,8 +600,8 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label>Target shift</Label>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Target shift">
+            <Label>Full shift</Label>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Full shift">
               {OVERTIME_SHIFTS.map((s) => {
                 const Icon = SHIFT_ICON[s];
                 const on = startsAt === SHIFT_HOURS[s].starts && endsAt === SHIFT_HOURS[s].ends;
@@ -596,6 +609,39 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
                   <Button key={s} type="button" size="sm" variant={on ? "default" : "outline"} aria-pressed={on}
                     onClick={() => { setStartsAt(SHIFT_HOURS[s].starts); setEndsAt(SHIFT_HOURS[s].ends); }}>
                     <Icon className="mr-1.5 h-4 w-4" aria-hidden /> {s} {SHIFT_HOURS[s].starts}–{SHIFT_HOURS[s].ends}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+          {/* Not only 12 hours: pick when it starts, then how long. Both write the two
+              time boxes below, which stay editable for anything else. */}
+          <div className="grid gap-1.5">
+            <Label>Starts at</Label>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Start time">
+              {START_PRESETS.map((t) => (
+                <Button key={t} type="button" size="sm" variant={startsAt === t ? "default" : "outline"}
+                  aria-pressed={startsAt === t} className="tabular-nums"
+                  onClick={() => {
+                    // Keep the length already chosen when there is one.
+                    const keep = startsAt && endsAt ? windowMinutes(startsAt, endsAt) / 60 : 0;
+                    setStartsAt(t);
+                    if (keep > 0 && keep < 24) setEndsAt(addHours(t, keep));
+                  }}>
+                  {t}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>How long</Label>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Length of overtime">
+              {DURATION_HOURS.map((h) => {
+                const on = !!startsAt && !!endsAt && windowMinutes(startsAt, endsAt) === h * 60;
+                return (
+                  <Button key={h} type="button" size="sm" variant={on ? "default" : "outline"} aria-pressed={on}
+                    onClick={() => setEndsAt(addHours(startsAt, h))}>
+                    {h}h
                   </Button>
                 );
               })}
@@ -701,7 +747,7 @@ function ClashList({ clashes }: { clashes: Clash[] }) {
 function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ctx: CardContext; mayManage: boolean }) {
   const { roster, reliability, outcomeByResponse } = ctx;
   const responses = useMemo(() => ctx.responsesByRequest.get(request.id) ?? [], [ctx.responsesByRequest, request.id]);
-  const { setRequestStatus, editRequest, decide, recordOutcome, answerFor } = useOvertimeMutations();
+  const { setRequestStatus, editRequest, decide, recordOutcome, answerFor, removeAnswer } = useOvertimeMutations();
   // Corrigir a data e as horas de um pedido já feito. Ver `editRequest` para porque não
   // apaga respostas.
   const [editing, setEditing] = useState(false);
@@ -886,11 +932,29 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
                       <span>60 days: {attendedLabel(rel)}</span>
                       <span aria-hidden>·</span>
                       <span>
-                        Answered {new Date(response.answered_at).toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                        Answered {new Date(response.answered_at).toLocaleString("en-GB", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </span>
                     </div>
                   </div>
-                  <div className="md:shrink-0">
+                  <div className="flex flex-col gap-1 md:shrink-0 md:items-end">
+                    {/* Wrong day or hours picked: remove the answer, then add the right one
+                        on the correct ask ("Add a yes given at the desk"). */}
+                    {mayManage && request.status === "open" && (
+                      <Button size="sm" variant="ghost"
+                        className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                        aria-label={`Remove answer — ${employee.full_name}`}
+                        title="Wrong day or hours? Remove this answer, then add the right one."
+                        disabled={removeAnswer.isPending}
+                        onClick={() => {
+                          if (!window.confirm(`Remove ${employee.full_name}'s answer for ${fmtDate(request.on_date)}? You can add the right one afterwards.`)) return;
+                          removeAnswer.mutate({ responseId: response.id }, {
+                            onSuccess: () => toast.success(`${employee.full_name}'s answer removed.`),
+                            onError: (e) => toast.error((e as Error).message),
+                          });
+                        }}>
+                        <X className="mr-1 h-3.5 w-3.5" aria-hidden /> Wrong answer
+                      </Button>
+                    )}
                     {/* Once somebody is in (or on reserve), what matters is whether they turn
                         up — and that is known before the day as often as after. A drop-out on
                         an open ask promotes the reserve by itself. */}

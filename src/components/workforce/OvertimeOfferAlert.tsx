@@ -20,7 +20,7 @@ import {
 } from "@/lib/overtimeOfferAlert";
 
 const longDate = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
 const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
