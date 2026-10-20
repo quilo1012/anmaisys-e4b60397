@@ -23,7 +23,7 @@ import {
 } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
-import { shiftEdge } from "@/lib/shiftLook";
+import { shiftCard } from "@/lib/shiftLook";
 import { OvertimeAuditLog } from "@/components/workforce/OvertimeAuditLog";
 import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
@@ -67,7 +67,7 @@ function AsksSkeleton() {
 }
 
 const fmtDate = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "2-digit" });
+  new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "2-digit" });
 
 /**
  * The floor's side of overtime: a list of asks and two buttons.
@@ -501,7 +501,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           /* The left edge and the tag are the shift the overtime is FOR (`askShift`,
              the board it lands on), not the person's crew: a day packer offered a
              night ask is looking at night work, and the card should look like it. */
-          <Card key={r.id} id={`ask-${r.id}`} className={cn(shiftEdge(askShift(r)), r.status !== "open" && "border-dashed bg-muted/30", r.id === linkedAsk && "ring-2 ring-primary")}>
+          <Card key={r.id} id={`ask-${r.id}`} className={cn(shiftCard(askShift(r)), r.status !== "open" && "border-dashed bg-muted/30", r.id === linkedAsk && "ring-2 ring-primary")}>
             <CardContent className="space-y-3 pt-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
@@ -509,7 +509,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                       thumb scrolling the list reads the dates down the left edge. */}
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-base font-semibold">{fmtDate(r.on_date)}</span>
-                    <ShiftTag shift={askShift(r)} />
+                    <ShiftTag shift={askShift(r)} className="px-3 py-1 text-sm" />
                   </div>
                   <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />

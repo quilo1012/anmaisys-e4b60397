@@ -535,6 +535,29 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * Take back an answer that was given for the wrong day or the wrong hours.
+   *
+   * The employee answers on their phone and picks the wrong ask — or the supervisor
+   * keyed a yes at the desk onto the wrong date. The fix is to remove that answer and
+   * add the right one. Order matters: the decision is cleared FIRST, because the board
+   * bridge only listens to inserts and updates of `decision`, not deletes — deleting an
+   * accepted answer straight away would leave the person on the board for hours they
+   * never agreed to. The delete is recorded by the audit trigger like any other write.
+   */
+  const removeAnswer = useMutation({
+    mutationFn: async ({ responseId }: { responseId: string }) => {
+      const cleared = await db.from("overtime_responses")
+        .update({ decision: null, decided_at: null, decided_by: null }).eq("id", responseId).select("id");
+      if (cleared.error) throw cleared.error;
+      // A refused write is zero rows and no error: say so instead of looking done.
+      if (!cleared.data?.length) throw new Error("Could not change this answer — you may not have permission.");
+      const { error } = await db.from("overtime_responses").delete().eq("id", responseId);
+      if (error) throw error;
+    },
+    onSuccess: refresh,
+  });
+
   const decide = useMutation({
     mutationFn: async ({ responseId, decision }: { responseId: string; decision: OvertimeDecision | null }) => {
       const { data, error } = await db.from("overtime_responses").update({
@@ -697,5 +720,5 @@ export function useOvertimeMutations() {
     },
   });
 
-  return { createRequest, editRequest, setRequestStatus, answer, answerFor, decide, recordOutcome, cancelMyBooking, linkMe, linkMeByEmail, saveRules };
+  return { createRequest, editRequest, setRequestStatus, answer, answerFor, removeAnswer, decide, recordOutcome, cancelMyBooking, linkMe, linkMeByEmail, saveRules };
 }

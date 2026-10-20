@@ -51,7 +51,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeScheduleClashes: () => ({ data: undefined }),
   useOvertimeMutations: () => ({
     createRequest: mutation(), editRequest: mutation(), setRequestStatus: mutation(),
-    decide: mutation(), recordOutcome: mutation(), answerFor: mutation(),
+    decide: mutation(), recordOutcome: mutation(), answerFor: mutation(), removeAnswer: mutation(),
   }),
 }));
 
