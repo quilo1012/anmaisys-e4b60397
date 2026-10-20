@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Communication presence (uploaded brief 20/10)
+- [ ] Prepare isolated implementation and pull request to `main` for review (20/10 clarification); no production deployment before review. PR creation tool unavailable in this session; production inspection needs the project-approved read-only query tool, and live verification needs two explicitly authorized accounts.
 - [x] Inspect existing Hub, auth and leave sources; approved precedence and session expiry rules recorded. Production policy inspection blocked: required `query_database` tool unavailable; do not use unrelated databases.
 - [x] Prepare pure availability/lease/calendar rules: 19 tests passed, alongside 29 existing leave tests; automatic build OK. No live feature until production verification and reviewed deployment are available.
 - [ ] Implement secure own-availability persistence and authorized live presence without changing messages or employee records — blocked by required production inspection access and `main` pull-request deployment workflow.
