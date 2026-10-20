@@ -1,10 +1,11 @@
 # Roadmap
 
 ## Communication presence (uploaded brief 20/10)
-- [ ] Inspect existing Hub, auth, leave and production permissions; define precedence and session expiry rules.
-- [ ] Implement secure own-availability persistence and authorized live presence without changing messages or employee records.
-- [ ] Integrate accessible status selection and indicators throughout the existing Hub.
-- [ ] Verify separate real accounts, interruption/expiry/multiple sessions, leave privacy and desktop/mobile; report limitations.
+- [x] Inspect existing Hub, auth and leave sources; approved precedence and session expiry rules recorded. Production policy inspection blocked: required `query_database` tool unavailable; do not use unrelated databases.
+- [x] Prepare pure availability/lease/calendar rules: 19 tests passed, alongside 29 existing leave tests; automatic build OK. No live feature until production verification and reviewed deployment are available.
+- [ ] Implement secure own-availability persistence and authorized live presence without changing messages or employee records — blocked by required production inspection access and `main` pull-request deployment workflow.
+- [ ] Integrate accessible status selection and indicators throughout the existing Hub — blocked by the authorized presence API, not a client-only simulated status.
+- [ ] Verify separate real accounts, interruption/expiry/multiple sessions, leave privacy and desktop/mobile — blocked by live implementation and access to a second authorized account; existing admin Hub inspected without writes.
 
 - [x] Verify and fix the global deadline cutting off slow imports/reports; 9 timeout tests passed and a controlled 16-second request completed in the authenticated app.
 - [x] Verify and isolate active-leader query cache shapes; 2 cache tests passed and Quality's leader list showed 32 choices after navigating from Performance without reloading.
