@@ -59,6 +59,8 @@ import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
 import { BackButton } from "@/components/BackButton";
 import { useDMUnreadCount, unlockDMAudio } from "@/hooks/useDirectMessages";
 import { useGroupAlerts } from "@/hooks/useChat";
+import { MyAvatar } from "@/components/chat/ChatAvatar";
+import { ProfilePhotoDialog } from "@/components/chat/ProfilePhotoDialog";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -282,7 +284,7 @@ export const navItems: NavItem[] = [
   // reporting.
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
-  { title: "Messages", url: "/dashboard/messages", icon: MessageCircle, roles: ["admin", "manager", "operator", "supervisor", "production_office_admin", "employee"], group: "Overview", action: "chat.dm" },
+  { title: "Communication Hub", shortTitle: "Messages", url: "/dashboard/communication", icon: MessageCircle, roles: ["admin", "manager", "operator", "supervisor", "production_office_admin", "employee"], group: "Communication", action: "chat.dm" },
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
@@ -574,7 +576,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                                 {permissionOverrideCount} custom
                               </span>
                             )}
-                            {item.title === "Messages" && dmUnread > 0 && (
+                            {item.url === "/dashboard/communication" && dmUnread > 0 && (
                               <>
                                 <span className="ml-auto rounded-full bg-destructive px-1.5 py-0 text-2xs font-semibold text-destructive-foreground min-w-[18px] text-center group-data-[collapsible=icon]:hidden">
                                   {dmUnread > 9 ? "9+" : dmUnread}
@@ -692,7 +694,8 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/analytics": "Analytics",
   "/dashboard/reliability": "Reliability Dashboard",
   "/dashboard/suppliers": "Suppliers & Purchasing",
-  "/dashboard/messages": "Messages",
+  "/dashboard/communication": "Communication Hub",
+  "/dashboard/messages": "Communication Hub",
   "/users/manage": "Users",
   "/dashboard/permissions": "Permissions",
   "/dashboard/roles": "Role rules",
@@ -828,6 +831,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const dmUnread = dmUnreadOnly + groupUnread;
   const { data: crashCount = 0 } = useTelemetryCrashCount(role === "admin");
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const [permissionVersion, setPermissionVersion] = useState(0);
 
   const performSignOut = async () => {
@@ -1003,9 +1007,15 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             </SidebarContent>
             <div className="mt-auto border-t border-sidebar-border p-4 group-data-[collapsible=icon]:p-2">
               <div className="mb-3 flex items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:mb-2">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-semibold text-sidebar-foreground">
-                  {profile?.name?.charAt(0).toUpperCase() || "?"}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(true)}
+                  className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+                  aria-label="Your photo"
+                  title="Your photo"
+                >
+                  <MyAvatar size="sm" className="h-9 w-9" />
+                </button>
                 <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
                   <div className="truncate text-sm font-medium text-sidebar-foreground">
                     {profile?.name}
@@ -1053,6 +1063,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 stoppedLabel={awaitingResumeSummary(stoppedLinesCount).ariaLabel}
                 showAudio={effectiveRole === "engineer" || effectiveRole === "admin"}
                 profileName={profile?.name}
+                onEditPhoto={() => setPhotoOpen(true)}
                 roleLabel={role ? roleTitle[role] : ""}
                 dark={dark}
                 onToggleDark={toggleDark}
@@ -1142,6 +1153,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             roles that may answer; it stays silent until the login is linked to an
             employee and an ask is waiting on them. */}
         {can(role, "overtime.respond") && <OvertimeOfferAlert />}
+        <ProfilePhotoDialog open={photoOpen} onOpenChange={setPhotoOpen} />
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>

@@ -59,7 +59,12 @@ describe("sidebar", () => {
     // a run raises, `quality_supervisor` lands on it and opens nothing else in that
     // group, and its verdicts split across two actions the database enforces. Here
     // the heading is the whole point; folding it back into Production would undo it.
-    const EXEMPT = ["System", "Administration", "Quality"];
+    //
+    // Communication is the fourth, asked for by name on 20/10/2026: the Communication
+    // Hub is its own section so Overview keeps to the dashboard and its numbers, and
+    // the heading is where a person looks for their conversations — every role that
+    // holds `chat.dm` sees it.
+    const EXEMPT = ["System", "Administration", "Quality", "Communication"];
     const counts = new Map<string, number>();
     for (const i of navItems) counts.set(i.group, (counts.get(i.group) ?? 0) + 1);
     for (const [group, n] of counts) {

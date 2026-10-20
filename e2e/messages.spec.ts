@@ -27,7 +27,7 @@ const FAKE_SESSION = {
 
 const at = (minsAgo: number) => new Date(Date.now() - minsAgo * 60_000).toISOString();
 
-interface Calls { send: unknown[]; failNextSend: boolean }
+interface Calls { send: unknown[]; failNextSend: boolean; avatar?: unknown[]; uploads?: string[] }
 
 async function stub(page: Page, calls: Calls) {
   await page.addInitScript(
@@ -74,6 +74,14 @@ async function stub(page: Page, calls: Calls) {
       groupMessages.unshift({ id: body.p_id, group_id: GROUP, sender_id: ME, body: body.p_body, reply_to_id: body.p_reply_to, created_at: new Date().toISOString(), chat_attachments: [] });
       return json(body.p_id);
     }
+    if (url.includes("/storage/v1/object/avatars/") && req.method() === "POST") {
+      calls.uploads?.push(url);
+      return json({ Key: url.split("/object/")[1] });
+    }
+    if (url.includes("/rpc/set_avatar")) {
+      calls.avatar?.push(req.postDataJSON());
+      return json(null);
+    }
     if (url.includes("/rest/v1/chat_group_messages")) return json(groupMessages);
     if (url.includes("/rest/v1/direct_messages") && url.includes("or=")) {
       return json([
@@ -112,7 +120,7 @@ test.describe("on a desk", () => {
   test("lists groups and private conversations, opens a group, sends", async ({ page }) => {
     const calls: Calls = { send: [], failNextSend: false };
     await stub(page, calls);
-    await page.goto(`/dashboard/messages?c=group:${GROUP}`);
+    await page.goto(`/dashboard/communication?c=group:${GROUP}`);
 
     const list = page.getByRole("complementary", { name: "Conversations" });
     await expect(list.getByText("Packing team")).toBeVisible();
@@ -135,7 +143,7 @@ test.describe("on a desk", () => {
   test("a send that fails says so and goes on Retry, as the same message", async ({ page }) => {
     const calls: Calls = { send: [], failNextSend: true };
     await stub(page, calls);
-    await page.goto(`/dashboard/messages?c=group:${GROUP}`);
+    await page.goto(`/dashboard/communication?c=group:${GROUP}`);
     await expect(page.getByText("Line 3 is down")).toBeVisible();
     const box = page.getByRole("textbox", { name: "Message" });
     await box.fill("Second try");
@@ -158,13 +166,66 @@ test.describe("on a desk", () => {
   });
 });
 
+test.describe("your photo", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("is chosen, previewed, then saved into your own folder", async ({ page }) => {
+    const calls: Calls = { send: [], failNextSend: false, avatar: [], uploads: [] };
+    await stub(page, calls);
+    await page.goto("/dashboard/communication");
+    await expect(page.getByRole("heading", { name: "Communication Hub" })).toBeVisible();
+    // No "You do not have access" on the way in (the 20/10 fault).
+    await expect(page.getByText("You do not have access to this")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Your photo", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Your photo" });
+    await expect(dialog).toBeVisible();
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    await dialog.locator('input[type="file"]').setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
+    await expect(dialog.getByRole("img", { name: "Preview of your new photo" })).toBeVisible();
+    await expect(dialog.getByText(/not saved yet/)).toBeVisible();
+    expect(calls.uploads).toHaveLength(0);
+
+    await dialog.getByRole("button", { name: "Save photo" }).click();
+    await expect(dialog).toBeHidden();
+    expect(calls.uploads).toHaveLength(1);
+    expect(calls.uploads![0]).toContain(`/object/avatars/${ME}/`);
+    expect(calls.avatar).toHaveLength(1);
+    expect((calls.avatar![0] as { p_path: string }).p_path).toMatch(new RegExp(`^${ME}/.+\\.png$`));
+  });
+
+  test("a refused file is said before anything uploads", async ({ page }) => {
+    const calls: Calls = { send: [], failNextSend: false, avatar: [], uploads: [] };
+    await stub(page, calls);
+    await page.goto("/dashboard/communication");
+    await page.getByRole("button", { name: "Your photo", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Your photo" });
+    await dialog.locator('input[type="file"]').setInputFiles({ name: "me.gif", mimeType: "image/gif", buffer: Buffer.from("GIF89a") });
+    await expect(page.getByText("A photo must be a JPEG, PNG or WebP image")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Save photo" })).toBeDisabled();
+    expect(calls.uploads).toHaveLength(0);
+  });
+});
+
+test.describe("the sidebar", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
+
+  test("has the Communication Hub in its own section, not under Overview", async ({ page }) => {
+    await stub(page, { send: [], failNextSend: false });
+    await page.goto("/dashboard/communication");
+    const link = page.getByRole("link", { name: /Communication Hub/ });
+    await expect(link).toBeVisible();
+    await expect(page.getByRole("link", { name: /^Messages$/ })).toHaveCount(0);
+  });
+});
+
 for (const width of [360, 390]) {
   test.describe(`phone ${width}px`, () => {
     test.use({ viewport: { width, height: 780 } });
 
     test("list first, then the thread, then back; nothing cut off", async ({ page }) => {
       await stub(page, { send: [], failNextSend: false });
-      await page.goto("/dashboard/messages");
+      await page.goto("/dashboard/communication");
       const ana = page.getByRole("button", { name: /Ana Silva/ });
       await expect(ana).toBeVisible();
       expect(await clipped(page)).toEqual([]);

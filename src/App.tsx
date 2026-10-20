@@ -250,6 +250,11 @@ const LegacyWoLinkRedirect = () => {
   return <Navigate to={`/dashboard/wo/${id}`} replace />;
 };
 
+const MessagesRedirect = () => {
+  const { search } = useLocation();
+  return <Navigate to={`/dashboard/communication${search}`} replace />;
+};
+
 const SessionRedirect = () => {
   const { session, role, loading, authError, retryAuth, signOut } = useAuth();
 
@@ -870,9 +875,12 @@ const App = () => (
                     </ProtectedRoute>
                   }
                 />
-                {/* Messages: private conversations and department/team groups (BLOCO 108). */}
+                {/* The Communication Hub: private conversations and department/team groups
+                    (BLOCO 108). Its old address stays: the bell rows in the database link to
+                    /dashboard/messages(?group=…), so it forwards with the query intact. */}
+                <Route path="/dashboard/messages" element={<MessagesRedirect />} />
                 <Route
-                  path="/dashboard/messages"
+                  path="/dashboard/communication"
                   element={
                     <ProtectedRoute requiredAction="chat.dm">
                       <DirectMessagesPage />
