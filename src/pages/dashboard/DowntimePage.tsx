@@ -22,6 +22,7 @@ import {
 import { generateDowntimeReportPDF, type DowntimeReportInput } from "@/lib/downtimeReport";
 import { computeHeatmap, shiftOf, londonAllParts } from "@/lib/downtimeHeatmap";
 import { PatternMatrixCard } from "@/components/PatternMatrixCard";
+import { PatternWhatsAppReport } from "@/components/PatternWhatsAppReport";
 import { buildReportMatrix } from "@/lib/patternMatrixReport";
 import * as XLSX from "xlsx";
 import { ShiftBreakdownCard } from "@/components/ShiftBreakdownCard";
@@ -74,9 +75,10 @@ interface HeatmapSectionProps {
   toMs: number;
   lineFilter: string; // "all" or line name
   shiftFilter: ShiftFilter;
+  reportUnavailable: boolean;
 }
 
-function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFilter }: HeatmapSectionProps) {
+function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFilter, reportUnavailable }: HeatmapSectionProps) {
   // The same aggregation the PDF uses. This block used to be a byte-for-byte copy
   // of computeHeatmap living here, next to an import of the module it duplicated —
   // two sources of truth for one table, only one of which anyone would think to fix.
@@ -107,6 +109,8 @@ function HeatmapSection({ records, isLoading, fromMs, toMs, lineFilter, shiftFil
         fromMs={fromMs}
         toMs={toMs}
         shiftFilter={shiftFilter}
+        footer={<div className="mt-4"><PatternWhatsAppReport records={records ?? []}
+          scope={{ fromMs, toMs, lineFilter, shiftFilter }} disabled={reportUnavailable} /></div>}
       />
 
       <Card>
@@ -166,8 +170,8 @@ export default function DowntimePage() {
   // O início pedido vai ao hook, para que "All time" no filtro não esbarre num
   // tecto fixo escondido lá dentro. `startDate` nunca é mais recente do que o
   // que o utilizador escolheu, por isso isto só alarga.
-  const { data: records, isLoading } = useDowntime(startDate);
-  const { data: exclusionMap } = useAllWoExclusions();
+  const { data: records, isLoading, error: downtimeError } = useDowntime(startDate);
+  const { data: exclusionMap, isLoading: exclusionsLoading, error: exclusionsError } = useAllWoExclusions();
   const { data: workOrders } = useWorkOrders({ statusIn: ["open", "in_progress", "received", "arrived"] as any });
 
   const { data: machines } = useMachines();
@@ -197,7 +201,7 @@ export default function DowntimePage() {
     const ninety = new Date(Date.now() - 90 * 86_400_000);
     return { from: startDate < ninety ? startDate : ninety, to: endDate };
   }, [startDate, endDate]);
-  const { data: allWOs } = useWorkOrders(woRange);
+  const { data: allWOs, isLoading: ordersLoading, error: ordersError } = useWorkOrders(woRange);
   const [datePreset, setDatePreset] = useState<DateRangePreset>("today");
 
   // Records-tab-specific sub-filters
@@ -1286,6 +1290,7 @@ export default function DowntimePage() {
                 toMs={toMs}
                 lineFilter={filterLine}
                 shiftFilter={filterShift}
+                reportUnavailable={isLoading || exclusionsLoading || ordersLoading || !!downtimeError || !!exclusionsError || !!ordersError}
               />
               {/* Who changed a downtime number, and why. Shown to the roles that are
                   allowed to change one — RLS decides what they can actually read. */}

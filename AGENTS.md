@@ -1,5 +1,7 @@
 # Project Architecture Rules
 
+- Build WhatsApp Pattern Matrix reports from the same exclusion-adjusted records and computeHeatmap scope as the visible matrix; preserve recorded categories and notes without inferring departments or resolution.
+
 - Give reads, RPCs and edge functions a long request deadline while keeping direct table saves short, because cold-start imports and reports legitimately exceed interactive save times.
 - Scope leader query keys by selected row shape beneath the active-leader family prefix, so caches cannot mix id/name and name/shift rows while shared invalidation still refreshes both.
 
