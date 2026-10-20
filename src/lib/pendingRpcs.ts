@@ -73,6 +73,14 @@ const PENDING: readonly PendingRpc[] = [
       "Ask your supervisor to link your account.' — the one sentence that is true and " +
       "actionable while the function is missing.",
   },
+  {
+    name: "chat_contactable_people",
+    block: "BLOCO 109 — 20261020100000_the_hub_lists_whoever_the_rule_lets_you_write_to.sql",
+    fallback:
+      "useDMPartners turns PGRST202 into the lists it used before (list_dm_partners, or the " +
+      "supervisor on file for an employee), so the hub still shows who it showed yesterday " +
+      "instead of nobody.",
+  },
 ];
 
 /**
