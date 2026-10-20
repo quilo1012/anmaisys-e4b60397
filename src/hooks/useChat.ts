@@ -113,10 +113,13 @@ export function useSignedUrl(bucket: "avatars" | "chat-files", path: string | nu
 }
 
 export function useMyGroups(enabled = true) {
-  const { user } = useAuth();
+  // Gate on the session, not the user: during silent re-login the user is restored
+  // from the last session while there is no token yet, and the request would go out
+  // as anon — 42501 "permission denied", filed as RLS_ERROR by the telemetry.
+  const { user, session } = useAuth();
   return useQuery({
     queryKey: ["chat_my_groups", user?.id],
-    enabled: enabled && !!user,
+    enabled: enabled && !!session,
     meta: { schemaOptional: true },
     queryFn: async (): Promise<{ notSetUp: boolean; groups: GroupSummary[] }> => {
       const { data, error } = await rpc("chat_my_groups");
@@ -130,10 +133,10 @@ export function useMyGroups(enabled = true) {
 }
 
 export function useDMSummaries() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   return useQuery({
     queryKey: ["dm_summaries", user?.id],
-    enabled: !!user,
+    enabled: !!session,
     meta: { schemaOptional: true },
     queryFn: async (): Promise<DMSummary[]> => {
       const { data, error } = await rpc("chat_my_dm_summaries");
@@ -202,11 +205,11 @@ export interface PagedDM {
  * crew, so it shows the current shift only — the same rule `useDMThread` has.
  */
 export function useDMThreadPaged(partnerId: string | null) {
-  const { user, role } = useAuth();
+  const { user, role, session } = useAuth();
   const isOperator = role === "operator";
   const shift = getCurrentFactoryShift();
   const shiftToken = isOperator ? `${shift.sessionDate}-${shift.shiftCode}` : "all";
-  return usePagedThread<PagedDM>(["dm_thread", user?.id, partnerId, "paged", shiftToken], !!user && !!partnerId, async (withFiles, before) => {
+  return usePagedThread<PagedDM>(["dm_thread", user?.id, partnerId, "paged", shiftToken], !!session && !!partnerId, async (withFiles, before) => {
     let s = (supabase.from("direct_messages") as any)
       .select(withFiles ? "*, chat_attachments(id,storage_path,file_name,content_type,size_bytes)" : "*")
       .or(`and(sender_id.eq.${user!.id},recipient_id.eq.${partnerId}),and(sender_id.eq.${partnerId},recipient_id.eq.${user!.id})`)
@@ -497,10 +500,10 @@ export function useSetMyPhoto() {
 }
 
 export function useMyAvatarPath() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   return useQuery({
     queryKey: ["my_avatar", user?.id],
-    enabled: !!user,
+    enabled: !!session,
     meta: { schemaOptional: true },
     queryFn: async () => {
       const { data, error } = await (supabase.from("profiles") as any).select("avatar_path").eq("id", user!.id).maybeSingle();

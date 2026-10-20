@@ -330,6 +330,217 @@ export type Database = {
           },
         ]
       }
+      chat_attachments: {
+        Row: {
+          content_type: string
+          created_at: string
+          direct_message_id: string | null
+          file_name: string
+          group_message_id: string | null
+          id: string
+          size_bytes: number
+          storage_path: string
+          uploaded_by: string
+        }
+        Insert: {
+          content_type: string
+          created_at?: string
+          direct_message_id?: string | null
+          file_name: string
+          group_message_id?: string | null
+          id?: string
+          size_bytes: number
+          storage_path: string
+          uploaded_by: string
+        }
+        Update: {
+          content_type?: string
+          created_at?: string
+          direct_message_id?: string | null
+          file_name?: string
+          group_message_id?: string | null
+          id?: string
+          size_bytes?: number
+          storage_path?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_attachments_direct_message_id_fkey"
+            columns: ["direct_message_id"]
+            isOneToOne: false
+            referencedRelation: "direct_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_attachments_group_message_id_fkey"
+            columns: ["group_message_id"]
+            isOneToOne: false
+            referencedRelation: "chat_group_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_group_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          at: string
+          detail: Json | null
+          group_id: string
+          id: string
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          at?: string
+          detail?: Json | null
+          group_id: string
+          id?: string
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          at?: string
+          detail?: Json | null
+          group_id?: string
+          id?: string
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_group_events_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_group_members: {
+        Row: {
+          added_by: string | null
+          group_id: string
+          joined_at: string
+          last_read_at: string | null
+          left_at: string | null
+          removed_by: string | null
+          role: string
+          user_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          group_id: string
+          joined_at?: string
+          last_read_at?: string | null
+          left_at?: string | null
+          removed_by?: string | null
+          role?: string
+          user_id: string
+        }
+        Update: {
+          added_by?: string | null
+          group_id?: string
+          joined_at?: string
+          last_read_at?: string | null
+          left_at?: string | null
+          removed_by?: string | null
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_group_messages: {
+        Row: {
+          body: string
+          created_at: string
+          group_id: string
+          id: string
+          reply_to_id: string | null
+          sender_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          group_id: string
+          id?: string
+          reply_to_id?: string | null
+          sender_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          group_id?: string
+          id?: string
+          reply_to_id?: string | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_group_messages_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "chat_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_group_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "chat_group_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_groups: {
+        Row: {
+          avatar_path: string | null
+          created_at: string
+          created_by: string
+          department: string
+          description: string | null
+          id: string
+          kind: string
+          name: string
+          team: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_path?: string | null
+          created_at?: string
+          created_by: string
+          department: string
+          description?: string | null
+          id?: string
+          kind: string
+          name: string
+          team?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_path?: string | null
+          created_at?: string
+          created_by?: string
+          department?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          team?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       checklist_responses: {
         Row: {
           checklist_id: string
@@ -3752,6 +3963,7 @@ export type Database = {
       profiles: {
         Row: {
           active: boolean
+          avatar_path: string | null
           created_at: string
           email: string
           id: string
@@ -3765,6 +3977,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          avatar_path?: string | null
           created_at?: string
           email: string
           id: string
@@ -3778,6 +3991,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          avatar_path?: string | null
           created_at?: string
           email?: string
           id?: string
@@ -7037,6 +7251,150 @@ export type Database = {
           promoted_response_id: string
         }[]
       }
+      chat_add_members: {
+        Args: { p_group: string; p_members: string[] }
+        Returns: number
+      }
+      chat_can_manage_groups: { Args: { p_uid: string }; Returns: boolean }
+      chat_create_group: {
+        Args: {
+          p_department: string
+          p_description?: string
+          p_kind: string
+          p_members?: string[]
+          p_name: string
+          p_team?: string
+        }
+        Returns: string
+      }
+      chat_departments_of: { Args: { p_uid: string }; Returns: string[] }
+      chat_eligible_for: {
+        Args: {
+          p_department: string
+          p_member: string
+          p_team: string
+          p_uid: string
+        }
+        Returns: boolean
+      }
+      chat_eligible_members: {
+        Args: { p_department: string; p_team?: string }
+        Returns: {
+          avatar_path: string
+          job: string
+          name: string
+          user_id: string
+        }[]
+      }
+      chat_group_people: {
+        Args: { p_group: string }
+        Returns: {
+          avatar_path: string
+          job: string
+          joined_at: string
+          name: string
+          role: string
+          user_id: string
+        }[]
+      }
+      chat_i_am_in: { Args: { p_group: string }; Returns: boolean }
+      chat_is_admin: { Args: { p_uid: string }; Returns: boolean }
+      chat_is_member: {
+        Args: { p_group: string; p_uid: string }
+        Returns: boolean
+      }
+      chat_manages_group: {
+        Args: { p_group: string; p_uid: string }
+        Returns: boolean
+      }
+      chat_mark_group_read: { Args: { p_group: string }; Returns: undefined }
+      chat_may_use_file: { Args: { p_name: string }; Returns: boolean }
+      chat_may_write_avatar: { Args: { p_name: string }; Returns: boolean }
+      chat_my_dm_summaries: {
+        Args: never
+        Returns: {
+          last_at: string
+          last_body: string
+          last_from_me: boolean
+          last_has_audio: boolean
+          partner_id: string
+          unread: number
+        }[]
+      }
+      chat_my_group_scope: {
+        Args: never
+        Returns: {
+          department: string
+          teams: string[]
+        }[]
+      }
+      chat_my_groups: {
+        Args: never
+        Returns: {
+          avatar_path: string
+          department: string
+          description: string
+          id: string
+          kind: string
+          last_at: string
+          last_body: string
+          last_has_files: boolean
+          last_sender_name: string
+          member_count: number
+          my_role: string
+          name: string
+          team: string
+          unread: number
+        }[]
+      }
+      chat_people: {
+        Args: { p_ids: string[] }
+        Returns: {
+          avatar_path: string
+          job: string
+          name: string
+          user_id: string
+        }[]
+      }
+      chat_record_attachments: {
+        Args: {
+          p_direct_message: string
+          p_files: Json
+          p_group_message: string
+        }
+        Returns: number
+      }
+      chat_remove_member: {
+        Args: { p_group: string; p_user: string }
+        Returns: undefined
+      }
+      chat_runs_department: {
+        Args: { p_department: string; p_uid: string }
+        Returns: boolean
+      }
+      chat_send_group_message: {
+        Args: {
+          p_body: string
+          p_files?: Json
+          p_group: string
+          p_id: string
+          p_reply_to?: string
+        }
+        Returns: string
+      }
+      chat_set_member_role: {
+        Args: { p_group: string; p_role: string; p_user: string }
+        Returns: undefined
+      }
+      chat_update_group: {
+        Args: {
+          p_avatar_path: string
+          p_description: string
+          p_group: string
+          p_name: string
+        }
+        Returns: undefined
+      }
       check_invite_code: { Args: { code: string }; Returns: boolean }
       cleanup_batch_skus: {
         Args: never
@@ -7868,6 +8226,10 @@ export type Database = {
         Returns: string
       }
       set_admin_pin: { Args: { _new_pin: string }; Returns: undefined }
+      set_avatar: {
+        Args: { p_path: string; p_user?: string }
+        Returns: undefined
+      }
       set_engineer_pin: {
         Args: { _new_pin: string; _user_id: string }
         Returns: undefined
