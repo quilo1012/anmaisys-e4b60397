@@ -1,8 +1,9 @@
 # Roadmap
 
 ## Communication presence (uploaded brief 20/10)
-- [ ] Inspect existing Hub, auth, leave and production permissions; define precedence and session expiry rules.
-- [ ] Implement secure own-availability persistence and authorized live presence without changing messages or employee records.
+- [x] Inspect existing Hub, auth and leave sources; approved precedence and session expiry rules recorded. Production policy inspection blocked: required `query_database` tool unavailable; do not use unrelated databases.
+- [ ] Prepare and test pure availability/lease/calendar rules; no live feature until production verification and reviewed deployment are available.
+- [ ] Implement secure own-availability persistence and authorized live presence without changing messages or employee records — blocked by required production inspection access and `main` pull-request deployment workflow.
 - [ ] Integrate accessible status selection and indicators throughout the existing Hub.
 - [ ] Verify separate real accounts, interruption/expiry/multiple sessions, leave privacy and desktop/mobile; report limitations.
 

@@ -1,5 +1,7 @@
 # Project Architecture Rules
 
+- Keep Communication availability preferences independent of connection leases and derive the final status through `communicationPresence`; server authorization and timestamps must be verified before wiring the Hub, so offline/reconnect cannot overwrite a preference or expose private leave/session records.
+
 - Give reads, RPCs and edge functions a long request deadline while keeping direct table saves short, because cold-start imports and reports legitimately exceed interactive save times.
 - Scope leader query keys by selected row shape beneath the active-leader family prefix, so caches cannot mix id/name and name/shift rows while shared invalidation still refreshes both.
 
