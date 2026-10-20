@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Add Pattern Matrix WhatsApp preview, line/category selection and copy; 28 tests passed and authenticated Yesterday report copied exactly without changing records.
+
 - [x] Verify and fix the global deadline cutting off slow imports/reports; 9 timeout tests passed and a controlled 16-second request completed in the authenticated app.
 - [x] Verify and isolate active-leader query cache shapes; 2 cache tests passed and Quality's leader list showed 32 choices after navigating from Performance without reloading.
 
