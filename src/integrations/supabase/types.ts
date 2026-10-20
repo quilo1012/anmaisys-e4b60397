@@ -7256,6 +7256,15 @@ export type Database = {
         Returns: number
       }
       chat_can_manage_groups: { Args: { p_uid: string }; Returns: boolean }
+      chat_contactable_people: {
+        Args: never
+        Returns: {
+          avatar_path: string
+          job: string
+          name: string
+          user_id: string
+        }[]
+      }
       chat_create_group: {
         Args: {
           p_department: string
@@ -7308,6 +7317,10 @@ export type Database = {
         Returns: boolean
       }
       chat_mark_group_read: { Args: { p_group: string }; Returns: undefined }
+      chat_may_start: {
+        Args: { p_from: string; p_to: string }
+        Returns: boolean
+      }
       chat_may_use_file: { Args: { p_name: string }; Returns: boolean }
       chat_may_write_avatar: { Args: { p_name: string }; Returns: boolean }
       chat_my_dm_summaries: {
