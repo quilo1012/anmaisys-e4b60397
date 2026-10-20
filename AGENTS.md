@@ -1,5 +1,8 @@
 # Project Architecture Rules
 
+- Give reads, RPCs and edge functions a long request deadline while keeping direct table saves short, because cold-start imports and reports legitimately exceed interactive save times.
+- Scope leader query keys by selected row shape beneath the active-leader family prefix, so caches cannot mix id/name and name/shift rows while shared invalidation still refreshes both.
+
 - Build Headcount suggestions per employee from standing matrix positions then same-shift working history, and save through the existing copy safeguards; a partial board must not suppress suggestions or overwrite saved records.
 
 - Overtime-generated allocations never suppress the employee's normal rota in clash checks; only a manual allocation on their regular board replaces that day's rota, so cross-shift overtime cannot hide rostered hours.

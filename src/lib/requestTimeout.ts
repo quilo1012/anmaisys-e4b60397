@@ -9,7 +9,7 @@
  * The screen's Save button sat disabled for a minute and a half, which from the
  * line looks exactly like an app that has died.
  *
- * Failing in fifteen seconds is not a fix for a bad network. It is what lets the
+ * Failing a direct table save in fifteen seconds is not a fix for a bad network. It lets the
  * screen SAY something — the mutation rejects, `queryErrors` files it, the toast
  * appears, the button comes back — instead of leaving the operator guessing.
  *
@@ -27,11 +27,13 @@
  *
  * INSTALL ORDER MATTERS. This must be installed FIRST, before `installStaleJwtRetry`
  * and `installApiErrorTelemetry`, so it ends up INNERMOST: each JWT retry attempt
- * then gets its own fifteen seconds rather than the pair of them sharing one.
+ * then gets its own deadline rather than the pair of them sharing one.
  */
 
-/** Long enough for a slow report query, short enough that a person is still waiting. */
+/** Direct table writes should release a stalled Save button promptly. */
 export const REQUEST_TIMEOUT_MS = 15_000;
+/** Readers can take 110s to wake; imports, AI and reports also need room to finish. */
+export const LONG_REQUEST_TIMEOUT_MS = 120_000;
 
 const TIMED_PATHS = /\/rest\/v1\/|\/functions\/v1\//;
 
@@ -58,6 +60,11 @@ export function installRequestTimeout(): void {
     }
     if (!TIMED_PATHS.test(url)) return originalFetch(input, init);
 
+    const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+    const isDirectWrite = /\/rest\/v1\//.test(url) && !/\/rest\/v1\/rpc\//.test(url)
+      && ["POST", "PATCH", "PUT", "DELETE"].includes(method);
+    const timeoutMs = isDirectWrite ? REQUEST_TIMEOUT_MS : LONG_REQUEST_TIMEOUT_MS;
+
     // A caller that brought its own signal keeps it: whichever fires first wins.
     // `AbortSignal.any` is not in every browser this runs on, so the two are
     // joined by hand through a controller.
@@ -67,11 +74,11 @@ export function installRequestTimeout(): void {
     const timer = setTimeout(() => {
       controller.abort(
         new DOMException(
-          `The server did not answer within ${Math.round(REQUEST_TIMEOUT_MS / 1000)}s.`,
+          `The server did not answer within ${Math.round(timeoutMs / 1000)}s.`,
           "TimeoutError",
         ),
       );
-    }, REQUEST_TIMEOUT_MS);
+    }, timeoutMs);
 
     const onCallerAbort = () => controller.abort(callerSignal?.reason);
     if (callerSignal) {
