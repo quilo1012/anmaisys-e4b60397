@@ -29,6 +29,13 @@
       "when": 1792449518812,
       "tag": "0003_cancel_my_overtime",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792487960834,
+      "tag": "0004_the_hub_lists_whoever_the_rule_lets_you_write_to",
+      "breakpoints": true
     }
   ]
 }
