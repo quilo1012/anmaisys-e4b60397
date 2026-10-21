@@ -42,23 +42,36 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Require authenticated admin/manager caller.
-    const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const authClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(authHeader.replace("Bearer ", ""));
-    if (claimsErr || !claimsData?.claims?.sub) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // The database itself, for the bell rows it writes (BLOCO 115): the `notification_push`
+    // trigger calls here through pg_net with the scheduler's secret, never a user's JWT.
+    // Same three names as safetyculture-sync, so the vault's value matches whichever is set.
+    const cronSecrets = ["CRON_SECRET", "CRON_TRIGGER_TOKEN", "CRON_POLL_KEY"]
+      .map((n) => (Deno.env.get(n) ?? "").trim())
+      .filter(Boolean);
+    const presented = (req.headers.get("x-cron-secret") ?? "").trim();
+    const isService = presented !== "" && cronSecrets.includes(presented);
+
+    // Otherwise require an authenticated caller.
+    let callerId: string | null = null;
+    if (!isService) {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      if (!authHeader.startsWith("Bearer ")) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const authClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(authHeader.replace("Bearer ", ""));
+      if (claimsErr || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      callerId = claimsData.claims.sub as string;
     }
 
     const VAPID_PUBLIC = Deno.env.get("VAPID_PUBLIC_KEY");
@@ -70,11 +83,12 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: roles } = await supabase
-      .from("user_roles").select("role").eq("user_id", claimsData.claims.sub);
+    const { data: roles } = isService
+      ? { data: [] }
+      : await supabase.from("user_roles").select("role").eq("user_id", callerId);
     // production_office_admin added 06/10/2026: it posts overtime asks, and an ask
     // that cannot tell the floor it exists is a row nobody answers.
-    const isStaff = (roles ?? []).some((r: { role: string }) => ["admin", "manager", "production_office_admin"].includes(r.role));
+    const isStaff = isService || (roles ?? []).some((r: { role: string }) => ["admin", "manager", "production_office_admin"].includes(r.role));
 
     const rawBody = await req.json().catch(() => null);
     const parsedBody = PushPayloadSchema.safeParse(rawBody);
@@ -95,7 +109,7 @@ Deno.serve(async (req) => {
       );
     }
     // Non-staff callers may only target themselves.
-    if (!isStaff && userIds.some((id) => id !== claimsData.claims.sub)) {
+    if (!isStaff && userIds.some((id) => id !== callerId)) {
       return new Response(JSON.stringify({ error: "forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
