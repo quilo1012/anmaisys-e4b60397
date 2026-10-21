@@ -11,7 +11,7 @@ vi.mock("sonner", () => ({ toast: { error: (...a: unknown[]) => toastError(...a)
 
 import { AvailabilityMenu } from "./AvailabilityMenu";
 
-function setup(mine: { preference: string; approved_holiday: boolean }, setError: string | null = null) {
+function setup(mine: { preference: string; approved_holiday: boolean; automatic_status?: string | null; automatic_reason?: string | null }, setError: string | null = null) {
   rpc.mockImplementation(async (fn: string) => {
     if (fn === "communication_my_availability") return { data: [mine], error: null };
     if (fn === "communication_set_availability") return { data: null, error: setError ? { message: setError } : null };
@@ -62,13 +62,37 @@ describe("AvailabilityMenu", () => {
   });
 
   it("says approved leave is why you read On Holiday, and keeps the choice underneath", async () => {
-    setup({ preference: "busy", approved_holiday: true });
+    setup({ preference: "busy", approved_holiday: true, automatic_status: "on_holiday", automatic_reason: "holiday" });
     const trigger = await screen.findByRole("button", { name: /your availability: on holiday/i });
     fireEvent.keyDown(trigger, { key: "Enter" });
     const menu = await screen.findByRole("menu");
-    expect(within(menu).getByTestId("availability-leave-note").textContent).toMatch(/approved leave.*On Holiday.*choice is kept/i);
+    expect(within(menu).getByTestId("availability-leave-note").textContent).toMatch(/leave or holiday.*On Holiday.*choice is kept/i);
     const checked = within(menu).getAllByRole("menuitemradio").filter((el) => el.getAttribute("aria-checked") === "true");
     expect(checked[0].textContent).toMatch(/^Busy/);
+  });
+
+  it("says the rota is why Online reads Away, and that the choice is not changed", async () => {
+    setup({ preference: "online", approved_holiday: false, automatic_status: "away", automatic_reason: "off_shift" });
+    const trigger = await screen.findByRole("button", { name: /your availability: away/i });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByTestId("availability-leave-note").textContent).toMatch(/outside your shift.*Away.*never changed/i);
+    const checked = within(menu).getAllByRole("menuitemradio").filter((el) => el.getAttribute("aria-checked") === "true");
+    expect(checked[0].textContent).toMatch(/^Online/);
+  });
+
+  it("says a recorded absence reads Offline, without naming a reason to anyone else", async () => {
+    setup({ preference: "busy", approved_holiday: false, automatic_status: "offline", automatic_reason: "absence" });
+    const trigger = await screen.findByRole("button", { name: /your availability: offline/i });
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByTestId("availability-leave-note").textContent).toMatch(/recorded as an absence.*Offline/i);
+  });
+
+  it("shows no note when nothing automatic is happening", async () => {
+    setup({ preference: "busy", approved_holiday: false, automatic_status: null, automatic_reason: null });
+    const menu = await openMenu();
+    expect(within(menu).queryByTestId("availability-leave-note")).toBeNull();
   });
 
   it("tells you in English when it could not save, and goes back to what it was", async () => {

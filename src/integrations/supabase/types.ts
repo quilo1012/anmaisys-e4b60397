@@ -7495,6 +7495,8 @@ export type Database = {
         Args: never
         Returns: {
           approved_holiday: boolean
+          automatic_reason: string
+          automatic_status: string
           preference: string
         }[]
       }
@@ -7506,6 +7508,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      communication_work_state: { Args: { p_target: string }; Returns: string }
       communication_set_availability: {
         Args: { p_preference: string }
         Returns: undefined

@@ -15,18 +15,26 @@ export function isAvailabilityStatus(value: unknown): value is AvailabilityStatu
   return typeof value === "string" && AVAILABILITY_STATUSES.some((status) => status === value);
 }
 
+/** What the server knows about the person's working day today (Europe/London). Never the record behind it. */
+export type WorkState = "holiday" | "absent" | "on_shift" | "off_shift";
+
 export interface PresenceSnapshot {
   preference: AvailabilityStatus;
   connected: boolean;
   /** Derived by the authorized server read; never return private leave records. */
   approvedHoliday: boolean;
+  /** Rota, attendance board and leave, read by the server. Null or missing = no opinion. */
+  work?: WorkState | null;
 }
 
 /** null means unavailable/unknown, not a disconnected person. */
 export function effectiveAvailability(snapshot: PresenceSnapshot | null): AvailabilityStatus | null {
   if (!snapshot) return null;
-  if (snapshot.approvedHoliday || snapshot.preference === "on_holiday") return "on_holiday";
+  if (snapshot.approvedHoliday || snapshot.work === "holiday" || snapshot.preference === "on_holiday") return "on_holiday";
+  if (snapshot.work === "absent") return "offline";
   if (snapshot.preference === "offline" || !snapshot.connected) return "offline";
+  // Only the default is moved by the rota: Busy, Do Not Disturb and Away are the person's own word.
+  if (snapshot.work === "off_shift" && snapshot.preference === "online") return "away";
   return snapshot.preference;
 }
 
@@ -72,7 +80,7 @@ export const AVAILABILITY_LABEL: Record<AvailabilityStatus, string> = {
 
 /** One line each, for the picker. Messages are delivered whatever is chosen. */
 export const AVAILABILITY_HELP: Record<AvailabilityStatus, string> = {
-  online: "Available to chat.",
+  online: "Available to chat. Shows as Away outside your shift.",
   busy: "At work and may be slow to answer.",
   do_not_disturb: "Please only message if it matters.",
   away: "Not at your screen for now.",
@@ -107,6 +115,23 @@ export function chunk<T>(items: readonly T[], size: number): T[][] {
  * status; for yourself the preference is known and this tab is, by definition, connected.
  * Approved leave shows through exactly as it does for the people looking at you.
  */
-export function myDisplayedAvailability(preference: AvailabilityStatus, approvedHoliday: boolean): AvailabilityStatus {
+export function myDisplayedAvailability(
+  preference: AvailabilityStatus, approvedHoliday: boolean, automatic: AvailabilityStatus | null = null,
+): AvailabilityStatus {
+  if (automatic) return automatic;
   return effectiveAvailability({ preference, connected: true, approvedHoliday }) ?? preference;
 }
+
+/** Why the system is showing something other than the person's choice. */
+export type AutomaticReason = "holiday" | "absence" | "off_shift";
+
+export function parseAutomaticReason(value: unknown): AutomaticReason | null {
+  return value === "holiday" || value === "absence" || value === "off_shift" ? value : null;
+}
+
+/** One line for the picker, said only to the person themselves. The choice is kept either way. */
+export const AUTOMATIC_NOTE: Record<AutomaticReason, string> = {
+  holiday: "Your leave or holiday today shows you as On Holiday. Your choice is kept and comes back after.",
+  absence: "Today is recorded as an absence, so you show as Offline. Your choice is kept and comes back after.",
+  off_shift: "You are outside your shift, so Online shows as Away. Busy and Do Not Disturb are never changed.",
+};

@@ -8,7 +8,7 @@ import {
 import { AvailabilityDot } from "@/components/chat/AvailabilityDot";
 import { useMyAvailability, useSetMyAvailability } from "@/hooks/useCommunicationPresence";
 import {
-  AVAILABILITY_HELP, AVAILABILITY_LABEL, AVAILABILITY_STATUSES, isAvailabilityStatus,
+  AUTOMATIC_NOTE, AVAILABILITY_HELP, AVAILABILITY_LABEL, AVAILABILITY_STATUSES, isAvailabilityStatus,
   myDisplayedAvailability, type AvailabilityStatus,
 } from "@/lib/communicationPresence";
 import { cn } from "@/lib/utils";
@@ -27,8 +27,9 @@ export function AvailabilityMenu({ variant = "default", className }: {
   const mine = useMyAvailability();
   const save = useSetMyAvailability();
   const preference = mine.data?.preference ?? null;
-  const leave = mine.data?.approvedHoliday === true;
-  const shown: AvailabilityStatus | null = mine.data ? myDisplayedAvailability(mine.data.preference, leave) : null;
+  const reason = mine.data?.automaticReason ?? null;
+  const shown: AvailabilityStatus | null = mine.data
+    ? myDisplayedAvailability(mine.data.preference, mine.data.approvedHoliday, mine.data.automatic) : null;
 
   const choose = (value: string) => {
     if (!isAvailabilityStatus(value) || value === preference) return;
@@ -62,9 +63,9 @@ export function AvailabilityMenu({ variant = "default", className }: {
         <DropdownMenuLabel className="text-2xs uppercase tracking-wider text-muted-foreground">
           Your availability
         </DropdownMenuLabel>
-        {leave && (
+        {reason && (
           <p className="px-2 pb-2 text-xs text-muted-foreground" data-testid="availability-leave-note">
-            Your approved leave shows you as On Holiday today. Your choice is kept and comes back when it ends.
+            {AUTOMATIC_NOTE[reason]}
           </p>
         )}
         <DropdownMenuSeparator />
