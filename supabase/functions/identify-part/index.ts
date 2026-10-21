@@ -38,7 +38,25 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(
       authHeader.replace("Bearer ", ""),
     );
-    if (claimsErr || !claimsData?.claims?.sub) return json({ error: "unauthorized" }, 401);
+    const userId = claimsData?.claims?.sub as string | undefined;
+    if (claimsErr || !userId) return json({ error: "unauthorized" }, 401);
+
+    // Per-user rate limit: this path runs Claude Sonnet vision on images up to 6 MB —
+    // the most expensive proxy — so cap it tighter. Cross-instance (DB-backed).
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false } },
+    );
+    const { data: rl } = await admin.rpc("ai_rate_limit_hit", {
+      _user_id: userId, _bucket: "identify_part", _limit: 40, _window_seconds: 3600,
+    });
+    if (rl && (rl as { allowed?: boolean }).allowed === false) {
+      return json(
+        { error: "Rate limit exceeded — try again in a moment.", retry_after: (rl as { retry_after?: number }).retry_after },
+        429,
+      );
+    }
 
     const body = await req.json().catch(() => ({}));
     const image: unknown = body?.image;

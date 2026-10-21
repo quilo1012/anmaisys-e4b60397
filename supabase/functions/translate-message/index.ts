@@ -27,7 +27,25 @@ Deno.serve(async (req) => {
     const { data: claimsData, error: claimsErr } = await authClient.auth.getClaims(
       authHeader.replace("Bearer ", ""),
     );
-    if (claimsErr || !claimsData?.claims?.sub) return json({ error: "unauthorized" }, 401);
+    const userId = claimsData?.claims?.sub as string | undefined;
+    if (claimsErr || !userId) return json({ error: "unauthorized" }, 401);
+
+    // Per-user rate limit, so a signed-in account cannot burn AI credits in a loop.
+    // Generous for real chat use; tune via the args. Cross-instance (DB-backed).
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false } },
+    );
+    const { data: rl } = await admin.rpc("ai_rate_limit_hit", {
+      _user_id: userId, _bucket: "translate", _limit: 120, _window_seconds: 3600,
+    });
+    if (rl && (rl as { allowed?: boolean }).allowed === false) {
+      return json(
+        { error: "Rate limit exceeded — try again later.", retry_after: (rl as { retry_after?: number }).retry_after },
+        429,
+      );
+    }
 
     const { text, mode } = await req.json().catch(() => ({ text: "", mode: undefined }));
     if (!text || typeof text !== "string") {
