@@ -9,8 +9,14 @@ const channelObj: { on: (...a: unknown[]) => typeof channelObj; subscribe: () =>
   on: (_t: unknown, _f: unknown, cb: unknown) => { onChange = cb as () => void; return channelObj; },
   subscribe: () => channelObj,
 };
+const getSession = vi.fn();
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { rpc: (...a: unknown[]) => rpc(...a), channel: () => channelObj, removeChannel: (...a: unknown[]) => removeChannel(...a) },
+  supabase: {
+    rpc: (...a: unknown[]) => rpc(...a),
+    auth: { getSession: () => getSession() },
+    channel: () => channelObj,
+    removeChannel: (...a: unknown[]) => removeChannel(...a),
+  },
 }));
 let user: { id: string } | null = { id: "u-me" };
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user }) }));
@@ -31,15 +37,24 @@ const mount = () => {
 beforeEach(() => {
   vi.useFakeTimers();
   rpc.mockReset(); rpc.mockResolvedValue({ data: null, error: null });
+  // A presenca so bate com token viva — ver `aPresencaNaoBateSemTokenViva`. Estes
+  // testes sao sobre o ritmo e o alcance do batimento, por isso a sessao esta sa.
+  getSession.mockReset();
+  getSession.mockResolvedValue({
+    data: { session: { access_token: "jwt", expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+  });
   removeChannel.mockReset(); onChange = null; user = { id: "u-me" }; tablet = false;
   try { sessionStorage.clear(); } catch { /* ignore */ }
 });
+
+/** O batimento espera agora pela sessao antes da RPC: mais do que um microtask. */
+const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 afterEach(() => { vi.useRealTimers(); });
 
 describe("PresenceHeartbeat", () => {
   it("says this tab is open at once, then every 60 seconds, always with the same tab id", async () => {
     mount();
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await flush(); });
     expect(calls("communication_touch_presence")).toHaveLength(1);
     await act(async () => { await vi.advanceTimersByTimeAsync(PRESENCE_HEARTBEAT_MS * 3); });
     const touches = calls("communication_touch_presence");
@@ -56,8 +71,12 @@ describe("PresenceHeartbeat", () => {
 
   it("ends only its own tab's lease when the page is hidden for good", async () => {
     mount();
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await flush(); });
     window.dispatchEvent(new Event("pagehide"));
+    // O fim da concessao espera agora pela sessao, por isso ja nao parte no mesmo
+    // tick do evento. Ver a nota sobre `pagehide` no componente: e de proposito, e a
+    // concessao de 180 s e a rede de seguranca quando o browser nao da tempo.
+    await act(async () => { await flush(); });
     const ended = calls("communication_end_presence");
     expect(ended).toHaveLength(1);
     expect((ended[0][1] as { p_tab_id: string }).p_tab_id).toBe(presenceTabId());
@@ -65,9 +84,9 @@ describe("PresenceHeartbeat", () => {
 
   it("beats again at once when the device comes back online", async () => {
     mount();
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await flush(); });
     window.dispatchEvent(new Event("online"));
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await flush(); });
     expect(calls("communication_touch_presence")).toHaveLength(2);
   });
 
@@ -80,7 +99,7 @@ describe("PresenceHeartbeat", () => {
 
   it("re-reads the list when Realtime says somebody changed, once for a burst", async () => {
     const { invalidate } = mount();
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await flush(); });
     invalidate.mockClear();
     act(() => { onChange?.(); onChange?.(); onChange?.(); });
     await act(async () => { await vi.advanceTimersByTimeAsync(300); });
@@ -90,7 +109,7 @@ describe("PresenceHeartbeat", () => {
 
   it("stops on unmount without ending the lease (a page change is not leaving)", async () => {
     const { unmount } = mount();
-    await act(async () => { await Promise.resolve(); });
+    await act(async () => { await flush(); });
     unmount();
     expect(removeChannel).toHaveBeenCalled();
     await act(async () => { await vi.advanceTimersByTimeAsync(PRESENCE_HEARTBEAT_MS * 2); });

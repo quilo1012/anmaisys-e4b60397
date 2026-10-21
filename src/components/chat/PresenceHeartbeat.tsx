@@ -8,6 +8,39 @@ import { MY_AVAILABILITY_KEY, PRESENCE_KEY } from "@/hooks/useCommunicationPrese
 
 const TAB_KEY = "an_presence_tab";
 
+/**
+ * Se o supabase-js tem mesmo uma token para enviar.
+ *
+ * `communication_touch_presence()` tem EXECUTE so para `authenticated`, e defende-se
+ * outra vez por dentro — `raise exception` sem `session_id` no JWT. Uma batida enviada
+ * sem token valida resolve o papel `anon`, apanha 42501 e o PostgREST embrulha-o em
+ * **401** (a um utilizador autenticado sem privilegio daria 403). Chega ao Root
+ * Diagnostics como RLS_ERROR, e nao e nada disso: nao falta a concessao, falta a token.
+ *
+ * `user` do contexto nao responde a essa pergunta. Em `AuthContext`, o ramo de
+ * SIGNED_OUT implicito que corre quando o `setSession()` falhou faz na mesma
+ * `setUser(lastSession.user)` — a pessoa fica ligada so no estado do React enquanto o
+ * cliente ja nao tem token nenhuma. 21/10 12:08, `/signup`, um admin: `{"code":"42501",
+ * "status":401}` com `user_id` e `role` conhecidos no registo.
+ *
+ * `getSession()` e a resposta porque faz as duas coisas: renova a sessao quando
+ * consegue e diz que nao ha nenhuma quando nao consegue. Mesmo molde do `useHeartbeat`
+ * e do `logAuditEvent`, pela mesma razao.
+ */
+async function hasLiveSession(): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const session = data?.session;
+    if (!session?.access_token) return false;
+    // Uma sessao devolvida ja expirada e uma que o refresh ainda nao alcancou.
+    // Enviar essa token e pedir o 401 de proposito.
+    if (session.expires_at && session.expires_at * 1000 <= Date.now()) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** One id per browser tab, kept for the life of the tab. Never shared between tabs. */
 export function presenceTabId(storage?: Pick<Storage, "getItem" | "setItem"> | null): string {
   const fresh = () => (typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -31,7 +64,10 @@ export function presenceTabId(storage?: Pick<Storage, "getItem" | "setItem"> | n
 
 /** Ends this tab's lease now (sign-out). Never throws: signing out must not wait on presence. */
 export async function endMyPresence(): Promise<void> {
-  try { await supabase.rpc("communication_end_presence", { p_tab_id: presenceTabId() }); } catch { /* the lease runs out in 180 s */ }
+  try {
+    if (!(await hasLiveSession())) return;
+    await supabase.rpc("communication_end_presence", { p_tab_id: presenceTabId() });
+  } catch { /* the lease runs out in 180 s */ }
 }
 
 /**
@@ -42,7 +78,12 @@ export async function endMyPresence(): Promise<void> {
  *    not flip anybody, and a closed laptop reads Offline within three minutes without
  *    anyone doing anything. The lease never touches the person's CHOICE.
  *  - A tab that closes politely ends its own lease on `pagehide` (best effort: the
- *    browser may cancel the call, and the lease then simply runs out).
+ *    browser may cancel the call, and the lease then simply runs out). Since the token
+ *    check went in, that call waits on `getSession()` first, so a page torn down fast
+ *    loses the polite ending slightly more often than it used to. Deliberate: the
+ *    180-second lease is the designed backstop and costs one stale tile for a minute,
+ *    while firing the call without a token buys nothing and writes a guaranteed 401
+ *    into Root Diagnostics — the very noise this guard exists to stop.
  *  - Realtime delivers a marker when somebody connects, disconnects or changes their
  *    choice; it carries no status, so the list is re-read through the same check.
  *  - A shared line tablet is a place, not a person: it never holds a lease.
@@ -60,12 +101,16 @@ export function PresenceHeartbeat() {
 
     const beat = async () => {
       try {
+        // Sem token nao se bate. A concessao de 180 s cobre o intervalo, e a batida
+        // seguinte passa assim que o refresh chegar — saltar nao e um erro e nao se
+        // regista como tal.
+        if (!(await hasLiveSession())) return;
         const { error } = await supabase.rpc("communication_touch_presence", { p_tab_id: tab });
         if (error && !warned) { warned = true; console.warn("Presence heartbeat refused:", error.message); }
         if (!error) warned = false;
       } catch { /* offline: the next beat tries again */ }
     };
-    const leave = () => { void supabase.rpc("communication_end_presence", { p_tab_id: tab }); };
+    const leave = () => { void endMyPresence(); };
     const wake = () => { if (document.visibilityState === "visible") void beat(); };
     // Several markers in a moment (somebody opening three tabs) are one re-read.
     const refresh = () => {
