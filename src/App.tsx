@@ -15,6 +15,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
+import Privacy from "./pages/Privacy";
 import OAuthConsent from "./pages/OAuthConsent";
 import ResetPassword from "./pages/ResetPassword";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -331,6 +332,7 @@ const App = () => (
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/signup" element={<SignUp />} />
+                <Route path="/privacy" element={<Privacy />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
                 <Route

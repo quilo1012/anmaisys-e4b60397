@@ -31,6 +31,19 @@ describe("the installed app", () => {
   });
 });
 
+describe("the Play Store wrapper", () => {
+  it("has maskable icons that exist, beside the normal ones", () => {
+    const maskable = manifest.icons.filter((i: { purpose?: string }) => i.purpose === "maskable");
+    expect(maskable.map((i: { sizes: string }) => i.sizes).sort()).toEqual(["192x192", "512x512"]);
+    expect(manifest.icons.some((i: { sizes: string; purpose?: string }) => i.sizes === "512x512" && i.purpose === "any")).toBe(true);
+  });
+
+  it("does not ship a half-filled assetlinks.json: the template stays out of public/", () => {
+    expect(existsSync(resolve(root, "public/.well-known/assetlinks.json"))).toBe(false);
+    expect(existsSync(resolve(root, "docs/play-store/assetlinks.template.json"))).toBe(true);
+  });
+});
+
 describe("the service worker", () => {
   it("always shows a notification from a push", () => {
     const handler = sw.slice(sw.indexOf('addEventListener("push"'), sw.indexOf('addEventListener("pushsubscriptionchange"'));
