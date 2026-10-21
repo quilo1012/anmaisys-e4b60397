@@ -7,6 +7,7 @@ import { useSignedUrl, type ChatAttachment } from "@/hooks/useChat";
 import { CHAT_FILE_TYPES, formatBytes, layoutThread } from "@/lib/chat";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import type { AvailabilityStatus } from "@/lib/communicationPresence";
 
 export interface UIMessage {
   id: string;
@@ -82,11 +83,13 @@ function Attachment({ a, own }: { a: ChatAttachment; own: boolean }) {
 
 export function MessageThread({
   messages, meId, people, isGroup, loading, error, onRetryLoad, hasOlder, loadingOlder, onLoadOlder,
-  onRetrySend, onReply, renderExtras, emptyText,
+  onRetrySend, onReply, renderExtras, emptyText, presence,
 }: {
   messages: UIMessage[];
   meId: string;
   people: Record<string, { name: string; avatar_path: string | null }>;
+  /** Availability by user id, as the server shows it to you. A sender not in it gets no dot. */
+  presence?: ReadonlyMap<string, AvailabilityStatus>;
   isGroup: boolean;
   loading: boolean;
   error: string | null;
@@ -196,7 +199,7 @@ export function MessageThread({
             <div key={m.id} className={cn("group flex gap-2", own ? "justify-end" : "justify-start", r.startsRun ? "mt-3" : "mt-0.5")}>
               {!own && isGroup && (
                 <div className="w-8 shrink-0">
-                  {r.startsRun && <ChatAvatar name={who} path={people[m.sender_id]?.avatar_path} size="sm" />}
+                  {r.startsRun && <ChatAvatar name={who} path={people[m.sender_id]?.avatar_path} size="sm" status={presence?.get(m.sender_id) ?? null} />}
                 </div>
               )}
               <div className={cn("flex max-w-[85%] flex-col sm:max-w-[70%]", own ? "items-end" : "items-start")}>

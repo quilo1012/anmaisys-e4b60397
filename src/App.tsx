@@ -19,6 +19,7 @@ import OAuthConsent from "./pages/OAuthConsent";
 import ResetPassword from "./pages/ResetPassword";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AppBanners } from "@/components/AppBanners";
+import { PresenceHeartbeat } from "@/components/chat/PresenceHeartbeat";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { roleDashMap } from "@/lib/permissions";
@@ -315,6 +316,7 @@ const App = () => (
           <CriticalAlertProvider>
             <ErrorBoundary>
             <AppBanners />
+            <PresenceHeartbeat />
             <ForgetPreviousUser />
             <PermissionOverridesSync />
             <SeverityPointsSync />

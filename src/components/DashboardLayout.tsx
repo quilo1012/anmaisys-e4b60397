@@ -61,6 +61,8 @@ import { useDMUnreadCount, unlockDMAudio } from "@/hooks/useDirectMessages";
 import { useGroupAlerts } from "@/hooks/useChat";
 import { MyAvatar } from "@/components/chat/ChatAvatar";
 import { ProfilePhotoDialog } from "@/components/chat/ProfilePhotoDialog";
+import { AvailabilityMenu } from "@/components/chat/AvailabilityMenu";
+import { endMyPresence } from "@/components/chat/PresenceHeartbeat";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -836,6 +838,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   const performSignOut = async () => {
     try {
+      await endMyPresence();   // this tab stops counting at once; other tabs and devices keep their own leases
       await signOut();
     } catch {
       // ignore — proceed to clear session client-side
@@ -1024,6 +1027,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     {role ? roleTitle[role] : ""}
                   </div>
                 </div>
+              </div>
+              {/* Your own availability, from the profile area on every screen (BLOCO 111). */}
+              <div className="mb-2 group-data-[collapsible=icon]:hidden">
+                <AvailabilityMenu variant="sidebar" />
               </div>
               <Button
                 variant="ghost"

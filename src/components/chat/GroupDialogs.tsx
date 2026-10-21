@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { usePresenceOf } from "@/hooks/useCommunicationPresence";
 import {
   uploadWithProgress, useAddMembers, useCreateGroup, useEligibleMembers, useGroupPeople, useGroupScope,
   useRemoveMember, useSetMemberRole, useUpdateGroup, type ChatPerson, type GroupSummary,
@@ -184,6 +185,8 @@ export function GroupInfoSheet({ group, open, onOpenChange, meId, isAdmin }: {
   group: GroupSummary; open: boolean; onOpenChange: (o: boolean) => void; meId: string; isAdmin: boolean;
 }) {
   const people = useGroupPeople(open ? group.id : null);
+  // Shown, never enforced: members are written to whatever their status says.
+  const { statuses: presence } = usePresenceOf((people.data ?? []).map((p) => p.user_id));
   const manages = isAdmin || group.my_role === "manager";
   const [adding, setAdding] = useState(false);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -301,7 +304,7 @@ export function GroupInfoSheet({ group, open, onOpenChange, meId, isAdmin }: {
             <ul className="space-y-1">
               {(people.data ?? []).map((p) => (
                 <li key={p.user_id} className="flex items-center gap-3 rounded-md px-1 py-1.5">
-                  <ChatAvatar name={p.name} path={p.avatar_path} size="sm" />
+                  <ChatAvatar name={p.name} path={p.avatar_path} size="sm" status={presence.get(p.user_id) ?? null} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">{p.name}{p.user_id === meId && <span className="text-muted-foreground"> (you)</span>}</span>
                     {p.job && <span className="block truncate text-2xs text-muted-foreground">{p.job}</span>}
