@@ -21,10 +21,35 @@
  * cannot carry it.
  */
 
-/** A failed dynamic import, in each of the shapes the browsers word it. */
+/**
+ * A failed dynamic import, in each of the shapes the browsers word it.
+ *
+ * The last alternative is WebKit's, and it reads like a security refusal rather than
+ * a download that did not arrive: "Cross-origin script load denied by Cross-Origin
+ * Resource Sharing policy." It is what Safari and every iOS browser say when a
+ * `<script type="module">` fetch is REDIRECTED to another origin — a module script
+ * requires CORS, and a cross-origin redirect without the headers for it is refused.
+ *
+ * 21/10 12:18 on /dashboard/my-overtime is one: a deploy had landed 20 seconds
+ * earlier (PR #695, 12:17:42) and taken the previous build's chunks with it, and
+ * `anmaisys.lovable.app` now answers a missing asset by redirecting to the custom
+ * domain the app has since been given. A tab still running on the old origin asked
+ * for a chunk, got sent across origins, and WebKit refused it.
+ *
+ * Missing the wording cost all three of the things this file exists to drive:
+ * `lazyWithReload` rethrew instead of retrying, so the one reload — which WOULD have
+ * fixed it, by landing the tab on the new origin — never happened; `chunkCrashEvidence`
+ * returned {} and the crash carried no chunkUrl, chunkStatus or entryIsStale; and the
+ * log filed a failed download as a REACT_CRASH, which is what puts the red badge on
+ * Root Diagnostics. The same shape of mistake as a 401 filed as an RLS_ERROR: the
+ * label sends whoever reads it to the wrong place.
+ *
+ * Narrow on purpose. A CORS refusal is only read as a chunk failure here because the
+ * only callers ask it about a dynamic import that has already rejected.
+ */
 export function isChunkLoadError(err: unknown): boolean {
   const msg = String((err as { message?: string })?.message || err || "");
-  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk .* failed/i.test(
+  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk .* failed|Cross-origin script load denied/i.test(
     msg,
   );
 }
