@@ -36,6 +36,13 @@
       "when": 1792487960834,
       "tag": "0004_the_hub_lists_whoever_the_rule_lets_you_write_to",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792566280938,
+      "tag": "0005_communication_availability_and_connection_leases",
+      "breakpoints": true
     }
   ]
 }

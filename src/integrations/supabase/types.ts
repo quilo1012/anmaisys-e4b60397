@@ -628,6 +628,60 @@ export type Database = {
           },
         ]
       }
+      communication_availability: {
+        Row: {
+          preference: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          preference?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          preference?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      communication_connection_leases: {
+        Row: {
+          auth_session_id: string
+          expires_at: string
+          tab_id: string
+          user_id: string
+        }
+        Insert: {
+          auth_session_id: string
+          expires_at: string
+          tab_id: string
+          user_id: string
+        }
+        Update: {
+          auth_session_id?: string
+          expires_at?: string
+          tab_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      communication_presence_changes: {
+        Row: {
+          revision: string
+          user_id: string
+        }
+        Insert: {
+          revision?: string
+          user_id: string
+        }
+        Update: {
+          revision?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       daily_allocations: {
         Row: {
           area_id: string | null
@@ -7425,6 +7479,41 @@ export type Database = {
       }
       close_shift_downtime: { Args: never; Returns: undefined }
       close_stale_production_downtimes: { Args: never; Returns: number }
+      communication_can_view_presence: {
+        Args: { p_target: string }
+        Returns: boolean
+      }
+      communication_end_presence: {
+        Args: { p_tab_id: string }
+        Returns: undefined
+      }
+      communication_has_approved_holiday: {
+        Args: { p_target: string }
+        Returns: boolean
+      }
+      communication_my_availability: {
+        Args: never
+        Returns: {
+          approved_holiday: boolean
+          preference: string
+        }[]
+      }
+      communication_presence_actor: { Args: never; Returns: string }
+      communication_presence_for: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          status: string
+          user_id: string
+        }[]
+      }
+      communication_set_availability: {
+        Args: { p_preference: string }
+        Returns: undefined
+      }
+      communication_touch_presence: {
+        Args: { p_tab_id: string }
+        Returns: undefined
+      }
       compute_smart_target: {
         Args: { _entry_date: string; _line: string; _shift: string }
         Returns: Json
