@@ -15411,6 +15411,238 @@ end $$;
 
 notify pgrst, 'reload schema';
 
+-- F-1 (raiz): fechar o EXECUTE de `anon` por default no schema public.
+--
+-- Problema: o schema `public` tem ALTER DEFAULT PRIVILEGES que concede EXECUTE a `anon`
+-- a TODA a função nova. O sweep de 27/06 (REVOKE ALL ON ALL FUNCTIONS ... FROM anon) só
+-- cobriu as funções existentes nesse instante; cada função criada depois volta a ganhar
+-- anon=EXECUTE, e a proteção passou a depender de cada função fazer o seu auth.uid()-check.
+-- Isto já deixou PII de empregados acessível à chave anónima (overtime_unlinked_names,
+-- medido 18/10/2026). Esta migração corrige a RAIZ e repõe um estado explícito.
+--
+-- ÂMBITO DELIBERADAMENTE ESTREITO: mexe SÓ no papel `anon`.
+--   • NÃO toca em `authenticated` nem `service_role` — há funções propositadamente
+--     revogadas de authenticated (service_role-only, ex. 20260624211229); um GRANT em
+--     bloco a authenticated reabri-las-ia. Por isso não se concede nada a authenticated.
+--   • NÃO revoga de PUBLIC — isso foi tratado em 27/06 e um REVOKE FROM PUBLIC poderia
+--     remover acesso de que `authenticated` depende por via de PUBLIC.
+--   O default do schema concede diretamente a anon ("anon=X of its own"), por isso
+--   REVOKE ... FROM anon remove exatamente esse caminho sem efeitos colaterais.
+--
+-- Idempotente. REVÊ a allowlist de login antes de aplicar.
+
+-- 1) RAIZ: parar o default de conceder EXECUTE a anon a funções FUTURAS.
+--    Aplica-se ao role que cria as funções (o das migrações).
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon;
+
+-- 2) ESTADO ATUAL: tirar a anon o EXECUTE que já tem (anon apenas; authenticated intacto).
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM anon;
+
+-- 3) Repor anon SÓ na allowlist de login — as funções que o ecrã pré-sessão chama sem
+--    sessão. `to_regprocedure` salta as que não existam neste momento (idempotente).
+--    Fonte da allowlist: funções alguma vez concedidas a anon nas migrações
+--    (get_login_branding, list_tablet_accounts_public, check_invite_code) + a de signup
+--    deixada aberta de propósito em 20261019100000. Nada fora disto deve ser anon.
+DO $$
+DECLARE fn text;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY[
+    'public.get_login_branding()',
+    'public.list_tablet_accounts_public()',
+    'public.check_invite_code(text)',
+    'public.signup_invite_code(text)'
+  ] LOOP
+    IF to_regprocedure(fn) IS NOT NULL THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO anon', fn);
+    END IF;
+  END LOOP;
+END $$;
+
+-- Nota operacional: se as funções forem criadas por mais do que um role de BD, o default
+-- privilege é por-role — confirma com `\ddp`/pg_default_acl e repete o passo 1 com
+-- `FOR ROLE <role>` para cada um. O teste de regressão
+-- (no_public_function_is_anon_executable_test.sql) deteta qualquer regresso.
+
+-- F-2: rate-limit/lockout na verificação do PIN de engenheiro.
+--
+-- Problema: verify-engineer-pin autentica o chamador (qualquer utilizador com sessão) e
+-- chama verify_pin_by_code(_pin), que procura em TODOS os engenheiros ativos por um PIN
+-- de 4-6 dígitos SEM contador de tentativas. O caminho de admin já tem lockout
+-- (verify_admin_pin_with_lockout + admin_pin_attempts); o de engenheiro não. Como o match
+-- é contra qualquer engenheiro, a entropia efetiva é ainda menor e o espaço é
+-- brute-forçável por qualquer conta autenticada, devolvendo a identidade de um engenheiro.
+--
+-- Correção: espelhar exatamente o padrão do admin — tentativas keyed em auth.uid() (o
+-- chamador que adivinha), 5 tentativas livres e escada de lockout [30,60,120,300]s. A
+-- função é chamada pelo cliente USER-SCOPED na edge (para auth.uid() resolver), tal como
+-- verify_admin_pin_with_lockout.
+--
+-- Não altera verify_pin_by_code (mantém-se service_role-only para compatibilidade até a
+-- edge atualizada estar confirmada em produção; pode ser removida num follow-up).
+
+-- 1) Tentativas por chamador (mesma forma que admin_pin_attempts; escrita só pela função)
+CREATE TABLE IF NOT EXISTS public.engineer_pin_attempts (
+  user_id uuid PRIMARY KEY,
+  failures integer NOT NULL DEFAULT 0,
+  lockout_step integer NOT NULL DEFAULT 0,
+  locked_until timestamptz,
+  last_attempt timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.engineer_pin_attempts ENABLE ROW LEVEL SECURITY;
+-- Sem policies para anon/authenticated: a tabela é escrita apenas pela função
+-- SECURITY DEFINER (que corre como owner). O service_role mantém acesso direto.
+GRANT ALL ON public.engineer_pin_attempts TO service_role;
+
+-- 2) Verificação com lockout. Devolve jsonb, como o lado admin.
+CREATE OR REPLACE FUNCTION public.verify_engineer_pin_with_lockout(_pin text)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  _uid uuid := auth.uid();
+  _now timestamptz := now();
+  _row public.engineer_pin_attempts%ROWTYPE;
+  _eid uuid;
+  _ename text;
+  _step integer;
+  _wait integer;
+  _max_free constant integer := 5;
+  _ladder constant integer[] := ARRAY[30, 60, 120, 300];
+BEGIN
+  -- Tem de ser chamada por um cliente user-scoped (auth.uid() não nulo). Mantém o
+  -- comportamento atual: qualquer utilizador autenticado pode verificar, sem role
+  -- específica — o lockout conta contra quem adivinha.
+  IF _uid IS NULL THEN
+    RAISE EXCEPTION 'Forbidden: sign in required';
+  END IF;
+
+  SELECT * INTO _row FROM public.engineer_pin_attempts WHERE user_id = _uid FOR UPDATE;
+
+  IF _row.locked_until IS NOT NULL AND _row.locked_until > _now THEN
+    RETURN jsonb_build_object(
+      'success', false, 'error', 'locked',
+      'locked_seconds', GREATEST(1, CEIL(EXTRACT(EPOCH FROM (_row.locked_until - _now)))::int),
+      'remaining', 0);
+  END IF;
+
+  SELECT e.id, e.name INTO _eid, _ename
+  FROM public.engineers e
+  WHERE e.is_active = true
+    AND e.pin_hash = extensions.crypt(_pin, e.pin_hash)
+  LIMIT 1;
+
+  IF _eid IS NOT NULL THEN
+    DELETE FROM public.engineer_pin_attempts WHERE user_id = _uid;
+    RETURN jsonb_build_object('success', true, 'engineer_id', _eid, 'engineer_name', _ename);
+  END IF;
+
+  INSERT INTO public.engineer_pin_attempts (user_id, failures, lockout_step, last_attempt, updated_at)
+  VALUES (_uid, 1, 0, _now, _now)
+  ON CONFLICT (user_id) DO UPDATE
+    SET failures = engineer_pin_attempts.failures + 1, last_attempt = _now, updated_at = _now
+  RETURNING * INTO _row;
+
+  IF _row.failures > _max_free THEN
+    _step := LEAST(_row.failures - _max_free, array_length(_ladder, 1));
+    _wait := _ladder[_step];
+    UPDATE public.engineer_pin_attempts
+       SET locked_until = _now + make_interval(secs => _wait), lockout_step = _step
+     WHERE user_id = _uid;
+    RETURN jsonb_build_object('success', false, 'error', 'locked', 'locked_seconds', _wait, 'remaining', 0);
+  END IF;
+
+  RETURN jsonb_build_object('success', false, 'error', 'invalid_pin',
+    'remaining', GREATEST(0, _max_free - _row.failures));
+END;
+$function$;
+
+-- 3) Grants: chamada pelo cliente user-scoped (authenticated). Nunca anon.
+REVOKE EXECUTE ON FUNCTION public.verify_engineer_pin_with_lockout(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.verify_engineer_pin_with_lockout(text) TO authenticated, service_role;
+
+-- F-4: rate-limit por utilizador para os proxies de IA (abuso de custo).
+--
+-- translate-message e identify-part autenticam o chamador mas não limitam o ritmo, por
+-- isso qualquer conta autenticada pode gastar quota paga (identify-part usa Claude Sonnet
+-- com visão e imagens até 6 MB — o mais caro). Este é um limitador por (utilizador,
+-- balde), em BD (robusto entre instâncias, ao contrário de um contador em memória por
+-- instância), reutilizável por qualquer edge function.
+--
+-- A função é chamada SERVER-SIDE pela edge com a service-role, passando o user_id já
+-- verificado do token — por isso recebe _user_id explicitamente e é service_role-only
+-- (um utilizador não a pode chamar para manipular o seu próprio contador).
+
+CREATE TABLE IF NOT EXISTS public.ai_usage_limits (
+  user_id uuid NOT NULL,
+  bucket text NOT NULL,
+  window_start timestamptz NOT NULL DEFAULT now(),
+  count integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, bucket)
+);
+
+ALTER TABLE public.ai_usage_limits ENABLE ROW LEVEL SECURITY;
+-- Sem policies para anon/authenticated: escrita apenas pela função SECURITY DEFINER
+-- (corre como owner) e pelo service_role direto.
+GRANT ALL ON public.ai_usage_limits TO service_role;
+
+-- Incrementa a contagem na janela atual e diz se o pedido é permitido. Janela fixa:
+-- quando a janela expira, reinicia. Atómico via INSERT ... ON CONFLICT DO UPDATE.
+CREATE OR REPLACE FUNCTION public.ai_rate_limit_hit(
+  _user_id uuid,
+  _bucket text,
+  _limit integer,
+  _window_seconds integer
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _now timestamptz := now();
+  _row public.ai_usage_limits%ROWTYPE;
+  _expired boolean;
+BEGIN
+  IF _user_id IS NULL THEN
+    RAISE EXCEPTION 'user required';
+  END IF;
+  IF _bucket IS NULL OR _limit IS NULL OR _limit < 1 OR _window_seconds IS NULL OR _window_seconds < 1 THEN
+    RAISE EXCEPTION 'invalid rate-limit parameters';
+  END IF;
+
+  INSERT INTO public.ai_usage_limits (user_id, bucket, window_start, count)
+  VALUES (_user_id, _bucket, _now, 1)
+  ON CONFLICT (user_id, bucket) DO UPDATE SET
+    window_start = CASE
+      WHEN public.ai_usage_limits.window_start < _now - make_interval(secs => _window_seconds)
+      THEN _now ELSE public.ai_usage_limits.window_start END,
+    count = CASE
+      WHEN public.ai_usage_limits.window_start < _now - make_interval(secs => _window_seconds)
+      THEN 1 ELSE public.ai_usage_limits.count + 1 END
+  RETURNING * INTO _row;
+
+  IF _row.count > _limit THEN
+    RETURN jsonb_build_object(
+      'allowed', false,
+      'retry_after', GREATEST(1, CEIL(EXTRACT(EPOCH FROM
+        (_row.window_start + make_interval(secs => _window_seconds) - _now)))::int));
+  END IF;
+
+  RETURN jsonb_build_object('allowed', true, 'remaining', GREATEST(0, _limit - _row.count));
+END;
+$function$;
+
+-- Server-side only: a edge chama-a com a service-role e o user_id verificado.
+REVOKE EXECUTE ON FUNCTION public.ai_rate_limit_hit(uuid, text, integer, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.ai_rate_limit_hit(uuid, text, integer, integer) TO service_role;
+
 -- ================================================================
 -- BLOCO 112
 -- 20261021150000_overtime_keeps_a_rest_between_shifts.sql
@@ -16135,3 +16367,93 @@ create trigger overtime_response_crew_guard_t
   for each row execute function public.overtime_response_crew_guard();
 
 notify pgrst, 'reload schema';
+
+-- ================================================================
+-- BLOCO 117
+-- 20261021200000_the_bell_rings_the_phone.sql
+-- ================================================================
+--
+-- As linhas do sino que a propria base escreve passam a fazer vibrar o telemovel, mesmo
+-- com o ecra bloqueado. Ate aqui so os pedidos de overtime chegavam ao telemovel, porque
+-- so o browser de quem os cria chamava o `send-push` (`overtimeAnnounce.ts`). Uma mensagem
+-- directa (`dm_employee_bell`), um "you're booked" ou um "X said yes" ficavam no sino a
+-- espera que a pessoa abrisse a app.
+--
+--   1. `notification_push()`: um trigger AFTER INSERT em `notifications` que chama o
+--      `send-push` por `pg_net`, com o `CRON_SECRET` do vault no header `x-cron-secret`
+--      (o mesmo caminho do job 63, que esta vivo) e `in_app: false`, para nao escrever o
+--      sino uma segunda vez.
+--   2. Quais linhas: todas as que tem `kind`, menos `overtime_new`. As sem `kind` sao
+--      escritas pelo proprio `send-push`, que ja fez o push nesse momento; o `overtime_new`
+--      e enviado pelo browser de quem cria o pedido (`announceAsk`). Qualquer das duas aqui
+--      seria um segundo toque no mesmo telemovel.
+--   3. So chama quando o destinatario tem pelo menos uma subscricao, para nao encher o
+--      `net._http_response` com pedidos que nao vao a lado nenhum.
+--
+-- Nunca recusa a linha do sino: qualquer falha (vault vazio, pg_net em baixo) fica num
+-- WARNING e o INSERT segue. O `pg_net` so envia depois do COMMIT, por isso uma linha
+-- revertida nao toca telemovel nenhum.
+--
+-- Precisa do `send-push` publicado com o ramo do `x-cron-secret` (mesmo PR). Antes disso
+-- o `send-push` responde 401 ao trigger e nada pior acontece: o sino continua a funcionar.
+-- Nao muda nem apaga dados.
+--
+-- The bell rows the database writes itself now buzz the phone too, even when it is locked.
+-- An AFTER INSERT trigger on `notifications` calls `send-push` through pg_net with the
+-- vault's CRON_SECRET and `in_app: false`, for every row with a `kind` except
+-- `overtime_new` (the browser already pushes those) — rows without a kind are written by
+-- `send-push` itself, which has already pushed them. Only for recipients with a
+-- subscription. It never refuses the bell row. No data is touched.
+
+create or replace function public.notification_push()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_secret text;
+begin
+  begin
+    if not exists (select 1 from public.push_subscriptions s where s.user_id = new.user_id) then
+      return null;
+    end if;
+
+    select decrypted_secret into v_secret
+      from vault.decrypted_secrets where name = 'CRON_SECRET' limit 1;
+    if v_secret is null then
+      raise warning 'notification_push(%): CRON_SECRET missing from the vault', new.id;
+      return null;
+    end if;
+
+    perform net.http_post(
+      url := 'https://ybtrzqzliepknpzqdajx.supabase.co/functions/v1/send-push',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-cron-secret', v_secret
+      ),
+      body := jsonb_strip_nulls(jsonb_build_object(
+        'user_id', new.user_id,
+        'title', left(coalesce(nullif(new.title, ''), 'PMSystem'), 200),
+        'body', left(new.body, 2000),
+        'priority', case when new.priority in ('low', 'medium', 'high', 'critical')
+                         then new.priority else 'medium' end,
+        'tag', left(new.kind || ':' || new.id, 100),
+        'action_url', left(new.action_url, 2048),
+        'wo_id', new.wo_id,
+        'in_app', false
+      )),
+      timeout_milliseconds := 10000
+    );
+  exception when others then
+    raise warning 'notification_push(%): %', new.id, sqlerrm;
+  end;
+  return null;
+end;
+$$;
+revoke all on function public.notification_push() from public, anon, authenticated;
+
+drop trigger if exists notification_push on public.notifications;
+create trigger notification_push
+  after insert on public.notifications
+  for each row
+  when (new.kind is not null and new.kind <> 'overtime_new')
+  execute function public.notification_push();
