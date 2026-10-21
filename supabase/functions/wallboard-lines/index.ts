@@ -23,6 +23,21 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false },
 });
 
+// Constant-time comparison, so the key cannot be recovered byte-by-byte from response
+// timing. Length is folded in and the loop runs to the longer input, so it does not exit
+// early on the first differing byte.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  let diff = ab.length ^ bb.length;
+  const n = Math.max(ab.length, bb.length);
+  for (let i = 0; i < n; i++) {
+    diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
 // A TV browser cannot set request headers on a plain page load, so the key comes
 // in the query string. That is a bearer token in a URL: fine for a read-only board
 // on the factory network, never acceptable for anything that writes. It must NOT
@@ -112,8 +127,12 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: "server_misconfigured" }, 503);
   }
   const url = new URL(req.url);
+  // The key still travels in the query string because a TV browser cannot set a header on
+  // a plain page load (the x-wallboard-key header is accepted for clients that can). That
+  // is a documented trade-off for a read-only, non-sensitive board on the factory network;
+  // the comparison below is at least constant-time so timing cannot leak the key.
   const presented = (url.searchParams.get("k") ?? req.headers.get("x-wallboard-key") ?? "").trim();
-  if (!presented || presented !== WALLBOARD_KEY) {
+  if (!presented || !timingSafeEqual(presented, WALLBOARD_KEY)) {
     return json({ ok: false, error: "unauthorized" }, 401);
   }
 
