@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * BLOCO 115: the bell rows the database writes itself buzz the phone.
+ * BLOCO 117: the bell rows the database writes itself buzz the phone.
  *
  * On 21/10/2026 only the overtime ask reached a locked phone, because only the browser of
  * whoever posted it called `send-push`. A direct message (`dm_employee_bell`), a "you're
@@ -19,7 +19,7 @@ import { resolve } from "node:path";
  */
 const root = resolve(__dirname, "../..");
 const MIGRATIONS = resolve(root, "supabase/migrations");
-const sql = readFileSync(resolve(MIGRATIONS, "20261021190000_the_bell_rings_the_phone.sql"), "utf8");
+const sql = readFileSync(resolve(MIGRATIONS, "20261021200000_the_bell_rings_the_phone.sql"), "utf8");
 const fn = readFileSync(resolve(root, "supabase/functions/send-push/index.ts"), "utf8");
 const announce = readFileSync(resolve(root, "src/lib/overtimeAnnounce.ts"), "utf8");
 

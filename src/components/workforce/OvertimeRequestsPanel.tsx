@@ -12,6 +12,7 @@ import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { Figure } from "@/components/ui/Figure";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -408,6 +409,8 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
   const [headcount, setHeadcount] = useState("");
   const [department, setDepartment] = useState<string>("all");
   const [shiftGroup, setShiftGroup] = useState<string>("all");
+  /** Crews this ask is NOT sent to. Only meaningful while "Every crew" is chosen. */
+  const [skipCrews, setSkipCrews] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [seenDefault, setSeenDefault] = useState<string | null>(null);
   /** More dates with the same hours and people — one ask each. */
@@ -447,6 +450,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
     on_date: date, starts_at: startsAt, ends_at: endsAt, headcount: headcount.trim() ? Number(headcount) : null,
     department: department === "all" ? null : department,
     shift_group: shiftGroup === "all" ? null : shiftGroup,
+    ...(shiftGroup === "all" && skipCrews.length > 0 ? { excluded_shift_groups: skipCrews } : {}),
     note: note.trim() || null,
   });
 
@@ -643,6 +647,26 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
               </Select>
             </div>
           </div>
+          {shiftGroup === "all" && shiftGroups.length > 1 && (
+            <fieldset className="grid gap-1.5" data-testid="skip-crews">
+              <legend className="text-sm font-medium">Do not send to</legend>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                {shiftGroups.map((g) => (
+                  <label key={g} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={skipCrews.includes(g)}
+                      onCheckedChange={(on) => setSkipCrews((cur) => on ? [...cur.filter((x) => x !== g), g] : cur.filter((x) => x !== g))}
+                      aria-label={`Do not send to the ${g} crew`}
+                    />
+                    {g} crew
+                  </label>
+                ))}
+              </div>
+              <p className="text-2xs text-muted-foreground">
+                Those crews are not told and cannot answer. Leave all unticked to send it to everybody.
+              </p>
+            </fieldset>
+          )}
           <div className="grid gap-1.5">
             <Label htmlFor="ot-note">Note (optional)</Label>
             <Textarea id="ot-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Line 3, packing. Bring safety boots." />

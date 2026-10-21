@@ -545,6 +545,8 @@ export function useSendDirect() {
   return useMutation({
     mutationFn: async (v: {
       id: string; partnerId: string; body: string; supervisorDoor: boolean;
+      /** True only when the person has several supervisors, so the one written to must be named. */
+      pickSupervisor?: boolean;
       files?: UploadedFile[]; audioPath?: string | null;
     }) => {
       if (!user) throw new Error("Sign in first");
@@ -552,7 +554,8 @@ export function useSendDirect() {
       const text = v.body.trim() || (files.length ? `📎 ${files.map((f) => f.name).join(", ")}` : "");
       let id = v.id;
       if (v.supervisorDoor) {
-        const { data, error } = await rpc("message_my_supervisor", { p_message: text });
+        // The person this conversation is with: one of several supervisors is allowed (BLOCO 115).
+        const { data, error } = await rpc("message_my_supervisor", v.pickSupervisor ? { p_message: text, p_supervisor: v.partnerId } : { p_message: text });
         if (error) throw error;
         id = data as string;
       } else {

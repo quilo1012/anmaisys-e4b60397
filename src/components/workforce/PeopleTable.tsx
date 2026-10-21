@@ -10,7 +10,7 @@ import { ArrowDown, ArrowUp, ChevronsUpDown, Download, Search, Users } from "luc
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/exportCsv";
-import { describeDays, type Employee, type ShiftPattern } from "@/hooks/useWorkforce";
+import { describeDays, supervisorIdsOf, type Employee, type ShiftPattern } from "@/hooks/useWorkforce";
 import { NOT_SET, filterOptions } from "@/lib/employeeDirectory";
 
 export interface PersonRow extends Employee {
@@ -54,12 +54,12 @@ function statusOf(p: PersonRow) {
  * column: it reads as missing data rather than as a field nobody has ever filled.
  */
 export function PeopleTable({
-  people, onOpen, actions, leftCount = 0, areas = [],
+  people, onOpen, actions, leftCount = 0, supervisors = null,
 }: {
-  /** The production lines / board areas, to name and filter by `headcount_area_id`. */
-  areas?: readonly { id: string; name: string }[];
   /** The active list. Leavers live under their own heading on the page. */
   people: PersonRow[];
+  /** Every supervisor of each person (BLOCO 115); null falls back to `manager_id`. */
+  supervisors?: Map<string, string[]> | null;
   onOpen: (id: string) => void;
   /** Add-employee button and anything else the page owns. */
   actions?: React.ReactNode;
@@ -75,7 +75,6 @@ export function PeopleTable({
   const [q, setQ] = useState("");
   const [dept, setDept] = useState(ALL);
   const [shift, setShift] = useState(ALL);
-  const [line, setLine] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [type, setType] = useState(ALL);
   const [sort, setSort] = useState<SortKey>("full_name");
@@ -85,16 +84,13 @@ export function PeopleTable({
 
   // Every department that exists, A–Z, and "Not set" last when somebody really has none.
   const departments = useMemo(() => filterOptions(people.map((p) => p.department)), [people]);
-  const lineName = useMemo(() => new Map(areas.map((a) => [a.id, a.name])), [areas]);
-  const lines = useMemo(
-    () => filterOptions(people.map((p) => p.headcount_area_id), "Not assigned")
-      .map((o) => (o.value === NOT_SET ? o : { ...o, label: lineName.get(o.value) ?? "Unknown line" })),
-    [people, lineName],
-  );
   const managerName = useMemo(() => {
     const byId = new Map(people.map((p) => [p.id, p.full_name]));
-    return (id: string | null) => (id ? byId.get(id) ?? "—" : "—");
-  }, [people]);
+    return (p: Pick<PersonRow, "id" | "manager_id">) => {
+      const ids = supervisorIdsOf(p, supervisors);
+      return ids.length === 0 ? "—" : ids.map((id) => byId.get(id) ?? "—").join(", ");
+    };
+  }, [people, supervisors]);
 
   const shifts = useMemo(() => filterOptions(people.map((p) => p.shift_group)), [people]);
 
@@ -105,7 +101,6 @@ export function PeopleTable({
         filter === ALL || (filter === NOT_SET ? (value ?? "").trim() === "" : (value ?? "").trim() === filter);
       if (!matches(dept, p.department)) return false;
       if (!matches(shift, p.shift_group)) return false;
-      if (!matches(line, p.headcount_area_id)) return false;
       if (status !== ALL && statusOf(p).label !== status) return false;
       if (type !== ALL && p.employment_type !== type) return false;
       if (!term) return true;
@@ -114,7 +109,7 @@ export function PeopleTable({
       return [p.full_name, p.employee_ref, p.department, p.email, p.position]
         .some((v) => (v ?? "").toLowerCase().includes(term));
     });
-  }, [people, q, dept, shift, line, status, type]);
+  }, [people, q, dept, shift, status, type]);
 
   /** Sorts after every real string, so a gap is never the answer to a sort. */
   const MISSING = "\uFFFF";
@@ -126,7 +121,7 @@ export function PeopleTable({
         case "department": return p.department ?? MISSING;
         case "shift_group": return p.shift_group ?? MISSING;
         case "position": return p.position ?? MISSING;
-        case "manager": return managerName(p.manager_id);
+        case "manager": return managerName(p);
         case "started_on": return p.started_on ?? MISSING;
         case "status": return statusOf(p).label;
         default: return p.full_name;
@@ -182,7 +177,7 @@ export function PeopleTable({
         p.employee_ref ?? "",
         p.position ?? "",
         p.department ?? "",
-        managerName(p.manager_id),
+        managerName(p),
         p.employment_type,
         p.shift_group ?? "",
         p.pattern ? `${p.pattern.name} (${describeDays(p.pattern.days)})` : "",
@@ -232,15 +227,6 @@ export function PeopleTable({
                 {shifts.map((s) => <SelectItem key={s.value} value={s.value}>{s.value === NOT_SET ? "No shift set" : s.label} ({s.count})</SelectItem>)}
               </SelectContent>
             </Select>
-            {areas.length > 0 && (
-              <Select value={line} onValueChange={(v) => { setLine(v); setPage(0); }}>
-                <SelectTrigger className="h-9 w-44" aria-label="Filter by production line"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL}>All production lines</SelectItem>
-                  {lines.map((l) => <SelectItem key={l.value} value={l.value}>{l.label} ({l.count})</SelectItem>)}
-                </SelectContent>
-              </Select>
-            )}
             <Select value={type} onValueChange={(v) => { setType(v); setPage(0); }}>
               <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -307,8 +293,8 @@ export function PeopleTable({
                       <TableCell className={cn("hidden md:table-cell", !p.department && "text-muted-foreground")}>
                         {p.department ?? "—"}
                       </TableCell>
-                      <TableCell className={cn("hidden xl:table-cell text-xs", !p.manager_id && "text-muted-foreground")}>
-                        {managerName(p.manager_id)}
+                      <TableCell className={cn("hidden xl:table-cell text-xs", managerName(p) === "—" && "text-muted-foreground")}>
+                        {managerName(p)}
                       </TableCell>
                       <TableCell>{p.shift_group ?? <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="hidden text-xs lg:table-cell">

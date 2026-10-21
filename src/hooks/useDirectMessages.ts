@@ -413,16 +413,22 @@ export function useMySupervisor(enabled = true) {
     enabled: enabled && !!user,
     staleTime: 5 * 60_000,
     meta: { schemaOptional: true },
-    queryFn: async (): Promise<{ notSetUp: boolean; supervisor: { user_id: string; full_name: string } | null }> => {
+    queryFn: async (): Promise<{
+      notSetUp: boolean;
+      /** The main one: the first of `supervisors`. */
+      supervisor: { user_id: string; full_name: string } | null;
+      /** Every supervisor on file (BLOCO 115), main one first. */
+      supervisors: { user_id: string; full_name: string }[];
+    }> => {
       // BLOCO 107: the types.ts only learns the function once the block is pasted.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.rpc as any)("my_supervisor");
       if (error) {
-        if ((error as { code?: string }).code === "PGRST202") return { notSetUp: true, supervisor: null };
+        if ((error as { code?: string }).code === "PGRST202") return { notSetUp: true, supervisor: null, supervisors: [] };
         throw error;
       }
-      const row = ((data ?? []) as { user_id: string; full_name: string }[])[0] ?? null;
-      return { notSetUp: false, supervisor: row };
+      const all = (data ?? []) as { user_id: string; full_name: string }[];
+      return { notSetUp: false, supervisor: all[0] ?? null, supervisors: all };
     },
   });
 }

@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // The database itself, for the bell rows it writes (BLOCO 115): the `notification_push`
+    // The database itself, for the bell rows it writes (BLOCO 117): the `notification_push`
     // trigger calls here through pg_net with the scheduler's secret, never a user's JWT.
     // Same three names as safetyculture-sync, so the vault's value matches whichever is set.
     const cronSecrets = ["CRON_SECRET", "CRON_TRIGGER_TOKEN", "CRON_POLL_KEY"]
