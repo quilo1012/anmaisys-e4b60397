@@ -7,7 +7,10 @@
 -- migracao (3 tabelas e 8 funcoes, todas vazias/por usar), FECHA as permissoes das tabelas
 -- (authenticated tinha TRUNCATE, DELETE e UPDATE, e anon tinha SELECT) e faz o batimento
 -- calar-se: so avisa quando alguem passa a estar ligado ou desligado, nao de 60 em 60
--- segundos por separador. Nao muda dados, nem as politicas das mensagens.
+-- segundos por separador. Passa tambem a LER o dia de trabalho (ferias e baixas aprovadas,
+-- quadro de presencas, escala do turno): ferias -> On Holiday, baixa/falta -> Offline, Online fora do
+-- turno (30 min de folga) -> Away; Busy e Do Not Disturb nunca mudam. Nao muda dados, nem as
+-- politicas das mensagens.
 -- Pode colar-se duas vezes. Precisa dos BLOCOS 107 a 110.
 -- Teste depois: supabase/tests/communication_presence_test.sql (acaba em ALL TESTS PASSED, com ROLLBACK).
 --
@@ -45,12 +48,18 @@
 --      and when they change their preference. A lease that simply times out cannot announce
 --      itself; clients re-read on a timer for that.
 --
--- THE RULES, unchanged (communication_presence_for):
---   approved HOLIDAY leave today (Europe/London), or preference 'on_holiday'  -> on_holiday
---   preference 'offline', or no live lease                                    -> offline
---   otherwise                                                                  -> the preference
--- A preference is kept until its owner changes it; there is no automatic expiry. Approved
--- leave overrides it while it lasts and the preference is back untouched afterwards.
+-- THE RULES (communication_presence_for). The system reads the person's WORK STATE from what
+-- it already knows (communication_work_state), the person's choice never being rewritten:
+--   approved holiday leave today, or a holiday on the attendance board  -> on_holiday
+--   approved sick/unpaid leave today, or sick/unpaid/absent on the board -> offline
+--   preference 'on_holiday'                                              -> on_holiday
+--   preference 'offline', or no live lease                               -> offline
+--   preference 'online' but outside the shift (30 min grace either side) -> away
+--   otherwise                                                            -> the preference
+-- Busy and Do Not Disturb are never changed by the schedule. Sick/unpaid is shown as Offline,
+-- never as a word that tells colleagues why. No pattern or no linked employee = no opinion.
+-- A preference is kept until its owner changes it; there is no automatic expiry. Automatic
+-- states last only while they are true and the preference is back untouched afterwards.
 --
 -- NOTHING HERE TOUCHES MESSAGE DELIVERY: no policy on direct_messages or the group tables
 -- changes, and none of these functions is called by them.
@@ -118,6 +127,71 @@ as $$
   );
 $$;
 
+-- What the system knows about this person's working day, in the London calendar: 'holiday',
+-- 'absent' (sick, unpaid, absent), 'on_shift', 'off_shift', or null when it cannot tell (no
+-- linked employee, no shift pattern). Reads leave, the attendance board and the rota; returns
+-- only the word, never the record. Used by the definers below; nobody calls it directly.
+create or replace function public.communication_work_state(p_target uuid)
+returns text
+language plpgsql stable security definer set search_path to ''
+as $$
+declare
+  v_local   timestamp := statement_timestamp() at time zone 'Europe/London';
+  v_today   date := (statement_timestamp() at time zone 'Europe/London')::date;
+  v_pattern uuid;
+  v_days    smallint[];
+  v_s time; v_e time; v_ps time; v_pe time;
+  v_d date; v_start timestamp; v_end timestamp;
+begin
+  select e.shift_pattern_id into v_pattern
+    from public.employees e where e.user_id = p_target and e.active order by e.created_at limit 1;
+  if not found then return null; end if;
+
+  if public.communication_has_approved_holiday(p_target)
+     or exists (select 1 from public.employees e join public.employee_attendance a on a.employee_id = e.id
+                where e.user_id = p_target and e.active and a.on_date = v_today and a.status = 'holiday') then
+    return 'holiday';
+  end if;
+  if exists (select 1 from public.employees e join public.leave_requests r on r.employee_id = e.id
+             where e.user_id = p_target and e.active and r.kind in ('sick', 'unpaid') and r.status = 'approved'
+               and v_today between r.start_date and r.end_date)
+     or exists (select 1 from public.employees e join public.employee_attendance a on a.employee_id = e.id
+                where e.user_id = p_target and e.active and a.on_date = v_today
+                  and a.status in ('sick', 'unpaid', 'absent')) then
+    return 'absent';
+  end if;
+  -- Recorded present today: at work, whatever the rota says (overtime, a swapped day).
+  if exists (select 1 from public.employees e join public.employee_attendance a on a.employee_id = e.id
+             where e.user_id = p_target and e.active and a.on_date = v_today and a.status in ('present', 'training')) then
+    return 'on_shift';
+  end if;
+
+  if v_pattern is null then return null; end if;
+  select p.days, p.starts_at, p.ends_at into v_days, v_s, v_e
+    from public.shift_patterns p where p.id = v_pattern and p.active;
+  if not found then return null; end if;
+  -- A rota with days only: the whole of a covered day counts.
+  if v_s is null or v_e is null then
+    return case when extract(isodow from v_today)::smallint = any (v_days) then 'on_shift' else 'off_shift' end;
+  end if;
+  -- Today's shift, and yesterday's if it runs past midnight. Per-day hours override the pattern.
+  foreach v_d in array array[v_today - 1, v_today] loop
+    if extract(isodow from v_d)::smallint = any (v_days) then
+      v_ps := null; v_pe := null;
+      select d.starts_at, d.ends_at into v_ps, v_pe from public.shift_pattern_days d
+        where d.pattern_id = v_pattern and d.weekday = extract(isodow from v_d)::smallint;
+      v_ps := coalesce(v_ps, v_s); v_pe := coalesce(v_pe, v_e);
+      v_start := v_d + v_ps;
+      v_end   := v_d + v_pe + case when v_pe <= v_ps then interval '1 day' else interval '0' end;
+      if v_local between v_start - interval '30 minutes' and v_end + interval '30 minutes' then
+        return 'on_shift';
+      end if;
+    end if;
+  end loop;
+  return 'off_shift';
+end;
+$$;
+
 create or replace function public.communication_can_view_presence(p_target uuid)
 returns boolean
 language sql stable security definer set search_path to ''
@@ -154,50 +228,24 @@ begin
 end;
 $$;
 
-create or replace function public.communication_my_availability()
-returns table (preference text, approved_holiday boolean)
+-- The return type changed (it gained the automatic state), so the old function goes first.
+drop function if exists public.communication_my_availability();
+create function public.communication_my_availability()
+returns table (preference text, approved_holiday boolean, automatic_status text, automatic_reason text)
 language plpgsql stable security definer set search_path to ''
 as $$
-declare v_me uuid := public.communication_presence_actor();
-begin
-  return query select coalesce((select a.preference from public.communication_availability a where a.user_id = v_me), 'online'),
-    public.communication_has_approved_holiday(v_me);
-end;
-$$;
-
--- One lease per (account, auth session, tab). 60 s heartbeat from the client, 180 s lease.
-create or replace function public.communication_touch_presence(p_tab_id uuid)
-returns void
-language plpgsql security definer set search_path to ''
-as $$
 declare
-  v_me uuid := public.communication_presence_actor();
-  v_session uuid := nullif(auth.jwt()->>'session_id', '')::uuid;
-  v_now timestamptz := clock_timestamp();
-  v_was_live boolean;
+  v_me   uuid := public.communication_presence_actor();
+  v_pref text := coalesce((select a.preference from public.communication_availability a where a.user_id = v_me), 'online');
+  v_work text := public.communication_work_state(v_me);
 begin
-  if p_tab_id is null or v_session is null then
-    raise exception 'An authenticated session and tab are required' using errcode = '42501';
-  end if;
-  -- Serialize cap checks per account so concurrent new UUIDs cannot bypass it.
-  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_me::text, 0));
-  -- Bound storage for the returning account; no scheduled job or cross-user writes.
-  delete from public.communication_connection_leases l where l.user_id = v_me and l.expires_at <= v_now;
-  if not exists (select 1 from public.communication_connection_leases l
-      where l.user_id = v_me and l.auth_session_id = v_session and l.tab_id = p_tab_id)
-     and (select count(*) from public.communication_connection_leases l where l.user_id = v_me) >= 32 then
-    raise exception 'Too many active presence sessions' using errcode = '54000';
-  end if;
-  -- Expired leases are gone, so anything left is live: was the person connected before this beat?
-  v_was_live := exists (select 1 from public.communication_connection_leases l where l.user_id = v_me);
-  insert into public.communication_connection_leases(user_id, auth_session_id, tab_id, expires_at)
-    values (v_me, v_session, p_tab_id, v_now + interval '180 seconds')
-    on conflict (user_id, auth_session_id, tab_id) do update set expires_at = excluded.expires_at;
-  -- Only a change of state is news (see the header): offline -> connected.
-  if not v_was_live then
-    insert into public.communication_presence_changes(user_id, revision) values (v_me, gen_random_uuid())
-      on conflict (user_id) do update set revision = excluded.revision;
-  end if;
+  return query select v_pref, v_work = 'holiday',
+    case when v_work = 'holiday' then 'on_holiday'
+         when v_work = 'absent' then 'offline'
+         when v_work = 'off_shift' and v_pref = 'online' then 'away' end,
+    case when v_work = 'holiday' then 'holiday'
+         when v_work = 'absent' then 'absence'
+         when v_work = 'off_shift' and v_pref = 'online' then 'off_shift' end;
 end;
 $$;
 
@@ -234,12 +282,15 @@ begin
   end if;
   return query
     select p.id,
-      case when public.communication_has_approved_holiday(p.id) or a.preference = 'on_holiday' then 'on_holiday'
+      case when w.state = 'holiday' or a.preference = 'on_holiday' then 'on_holiday'
+           when w.state = 'absent' then 'offline'
            when a.preference = 'offline' then 'offline'
            when not exists (select 1 from public.communication_connection_leases l
              where l.user_id = p.id and l.expires_at > statement_timestamp()) then 'offline'
+           when w.state = 'off_shift' and coalesce(a.preference, 'online') = 'online' then 'away'
            else coalesce(a.preference, 'online') end
     from public.profiles p left join public.communication_availability a on a.user_id = p.id
+    cross join lateral (select public.communication_work_state(p.id) as state) w
     where p.id = any(p_user_ids) and public.communication_can_view_presence(p.id);
 end;
 $$;
@@ -247,6 +298,7 @@ $$;
 -- Execute: signed-in users on the six they call; the two helpers only the definers use.
 revoke all on function public.communication_presence_actor()            from public, anon, authenticated;
 revoke all on function public.communication_has_approved_holiday(uuid)  from public, anon, authenticated;
+revoke all on function public.communication_work_state(uuid)            from public, anon, authenticated;
 revoke all on function public.communication_can_view_presence(uuid)     from public, anon;
 revoke all on function public.communication_set_availability(text)      from public, anon;
 revoke all on function public.communication_my_availability()           from public, anon;

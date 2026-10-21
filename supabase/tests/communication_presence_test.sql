@@ -94,6 +94,8 @@ DECLARE
   phone uuid := gen_random_uuid();  -- A's second auth session (another device)
   e_sup uuid; e_a uuid; grp uuid := gen_random_uuid();
   st text; n int; rev uuid;
+  v_local timestamp := now() at time zone 'Europe/London'; v_today date := (now() at time zone 'Europe/London')::date;
+  v_all smallint[] := ARRAY[1,2,3,4,5,6,7]::smallint[]; pat uuid; v_start timestamp; v_iso smallint;
   who uuid[]; roles text[] := ARRAY['admin', 'supervisor', 'operator', 'employee', 'employee'];
   i int;
 BEGIN
@@ -240,7 +242,7 @@ BEGIN
   UPDATE public.leave_requests SET status = 'rejected' WHERE employee_id = e_a;
   PERFORM pg_temp.ok('10b rejected leave changes nothing', pg_temp.shown(adm, a) = 'busy');
   UPDATE public.leave_requests SET status = 'approved', kind = 'sick' WHERE employee_id = e_a;
-  PERFORM pg_temp.ok('10c approved SICK leave is not shown as holiday', pg_temp.shown(adm, a) = 'busy');
+  PERFORM pg_temp.ok('10c approved SICK leave is not shown as holiday, but as Offline (no reason given)', pg_temp.shown(adm, a) = 'offline');
   UPDATE public.leave_requests SET kind = 'holiday' WHERE employee_id = e_a;
   PERFORM pg_temp.ok('10d approved holiday today reads On Holiday', pg_temp.shown(adm, a) = 'on_holiday');
   PERFORM pg_temp.set_pref(a, 'offline');
@@ -344,6 +346,99 @@ BEGIN
     PERFORM public.communication_touch_presence(gen_random_uuid());
     RESET ROLE; RAISE EXCEPTION 'FAILED 14d a lease without an auth session was accepted';
   EXCEPTION WHEN insufficient_privilege THEN RESET ROLE; END;
+  -- 15. The system reads the working day itself: rota, attendance board, leave.
+  --     The person's CHOICE is never rewritten; only what others are SHOWN follows the facts.
+  PERFORM pg_temp.touch(a, t1);
+  PERFORM pg_temp.set_pref(a, 'online');
+  PERFORM pg_temp.ok('15a no rota on file: no opinion, Online stays Online', pg_temp.shown(adm, a) = 'online');
+  INSERT INTO public.shift_patterns (name, days, starts_at, ends_at)
+    VALUES ('test-rota', v_all, (v_local - interval '1 hour')::time, (v_local + interval '1 hour')::time) RETURNING id INTO pat;
+  UPDATE public.employees SET shift_pattern_id = pat WHERE id = e_a;
+  PERFORM pg_temp.ok('15b inside the shift: Online', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.shift_patterns SET starts_at = (v_local - interval '5 hours')::time, ends_at = (v_local - interval '2 hours')::time WHERE id = pat;
+  PERFORM pg_temp.ok('15c after the shift ended: Online reads Away', pg_temp.shown(adm, a) = 'away');
+  PERFORM pg_temp.as_user(a); SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.ok('15d the owner is told, privately, that the rota is the reason',
+    (SELECT preference = 'online' AND automatic_status = 'away' AND automatic_reason = 'off_shift' AND NOT approved_holiday
+       FROM public.communication_my_availability()));
+  RESET ROLE;
+  UPDATE public.shift_patterns SET starts_at = (v_local - interval '5 hours')::time, ends_at = (v_local - interval '20 minutes')::time WHERE id = pat;
+  PERFORM pg_temp.ok('15e 20 minutes after the end is still inside the 30-minute grace', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.shift_patterns SET starts_at = (v_local + interval '20 minutes')::time, ends_at = (v_local + interval '5 hours')::time WHERE id = pat;
+  PERFORM pg_temp.ok('15f 20 minutes before the start is inside the grace', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.shift_patterns SET starts_at = (v_local + interval '2 hours')::time, ends_at = (v_local + interval '6 hours')::time WHERE id = pat;
+  PERFORM pg_temp.ok('15g two hours before the start: Away', pg_temp.shown(adm, a) = 'away');
+
+  -- Busy / Do Not Disturb / Away are the person's word; the rota never overrides them.
+  PERFORM pg_temp.set_pref(a, 'busy');
+  PERFORM pg_temp.ok('15h Busy stays Busy off shift', pg_temp.shown(adm, a) = 'busy');
+  PERFORM pg_temp.set_pref(a, 'do_not_disturb');
+  PERFORM pg_temp.ok('15i Do Not Disturb stays off shift', pg_temp.shown(adm, a) = 'do_not_disturb');
+  PERFORM pg_temp.as_user(a); SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.ok('15j ...and the owner is told nothing is automatic',
+    (SELECT automatic_status IS NULL AND automatic_reason IS NULL FROM public.communication_my_availability()));
+  RESET ROLE;
+  PERFORM pg_temp.set_pref(a, 'online');
+
+  -- A rota with days only covers the whole of each day it names.
+  UPDATE public.shift_patterns SET starts_at = NULL, ends_at = NULL, days = ARRAY[extract(isodow FROM v_today)::smallint] WHERE id = pat;
+  PERFORM pg_temp.ok('15k days-only rota, today covered: Online', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.shift_patterns SET days = ARRAY[((extract(isodow FROM v_today)::int % 7) + 1)::smallint] WHERE id = pat;
+  PERFORM pg_temp.ok('15l days-only rota, today not covered: Away', pg_temp.shown(adm, a) = 'away');
+
+  -- A shift that began before midnight still counts after it, and only on the days it names.
+  v_start := v_local - interval '20 hours';
+  v_iso := extract(isodow FROM v_start)::smallint;
+  UPDATE public.shift_patterns SET starts_at = v_start::time, ends_at = (v_start + interval '23 hours')::time, days = ARRAY[v_iso] WHERE id = pat;
+  PERFORM pg_temp.ok('15m a 23-hour shift that started 20 hours ago (yesterday before 20:00): Online', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.shift_patterns SET days = ARRAY[(((v_iso + 2) % 7) + 1)::smallint] WHERE id = pat;
+  PERFORM pg_temp.ok('15n the same hours on a day the rota does not name: Away', pg_temp.shown(adm, a) = 'away');
+  UPDATE public.shift_patterns SET starts_at = (v_local - interval '5 hours')::time, ends_at = (v_local - interval '2 hours')::time, days = v_all WHERE id = pat;
+  INSERT INTO public.shift_pattern_days (pattern_id, weekday, starts_at, ends_at)
+    VALUES (pat, extract(isodow FROM v_today)::smallint, (v_local - interval '1 hour')::time, (v_local + interval '1 hour')::time);
+  PERFORM pg_temp.ok('15o a per-weekday exception for today wins over the rota', pg_temp.shown(adm, a) = 'online');
+  DELETE FROM public.shift_pattern_days WHERE pattern_id = pat;
+  PERFORM pg_temp.ok('15p ...and goes back when it is removed', pg_temp.shown(adm, a) = 'away');
+  UPDATE public.shift_patterns SET active = false WHERE id = pat;
+  PERFORM pg_temp.ok('15q an inactive rota is no opinion at all', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.shift_patterns SET active = true WHERE id = pat;
+
+  -- The attendance board.
+  INSERT INTO public.employee_attendance (employee_id, on_date, status) VALUES (e_a, v_today, 'present');
+  PERFORM pg_temp.ok('15r recorded present today beats the rota (overtime, a swapped day)', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.employee_attendance SET status = 'training' WHERE employee_id = e_a;
+  PERFORM pg_temp.ok('15s training counts as at work', pg_temp.shown(adm, a) = 'online');
+  UPDATE public.employee_attendance SET status = 'holiday' WHERE employee_id = e_a;
+  PERFORM pg_temp.ok('15t holiday on the board reads On Holiday', pg_temp.shown(adm, a) = 'on_holiday');
+  PERFORM pg_temp.set_pref(a, 'busy');
+  PERFORM pg_temp.ok('15u ...over Busy too', pg_temp.shown(adm, a) = 'on_holiday');
+  PERFORM pg_temp.as_user(a); SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.ok('15v the owner sees holiday as the reason and the choice kept',
+    (SELECT preference = 'busy' AND approved_holiday AND automatic_status = 'on_holiday' AND automatic_reason = 'holiday'
+       FROM public.communication_my_availability()));
+  RESET ROLE;
+  UPDATE public.employee_attendance SET status = 'sick' WHERE employee_id = e_a;
+  PERFORM pg_temp.ok('15w sick on the board reads Offline, not On Holiday', pg_temp.shown(adm, a) = 'offline');
+  UPDATE public.employee_attendance SET status = 'unpaid' WHERE employee_id = e_a;
+  PERFORM pg_temp.ok('15x unpaid reads Offline', pg_temp.shown(adm, a) = 'offline');
+  UPDATE public.employee_attendance SET status = 'absent' WHERE employee_id = e_a;
+  PERFORM pg_temp.ok('15y absent reads Offline', pg_temp.shown(adm, a) = 'offline');
+  PERFORM pg_temp.as_user(a); SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.ok('15z the owner is told the day is recorded as an absence',
+    (SELECT automatic_status = 'offline' AND automatic_reason = 'absence' FROM public.communication_my_availability()));
+  RESET ROLE;
+  UPDATE public.employee_attendance SET on_date = v_today - 1, status = 'holiday' WHERE employee_id = e_a;
+  PERFORM pg_temp.ok('15za yesterday''s holiday does not count today (Busy back)', pg_temp.shown(adm, a) = 'busy');
+  DELETE FROM public.employee_attendance WHERE employee_id = e_a;
+  PERFORM pg_temp.ok('15zb nothing recorded: Busy', pg_temp.shown(adm, a) = 'busy');
+  PERFORM pg_temp.as_user(b); SET LOCAL ROLE authenticated;
+  PERFORM pg_temp.ok('15zc nobody can call the work-state reader themselves',
+    NOT has_function_privilege('authenticated', 'public.communication_work_state(uuid)', 'EXECUTE')
+    AND pg_temp.refused(b, 'SELECT public.communication_work_state(''' || a || '''::uuid)'));
+  RESET ROLE;
+  -- Never touches delivery: the person is written to as before, whatever they are shown.
+  UPDATE public.employees SET shift_pattern_id = NULL WHERE id = e_a;
+  DELETE FROM public.shift_patterns WHERE id = pat;
 END $$;
 
 SELECT 'ALL TESTS PASSED' AS result;

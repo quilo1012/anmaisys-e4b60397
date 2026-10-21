@@ -4,7 +4,8 @@ import {
   AVAILABILITY_LABEL, AVAILABILITY_HELP, PRESENCE_MAX_IDS,
   effectiveAvailability, hasActivePresence, holidayRangeContains,
   isAvailabilityStatus, presenceCalendarDate,
-  parseAvailability, stableIds, chunk, myDisplayedAvailability,
+  parseAvailability, parseAutomaticReason, stableIds, chunk, myDisplayedAvailability,
+  type AvailabilityStatus, type WorkState,
 } from "./communicationPresence";
 
 describe("Communication availability rules", () => {
@@ -141,5 +142,47 @@ describe("Availability display helpers", () => {
     expect(myDisplayedAvailability("offline", false)).toBe("offline");
     expect(myDisplayedAvailability("busy", true)).toBe("on_holiday");
     expect(myDisplayedAvailability("on_holiday", false)).toBe("on_holiday");
+  });
+});
+
+describe("work state (rota, attendance board, leave)", () => {
+  const live = (preference: AvailabilityStatus, work: WorkState | null) =>
+    effectiveAvailability({ preference, connected: true, approvedHoliday: false, work });
+
+  it("moves only Online outside the shift: Busy, Do Not Disturb and Away are the person's word", () => {
+    expect(live("online", "off_shift")).toBe("away");
+    expect(live("busy", "off_shift")).toBe("busy");
+    expect(live("do_not_disturb", "off_shift")).toBe("do_not_disturb");
+    expect(live("away", "off_shift")).toBe("away");
+  });
+
+  it("leaves the choice alone on shift, and when the server has no opinion", () => {
+    expect(live("online", "on_shift")).toBe("online");
+    expect(live("online", null)).toBe("online");
+    expect(effectiveAvailability({ preference: "online", connected: true, approvedHoliday: false })).toBe("online");
+  });
+
+  it("reads holiday as On Holiday over every choice, and absence as Offline", () => {
+    for (const preference of AVAILABILITY_STATUSES) expect(live(preference, "holiday")).toBe("on_holiday");
+    for (const preference of AVAILABILITY_STATUSES.filter((p) => p !== "on_holiday")) expect(live(preference, "absent")).toBe("offline");
+    expect(live("on_holiday", "absent")).toBe("on_holiday");
+  });
+
+  it("never invents Away for someone who is not connected", () => {
+    expect(effectiveAvailability({ preference: "online", connected: false, approvedHoliday: false, work: "off_shift" })).toBe("offline");
+  });
+
+  it("shows the owner the automatic state when there is one", () => {
+    expect(myDisplayedAvailability("online", false, "away")).toBe("away");
+    expect(myDisplayedAvailability("busy", false, "on_holiday")).toBe("on_holiday");
+    expect(myDisplayedAvailability("busy", false, null)).toBe("busy");
+  });
+
+  it("only accepts the three reasons the server gives", () => {
+    expect(parseAutomaticReason("holiday")).toBe("holiday");
+    expect(parseAutomaticReason("absence")).toBe("absence");
+    expect(parseAutomaticReason("off_shift")).toBe("off_shift");
+    expect(parseAutomaticReason("sick")).toBeNull();
+    expect(parseAutomaticReason(null)).toBeNull();
   });
 });

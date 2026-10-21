@@ -3,8 +3,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  PRESENCE_MAX_IDS, PRESENCE_REFRESH_MS, chunk, myDisplayedAvailability, parseAvailability, stableIds,
-  type AvailabilityStatus,
+  PRESENCE_MAX_IDS, PRESENCE_REFRESH_MS, chunk, myDisplayedAvailability, parseAutomaticReason, parseAvailability, stableIds,
+  type AutomaticReason, type AvailabilityStatus,
 } from "@/lib/communicationPresence";
 
 /**
@@ -27,6 +27,9 @@ export interface MyAvailability {
   preference: AvailabilityStatus;
   /** Approved holiday leave today: shown to others as On Holiday while it lasts. */
   approvedHoliday: boolean;
+  /** What the system shows instead of your choice right now (rota, leave, attendance), if anything. */
+  automatic: AvailabilityStatus | null;
+  automaticReason: AutomaticReason | null;
 }
 
 /** Your own choice, and whether approved leave is currently overriding what others see. */
@@ -36,6 +39,8 @@ export function useMyAvailability() {
     queryKey: [MY_AVAILABILITY_KEY, user?.id ?? null],
     enabled: !!user,
     staleTime: 15_000,
+    // A shift starts and ends without anyone clicking; re-read so the picker follows the clock.
+    refetchInterval: 60_000,
     queryFn: async (): Promise<MyAvailability> => {
       const { data, error } = await supabase.rpc("communication_my_availability");
       if (error) throw error;
@@ -43,6 +48,8 @@ export function useMyAvailability() {
       return {
         preference: parseAvailability(row?.preference) ?? "online",
         approvedHoliday: row?.approved_holiday === true,
+        automatic: parseAvailability(row?.automatic_status),
+        automaticReason: parseAutomaticReason(row?.automatic_reason),
       };
     },
   });
@@ -51,7 +58,7 @@ export function useMyAvailability() {
 /** What your own picker should read: the same word everybody else is shown. */
 export function useMyDisplayedAvailability(): AvailabilityStatus | null {
   const { data } = useMyAvailability();
-  return data ? myDisplayedAvailability(data.preference, data.approvedHoliday) : null;
+  return data ? myDisplayedAvailability(data.preference, data.approvedHoliday, data.automatic) : null;
 }
 
 export function useSetMyAvailability() {
@@ -67,7 +74,9 @@ export function useSetMyAvailability() {
     onMutate: async (preference) => {
       await qc.cancelQueries({ queryKey: key });
       const before = qc.getQueryData<MyAvailability>(key);
-      qc.setQueryData<MyAvailability>(key, (old) => ({ approvedHoliday: old?.approvedHoliday ?? false, preference }));
+      qc.setQueryData<MyAvailability>(key, (old) => ({
+        approvedHoliday: old?.approvedHoliday ?? false, automatic: old?.automatic ?? null, automaticReason: old?.automaticReason ?? null, preference,
+      }));
       return { before };
     },
     onError: (_e, _p, ctx) => { if (ctx?.before) qc.setQueryData(key, ctx.before); },
