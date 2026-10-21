@@ -19,6 +19,25 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
   auth: { persistSession: false },
 });
 
+// i4 payloads are small JSON; this only stops a holder of the secret from posting an
+// unbounded blob into the logs.
+const MAX_BODY_BYTES = 64 * 1024; // 64 KB
+
+// Constant-time comparison, so the shared secret cannot be recovered byte-by-byte from
+// response timing. Length is folded in and the loop runs to the longer input, so it does
+// not exit early on the first differing byte.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  let diff = ab.length ^ bb.length;
+  const n = Math.max(ab.length, bb.length);
+  for (let i = 0; i < n; i++) {
+    diff |= (ab[i] ?? 0) ^ (bb[i] ?? 0);
+  }
+  return diff === 0;
+}
+
 function pick(obj: any, keys: string[]): any {
   if (!obj || typeof obj !== "object") return undefined;
   for (const k of keys) {
@@ -127,10 +146,38 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Authenticate BEFORE reading or persisting anything. Previously every request —
+  // including those that failed the secret check — was written to intouch_webhook_logs
+  // with attacker-controlled headers and payload, letting an unauthenticated caller
+  // flood the table and inject arbitrary content into admin-viewed logs. The secret is
+  // a header, so it is checked without touching the body, in constant time.
+  const sig = req.headers.get("x-intouch-signature") ?? req.headers.get("x-webhook-secret") ?? "";
+  if (!WEBHOOK_SECRET || !timingSafeEqual(sig, WEBHOOK_SECRET)) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "invalid_signature" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   const headersObj: Record<string, string> = {};
   req.headers.forEach((v, k) => { headersObj[k] = v; });
 
+  // Defense-in-depth: a secret-holder still cannot post an unbounded blob into the logs.
+  const cl = Number(req.headers.get("content-length") ?? "0");
+  if (cl && cl > MAX_BODY_BYTES) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "payload_too_large" }),
+      { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   const raw = await req.text();
+  if (raw.length > MAX_BODY_BYTES) {
+    return new Response(
+      JSON.stringify({ ok: false, error: "payload_too_large" }),
+      { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
   let payload: any = null;
   let parseError: string | null = null;
   try {
@@ -147,15 +194,12 @@ Deno.serve(async (req) => {
     payload = { _raw: raw };
   }
 
-  const sig = headersObj["x-intouch-signature"] ?? headersObj["x-webhook-secret"] ?? "";
-  const authOk = Boolean(WEBHOOK_SECRET) && sig === WEBHOOK_SECRET;
-
   let createdWoId: string | null = null;
   let errorMessage: string | null = parseError;
   let parsedOk = false;
   let pmInfo: any = null;
 
-  if (authOk && !parseError) {
+  if (!parseError) {
     try {
       const stopCode = String(pick(payload, ["stop_code", "stopCode", "code", "reason_code"]) ?? "").trim();
       const lineName = pick(payload, ["line", "line_name", "lineName", "production_line"]);
@@ -280,10 +324,10 @@ Deno.serve(async (req) => {
     } catch (e) {
       errorMessage = (e as Error).message;
     }
-  } else if (!authOk) {
-    errorMessage = "invalid_signature";
   }
 
+  // Reached only for authenticated requests (the secret check returns 401 above), so the
+  // row carries a real device's headers/payload, never an anonymous probe's.
   await admin.from("intouch_webhook_logs").insert({
     source_ip: headersObj["x-forwarded-for"] ?? headersObj["cf-connecting-ip"] ?? null,
     headers: headersObj,
@@ -293,7 +337,7 @@ Deno.serve(async (req) => {
     created_wo_id: createdWoId,
   });
 
-  const status = !authOk ? 401 : parsedOk ? 200 : 202;
+  const status = parsedOk ? 200 : 202;
   return new Response(
     JSON.stringify({ ok: parsedOk, wo_id: createdWoId, pm: pmInfo, error: errorMessage }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status },
