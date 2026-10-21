@@ -10,7 +10,7 @@
 --
 -- Todas as funcoes "do proprio" (my_attendance, answer_overtime, my_overtime_clashes, o
 -- sino do overtime, as respostas do proprio) perguntam quem e a pessoa a `my_employee_id()`.
--- Passa a responder NULL a quem nao tem nenhuma das duas permissoes — com a mesma regra da
+-- Passa a responder NULL a um login de operador que nao tenha nenhuma das duas permissoes — com a mesma regra da
 -- matriz (`has_action`, que respeita as excepcoes guardadas no ecra de Permissoes). Um
 -- operador a quem o admin der a permissao la volta a ter acesso; sem ela, nao.
 --
@@ -19,8 +19,7 @@
 --
 -- An operator can still sign in, but Overtime and Attendance do not exist for them. The
 -- screen already hid both; this closes it in the database too. `my_employee_id()` — the one
--- function every "my own" overtime/attendance function asks — now answers NULL unless the
--- login holds `overtime.respond` or `attendance.view_own` (same rule as the matrix, so a
+-- function every "my own" overtime/attendance function asks — now answers NULL for an operator login unless it holds `overtime.respond` or `attendance.view_own` (same rule as the matrix, so a
 -- grant on the Permissions screen still counts). No data is touched.
 
 create or replace function public.my_employee_id()
@@ -32,11 +31,12 @@ as $$
    where e.user_id = auth.uid()
      and e.active
      and (
-       public.has_action(auth.uid(), 'overtime.respond',
+       -- Only a login that is an operator is held back; everybody else is exactly as before.
+       not exists (select 1 from public.user_roles ur where ur.user_id = auth.uid() and ur.role = 'operator'::app_role)
+       or public.has_action(auth.uid(), 'overtime.respond',
          array['admin','manager','production_office_admin','maintenance_manager',
                'warehouse','quality_supervisor','employee']::app_role[])
-       or
-       public.has_action(auth.uid(), 'attendance.view_own',
+       or public.has_action(auth.uid(), 'attendance.view_own',
          array['admin','manager','production_office_admin','maintenance_manager',
                'warehouse','quality_supervisor','employee']::app_role[])
      )
