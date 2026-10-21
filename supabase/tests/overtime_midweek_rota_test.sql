@@ -144,8 +144,10 @@ BEGIN
     msg LIKE 'These hours are already yours: Your rota has you on the day shift%');
 
   -- ── 2. Hours, not the crew label: Night is not refused wholesale ──────────────
-  PERFORM pg_temp.expect_true('Tue 18:00–06:00 touches both day shifts and is offered',
-    NOT pg_temp.hidden(u_mid, a_tue_night));
+  -- BLOCO 112: touching is not free. Tuesday 06:00–18:00 and then Tuesday night 18:00–06:00 is 24
+  -- hours in a row, and Wednesday's shift starts as the night ends — so it is not offered.
+  PERFORM pg_temp.expect_true('Tue 18:00–06:00 follows the Tuesday day shift straight on: not enough rest, hidden',
+    pg_temp.hidden(u_mid, a_tue_night));
   PERFORM pg_temp.expect_true('Wed 17:00–05:00 overlaps Wednesday by an hour and is hidden',
     pg_temp.hidden(u_mid, a_wed_late));
 
@@ -171,10 +173,11 @@ BEGIN
   -- ── 5. Night crossing midnight ────────────────────────────────────────────────
   PERFORM pg_temp.expect_true('Fri 04:00–08:00 is inside Thursday''s night and hidden',
     pg_temp.hidden(u_nite, a_fri_dawn));
-  PERFORM pg_temp.expect_true('Fri 06:00–10:00 starts when that night ends and is offered',
-    NOT pg_temp.hidden(u_nite, a_fri_morn));
-  PERFORM pg_temp.expect_true('the night crew is offered Tuesday Day (it ends at 18:00)',
-    NOT pg_temp.hidden(u_nite, a_tue_day));
+  -- BLOCO 112: a night that has just ended, then four more hours, is 16 hours in 24.
+  PERFORM pg_temp.expect_true('Fri 06:00–10:00 starts when that night ends: 16 h in 24, hidden',
+    pg_temp.hidden(u_nite, a_fri_morn));
+  PERFORM pg_temp.expect_true('the night crew is not offered Tuesday Day either: it ends at 18:00 as their night starts',
+    pg_temp.hidden(u_nite, a_tue_day));
   PERFORM pg_temp.expect_true('but not Tuesday night, which is their own shift',
     pg_temp.hidden(u_nite, a_tue_night));
 

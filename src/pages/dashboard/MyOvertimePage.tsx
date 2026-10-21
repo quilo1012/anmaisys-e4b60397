@@ -589,7 +589,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
               )}
               {canAnswer && ownHours && (
                 <p className="text-sm text-muted-foreground">
-                  These hours are already yours — {ownHours.charAt(0).toLowerCase() + ownHours.slice(1)}.
+                  {ownHours.includes("not enough rest")
+                    ? <>Not enough rest between your shifts — {ownHours.charAt(0).toLowerCase() + ownHours.slice(1)}.</>
+                    : <>These hours are already yours — {ownHours.charAt(0).toLowerCase() + ownHours.slice(1)}.</>}
                 </p>
               )}
               {canAnswer && (

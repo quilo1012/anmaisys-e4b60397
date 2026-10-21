@@ -134,6 +134,7 @@ describe("sidebar", () => {
       // The same person's own record beside their own overtime: the two self-service
       // rows read together, and come last because they are about one person.
       "My Attendance",
+      "Where I'm working",
     ]);
   });
 

@@ -16,7 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -233,6 +233,8 @@ export const navItems: NavItem[] = [
   // The signed-in person's own record. Same people as My Overtime; the database answers
   // it from the session alone (`my_attendance`), so it can only ever be their own.
   { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
+  // Where the person works the next two weeks — its own item, not a card inside My Attendance.
+  { title: "Where I'm working", shortTitle: "Work area", url: "/dashboard/my-work-area", icon: MapPin, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
@@ -711,6 +713,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/finance-close": "Finance Close",
   "/dashboard/my-overtime": "My Overtime",
   "/dashboard/my-attendance": "My Attendance",
+  "/dashboard/my-work-area": "Where I'm working",
   "/dashboard/link-accounts": "Link accounts",
   "/dashboard/audit-logs": "Audit Logs",
   "/dashboard/settings": "Settings",

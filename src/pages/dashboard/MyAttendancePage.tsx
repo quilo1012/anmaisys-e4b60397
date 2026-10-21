@@ -7,10 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Info, MapPin } from "lucide-react";
+import { Info } from "lucide-react";
+import { areaText, fmtDay } from "@/lib/myShiftText";
 import { cn } from "@/lib/utils";
 import { ShiftTag } from "@/components/ShiftTag";
-import { shiftEdge, shiftKind } from "@/lib/shiftLook";
+import { shiftKind } from "@/lib/shiftLook";
 import { useMyAttendance } from "@/hooks/useMyAttendance";
 import { currentShift } from "@/lib/operationalShift";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
@@ -32,26 +33,6 @@ const STATUS: Record<DayStatus, { label: string; cell: string }> = {
   no_record: { label: "No record yet", cell: "bg-muted/50 text-muted-foreground border-dashed border-muted-foreground/30" },
 };
 
-const plusDays = (iso: string, n: number) => {
-  const d = new Date(`${iso}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-
-const KIND_LABEL: Record<MyShift["kind"], string> = {
-  scheduled: "Scheduled", overtime: "Overtime", training: "Training",
-  holiday: "Holiday", sick: "Sickness", unpaid: "Unpaid leave", other: "Away",
-};
-
-/** The column, or the honest version of not knowing it. */
-function areaText(sh: MyShift): string {
-  if (sh.area) return sh.leader ? `${sh.area} (leader)` : sh.area;
-  if (sh.area === undefined) return "—";
-  return "Work area not yet assigned";
-}
-
-const fmtDay = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 const fmtHours = (h: number | null) => (h == null ? "—" : `${h.toFixed(h % 1 === 0 ? 0 : 2)} h`);
 const fmtMin = (m: number | null) => (m == null ? "—" : `${m < 0 ? "−" : ""}${Math.floor(Math.abs(m) / 60)}:${String(Math.abs(m) % 60).padStart(2, "0")}`);
 
@@ -116,7 +97,6 @@ export default function MyAttendancePage() {
           </CardContent></Card>
         ) : result?.state === "ready" ? (
           <>
-          <WhereImWorking today={today} />
           <Attendance
             data={result.data} today={today} range={range}
             onRange={(r, key) => { setPicked(key); setRange(r); }}
@@ -340,45 +320,6 @@ function Legend({ days }: { days: MyDay[] }) {
       {marks.length > 0 && <p>{marks.join(" · ")}</p>}
       <p>Tap a day to see its details.</p>
     </div>
-  );
-}
-
-/**
- * The next fourteen days, from the Headcount Board: which board, which hours, which
- * column. Its own read, so it is there whatever range the calendar below is showing.
- */
-function WhereImWorking({ today }: { today: string }) {
-  const to = plusDays(today, 13);
-  const { data: result } = useMyAttendance(today, to);
-  if (result?.state !== "ready") return null;
-  const shifts = myShifts(result.data, today, to).filter((s) => !["holiday", "sick", "unpaid", "other"].includes(s.kind));
-  return (
-    <Card data-testid="where-im-working">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base"><MapPin className="h-4 w-4" /> Where I'm working</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0 pb-2">
-        {shifts.length === 0 ? (
-          <p className="px-4 pb-2 text-sm text-muted-foreground">No shifts planned in the next two weeks.</p>
-        ) : (
-          <ul className="divide-y text-sm">
-            {shifts.map((sh, i) => (
-              <li key={`${sh.date}-${sh.shift}-${i}`} className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 py-2 pl-3 pr-4", shiftEdge(sh.shift))}>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium">
-                    {sh.date === today ? "Today" : fmtDay(sh.date)}
-                    <ShiftTag shift={sh.shift} />
-                    {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours}</span>}
-                  </div>
-                  <div className={cn("text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
-                </div>
-                {sh.kind !== "scheduled" && <Badge variant="outline">{KIND_LABEL[sh.kind]}</Badge>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
