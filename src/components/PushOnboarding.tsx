@@ -1,13 +1,14 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useKeepPushSubscriptionCurrent, usePushNotifications } from "@/hooks/usePushNotifications";
 
 const PROMPT_KEY = "an_push_prompted_v1";
 
 export function PushOnboarding() {
   const { user } = useAuth();
   const { supported, permission, subscribed, subscribe } = usePushNotifications();
+  useKeepPushSubscriptionCurrent(user?.id);
 
   useEffect(() => {
     if (!user || !supported) return;

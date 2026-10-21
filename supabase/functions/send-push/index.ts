@@ -152,15 +152,23 @@ Deno.serve(async (req) => {
       title: body.title,
       body: body.body,
       priority: body.priority || "medium",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
+      icon: "/android-chrome-192x192.png",
+      badge: "/favicon-32x32.png",
       tag: body.tag,
       requireInteraction: !!body.requireInteraction,
       data: { url: body.action_url || "/", wo_id: body.wo_id },
     });
 
+    // One phone is one endpoint. Two rows with the same endpoint would be two buzzes.
+    const seen = new Set<string>();
+    const targets = ((subs as PushSubscriptionRow[] | null) || []).filter((s) => {
+      if (seen.has(s.endpoint)) return false;
+      seen.add(s.endpoint);
+      return true;
+    });
+
     const results = await Promise.allSettled(
-      ((subs as PushSubscriptionRow[] | null) || []).map((sub) =>
+      targets.map((sub) =>
         webpush
           .sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -170,8 +178,15 @@ Deno.serve(async (req) => {
             { urgency: "high", TTL: 24 * 60 * 60 }
           )
           .catch(async (err: WebPushError) => {
+            // 404/410: the phone's push service says this subscription is gone (app removed,
+            // notifications switched off in Settings). Keeping it only fails every later send.
             if (err.statusCode === 410 || err.statusCode === 404) {
               await supabase.from("push_subscriptions").delete().eq("id", sub.id);
+            } else {
+              // 400/401/403 from Apple or Google is usually the VAPID keys or subject, and
+              // 413/429/5xx are the service's own trouble: never the person's fault, never
+              // a reason to delete the row. The status is logged and returned, no secret.
+              console.error("send-push: push service answered", err.statusCode, new URL(sub.endpoint).host);
             }
             throw err;
           })
@@ -180,9 +195,15 @@ Deno.serve(async (req) => {
 
     const ok = results.filter((r) => r.status === "fulfilled").length;
     const fail = results.length - ok;
+    const failures = results.flatMap((r, i) => r.status === "rejected"
+      ? [{ host: new URL(targets[i].endpoint).host, status: (r.reason as WebPushError)?.statusCode ?? null }]
+      : []);
+    // The placeholder subject is what an unconfigured project falls back to, and Apple's push
+    // service can refuse a VAPID token whose subject is not a real contact.
+    const subjectWarning = /example\.com/i.test(VAPID_SUBJECT) ? "VAPID_SUBJECT is still the placeholder; set it to a real mailto: or https: address" : undefined;
 
     return new Response(
-      JSON.stringify({ sent: ok, failed: fail, total: results.length, in_app: body.in_app === false ? 0 : userIds.length }),
+      JSON.stringify({ sent: ok, failed: fail, total: results.length, failures, warning: subjectWarning, in_app: body.in_app === false ? 0 : userIds.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
