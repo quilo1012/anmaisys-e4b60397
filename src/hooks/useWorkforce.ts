@@ -58,6 +58,8 @@ export interface Employee {
   source: string;
   notes: string | null;
   current_line_id: string | null;
+  /** The app login this person is, when the office has linked one. */
+  user_id?: string | null;
   /**
    * Como a folha de headcount da fabrica escreve esta pessoa, separado por virgulas,
    * quando nao e como ela esta escrita aqui. Lido pelo `parseHeadcountWorkbook` e

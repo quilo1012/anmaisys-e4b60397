@@ -15,7 +15,7 @@ import { DepartmentHeadcount } from "@/components/workforce/DepartmentHeadcount"
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { PeopleTable } from "@/components/workforce/PeopleTable";
-import { useEmployees, useShiftPatterns } from "@/hooks/useWorkforce";
+import { useEmployees, useHeadcountAreas, useShiftPatterns } from "@/hooks/useWorkforce";
 import { useRole } from "@/hooks/useRole";
 
 /** Day and Night read at a glance; the weekend crews are quieter on purpose. */
@@ -38,6 +38,7 @@ const SHIFT_BADGE: Record<string, string> = {
 export default function PeoplePage() {
   const { data: employees, isLoading, isError: employeesErr, refetch: refetchEmployees } = useEmployees();
   const { data: patterns, isError: patternsErr, isLoading: patternsLoading, refetch: refetchPatterns } = useShiftPatterns();
+  const { data: areas } = useHeadcountAreas();
   const { can } = useRole();
   const canEdit = can("employees.manage") || can("workforce.manage");
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export default function PeoplePage() {
                 <PeopleTable
                   leftCount={leavers.length}
                   people={onTheList}
+                  areas={areas ?? []}
                   onOpen={setDetailId}
                   actions={canEdit ? <AddEmployeeDialog /> : undefined}
                 />

@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/exportCsv";
 import { describeDays, type Employee, type ShiftPattern } from "@/hooks/useWorkforce";
+import { NOT_SET, filterOptions } from "@/lib/employeeDirectory";
 
 export interface PersonRow extends Employee {
   pattern: ShiftPattern | null;
@@ -53,8 +54,10 @@ function statusOf(p: PersonRow) {
  * column: it reads as missing data rather than as a field nobody has ever filled.
  */
 export function PeopleTable({
-  people, onOpen, actions, leftCount = 0,
+  people, onOpen, actions, leftCount = 0, areas = [],
 }: {
+  /** The production lines / board areas, to name and filter by `headcount_area_id`. */
+  areas?: readonly { id: string; name: string }[];
   /** The active list. Leavers live under their own heading on the page. */
   people: PersonRow[];
   onOpen: (id: string) => void;
@@ -72,6 +75,7 @@ export function PeopleTable({
   const [q, setQ] = useState("");
   const [dept, setDept] = useState(ALL);
   const [shift, setShift] = useState(ALL);
+  const [line, setLine] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [type, setType] = useState(ALL);
   const [sort, setSort] = useState<SortKey>("full_name");
@@ -79,25 +83,29 @@ export function PeopleTable({
   const [size, setSize] = useState(25);
   const [page, setPage] = useState(0);
 
-  const departments = useMemo(
-    () => Array.from(new Set(people.map((p) => p.department).filter(Boolean))).sort() as string[],
-    [people],
+  // Every department that exists, A–Z, and "Not set" last when somebody really has none.
+  const departments = useMemo(() => filterOptions(people.map((p) => p.department)), [people]);
+  const lineName = useMemo(() => new Map(areas.map((a) => [a.id, a.name])), [areas]);
+  const lines = useMemo(
+    () => filterOptions(people.map((p) => p.headcount_area_id), "Not assigned")
+      .map((o) => (o.value === NOT_SET ? o : { ...o, label: lineName.get(o.value) ?? "Unknown line" })),
+    [people, lineName],
   );
   const managerName = useMemo(() => {
     const byId = new Map(people.map((p) => [p.id, p.full_name]));
     return (id: string | null) => (id ? byId.get(id) ?? "—" : "—");
   }, [people]);
 
-  const shifts = useMemo(
-    () => Array.from(new Set(people.map((p) => p.shift_group).filter(Boolean))).sort() as string[],
-    [people],
-  );
+  const shifts = useMemo(() => filterOptions(people.map((p) => p.shift_group)), [people]);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return people.filter((p) => {
-      if (dept !== ALL && (p.department ?? "") !== dept) return false;
-      if (shift !== ALL && (p.shift_group ?? "") !== shift) return false;
+      const matches = (filter: string, value: string | null) =>
+        filter === ALL || (filter === NOT_SET ? (value ?? "").trim() === "" : (value ?? "").trim() === filter);
+      if (!matches(dept, p.department)) return false;
+      if (!matches(shift, p.shift_group)) return false;
+      if (!matches(line, p.headcount_area_id)) return false;
       if (status !== ALL && statusOf(p).label !== status) return false;
       if (type !== ALL && p.employment_type !== type) return false;
       if (!term) return true;
@@ -106,7 +114,7 @@ export function PeopleTable({
       return [p.full_name, p.employee_ref, p.department, p.email, p.position]
         .some((v) => (v ?? "").toLowerCase().includes(term));
     });
-  }, [people, q, dept, shift, status, type]);
+  }, [people, q, dept, shift, line, status, type]);
 
   /** Sorts after every real string, so a gap is never the answer to a sort. */
   const MISSING = "\uFFFF";
@@ -211,19 +219,28 @@ export function PeopleTable({
               />
             </div>
             <Select value={dept} onValueChange={(v) => { setDept(v); setPage(0); }}>
-              <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-44" aria-label="Filter by department"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All departments</SelectItem>
-                {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                {departments.map((d) => <SelectItem key={d.value} value={d.value}>{d.value === NOT_SET ? "No department set" : d.label} ({d.count})</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={shift} onValueChange={(v) => { setShift(v); setPage(0); }}>
-              <SelectTrigger className="h-9 w-40"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-40" aria-label="Filter by shift"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>All shifts</SelectItem>
-                {shifts.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {shifts.map((s) => <SelectItem key={s.value} value={s.value}>{s.value === NOT_SET ? "No shift set" : s.label} ({s.count})</SelectItem>)}
               </SelectContent>
             </Select>
+            {areas.length > 0 && (
+              <Select value={line} onValueChange={(v) => { setLine(v); setPage(0); }}>
+                <SelectTrigger className="h-9 w-44" aria-label="Filter by production line"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>All production lines</SelectItem>
+                  {lines.map((l) => <SelectItem key={l.value} value={l.value}>{l.label} ({l.count})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={type} onValueChange={(v) => { setType(v); setPage(0); }}>
               <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
               <SelectContent>
