@@ -69,7 +69,10 @@ export function usePushNotifications() {
         toast.warning("Permission denied");
         return false;
       }
-      const reg = await registerSW();
+      await registerSW();
+      // On the first tap the worker register() returns is still installing, and
+      // subscribe() on a registration with no active worker rejects. `ready` waits for it.
+      const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
@@ -90,7 +93,9 @@ export function usePushNotifications() {
             p256dh: json.keys?.p256dh,
             auth: json.keys?.auth,
           },
-          { onConflict: "endpoint" }
+          // The table's only unique key is (user_id, endpoint). "endpoint" alone matched
+          // no constraint, so Postgres refused every save (42P10): 0 phones on 21/10.
+          { onConflict: "user_id,endpoint" }
         );
       if (error) throw error;
       setSubscribed(true);
