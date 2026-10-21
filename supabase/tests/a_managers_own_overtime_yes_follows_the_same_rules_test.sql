@@ -1,4 +1,4 @@
--- Tests for 20261021200000_a_managers_own_overtime_yes_follows_the_same_rules.sql (BLOCO 117).
+-- Tests for 20261021210000_a_managers_own_overtime_yes_follows_the_same_rules.sql (BLOCO 118).
 --
 -- Run this WHOLE file in one go, in the Supabase SQL Editor, after BLOCO 112 and 117 have been
 -- applied. One transaction, throwaway people and asks, ROLLBACK at the end; the last statement

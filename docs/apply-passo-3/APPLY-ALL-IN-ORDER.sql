@@ -15411,6 +15411,238 @@ end $$;
 
 notify pgrst, 'reload schema';
 
+-- F-1 (raiz): fechar o EXECUTE de `anon` por default no schema public.
+--
+-- Problema: o schema `public` tem ALTER DEFAULT PRIVILEGES que concede EXECUTE a `anon`
+-- a TODA a função nova. O sweep de 27/06 (REVOKE ALL ON ALL FUNCTIONS ... FROM anon) só
+-- cobriu as funções existentes nesse instante; cada função criada depois volta a ganhar
+-- anon=EXECUTE, e a proteção passou a depender de cada função fazer o seu auth.uid()-check.
+-- Isto já deixou PII de empregados acessível à chave anónima (overtime_unlinked_names,
+-- medido 18/10/2026). Esta migração corrige a RAIZ e repõe um estado explícito.
+--
+-- ÂMBITO DELIBERADAMENTE ESTREITO: mexe SÓ no papel `anon`.
+--   • NÃO toca em `authenticated` nem `service_role` — há funções propositadamente
+--     revogadas de authenticated (service_role-only, ex. 20260624211229); um GRANT em
+--     bloco a authenticated reabri-las-ia. Por isso não se concede nada a authenticated.
+--   • NÃO revoga de PUBLIC — isso foi tratado em 27/06 e um REVOKE FROM PUBLIC poderia
+--     remover acesso de que `authenticated` depende por via de PUBLIC.
+--   O default do schema concede diretamente a anon ("anon=X of its own"), por isso
+--   REVOKE ... FROM anon remove exatamente esse caminho sem efeitos colaterais.
+--
+-- Idempotente. REVÊ a allowlist de login antes de aplicar.
+
+-- 1) RAIZ: parar o default de conceder EXECUTE a anon a funções FUTURAS.
+--    Aplica-se ao role que cria as funções (o das migrações).
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon;
+
+-- 2) ESTADO ATUAL: tirar a anon o EXECUTE que já tem (anon apenas; authenticated intacto).
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM anon;
+
+-- 3) Repor anon SÓ na allowlist de login — as funções que o ecrã pré-sessão chama sem
+--    sessão. `to_regprocedure` salta as que não existam neste momento (idempotente).
+--    Fonte da allowlist: funções alguma vez concedidas a anon nas migrações
+--    (get_login_branding, list_tablet_accounts_public, check_invite_code) + a de signup
+--    deixada aberta de propósito em 20261019100000. Nada fora disto deve ser anon.
+DO $$
+DECLARE fn text;
+BEGIN
+  FOREACH fn IN ARRAY ARRAY[
+    'public.get_login_branding()',
+    'public.list_tablet_accounts_public()',
+    'public.check_invite_code(text)',
+    'public.signup_invite_code(text)'
+  ] LOOP
+    IF to_regprocedure(fn) IS NOT NULL THEN
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO anon', fn);
+    END IF;
+  END LOOP;
+END $$;
+
+-- Nota operacional: se as funções forem criadas por mais do que um role de BD, o default
+-- privilege é por-role — confirma com `\ddp`/pg_default_acl e repete o passo 1 com
+-- `FOR ROLE <role>` para cada um. O teste de regressão
+-- (no_public_function_is_anon_executable_test.sql) deteta qualquer regresso.
+
+-- F-2: rate-limit/lockout na verificação do PIN de engenheiro.
+--
+-- Problema: verify-engineer-pin autentica o chamador (qualquer utilizador com sessão) e
+-- chama verify_pin_by_code(_pin), que procura em TODOS os engenheiros ativos por um PIN
+-- de 4-6 dígitos SEM contador de tentativas. O caminho de admin já tem lockout
+-- (verify_admin_pin_with_lockout + admin_pin_attempts); o de engenheiro não. Como o match
+-- é contra qualquer engenheiro, a entropia efetiva é ainda menor e o espaço é
+-- brute-forçável por qualquer conta autenticada, devolvendo a identidade de um engenheiro.
+--
+-- Correção: espelhar exatamente o padrão do admin — tentativas keyed em auth.uid() (o
+-- chamador que adivinha), 5 tentativas livres e escada de lockout [30,60,120,300]s. A
+-- função é chamada pelo cliente USER-SCOPED na edge (para auth.uid() resolver), tal como
+-- verify_admin_pin_with_lockout.
+--
+-- Não altera verify_pin_by_code (mantém-se service_role-only para compatibilidade até a
+-- edge atualizada estar confirmada em produção; pode ser removida num follow-up).
+
+-- 1) Tentativas por chamador (mesma forma que admin_pin_attempts; escrita só pela função)
+CREATE TABLE IF NOT EXISTS public.engineer_pin_attempts (
+  user_id uuid PRIMARY KEY,
+  failures integer NOT NULL DEFAULT 0,
+  lockout_step integer NOT NULL DEFAULT 0,
+  locked_until timestamptz,
+  last_attempt timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.engineer_pin_attempts ENABLE ROW LEVEL SECURITY;
+-- Sem policies para anon/authenticated: a tabela é escrita apenas pela função
+-- SECURITY DEFINER (que corre como owner). O service_role mantém acesso direto.
+GRANT ALL ON public.engineer_pin_attempts TO service_role;
+
+-- 2) Verificação com lockout. Devolve jsonb, como o lado admin.
+CREATE OR REPLACE FUNCTION public.verify_engineer_pin_with_lockout(_pin text)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  _uid uuid := auth.uid();
+  _now timestamptz := now();
+  _row public.engineer_pin_attempts%ROWTYPE;
+  _eid uuid;
+  _ename text;
+  _step integer;
+  _wait integer;
+  _max_free constant integer := 5;
+  _ladder constant integer[] := ARRAY[30, 60, 120, 300];
+BEGIN
+  -- Tem de ser chamada por um cliente user-scoped (auth.uid() não nulo). Mantém o
+  -- comportamento atual: qualquer utilizador autenticado pode verificar, sem role
+  -- específica — o lockout conta contra quem adivinha.
+  IF _uid IS NULL THEN
+    RAISE EXCEPTION 'Forbidden: sign in required';
+  END IF;
+
+  SELECT * INTO _row FROM public.engineer_pin_attempts WHERE user_id = _uid FOR UPDATE;
+
+  IF _row.locked_until IS NOT NULL AND _row.locked_until > _now THEN
+    RETURN jsonb_build_object(
+      'success', false, 'error', 'locked',
+      'locked_seconds', GREATEST(1, CEIL(EXTRACT(EPOCH FROM (_row.locked_until - _now)))::int),
+      'remaining', 0);
+  END IF;
+
+  SELECT e.id, e.name INTO _eid, _ename
+  FROM public.engineers e
+  WHERE e.is_active = true
+    AND e.pin_hash = extensions.crypt(_pin, e.pin_hash)
+  LIMIT 1;
+
+  IF _eid IS NOT NULL THEN
+    DELETE FROM public.engineer_pin_attempts WHERE user_id = _uid;
+    RETURN jsonb_build_object('success', true, 'engineer_id', _eid, 'engineer_name', _ename);
+  END IF;
+
+  INSERT INTO public.engineer_pin_attempts (user_id, failures, lockout_step, last_attempt, updated_at)
+  VALUES (_uid, 1, 0, _now, _now)
+  ON CONFLICT (user_id) DO UPDATE
+    SET failures = engineer_pin_attempts.failures + 1, last_attempt = _now, updated_at = _now
+  RETURNING * INTO _row;
+
+  IF _row.failures > _max_free THEN
+    _step := LEAST(_row.failures - _max_free, array_length(_ladder, 1));
+    _wait := _ladder[_step];
+    UPDATE public.engineer_pin_attempts
+       SET locked_until = _now + make_interval(secs => _wait), lockout_step = _step
+     WHERE user_id = _uid;
+    RETURN jsonb_build_object('success', false, 'error', 'locked', 'locked_seconds', _wait, 'remaining', 0);
+  END IF;
+
+  RETURN jsonb_build_object('success', false, 'error', 'invalid_pin',
+    'remaining', GREATEST(0, _max_free - _row.failures));
+END;
+$function$;
+
+-- 3) Grants: chamada pelo cliente user-scoped (authenticated). Nunca anon.
+REVOKE EXECUTE ON FUNCTION public.verify_engineer_pin_with_lockout(text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.verify_engineer_pin_with_lockout(text) TO authenticated, service_role;
+
+-- F-4: rate-limit por utilizador para os proxies de IA (abuso de custo).
+--
+-- translate-message e identify-part autenticam o chamador mas não limitam o ritmo, por
+-- isso qualquer conta autenticada pode gastar quota paga (identify-part usa Claude Sonnet
+-- com visão e imagens até 6 MB — o mais caro). Este é um limitador por (utilizador,
+-- balde), em BD (robusto entre instâncias, ao contrário de um contador em memória por
+-- instância), reutilizável por qualquer edge function.
+--
+-- A função é chamada SERVER-SIDE pela edge com a service-role, passando o user_id já
+-- verificado do token — por isso recebe _user_id explicitamente e é service_role-only
+-- (um utilizador não a pode chamar para manipular o seu próprio contador).
+
+CREATE TABLE IF NOT EXISTS public.ai_usage_limits (
+  user_id uuid NOT NULL,
+  bucket text NOT NULL,
+  window_start timestamptz NOT NULL DEFAULT now(),
+  count integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, bucket)
+);
+
+ALTER TABLE public.ai_usage_limits ENABLE ROW LEVEL SECURITY;
+-- Sem policies para anon/authenticated: escrita apenas pela função SECURITY DEFINER
+-- (corre como owner) e pelo service_role direto.
+GRANT ALL ON public.ai_usage_limits TO service_role;
+
+-- Incrementa a contagem na janela atual e diz se o pedido é permitido. Janela fixa:
+-- quando a janela expira, reinicia. Atómico via INSERT ... ON CONFLICT DO UPDATE.
+CREATE OR REPLACE FUNCTION public.ai_rate_limit_hit(
+  _user_id uuid,
+  _bucket text,
+  _limit integer,
+  _window_seconds integer
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  _now timestamptz := now();
+  _row public.ai_usage_limits%ROWTYPE;
+  _expired boolean;
+BEGIN
+  IF _user_id IS NULL THEN
+    RAISE EXCEPTION 'user required';
+  END IF;
+  IF _bucket IS NULL OR _limit IS NULL OR _limit < 1 OR _window_seconds IS NULL OR _window_seconds < 1 THEN
+    RAISE EXCEPTION 'invalid rate-limit parameters';
+  END IF;
+
+  INSERT INTO public.ai_usage_limits (user_id, bucket, window_start, count)
+  VALUES (_user_id, _bucket, _now, 1)
+  ON CONFLICT (user_id, bucket) DO UPDATE SET
+    window_start = CASE
+      WHEN public.ai_usage_limits.window_start < _now - make_interval(secs => _window_seconds)
+      THEN _now ELSE public.ai_usage_limits.window_start END,
+    count = CASE
+      WHEN public.ai_usage_limits.window_start < _now - make_interval(secs => _window_seconds)
+      THEN 1 ELSE public.ai_usage_limits.count + 1 END
+  RETURNING * INTO _row;
+
+  IF _row.count > _limit THEN
+    RETURN jsonb_build_object(
+      'allowed', false,
+      'retry_after', GREATEST(1, CEIL(EXTRACT(EPOCH FROM
+        (_row.window_start + make_interval(secs => _window_seconds) - _now)))::int));
+  END IF;
+
+  RETURN jsonb_build_object('allowed', true, 'remaining', GREATEST(0, _limit - _row.count));
+END;
+$function$;
+
+-- Server-side only: a edge chama-a com a service-role e o user_id verificado.
+REVOKE EXECUTE ON FUNCTION public.ai_rate_limit_hit(uuid, text, integer, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.ai_rate_limit_hit(uuid, text, integer, integer) TO service_role;
+
 -- ================================================================
 -- BLOCO 112
 -- 20261021150000_overtime_keeps_a_rest_between_shifts.sql
@@ -15830,8 +16062,405 @@ revoke all on function public.dm_employee_bell() from public, anon, authenticate
 notify pgrst, 'reload schema';
 
 -- ================================================================
+-- BLOCO 115
+-- 20261021180000_an_employee_can_have_more_than_one_supervisor.sql
+-- ================================================================
+--
+-- "Reports to" passa a aceitar mais de um supervisor. `employees.manager_id` continua a
+-- existir e passa a ser o PRIMEIRO supervisor (o que ja era para tudo o que le um so);
+-- a lista completa vive em `employee_supervisors`. O que muda:
+--   * `employee_supervisors` (employee_id, supervisor_id, position): preenchida a partir
+--     do manager_id que ja existe (so acrescenta linhas); ninguem escreve nela a direito,
+--     so `set_employee_supervisors()` (quem tem `workforce.manage`), que tambem poe o
+--     manager_id no primeiro. Maximo 5; nunca a propria pessoa; so pessoas activas.
+--   * `my_supervisor()` devolve todos os supervisores com login (antes, um).
+--   * `message_my_supervisor(texto, supervisor opcional)`: sem o segundo, escreve ao
+--     primeiro, como antes; com ele, a esse (tem de ser um dos seus).
+--   * o aviso "X vem fazer overtime" toca a todos os supervisores, uma vez cada.
+--   * os grupos do chat contam os reportes de qualquer um dos supervisores.
+-- Nao apaga nem reescreve nenhum employee, mensagem ou notificacao.
+--
+-- "Reports to" now takes more than one supervisor. `employees.manager_id` stays and is the
+-- FIRST supervisor (so everything that reads one keeps working); the full list is in
+-- `employee_supervisors`, back-filled from manager_id (adds rows only) and written only by
+-- `set_employee_supervisors()`. `my_supervisor()` returns all of them; the overtime "is
+-- coming in" bell rings each once; chat group scope counts reports of any supervisor.
+
+create table if not exists public.employee_supervisors (
+  employee_id   uuid not null references public.employees(id) on delete cascade,
+  supervisor_id uuid not null references public.employees(id) on delete cascade,
+  position      smallint not null default 0,
+  primary key (employee_id, supervisor_id),
+  check (employee_id <> supervisor_id)
+);
+create index if not exists employee_supervisors_supervisor_idx on public.employee_supervisors (supervisor_id);
+
+insert into public.employee_supervisors (employee_id, supervisor_id, position)
+select e.id, e.manager_id, 0 from public.employees e
+ where e.manager_id is not null and e.manager_id <> e.id
+on conflict do nothing;
+
+alter table public.employee_supervisors enable row level security;
+revoke all on public.employee_supervisors from public, anon, authenticated;
+grant select on public.employee_supervisors to authenticated;
+drop policy if exists "employee_supervisors_read" on public.employee_supervisors;
+create policy "employee_supervisors_read" on public.employee_supervisors
+  for select to authenticated
+  using (public.has_action((select auth.uid()), 'workforce.view', array['admin']::app_role[]));
+
+create or replace function public.set_employee_supervisors(p_employee uuid, p_supervisors uuid[])
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not public.has_action(auth.uid(), 'workforce.manage', array['admin']::app_role[]) then
+    raise exception 'Not allowed' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.employees where id = p_employee) then
+    raise exception 'No such employee' using errcode = 'P0001';
+  end if;
+  -- In the order given, once each, never the person themselves, only active records.
+  select coalesce(array_agg(s order by o), '{}') into v_ids
+    from (select s, min(o) as o
+            from unnest(coalesce(p_supervisors, '{}')) with ordinality as t(s, o)
+           where s <> p_employee and exists (select 1 from public.employees x where x.id = s and x.active)
+           group by s) q;
+  if cardinality(v_ids) > 5 then
+    raise exception 'At most 5 supervisors' using errcode = 'P0001';
+  end if;
+
+  delete from public.employee_supervisors where employee_id = p_employee and not (supervisor_id = any (v_ids));
+  insert into public.employee_supervisors (employee_id, supervisor_id, position)
+  select p_employee, v_ids[i], (i - 1)::smallint from generate_subscripts(v_ids, 1) i
+  on conflict (employee_id, supervisor_id) do update set position = excluded.position;
+  update public.employees set manager_id = v_ids[1] where id = p_employee and manager_id is distinct from v_ids[1];
+end;
+$$;
+revoke all on function public.set_employee_supervisors(uuid, uuid[]) from public, anon;
+grant execute on function public.set_employee_supervisors(uuid, uuid[]) to authenticated;
+
+-- Every active supervisor with a login, in order: the table, and manager_id for a row not yet in it.
+create or replace function public.supervisor_logins_of(p_employee uuid)
+returns table (login uuid, ord integer)
+language sql stable security definer set search_path = public
+as $$
+  select m.user_id, min(x.position)::integer
+    from (select supervisor_id, position from public.employee_supervisors where employee_id = p_employee
+          union all
+          select e.manager_id, 0::smallint from public.employees e
+           where e.id = p_employee and e.manager_id is not null
+             and not exists (select 1 from public.employee_supervisors s where s.employee_id = e.id)) x
+    join public.employees m on m.id = x.supervisor_id
+    join public.employees me on me.id = p_employee
+   where m.active and m.user_id is not null and m.user_id is distinct from me.user_id
+   group by m.user_id
+   order by min(x.position), m.user_id;
+$$;
+revoke all on function public.supervisor_logins_of(uuid) from public, anon, authenticated;
+
+create or replace function public.my_supervisor()
+returns table (user_id uuid, full_name text)
+language sql stable security definer set search_path = public
+as $$
+  select m.user_id, m.full_name
+    from public.supervisor_logins_of(public.my_employee_id()) l
+    join public.employees m on m.user_id = l.login and m.active
+   where m.user_id is distinct from auth.uid()
+   order by l.ord, m.full_name;
+$$;
+revoke all on function public.my_supervisor() from public, anon;
+grant execute on function public.my_supervisor() to authenticated;
+
+drop function if exists public.message_my_supervisor(text);
+create or replace function public.message_my_supervisor(p_message text, p_supervisor uuid default null)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_emp  uuid := public.my_employee_id();
+  v_name text;
+  v_text text := btrim(coalesce(p_message, ''));
+  v_to   uuid;
+begin
+  if v_emp is null then
+    raise exception 'No employee record is linked to this login' using errcode = 'P0001';
+  end if;
+  if length(v_text) = 0 then
+    raise exception 'Write a message first' using errcode = 'P0001';
+  end if;
+  if length(v_text) > 1000 then
+    raise exception 'Keep it under 1000 characters' using errcode = 'P0001';
+  end if;
+  if p_supervisor is null then
+    v_to := public.supervisor_login_of(v_emp);
+  elsif exists (select 1 from public.supervisor_logins_of(v_emp) l where l.login = p_supervisor) then
+    v_to := p_supervisor;
+  else
+    raise exception 'That is not one of your supervisors' using errcode = 'P0001';
+  end if;
+  if v_to is null or v_to = auth.uid() then
+    raise exception 'No supervisor is on file for you yet. Ask the office to set your manager.' using errcode = 'P0001';
+  end if;
+  select full_name into v_name from public.employees where id = v_emp;
+  return public.dm_from_employee(v_to, v_name, v_text);
+end;
+$$;
+revoke all on function public.message_my_supervisor(text, uuid) from public, anon;
+grant execute on function public.message_my_supervisor(text, uuid) to authenticated;
+
+create or replace function public.overtime_response_booked_notify()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_req  public.overtime_requests;
+  v_user uuid;
+  v_name text;
+  v_when text;
+  v_to   uuid;
+begin
+  if new.decision is null or new.decision not in ('accepted', 'reserve') then return null; end if;
+  if tg_op = 'UPDATE' and old.decision is not distinct from new.decision then return null; end if;
+
+  begin
+    select * into v_req from public.overtime_requests where id = new.request_id;
+    select user_id, full_name into v_user, v_name from public.employees where id = new.employee_id;
+    v_when := to_char(v_req.on_date, 'Dy DD/MM') || ' · ' || left(v_req.starts_at::text, 5)
+              || '–' || left(v_req.ends_at::text, 5) || coalesce(' · ' || v_req.department, '');
+
+    if v_user is not null then
+      insert into public.notifications (user_id, kind, title, body, priority, action_url)
+      values (v_user, 'overtime_booked',
+              case when new.decision = 'accepted' then 'You''re booked for overtime'
+                   else 'You''re on the overtime reserve list' end,
+              v_when, 'medium', '/dashboard/my-overtime?ask=' || v_req.id);
+    end if;
+
+    -- The supervisor on file and the poster, unless they did it themselves, or nobody
+    -- did (the one-off backlog of BLOCO 105). Once per person per ask: only when the
+    -- answer is first decided, so a reserve later accepted, or a retried yes, does not
+    -- ring again — and `distinct`, so one login holding both roles is rung once.
+    -- (Not BLOCO 100's unique key: that is one row per ask, and an ask has many people.)
+    if auth.uid() is not null and (tg_op = 'INSERT' or old.decision is null) then
+      for v_to in
+        select distinct t from unnest(array_append(array(select l.login from public.supervisor_logins_of(new.employee_id) l), v_req.created_by)) t
+         where t is not null and t <> auth.uid() and t is distinct from v_user
+      loop
+        insert into public.notifications (user_id, kind, title, body, priority, action_url)
+        values (v_to, 'overtime_yes',
+                coalesce(v_name, 'Somebody') ||
+                  case when new.decision = 'accepted' then ' is coming in' else ' said yes (on reserve)' end,
+                v_when, 'medium', '/dashboard/overtime');
+      end loop;
+    end if;
+  exception when others then
+    -- The booking is the record; the bell is a courtesy. Never undo it for the bell.
+    raise warning 'overtime_response_booked_notify(%): %', new.id, sqlerrm;
+  end;
+  return null;
+end;
+$$;
+revoke all on function public.overtime_response_booked_notify() from public, anon, authenticated;
+
+create or replace function public.chat_departments_of(p_uid uuid)
+returns setof text
+language sql stable security definer set search_path = public
+as $$
+  select distinct d from (
+    select e.department as d
+      from public.employees e
+     where e.user_id = p_uid and e.active
+    union
+    select r.department
+      from public.employees me
+      join public.employees r on r.active
+       and (r.manager_id = me.id
+            or exists (select 1 from public.employee_supervisors s where s.employee_id = r.id and s.supervisor_id = me.id))
+     where me.user_id = p_uid and me.active
+  ) x
+  where d is not null and btrim(d) <> '';
+$$;
+revoke all on function public.chat_departments_of(uuid) from public, anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ================================================================
+-- BLOCO 116
+-- 20261021190000_an_ask_can_skip_a_crew.sql
+-- ================================================================
+--
+-- Ao divulgar um overtime, o escritorio pode escolher NAO enviar a uma ou mais equipas
+-- (por exemplo "todos menos a equipa Night"). Ate aqui so dava para escolher uma equipa ou todas.
+--   * `overtime_requests.excluded_shift_groups` (text[], por omissao vazio): so acrescenta
+--     uma coluna; os pedidos que ja existem ficam como estao (ninguem excluido).
+--   * `overtime_notify_targets`: quem e avisado no sino deixa de incluir essas equipas.
+--   * uma guarda em `overtime_responses`: um "sim" ou "nao" da PROPRIA pessoa dessas equipas
+--     e recusado (quem acrescenta um sim dado ao balcao continua a poder).
+-- No telemovel o pedido deixa de aparecer a essas equipas (o ecra ja usa a mesma regra
+-- que a base). Nao apaga nem muda nenhuma resposta ou pedido.
+--
+-- When publishing an overtime ask the office can now choose NOT to send it to one or more
+-- crews ("everybody except the Night crew"). One new column (default empty, so every existing
+-- ask is unchanged); the bell skips those crews; a guard on `overtime_responses` refuses a person's own answer from them (a supervisor adding a desk yes is unaffected).
+-- Nothing is deleted or changed.
+
+alter table public.overtime_requests
+  add column if not exists excluded_shift_groups text[] not null default '{}';
+
+create or replace function public.overtime_notify_targets(p_request_id uuid)
+returns table (employee_id uuid, user_id uuid)
+-- plpgsql, not sql: a sql body is checked when it is created, and this one names
+-- BLOCO 95's function. Out of order, the paste must not stop here.
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+  return query
+  select e.id, e.user_id
+    from public.overtime_requests q
+    join public.employees e
+      on e.active
+     and e.user_id is not null
+     and (q.department  is null or q.department  is not distinct from e.department)
+     and (q.shift_group is null or q.shift_group is not distinct from e.shift_group)
+     and (e.shift_group is null or not (e.shift_group = any (coalesce(q.excluded_shift_groups, '{}'))))
+   where q.id = p_request_id
+     and q.status = 'open'
+     and (q.on_date + q.starts_at) > (now() at time zone 'Europe/London')
+     and not exists (select 1 from public.overtime_responses r
+                      where r.request_id = q.id and r.employee_id = e.id)
+     and not exists (select 1 from public.overtime_block_for(e.id))
+     and public.overtime_schedule_clash(e.id, q.id) is null;
+end;
+$$;
+
+revoke all on function public.overtime_notify_targets(uuid) from public, anon, authenticated;
+
+-- A trigger and not a new answer_overtime: that function is defined in older blocks that
+-- must stay the last word on it, and a trigger also covers any other way a person answers
+-- for themselves. It only looks at a person's OWN answer, so the supervisor who adds a yes
+-- given at the desk can still put somebody from a skipped crew on an ask, as before.
+create or replace function public.overtime_response_crew_guard()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_skip  text[];
+  v_shift text;
+begin
+  if new.employee_id is distinct from public.my_employee_id() then return new; end if;
+  select coalesce(q.excluded_shift_groups, '{}') into v_skip
+    from public.overtime_requests q where q.id = new.request_id;
+  select e.shift_group into v_shift from public.employees e where e.id = new.employee_id;
+  if v_shift is not null and v_shift = any (coalesce(v_skip, '{}')) then
+    raise exception 'This overtime is not being asked of the % crew', v_shift using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.overtime_response_crew_guard() from public, anon, authenticated;
+
+drop trigger if exists overtime_response_crew_guard_t on public.overtime_responses;
+create trigger overtime_response_crew_guard_t
+  before insert or update of answer on public.overtime_responses
+  for each row execute function public.overtime_response_crew_guard();
+
+notify pgrst, 'reload schema';
+
+-- ================================================================
 -- BLOCO 117
--- 20261021200000_a_managers_own_overtime_yes_follows_the_same_rules.sql
+-- 20261021200000_the_bell_rings_the_phone.sql
+-- ================================================================
+--
+-- As linhas do sino que a propria base escreve passam a fazer vibrar o telemovel, mesmo
+-- com o ecra bloqueado. Ate aqui so os pedidos de overtime chegavam ao telemovel, porque
+-- so o browser de quem os cria chamava o `send-push` (`overtimeAnnounce.ts`). Uma mensagem
+-- directa (`dm_employee_bell`), um "you're booked" ou um "X said yes" ficavam no sino a
+-- espera que a pessoa abrisse a app.
+--
+--   1. `notification_push()`: um trigger AFTER INSERT em `notifications` que chama o
+--      `send-push` por `pg_net`, com o `CRON_SECRET` do vault no header `x-cron-secret`
+--      (o mesmo caminho do job 63, que esta vivo) e `in_app: false`, para nao escrever o
+--      sino uma segunda vez.
+--   2. Quais linhas: todas as que tem `kind`, menos `overtime_new`. As sem `kind` sao
+--      escritas pelo proprio `send-push`, que ja fez o push nesse momento; o `overtime_new`
+--      e enviado pelo browser de quem cria o pedido (`announceAsk`). Qualquer das duas aqui
+--      seria um segundo toque no mesmo telemovel.
+--   3. So chama quando o destinatario tem pelo menos uma subscricao, para nao encher o
+--      `net._http_response` com pedidos que nao vao a lado nenhum.
+--
+-- Nunca recusa a linha do sino: qualquer falha (vault vazio, pg_net em baixo) fica num
+-- WARNING e o INSERT segue. O `pg_net` so envia depois do COMMIT, por isso uma linha
+-- revertida nao toca telemovel nenhum.
+--
+-- Precisa do `send-push` publicado com o ramo do `x-cron-secret` (mesmo PR). Antes disso
+-- o `send-push` responde 401 ao trigger e nada pior acontece: o sino continua a funcionar.
+-- Nao muda nem apaga dados.
+--
+-- The bell rows the database writes itself now buzz the phone too, even when it is locked.
+-- An AFTER INSERT trigger on `notifications` calls `send-push` through pg_net with the
+-- vault's CRON_SECRET and `in_app: false`, for every row with a `kind` except
+-- `overtime_new` (the browser already pushes those) — rows without a kind are written by
+-- `send-push` itself, which has already pushed them. Only for recipients with a
+-- subscription. It never refuses the bell row. No data is touched.
+
+create or replace function public.notification_push()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_secret text;
+begin
+  begin
+    if not exists (select 1 from public.push_subscriptions s where s.user_id = new.user_id) then
+      return null;
+    end if;
+
+    select decrypted_secret into v_secret
+      from vault.decrypted_secrets where name = 'CRON_SECRET' limit 1;
+    if v_secret is null then
+      raise warning 'notification_push(%): CRON_SECRET missing from the vault', new.id;
+      return null;
+    end if;
+
+    perform net.http_post(
+      url := 'https://ybtrzqzliepknpzqdajx.supabase.co/functions/v1/send-push',
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-cron-secret', v_secret
+      ),
+      body := jsonb_strip_nulls(jsonb_build_object(
+        'user_id', new.user_id,
+        'title', left(coalesce(nullif(new.title, ''), 'PMSystem'), 200),
+        'body', left(new.body, 2000),
+        'priority', case when new.priority in ('low', 'medium', 'high', 'critical')
+                         then new.priority else 'medium' end,
+        'tag', left(new.kind || ':' || new.id, 100),
+        'action_url', left(new.action_url, 2048),
+        'wo_id', new.wo_id,
+        'in_app', false
+      )),
+      timeout_milliseconds := 10000
+    );
+  exception when others then
+    raise warning 'notification_push(%): %', new.id, sqlerrm;
+  end;
+  return null;
+end;
+$$;
+revoke all on function public.notification_push() from public, anon, authenticated;
+
+drop trigger if exists notification_push on public.notifications;
+create trigger notification_push
+  after insert on public.notifications
+  for each row
+  when (new.kind is not null and new.kind <> 'overtime_new')
+  execute function public.notification_push();
+
+-- ================================================================
+-- BLOCO 118
+-- 20261021210000_a_managers_own_overtime_yes_follows_the_same_rules.sql
 -- ================================================================
 --
 -- PT: Quem tem permissao de gerir overtime (admin, supervisor...) e tambem e employee
@@ -16050,8 +16679,8 @@ revoke all on function public.overtime_response_schedule_guard() from public, an
 notify pgrst, 'reload schema';
 
 -- ================================================================
--- BLOCO 118
--- 20261021210000_the_chat_list_shows_the_shift_each_person_works.sql
+-- BLOCO 119
+-- 20261021220000_the_chat_list_shows_the_shift_each_person_works.sql
 -- ================================================================
 --
 -- PT: Na lista do chat cada pessoa aparecia como "Employee · Lab" (funcao e departamento).

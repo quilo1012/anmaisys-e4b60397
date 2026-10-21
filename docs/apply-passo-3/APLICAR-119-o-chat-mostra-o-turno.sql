@@ -1,6 +1,6 @@
 -- ================================================================
--- BLOCO 118
--- 20261021210000_the_chat_list_shows_the_shift_each_person_works.sql
+-- BLOCO 119
+-- 20261021220000_the_chat_list_shows_the_shift_each_person_works.sql
 -- ================================================================
 --
 -- PT: Na lista do chat cada pessoa aparecia como "Employee · Lab" (funcao e departamento).

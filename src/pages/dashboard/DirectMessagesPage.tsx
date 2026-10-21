@@ -195,8 +195,8 @@ export default function DirectMessagesPage() {
   // ── Sending ──
   const sendGroup = useSendGroupMessage();
   const sendDirect = useSendDirect();
-  const supervisorId = mySup.data?.supervisor?.user_id ?? null;
-  const supervisorDoor = role === "employee" && active?.kind === "dm" && active.id === supervisorId;
+  const supervisorIds = (mySup.data?.supervisors ?? []).map((x) => x.user_id);
+  const supervisorDoor = role === "employee" && active?.kind === "dm" && supervisorIds.includes(active.id);
 
   const patch = (id: string, p: Partial<Pending>) => setPending((all) => all.map((x) => (x.id === id ? { ...x, ...p } : x)));
 
@@ -217,7 +217,7 @@ export default function DirectMessagesPage() {
       if (target.kind === "group") {
         await sendGroup.mutateAsync({ id: m.id, groupId: target.id, body: m.body, replyTo: m.replyTo, files: done });
       } else {
-        const id = await sendDirect.mutateAsync({ id: m.id, partnerId: target.id, body: m.body, supervisorDoor: m.door, files: done });
+        const id = await sendDirect.mutateAsync({ id: m.id, partnerId: target.id, body: m.body, supervisorDoor: m.door, pickSupervisor: supervisorIds.length > 1, files: done });
         // The supervisor's door chooses its own id; the copy shown goes when the real one arrives.
         if (id !== m.id) setPending((all) => all.filter((x) => x.id !== m.id));
       }

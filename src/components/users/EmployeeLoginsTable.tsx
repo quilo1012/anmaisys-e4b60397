@@ -25,7 +25,7 @@ export const EMPLOYEE_LOGINS_PAGE_SIZE = 25;
 /**
  * User Management → Employees: the floor logins, with the person each one is.
  *
- * What it shows about the PERSON — department, shift, production line — is read from the
+ * What it shows about the PERSON — department and shift — is read from the
  * linked `employees` record, the same row Workforce → Employee edits, so the two screens
  * cannot disagree. (`profiles.shift` is not shown: it only knows Day and Night, and the
  * overtime rules read the record's shift group.) A login with no record says so, and a
@@ -35,17 +35,16 @@ export const EMPLOYEE_LOGINS_PAGE_SIZE = 25;
  * where it does not, it opens the account dialog, which is all there is to edit.
  */
 export function EmployeeLoginsTable({
-  logins, employees, areas = [], canLinkRecords, canOpenRecords, isLoadingRecords = false, onEdit, rowExtras, emptyText, notice,
+  logins, employees, canLinkRecords, canOpenRecords, isLoadingRecords = false, onEdit, rowExtras, emptyText, notice,
 }: {
   logins: readonly EmployeeLogin[];
   /**
    * The employee records, or null when this person may not read them (only `workforce.view`
    * can; the table is closed to everyone else). Null is NOT "nobody has a record": the
-   * department, shift and line columns and their filters are left out rather than drawn
+   * department and shift columns and their filters are left out rather than drawn
    * as a column of false "No employee record".
    */
   employees: readonly Employee[] | null;
-  areas?: readonly { id: string; name: string }[];
   /** May link a login to a record (workforce.manage). */
   canLinkRecords: boolean;
   /** May open a person's record at all. */
@@ -70,7 +69,6 @@ export function EmployeeLoginsTable({
     for (const e of employees ?? []) if (e.user_id && e.active) map.set(e.user_id, e);
     return map;
   }, [employees]);
-  const areaName = useMemo(() => new Map(areas.map((a) => [a.id, a.name])), [areas]);
 
   const rows = useMemo(() => logins.map((login) => {
     const record = recordByLogin.get(login.id) ?? null;
@@ -79,7 +77,6 @@ export function EmployeeLoginsTable({
       name: login.name || login.email,
       department: record?.department ?? null,
       shift: record?.shift_group ?? null,
-      lineId: record?.headcount_area_id ?? null,
       extra: [login.email, record?.employee_ref, record?.position, badgeRefFromEmail(login.email)],
     };
   }), [logins, recordByLogin]);
@@ -157,13 +154,12 @@ export function EmployeeLoginsTable({
               {canLinkRecords && <TableHead>Employee record</TableHead>}
               {hasRecords && <TableHead>Department</TableHead>}
               {hasRecords && <TableHead>Shift</TableHead>}
-              {hasRecords && <TableHead>Production line</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {view.rows.map(({ login, record, name, department: dept, shift: sh, lineId }) => {
+            {view.rows.map(({ login, record, name, department: dept, shift: sh }) => {
               const badgeRef = badgeRefFromEmail(login.email);
               const noRecord = hasRecords && !record && !isLoadingRecords;
               return (
@@ -179,7 +175,6 @@ export function EmployeeLoginsTable({
                   )}
                   {hasRecords && <TableCell>{dept ?? notSet(noRecord ? "No employee record" : "Not set")}</TableCell>}
                   {hasRecords && <TableCell>{sh ?? notSet(noRecord ? "No employee record" : "Not set")}</TableCell>}
-                  {hasRecords && <TableCell>{lineId ? (areaName.get(lineId) ?? "Unknown line") : notSet(noRecord ? "No employee record" : "Not assigned")}</TableCell>}
                   <TableCell>
                     <Badge variant={login.active ? "default" : "secondary"}>{login.active ? "Active" : "Inactive"}</Badge>
                   </TableCell>

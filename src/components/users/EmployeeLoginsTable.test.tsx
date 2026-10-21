@@ -13,10 +13,8 @@ const record = (userId: string, over: Partial<Employee> = {}): Employee => ({
   started_on: null, left_on: null, source: "manual", notes: null, current_line_id: null, user_id: userId, ...over,
 } as Employee);
 
-const AREAS = [{ id: "a1", name: "Line 1" }];
-
 function mount(logins: EmployeeLogin[], employees: Employee[], onEdit = vi.fn()) {
-  render(<EmployeeLoginsTable logins={logins} employees={employees} areas={AREAS} canLinkRecords={false}
+  render(<EmployeeLoginsTable logins={logins} employees={employees} canLinkRecords={false}
     canOpenRecords isLoadingRecords={false} onEdit={onEdit} emptyText="No employee logins yet." />);
   return onEdit;
 }
@@ -50,15 +48,14 @@ describe("User Management → Employees", () => {
     expect(names()).toEqual(["Diogo", "Carla", "Bruno", "ana"]);
   });
 
-  it("shows department, shift and line from the linked record, and says plainly what is missing", () => {
+  it("shows department and shift from the linked record, and says plainly what is missing", () => {
     mount(logins, employees);
     const row = (n: string) => screen.getByText(n).closest("tr")!;
     expect(within(row("Bruno")).getByText("Warehouse")).toBeTruthy();
     expect(within(row("Bruno")).getByText("Night")).toBeTruthy();
-    expect(within(row("Bruno")).getByText("Line 1")).toBeTruthy();
+    expect(screen.queryByText("Production line")).toBeNull();
     expect(within(row("Carla")).getAllByText("Not set")).toHaveLength(2);
-    expect(within(row("Carla")).getByText("Not assigned")).toBeTruthy();
-    expect(within(row("Diogo")).getAllByText("No employee record")).toHaveLength(3);
+    expect(within(row("Diogo")).getAllByText("No employee record")).toHaveLength(2);
   });
 
   it("filters by department and shift together, and search narrows further without resetting them", async () => {

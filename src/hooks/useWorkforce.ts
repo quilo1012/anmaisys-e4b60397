@@ -200,6 +200,62 @@ export function useEmployees() {
   });
 }
 
+/**
+ * Who each person reports to — every supervisor, first one first (`employee_supervisors`,
+ * BLOCO 115). `null` while the block is not pasted (or the reader may not see the table):
+ * callers then fall back to `employees.manager_id`, which is the first supervisor anyway.
+ */
+export function useEmployeeSupervisors() {
+  return useQuery({
+    queryKey: ["employee_supervisors"],
+    meta: { schemaOptional: true },
+    queryFn: async (): Promise<Map<string, string[]> | null> => {
+      const { data, error } = await db
+        .from("employee_supervisors")
+        .select("employee_id, supervisor_id, position")
+        .order("position", { ascending: true });
+      if (error) {
+        if (["42P01", "PGRST205"].includes((error as { code?: string }).code ?? "")) return null;
+        throw error;
+      }
+      const map = new Map<string, string[]>();
+      for (const r of (data ?? []) as { employee_id: string; supervisor_id: string }[]) {
+        map.set(r.employee_id, [...(map.get(r.employee_id) ?? []), r.supervisor_id]);
+      }
+      return map;
+    },
+  });
+}
+
+/** The supervisors of one person: the table's list, else the single `manager_id`. */
+export function supervisorIdsOf(
+  employee: Pick<Employee, "id" | "manager_id">,
+  table: Map<string, string[]> | null | undefined,
+): string[] {
+  const listed = table?.get(employee.id);
+  if (listed && listed.length > 0) return listed;
+  return employee.manager_id ? [employee.manager_id] : [];
+}
+
+/**
+ * Saves the whole list in one call. If the function is not there yet (the block is not
+ * pasted), `manager_id` — written with the rest of the form — already holds the first
+ * supervisor, so nothing is lost and nothing errors.
+ */
+export function useSetEmployeeSupervisors() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, supervisors }: { id: string; supervisors: string[] }) => {
+      const { error } = await db.rpc("set_employee_supervisors", { p_employee: id, p_supervisors: supervisors });
+      if (error && (error as { code?: string }).code !== "PGRST202") throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["employee_supervisors"] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+    },
+  });
+}
+
 export function useOvertimePeriods() {
   return useQuery({
     queryKey: ["overtime_periods"],

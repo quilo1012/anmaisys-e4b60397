@@ -23,9 +23,9 @@ import { similarNames } from "@/lib/similarNames";
 import { personNameCase } from "@/lib/personName";
 import { cn } from "@/lib/utils";
 import {
-  describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useHeadcountAreas, useMovements,
+  describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useMovements,
   useOvertimeEverImported, useShiftPatterns, useShiftHistory, useEmployeeRecordHistory,
-  useUpdateEmployee, type Employee,
+  useUpdateEmployee, useEmployeeSupervisors, useSetEmployeeSupervisors, supervisorIdsOf, type Employee,
 } from "@/hooks/useWorkforce";
 
 /**
@@ -51,7 +51,8 @@ export function EmployeeDetailPanel({
   accountSection?: ReactNode | ((leave: (then: () => void) => void) => ReactNode);
 }) {
   const { data: patterns } = useShiftPatterns();
-  const { data: areas } = useHeadcountAreas();
+  const { data: supervisorTable } = useEmployeeSupervisors();
+  const setSupervisors = useSetEmployeeSupervisors();
   const { data: movements, isLoading: loadingMoves } = useMovements(employee?.id ?? null);
   const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
   const { data: overtimeEverImported } = useOvertimeEverImported();
@@ -64,11 +65,10 @@ export function EmployeeDetailPanel({
   const [email, setEmail] = useState("");
   const [department, setDepartment] = useState("");
   const [position, setPosition] = useState("");
-  const [managerId, setManagerId] = useState<string>("__none__");
+  const [supervisorIds, setSupervisorIds] = useState<string[]>([]);
   const [employmentType, setEmploymentType] = useState("permanent");
   const [patternId, setPatternId] = useState<string>("__none__");
   const [shiftGroup, setShiftGroup] = useState<string>("__none__");
-  const [areaId, setAreaId] = useState<string>("__none__");
   const [askDiscard, setAskDiscard] = useState(false);
   const [afterDiscard, setAfterDiscard] = useState<(() => void) | null>(null);
   const [startedOn, setStartedOn] = useState("");
@@ -81,18 +81,17 @@ export function EmployeeDetailPanel({
     setEmail(employee?.email ?? "");
     setDepartment(employee?.department ?? "");
     setPosition(employee?.position ?? "");
-    setManagerId(employee?.manager_id ?? "__none__");
+    setSupervisorIds(employee ? supervisorIdsOf(employee, supervisorTable) : []);
     setEmploymentType(employee?.employment_type ?? "permanent");
     setPatternId(employee?.shift_pattern_id ?? "__none__");
     setShiftGroup(employee?.shift_group ?? "__none__");
-    setAreaId(employee?.headcount_area_id ?? "__none__");
     setStartedOn(employee?.started_on ?? "");
     setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
   }, [
     employee?.id, employee?.full_name, employee?.email,
-    employee?.department, employee?.shift_pattern_id, employee?.shift_group, employee?.headcount_area_id,
+    employee?.department, employee?.shift_pattern_id, employee?.shift_group,
     employee?.started_on, employee?.left_on,
-    employee?.position, employee?.manager_id, employee?.employment_type,
+    employee?.position, employee?.manager_id, employee?.employment_type, supervisorTable,
   ]);
 
   /**
@@ -115,16 +114,16 @@ export function EmployeeDetailPanel({
 
   if (!employee) return null;
 
+  const savedSupervisors = supervisorIdsOf(employee, supervisorTable);
   const dirty =
     fullName !== (employee.full_name ?? "") ||
     email !== (employee.email ?? "") ||
     department !== (employee.department ?? "") ||
     patternId !== (employee.shift_pattern_id ?? "__none__") ||
     shiftGroup !== (employee.shift_group ?? "__none__") ||
-    areaId !== (employee.headcount_area_id ?? "__none__") ||
     startedOn !== (employee.started_on ?? "") ||
     position !== (employee.position ?? "") ||
-    managerId !== (employee.manager_id ?? "__none__") ||
+    supervisorIds.join(",") !== savedSupervisors.join(",") ||
     employmentType !== (employee.employment_type ?? "permanent");
 
   const startsAfterLeaving =
@@ -167,11 +166,10 @@ export function EmployeeDetailPanel({
     setEmail(employee.email ?? "");
     setDepartment(employee.department ?? "");
     setPosition(employee.position ?? "");
-    setManagerId(employee.manager_id ?? "__none__");
+    setSupervisorIds(savedSupervisors);
     setEmploymentType(employee.employment_type ?? "permanent");
     setPatternId(employee.shift_pattern_id ?? "__none__");
     setShiftGroup(employee.shift_group ?? "__none__");
-    setAreaId(employee.headcount_area_id ?? "__none__");
     setStartedOn(employee.started_on ?? "");
   };
 
@@ -208,25 +206,31 @@ export function EmployeeDetailPanel({
           // O turno (Day/Night) e a outra metade da posicao; o painel nao o deixava
           // mudar, e uma pessoa movida de board ficava "Night" com rota de dias.
           shift_group: shiftGroup === "__none__" ? null : shiftGroup,
-          // The production line saves with everything else — it used to save the moment
-          // it was picked, which made it the one field that ignored Save and Cancel.
-          headcount_area_id: areaId === "__none__" ? null : areaId,
           // Empty clears it back to null. A blank start date means nobody recorded
           // one, which is the truth for the fifty imported rows.
           started_on: startedOn || null,
           position: position.trim() || null,
-          // Nobody manages themselves, and a chain that loops has no top.
-          manager_id: managerId === "__none__" || managerId === employee.id ? null : managerId,
+          // The first supervisor stays in `manager_id`, which everything that reads one still
+          // uses; the full list is saved after this, in one call (BLOCO 115). Nobody
+          // manages themselves.
+          manager_id: supervisorIds.filter((x) => x !== employee.id)[0] ?? null,
           employment_type: employmentType,
         },
       },
       {
-        onSuccess: () =>
+        onSuccess: () => {
+          if (supervisorIds.join(",") !== savedSupervisors.join(",")) {
+            setSupervisors.mutate(
+              { id: employee.id, supervisors: supervisorIds.filter((x) => x !== employee.id) },
+              { onError: (e) => toast.error((e as Error).message || "Could not save the supervisors") },
+            );
+          }
           toast.success(
             keptSpelling
               ? `Saved. The headcount sheet can still find them as "${(employee.full_name ?? "").trim()}".`
               : "Saved",
-          ),
+          );
+        },
         onError: (e) => toast.error((e as Error).message || "Could not save"),
       },
     );
@@ -258,9 +262,6 @@ export function EmployeeDetailPanel({
     );
   };
 
-  const lineName = employee.headcount_area_id
-    ? areas?.find((a) => a.id === employee.headcount_area_id)?.name ?? "—"
-    : "Unassigned";
   const total = (overtime ?? []).reduce((s, o) => s + Number(o.hours), 0);
 
   return (
@@ -270,7 +271,6 @@ export function EmployeeDetailPanel({
         <SheetHeader>
           <SheetTitle>{employee.full_name}</SheetTitle>
           <SheetDescription className="flex flex-wrap items-center gap-1">
-            <Badge variant="outline" className="text-2xs">{lineName}</Badge>
             {employee.source === "import_overtime" && (
               <Badge variant="outline" className="border-warning/40 bg-warning/10 text-2xs text-warning-strong">
                 From overtime sheet
@@ -492,46 +492,53 @@ export function EmployeeDetailPanel({
               )}
             </div>
             </fieldset>
-            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-line">
-              <legend id="sec-line" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Production Assignment</legend>
-            <div>
-              <Label className="text-xs">Usual production line</Label>
-              <Select value={areaId} onValueChange={setAreaId} disabled={!canEdit}>
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Not assigned (not on the board)</SelectItem>
-                  {(areas ?? []).map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                      {a.kind === "support" ? " · support" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-2xs text-muted-foreground">
-                Where the headcount board places them. A day's actual line is set on the board; one day on another
-                line is not a change of usual line, and past overtime does not set this either.
-              </p>
-            </div>
-            </fieldset>
             <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-supervisor">
               <legend id="sec-supervisor" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supervisor & Line Leader</legend>
             <div>
               <Label className="text-xs">Reports to</Label>
-              <Select value={managerId} onValueChange={setManagerId} disabled={!canEdit}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="Nobody recorded" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nobody recorded</SelectItem>
-                  {(colleagues ?? [])
-                    .filter((c) => c.id !== employee.id && c.active)
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.full_name}
-                        {c.position && <span className="ml-2 text-2xs text-muted-foreground">{c.position}</span>}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              {supervisorIds.length === 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">Nobody recorded</p>
+              ) : (
+                <ul className="mt-1 space-y-1" aria-label="Supervisors">
+                  {supervisorIds.map((id, i) => {
+                    const c = (colleagues ?? []).find((x) => x.id === id);
+                    return (
+                      <li key={id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-sm">
+                        <span className="min-w-0 truncate">
+                          {c?.full_name ?? "Unknown"}
+                          {c?.position && <span className="ml-2 text-2xs text-muted-foreground">{c.position}</span>}
+                          {i === 0 && supervisorIds.length > 1 && <Badge variant="outline" className="ml-2 text-2xs">Main</Badge>}
+                        </span>
+                        {canEdit && (
+                          <Button type="button" size="sm" variant="ghost" className="h-7 px-2"
+                            aria-label={`Remove ${c?.full_name ?? "supervisor"}`}
+                            onClick={() => setSupervisorIds((cur) => cur.filter((x) => x !== id))}>
+                            Remove
+                          </Button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {canEdit && supervisorIds.length < 5 && (
+                <Select value="" onValueChange={(v) => setSupervisorIds((cur) => (cur.includes(v) ? cur : [...cur, v]))}>
+                  <SelectTrigger className="mt-2 text-sm" aria-label="Add a supervisor">
+                    <SelectValue placeholder={supervisorIds.length === 0 ? "Choose a supervisor…" : "Add another supervisor…"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(colleagues ?? [])
+                      .filter((c) => c.id !== employee.id && c.active && !supervisorIds.includes(c.id))
+                      .map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.full_name}
+                          {c.position && <span className="ml-2 text-2xs text-muted-foreground">{c.position}</span>}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="mt-1 text-2xs text-muted-foreground">Up to five. The first is the main one: it is who "Message my supervisor" writes to by default.</p>
             </div>
             <p className="text-2xs text-muted-foreground">
               The responsible line leader is set per line, shift and date in User Management → Leaders, not on the

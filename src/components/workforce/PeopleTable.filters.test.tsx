@@ -14,7 +14,6 @@ const PEOPLE = [
   person("3", "Bruno", { department: null, shift_group: "Day" }),
   person("4", "Diogo", { department: "Production", shift_group: null, headcount_area_id: "l1" }),
 ];
-const AREAS = [{ id: "l1", name: "Line 1" }, { id: "l2", name: "Line 2" }];
 
 const who = () => names().map((n) => ["ana", "Bruno", "Carla", "Diogo"].find((x) => n.startsWith(x)));
 const names = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[0].textContent ?? "");
@@ -27,7 +26,7 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = () => {};
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.releasePointerCapture = () => {};
-  render(<PeopleTable people={PEOPLE} areas={AREAS} onOpen={() => {}} />);
+  render(<PeopleTable people={PEOPLE} onOpen={() => {}} />);
 });
 afterEach(cleanup);
 
@@ -38,12 +37,8 @@ describe("Workforce → Employee table", () => {
     expect(who()).toEqual(["Diogo", "Carla", "Bruno", "ana"]);
   });
 
-  it("filters by production line, and by 'Not assigned' to find who has none", async () => {
-    await pick(/Filter by production line/i, /^Line 1/);
-    expect(names()).toHaveLength(2);
-    await pick(/Filter by production line/i, /Not assigned/i);
-    expect(names()).toHaveLength(1);
-    expect(names()[0]).toMatch(/^Bruno/);
+  it("has no production-line filter", () => {
+    expect(screen.queryByRole("combobox", { name: /production line/i })).toBeNull();
   });
 
   it("offers 'No department set' and 'No shift set' only because somebody really has none", async () => {
@@ -55,10 +50,9 @@ describe("Workforce → Employee table", () => {
     expect(names()[0]).toMatch(/^Diogo/);
   });
 
-  it("combines department, shift and line without one resetting another", async () => {
+  it("combines department and shift without one resetting another", async () => {
     await pick(/Filter by department/i, /^Production/);
     await pick(/Filter by shift/i, /^Day/);
-    await pick(/Filter by production line/i, /^Line 1/);
     expect(names()).toHaveLength(1);
     expect(names()[0]).toMatch(/^ana/);
   });

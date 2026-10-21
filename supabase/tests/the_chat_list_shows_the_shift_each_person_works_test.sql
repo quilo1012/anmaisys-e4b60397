@@ -1,5 +1,5 @@
--- Tests for 20261021210000_the_chat_list_shows_the_shift_each_person_works.sql (BLOCO 118).
--- Run this WHOLE file in one go in the Supabase SQL Editor after BLOCO 118. One transaction,
+-- Tests for 20261021220000_the_chat_list_shows_the_shift_each_person_works.sql (BLOCO 119).
+-- Run this WHOLE file in one go in the Supabase SQL Editor after BLOCO 119. One transaction,
 -- throwaway people, ROLLBACK at the end; the last statement prints 'ALL TESTS PASSED'.
 
 BEGIN;
