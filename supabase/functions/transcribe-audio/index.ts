@@ -36,6 +36,18 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
 
+    // Per-user rate limit (defense-in-depth on top of the ownership check below), so a
+    // signed-in account cannot re-transcribe in a loop to burn AI credits.
+    const { data: rl } = await admin.rpc("ai_rate_limit_hit", {
+      _user_id: userId, _bucket: "transcribe", _limit: 120, _window_seconds: 3600,
+    });
+    if (rl && (rl as { allowed?: boolean }).allowed === false) {
+      return json(
+        { error: "Rate limit exceeded — try again later.", retry_after: (rl as { retry_after?: number }).retry_after },
+        429,
+      );
+    }
+
     // Ownership check: the caller must be sender or recipient of a message
     // whose audio_url references this storage path.
     const { data: msgs, error: msgErr } = await admin
