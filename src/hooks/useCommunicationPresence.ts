@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLiveSession } from "@/lib/liveSession";
 import {
   PRESENCE_MAX_IDS, PRESENCE_REFRESH_MS, chunk, myDisplayedAvailability, parseAutomaticReason, parseAvailability, stableIds,
   type AutomaticReason, type AvailabilityStatus,
@@ -35,9 +36,12 @@ export interface MyAvailability {
 /** Your own choice, and whether approved leave is currently overriding what others see. */
 export function useMyAvailability() {
   const { user } = useAuth();
+  // `!!user` nao chega: na janela degradada do AuthContext o utilizador fica preenchido
+  // sem token, e esta query corre de 60 em 60 segundos. Ver `lib/liveSession`.
+  const live = useLiveSession();
   return useQuery({
     queryKey: [MY_AVAILABILITY_KEY, user?.id ?? null],
-    enabled: !!user,
+    enabled: !!user && live,
     staleTime: 15_000,
     // A shift starts and ends without anyone clicking; re-read so the picker follows the clock.
     refetchInterval: 60_000,
@@ -94,11 +98,14 @@ export function useSetMyAvailability() {
  */
 export function usePresenceOf(userIds: readonly (string | null | undefined)[]) {
   const { user } = useAuth();
+  // Mesma razao que em `useMyAvailability`, e o mesmo ritmo: sem token, isto era um 401
+  // a cada refresh. Ver `lib/liveSession`.
+  const live = useLiveSession();
   const ids = useMemo(() => stableIds(userIds), [userIds]);
   const idsKey = ids.join(",");
   const query = useQuery({
     queryKey: [PRESENCE_KEY, idsKey],
-    enabled: !!user && ids.length > 0,
+    enabled: !!user && live && ids.length > 0,
     staleTime: 10_000,
     // Connections time out silently; this is what notices. Realtime covers the rest.
     refetchInterval: PRESENCE_REFRESH_MS,

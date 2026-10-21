@@ -4,42 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { PRESENCE_HEARTBEAT_MS } from "@/lib/communicationPresence";
+import { hasLiveSession } from "@/lib/liveSession";
 import { MY_AVAILABILITY_KEY, PRESENCE_KEY } from "@/hooks/useCommunicationPresence";
 
 const TAB_KEY = "an_presence_tab";
 
-/**
- * Se o supabase-js tem mesmo uma token para enviar.
- *
- * `communication_touch_presence()` tem EXECUTE so para `authenticated`, e defende-se
- * outra vez por dentro — `raise exception` sem `session_id` no JWT. Uma batida enviada
- * sem token valida resolve o papel `anon`, apanha 42501 e o PostgREST embrulha-o em
- * **401** (a um utilizador autenticado sem privilegio daria 403). Chega ao Root
- * Diagnostics como RLS_ERROR, e nao e nada disso: nao falta a concessao, falta a token.
- *
- * `user` do contexto nao responde a essa pergunta. Em `AuthContext`, o ramo de
- * SIGNED_OUT implicito que corre quando o `setSession()` falhou faz na mesma
- * `setUser(lastSession.user)` — a pessoa fica ligada so no estado do React enquanto o
- * cliente ja nao tem token nenhuma. 21/10 12:08, `/signup`, um admin: `{"code":"42501",
- * "status":401}` com `user_id` e `role` conhecidos no registo.
- *
- * `getSession()` e a resposta porque faz as duas coisas: renova a sessao quando
- * consegue e diz que nao ha nenhuma quando nao consegue. Mesmo molde do `useHeartbeat`
- * e do `logAuditEvent`, pela mesma razao.
- */
-async function hasLiveSession(): Promise<boolean> {
-  try {
-    const { data } = await supabase.auth.getSession();
-    const session = data?.session;
-    if (!session?.access_token) return false;
-    // Uma sessao devolvida ja expirada e uma que o refresh ainda nao alcancou.
-    // Enviar essa token e pedir o 401 de proposito.
-    if (session.expires_at && session.expires_at * 1000 <= Date.now()) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** One id per browser tab, kept for the life of the tab. Never shared between tabs. */
 export function presenceTabId(storage?: Pick<Storage, "getItem" | "setItem"> | null): string {

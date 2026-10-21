@@ -5,7 +5,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const rpc = vi.fn();
 const toastError = vi.fn();
 const toastSuccess = vi.fn();
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: (...a: unknown[]) => rpc(...a) } }));
+// A presenca so pergunta com token viva (ver `lib/liveSession`), por isso o mock do
+// cliente tem de responder a `auth`. Estes testes sao sobre o que o ecra mostra, nao
+// sobre a janela sem token: a sessao esta sa.
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: {
+    rpc: (...a: unknown[]) => rpc(...a),
+    auth: {
+      getSession: async () => ({
+        data: { session: { access_token: "jwt", expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+      }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+  },
+}));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u-me" }, profile: { name: "Ana" } }) }));
 vi.mock("sonner", () => ({ toast: { error: (...a: unknown[]) => toastError(...a), success: (...a: unknown[]) => toastSuccess(...a) } }));
 
