@@ -1,6 +1,6 @@
 -- Tests for 20261020100000_the_hub_lists_whoever_the_rule_lets_you_write_to.sql (BLOCO 109).
 --
--- Run this WHOLE file in one go, in the SQL editor, after BLOCO 109. One transaction,
+-- Run this WHOLE file in one go, in the SQL editor, after BLOCO 114 (it also covers 109). One transaction,
 -- its own throwaway people, ROLLBACK at the end; the last statement prints
 -- 'ALL TESTS PASSED' and any failure raises first, naming the case.
 --
@@ -105,10 +105,17 @@ BEGIN
     people[5] = ANY (pg_temp.listed(people[1])) AND people[6] = ANY (pg_temp.listed(people[1])));
   PERFORM pg_temp.expect_true('2b an employee finds the supervisor on file',
     people[3] = ANY (pg_temp.listed(people[5])));
-  PERFORM pg_temp.expect_true('2c an employee with nobody on file finds nobody to start with',
-    cardinality(pg_temp.listed(people[6])) = 0);
-  PERFORM pg_temp.expect_true('2d an employee does not find other employees or admins',
-    NOT (people[1] = ANY (pg_temp.listed(people[5]))) AND NOT (people[6] = ANY (pg_temp.listed(people[5]))));
+  -- BLOCO 114: employees may write to each other, and to nobody else on their own.
+  -- Not "= ARRAY[people[5]]": the real employees in the database are listed too.
+  got := pg_temp.listed(people[6]);
+  PERFORM pg_temp.expect_true('2c an employee with nobody on file finds the other employee, and only employees',
+    people[5] = ANY (got)
+    AND NOT EXISTS (SELECT 1 FROM unnest(got) g WHERE NOT public.has_role(g, 'employee'::app_role)));
+  PERFORM pg_temp.expect_true('2d an employee finds the other employee but not admins, managers or operators',
+    people[6] = ANY (pg_temp.listed(people[5]))
+    AND NOT (people[1] = ANY (pg_temp.listed(people[5])))
+    AND NOT (people[2] = ANY (pg_temp.listed(people[5])))
+    AND NOT (people[4] = ANY (pg_temp.listed(people[5]))));
   PERFORM pg_temp.expect_true('2e an admin does not find operators (the rule keeps them to supervisors)',
     NOT (people[4] = ANY (pg_temp.listed(people[1]))));
 
@@ -124,6 +131,20 @@ BEGIN
        FROM public.chat_contactable_people() c JOIN public.employees e ON e.user_id = c.user_id
       WHERE c.user_id = people[5]));
   RESET ROLE;
+
+  -- 4b. BLOCO 114: a message between two employees rings the other one's bell, and opens Messages.
+  UPDATE public.profiles SET active = true WHERE id = people[6];
+  PERFORM pg_temp.as_user(people[5]);
+  SET LOCAL ROLE authenticated;
+  INSERT INTO public.direct_messages (sender_id, sender_name, recipient_id, message)
+  VALUES (people[5], 'ZZ Ana', people[6], 'zz hello colleague');
+  RESET ROLE;
+  PERFORM pg_temp.expect_true('4b the colleague is rung, and the link opens the conversation',
+    EXISTS (SELECT 1 FROM public.notifications n
+             WHERE n.user_id = people[6] AND n.title = 'ZZ Ana sent you a message'
+               AND n.action_url = '/dashboard/messages?c=dm:' || people[5]));
+  PERFORM pg_temp.expect_true('4c ... and not as "Your supervisor replied"',
+    NOT EXISTS (SELECT 1 FROM public.notifications n WHERE n.user_id = people[6] AND n.title LIKE '%replied'));
 
   -- 5. Nobody signed in gets nothing, and the decision function is not callable.
   PERFORM set_config('request.jwt.claims', '{}', true);

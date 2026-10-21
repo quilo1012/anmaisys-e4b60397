@@ -34,9 +34,11 @@ self.addEventListener("push", (event) => {
     badge: data.badge || "/favicon.ico",
     image: data.image || undefined,
     tag: data.tag || "an-maint",
+    // send-push nests these under `data` ({ data: { url, wo_id } }); reading only the top
+    // level sent every tap to "/".
     data: {
-      url: data.url || "/",
-      woId: data.woId || null,
+      url: (data.data && data.data.url) || data.url || "/",
+      woId: (data.data && data.data.wo_id) || data.woId || null,
     },
     actions: [
       { action: "open", title: "Open WO" },

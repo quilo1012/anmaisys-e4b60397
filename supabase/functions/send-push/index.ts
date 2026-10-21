@@ -150,7 +150,10 @@ Deno.serve(async (req) => {
         webpush
           .sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            payload
+            payload,
+            // "high" is what lets a locked Android phone in Doze show it now rather than at
+            // its next maintenance window; a day is long enough for a phone that was off.
+            { urgency: "high", TTL: 24 * 60 * 60 }
           )
           .catch(async (err: WebPushError) => {
             if (err.statusCode === 410 || err.statusCode === 404) {
