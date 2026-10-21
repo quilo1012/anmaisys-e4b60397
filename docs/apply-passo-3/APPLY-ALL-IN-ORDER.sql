@@ -15440,9 +15440,14 @@ REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM anon;
 
 -- 3) Repor anon SÓ na allowlist de login — as funções que o ecrã pré-sessão chama sem
 --    sessão. `to_regprocedure` salta as que não existam neste momento (idempotente).
---    Fonte da allowlist: funções alguma vez concedidas a anon nas migrações
---    (get_login_branding, list_tablet_accounts_public, check_invite_code) + a de signup
---    deixada aberta de propósito em 20261019100000. Nada fora disto deve ser anon.
+--    Fonte da allowlist: medida na produção a 21/10/2026, chamada a chamada, e não lida
+--    das migrações — foi por lê-las que esta lista nasceu errada duas vezes:
+--      * `signup_invite_code` não leva argumentos. Escrita `(text)`, `to_regprocedure`
+--        devolvia NULL e o GRANT era saltado SEM ERRO, deixando o código QR do ecrã de
+--        entrada (Login.tsx → useSignupInviteCode) sem resposta para quem não tem sessão.
+--      * `self_signup_role()` faltava por completo. O /signup chama-a anonimamente ao
+--        abrir (SignUp.tsx: "Read once, anonymously; it only changes the words").
+--    Nada fora disto deve ser anon.
 DO $$
 DECLARE fn text;
 BEGIN
@@ -15450,11 +15455,18 @@ BEGIN
     'public.get_login_branding()',
     'public.list_tablet_accounts_public()',
     'public.check_invite_code(text)',
-    'public.signup_invite_code(text)'
+    'public.signup_invite_code()',
+    'public.self_signup_role()'
   ] LOOP
-    IF to_regprocedure(fn) IS NOT NULL THEN
-      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO anon', fn);
+    IF to_regprocedure(fn) IS NULL THEN
+      -- Em vez de saltar em silencio. Era assim que `signup_invite_code(text)` — uma
+      -- assinatura que nao existe — passava despercebido: `to_regprocedure` devolvia
+      -- NULL, o GRANT nao corria, e o codigo QR do ecra de entrada ficava sem resposta
+      -- para quem ainda nao tem sessao. Um nome errado aqui tranca gente de fora, por
+      -- isso falha alto.
+      RAISE EXCEPTION 'Allowlist aponta para funcao inexistente: %', fn;
     END IF;
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO anon', fn);
   END LOOP;
 END $$;
 
