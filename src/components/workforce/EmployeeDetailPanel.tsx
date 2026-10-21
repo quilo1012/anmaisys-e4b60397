@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { shiftPatternConflict } from "@/lib/employeeDirectory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,12 +37,18 @@ import {
  * spreadsheet.
  */
 export function EmployeeDetailPanel({
-  employee, open, onOpenChange, canEdit,
+  employee, open, onOpenChange, canEdit, accountSection,
 }: {
   employee: Employee | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   canEdit: boolean;
+  /**
+   * The Account & Access section's content, from a screen that manages sign-ins (User
+   * Management). Without it the section only says whether a sign-in is linked — this
+   * panel never shows or handles a password.
+   */
+  accountSection?: ReactNode | ((leave: (then: () => void) => void) => ReactNode);
 }) {
   const { data: patterns } = useShiftPatterns();
   const { data: areas } = useHeadcountAreas();
@@ -56,6 +68,9 @@ export function EmployeeDetailPanel({
   const [employmentType, setEmploymentType] = useState("permanent");
   const [patternId, setPatternId] = useState<string>("__none__");
   const [shiftGroup, setShiftGroup] = useState<string>("__none__");
+  const [areaId, setAreaId] = useState<string>("__none__");
+  const [askDiscard, setAskDiscard] = useState(false);
+  const [afterDiscard, setAfterDiscard] = useState<(() => void) | null>(null);
   const [startedOn, setStartedOn] = useState("");
   const [leftOn, setLeftOn] = useState(() => new Date().toISOString().slice(0, 10));
 
@@ -70,11 +85,12 @@ export function EmployeeDetailPanel({
     setEmploymentType(employee?.employment_type ?? "permanent");
     setPatternId(employee?.shift_pattern_id ?? "__none__");
     setShiftGroup(employee?.shift_group ?? "__none__");
+    setAreaId(employee?.headcount_area_id ?? "__none__");
     setStartedOn(employee?.started_on ?? "");
     setLeftOn(employee?.left_on ?? new Date().toISOString().slice(0, 10));
   }, [
     employee?.id, employee?.full_name, employee?.email,
-    employee?.department, employee?.shift_pattern_id, employee?.shift_group,
+    employee?.department, employee?.shift_pattern_id, employee?.shift_group, employee?.headcount_area_id,
     employee?.started_on, employee?.left_on,
     employee?.position, employee?.manager_id, employee?.employment_type,
   ]);
@@ -105,6 +121,7 @@ export function EmployeeDetailPanel({
     department !== (employee.department ?? "") ||
     patternId !== (employee.shift_pattern_id ?? "__none__") ||
     shiftGroup !== (employee.shift_group ?? "__none__") ||
+    areaId !== (employee.headcount_area_id ?? "__none__") ||
     startedOn !== (employee.started_on ?? "") ||
     position !== (employee.position ?? "") ||
     managerId !== (employee.manager_id ?? "__none__") ||
@@ -144,6 +161,35 @@ export function EmployeeDetailPanel({
     return [...already, was].join(", ");
   };
 
+  /** Cancel: every field back to what is saved. */
+  const reset = () => {
+    setFullName(employee.full_name ?? "");
+    setEmail(employee.email ?? "");
+    setDepartment(employee.department ?? "");
+    setPosition(employee.position ?? "");
+    setManagerId(employee.manager_id ?? "__none__");
+    setEmploymentType(employee.employment_type ?? "permanent");
+    setPatternId(employee.shift_pattern_id ?? "__none__");
+    setShiftGroup(employee.shift_group ?? "__none__");
+    setAreaId(employee.headcount_area_id ?? "__none__");
+    setStartedOn(employee.started_on ?? "");
+  };
+
+  /** Closing with edits that are not saved asks first; closing a clean form does not. */
+  const requestClose = (next: boolean) => {
+    if (!next && canEdit && dirty) { setAskDiscard(true); return; }
+    onOpenChange(next);
+  };
+
+  /** Leaves the panel for something else (the sign-in dialog), asking first if there are unsaved edits. */
+  const leave = (then: () => void) => {
+    if (canEdit && dirty) { setAfterDiscard(() => then); setAskDiscard(true); return; }
+    then();
+  };
+
+  const patternChosen = (patterns ?? []).find((p) => p.id === patternId) ?? null;
+  const shiftConflict = shiftPatternConflict(shiftGroup === "__none__" ? null : shiftGroup, patternChosen);
+
   const save = () => {
     const keptSpelling = aliasesKeepingOldSpelling();
     update.mutate(
@@ -162,6 +208,9 @@ export function EmployeeDetailPanel({
           // O turno (Day/Night) e a outra metade da posicao; o painel nao o deixava
           // mudar, e uma pessoa movida de board ficava "Night" com rota de dias.
           shift_group: shiftGroup === "__none__" ? null : shiftGroup,
+          // The production line saves with everything else — it used to save the moment
+          // it was picked, which made it the one field that ignored Save and Cancel.
+          headcount_area_id: areaId === "__none__" ? null : areaId,
           // Empty clears it back to null. A blank start date means nobody recorded
           // one, which is the truth for the fifty imported rows.
           started_on: startedOn || null,
@@ -215,7 +264,8 @@ export function EmployeeDetailPanel({
   const total = (overtime ?? []).reduce((s, o) => s + Number(o.hours), 0);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <>
+    <Sheet open={open} onOpenChange={requestClose}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>{employee.full_name}</SheetTitle>
@@ -237,7 +287,7 @@ export function EmployeeDetailPanel({
             <TabsTrigger value="overtime">Overtime</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="space-y-3 pt-3">
+          <TabsContent value="details" className="space-y-4 pt-3">
             {/* Dito, em vez de deduzido dos campos cinzentos.
                 Sem permissao, cada campo fica `disabled`, o botao Save desaparece e o
                 bloco de saida tambem — e nada dizia porque. Um formulario inteiro
@@ -249,6 +299,8 @@ export function EmployeeDetailPanel({
                 Read-only view — you don't have permission to change employee records.
               </p>
             )}
+            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-personal">
+              <legend id="sec-personal" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Personal & Employment Details</legend>
             <div>
               {/* O nome era so o titulo do painel, e nao havia mais nenhum sitio na app
                   para lhe tocar: o dialogo de "Add employee" pede-o, nenhum ecra o
@@ -333,6 +385,27 @@ export function EmployeeDetailPanel({
                 </p>
               )}
             </div>
+            </fieldset>
+            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-dept">
+              <legend id="sec-dept" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Department & Role</legend>
+            <div>
+              <Label className="text-xs">Department</Label>
+              {/* The same seven the headcount areas carry, so a total can be taken
+                  across the board and the people list. Free text had fifteen, of which
+                  four were job titles — twenty people whose department was
+                  "Team Leader" had no department at all while appearing to have one. */}
+              <Select
+                value={department || "__none__"}
+                disabled={!canEdit}
+                onValueChange={(v) => setDepartment(v === "__none__" ? "" : v)}
+              >
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Not set" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not set</SelectItem>
+                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <Label className="text-xs">Position</Label>
               {/* A list, not a box. Free text gave "Prodcution Operative" twenty-two
@@ -357,81 +430,9 @@ export function EmployeeDetailPanel({
                 What they do. Separate from department, which is where they do it.
               </p>
             </div>
-            <div>
-              <Label className="text-xs">Reports to</Label>
-              <Select value={managerId} onValueChange={setManagerId} disabled={!canEdit}>
-                <SelectTrigger className="text-sm"><SelectValue placeholder="Nobody recorded" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Nobody recorded</SelectItem>
-                  {(colleagues ?? [])
-                    .filter((c) => c.id !== employee.id && c.active)
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.full_name}
-                        {c.position && <span className="ml-2 text-2xs text-muted-foreground">{c.position}</span>}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {/* Contract removed from the form: every one of the 194 people reads
-                "permanent", so the field has never told anybody apart. The column and
-                the value it holds are untouched — this only stops asking a question
-                nobody was answering. The Agency count in the department panel reads
-                from it and will stay at zero until there is a real way to set it. */}
-            <div>
-              <Label className="text-xs">Department</Label>
-              {/* The same seven the headcount areas carry, so a total can be taken
-                  across the board and the people list. Free text had fifteen, of which
-                  four were job titles — twenty people whose department was
-                  "Team Leader" had no department at all while appearing to have one. */}
-              <Select
-                value={department || "__none__"}
-                disabled={!canEdit}
-                onValueChange={(v) => setDepartment(v === "__none__" ? "" : v)}
-              >
-                <SelectTrigger className="text-sm"><SelectValue placeholder="To confirm" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">To confirm</SelectItem>
-                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              {/* Assigning by dropdown as well as by drag: placing 180 people once,
-                  on a tablet, is not a drag-and-drop job. It saves on change rather
-                  than waiting for the Save button, because it is one field. */}
-              <Label className="text-xs">Headcount area</Label>
-              <Select
-                value={employee.headcount_area_id ?? "__none__"}
-                disabled={!canEdit}
-                onValueChange={(v) =>
-                  update.mutate(
-                    { id: employee.id, patch: { headcount_area_id: v === "__none__" ? null : v } },
-                    {
-                      onSuccess: () =>
-                        toast.success(
-                          v === "__none__"
-                            ? `${employee.full_name} taken off the board`
-                            : `${employee.full_name} → ${areas?.find((a) => a.id === v)?.name}`,
-                        ),
-                      onError: (e) => toast.error((e as Error).message || "Could not save"),
-                    },
-                  )
-                }
-              >
-                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— not on the board —</SelectItem>
-                  {(areas ?? []).map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                      {a.kind === "support" ? " · support" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            </fieldset>
+            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-shift">
+              <legend id="sec-shift" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Shift & Working Schedule</legend>
             <div>
               <Label className="text-xs">Shift</Label>
               <Select value={shiftGroup} onValueChange={setShiftGroup} disabled={!canEdit}>
@@ -446,6 +447,9 @@ export function EmployeeDetailPanel({
               <p className="mt-1 text-2xs text-muted-foreground">
                 Which board they work on. The shift pattern below says which days.
               </p>
+              {shiftGroup === "__none__" && (
+                <p className="mt-1 text-2xs text-warning-strong">Not set — overtime offers cannot be matched to this person's crew.</p>
+              )}
             </div>
             <div>
               <Label className="text-xs">Shift pattern</Label>
@@ -478,14 +482,96 @@ export function EmployeeDetailPanel({
                     })}
                 </SelectContent>
               </Select>
+              {patternChosen == null && (
+                <p className="mt-1 text-2xs text-warning-strong">Not set — this person is due in every day until a rota is chosen.</p>
+              )}
+              {shiftConflict && (
+                <p role="alert" className="mt-1 flex items-start gap-1.5 text-2xs text-warning-strong">
+                  <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden /> Needs review: {shiftConflict}
+                </p>
+              )}
             </div>
+            </fieldset>
+            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-line">
+              <legend id="sec-line" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Production Assignment</legend>
+            <div>
+              <Label className="text-xs">Usual production line</Label>
+              <Select value={areaId} onValueChange={setAreaId} disabled={!canEdit}>
+                <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Not assigned (not on the board)</SelectItem>
+                  {(areas ?? []).map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                      {a.kind === "support" ? " · support" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-2xs text-muted-foreground">
+                Where the headcount board places them. A day's actual line is set on the board; one day on another
+                line is not a change of usual line, and past overtime does not set this either.
+              </p>
+            </div>
+            </fieldset>
+            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-supervisor">
+              <legend id="sec-supervisor" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Supervisor & Line Leader</legend>
+            <div>
+              <Label className="text-xs">Reports to</Label>
+              <Select value={managerId} onValueChange={setManagerId} disabled={!canEdit}>
+                <SelectTrigger className="text-sm"><SelectValue placeholder="Nobody recorded" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nobody recorded</SelectItem>
+                  {(colleagues ?? [])
+                    .filter((c) => c.id !== employee.id && c.active)
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.full_name}
+                        {c.position && <span className="ml-2 text-2xs text-muted-foreground">{c.position}</span>}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-2xs text-muted-foreground">
+              The responsible line leader is set per line, shift and date in User Management → Leaders, not on the
+              employee, so it cannot disagree with the board.
+            </p>
+            </fieldset>
+            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-account">
+              <legend id="sec-account" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Account & Access</legend>
+            <div className="space-y-2 text-sm">
+              {(typeof accountSection === "function" ? accountSection(leave) : accountSection) ?? (
+                <p className="text-xs text-muted-foreground">
+                  {employee.user_id
+                    ? "This person has an app sign-in. Passwords, roles and sign-in status are managed in User Management → Employees."
+                    : "No app sign-in is linked to this record. Link one in User Management → Employees."}
+                </p>
+              )}
+            </div>
+            </fieldset>
+            <fieldset className="space-y-3 rounded-lg border p-3" aria-labelledby="sec-extra">
+              <legend id="sec-extra" className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Additional Information</legend>
+            {/* Contract removed from the form: every one of the 194 people reads
+                "permanent", so the field has never told anybody apart. The column and
+                the value it holds are untouched — this only stops asking a question
+                nobody was answering. The Agency count in the department panel reads
+                from it and will stay at zero until there is a real way to set it. */}
             {employee.notes && (
               <p className="rounded border bg-muted/30 p-2 text-xs text-muted-foreground">{employee.notes}</p>
             )}
+            <p className="text-2xs text-muted-foreground">Nothing else is recorded for this person.</p>
+            </fieldset>
             {canEdit && (
-              <Button size="sm" onClick={save} disabled={!dirty || nameIsBlank || startsAfterLeaving || update.isPending}>
-                <Save className="mr-1 h-4 w-4" /> {update.isPending ? "Saving…" : "Save"}
-              </Button>
+              <div className="sticky bottom-0 -mx-1 flex items-center gap-2 border-t bg-background px-1 py-3">
+                <Button size="sm" onClick={save} disabled={!dirty || nameIsBlank || startsAfterLeaving || update.isPending}>
+                  <Save className="mr-1 h-4 w-4" /> {update.isPending ? "Saving…" : "Save Changes"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={reset} disabled={!dirty || update.isPending}>
+                  Cancel
+                </Button>
+                {dirty && <span className="text-2xs text-muted-foreground" aria-live="polite">Unsaved changes</span>}
+              </div>
             )}
 
             {canEdit && (
@@ -663,6 +749,23 @@ export function EmployeeDetailPanel({
         </Tabs>
       </SheetContent>
     </Sheet>
+      <AlertDialog open={askDiscard} onOpenChange={(v) => { setAskDiscard(v); if (!v) setAfterDiscard(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have edits to {employee.full_name} that are not saved. Closing now loses them.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setAskDiscard(false); reset(); const next = afterDiscard; setAfterDiscard(null); if (next) next(); else onOpenChange(false); }}>
+              Discard changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

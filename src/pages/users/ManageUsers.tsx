@@ -24,6 +24,8 @@ import { LeaderLinePicker } from "@/components/LeaderLinePicker";
 import { UserPlus, Shield, Wrench as WrenchIcon, HardHat, Pencil, Trash2, Loader2, KeyRound, RefreshCw, Users as UsersIcon, Check, Package, Hand, BadgeCheck } from "lucide-react";
 import { badgeRefFromEmail, isEmployeeAccount } from "@/lib/employeeAccounts";
 import { LinkEmployeeRecord } from "@/components/workforce/LinkEmployeeRecord";
+import { EmployeeLoginsWithRecords } from "@/components/workforce/EmployeeLoginsWithRecords";
+import { EmployeeLoginsTable, type EmployeeLogin } from "@/components/users/EmployeeLoginsTable";
 import { useQueryClient } from "@tanstack/react-query";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
 import { checkPasswordSecurity, checkPasswordStrength, describePasswordError, generateStrongPassword } from "@/lib/passwordPolicy";
@@ -738,9 +740,47 @@ export default function ManageUsers() {
   const staffUsers = users.filter((u) => !isEmployeeAccount(u));
   const employeeUsers = users.filter((u) => isEmployeeAccount(u));
 
+  /** The delete control for one login, or nothing where this person may not delete it. */
+  const renderDeleteButton = (user: Profile) => {
+    const isCurrentUser = user.id === currentUser?.id;
+    const managerBlockedTarget = currentRole !== "admin" && !!user.role && protectedStaffRoles.includes(user.role);
+    if (isCurrentUser || managerBlockedTarget) return null;
+    return (
+      <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="icon" variant="ghost" aria-label="Delete this record" title="Delete" className="text-destructive-strong hover:text-destructive-strong">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete user?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete <strong>{user.name}</strong> ({user.email}). This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    {deleteLoading === user.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+    );
+  };
+
   // Linking a login to its employee record writes `employees`, which only
   // workforce.manage may do; everybody else sees no column rather than a dead button.
   const canLinkRecords = !!currentRole && can(currentRole, "workforce.manage");
+  // Reading `employees` is closed to everyone but workforce.view; the record columns, the
+  // unified form and the "no record" wording only exist for a role that can see the table.
+  const canSeeRecords = !!currentRole && can(currentRole, "workforce.view");
+  const canEditRecords = !!currentRole && (can(currentRole, "workforce.manage") || can(currentRole, "employees.manage"));
   const renderUserTable = (title: string, list: Profile[], emptyText: string, withRecord = false) => (
         <Card>
           <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
@@ -802,33 +842,7 @@ export default function ManageUsers() {
                               <Pencil className="h-4 w-4" />
                             </Button>
                           )}
-                          {!isCurrentUser && !managerBlockedTarget && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="icon" variant="ghost" aria-label="Delete this record" title="Delete" className="text-destructive-strong hover:text-destructive-strong">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete user?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will permanently delete <strong>{user.name}</strong> ({user.email}). This action cannot be undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    {deleteLoading === user.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
+                          {renderDeleteButton(user)}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -901,7 +915,72 @@ export default function ManageUsers() {
             </Button>
           </div>
           {currentRole === "admin" && <SignupSettingsCard />}
-          {renderUserTable("Employees", employeeUsers, "No employee logins yet. Share the invite link above, or add one with New Employee.", canLinkRecords)}
+          {(() => {
+            const logins: EmployeeLogin[] = employeeUsers.map((u) => ({ id: u.id, name: u.name, email: u.email, active: u.active }));
+            const emptyText = "No employee logins yet. Share the invite link above, or add one with New Employee.";
+            const openLogin = (login: EmployeeLogin) => { const u = users.find((x) => x.id === login.id); if (u) openEditUser(u); };
+            const rowExtras = (login: EmployeeLogin) => {
+              const u = users.find((x) => x.id === login.id);
+              if (!u) return null;
+              const blocked = currentRole !== "admin" && !!u.role && protectedStaffRoles.includes(u.role);
+              return (
+                <>
+                  {!u.role && !blocked && (
+                    <Button size="sm" className="h-8 gap-1 bg-success text-success-foreground hover:bg-success/90" onClick={() => openEditUser(u)}>
+                      <Check className="h-4 w-4" /> Approve
+                    </Button>
+                  )}
+                  {renderDeleteButton(u)}
+                </>
+              );
+            };
+            return canSeeRecords ? (
+              <EmployeeLoginsWithRecords
+                logins={logins}
+                canLinkRecords={canLinkRecords}
+                canEditRecords={canEditRecords}
+                emptyText={emptyText}
+                rowExtras={rowExtras}
+                onEditLogin={openLogin}
+                accountSection={(userId, leave) => {
+                  const recordLogin = userId ? users.find((x) => x.id === userId) ?? null : null;
+                  if (!recordLogin) return <p className="text-xs text-muted-foreground">No app sign-in is linked to this record.</p>;
+                  const mayManage = currentRole === "admin" || !(recordLogin.role && protectedStaffRoles.includes(recordLogin.role));
+                  const badge = badgeRefFromEmail(recordLogin.email);
+                  return (
+                    <div className="space-y-2">
+                      <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
+                        <dt className="text-muted-foreground">Sign-in</dt>
+                        <dd>{badge ? `Badge ${badge}` : recordLogin.email}</dd>
+                        <dt className="text-muted-foreground">Role</dt>
+                        <dd>{recordLogin.role ? roleLabels[recordLogin.role] : "No role"}</dd>
+                        <dt className="text-muted-foreground">Status</dt>
+                        <dd>{recordLogin.active ? "Active" : "Inactive"}</dd>
+                      </dl>
+                      {mayManage ? (
+                        <Button type="button" variant="outline" size="sm" onClick={() => leave(() => openEditUser(recordLogin))}>
+                          Manage sign-in…
+                        </Button>
+                      ) : (
+                        <p className="text-2xs text-muted-foreground">You do not have permission to change this sign-in.</p>
+                      )}
+                      <p className="text-2xs text-muted-foreground">Passwords are never shown. Resetting one is done in Manage sign-in.</p>
+                    </div>
+                  );
+                }}
+              />
+            ) : (
+              <EmployeeLoginsTable
+                logins={logins}
+                employees={null}
+                canLinkRecords={false}
+                canOpenRecords={false}
+                emptyText={emptyText}
+                rowExtras={rowExtras}
+                onEdit={(login) => openLogin(login)}
+              />
+            );
+          })()}
         </div>
 
         <div className={activeTab === "staff" ? "space-y-4" : "hidden"}>
