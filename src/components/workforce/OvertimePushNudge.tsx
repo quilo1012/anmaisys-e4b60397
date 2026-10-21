@@ -19,18 +19,12 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
  * button that cannot work.
  */
 export function OvertimePushNudge() {
-  const { supported, permission, subscribed, loading, subscribe } = usePushNotifications();
+  const { supported, environment, permission, subscribed, loading, subscribe } = usePushNotifications();
 
   if (subscribed) return null;
 
-  const isIOS = typeof navigator !== "undefined" && /iP(hone|ad|od)/.test(navigator.userAgent);
-  const isStandalone =
-    typeof window !== "undefined"
-    && (window.matchMedia?.("(display-mode: standalone)").matches
-        || (navigator as Navigator & { standalone?: boolean }).standalone === true);
-
   // iPhone in a browser tab: push is not on offer until the app is on the Home Screen.
-  if (!supported && isIOS && !isStandalone) {
+  if (environment.kind === "ios-install") {
     return (
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="flex items-start gap-3 py-4">

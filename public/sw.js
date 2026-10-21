@@ -30,8 +30,10 @@ self.addEventListener("push", (event) => {
   const title = data.title || "AN Maintenance";
   const options = {
     body: data.body || "",
-    icon: data.icon || "/favicon.ico",
-    badge: data.badge || "/favicon.ico",
+    // These two files exist in /public; send-push used to name /icons/icon-192.png, which
+    // does not, so the lock screen showed a blank square.
+    icon: data.icon || "/android-chrome-192x192.png",
+    badge: data.badge || "/favicon-32x32.png",
     image: data.image || undefined,
     tag: data.tag || "an-maint",
     // send-push nests these under `data` ({ data: { url, wo_id } }); reading only the top
@@ -40,14 +42,41 @@ self.addEventListener("push", (event) => {
       url: (data.data && data.data.url) || data.url || "/",
       woId: (data.data && data.data.wo_id) || data.woId || null,
     },
-    actions: [
-      { action: "open", title: "Open WO" },
-      { action: "dismiss", title: "Dismiss" },
-    ],
+    // A new message with the same tag replaces the one on screen instead of stacking, and
+    // renotify makes the replacement alert again (a group's later messages share a tag).
+    renotify: !!data.tag,
     requireInteraction: !!data.requireInteraction,
   };
+  // Buttons only where they mean something: "Open WO" on a chat message was wrong, and iOS
+  // draws no action buttons at all.
+  if ((data.data && data.data.wo_id) || data.woId) {
+    options.actions = [
+      { action: "open", title: "Open WO" },
+      { action: "dismiss", title: "Dismiss" },
+    ];
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// The push service rotated this phone's subscription (iOS does, now and then). The worker
+// cannot save it — only the page has the login — so it subscribes again with the same key
+// and tells every open page to save it; a page opened later does the same at start-up
+// (useKeepPushSubscriptionCurrent).
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const key =
+          (event.oldSubscription && event.oldSubscription.options && event.oldSubscription.options.applicationServerKey) || null;
+        if (key) {
+          await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+        }
+      } catch {}
+      const pages = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const page of pages) page.postMessage({ type: "push-subscription-changed" });
+    })()
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

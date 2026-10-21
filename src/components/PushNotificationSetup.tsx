@@ -1,14 +1,18 @@
-import { Bell, BellOff, BellRing, Loader2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Loader2, Share } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 export function PushNotificationSetup() {
-  const { supported, permission, subscribed, loading, subscribe, unsubscribe, sendTest } =
+  const { supported, environment, permission, subscribed, loading, subscribe, unsubscribe, sendTest } =
     usePushNotifications();
+  const iosInstall = environment.kind === "ios-install";
+  const iosTooOld = environment.kind === "ios-too-old";
 
-  const statusBadge = !supported ? (
+  const statusBadge = iosInstall ? (
+    <Badge variant="secondary">Add to Home Screen</Badge>
+  ) : !supported ? (
     <Badge variant="outline">Unsupported</Badge>
   ) : permission === "denied" ? (
     <Badge variant="destructive">Blocked</Badge>
@@ -29,7 +33,26 @@ export function PushNotificationSetup() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {!supported && (
+        {iosInstall && (
+          <div className="flex items-start gap-3 text-sm">
+            <Share className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <div className="text-muted-foreground">
+              On iPhone, notifications only work for an app on the Home Screen. In Safari tap{" "}
+              <span className="font-medium text-foreground">Share</span>, then{" "}
+              <span className="font-medium text-foreground">Add to Home Screen</span>, open the app
+              from its icon, and come back to this page to turn them on.
+            </div>
+          </div>
+        )}
+
+        {iosTooOld && (
+          <p className="text-sm text-muted-foreground">
+            This iPhone is on iOS {environment.kind === "ios-too-old" ? environment.version : ""}. Notifications
+            need iOS 16.4 or later — update in Settings → General → Software Update.
+          </p>
+        )}
+
+        {!supported && !iosInstall && !iosTooOld && (
           <p className="text-sm text-muted-foreground">
             This browser does not support web push notifications.
           </p>
@@ -37,16 +60,16 @@ export function PushNotificationSetup() {
 
         {supported && permission === "denied" && (
           <p className="text-sm text-muted-foreground">
-            Notifications are blocked. Enable them in your browser site settings,
-            then reload this page.
+            Notifications are blocked. On iPhone open Settings → Notifications, pick this app and
+            allow them; elsewhere use your browser's site settings. Then reload this page.
           </p>
         )}
 
         {supported && permission !== "denied" && (
           <>
             <p className="text-sm text-muted-foreground">
-              Receive native alerts for new maintenance orders and critical events even
-              when this tab is closed.
+              Receive native alerts for chat messages, overtime and critical events even
+              when the app is closed or the screen is locked.
             </p>
             <div className="flex flex-wrap gap-2">
               {subscribed ? (
@@ -86,7 +109,7 @@ export function PushNotificationSetup() {
                   onClick={sendTest}
                   className="h-10"
                 >
-                  Send test
+                  Send test to this phone
                 </Button>
               )}
             </div>
