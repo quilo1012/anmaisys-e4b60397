@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { AvailabilityLabel } from "@/components/chat/AvailabilityDot";
+import { AvailabilityMenu } from "@/components/chat/AvailabilityMenu";
+import { usePresenceOf } from "@/hooks/useCommunicationPresence";
 import { ConversationList, type ListFilter } from "@/components/chat/ConversationList";
 import { MessageThread, type UIMessage } from "@/components/chat/MessageThread";
 import { Composer } from "@/components/chat/Composer";
@@ -119,6 +122,7 @@ export default function DirectMessagesPage() {
   const [filter, setFilter] = useState<ListFilter>("all");
   const shown = conversations.filter((c) => (filter === "all" || c.kind === filter) && matchesSearch(c, search));
   const current = conversations.find((c) => c.key === activeKey) ?? null;
+
   const group = active?.kind === "group" ? groups.data?.groups.find((g) => g.id === active.id) ?? null : null;
 
   // A wide screen opens the first conversation; a phone starts on the list.
@@ -166,6 +170,17 @@ export default function DirectMessagesPage() {
     for (const src of [people.data, groupPeople.data]) for (const [id, p] of Object.entries(src ?? {})) out[id] = p;
     return out;
   }, [people.data, groupPeople.data]);
+
+  // Availability of the people on screen: every private conversation, and the senders in an
+  // open group. Shown, never enforced — nothing below checks it before a message is sent.
+  const presenceIds = useMemo(
+    () => [
+      ...conversations.filter((c) => c.kind === "dm").map((c) => c.id),
+      ...(active?.kind === "group" ? messages.map((m) => m.sender_id) : []),
+    ],
+    [conversations, active?.kind, messages],
+  );
+  const { statuses: presence } = usePresenceOf(presenceIds);
 
   // Reading: whenever the open thread changes while the page is in view.
   const markDM = useMarkDMRead(active?.kind === "dm" ? active.id : null);
@@ -296,6 +311,7 @@ export default function DirectMessagesPage() {
 
   const myName = people.data?.[me]?.name ?? "You";
   const listHeader = (
+    <div className="flex flex-col gap-2">
     <div className="flex items-center gap-3">
       <div className="relative">
         <ChatAvatar name={myName} path={myPhoto.data?.path ?? null} />
@@ -312,6 +328,8 @@ export default function DirectMessagesPage() {
         <p className="truncate text-xs text-muted-foreground">Private conversations and your groups</p>
       </div>
     </div>
+    <AvailabilityMenu className="w-full" />
+    </div>
   );
 
   const loadingThread = thread.isLoading && messages.length === 0;
@@ -326,6 +344,7 @@ export default function DirectMessagesPage() {
               conversations={shown}
               activeKey={activeKey}
               onSelect={select}
+              presence={presence}
               search={search}
               onSearch={setSearch}
               filter={filter}
@@ -352,11 +371,14 @@ export default function DirectMessagesPage() {
                   <Button size="icon" variant="ghost" className="h-9 w-9 md:hidden" onClick={() => select(null)} aria-label="Back to conversations">
                     <ArrowLeft className="h-5 w-5" />
                   </Button>
-                  <ChatAvatar name={current?.name ?? "…"} path={current?.avatarPath} group={active.kind === "group"} />
+                  <ChatAvatar name={current?.name ?? "…"} path={current?.avatarPath} group={active.kind === "group"} status={active.kind === "dm" ? presence.get(active.id) ?? null : null} />
                   <div className="min-w-0 flex-1">
                     <h2 className="truncate text-sm font-semibold">{current?.name ?? "Conversation"}</h2>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {group ? `${group.member_count} members · ${current?.subtitle}` : current?.subtitle ?? "Private conversation"}
+                    <p className="flex min-w-0 items-center gap-2 truncate text-xs text-muted-foreground">
+                      {active.kind === "dm" && presence.get(active.id) && <AvailabilityLabel status={presence.get(active.id)!} className="shrink-0" />}
+                      <span className="truncate">
+                        {group ? `${group.member_count} members · ${current?.subtitle}` : current?.subtitle ?? "Private conversation"}
+                      </span>
                     </p>
                   </div>
                   {group && (
@@ -369,6 +391,7 @@ export default function DirectMessagesPage() {
                   messages={shownMessages}
                   meId={me}
                   people={threadPeople}
+                  presence={presence}
                   isGroup={active.kind === "group"}
                   loading={loadingThread}
                   error={threadError}

@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { listTime, type ConversationKey, type ConversationSummary } from "@/lib/chat";
 import { cn } from "@/lib/utils";
+import type { AvailabilityStatus } from "@/lib/communicationPresence";
 
 export type ListFilter = "all" | "dm" | "group";
 
@@ -14,7 +15,7 @@ const FILTERS: { key: ListFilter; label: string }[] = [
   { key: "group", label: "Groups" },
 ];
 
-function Row({ c, active, onSelect }: { c: ConversationSummary; active: boolean; onSelect: () => void }) {
+function Row({ c, active, onSelect, status }: { c: ConversationSummary; active: boolean; onSelect: () => void; status: AvailabilityStatus | null }) {
   return (
     <button
       type="button"
@@ -26,7 +27,7 @@ function Row({ c, active, onSelect }: { c: ConversationSummary; active: boolean;
         active ? "bg-accent" : "hover:bg-muted/70",
       )}
     >
-      <ChatAvatar name={c.name} path={c.avatarPath} group={c.kind === "group"} />
+      <ChatAvatar name={c.name} path={c.avatarPath} group={c.kind === "group"} status={c.kind === "dm" ? status : null} />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <span className={cn("truncate text-sm", c.unread > 0 ? "font-semibold text-foreground" : "font-medium")}>{c.name}</span>
@@ -54,7 +55,7 @@ function Row({ c, active, onSelect }: { c: ConversationSummary; active: boolean;
 
 export function ConversationList({
   conversations, activeKey, onSelect, search, onSearch, filter, onFilter,
-  loading, error, onRetry, groupsNotSetUp, canCreateGroup, onNewGroup, header,
+  loading, error, onRetry, groupsNotSetUp, canCreateGroup, onNewGroup, header, presence,
 }: {
   conversations: ConversationSummary[];
   activeKey: ConversationKey | null;
@@ -70,6 +71,8 @@ export function ConversationList({
   canCreateGroup: boolean;
   onNewGroup: () => void;
   header?: React.ReactNode;
+  /** Availability by user id, as the server shows it to you. A person not in it gets no dot. */
+  presence?: ReadonlyMap<string, AvailabilityStatus>;
 }) {
   const groups = conversations.filter((c) => c.kind === "group");
   const dms = conversations.filter((c) => c.kind === "dm");
@@ -156,7 +159,7 @@ export function ConversationList({
                 </p>
               ) : (
                 s.items.map((c) => (
-                  <Row key={c.key} c={c} active={c.key === activeKey} onSelect={() => onSelect(c.key)} />
+                  <Row key={c.key} c={c} active={c.key === activeKey} onSelect={() => onSelect(c.key)} status={presence?.get(c.id) ?? null} />
                 ))
               )}
             </section>

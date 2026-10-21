@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   AVAILABILITY_STATUSES, PRESENCE_HEARTBEAT_MS, PRESENCE_LEASE_MS,
+  AVAILABILITY_LABEL, AVAILABILITY_HELP, PRESENCE_MAX_IDS,
   effectiveAvailability, hasActivePresence, holidayRangeContains,
   isAvailabilityStatus, presenceCalendarDate,
+  parseAvailability, stableIds, chunk, myDisplayedAvailability,
 } from "./communicationPresence";
 
 describe("Communication availability rules", () => {
@@ -98,5 +100,46 @@ describe("Approved holiday date rules", () => {
     expect(holidayRangeContains("2026-10-26", "2026-10-23", "2026-10-24")).toBe(false);
     expect(holidayRangeContains("2026-02-30", "2026-03-03", "2026-03-01")).toBe(false);
     expect(holidayRangeContains("2026-10-23", "2026-10-26", "not-a-date")).toBe(false);
+  });
+});
+
+describe("Availability display helpers", () => {
+  it("names and explains exactly the six statuses, in English, and never On Break", () => {
+    expect(Object.keys(AVAILABILITY_LABEL).sort()).toEqual([...AVAILABILITY_STATUSES].sort());
+    expect(Object.keys(AVAILABILITY_HELP).sort()).toEqual([...AVAILABILITY_STATUSES].sort());
+    expect(Object.values(AVAILABILITY_LABEL)).toEqual(
+      ["Online", "Busy", "Do Not Disturb", "Away", "Offline", "On Holiday"]);
+    expect(JSON.stringify([AVAILABILITY_LABEL, AVAILABILITY_HELP])).not.toMatch(/break/i);
+  });
+
+  it("says in the picker that messages are still delivered while offline or on holiday", () => {
+    expect(AVAILABILITY_HELP.offline).toMatch(/still receive messages/);
+    expect(AVAILABILITY_HELP.on_holiday).toMatch(/still receive messages/);
+  });
+
+  it("accepts only the server's six words", () => {
+    for (const s of AVAILABILITY_STATUSES) expect(parseAvailability(s)).toBe(s);
+    expect(parseAvailability("on_break")).toBeNull();
+    expect(parseAvailability("ONLINE")).toBeNull();
+    expect(parseAvailability(undefined)).toBeNull();
+  });
+
+  it("keeps one cache entry for the same people in any order", () => {
+    expect(stableIds(["b", "a", "b", "", null, undefined, "c"])).toEqual(["a", "b", "c"]);
+  });
+
+  it("splits a long list below the server's limit of 300", () => {
+    const ids = Array.from({ length: 650 }, (_, i) => String(i));
+    const parts = chunk(ids, PRESENCE_MAX_IDS);
+    expect(parts.map((p) => p.length)).toEqual([300, 300, 50]);
+    expect(parts.flat()).toEqual(ids);
+    expect(chunk([], PRESENCE_MAX_IDS)).toEqual([]);
+  });
+
+  it("shows your own picker the same thing everybody else is shown", () => {
+    expect(myDisplayedAvailability("busy", false)).toBe("busy");
+    expect(myDisplayedAvailability("offline", false)).toBe("offline");
+    expect(myDisplayedAvailability("busy", true)).toBe("on_holiday");
+    expect(myDisplayedAvailability("on_holiday", false)).toBe("on_holiday");
   });
 });
