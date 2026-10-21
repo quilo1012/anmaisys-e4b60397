@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { EmployeeLoginsTable, type EmployeeLogin } from "@/components/users/EmployeeLoginsTable";
-import { useEmployees, useHeadcountAreas } from "@/hooks/useWorkforce";
+import { useEmployees } from "@/hooks/useWorkforce";
 
 /**
  * User Management → Employees, with the employee records behind it.
@@ -26,7 +26,6 @@ export function EmployeeLoginsWithRecords({
   accountSection: (userId: string | null, leave: (then: () => void) => void) => ReactNode;
 }) {
   const { data: employees, isLoading, isError } = useEmployees();
-  const { data: areas } = useHeadcountAreas();
   const [recordId, setRecordId] = useState<string | null>(null);
   const open = (employees ?? []).find((e) => e.id === recordId) ?? null;
 
@@ -36,11 +35,10 @@ export function EmployeeLoginsWithRecords({
         logins={logins}
         // A failed read is not "no records": the record columns are left out and it says so.
         employees={isError ? null : (employees ?? [])}
-        areas={areas ?? []}
         canLinkRecords={canLinkRecords}
         canOpenRecords
         isLoadingRecords={isLoading}
-        notice={isError ? "The employee records could not be loaded, so department, shift and line are not shown. Reload to try again." : undefined}
+        notice={isError ? "The employee records could not be loaded, so department and shift are not shown. Reload to try again." : undefined}
         emptyText={emptyText}
         rowExtras={rowExtras}
         onEdit={(login, record) => { if (record) setRecordId(record.id); else onEditLogin(login); }}

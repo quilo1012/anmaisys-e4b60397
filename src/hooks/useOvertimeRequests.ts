@@ -403,6 +403,8 @@ export function useOvertimeMutations() {
     mutationFn: async (input: {
       on_date: string; starts_at: string; ends_at: string; headcount: number | null;
       department: string | null; shift_group: string | null; note: string | null;
+      /** Only sent when something is skipped, so an ask that skips nobody still saves before BLOCO 116. */
+      excluded_shift_groups?: string[];
     }): Promise<{ request: OvertimeRequest; push: PushOutcome }> => {
       const { data, error } = await db
         .from("overtime_requests")
@@ -440,7 +442,7 @@ export function useOvertimeMutations() {
    */
   const setRequestStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: OvertimeRequest["status"] }) => {
-      const patch: Partial<OvertimeRequest> = { status };
+      const patch: Partial<Pick<OvertimeRequest, "status" | "closed_at">> = { status };
       if (status !== "open") patch.closed_at = new Date().toISOString();
       const { data, error } = await db
         .from("overtime_requests").update(patch).eq("id", id).select("id");
