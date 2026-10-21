@@ -13,12 +13,16 @@ import { MessageThread, type UIMessage } from "@/components/chat/MessageThread";
 import { Composer } from "@/components/chat/Composer";
 import { CreateGroupDialog, GroupInfoSheet } from "@/components/chat/GroupDialogs";
 import { ProfilePhotoDialog } from "@/components/chat/ProfilePhotoDialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDMPartners, useDMUnreadBySender, useMarkDMRead, useMySupervisor } from "@/hooks/useDirectMessages";
 import {
   chatFilePath, uploadWithProgress, useChatPeople, useConversationLive, useDMSummaries,
   useDMThreadPaged, useGroupThread, useMarkGroupRead, useMyPhoto, useMyGroups, useSendDirect,
-  useSendGroupMessage, type UploadedFile,
+  useSendGroupMessage, useWithdrawMessage, type UploadedFile,
 } from "@/hooks/useChat";
 import {
   groupFolder, matchesSearch, mergeMessages, pairFolder, parseConversationKey, sortConversations,
@@ -139,6 +143,13 @@ export default function DirectMessagesPage() {
   useConversationLive(active);
   const [pending, setPending] = useState<Pending[]>([]);
   const [replyTo, setReplyTo] = useState<UIMessage | null>(null);
+  // Retirar nao tem volta: o conteudo sai da conversa e so um admin o encontra na
+  // auditoria. Uma pergunta antes, e a mensagem a vista enquanto se decide.
+  const [withdrawing, setWithdrawing] = useState<UIMessage | null>(null);
+  const withdraw = useWithdrawMessage(
+    active?.kind === "group" ? "group" : "direct",
+    active?.kind === "group" ? ["chat_group_thread", active.id] : ["dm_thread"],
+  );
   useEffect(() => { setReplyTo(null); }, [activeKey]);
 
   const groupSenders = useMemo(() => [...new Set(groupThread.messages.map((m) => m.sender_id))], [groupThread.messages]);
@@ -401,6 +412,7 @@ export default function DirectMessagesPage() {
                   onLoadOlder={() => thread.fetchNextPage()}
                   onRetrySend={(m) => { const p = pending.find((x) => x.id === m.id); if (p) void deliver(p); }}
                   onReply={active.kind === "group" ? setReplyTo : undefined}
+                  onWithdraw={(m) => setWithdrawing(m)}
                   renderExtras={active.kind === "dm" ? renderExtras : undefined}
                   emptyText={active.kind === "group" ? "No messages in this group yet. Say hello." : "No messages yet. Write the first one."}
                 />
@@ -420,6 +432,35 @@ export default function DirectMessagesPage() {
       <ProfilePhotoDialog open={photoOpen} onOpenChange={setPhotoOpen} />
       <CreateGroupDialog open={newGroup} onOpenChange={setNewGroup} onCreated={(id) => select(`group:${id}`)} />
       {group && <GroupInfoSheet group={group} open={info} onOpenChange={setInfo} meId={me} isAdmin={role === "admin"} />}
+      <AlertDialog open={!!withdrawing} onOpenChange={(o) => { if (!o) setWithdrawing(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Withdraw this message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It stops being readable for everyone in this conversation, and that cannot be undone.
+              The message is not erased: what it said is kept in the audit log, where an admin can read it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {withdrawing?.body && (
+            <p className="max-h-32 overflow-y-auto rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap">
+              {withdrawing.body}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={withdraw.isPending}
+              onClick={() => {
+                const id = withdrawing?.id;
+                if (!id) return;
+                withdraw.mutate(id, { onSuccess: () => setWithdrawing(null) });
+              }}
+            >
+              {withdraw.isPending ? "Withdrawing…" : "Withdraw"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
