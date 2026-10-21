@@ -33,6 +33,26 @@ describe("recognising the failure", () => {
     expect(isChunkLoadError(new Error("Importing a module script failed"))).toBe(true);
     expect(isChunkLoadError(new Error("Cannot read properties of undefined"))).toBe(false);
   });
+
+  /**
+   * WebKit's wording for a module script sent across origins, which is what every
+   * iOS tablet on the floor says when a deploy has taken its chunk away and the old
+   * host redirects the missing asset to the app's new domain. 21/10 12:18 on
+   * /dashboard/my-overtime reached the ErrorBoundary as a REACT_CRASH because this
+   * sentence matched nothing here — so no retry, no reload, and no evidence.
+   */
+  it("knows WebKit's cross-origin refusal for what it is: a chunk that did not arrive", () => {
+    expect(
+      isChunkLoadError(
+        new Error("Cross-origin script load denied by Cross-Origin Resource Sharing policy."),
+      ),
+    ).toBe(true);
+  });
+
+  /** It must stay a download failure, not become a catch-all for the word "origin". */
+  it("does not swallow an unrelated cross-origin complaint", () => {
+    expect(isChunkLoadError(new Error("Blocked a frame with origin from accessing a cross-origin frame."))).toBe(false);
+  });
 });
 
 describe("the evidence a chunk crash carries", () => {
