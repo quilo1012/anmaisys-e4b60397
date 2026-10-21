@@ -9,6 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { PushNotificationSetup } from "@/components/PushNotificationSetup";
 import { railEdge } from "@/components/ui/StatusRail";
 import { asksForNotificationPermissionAtLogin } from "@/lib/notificationPermissionPrompt";
 import { useMyNotifications } from "@/hooks/useMyNotifications";
@@ -300,6 +301,7 @@ export function NotificationPanel() {
     ...notifications.map((n) => ({ at: n.timestamp.getTime(), live: n })),
   ].sort((a, b) => b.at - a.at);
 
+  const [showPhone, setShowPhone] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -370,6 +372,17 @@ export function NotificationPanel() {
             </div>
           )}
         </ScrollArea>
+        <div className="border-t">
+          <button
+            type="button"
+            className="w-full px-4 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-accent/50"
+            onClick={() => setShowPhone((v) => !v)}
+            aria-expanded={showPhone}
+          >
+            Phone notifications {showPhone ? "▴" : "▾"}
+          </button>
+          {showPhone && <div className="p-3 pt-0"><PushNotificationSetup /></div>}
+        </div>
       </PopoverContent>
     </Popover>
   );

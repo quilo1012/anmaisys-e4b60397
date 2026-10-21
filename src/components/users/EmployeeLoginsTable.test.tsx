@@ -145,3 +145,38 @@ describe("without permission to read employee records", () => {
     expect(screen.queryByText("No employee record")).toBeNull();
   });
 });
+
+describe("phone alerts column", () => {
+  const logins = [login("u1", "ana"), login("u2", "Bruno"), login("u3", "Carla")];
+  const employees = [record("u1"), record("u2"), record("u3")];
+  const coverage = new Map([
+    ["u1", { phones: 1, platforms: ["iPhone/iPad"], lastRegistered: null }],
+    ["u3", { phones: 2, platforms: ["Android/Chrome", "iPhone/iPad"], lastRegistered: null }],
+  ]);
+  const mountWith = (pushCoverage: ReadonlyMap<string, { phones: number; platforms: string[]; lastRegistered: string | null }> | null) =>
+    render(<EmployeeLoginsTable logins={logins} employees={employees} canLinkRecords={false} canOpenRecords
+      isLoadingRecords={false} onEdit={vi.fn()} emptyText="none" pushCoverage={pushCoverage} />);
+
+  it("says who is on and who is off, with the kind of phone", () => {
+    mountWith(coverage);
+    expect(screen.getByText("On · iPhone/iPad")).toBeTruthy();
+    expect(screen.getByText("On · Android/Chrome, iPhone/iPad")).toBeTruthy();
+    const bruno = screen.getAllByRole("row").find((r) => r.textContent?.startsWith("Bruno"))!;
+    expect(within(bruno).getByText("Off")).toBeTruthy();
+  });
+
+  it("finds the people still to chase", async () => {
+    mountWith(coverage);
+    await pick(/Filter by phone alerts/i, /^Alerts off/);
+    expect(names()).toEqual(["Bruno"]);
+    await pick(/Filter by phone alerts/i, /^Alerts on/);
+    expect(names()).toEqual(["ana", "Carla"]);
+  });
+
+  it("is left out, not drawn as 'Off' for everybody, when the answer is not available", () => {
+    mountWith(null);
+    expect(screen.queryByText("Phone alerts")).toBeNull();
+    expect(screen.queryByText("Off")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: /phone alerts/i })).toBeNull();
+  });
+});
