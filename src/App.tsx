@@ -138,6 +138,7 @@ const MyOvertimePage = lazyWithReload(() => import("./pages/dashboard/MyOvertime
 const FinanceClosePage = lazyWithReload(() => import("./pages/dashboard/FinanceClosePage"));
 const LeavePage = lazyWithReload(() => import("./pages/dashboard/LeavePage"));
 const MyAttendancePage = lazyWithReload(() => import("./pages/dashboard/MyAttendancePage"));
+const MyWorkAreaPage = lazyWithReload(() => import("./pages/dashboard/MyWorkAreaPage"));
 const LinkAccountsPage = lazyWithReload(() => import("./pages/dashboard/LinkAccountsPage"));
 const PeoplePage = lazyWithReload(() => import("./pages/dashboard/PeoplePage"));
 const ProductionHeadcountPage = lazyWithReload(() => import("./pages/dashboard/ProductionHeadcountPage"));
@@ -569,6 +570,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="attendance.view_own">
                       <MyAttendancePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/my-work-area"
+                  element={
+                    <ProtectedRoute requiredAction="attendance.view_own">
+                      <MyWorkAreaPage />
                     </ProtectedRoute>
                   }
                 />

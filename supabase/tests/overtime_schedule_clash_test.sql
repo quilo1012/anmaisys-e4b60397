@@ -1,4 +1,5 @@
--- Tests for 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql.
+-- Tests for 20261018090000_overtime_is_not_offered_on_hours_already_rostered.sql
+-- (and, from BLOCO 112, the rest rule: adjacent shifts that leave under 11 h of rest are hidden too).
 --
 -- Run this WHOLE file in one go, in the Supabase SQL Editor, after that block has been
 -- applied. Same shape as answer_overtime_eligibility_test.sql: one transaction, its own
@@ -146,8 +147,9 @@ BEGIN
     pg_temp.refusal(u_weekday, ask_sat_day, 'yes') IS NULL);
 
   -- ── Hours, not labels ───────────────────────────────────────────────────────
-  PERFORM pg_temp.expect_true('the Saturday Day crew still sees Saturday night',
-    NOT pg_temp.hidden(u_weekend, ask_sat_night));
+  -- BLOCO 112: 06:00–18:00 and then 18:00–06:00 do not overlap but are 24 hours in a row.
+  PERFORM pg_temp.expect_true('the Saturday Day crew is not offered Saturday night: no rest between',
+    pg_temp.hidden(u_weekend, ask_sat_night));
   PERFORM pg_temp.expect_true('a 06:00–14:00 rota leaves 14:00–18:00 open',
     NOT pg_temp.hidden(u_short, ask_sat_late));
   PERFORM pg_temp.expect_true('but not 12:00–16:00, which overlaps it',
@@ -163,8 +165,9 @@ BEGIN
   -- ── The board ───────────────────────────────────────────────────────────────
   PERFORM pg_temp.expect_true('Friday''s night shift covers Saturday 05:00',
     pg_temp.hidden(u_night, ask_sat_dawn));
-  PERFORM pg_temp.expect_true('and leaves Saturday day open to the night crew',
-    NOT pg_temp.hidden(u_night, ask_sat_late));
+  -- BLOCO 112: Friday night ends 06:00; 14:00–18:00 would make 16 hours in 24.
+  PERFORM pg_temp.expect_true('and Saturday afternoon is not offered to the night crew either: under 11 h of rest',
+    pg_temp.hidden(u_night, ask_sat_late));
   PERFORM pg_temp.expect_true('a holiday on the board means the rota is not read',
     NOT pg_temp.hidden(u_away, ask_sat_day));
 
