@@ -14,16 +14,19 @@ const EMPLOYEE = {
   notes: null, sheet_aliases: null, user_id: "u1", employment_type: "permanent",
 };
 const guardar = vi.fn();
+const guardarSupervisores = vi.fn();
 
 vi.mock("@/hooks/useWorkforce", () => ({
-  useEmployees: () => ({ data: [EMPLOYEE] }),
+  useEmployees: () => ({ data: [EMPLOYEE, { ...EMPLOYEE, id: "s1", full_name: "Joao Surian", position: "Supervisor", manager_id: null }, { ...EMPLOYEE, id: "s2", full_name: "Maria Lopes", position: "Supervisor", manager_id: null }] }),
   useShiftPatterns: () => ({ data: [
     { id: "p-day", name: "Mon–Fri days", days: [1, 2, 3, 4, 5], active: true, starts_at: "06:00:00", ends_at: "18:00:00", dayOverrides: [] },
     { id: "p-night", name: "Mon–Thu nights", days: [1, 2, 3, 4], active: true, starts_at: "18:00:00", ends_at: "06:00:00", dayOverrides: [] },
   ] }),
   useShiftHistory: () => ({ data: [], isLoading: false }),
   useEmployeeRecordHistory: () => ({ data: [], isLoading: false }),
-  useHeadcountAreas: () => ({ data: [{ id: "a1", name: "Line 1", kind: "line" }, { id: "a2", name: "Line 2", kind: "line" }] }),
+  useEmployeeSupervisors: () => ({ data: null }),
+  useSetEmployeeSupervisors: () => ({ mutate: guardarSupervisores, isPending: false }),
+  supervisorIdsOf: (e: { manager_id: string | null }) => (e.manager_id ? [e.manager_id] : []),
   useMovements: () => ({ data: [], isLoading: false }),
   useEmployeeOvertime: () => ({ data: [], isLoading: false }),
   useOvertimeEverImported: () => ({ data: false }),
@@ -62,24 +65,51 @@ async function choose(text: string, option: RegExp) {
 }
 
 describe("Edit Employee, as one form", () => {
-  it("is organised in the seven sections", async () => {
+  it("is organised in the six sections", async () => {
     mount();
     await screen.findByLabelText(/Full name/i);
     for (const title of [
-      "Personal & Employment Details", "Department & Role", "Shift & Working Schedule", "Production Assignment",
+      "Personal & Employment Details", "Department & Role", "Shift & Working Schedule",
       "Supervisor & Line Leader", "Account & Access", "Additional Information",
     ]) expect(screen.getByText(title)).toBeTruthy();
   });
 
-  it("keeps the production line for Save instead of writing it the moment it is picked", async () => {
+  it("has no production-line field any more, and does not touch the person's line when saving", async () => {
     mount();
     await screen.findByLabelText(/Full name/i);
-    await choose("Not assigned", /Line 2/);
-    expect(guardar).not.toHaveBeenCalled();
+    expect(screen.queryByText("Production Assignment")).toBeNull();
+    expect(screen.queryByText(/Usual production line/i)).toBeNull();
+    fireEvent.change(screen.getByLabelText(/Full name/i), { target: { value: "Ana Souza" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
     expect(guardar).toHaveBeenCalledTimes(1);
-    expect(guardar.mock.calls[0][0].patch.headcount_area_id).toBe("a2");
+    expect("headcount_area_id" in guardar.mock.calls[0][0].patch).toBe(false);
     expect(guardar.mock.calls[0][0].patch.shift_group).toBe("Night");
+  });
+
+  it("takes more than one supervisor, keeps them for Save, and the first stays the manager", async () => {
+    mount();
+    await screen.findByLabelText(/Full name/i);
+    await choose("Choose a supervisor", /Joao Surian/);
+    await choose("Add another supervisor", /Maria Lopes/);
+    expect(guardar).not.toHaveBeenCalled();
+    expect(within(screen.getByRole("list", { name: "Supervisors" })).getAllByRole("listitem")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    expect(guardar.mock.calls[0][0].patch.manager_id).toBe("s1");
+    // The full list goes in one call once the record is saved.
+    guardar.mock.calls[0][1].onSuccess();
+    expect(guardarSupervisores).toHaveBeenCalledWith(
+      { id: EMPLOYEE.id, supervisors: ["s1", "s2"] }, expect.anything(),
+    );
+  });
+
+  it("removes one supervisor without losing the other", async () => {
+    mount();
+    await screen.findByLabelText(/Full name/i);
+    await choose("Choose a supervisor", /Joao Surian/);
+    await choose("Add another supervisor", /Maria Lopes/);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Joao Surian" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    expect(guardar.mock.calls[0][0].patch.manager_id).toBe("s2");
   });
 
   it("Cancel puts every field back and disables Save again", async () => {

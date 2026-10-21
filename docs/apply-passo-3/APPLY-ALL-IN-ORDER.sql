@@ -15828,3 +15828,310 @@ $$;
 revoke all on function public.dm_employee_bell() from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ================================================================
+-- BLOCO 115
+-- 20261021180000_an_employee_can_have_more_than_one_supervisor.sql
+-- ================================================================
+--
+-- "Reports to" passa a aceitar mais de um supervisor. `employees.manager_id` continua a
+-- existir e passa a ser o PRIMEIRO supervisor (o que ja era para tudo o que le um so);
+-- a lista completa vive em `employee_supervisors`. O que muda:
+--   * `employee_supervisors` (employee_id, supervisor_id, position): preenchida a partir
+--     do manager_id que ja existe (so acrescenta linhas); ninguem escreve nela a direito,
+--     so `set_employee_supervisors()` (quem tem `workforce.manage`), que tambem poe o
+--     manager_id no primeiro. Maximo 5; nunca a propria pessoa; so pessoas activas.
+--   * `my_supervisor()` devolve todos os supervisores com login (antes, um).
+--   * `message_my_supervisor(texto, supervisor opcional)`: sem o segundo, escreve ao
+--     primeiro, como antes; com ele, a esse (tem de ser um dos seus).
+--   * o aviso "X vem fazer overtime" toca a todos os supervisores, uma vez cada.
+--   * os grupos do chat contam os reportes de qualquer um dos supervisores.
+-- Nao apaga nem reescreve nenhum employee, mensagem ou notificacao.
+--
+-- "Reports to" now takes more than one supervisor. `employees.manager_id` stays and is the
+-- FIRST supervisor (so everything that reads one keeps working); the full list is in
+-- `employee_supervisors`, back-filled from manager_id (adds rows only) and written only by
+-- `set_employee_supervisors()`. `my_supervisor()` returns all of them; the overtime "is
+-- coming in" bell rings each once; chat group scope counts reports of any supervisor.
+
+create table if not exists public.employee_supervisors (
+  employee_id   uuid not null references public.employees(id) on delete cascade,
+  supervisor_id uuid not null references public.employees(id) on delete cascade,
+  position      smallint not null default 0,
+  primary key (employee_id, supervisor_id),
+  check (employee_id <> supervisor_id)
+);
+create index if not exists employee_supervisors_supervisor_idx on public.employee_supervisors (supervisor_id);
+
+insert into public.employee_supervisors (employee_id, supervisor_id, position)
+select e.id, e.manager_id, 0 from public.employees e
+ where e.manager_id is not null and e.manager_id <> e.id
+on conflict do nothing;
+
+alter table public.employee_supervisors enable row level security;
+revoke all on public.employee_supervisors from public, anon, authenticated;
+grant select on public.employee_supervisors to authenticated;
+drop policy if exists "employee_supervisors_read" on public.employee_supervisors;
+create policy "employee_supervisors_read" on public.employee_supervisors
+  for select to authenticated
+  using (public.has_action((select auth.uid()), 'workforce.view', array['admin']::app_role[]));
+
+create or replace function public.set_employee_supervisors(p_employee uuid, p_supervisors uuid[])
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_ids uuid[];
+begin
+  if not public.has_action(auth.uid(), 'workforce.manage', array['admin']::app_role[]) then
+    raise exception 'Not allowed' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.employees where id = p_employee) then
+    raise exception 'No such employee' using errcode = 'P0001';
+  end if;
+  -- In the order given, once each, never the person themselves, only active records.
+  select coalesce(array_agg(s order by o), '{}') into v_ids
+    from (select s, min(o) as o
+            from unnest(coalesce(p_supervisors, '{}')) with ordinality as t(s, o)
+           where s <> p_employee and exists (select 1 from public.employees x where x.id = s and x.active)
+           group by s) q;
+  if cardinality(v_ids) > 5 then
+    raise exception 'At most 5 supervisors' using errcode = 'P0001';
+  end if;
+
+  delete from public.employee_supervisors where employee_id = p_employee and not (supervisor_id = any (v_ids));
+  insert into public.employee_supervisors (employee_id, supervisor_id, position)
+  select p_employee, v_ids[i], (i - 1)::smallint from generate_subscripts(v_ids, 1) i
+  on conflict (employee_id, supervisor_id) do update set position = excluded.position;
+  update public.employees set manager_id = v_ids[1] where id = p_employee and manager_id is distinct from v_ids[1];
+end;
+$$;
+revoke all on function public.set_employee_supervisors(uuid, uuid[]) from public, anon;
+grant execute on function public.set_employee_supervisors(uuid, uuid[]) to authenticated;
+
+-- Every active supervisor with a login, in order: the table, and manager_id for a row not yet in it.
+create or replace function public.supervisor_logins_of(p_employee uuid)
+returns table (login uuid, ord integer)
+language sql stable security definer set search_path = public
+as $$
+  select m.user_id, min(x.position)::integer
+    from (select supervisor_id, position from public.employee_supervisors where employee_id = p_employee
+          union all
+          select e.manager_id, 0::smallint from public.employees e
+           where e.id = p_employee and e.manager_id is not null
+             and not exists (select 1 from public.employee_supervisors s where s.employee_id = e.id)) x
+    join public.employees m on m.id = x.supervisor_id
+    join public.employees me on me.id = p_employee
+   where m.active and m.user_id is not null and m.user_id is distinct from me.user_id
+   group by m.user_id
+   order by min(x.position), m.user_id;
+$$;
+revoke all on function public.supervisor_logins_of(uuid) from public, anon, authenticated;
+
+create or replace function public.my_supervisor()
+returns table (user_id uuid, full_name text)
+language sql stable security definer set search_path = public
+as $$
+  select m.user_id, m.full_name
+    from public.supervisor_logins_of(public.my_employee_id()) l
+    join public.employees m on m.user_id = l.login and m.active
+   where m.user_id is distinct from auth.uid()
+   order by l.ord, m.full_name;
+$$;
+revoke all on function public.my_supervisor() from public, anon;
+grant execute on function public.my_supervisor() to authenticated;
+
+drop function if exists public.message_my_supervisor(text);
+create or replace function public.message_my_supervisor(p_message text, p_supervisor uuid default null)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_emp  uuid := public.my_employee_id();
+  v_name text;
+  v_text text := btrim(coalesce(p_message, ''));
+  v_to   uuid;
+begin
+  if v_emp is null then
+    raise exception 'No employee record is linked to this login' using errcode = 'P0001';
+  end if;
+  if length(v_text) = 0 then
+    raise exception 'Write a message first' using errcode = 'P0001';
+  end if;
+  if length(v_text) > 1000 then
+    raise exception 'Keep it under 1000 characters' using errcode = 'P0001';
+  end if;
+  if p_supervisor is null then
+    v_to := public.supervisor_login_of(v_emp);
+  elsif exists (select 1 from public.supervisor_logins_of(v_emp) l where l.login = p_supervisor) then
+    v_to := p_supervisor;
+  else
+    raise exception 'That is not one of your supervisors' using errcode = 'P0001';
+  end if;
+  if v_to is null or v_to = auth.uid() then
+    raise exception 'No supervisor is on file for you yet. Ask the office to set your manager.' using errcode = 'P0001';
+  end if;
+  select full_name into v_name from public.employees where id = v_emp;
+  return public.dm_from_employee(v_to, v_name, v_text);
+end;
+$$;
+revoke all on function public.message_my_supervisor(text, uuid) from public, anon;
+grant execute on function public.message_my_supervisor(text, uuid) to authenticated;
+
+create or replace function public.overtime_response_booked_notify()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_req  public.overtime_requests;
+  v_user uuid;
+  v_name text;
+  v_when text;
+  v_to   uuid;
+begin
+  if new.decision is null or new.decision not in ('accepted', 'reserve') then return null; end if;
+  if tg_op = 'UPDATE' and old.decision is not distinct from new.decision then return null; end if;
+
+  begin
+    select * into v_req from public.overtime_requests where id = new.request_id;
+    select user_id, full_name into v_user, v_name from public.employees where id = new.employee_id;
+    v_when := to_char(v_req.on_date, 'Dy DD/MM') || ' · ' || left(v_req.starts_at::text, 5)
+              || '–' || left(v_req.ends_at::text, 5) || coalesce(' · ' || v_req.department, '');
+
+    if v_user is not null then
+      insert into public.notifications (user_id, kind, title, body, priority, action_url)
+      values (v_user, 'overtime_booked',
+              case when new.decision = 'accepted' then 'You''re booked for overtime'
+                   else 'You''re on the overtime reserve list' end,
+              v_when, 'medium', '/dashboard/my-overtime?ask=' || v_req.id);
+    end if;
+
+    -- The supervisor on file and the poster, unless they did it themselves, or nobody
+    -- did (the one-off backlog of BLOCO 105). Once per person per ask: only when the
+    -- answer is first decided, so a reserve later accepted, or a retried yes, does not
+    -- ring again — and `distinct`, so one login holding both roles is rung once.
+    -- (Not BLOCO 100's unique key: that is one row per ask, and an ask has many people.)
+    if auth.uid() is not null and (tg_op = 'INSERT' or old.decision is null) then
+      for v_to in
+        select distinct t from unnest(array_append(array(select l.login from public.supervisor_logins_of(new.employee_id) l), v_req.created_by)) t
+         where t is not null and t <> auth.uid() and t is distinct from v_user
+      loop
+        insert into public.notifications (user_id, kind, title, body, priority, action_url)
+        values (v_to, 'overtime_yes',
+                coalesce(v_name, 'Somebody') ||
+                  case when new.decision = 'accepted' then ' is coming in' else ' said yes (on reserve)' end,
+                v_when, 'medium', '/dashboard/overtime');
+      end loop;
+    end if;
+  exception when others then
+    -- The booking is the record; the bell is a courtesy. Never undo it for the bell.
+    raise warning 'overtime_response_booked_notify(%): %', new.id, sqlerrm;
+  end;
+  return null;
+end;
+$$;
+revoke all on function public.overtime_response_booked_notify() from public, anon, authenticated;
+
+create or replace function public.chat_departments_of(p_uid uuid)
+returns setof text
+language sql stable security definer set search_path = public
+as $$
+  select distinct d from (
+    select e.department as d
+      from public.employees e
+     where e.user_id = p_uid and e.active
+    union
+    select r.department
+      from public.employees me
+      join public.employees r on r.active
+       and (r.manager_id = me.id
+            or exists (select 1 from public.employee_supervisors s where s.employee_id = r.id and s.supervisor_id = me.id))
+     where me.user_id = p_uid and me.active
+  ) x
+  where d is not null and btrim(d) <> '';
+$$;
+revoke all on function public.chat_departments_of(uuid) from public, anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+-- ================================================================
+-- BLOCO 116
+-- 20261021190000_an_ask_can_skip_a_crew.sql
+-- ================================================================
+--
+-- Ao divulgar um overtime, o escritorio pode escolher NAO enviar a uma ou mais equipas
+-- (por exemplo "todos menos a equipa Night"). Ate aqui so dava para escolher uma equipa ou todas.
+--   * `overtime_requests.excluded_shift_groups` (text[], por omissao vazio): so acrescenta
+--     uma coluna; os pedidos que ja existem ficam como estao (ninguem excluido).
+--   * `overtime_notify_targets`: quem e avisado no sino deixa de incluir essas equipas.
+--   * uma guarda em `overtime_responses`: um "sim" ou "nao" da PROPRIA pessoa dessas equipas
+--     e recusado (quem acrescenta um sim dado ao balcao continua a poder).
+-- No telemovel o pedido deixa de aparecer a essas equipas (o ecra ja usa a mesma regra
+-- que a base). Nao apaga nem muda nenhuma resposta ou pedido.
+--
+-- When publishing an overtime ask the office can now choose NOT to send it to one or more
+-- crews ("everybody except the Night crew"). One new column (default empty, so every existing
+-- ask is unchanged); the bell skips those crews; a guard on `overtime_responses` refuses a person's own answer from them (a supervisor adding a desk yes is unaffected).
+-- Nothing is deleted or changed.
+
+alter table public.overtime_requests
+  add column if not exists excluded_shift_groups text[] not null default '{}';
+
+create or replace function public.overtime_notify_targets(p_request_id uuid)
+returns table (employee_id uuid, user_id uuid)
+-- plpgsql, not sql: a sql body is checked when it is created, and this one names
+-- BLOCO 95's function. Out of order, the paste must not stop here.
+language plpgsql stable security definer set search_path = public
+as $$
+begin
+  return query
+  select e.id, e.user_id
+    from public.overtime_requests q
+    join public.employees e
+      on e.active
+     and e.user_id is not null
+     and (q.department  is null or q.department  is not distinct from e.department)
+     and (q.shift_group is null or q.shift_group is not distinct from e.shift_group)
+     and (e.shift_group is null or not (e.shift_group = any (coalesce(q.excluded_shift_groups, '{}'))))
+   where q.id = p_request_id
+     and q.status = 'open'
+     and (q.on_date + q.starts_at) > (now() at time zone 'Europe/London')
+     and not exists (select 1 from public.overtime_responses r
+                      where r.request_id = q.id and r.employee_id = e.id)
+     and not exists (select 1 from public.overtime_block_for(e.id))
+     and public.overtime_schedule_clash(e.id, q.id) is null;
+end;
+$$;
+
+revoke all on function public.overtime_notify_targets(uuid) from public, anon, authenticated;
+
+-- A trigger and not a new answer_overtime: that function is defined in older blocks that
+-- must stay the last word on it, and a trigger also covers any other way a person answers
+-- for themselves. It only looks at a person's OWN answer, so the supervisor who adds a yes
+-- given at the desk can still put somebody from a skipped crew on an ask, as before.
+create or replace function public.overtime_response_crew_guard()
+returns trigger
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_skip  text[];
+  v_shift text;
+begin
+  if new.employee_id is distinct from public.my_employee_id() then return new; end if;
+  select coalesce(q.excluded_shift_groups, '{}') into v_skip
+    from public.overtime_requests q where q.id = new.request_id;
+  select e.shift_group into v_shift from public.employees e where e.id = new.employee_id;
+  if v_shift is not null and v_shift = any (coalesce(v_skip, '{}')) then
+    raise exception 'This overtime is not being asked of the % crew', v_shift using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.overtime_response_crew_guard() from public, anon, authenticated;
+
+drop trigger if exists overtime_response_crew_guard_t on public.overtime_responses;
+create trigger overtime_response_crew_guard_t
+  before insert or update of answer on public.overtime_responses
+  for each row execute function public.overtime_response_crew_guard();
+
+notify pgrst, 'reload schema';

@@ -38,6 +38,7 @@ const roster = [
 ];
 const board = [{ on_date: tomorrow, shift: "Night", employee_id: "e-night", status: "assigned" }];
 
+const createAsync = vi.hoisted(() => vi.fn(async (_input?: Record<string, unknown>) => ({ request: { id: "new" }, push: { notified: 0, pushed: null, note: null, error: null, pushError: null } })));
 const mutation = () => ({ mutate: vi.fn(), isPending: false });
 vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeRequests: () => ({ data: requests, isLoading: false, isError: false }),
@@ -50,7 +51,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeBoardRows: () => ({ data: board }),
   useOvertimeScheduleClashes: () => ({ data: undefined }),
   useOvertimeMutations: () => ({
-    createRequest: mutation(), editRequest: mutation(), setRequestStatus: mutation(),
+    createRequest: { mutate: vi.fn(), mutateAsync: createAsync, isPending: false }, editRequest: mutation(), setRequestStatus: mutation(),
     decide: mutation(), recordOutcome: mutation(), answerFor: mutation(), removeAnswer: mutation(),
   }),
 }));
@@ -137,5 +138,32 @@ describe("OvertimeRequestsPanel — calendar", () => {
     fireEvent.click(screen.getByRole("radio", { name: /List/ }));
     expect(screen.getByRole("region", { name: /Night shift/ })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Overtime calendar" })).not.toBeInTheDocument();
+  });
+});
+
+describe("publishing an ask that skips a crew", () => {
+  beforeEach(() => { createAsync.mockClear(); });
+
+  it("offers the crews to skip, and sends only the ticked ones", async () => {
+    render(<OvertimeRequestsPanel />);
+    fireEvent.click(screen.getAllByRole("button", { name: /New (overtime )?ask/i })[0]);
+    const box = await screen.findByTestId("skip-crews");
+    expect(within(box).getByText("Do not send to")).toBeInTheDocument();
+    fireEvent.click(within(box).getByRole("checkbox", { name: /Do not send to the Night crew/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Publish ask|Review|Publish/i }));
+    const publish = await screen.findByRole("button", { name: /Publish 1 ask/i });
+    fireEvent.click(publish);
+    await vi.waitFor(() => expect(createAsync).toHaveBeenCalledTimes(1));
+    expect(createAsync.mock.calls[0][0].excluded_shift_groups).toEqual(["Night"]);
+  });
+
+  it("sends nothing about crews when none is ticked, so it still saves before BLOCO 116", async () => {
+    render(<OvertimeRequestsPanel />);
+    fireEvent.click(screen.getAllByRole("button", { name: /New (overtime )?ask/i })[0]);
+    await screen.findByTestId("skip-crews");
+    fireEvent.click(screen.getByRole("button", { name: /^Publish ask|Review|Publish/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Publish 1 ask/i }));
+    await vi.waitFor(() => expect(createAsync).toHaveBeenCalledTimes(1));
+    expect("excluded_shift_groups" in createAsync.mock.calls[0][0]).toBe(false);
   });
 });

@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const state = { employees: [] as unknown[], isError: false };
 vi.mock("@/hooks/useWorkforce", () => ({
   useEmployees: () => ({ data: state.employees, isLoading: false, isError: state.isError }),
-  useHeadcountAreas: () => ({ data: [{ id: "a1", name: "Line 1", kind: "line" }] }),
+  useEmployeeSupervisors: () => ({ data: null }),
+  useSetEmployeeSupervisors: () => ({ mutate: vi.fn(), isPending: false }),
+  supervisorIdsOf: (e: { manager_id: string | null }) => (e.manager_id ? [e.manager_id] : []),
   useShiftPatterns: () => ({ data: [] }),
   useShiftHistory: () => ({ data: [], isLoading: false }),
   useEmployeeRecordHistory: () => ({ data: [], isLoading: false }),

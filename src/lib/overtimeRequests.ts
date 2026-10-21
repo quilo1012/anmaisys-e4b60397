@@ -26,6 +26,8 @@ export interface OvertimeRequest {
   headcount: number | null;
   department: string | null;
   shift_group: string | null;
+  /** Crews the office chose NOT to send this to (BLOCO 116). Absent until the block is pasted. */
+  excluded_shift_groups?: string[] | null;
   note: string | null;
   status: "open" | "closed" | "cancelled";
   created_by: string;
@@ -239,11 +241,13 @@ export function sortCandidates<E extends { id: string }>(cs: Candidate<E>[]): Ca
  * they were never put in.
  */
 export function requestIsForEmployee(
-  request: Pick<OvertimeRequest, "department" | "shift_group">,
+  request: Pick<OvertimeRequest, "department" | "shift_group"> & { excluded_shift_groups?: string[] | null },
   employee: { department: string | null; shift_group: string | null },
 ): boolean {
   if (request.department && request.department !== employee.department) return false;
   if (request.shift_group && request.shift_group !== employee.shift_group) return false;
+  // A crew the office chose not to send this to (BLOCO 116).
+  if (employee.shift_group && request.excluded_shift_groups?.includes(employee.shift_group)) return false;
   return true;
 }
 
@@ -448,11 +452,12 @@ export function headcountLine(request: Pick<OvertimeRequest, "headcount">): stri
  * data instead of the answer.
  */
 export function audienceLine(
-  request: Pick<OvertimeRequest, "department" | "shift_group">,
+  request: Pick<OvertimeRequest, "department" | "shift_group"> & { excluded_shift_groups?: string[] | null },
 ): string {
   const crew = request.shift_group ? `${request.shift_group} crew` : null;
-  if (request.department && crew) return `${request.department}, ${crew}`;
-  return request.department ?? crew ?? "Everyone";
+  const skipped = (request.excluded_shift_groups ?? []).map((g) => `${g} crew`);
+  const base = request.department && crew ? `${request.department}, ${crew}` : request.department ?? crew ?? "Everyone";
+  return skipped.length > 0 ? `${base}, not ${skipped.join(" or ")}` : base;
 }
 
 /** `14:00–22:00` from two Postgres times, with or without seconds. */
