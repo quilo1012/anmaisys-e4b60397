@@ -106,8 +106,11 @@ BEGIN
   PERFORM pg_temp.expect_true('2b an employee finds the supervisor on file',
     people[3] = ANY (pg_temp.listed(people[5])));
   -- BLOCO 114: employees may write to each other, and to nobody else on their own.
-  PERFORM pg_temp.expect_true('2c an employee with nobody on file finds the other employee, and only them',
-    pg_temp.listed(people[6]) = ARRAY[people[5]]);
+  -- Not "= ARRAY[people[5]]": the real employees in the database are listed too.
+  got := pg_temp.listed(people[6]);
+  PERFORM pg_temp.expect_true('2c an employee with nobody on file finds the other employee, and only employees',
+    people[5] = ANY (got)
+    AND NOT EXISTS (SELECT 1 FROM unnest(got) g WHERE NOT public.has_role(g, 'employee'::app_role)));
   PERFORM pg_temp.expect_true('2d an employee finds the other employee but not admins, managers or operators',
     people[6] = ANY (pg_temp.listed(people[5]))
     AND NOT (people[1] = ANY (pg_temp.listed(people[5])))
