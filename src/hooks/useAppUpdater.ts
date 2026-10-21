@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
+ * O que uma verificação pedida à mão encontrou.
+ *
+ *  - `updated`  — há build novo; a página vai recarregar.
+ *  - `current`  — já está no mais recente. Vale a pena dizê-lo: sem resposta, quem carrega
+ *                 no botão não sabe se funcionou e carrega outra vez.
+ *  - `unknown`  — não deu para perguntar (sem rede, ou em dev, onde não há `/assets/`).
+ */
+export type UpdateCheck = "updated" | "current" | "unknown";
+
+/**
  * Keeps the tablet on the latest deployed build without a manual refresh.
  * Vite emits a hashed `/assets/index-*.js` entry that changes on every publish,
  * so we compare the currently-running entry against the one in the freshly
@@ -11,14 +21,43 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *     backgrounded, so we never wipe a half-typed entry or leave the tablet
  *     stuck on a stale build.
  *
- * Returns `{ updateReady, reloadNow }` for the banner in <AppUpdater/>.
+ * Returns `{ updateReady, reloadNow, checkNow, checking }` for the banner in
+ * <AppBanners/> and para o botão de "Check for updates".
+ *
+ * `checkNow` existe porque a deteção automática tem um ritmo: 15 s depois de abrir, depois
+ * de 2 em 2 minutos, e sempre que a app volta ao primeiro plano. Para quem acabou de
+ * publicar e quer ver a mudança agora, dois minutos é tempo a mais — e sem forma de
+ * forçar, a saída era fechar a app e voltar a abrir. É pedir a mesma pergunta já, à
+ * ordem, e dizer a resposta mesmo quando é "já estás no mais recente".
  */
 export function useAppUpdater() {
   const baselineRef = useRef<string | null>(null);
   const pendingRef = useRef(false);
+  const fetchRef = useRef<(() => Promise<string | null>) | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const reloadNow = useCallback(() => { location.reload(); }, []);
+
+  /**
+   * A verificação pedida à mão. Recarrega sozinha quando encontra build novo — quem
+   * carregou no botão pediu exactamente isso, e um segundo passo ("encontrei, queres
+   * recarregar?") só põe outro toque entre a pessoa e a versão nova.
+   */
+  const checkNow = useCallback(async (): Promise<UpdateCheck> => {
+    const ask = fetchRef.current;
+    if (!ask || !baselineRef.current) return "unknown";
+    setChecking(true);
+    try {
+      const latest = await ask();
+      if (!latest) return "unknown";
+      if (latest === baselineRef.current) return "current";
+      location.reload();
+      return "updated";
+    } finally {
+      setChecking(false);
+    }
+  }, []);
 
   useEffect(() => {
     const currentEntry = (): string | null => {
@@ -45,6 +84,9 @@ export function useAppUpdater() {
         return null;
       }
     };
+
+    // O botão usa a mesma pergunta que o temporizador, e não uma cópia dela.
+    fetchRef.current = fetchLatestEntry;
 
     const onUpdateDetected = () => {
       if (pendingRef.current) return;
@@ -75,11 +117,12 @@ export function useAppUpdater() {
 
     return () => {
       stopped = true;
+      fetchRef.current = null;
       window.clearInterval(interval);
       window.clearTimeout(first);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
-  return { updateReady, reloadNow };
+  return { updateReady, reloadNow, checkNow, checking };
 }

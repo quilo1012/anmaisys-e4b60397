@@ -2,6 +2,7 @@ import { ReactNode, useState, useEffect, useRef } from "react";
 import { awaitingResumeSummary } from "@/lib/awaitingResume";
 import { useAuth } from "@/contexts/AuthContext";
 import { NavLink } from "@/components/NavLink";
+import { CheckForUpdatesButton, useCheckForUpdates } from "@/components/CheckForUpdatesButton";
 import { getCurrentFactoryShift, SHIFT_LABEL } from "@/lib/shifts";
 import {
   Sidebar,
@@ -1035,6 +1036,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               <div className="mb-2 group-data-[collapsible=icon]:hidden">
                 <AvailabilityMenu variant="sidebar" />
               </div>
+              {/* A par do Sign Out porque é a mesma classe de acção: não é de um ecrã,
+                  é da app inteira, e é onde a pessoa já vem procurar. */}
+              <CheckForUpdatesButton className="flex min-h-11 w-full items-center justify-start rounded-md px-3 text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-60 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" />
               <Button
                 variant="ghost"
                 size="sm"

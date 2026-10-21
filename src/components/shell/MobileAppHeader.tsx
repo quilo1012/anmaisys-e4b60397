@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { BellRing, LogOut, Menu, Moon, PowerOff, Sun, Volume2, VolumeX, Camera } from "lucide-react";
+import { BellRing, LogOut, Menu, Moon, PowerOff, RefreshCw, Sun, Volume2, VolumeX, Camera } from "lucide-react";
+import { useCheckForUpdates } from "@/components/CheckForUpdatesButton";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -208,6 +209,7 @@ export function AccountMenu({
   alertSound?: boolean;
 }) {
   const { audioEnabled, volume, setVolume, testSound, promptEnableAudio } = useCriticalAlert();
+  const { run: checkForUpdates, busy: updatesBusy } = useCheckForUpdates();
   const soundOn = audioEnabled && volume > 0;
   const initial = name?.trim().charAt(0).toUpperCase() || "?";
   return (
@@ -271,6 +273,18 @@ export function AccountMenu({
         <DropdownMenuItem className="min-h-11 gap-2" onSelect={onToggleDark}>
           {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           {dark ? "Light mode" : "Dark mode"}
+        </DropdownMenuItem>
+        {/* Aqui é onde mais falta fazia: num telemóvel com a app instalada no ecrã
+            inicial não há barra de endereço nem botão de recarregar, por isso a única
+            forma de forçar era fechar a app pelo selector e voltar a abrir.
+            `onSelect` com preventDefault para o menu não fechar antes da resposta. */}
+        <DropdownMenuItem
+          className="min-h-11 gap-2"
+          disabled={updatesBusy}
+          onSelect={(e) => { e.preventDefault(); void checkForUpdates(); }}
+        >
+          <RefreshCw className={`h-4 w-4 ${updatesBusy ? "animate-spin" : ""}`} />
+          {updatesBusy ? "Checking…" : "Check for updates"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="min-h-11 gap-2 text-destructive-strong focus:text-destructive-strong" onSelect={onSignOut}>
