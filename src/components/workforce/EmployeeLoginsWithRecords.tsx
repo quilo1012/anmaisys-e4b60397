@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { EmployeeDetailPanel } from "@/components/workforce/EmployeeDetailPanel";
 import { EmployeeLoginsTable, type EmployeeLogin } from "@/components/users/EmployeeLoginsTable";
 import { useEmployees } from "@/hooks/useWorkforce";
+import { usePushCoverage } from "@/hooks/usePushCoverage";
 
 /**
  * User Management → Employees, with the employee records behind it.
@@ -26,6 +27,7 @@ export function EmployeeLoginsWithRecords({
   accountSection: (userId: string | null, leave: (then: () => void) => void) => ReactNode;
 }) {
   const { data: employees, isLoading, isError } = useEmployees();
+  const { data: pushCoverage } = usePushCoverage();
   const [recordId, setRecordId] = useState<string | null>(null);
   const open = (employees ?? []).find((e) => e.id === recordId) ?? null;
 
@@ -41,6 +43,7 @@ export function EmployeeLoginsWithRecords({
         notice={isError ? "The employee records could not be loaded, so department and shift are not shown. Reload to try again." : undefined}
         emptyText={emptyText}
         rowExtras={rowExtras}
+        pushCoverage={pushCoverage ?? null}
         onEdit={(login, record) => { if (record) setRecordId(record.id); else onEditLogin(login); }}
       />
       <EmployeeDetailPanel

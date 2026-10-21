@@ -12,6 +12,7 @@ import {
   ALL, filterDirectory, filterOptions, paginate, sortByName, type SortDirection,
 } from "@/lib/employeeDirectory";
 import type { Employee } from "@/hooks/useWorkforce";
+import type { PushCoverageRow } from "@/hooks/usePushCoverage";
 
 export interface EmployeeLogin {
   id: string;
@@ -35,7 +36,7 @@ export const EMPLOYEE_LOGINS_PAGE_SIZE = 25;
  * where it does not, it opens the account dialog, which is all there is to edit.
  */
 export function EmployeeLoginsTable({
-  logins, employees, canLinkRecords, canOpenRecords, isLoadingRecords = false, onEdit, rowExtras, emptyText, notice,
+  logins, employees, canLinkRecords, canOpenRecords, isLoadingRecords = false, onEdit, rowExtras, emptyText, notice, pushCoverage = null,
 }: {
   logins: readonly EmployeeLogin[];
   /**
@@ -56,11 +57,17 @@ export function EmployeeLoginsTable({
   emptyText: string;
   /** A line under the filters, e.g. that the records could not be loaded. */
   notice?: string;
+  /**
+   * Which logins have a phone on the push list, or null when that is not known (the column
+   * and its filter are then left out, never drawn as a column of "Off").
+   */
+  pushCoverage?: ReadonlyMap<string, PushCoverageRow> | null;
 }) {
   const hasRecords = employees !== null;
   const [q, setQ] = useState("");
   const [department, setDepartment] = useState(ALL);
   const [shift, setShift] = useState(ALL);
+  const [alerts, setAlerts] = useState(ALL);
   const [direction, setDirection] = useState<SortDirection>("asc");
   const [page, setPage] = useState(0);
 
@@ -84,14 +91,21 @@ export function EmployeeLoginsTable({
   const departmentOptions = useMemo(() => filterOptions(rows.map((r) => r.department)), [rows]);
   const shiftOptions = useMemo(() => filterOptions(rows.map((r) => r.shift)), [rows]);
 
+  const hasPush = pushCoverage !== null;
+  const alertsOn = (id: string) => (pushCoverage?.get(id)?.phones ?? 0) > 0;
   const visible = useMemo(
-    () => sortByName(filterDirectory(rows, { q, department, shift }), direction),
-    [rows, q, department, shift, direction],
+    () => sortByName(
+      filterDirectory(rows, { q, department, shift })
+        .filter((r) => !hasPush || alerts === ALL || (alerts === "on") === alertsOn(r.login.id)),
+      direction,
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- alertsOn reads pushCoverage
+    [rows, q, department, shift, direction, alerts, pushCoverage],
   );
   const view = paginate(visible, page, EMPLOYEE_LOGINS_PAGE_SIZE);
   const from = visible.length === 0 ? 0 : view.page * EMPLOYEE_LOGINS_PAGE_SIZE + 1;
   const to = view.page * EMPLOYEE_LOGINS_PAGE_SIZE + view.rows.length;
-  const filtering = q.trim() !== "" || department !== ALL || shift !== ALL;
+  const filtering = q.trim() !== "" || department !== ALL || shift !== ALL || (hasPush && alerts !== ALL);
 
   // Any filter change goes back to page one; sorting keeps the place, and nothing else resets.
   const change = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(0); };
@@ -128,6 +142,14 @@ export function EmployeeLoginsTable({
               ))}
             </SelectContent>
           </Select>}
+          {hasPush && <Select value={alerts} onValueChange={change(setAlerts)}>
+            <SelectTrigger className="h-9 w-full text-sm sm:w-44" aria-label="Filter by phone alerts"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All phone alerts</SelectItem>
+              <SelectItem value="off">Alerts off ({rows.filter((r) => !alertsOn(r.login.id)).length})</SelectItem>
+              <SelectItem value="on">Alerts on ({rows.filter((r) => alertsOn(r.login.id)).length})</SelectItem>
+            </SelectContent>
+          </Select>}
           <Button
             type="button" variant="outline" size="sm" className="h-9 gap-1.5"
             onClick={() => setDirection(direction === "asc" ? "desc" : "asc")}
@@ -138,7 +160,7 @@ export function EmployeeLoginsTable({
           </Button>
           {filtering && (
             <Button type="button" variant="ghost" size="sm" className="h-9"
-              onClick={() => { setQ(""); setDepartment(ALL); setShift(ALL); setPage(0); }}>
+              onClick={() => { setQ(""); setDepartment(ALL); setShift(ALL); setAlerts(ALL); setPage(0); }}>
               Clear filters
             </Button>
           )}
@@ -154,6 +176,7 @@ export function EmployeeLoginsTable({
               {canLinkRecords && <TableHead>Employee record</TableHead>}
               {hasRecords && <TableHead>Department</TableHead>}
               {hasRecords && <TableHead>Shift</TableHead>}
+              {hasPush && <TableHead>Phone alerts</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -175,6 +198,13 @@ export function EmployeeLoginsTable({
                   )}
                   {hasRecords && <TableCell>{dept ?? notSet(noRecord ? "No employee record" : "Not set")}</TableCell>}
                   {hasRecords && <TableCell>{sh ?? notSet(noRecord ? "No employee record" : "Not set")}</TableCell>}
+                  {hasPush && (
+                    <TableCell>
+                      {alertsOn(login.id)
+                        ? <Badge variant="outline" className="font-normal">On · {pushCoverage!.get(login.id)!.platforms.join(", ")}</Badge>
+                        : <span className="text-xs text-muted-foreground">Off</span>}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Badge variant={login.active ? "default" : "secondary"}>{login.active ? "Active" : "Inactive"}</Badge>
                   </TableCell>
@@ -195,7 +225,7 @@ export function EmployeeLoginsTable({
             })}
             {visible.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4 + (canLinkRecords ? 1 : 0) + (hasRecords ? 3 : 0)} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={4 + (canLinkRecords ? 1 : 0) + (hasRecords ? 3 : 0) + (hasPush ? 1 : 0)} className="py-8 text-center text-muted-foreground">
                   {filtering ? "No employees match these filters." : emptyText}
                 </TableCell>
               </TableRow>

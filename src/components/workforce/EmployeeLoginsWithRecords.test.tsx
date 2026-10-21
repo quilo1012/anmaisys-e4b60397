@@ -17,6 +17,7 @@ vi.mock("@/hooks/useWorkforce", () => ({
   useUpdateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
   describeDays: () => "", describeSchedule: () => "",
 }));
+vi.mock("@/hooks/usePushCoverage", () => ({ usePushCoverage: () => ({ data: null }) }));
 vi.mock("@/components/workforce/LinkEmployeeRecord", () => ({ LinkEmployeeRecord: () => null }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 

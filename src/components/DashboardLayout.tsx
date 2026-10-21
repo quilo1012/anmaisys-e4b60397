@@ -51,6 +51,7 @@ import { MobileAppHeader } from "@/components/shell/MobileAppHeader";
 import { InShellContentContext, ShellTitleContext } from "@/components/shell/shellTitle";
 import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
+import { PushPromptBanner } from "@/components/PushPromptBanner";
 import { OvertimeOfferAlert } from "@/components/workforce/OvertimeOfferAlert";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
@@ -1152,6 +1153,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               )}
             >
               <div className="min-w-0 w-full">
+                <PushPromptBanner role={role} />
                 <ShellTitleContext.Provider value={currentPageTitle}><InShellContentContext.Provider value={true}>{children}</InShellContentContext.Provider></ShellTitleContext.Provider>
               </div>
             </div>
