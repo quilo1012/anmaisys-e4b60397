@@ -38,11 +38,11 @@ import {
 } from "@/lib/overtimeRequests";
 import {
   askShift, askState, ASK_STATE_LABEL, summarise, filterAsks, clashesFor, boardDatesFor, duplicateNames,
-  hoursLabel, windowMinutes, DEFAULT_FILTERS, OVERTIME_SHIFTS,
+  hoursLabel, DEFAULT_FILTERS, OVERTIME_SHIFTS,
   type OvertimeShift, type AskFilters, type AskState, type BoardRow, type Clash, type ShiftSummary,
 } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
-import { shiftEdge } from "@/lib/shiftLook";
+import { shiftCard } from "@/lib/shiftLook";
 import { OvertimeRulesDialog } from "@/components/workforce/OvertimeRulesDialog";
 import { answeredForDifferentHours, countStale, windowAnswered } from "@/lib/staleOvertimeAnswer";
 import { OvertimeCalendar, TOGGLE_ON } from "@/components/workforce/OvertimeCalendar";
@@ -79,19 +79,6 @@ const SHIFT_ICON: Record<OvertimeShift, typeof Sun> = { Day: Sun, Night: Moon };
 const SHIFT_HOURS: Record<OvertimeShift, { starts: string; ends: string }> = {
   Day: { starts: "06:00", ends: "18:00" }, Night: { starts: "18:00", ends: "06:00" },
 };
-
-/** Overtime is not always a full 12-hour shift: common lengths, picked in one tap. */
-const DURATION_HOURS = [2, 3, 4, 6, 8, 10, 12] as const;
-/** Common start times — the two shift starts first, then the usual half-shift cuts. */
-const START_PRESETS = ["06:00", "10:00", "12:00", "14:00", "18:00", "22:00"] as const;
-
-/** `start` plus `hours`, wrapped past midnight, as HH:MM. */
-function addHours(start: string, hours: number): string {
-  const m = /^(\d{2}):(\d{2})/.exec(start);
-  if (!m) return "";
-  const total = (Number(m[1]) * 60 + Number(m[2]) + hours * 60) % (24 * 60);
-  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-}
 
 const RANGE_LABEL: Record<AskFilters["range"], string> = {
   upcoming: "Upcoming", today: "Today", tomorrow: "Tomorrow", next7: "Next 7 days",
@@ -473,23 +460,10 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
     return true;
   };
 
+  /** Always show the summary first: the wrong date or shift is the mistake this form exists to stop. */
   const submit = () => {
     if (!validate()) return;
-    if (allDates.length > 1) { void prepareReview(); return; }
-    createRequest.mutate(
-      payload(onDate),
-      {
-        onSuccess: ({ push }) => {
-          const head = `Published for ${fmtDate(onDate)}`;
-          // Says only what is known: a bell written is a row in the database; a phone
-          // alert is "handed to the push service", not "received".
-          const { tone, text } = announceSummary(head, push);
-          (tone === "warning" ? toast.warning : toast.success)(text, { duration: 8000 });
-          onOpenChange(false); setNote("");
-        },
-        onError: (e) => toast.error((e as Error).message || "Could not create the ask"),
-      },
-    );
+    void prepareReview();
   };
 
   /** Read what is already on those dates, fresh, and show the list before anything is written. */
@@ -515,13 +489,21 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
     if (!review) return;
     setPublishing(true);
     const done: string[] = []; const failed: string[] = [];
+    let lastPush: Awaited<ReturnType<typeof createRequest.mutateAsync>>["push"] | undefined;
     for (const row of review) {
       if (row.duplicate) continue;
-      try { await createRequest.mutateAsync(payload(row.date)); done.push(row.date); }
+      try { lastPush = (await createRequest.mutateAsync(payload(row.date))).push; done.push(row.date); }
       catch { failed.push(row.date); }
     }
     setPublishing(false);
     const skipped = review.filter((r) => r.duplicate).length;
+    if (done.length === 1 && !failed.length && !skipped) {
+      // One ask: say only what is known about the phone alert, as a single ask always has.
+      const { tone, text } = announceSummary(`Published for ${fmtDate(done[0])}`, lastPush);
+      (tone === "warning" ? toast.warning : toast.success)(text, { duration: 8000 });
+      onOpenChange(false); setNote(""); setExtraDates([]); setReview(null);
+      return;
+    }
     const parts = [`Published ${done.length} ${done.length === 1 ? "ask" : "asks"}`];
     if (skipped) parts.push(`${skipped} skipped as duplicates`);
     if (failed.length) parts.push(`failed: ${failed.map(fmtDate).join(", ")}`);
@@ -549,7 +531,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
               {review.map((r) => (
                 <li key={r.date} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                   <span className="tabular-nums">
-                    <strong>{fmtDate(r.date)}</strong> · {windowLabel(startsAt, endsAt)} · {target} shift
+                    <strong>{fmtDate(r.date)}</strong> · {windowLabel(startsAt, endsAt)} · <ShiftTag shift={target} />
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {r.duplicate
@@ -600,61 +582,23 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
             )}
           </div>
           <div className="grid gap-1.5">
-            <Label>Full shift</Label>
-            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Full shift">
-              {OVERTIME_SHIFTS.map((s) => {
-                const Icon = SHIFT_ICON[s];
-                const on = startsAt === SHIFT_HOURS[s].starts && endsAt === SHIFT_HOURS[s].ends;
+            <Label>Shift (12 hours)</Label>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Shift">
+              {OVERTIME_SHIFTS.map((sh) => {
+                const Icon = SHIFT_ICON[sh];
+                const on = startsAt === SHIFT_HOURS[sh].starts && endsAt === SHIFT_HOURS[sh].ends;
+                const look = sh === "Day"
+                  ? (on ? "border-shift-day bg-shift-day text-white hover:bg-shift-day/90" : "border-shift-day/40 text-shift-day-strong hover:bg-shift-day/10")
+                  : (on ? "border-shift-night bg-shift-night text-white hover:bg-shift-night/90" : "border-shift-night/40 text-shift-night-strong hover:bg-shift-night/10");
                 return (
-                  <Button key={s} type="button" size="sm" variant={on ? "default" : "outline"} aria-pressed={on}
-                    onClick={() => { setStartsAt(SHIFT_HOURS[s].starts); setEndsAt(SHIFT_HOURS[s].ends); }}>
-                    <Icon className="mr-1.5 h-4 w-4" aria-hidden /> {s} {SHIFT_HOURS[s].starts}–{SHIFT_HOURS[s].ends}
+                  <Button key={sh} type="button" variant="outline" aria-pressed={on}
+                    className={cn("h-auto flex-col gap-0.5 py-2 font-semibold", look)}
+                    onClick={() => { setStartsAt(SHIFT_HOURS[sh].starts); setEndsAt(SHIFT_HOURS[sh].ends); }}>
+                    <span className="flex items-center gap-1.5"><Icon className="h-4 w-4" aria-hidden /> {sh.toUpperCase()} SHIFT</span>
+                    <span className="text-xs font-normal tabular-nums">{SHIFT_HOURS[sh].starts}–{SHIFT_HOURS[sh].ends}</span>
                   </Button>
                 );
               })}
-            </div>
-          </div>
-          {/* Not only 12 hours: pick when it starts, then how long. Both write the two
-              time boxes below, which stay editable for anything else. */}
-          <div className="grid gap-1.5">
-            <Label>Starts at</Label>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Start time">
-              {START_PRESETS.map((t) => (
-                <Button key={t} type="button" size="sm" variant={startsAt === t ? "default" : "outline"}
-                  aria-pressed={startsAt === t} className="tabular-nums"
-                  onClick={() => {
-                    // Keep the length already chosen when there is one.
-                    const keep = startsAt && endsAt ? windowMinutes(startsAt, endsAt) / 60 : 0;
-                    setStartsAt(t);
-                    if (keep > 0 && keep < 24) setEndsAt(addHours(t, keep));
-                  }}>
-                  {t}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="grid gap-1.5">
-            <Label>How long</Label>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Length of overtime">
-              {DURATION_HOURS.map((h) => {
-                const on = !!startsAt && !!endsAt && windowMinutes(startsAt, endsAt) === h * 60;
-                return (
-                  <Button key={h} type="button" size="sm" variant={on ? "default" : "outline"} aria-pressed={on}
-                    onClick={() => setEndsAt(addHours(startsAt, h))}>
-                    {h}h
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="ot-start">From</Label>
-              <Input id="ot-start" type="time" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="ot-end">To</Label>
-              <Input id="ot-end" type="time" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
             </div>
           </div>
           {/* The board this lands on is decided by the start time — the same rule the
@@ -705,7 +649,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
           </div>
           <Button onClick={submit} disabled={createRequest.isPending}>
             {createRequest.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {allDates.length > 1 ? `Review ${allDates.length} asks` : "Post the ask"}
+            {allDates.length > 1 ? `Review ${allDates.length} asks` : "Review the ask"}
           </Button>
         </div>
         )}
@@ -832,7 +776,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
 
   return (
     <>
-    <Card className={cn(shiftEdge(shift), request.status !== "open" && "opacity-80")}>
+    <Card className={cn(shiftCard(shift), request.status !== "open" && "opacity-80")}>
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
