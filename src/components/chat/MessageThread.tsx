@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AlertCircle, ArrowDown, Check, CheckCheck, Download, FileText, Loader2, Reply, RotateCw } from "lucide-react";
+import { AlertCircle, ArrowDown, Ban, Check, CheckCheck, Download, FileText, Loader2, Reply, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
@@ -20,6 +20,8 @@ export interface UIMessage {
   audio_path?: string | null;
   reply_to_id?: string | null;
   attachments: ChatAttachment[];
+  /** Retirada por quem a escreveu: o conteudo ja nao existe, a linha sim. */
+  deleted_at?: string | null;
   /** A message on its way, or one that did not get there. */
   status?: "sending" | "failed";
   /** Upload progress of a message on its way, 0–1. */
@@ -83,7 +85,7 @@ function Attachment({ a, own }: { a: ChatAttachment; own: boolean }) {
 
 export function MessageThread({
   messages, meId, people, isGroup, loading, error, onRetryLoad, hasOlder, loadingOlder, onLoadOlder,
-  onRetrySend, onReply, renderExtras, emptyText, presence,
+  onRetrySend, onReply, onWithdraw, renderExtras, emptyText, presence,
 }: {
   messages: UIMessage[];
   meId: string;
@@ -99,6 +101,8 @@ export function MessageThread({
   onLoadOlder: () => void;
   onRetrySend: (m: UIMessage) => void;
   onReply?: (m: UIMessage) => void;
+  /** Retirar a propria mensagem. Ausente onde a accao nao se oferece. */
+  onWithdraw?: (m: UIMessage) => void;
   /** Translate / convert-to-text controls of a private message. */
   renderExtras?: (m: UIMessage) => React.ReactNode;
   emptyText: string;
@@ -220,10 +224,22 @@ export function MessageThread({
                       <span className="line-clamp-2">{quoted.body || "📎 File"}</span>
                     </div>
                   )}
-                  {/* Text is text: React escapes it; nothing here is ever HTML. */}
-                  {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
-                  {m.audio_path && <VoiceNote path={m.audio_path} />}
-                  {m.attachments.map((a) => <Attachment key={a.id} a={a} own={own} />)}
+                  {/* Retirada: a linha fica, o conteudo nao. Dizer que esteve ali e
+                      melhor do que fazer desaparecer — quem respondeu a ela continua a
+                      ver a que mensagem respondeu. */}
+                  {m.deleted_at ? (
+                    <p className="flex items-center gap-1.5 italic opacity-70">
+                      <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {own ? "You withdrew this message" : "This message was withdrawn"}
+                    </p>
+                  ) : (
+                    <>
+                      {/* Text is text: React escapes it; nothing here is ever HTML. */}
+                      {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
+                      {m.audio_path && <VoiceNote path={m.audio_path} />}
+                      {m.attachments.map((a) => <Attachment key={a.id} a={a} own={own} />)}
+                    </>
+                  )}
                   {m.status === "sending" && m.progress !== undefined && m.progress < 1 && (
                     <div className="mt-1.5 h-1 w-32 overflow-hidden rounded bg-primary-foreground/30" role="progressbar" aria-valuenow={Math.round(m.progress * 100)} aria-valuemin={0} aria-valuemax={100} aria-label="Uploading">
                       <div className="h-full bg-primary-foreground transition-[width]" style={{ width: `${Math.round(m.progress * 100)}%` }} />
@@ -251,6 +267,18 @@ export function MessageThread({
                           aria-label={`Reply to ${who}`}
                         >
                           <Reply className="h-3 w-3" /> Reply
+                        </button>
+                      )}
+                      {/* So a propria, e so uma vez. Ao lado do Reply porque e a mesma
+                          classe de accao sobre a mensagem, e aparece do mesmo modo. */}
+                      {onWithdraw && own && !m.deleted_at && (
+                        <button
+                          type="button"
+                          onClick={() => onWithdraw(m)}
+                          className="flex items-center gap-0.5 opacity-0 transition-opacity hover:text-destructive-strong focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                          aria-label="Withdraw this message"
+                        >
+                          <Ban className="h-3 w-3" /> Withdraw
                         </button>
                       )}
                       {renderExtras?.(m)}

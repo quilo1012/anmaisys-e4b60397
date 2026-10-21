@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCurrentFactoryShift, getCurrentShiftStart } from "@/lib/shifts";
@@ -65,6 +66,8 @@ export interface GroupMessage {
   body: string;
   reply_to_id: string | null;
   created_at: string;
+  /** Retirada por quem a escreveu. O corpo vem vazio; isto e o que o diz. */
+  deleted_at?: string | null;
   chat_attachments?: ChatAttachment[];
 }
 
@@ -576,5 +579,28 @@ export function useSendDirect() {
       qc.invalidateQueries({ queryKey: ["dm_thread", user?.id, v.partnerId] });
       qc.invalidateQueries({ queryKey: ["dm_summaries"] });
     },
+  });
+}
+
+/**
+ * Retirar a propria mensagem.
+ *
+ * Pela RPC e nao por um UPDATE directo: a regra "so o autor" tem de viver no servidor,
+ * e o conteudo original tem de ir para `audit_logs` ANTES de sair da tabela do chat.
+ * Um UPDATE do cliente faria metade disso e chamar-lhe-ia apagar.
+ *
+ * Invalida a conversa inteira em vez de mexer na cache a mao: a mensagem continua la,
+ * so sem corpo, e e o servidor que decide o que e que isso passa a mostrar.
+ */
+export function useWithdrawMessage(kind: "direct" | "group", threadKey: unknown[]) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const fn = kind === "direct" ? "chat_withdraw_direct_message" : "chat_withdraw_group_message";
+      const { error } = await (supabase.rpc as any)(fn, { _id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: threadKey }); },
+    onError: (e: Error) => toast.error(e.message ?? "Could not withdraw the message"),
   });
 }
