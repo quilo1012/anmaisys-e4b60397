@@ -29,13 +29,13 @@ END $$;
 DO $$
 DECLARE
   u_op uuid := gen_random_uuid(); u_emp uuid := gen_random_uuid();
-  u_mgr uuid := gen_random_uuid(); u_both uuid := gen_random_uuid();
+  u_mgr uuid := gen_random_uuid(); u_both uuid := gen_random_uuid(); u_none uuid := gen_random_uuid();
   e_op uuid; e_both uuid; req uuid; n int;
 BEGIN
   INSERT INTO auth.users (id, email, instance_id, aud, role)
   SELECT u, 'zz-op-' || left(u::text, 8) || '@example.invalid', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated'
-    FROM unnest(ARRAY[u_op, u_emp, u_mgr, u_both]) u;
-  DELETE FROM public.user_roles WHERE user_id IN (u_op, u_emp, u_mgr, u_both);
+    FROM unnest(ARRAY[u_op, u_emp, u_mgr, u_both, u_none]) u;
+  DELETE FROM public.user_roles WHERE user_id IN (u_op, u_emp, u_mgr, u_both, u_none);
   INSERT INTO public.user_roles (user_id, role) VALUES
     (u_op, 'operator'), (u_emp, 'employee'), (u_mgr, 'manager'),
     (u_both, 'operator'), (u_both, 'manager');
@@ -43,6 +43,7 @@ BEGIN
   INSERT INTO public.employees (full_name, employee_ref, active, user_id) VALUES ('ZZ Op', 'ZZ9101', true, u_op) RETURNING id INTO e_op;
   INSERT INTO public.employees (full_name, employee_ref, active, user_id) VALUES ('ZZ Emp', 'ZZ9102', true, u_emp);
   INSERT INTO public.employees (full_name, employee_ref, active, user_id) VALUES ('ZZ Mgr', 'ZZ9103', true, u_mgr);
+  INSERT INTO public.employees (full_name, employee_ref, active, user_id) VALUES ('ZZ None', 'ZZ9105', true, u_none);
   INSERT INTO public.employees (full_name, employee_ref, active, user_id) VALUES ('ZZ Both', 'ZZ9104', true, u_both) RETURNING id INTO e_both;
 
   INSERT INTO public.overtime_requests (on_date, starts_at, ends_at, headcount, created_by)
@@ -59,6 +60,9 @@ BEGIN
   PERFORM pg_temp.ok('2b manager keeps their row', public.my_employee_id() IS NOT NULL);
   PERFORM pg_temp.as_user(u_both);
   PERFORM pg_temp.ok('3 operator + manager keeps the manager access', public.my_employee_id() = e_both);
+
+  PERFORM pg_temp.as_user(u_none);
+  PERFORM pg_temp.ok('2c a login with no role at all is untouched (only operators are held back)', public.my_employee_id() IS NOT NULL);
 
   -- 4. the Permissions screen
   PERFORM pg_temp.as_user(u_op);
