@@ -720,7 +720,7 @@ function ClashList({ clashes }: { clashes: Clash[] }) {
 function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ctx: CardContext; mayManage: boolean }) {
   const { roster, reliability, outcomeByResponse } = ctx;
   const responses = useMemo(() => ctx.responsesByRequest.get(request.id) ?? [], [ctx.responsesByRequest, request.id]);
-  const { setRequestStatus, editRequest, decide, recordOutcome, answerFor, removeAnswer } = useOvertimeMutations();
+  const { setRequestStatus, deleteRequest, editRequest, decide, recordOutcome, answerFor, removeAnswer } = useOvertimeMutations();
   // Corrigir a data e as horas de um pedido já feito. Ver `editRequest` para porque não
   // apaga respostas.
   const [editing, setEditing] = useState(false);
@@ -1031,6 +1031,21 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <Button size="sm" variant="ghost" onClick={() => setConfirmCancel(true)}>
                 Cancel ask
               </Button>
+              {/* Só para um pedido que ninguém tocou. Com respostas, a base recusa e
+                  a saída é cancelar. */}
+              {responses.length === 0 && (
+                <Button size="sm" variant="ghost" className="text-destructive-strong"
+                  disabled={deleteRequest.isPending}
+                  onClick={() => {
+                    if (!window.confirm("Delete this ask? Nobody has answered it, so nothing is lost.")) return;
+                    deleteRequest.mutate(request.id, {
+                      onSuccess: () => toast.success("Ask deleted"),
+                      onError: (e) => toast.error((e as Error).message || "Could not delete the ask"),
+                    });
+                  }}>
+                  Delete
+                </Button>
+              )}
               <Button size="sm" variant="secondary" onClick={() => changeStatus("closed")}>
                 Close ask
               </Button>
