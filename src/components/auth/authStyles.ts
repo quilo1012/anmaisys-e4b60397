@@ -17,14 +17,14 @@ export const authLabel = "text-sm font-medium text-auth-ink";
 // menor que 16px quando se lhe toca, e a página ficava ampliada e torta depois de
 // escrever a password. A partir de `sm` volta aos 14px de sempre.
 const fieldBase =
-  "h-[52px] w-full rounded-lg border border-auth-line bg-auth-paper text-base text-auth-ink sm:h-12 sm:text-sm " +
+  "h-[52px] min-w-0 w-full rounded-lg border border-auth-line bg-auth-paper text-base text-auth-ink sm:h-12 sm:text-sm " +
   "transition-colors placeholder:text-auth-ink-muted/70 hover:border-auth-ink-muted/50 " +
   "focus:border-auth-brand focus:outline-none focus:ring-2 focus:ring-auth-brand/20";
 
 /** Campo simples. */
 export const authField = `${fieldBase} px-4`;
 /** Campo com ícone à esquerda. */
-export const authFieldIconed = `${fieldBase} pl-10 pr-4`;
+export const authFieldIconed = `${fieldBase} pl-11 pr-4`;
 /**
  * Campo com ícone à esquerda e botão à direita (o olho do password).
  *
@@ -33,23 +33,23 @@ export const authFieldIconed = `${fieldBase} pl-10 pr-4`;
  * reservava deixavam de chegar, e o texto passava a correr por baixo do olho. Ao
  * rato continua nos 44, que é o que o botão ocupa lá.
  */
-export const authFieldIconedAction = `${fieldBase} pl-10 pr-11 coarse:pr-14`;
+export const authFieldIconedAction = `${fieldBase} pl-11 pr-14`;
 /** Campo sem ícone mas com botão à direita. */
-export const authFieldAction = `${fieldBase} px-4 pr-11 coarse:pr-14`;
+export const authFieldAction = `${fieldBase} px-4 pr-14`;
 /** `<select>`: a seta nativa sai com `appearance-none`, o chevron entra desenhado. */
-export const authSelect = `${fieldBase} appearance-none pl-10 pr-9`;
+export const authSelect = `${fieldBase} appearance-none pl-11 pr-9`;
 
 /** Ícone decorativo encostado à esquerda de um campo `relative`. */
 export const authIcon =
-  "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted";
+  "pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-auth-ink-muted";
 /** Botão encostado à direita de um campo `relative`. */
 export const authInlineBtn =
-  "absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-auth-ink-muted " +
+  "absolute right-1 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded text-auth-ink-muted " +
   "transition-colors hover:text-auth-ink";
 
 /** Forma e foco de um botão de ação; a cor vem de quem o usa. */
 export const authBtnBase =
-  "inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-lg text-[15px] font-semibold sm:h-12 sm:text-sm " +
+  "inline-flex h-[52px] w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg text-base font-semibold sm:h-12 sm:text-sm " +
   "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40 " +
   "focus-visible:ring-offset-2 active:scale-[0.99] disabled:pointer-events-none";
 
