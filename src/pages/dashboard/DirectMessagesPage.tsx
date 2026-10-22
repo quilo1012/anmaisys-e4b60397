@@ -11,6 +11,8 @@ import { usePresenceOf } from "@/hooks/useCommunicationPresence";
 import { ConversationList, type ListFilter } from "@/components/chat/ConversationList";
 import { MessageThread, type UIMessage } from "@/components/chat/MessageThread";
 import { Composer } from "@/components/chat/Composer";
+import { PushReachNotice } from "@/components/chat/PushReachNotice";
+import { OvertimePushNudge } from "@/components/workforce/OvertimePushNudge";
 import { CreateGroupDialog, GroupInfoSheet } from "@/components/chat/GroupDialogs";
 import { ProfilePhotoDialog } from "@/components/chat/ProfilePhotoDialog";
 import {
@@ -348,8 +350,16 @@ export default function DirectMessagesPage() {
 
   return (
     <DashboardLayout>
-      <div className="h-[calc(100dvh-10rem)] min-h-[420px] lg:h-[calc(100dvh-7rem)]">
-        <div className="grid h-full min-h-0 overflow-hidden rounded-xl border bg-card md:grid-cols-[300px_1fr] lg:grid-cols-[340px_1fr]">
+      {/* flex-col, so the card takes its own height and the grid gives it up, instead
+          of the grid keeping h-full and pushing the composer off the bottom. The card
+          removes itself the moment this phone is subscribed, and on most days it is
+          not there at all. */}
+      <div className="flex h-[calc(100dvh-10rem)] min-h-[420px] flex-col gap-3 lg:h-[calc(100dvh-7rem)]">
+        <OvertimePushNudge
+          title="Turn on notifications to get messages on your phone"
+          reason="Without this a message only reaches you when you next open the app — it will not buzz."
+        />
+        <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border bg-card md:grid-cols-[300px_1fr] lg:grid-cols-[340px_1fr]">
           <aside className={cn("min-h-0 border-r", active ? "hidden md:block" : "block")} aria-label="Conversations">
             <ConversationList
               conversations={shown}
@@ -416,6 +426,9 @@ export default function DirectMessagesPage() {
                   renderExtras={active.kind === "dm" ? renderExtras : undefined}
                   emptyText={active.kind === "group" ? "No messages in this group yet. Say hello." : "No messages yet. Write the first one."}
                 />
+                {active.kind === "dm" && (
+                  <PushReachNotice recipientId={active.id} name={current?.name} />
+                )}
                 <Composer
                   resetKey={activeKey!}
                   onSend={onSend}

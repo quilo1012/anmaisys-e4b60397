@@ -17,8 +17,23 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
  * Home Screen, so on an iPhone browser tab `supported` is false and there is nothing to
  * ask permission for — the card tells the person what to do instead of showing a
  * button that cannot work.
+ *
+ * The wording is a prop because the reason to turn notifications on is not always
+ * overtime. The Communication Hub has the same problem and the same cure: on 22/10,
+ * 65 of 70 active employees had no phone registered, so a direct message reached the
+ * bell and nothing else. Same card, same states, different sentence.
  */
-export function OvertimePushNudge() {
+export interface PushNudgeProps {
+  /** The promise, in the person's terms. */
+  title?: string;
+  /** What they lose by not turning it on. */
+  reason?: string;
+}
+
+export function OvertimePushNudge({
+  title = "Get a buzz when overtime opens",
+  reason = "Otherwise you only find out when you open the app — and the places may be gone.",
+}: PushNudgeProps = {}) {
   const { supported, environment, permission, subscribed, loading, subscribe } = usePushNotifications();
 
   if (subscribed) return null;
@@ -30,7 +45,7 @@ export function OvertimePushNudge() {
         <CardContent className="flex items-start gap-3 py-4">
           <Share className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="text-sm">
-            <div className="font-medium">Get a buzz when overtime opens</div>
+            <div className="font-medium">{title}</div>
             <div className="mt-0.5 text-muted-foreground">
               On iPhone, tap <span className="font-medium">Share</span> then{" "}
               <span className="font-medium">Add to Home Screen</span>. Open the app from there
@@ -52,7 +67,7 @@ export function OvertimePushNudge() {
           <div className="text-sm">
             <div className="font-medium">Notifications are blocked for this site</div>
             <div className="mt-0.5 text-muted-foreground">
-              You'll still see asks here, but your phone won't buzz. To turn them back on, allow
+              You'll still see them here, but your phone won't buzz. To turn them back on, allow
               notifications for this site in your browser settings.
             </div>
           </div>
@@ -67,10 +82,8 @@ export function OvertimePushNudge() {
         <div className="flex items-start gap-3 text-sm">
           <Bell className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div>
-            <div className="font-medium">Get a buzz when overtime opens</div>
-            <div className="mt-0.5 text-muted-foreground">
-              Otherwise you only find out when you open the app — and the places may be gone.
-            </div>
+            <div className="font-medium">{title}</div>
+            <div className="mt-0.5 text-muted-foreground">{reason}</div>
           </div>
         </div>
         <Button size="sm" disabled={loading} onClick={() => void subscribe()}>
