@@ -81,16 +81,13 @@ const SHIFT_HOURS: Record<OvertimeShift, { starts: string; ends: string }> = {
   Day: { starts: "06:00", ends: "18:00" }, Night: { starts: "18:00", ends: "06:00" },
 };
 
-/** "06:00" + 8 h = "14:00"; wraps past midnight. Used for the 8-hour option, whose end follows the start. */
-const addHours = (hhmm: string, hours: number): string => {
-  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm);
-  if (!m) return "";
-  const mins = (Number(m[1]) * 60 + Number(m[2]) + hours * 60) % (24 * 60);
-  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-};
-
 const OVERTIME_LENGTHS = [8, 12] as const;
 type OvertimeLength = (typeof OVERTIME_LENGTHS)[number];
+
+/** The 8-hour windows, on the same two shift buttons as the 12-hour ones. */
+const SHIFT_HOURS_8: Record<OvertimeShift, { starts: string; ends: string }> = {
+  Day: { starts: "06:00", ends: "14:00" }, Night: { starts: "18:00", ends: "02:00" },
+};
 
 const RANGE_LABEL: Record<AskFilters["range"], string> = {
   upcoming: "Upcoming", today: "Today", tomorrow: "Tomorrow", next7: "Next 7 days",
@@ -603,45 +600,36 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
                   className={cn("h-auto py-2 font-semibold", length === h ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90" : "")}
                   onClick={() => {
                     setLength(h);
-                    if (h === 8) { setStartsAt("06:00"); setEndsAt(addHours("06:00", 8)); }
-                    else { setStartsAt(SHIFT_HOURS.Day.starts); setEndsAt(SHIFT_HOURS.Day.ends); }
+                    const win = h === 8 ? SHIFT_HOURS_8.Day : SHIFT_HOURS.Day;
+                    setStartsAt(win.starts); setEndsAt(win.ends);
                   }}>
                   {h} hours
                 </Button>
               ))}
             </div>
           </div>
-          {length === 8 ? (
-            <div className="grid gap-1.5">
-              <Label htmlFor="ot-start8">Start time</Label>
-              <Input id="ot-start8" type="time" value={startsAt}
-                onChange={(e) => { setStartsAt(e.target.value); setEndsAt(addHours(e.target.value, 8)); }} />
-              <p className="text-xs text-muted-foreground tabular-nums">
-                {startsAt ? `${startsAt}–${addHours(startsAt, 8)} · 8h` : "Pick when the 8 hours start."}
-              </p>
-            </div>
-          ) : (
+          {/* Same two shift buttons for 8 and 12 hours; only the window changes. */}
           <div className="grid gap-1.5">
-            <Label>Shift (12 hours)</Label>
+            <Label>Shift ({length} hours)</Label>
             <div className="grid grid-cols-2 gap-2" role="group" aria-label="Shift">
               {OVERTIME_SHIFTS.map((sh) => {
                 const Icon = SHIFT_ICON[sh];
-                const on = startsAt === SHIFT_HOURS[sh].starts && endsAt === SHIFT_HOURS[sh].ends;
+                const win = length === 8 ? SHIFT_HOURS_8[sh] : SHIFT_HOURS[sh];
+                const on = startsAt === win.starts && endsAt === win.ends;
                 const look = sh === "Day"
                   ? (on ? "border-shift-day bg-shift-day text-white hover:bg-shift-day/90" : "border-shift-day/40 text-shift-day-strong hover:bg-shift-day/10")
                   : (on ? "border-shift-night bg-shift-night text-white hover:bg-shift-night/90" : "border-shift-night/40 text-shift-night-strong hover:bg-shift-night/10");
                 return (
                   <Button key={sh} type="button" variant="outline" aria-pressed={on}
                     className={cn("h-auto flex-col gap-0.5 py-2 font-semibold", look)}
-                    onClick={() => { setStartsAt(SHIFT_HOURS[sh].starts); setEndsAt(SHIFT_HOURS[sh].ends); }}>
+                    onClick={() => { setStartsAt(win.starts); setEndsAt(win.ends); }}>
                     <span className="flex items-center gap-1.5"><Icon className="h-4 w-4" aria-hidden /> {sh.toUpperCase()} SHIFT</span>
-                    <span className="text-xs font-normal tabular-nums">{SHIFT_HOURS[sh].starts}–{SHIFT_HOURS[sh].ends}</span>
+                    <span className="text-xs font-normal tabular-nums">{win.starts}–{win.ends}</span>
                   </Button>
                 );
               })}
             </div>
           </div>
-          )}
           {/* The board this lands on is decided by the start time — the same rule the
               database uses. Said out loud so a 17:00 start is not a surprise. */}
           {target && (
