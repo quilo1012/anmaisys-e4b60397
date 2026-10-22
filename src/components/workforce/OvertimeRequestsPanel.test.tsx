@@ -141,26 +141,21 @@ describe("OvertimeRequestsPanel — calendar", () => {
   });
 });
 
-describe("publishing an ask that skips a crew", () => {
+describe("publishing an ask", () => {
   beforeEach(() => { createAsync.mockClear(); });
 
-  it("offers the crews to skip, and sends only the ticked ones", async () => {
+  it("does not offer a do-not-send-to section; the crew selector above decides who is asked", async () => {
     render(<OvertimeRequestsPanel />);
     fireEvent.click(screen.getAllByRole("button", { name: /New (overtime )?ask/i })[0]);
-    const box = await screen.findByTestId("skip-crews");
-    expect(within(box).getByText("Do not send to")).toBeInTheDocument();
-    fireEvent.click(within(box).getByRole("checkbox", { name: /Do not send to the Night crew/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^Publish ask|Review|Publish/i }));
-    const publish = await screen.findByRole("button", { name: /Publish 1 ask/i });
-    fireEvent.click(publish);
-    await vi.waitFor(() => expect(createAsync).toHaveBeenCalledTimes(1));
-    expect(createAsync.mock.calls[0][0].excluded_shift_groups).toEqual(["Night"]);
+    await screen.findByLabelText("Crew asked");
+    expect(screen.queryByTestId("skip-crews")).not.toBeInTheDocument();
+    expect(screen.queryByText("Do not send to")).not.toBeInTheDocument();
   });
 
-  it("sends nothing about crews when none is ticked, so it still saves before BLOCO 116", async () => {
+  it("never sends excluded_shift_groups", async () => {
     render(<OvertimeRequestsPanel />);
     fireEvent.click(screen.getAllByRole("button", { name: /New (overtime )?ask/i })[0]);
-    await screen.findByTestId("skip-crews");
+    await screen.findByLabelText("Crew asked");
     fireEvent.click(screen.getByRole("button", { name: /^Publish ask|Review|Publish/i }));
     fireEvent.click(await screen.findByRole("button", { name: /Publish 1 ask/i }));
     await vi.waitFor(() => expect(createAsync).toHaveBeenCalledTimes(1));
