@@ -50,7 +50,7 @@ export function WorkforceTabs() {
     <nav
       ref={strip}
       aria-label="Workforce sections"
-      className="-mx-3 flex items-center gap-1 overflow-x-auto border-y bg-muted/40 px-3 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:rounded-lg sm:border sm:p-1 print:hidden [&::-webkit-scrollbar]:hidden"
+      className="-mx-3 flex items-center gap-1 overflow-x-auto border-y bg-muted/40 px-3 py-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:justify-center sm:overflow-visible sm:rounded-lg sm:border sm:p-1 print:hidden [&::-webkit-scrollbar]:hidden"
     >
       {visibleTabs.map((t) => (
         <NavLink
