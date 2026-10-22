@@ -65,6 +65,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_usage_limits: {
+        Row: {
+          bucket: string
+          count: number
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          bucket: string
+          count?: number
+          user_id: string
+          window_start?: string
+        }
+        Update: {
+          bucket?: string
+          count?: number
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       app_owner: {
         Row: {
           created_at: string
@@ -464,6 +485,8 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           group_id: string
           id: string
           reply_to_id: string | null
@@ -472,6 +495,8 @@ export type Database = {
         Insert: {
           body: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           group_id: string
           id?: string
           reply_to_id?: string | null
@@ -480,6 +505,8 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           group_id?: string
           id?: string
           reply_to_id?: string | null
@@ -872,6 +899,8 @@ export type Database = {
         Row: {
           audio_url: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           image_url: string | null
           message: string
@@ -883,6 +912,8 @@ export type Database = {
         Insert: {
           audio_url?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           image_url?: string | null
           message?: string
@@ -894,6 +925,8 @@ export type Database = {
         Update: {
           audio_url?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           image_url?: string | null
           message?: string
@@ -1289,6 +1322,39 @@ export type Database = {
           },
         ]
       }
+      employee_supervisors: {
+        Row: {
+          employee_id: string
+          position: number
+          supervisor_id: string
+        }
+        Insert: {
+          employee_id: string
+          position?: number
+          supervisor_id: string
+        }
+        Update: {
+          employee_id?: string
+          position?: number
+          supervisor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_supervisors_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_supervisors_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           active: boolean
@@ -1395,6 +1461,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      engineer_pin_attempts: {
+        Row: {
+          created_at: string
+          failures: number
+          last_attempt: string
+          locked_until: string | null
+          lockout_step: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          failures?: number
+          last_attempt?: string
+          locked_until?: string | null
+          lockout_step?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          failures?: number
+          last_attempt?: string
+          locked_until?: string | null
+          lockout_step?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       engineer_scores: {
         Row: {
@@ -3151,6 +3247,7 @@ export type Database = {
           id: boolean
           late_cancel_blocks: boolean
           late_cancel_hours: number
+          min_rest_hours: number
           no_show_block_days: number
           updated_at: string
           updated_by: string | null
@@ -3159,6 +3256,7 @@ export type Database = {
           id?: boolean
           late_cancel_blocks?: boolean
           late_cancel_hours?: number
+          min_rest_hours?: number
           no_show_block_days?: number
           updated_at?: string
           updated_by?: string | null
@@ -3167,6 +3265,7 @@ export type Database = {
           id?: boolean
           late_cancel_blocks?: boolean
           late_cancel_hours?: number
+          min_rest_hours?: number
           no_show_block_days?: number
           updated_at?: string
           updated_by?: string | null
@@ -7266,6 +7365,15 @@ export type Database = {
         Args: { _new_email: string; _user_id: string }
         Returns: undefined
       }
+      ai_rate_limit_hit: {
+        Args: {
+          _bucket: string
+          _limit: number
+          _user_id: string
+          _window_seconds: number
+        }
+        Returns: Json
+      }
       answer_overtime: {
         Args: { p_answer: string; p_request_id: string }
         Returns: {
@@ -7462,6 +7570,11 @@ export type Database = {
         }
         Returns: undefined
       }
+      chat_withdraw_direct_message: {
+        Args: { _id: string }
+        Returns: undefined
+      }
+      chat_withdraw_group_message: { Args: { _id: string }; Returns: undefined }
       check_invite_code: { Args: { code: string }; Returns: boolean }
       cleanup_batch_skus: {
         Args: never
@@ -7495,8 +7608,6 @@ export type Database = {
         Args: never
         Returns: {
           approved_holiday: boolean
-          automatic_reason: string
-          automatic_status: string
           preference: string
         }[]
       }
@@ -7508,7 +7619,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      communication_work_state: { Args: { p_target: string }; Returns: string }
       communication_set_availability: {
         Args: { p_preference: string }
         Returns: undefined
@@ -7923,7 +8033,10 @@ export type Database = {
       }
       login_link_candidates: { Args: never; Returns: Json }
       match_employee_for_user: { Args: { _user_id: string }; Returns: string }
-      message_my_supervisor: { Args: { p_message: string }; Returns: string }
+      message_my_supervisor: {
+        Args: { p_message: string; p_supervisor?: string }
+        Returns: string
+      }
       message_overtime_supervisor: {
         Args: { p_message: string; p_request_id: string }
         Returns: string
@@ -8063,6 +8176,16 @@ export type Database = {
           sick_this_month: number
         }[]
       }
+      overtime_rest_short: {
+        Args: {
+          p_a_from: string
+          p_a_to: string
+          p_b_from: string
+          p_b_to: string
+          p_rest_hours: number
+        }
+        Returns: boolean
+      }
       overtime_roster: {
         Args: never
         Returns: {
@@ -8107,6 +8230,15 @@ export type Database = {
         Args: { _occurred_date: string; _shift: string }
         Returns: string
       }
+      push_coverage: {
+        Args: never
+        Returns: {
+          last_registered: string
+          phones: number
+          platforms: string[]
+          user_id: string
+        }[]
+      }
       rag_actual_from_floor: {
         Args: { _date: string; _line: string; _shift: string }
         Returns: number
@@ -8133,6 +8265,15 @@ export type Database = {
         }[]
       }
       refresh_site_banner: { Args: never; Returns: undefined }
+      register_push_subscription: {
+        Args: {
+          p_auth: string
+          p_endpoint: string
+          p_p256dh: string
+          p_user_agent?: string
+        }
+        Returns: undefined
+      }
       reject_wo: { Args: { _reason: string; _wo_id: string }; Returns: Json }
       reopen_wo_as_recurrence: {
         Args: { _reason: string; _wo_id: string }
@@ -8335,6 +8476,10 @@ export type Database = {
         Args: { p_path: string; p_user?: string }
         Returns: undefined
       }
+      set_employee_supervisors: {
+        Args: { p_employee: string; p_supervisors: string[] }
+        Returns: undefined
+      }
       set_engineer_pin: {
         Args: { _new_pin: string; _user_id: string }
         Returns: undefined
@@ -8356,6 +8501,13 @@ export type Database = {
       signup_invite_code: { Args: never; Returns: string }
       snapshot_sku_products: { Args: never; Returns: Json }
       supervisor_login_of: { Args: { p_employee: string }; Returns: string }
+      supervisor_logins_of: {
+        Args: { p_employee: string }
+        Returns: {
+          login: string
+          ord: number
+        }[]
+      }
       touch_device: { Args: { _token: string }; Returns: undefined }
       touch_last_seen: { Args: never; Returns: undefined }
       unlink_login_from_employee: {
@@ -8388,6 +8540,10 @@ export type Database = {
       verify_engineer_pin: {
         Args: { _pin: string; _user_id: string }
         Returns: boolean
+      }
+      verify_engineer_pin_with_lockout: {
+        Args: { _pin: string }
+        Returns: Json
       }
       verify_pin_by_code: {
         Args: { _pin: string }

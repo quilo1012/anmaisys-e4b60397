@@ -1,4 +1,5 @@
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
+import { lineLeadersByArea } from "@/lib/leaderMark";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -342,18 +343,6 @@ const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; sof
   Night: { icon: Moon, rule: "border-l-primary", chip: "bg-primary/15 text-primary", soft: "bg-primary/10", ink: "text-primary" },
 };
 
-/**
- * The line leader, picked out.
- *
- * A supervisor scanning a column wants to know it has a leader before they want
- * anybody's name. It comes off `position`, which was typed by hand over months —
- * hence a pattern rather than an exact list.
- */
-function isLeader(person: { position?: string | null; department?: string | null }) {
-  // The job is in `position` since #393; `department` only for a record with none.
-  const job = person.position?.trim() || person.department?.trim() || "";
-  return /team\s*lead|supervisor/i.test(job);
-}
 
 /** The role mark comes off the job first, for the same reason as `isLeader`. */
 const roleOf = (person: { position?: string | null; department?: string | null }) =>
@@ -889,23 +878,27 @@ function ShiftBoard({
         startTime: a.sheet_start_time ?? null,
         tag: a.sheet_tag ?? null,
         overtime: a.status === "overtime",
-        // The day's own leader wins. The job (`isLeader`) is only the fallback, so a board
-        // nobody has named a leader on still shows the Team Leaders it has.
-        leader: a.is_leader ?? false,
+        // Only the leader designated on this line, shift and date. A job title alone never leads.
+        leader: a.is_leader === true,
       });
       byArea.set(a.area_id, list);
     }
     for (const list of byArea.values()) {
       list.sort((a, b) => {
-        // The leader marked on this particular line and shift always takes the first
-        // position, even when another Team Leader is helping on the same line.
-        const la = a.leader ? 0 : isLeader(a.person) ? 1 : 2;
-        const lb = b.leader ? 0 : isLeader(b.person) ? 1 : 2;
+        const la = a.leader ? 0 : 1;
+        const lb = b.leader ? 0 : 1;
         return la - lb || a.shown.localeCompare(b.shown);
       });
     }
     return byArea;
   }, [allocations, employeeById]);
+
+  /** Lines with more than one designated leader this shift: shown, never silently resolved. */
+  const leaderConflicts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const [areaId, e] of lineLeadersByArea(allocations)) if (e.conflict) m.set(areaId, e.leaderIds.length);
+    return m;
+  }, [allocations]);
 
   /** Same answer as before, now a lookup. Empty areas keep returning a fresh []. */
   const peopleIn = (areaId: string) => peopleByArea.get(areaId) ?? [];
@@ -1642,6 +1635,11 @@ function ShiftBoard({
                   />
                 ) : undefined}
               >
+                    {leaderConflicts.has(area.id) && (
+                      <div role="alert" className="border-b border-warning bg-warning/15 px-2 py-1 text-xs font-semibold text-warning">
+                        Leader conflict: {leaderConflicts.get(area.id)} leaders marked on {area.name} this shift
+                      </div>
+                    )}
                     {people.map(({ person: p, shown, sheetName, startTime, tag, overtime: isOt, leader: leadsToday }) => (
                       <Chip
                         key={p.id}
@@ -1651,7 +1649,7 @@ function ShiftBoard({
                         startTime={startTime}
                         tag={tag}
                         workHours={workHoursOf(p.id)}
-                        leader={leadsToday || isLeader(p)}
+                        leader={leadsToday}
                         lineLeader={leadsToday}
                         lineName={area.name}
                         role={roleOf(p)}

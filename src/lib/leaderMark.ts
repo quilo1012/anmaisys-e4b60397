@@ -71,3 +71,28 @@ export function claimsLeadership(input: {
     && !input.columnTaken
   );
 }
+
+/**
+ * Who shows LEAD on each line: only an allocation marked `is_leader` for that area,
+ * on that date and shift. A job title never shows LEAD on its own. Two marks on one
+ * line and shift are a conflict to show, not a tie to break.
+ */
+export function lineLeadersByArea(
+  rows: ReadonlyArray<{
+    employee_id: string; area_id: string | null; is_leader?: boolean | null;
+    status: string; on_date?: string; shift?: string;
+  }>,
+  scope?: { onDate: string; shift: string },
+): Map<string, { leaderIds: string[]; conflict: boolean }> {
+  const out = new Map<string, { leaderIds: string[]; conflict: boolean }>();
+  for (const r of rows) {
+    if (r.is_leader !== true || !r.area_id) continue;
+    if (r.status !== "assigned" && r.status !== "overtime") continue;
+    if (scope && ((r.on_date && r.on_date !== scope.onDate) || (r.shift && r.shift !== scope.shift))) continue;
+    const e = out.get(r.area_id) ?? { leaderIds: [], conflict: false };
+    if (!e.leaderIds.includes(r.employee_id)) e.leaderIds.push(r.employee_id);
+    e.conflict = e.leaderIds.length > 1;
+    out.set(r.area_id, e);
+  }
+  return out;
+}
