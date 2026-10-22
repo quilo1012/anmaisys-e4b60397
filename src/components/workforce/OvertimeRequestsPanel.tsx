@@ -81,6 +81,17 @@ const SHIFT_HOURS: Record<OvertimeShift, { starts: string; ends: string }> = {
   Day: { starts: "06:00", ends: "18:00" }, Night: { starts: "18:00", ends: "06:00" },
 };
 
+/** "06:00" + 8 h = "14:00"; wraps past midnight. Used for the 8-hour option, whose end follows the start. */
+const addHours = (hhmm: string, hours: number): string => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm);
+  if (!m) return "";
+  const mins = (Number(m[1]) * 60 + Number(m[2]) + hours * 60) % (24 * 60);
+  return `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+};
+
+const OVERTIME_LENGTHS = [8, 12] as const;
+type OvertimeLength = (typeof OVERTIME_LENGTHS)[number];
+
 const RANGE_LABEL: Record<AskFilters["range"], string> = {
   upcoming: "Upcoming", today: "Today", tomorrow: "Tomorrow", next7: "Next 7 days",
   past14: "Past 14 days", date: "Pick a date…",
@@ -405,6 +416,8 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
   const [onDate, setOnDate] = useState(iso(new Date(Date.now() + 86_400_000)));
   const [startsAt, setStartsAt] = useState(SHIFT_HOURS[defaultShift].starts);
   const [endsAt, setEndsAt] = useState(SHIFT_HOURS[defaultShift].ends);
+  /** 12 keeps the two shift presets exactly as before; 8 takes any start time and ends 8 h later. */
+  const [length, setLength] = useState<OvertimeLength>(12);
   /** Optional. Empty: every yes is booked. A number: the first that many, then reserve. */
   const [headcount, setHeadcount] = useState("");
   const [department, setDepartment] = useState<string>("all");
@@ -583,6 +596,32 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
             )}
           </div>
           <div className="grid gap-1.5">
+            <Label>Overtime length</Label>
+            <div className="grid grid-cols-2 gap-2" role="group" aria-label="Overtime length">
+              {OVERTIME_LENGTHS.map((h) => (
+                <Button key={h} type="button" variant="outline" aria-pressed={length === h}
+                  className={cn("h-auto py-2 font-semibold", length === h ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90" : "")}
+                  onClick={() => {
+                    setLength(h);
+                    if (h === 8) { setStartsAt("06:00"); setEndsAt(addHours("06:00", 8)); }
+                    else { setStartsAt(SHIFT_HOURS.Day.starts); setEndsAt(SHIFT_HOURS.Day.ends); }
+                  }}>
+                  {h} hours
+                </Button>
+              ))}
+            </div>
+          </div>
+          {length === 8 ? (
+            <div className="grid gap-1.5">
+              <Label htmlFor="ot-start8">Start time</Label>
+              <Input id="ot-start8" type="time" value={startsAt}
+                onChange={(e) => { setStartsAt(e.target.value); setEndsAt(addHours(e.target.value, 8)); }} />
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {startsAt ? `${startsAt}–${addHours(startsAt, 8)} · 8h` : "Pick when the 8 hours start."}
+              </p>
+            </div>
+          ) : (
+          <div className="grid gap-1.5">
             <Label>Shift (12 hours)</Label>
             <div className="grid grid-cols-2 gap-2" role="group" aria-label="Shift">
               {OVERTIME_SHIFTS.map((sh) => {
@@ -602,6 +641,7 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
               })}
             </div>
           </div>
+          )}
           {/* The board this lands on is decided by the start time — the same rule the
               database uses. Said out loud so a 17:00 start is not a surprise. */}
           {target && (
