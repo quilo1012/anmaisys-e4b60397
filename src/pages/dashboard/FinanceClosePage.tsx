@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2 } from "lucide-react";
+import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2, Columns3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -476,6 +476,27 @@ export default function FinanceClosePage() {
   const [printKeys, setPrintKeys] = usePrintColumnKeys();
   const [printOpen, setPrintOpen] = useState(false);
   const printColumns = useMemo(() => pickPrintColumns(printKeys), [printKeys]);
+  // Screen-only column choice: what the register shows on this device. Separate from the
+  // print settings, so hiding a column on screen never changes what gets printed or exported.
+  const [screenKeys, setScreenKeys] = useState<string[]>(() => {
+    try {
+      const raw = window.localStorage.getItem("finance-close.screen-columns.v1");
+      const saved = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(saved) && saved.every((k) => typeof k === "string")) return saved;
+    } catch { /* storage blocked: show everything */ }
+    return CLOSE_COLUMNS.map((c) => c.key);
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("finance-close.screen-columns.v1", JSON.stringify(screenKeys)); } catch { /* ignore */ }
+  }, [screenKeys]);
+  const screenSet = useMemo(() => new Set(screenKeys), [screenKeys]);
+  const show = (key: string) => screenSet.has(key);
+  const screenColumns = useMemo(
+    () => CLOSE_COLUMNS.filter((c) => c.alwaysPrinted || screenSet.has(c.key)),
+    [screenSet],
+  );
+  const toggleScreenColumn = (key: string) =>
+    setScreenKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   const orientation = printOrientation(printColumns);
   const printCaption = `Finance Close · ${period?.name ?? "No period"} · ${fmtDate(from)} → ${fmtDate(periodEnd)}`
     + `${stillRunning ? ` · counted to ${fmtDate(to)}` : ""}`
@@ -869,6 +890,34 @@ export default function FinanceClosePage() {
 
           <Popover>
             <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" aria-label="Columns" className="h-9 justify-between gap-2 font-normal">
+                <Columns3 className="h-4 w-4 opacity-60" />
+                <span>Columns</span>
+                <span className="text-xs text-muted-foreground">{screenColumns.length}/{CLOSE_COLUMNS.length}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="max-h-[60vh] w-64 overflow-y-auto p-1">
+              {CLOSE_COLUMNS.map((c) => (
+                <Label key={c.key} className={`flex items-center gap-2 rounded-sm px-2 py-1.5 font-normal hover:bg-muted ${c.alwaysPrinted ? "cursor-default opacity-60" : "cursor-pointer"}`}>
+                  <Checkbox
+                    checked={c.alwaysPrinted || screenSet.has(c.key)}
+                    disabled={c.alwaysPrinted}
+                    onCheckedChange={() => toggleScreenColumn(c.key)}
+                  />
+                  {c.header}
+                </Label>
+              ))}
+              <div className="my-1 h-px bg-border" />
+              <Button variant="ghost" size="sm" className="h-8 w-full justify-start font-normal"
+                onClick={() => setScreenKeys(CLOSE_COLUMNS.map((c) => c.key))}>
+                Show all
+              </Button>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
               <Button variant="outline" size="sm" aria-label="Lines" className="h-9 justify-between gap-2 font-normal">
                 <Rows3 className="h-4 w-4 opacity-60" />
                 <span className="max-w-[180px] truncate">
@@ -979,7 +1028,7 @@ export default function FinanceClosePage() {
                           and Δ were printed under "Days away" — hours labelled as days
                           of absence, on the sheet somebody is paid from — and the last
                           two columns had no band at all. */}
-                      {closeBandSpans().map((b) => (
+                      {closeBandSpans(screenColumns).map((b) => (
                         <TableHead
                           key={b.band}
                           colSpan={b.span}
@@ -994,13 +1043,13 @@ export default function FinanceClosePage() {
                     {/* Same source as the band above it, so a column added to one can
                         never leave the other a cell short. */}
                     <TableRow>
-                      {CLOSE_COLUMNS.map((c, i) => (
+                      {screenColumns.map((c, i) => (
                         <TableHead
                           key={c.key}
                           className={[
                             c.align === "right" ? "text-right" : "",
                             // A rule where a band starts, so the eye can see the join.
-                            i > 0 && CLOSE_COLUMNS[i - 1].band !== c.band ? "border-l" : "",
+                            i > 0 && screenColumns[i - 1].band !== c.band ? "border-l" : "",
                           ].filter(Boolean).join(" ") || undefined}
                         >
                           {c.header}
@@ -1011,20 +1060,20 @@ export default function FinanceClosePage() {
                   <TableBody>
                     {shown.map((r) => (
                       <TableRow key={r.employeeId}>
-                        <TableCell className="font-medium">{r.name}</TableCell>
-                        <TableCell className="font-figure text-xs tabular-nums text-muted-foreground">{r.employeeRef ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{r.shift ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{r.department ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{r.lineName ?? "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{r.patternName ?? "—"}</TableCell>
+                        {show("name") && (<TableCell className="font-medium">{r.name}</TableCell>)}
+                        {show("employeeRef") && (<TableCell className="font-figure text-xs tabular-nums text-muted-foreground">{r.employeeRef ?? "—"}</TableCell>)}
+                        {show("shift") && (<TableCell className="text-xs text-muted-foreground">{r.shift ?? "—"}</TableCell>)}
+                        {show("department") && (<TableCell className="text-xs text-muted-foreground">{r.department ?? "—"}</TableCell>)}
+                        {show("line") && (<TableCell className="text-xs text-muted-foreground">{r.lineName ?? "—"}</TableCell>)}
+                        {show("rota") && (<TableCell className="whitespace-nowrap text-xs text-muted-foreground">{r.patternName ?? "—"}</TableCell>)}
 
                         {/* Shifts. Whole numbers, so no decimals — a half shift is not
                             a thing the board can record. */}
-                        <TableCell className="border-l text-right font-figure tabular-nums text-muted-foreground">
+                        {show("shiftsDue") && (<TableCell className="border-l text-right font-figure tabular-nums text-muted-foreground">
                           {r.shiftsDue ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{r.shiftsWorked}</TableCell>
-                        <TableCell
+                        </TableCell>)}
+                        {show("shiftsWorked") && (<TableCell className="text-right font-figure tabular-nums">{r.shiftsWorked}</TableCell>)}
+                        {show("shiftBalance") && (<TableCell
                           className={`text-right font-figure font-semibold tabular-nums ${
                             r.shiftBalance == null ? "text-muted-foreground"
                               : r.shiftBalance > 0 ? "text-success-strong"
@@ -1038,46 +1087,46 @@ export default function FinanceClosePage() {
                         >
                           {r.shiftBalance == null ? "—"
                             : `${r.shiftBalance > 0 ? "+" : ""}${r.shiftBalance}`}
-                        </TableCell>
+                        </TableCell>)}
 
-                        <TableCell className={`border-l text-right font-figure tabular-nums ${
+                        {show("openingHours") && (<TableCell className={`border-l text-right font-figure tabular-nums ${
                           r.openingHours < 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
                           {r.openingHours.toFixed(2)}
-                        </TableCell>
-                        <TableCell className={`text-right font-figure tabular-nums ${
+                        </TableCell>)}
+                        {show("clockedOtHours") && (<TableCell className={`text-right font-figure tabular-nums ${
                           (r.clockedOtHours ?? 0) < 0 ? "text-destructive-strong" : ""}`}>
                           {num(r.clockedOtHours)}
-                        </TableCell>
-                        <TableCell className={`text-right font-figure font-semibold tabular-nums ${
+                        </TableCell>)}
+                        {show("closingHours") && (<TableCell className={`text-right font-figure font-semibold tabular-nums ${
                           (r.closingHours ?? 0) < 0 ? "text-destructive-strong" : ""}`}>
                           {num(r.closingHours)}
-                        </TableCell>
-                        <TableCell className="text-right font-figure font-semibold tabular-nums">
+                        </TableCell>)}
+                        {show("overtimeHours") && (<TableCell className="text-right font-figure font-semibold tabular-nums">
                           {num(r.overtimeHours)}
-                        </TableCell>
-                        <TableCell className={`text-right font-figure tabular-nums ${
+                        </TableCell>)}
+                        {show("owedHours") && (<TableCell className={`text-right font-figure tabular-nums ${
                           (r.owedHours ?? 0) > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
                           {r.owedHours ? r.owedHours.toFixed(2) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{num(r.payrollOtHours)}</TableCell>
-                        <TableCell className={`text-right font-figure font-semibold tabular-nums ${
+                        </TableCell>)}
+                        {show("payrollOtHours") && (<TableCell className="text-right font-figure tabular-nums">{num(r.payrollOtHours)}</TableCell>)}
+                        {show("deltaHours") && (<TableCell className={`text-right font-figure font-semibold tabular-nums ${
                           r.deltaHours == null ? "text-muted-foreground"
                             : Math.abs(r.deltaHours) >= 1 ? "text-destructive-strong" : ""}`}>
                           {num(r.deltaHours)}
-                        </TableCell>
-                        <TableCell className="border-l text-right font-figure tabular-nums">{r.daysPresent}</TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{r.sick || "—"}</TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{r.holiday || "—"}</TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{r.unpaid || "—"}</TableCell>
-                        <TableCell className="text-right font-figure tabular-nums">{r.otherAbsence || "—"}</TableCell>
+                        </TableCell>)}
+                        {show("daysPresent") && (<TableCell className="border-l text-right font-figure tabular-nums">{r.daysPresent}</TableCell>)}
+                        {show("sick") && (<TableCell className="text-right font-figure tabular-nums">{r.sick || "—"}</TableCell>)}
+                        {show("holiday") && (<TableCell className="text-right font-figure tabular-nums">{r.holiday || "—"}</TableCell>)}
+                        {show("unpaid") && (<TableCell className="text-right font-figure tabular-nums">{r.unpaid || "—"}</TableCell>)}
+                        {show("otherAbsence") && (<TableCell className="text-right font-figure tabular-nums">{r.otherAbsence || "—"}</TableCell>)}
                         {/* Hours, where every column beside it is days — a day cut
                             short is not a day off, and rounding it to one would say
                             Elias Soares had a whole day away when he worked two hours
                             of it. */}
-                        <TableCell className={`border-l text-right font-figure tabular-nums ${
+                        {show("partDayHours") && (<TableCell className={`border-l text-right font-figure tabular-nums ${
                           r.partDayHours > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
                           {r.partDayHours ? r.partDayHours.toFixed(2) : "—"}
-                        </TableCell>
+                        </TableCell>)}
                       </TableRow>
                     ))}
                   </TableBody>
