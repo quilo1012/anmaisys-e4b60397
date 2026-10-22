@@ -3,8 +3,16 @@ import { publicOrigin, PUBLISHED_ORIGIN } from "./publicOrigin";
 
 describe("publicOrigin — the address a scanned QR opens", () => {
   it("keeps the published site and a custom domain as they are", () => {
-    expect(publicOrigin("https://anmaisys.lovable.app", undefined)).toBe("https://anmaisys.lovable.app");
+    expect(publicOrigin("https://anpmsystem.co.uk", undefined)).toBe("https://anpmsystem.co.uk");
     expect(publicOrigin("https://pm.appliednutrition.uk/", undefined)).toBe("https://pm.appliednutrition.uk");
+  });
+
+  it("swaps the superseded address, so no new QR is minted through the redirect", () => {
+    // anmaisys.lovable.app now 302s to the custom domain. A phone that scans a QR
+    // carrying it lands on an origin holding none of its localStorage and is asked to
+    // sign in again — the redirect is for old links, not for new ones.
+    expect(publicOrigin("https://anmaisys.lovable.app", undefined)).toBe(PUBLISHED_ORIGIN);
+    expect(publicOrigin("https://anmaisys.lovable.app/", undefined)).toBe(PUBLISHED_ORIGIN);
   });
 
   it("swaps a Lovable preview for the published site, because a phone cannot open it", () => {

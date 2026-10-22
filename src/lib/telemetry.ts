@@ -49,6 +49,7 @@ export function logSystemError(
     if (!msg) return;
     if (isMidEditReload(msg, opts?.stack, opts?.metadata?.filename)) return;
     const route = typeof window !== "undefined" ? window.location.pathname : null;
+    const host = typeof window !== "undefined" ? window.location.host : null;
     const key = `${errorType}|${msg}|${route}`;
     const now = Date.now();
     if (now - (recent.get(key) ?? 0) < 30_000) return; // ≤ 1 identical / 30s
@@ -67,7 +68,12 @@ export function logSystemError(
         message: msg,
         stack_trace: opts?.stack ? compactStack(String(opts.stack)) : null,
         route_path: route,
-        metadata: opts?.metadata ?? null,
+        // The host, every time. `route_path` records the path and drops the origin,
+        // and the origin is what mattered when the app moved to its own domain: a
+        // device still arriving through the old address holds none of its own
+        // localStorage, and nothing in this table could say so. Goes in `metadata`
+        // (jsonb) rather than a new column, so this needs no migration.
+        metadata: { ...(opts?.metadata ?? {}), host },
       })
       .then(
         () => { inFlight = false; },
