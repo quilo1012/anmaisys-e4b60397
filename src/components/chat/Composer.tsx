@@ -189,7 +189,7 @@ export function Composer({
           <Button size="icon" variant="destructive" className="h-11 w-11" onClick={() => stopRecording(true)} aria-label="Stop and send voice message"><Send className="h-5 w-5" /></Button>
         </div>
       ) : (
-        <div className="flex items-end gap-1.5">
+        <div className="flex w-full min-w-0 items-end gap-1.5">
           <input ref={fileInput} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
           <Button size="icon" variant="ghost" className="h-11 w-11 shrink-0" onClick={() => fileInput.current?.click()} disabled={disabled} aria-label="Attach files" title="Attach files (images, PDF, Office, text — 10 MB each)">
             <Paperclip className="h-5 w-5" />
@@ -208,7 +208,7 @@ export function Composer({
             rows={1}
             maxLength={CHAT_BODY_MAX}
             disabled={disabled}
-            className="min-h-[44px] flex-1 resize-none py-2.5"
+            className="min-h-[44px] min-w-0 flex-1 resize-none py-2.5"
           />
           {SR && (
             <Button size="icon" variant={listening ? "destructive" : "ghost"} className="h-11 w-11 shrink-0" onClick={toggleDictation} disabled={disabled}
