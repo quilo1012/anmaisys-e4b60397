@@ -48,7 +48,10 @@ export function useMyAvailability() {
     queryFn: async (): Promise<MyAvailability> => {
       const { data, error } = await supabase.rpc("communication_my_availability");
       if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : null;
+      // The generated types predate `automatic_status`/`automatic_reason`; read them as optional.
+      const row = (Array.isArray(data) ? data[0] : null) as
+        | { preference?: string; approved_holiday?: boolean; automatic_status?: string | null; automatic_reason?: string | null }
+        | null;
       return {
         preference: parseAvailability(row?.preference) ?? "online",
         approvedHoliday: row?.approved_holiday === true,
