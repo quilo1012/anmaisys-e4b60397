@@ -7405,6 +7405,10 @@ export type Database = {
         Returns: number
       }
       can_manage_overtime: { Args: { uid: string }; Returns: boolean }
+      delete_overtime_ask: {
+        Args: { p_request_id: string }
+        Returns: undefined
+      }
       cancel_my_overtime: {
         Args: { p_note?: string; p_request_id: string }
         Returns: {

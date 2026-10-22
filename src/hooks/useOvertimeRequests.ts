@@ -457,6 +457,18 @@ export function useOvertimeMutations() {
   });
 
   /**
+   * Apagar um pedido que ninguém tocou. A base recusa se houver respostas ou linhas no
+   * quadro: nesse caso a saída é cancelar, que guarda o registo.
+   */
+  const deleteRequest = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await db.rpc("delete_overtime_ask", { p_request_id: id });
+      if (error) throw error;
+    },
+    onSuccess: refresh,
+  });
+
+  /**
    * Corrigir a data, as horas ou quantos são precisos num pedido já feito.
    *
    * As horas são escritas à mão e um engano fica lá — 18:00–14:00 onde era 18:00–06:00.
@@ -722,5 +734,5 @@ export function useOvertimeMutations() {
     },
   });
 
-  return { createRequest, editRequest, setRequestStatus, answer, answerFor, removeAnswer, decide, recordOutcome, cancelMyBooking, linkMe, linkMeByEmail, saveRules };
+  return { createRequest, editRequest, setRequestStatus, deleteRequest, answer, answerFor, removeAnswer, decide, recordOutcome, cancelMyBooking, linkMe, linkMeByEmail, saveRules };
 }
