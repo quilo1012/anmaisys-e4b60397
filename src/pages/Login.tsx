@@ -48,6 +48,7 @@ import { useDeviceType } from "@/hooks/use-device-type";
 import { safeNextPath } from "@/lib/loginReturn";
 import { AppLoading } from "@/components/AppLoading";
 import { takeSessionEndNotice } from "@/lib/sessionRestore";
+import { movedOriginNotice } from "@/lib/movedOrigin";
 import { SessionReconnecting } from "@/components/auth/SessionReconnecting";
 
 const TABLET_KEY = "an_tablet_account_id";
@@ -118,7 +119,11 @@ export default function Login() {
   const { session, role, loading: authLoading, silentReLoginInFlight, reconnecting } = useAuth();
   // Why the last session ended, when it ended on its own (expired, revoked). Read
   // once: the notice belongs to this arrival at the login screen, not the next.
-  const [sessionEndNotice] = useState(() => takeSessionEndNotice());
+  // Arriving through the 302 from the address the app used to have is not the same as
+  // a session that ended: nothing expired, the sign-in is simply on an origin this page
+  // cannot read. It takes precedence because it is the more specific of the two, and it
+  // is the one that tells the person what to do about it. Read once, like the other.
+  const [sessionEndNotice] = useState(() => movedOriginNotice() ?? takeSessionEndNotice());
   const { data: tabletAccounts, isLoading: accountsLoading } = usePublicTabletAccounts();
   const { data: branding } = useLoginBranding();
 
