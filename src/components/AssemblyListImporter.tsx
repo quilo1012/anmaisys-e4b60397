@@ -232,7 +232,7 @@ export function AssemblyListImporter({
     }];
 
     const info = XLSX.utils.aoa_to_sheet([
-      ["Unleashed → AN Maintenance · Assembly List Template"],
+      ["Unleashed → PMSYSTEM · Assembly List Template"],
       [],
       ["How to use:"],
       ["1. Export the Assembly List from Unleashed as XLSX."],

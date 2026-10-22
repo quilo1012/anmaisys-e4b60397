@@ -65,7 +65,7 @@ export function ProtectedRoute({ children, allowedRoles, requiredAction }: Prote
 
   // Still resolving session or role — show spinner
   if (loading) {
-    return <AppLoading label="Loading AN Maintenance…" />;
+    return <AppLoading label="Loading PMSYSTEM…" />;
   }
 
   // Silent re-login in progress (shared tablet refresh-token recovery) — wait

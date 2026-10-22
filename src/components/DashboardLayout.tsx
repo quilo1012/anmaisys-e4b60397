@@ -911,7 +911,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   // Browser tab title
   useEffect(() => {
     const pageName = routeTitles[location.pathname] || "Dashboard";
-    document.title = `AN Maintenance | ${pageName}`;
+    document.title = `PMSYSTEM | ${pageName}`;
   }, [location.pathname]);
 
   const isMobile = useIsMobile();
