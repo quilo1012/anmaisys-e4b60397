@@ -10,7 +10,7 @@ import {
   authLink,
   authPrimaryBtn,
 } from "@/components/auth/authStyles";
-import { Loader2, CheckCircle2, Eye, EyeOff, BadgeCheck, Mail } from "lucide-react";
+import { Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { looksLikeEmployeeRef } from "@/lib/loginIdentity";
 import { isFunctionUnreachable } from "@/lib/edgeFunctionUnreachable";
@@ -69,8 +69,6 @@ function InviteHint({ fromLink, check }: { fromLink: boolean; check: "checking" 
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // Whether accounts from this link are active on creation (an operator who can answer
   // overtime) or wait for an admin. Read once, anonymously; it only changes the words.
@@ -115,17 +113,8 @@ export default function SignUp() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  /** A porta do crachá não respondeu: oferecer a do email em vez de a deixar tentar outra vez. */
-  const [unreachable, setUnreachable] = useState(false);
   const [done, setDone] = useState(false);
 
-  /**
-   * Two doors. The badge is the default: everybody on the floor has one, few have an
-   * email, and a badge number keys the account to the roster row in one step — no
-   * confirmation mail, no approval queue, no "pick your name". Email stays for the
-   * office and for anyone whose badge has no number on record yet.
-   */
-  const [door, setDoor] = useState<"badge" | "email">("badge");
   const [employeeRef, setEmployeeRef] = useState("");
 
   /**
@@ -161,8 +150,7 @@ export default function SignUp() {
         // nothing comes back to show. "Failed to send a request to the Edge Function"
         // is what the floor has been reading. The email door does not go through it.
         if (isFunctionUnreachable(fnErr)) {
-          setUnreachable(true);
-          setError("Sign-up with a badge number isn't working right now. Register with your email instead — it takes the same invite code.");
+          setError("Sign-up isn't working right now. Try again in a moment.");
           setSubmitting(false);
           return;
         }
@@ -185,60 +173,13 @@ export default function SignUp() {
     }
   });
 
-  const submit = once(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    if (!name.trim()) { setError("Enter your name."); return; }
-    if (!email.trim()) { setError("Enter your email."); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
-    if (!code.trim()) { setError("Enter the invite code."); return; }
-
-    setSubmitting(true);
-    try {
-      // 1) Validate the invite code server-side (without exposing it).
-      const { data: ok, error: rpcErr } = await withConnectionRetry<{ data: boolean | null; error: unknown }>(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC not in generated types yet
-        () => (supabase.rpc as any)("check_invite_code", { code: code.trim() }),
-      );
-      if (rpcErr) throw rpcErr;
-      if (!ok) { setError(INVALID_INVITE_MESSAGE); setSubmitting(false); return; }
-
-      // 2) Create the account. Lands PENDING (active=false, no role) via the DB trigger.
-      const auth = onTablet ? detachedAuthClient().auth : supabase.auth;
-      // Repeating a sign-up whose first attempt did arrive is harmless: with confirmation
-      // on, the server answers an already-registered address exactly as it answers a new
-      // one, and sends nothing twice.
-      const { error: signErr } = await withConnectionRetry(() => auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: {
-          data: { name: name.trim(), self_signup: "true" },
-          // An overtime account is for one thing; land it there after the email click.
-          emailRedirectTo: autoRole
-            ? `${window.location.origin}/login?next=${encodeURIComponent("/dashboard/my-overtime")}`
-            : `${window.location.origin}/login`,
-        },
-      }));
-      if (signErr) throw signErr;
-      forgetInviteCode();
-      // Don't leave a half-session around — the account still needs approval. On a
-      // tablet there is none to clear, and signing out would sign the tablet out.
-      if (!onTablet) await supabase.auth.signOut();
-      setDone(true);
-    } catch (err) {
-      setError(signupErrorMessage(err, "Could not create the account."));
-    } finally {
-      setSubmitting(false);
-    }
-  });
-
   if (done) {
     return (
       <AuthShell title="Account created" subtitle="One more step">
         <div className="space-y-4 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-auth-success" />
           <p className="text-sm text-auth-ink">
-            {onTablet && door === "badge"
+            {onTablet
               ? <>Your account is ready. Sign in on your own phone with your badge number and the password you just chose — this tablet stays signed in as the line.</>
               : autoRole
               ? <>Check your email and tap the confirmation link. Then sign in, pick your name once, and you're set — you'll be told whenever overtime opens.</>
@@ -257,19 +198,7 @@ export default function SignUp() {
   }
 
   return (
-    <AuthShell title="Create account" subtitle={door === "badge" ? "Use the ID on your badge" : "Register with your email"}>
-      <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-auth-line bg-auth-field p-1 text-sm">
-        <button type="button" onClick={() => { setDoor("badge"); setError(""); }}
-          className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 ${door === "badge" ? "bg-auth-paper font-medium text-auth-ink shadow-sm" : "text-auth-ink-muted"}`}>
-          <BadgeCheck className="h-4 w-4" /> Employee ID
-        </button>
-        <button type="button" onClick={() => { setDoor("email"); setError(""); }}
-          className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 ${door === "email" ? "bg-auth-paper font-medium text-auth-ink shadow-sm" : "text-auth-ink-muted"}`}>
-          <Mail className="h-4 w-4" /> Email
-        </button>
-      </div>
-
-      {door === "badge" ? (
+    <AuthShell title="Create account" subtitle="Use the ID on your badge">
       <form onSubmit={submitBadge} className="space-y-4" noValidate>
         <div className="space-y-1.5">
           <label htmlFor="su-ref" className={authLabel}>Employee ID</label>
@@ -300,12 +229,8 @@ export default function SignUp() {
               </p>
               <p>
                 No number on your badge, or it isn't working? Your supervisor or the office can look
-                it up — they have the list. If you have a work email, you can register with that
-                instead and skip the number.
+                it up — they have the list.
               </p>
-              <button type="button" onClick={() => { setDoor("email"); setError(""); }} className={authLink}>
-                Register with my email
-              </button>
             </div>
           </details>
         </div>
@@ -334,12 +259,6 @@ export default function SignUp() {
 
         {/* A saída, onde a pessoa encalhou. Dizer que não funciona e deixá-la no mesmo
             ecrã é deixá-la a carregar no botão outra vez. */}
-        {unreachable && (
-          <button type="button" onClick={() => { setDoor("email"); setError(""); setUnreachable(false); }} className={authLink}>
-            Register with my email instead
-          </button>
-        )}
-
         <button type="submit" disabled={submitting} className={authPrimaryBtn}>
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {onTablet ? "Create account" : "Create account and sign in"}
         </button>
@@ -348,53 +267,6 @@ export default function SignUp() {
           Already have an account? <Link to="/login" className={authLink}>Sign in</Link> with your ID.
         </p>
       </form>
-      ) : (
-      <form onSubmit={submit} className="space-y-4" noValidate>
-        <div className="space-y-1.5">
-          <label htmlFor="su-name" className={authLabel}>Full name</label>
-          <input id="su-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name"
-            className={authField} />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="su-email" className={authLabel}>Email</label>
-          <input id="su-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email"
-            className={authField} />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="su-pass" className={authLabel}>Password</label>
-          <div className="relative">
-            <input id="su-pass" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
-              className={authFieldAction} />
-            <button type="button" onClick={() => setShowPassword((s) => !s)} className={authInlineBtn} aria-label={showPassword ? "Hide password" : "Show password"}>
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="su-code" className={authLabel}>Invite code</label>
-          <input id="su-code" value={code} onChange={(e) => setCode(e.target.value)} autoComplete="off"
-            placeholder="From the sign-up sheet, or your supervisor"
-            className={authField} />
-          {/* The same sentence as the badge door. This door was left without one, so
-              somebody who switched tabs to escape a number they did not know arrived
-              at a second box with even less to go on — "Ask your administrator", in a
-              factory where the administrator is not who you ask. */}
-          <InviteHint fromLink={fromLink} check={linkCheck} />
-        </div>
-
-        <JoinsAs role={autoRole} />
-        {error && <p className="rounded-md bg-auth-danger/10 px-3 py-2 text-sm text-auth-danger">{error}</p>}
-
-        <button type="submit" disabled={submitting}
-          className={authPrimaryBtn}>
-          {submitting && <Loader2 className="h-4 w-4 animate-spin" />} Create account
-        </button>
-
-        <p className="text-center text-sm text-auth-ink-muted">
-          Already have an account? <Link to="/login" className={authLink}>Sign in</Link>
-        </p>
-      </form>
-      )}
     </AuthShell>
   );
 }
