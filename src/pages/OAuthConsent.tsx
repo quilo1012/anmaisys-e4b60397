@@ -108,7 +108,7 @@ export default function OAuthConsent() {
       brandIconUrl={details.client?.logo_uri || undefined}
       badge={consentBadge}
       title={`Connect ${clientName}`}
-      subtitle={`${clientName} is requesting access to your AN Maintenance account.`}
+      subtitle={`${clientName} is requesting access to your PMSYSTEM account.`}
     >
       <p className="text-sm text-auth-ink">
         It will act on your behalf using your permissions. Approve only if you trust this application.

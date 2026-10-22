@@ -413,7 +413,7 @@ export function CriticalAlertProvider({ children }: { children: ReactNode }) {
     if (originalTitleRef.current && !document.title.startsWith("🚨")) {
       originalTitleRef.current = document.title;
     }
-    document.title = originalTitleRef.current || "AN Maintenance";
+    document.title = originalTitleRef.current || "PMSYSTEM";
   }, [active]);
 
   // Favicon badge follows pending count (active + queued)

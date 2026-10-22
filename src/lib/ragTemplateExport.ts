@@ -66,7 +66,7 @@ const METRICS: Metric[] = [
 async function buildRagWorkbook(weekStart: Date, lines: string[], fill?: RagFill) {
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
-  wb.creator = "AN Maintenance";
+  wb.creator = "PMSYSTEM";
   wb.created = new Date();
   const ws = wb.addWorksheet(`Week ${getISOWeek(weekStart)}`, {
     views: [{ state: "frozen", xSplit: 1, ySplit: 4 }],

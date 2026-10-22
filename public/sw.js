@@ -1,4 +1,4 @@
-/* AN Maintenance — Push Service Worker */
+/* PMSYSTEM — Push Service Worker */
 /* eslint-disable no-restricted-globals */
 
 const CACHE_VERSION = "an-maint-v1";
@@ -24,10 +24,10 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "AN Maintenance", body: event.data ? event.data.text() : "" };
+    data = { title: "PMSYSTEM", body: event.data ? event.data.text() : "" };
   }
 
-  const title = data.title || "AN Maintenance";
+  const title = data.title || "PMSYSTEM";
   const options = {
     body: data.body || "",
     // These two files exist in /public; send-push used to name /icons/icon-192.png, which

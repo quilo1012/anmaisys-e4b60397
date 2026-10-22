@@ -11,7 +11,7 @@ export default function Privacy() {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 text-sm leading-relaxed">
       <h1 className="text-2xl font-semibold">Privacy</h1>
-      <p className="mt-1 text-muted-foreground">AN Maintenance (PMSystem) — {PRIVACY_CONTROLLER}</p>
+      <p className="mt-1 text-muted-foreground">PMSYSTEM — {PRIVACY_CONTROLLER}</p>
 
       <p className="mt-6">
         This app is the internal system of {PRIVACY_CONTROLLER}, used by its employees and contractors for
