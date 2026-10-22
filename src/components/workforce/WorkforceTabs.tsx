@@ -40,7 +40,7 @@ export function WorkforceTabs() {
   // spent on the question "which tab?". Below 640px they are one row that scrolls
   // sideways, with the current one scrolled into view; from 640px they wrap as before.
   const strip = useRef<HTMLElement | null>(null);
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   useEffect(() => {
     const active = strip.current?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!active || !strip.current || strip.current.scrollWidth <= strip.current.clientWidth) return;
@@ -55,7 +55,9 @@ export function WorkforceTabs() {
       {visibleTabs.map((t) => (
         <NavLink
           key={t.to}
-          to={t.to}
+          // The Board keeps its date and shift (?date=&shift=) when pressed while already
+          // on it. Other tabs go to their plain route, as before.
+          to={t.to === "/dashboard/headcount" && pathname === t.to ? { pathname: t.to, search } : t.to}
           end
           className={({ isActive }) =>
             cn(
