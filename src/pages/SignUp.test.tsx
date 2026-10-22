@@ -58,31 +58,10 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     expect(screen.getByText(/supervisor or the office can look/i)).toBeTruthy();
   });
 
-  it("deixa passar para o email sem obrigar a encontrar o separador", async () => {
-    renderPage();
-    // Porta do crachá: o campo do ID está lá.
-    expect(screen.getByLabelText(/Employee ID/i)).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: /Register with my email/i }));
-
-    // Porta do email: o ID desaparece e o endereço toma o lugar.
-    expect(await screen.findByLabelText(/^Email$/i)).toBeTruthy();
-    expect(screen.queryByLabelText(/Employee ID/i)).toBeNull();
-  });
-
   it("diz onde se vai buscar o invite code quando ninguém o deu", () => {
     renderPage();
     expect(screen.getByText(/sign-up sheet where you clock in/i)).toBeTruthy();
     expect(screen.queryByText(/Filled in from the link/i)).toBeNull();
-  });
-
-  it("diz o mesmo na porta do email, que estava sem explicação nenhuma", async () => {
-    renderPage();
-    fireEvent.click(screen.getByRole("button", { name: /Register with my email/i }));
-    // Quem foge de um número que não sabe não pode cair numa segunda caixa pior.
-    expect(await screen.findByLabelText(/^Email$/i)).toBeTruthy();
-    expect(screen.getByText(/sign-up sheet where you clock in/i)).toBeTruthy();
-    expect(screen.queryByPlaceholderText(/Ask your administrator/i)).toBeNull();
   });
 
   it("diz que o código veio do link quando veio, em vez de o deixar sem explicação", () => {
@@ -156,13 +135,10 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     fireEvent.click(screen.getByRole("button", { name: /Create account and sign in/i }));
 
     // A mensagem do SDK não chega ao ecrã.
-    const aviso = await screen.findByText(/badge number isn't working right now/i, undefined, { timeout: 4000 });
+    const aviso = await screen.findByText(/Sign-up isn't working right now/i, undefined, { timeout: 4000 });
     expect(aviso).toBeTruthy();
     expect(screen.queryByText(/Failed to send a request/i)).toBeNull();
-
-    // E há uma saída, não só um lamento.
-    fireEvent.click(screen.getByRole("button", { name: /Register with my email instead/i }));
-    expect(await screen.findByLabelText(/^Email$/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Register with my email/i })).toBeNull();
   });
 
   it("uma recusa com corpo passa intacta — não é engolida pela mensagem genérica", async () => {
@@ -177,7 +153,7 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     fireEvent.click(screen.getByRole("button", { name: /Create account and sign in/i }));
 
     expect(await screen.findByText(/invite code isn't valid any more/i)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Register with my email instead/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Register with my email/i })).toBeNull();
   });
 
   /**
@@ -203,38 +179,6 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
 
     expect(await screen.findByText(/Sign in on your own phone/i)).toBeTruthy();
     expect(setSession).not.toHaveBeenCalled();
-  });
-
-  /**
-   * "AbortError: Fetch is aborted" era o que o ecrã mostrava: o texto do WebKit para
-   * um pedido cortado, devolvido pelo postgrest-js como `{ message }`. Uma queda é
-   * tentada outra vez sozinha; se cair outra vez, a pessoa lê uma frase que pode seguir.
-   */
-  const fillEmailDoor = async () => {
-    fireEvent.click(screen.getByRole("button", { name: /Register with my email/i }));
-    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Ana Teste" } });
-    fireEvent.change(screen.getByLabelText(/^Email$/i), { target: { value: "ana@example.com" } });
-    fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: "umapalavra" } });
-    fireEvent.change(screen.getByLabelText(/Invite code/i), { target: { value: "AN-TESTE" } });
-    fireEvent.click(screen.getAllByRole("button", { name: /^Create account$/i }).at(-1)!);
-  };
-
-  it("uma ligação que cai duas vezes dá a frase que se pode seguir, não o AbortError", async () => {
-    const rpc = vi.mocked(supabase.rpc);
-    rpc.mockImplementation((async (fn: string) =>
-      fn === "check_invite_code"
-        ? { data: null, error: { message: "AbortError: Fetch is aborted", code: "" } }
-        : { data: null, error: null }) as never);
-    renderPage();
-    await fillEmailDoor();
-
-    expect(await screen.findByText(
-      "Não foi possível ligar ao servidor. Verifique a ligação e tente novamente.",
-      undefined, { timeout: 4000 },
-    )).toBeTruthy();
-    expect(screen.queryByText(/AbortError|Fetch is aborted/)).toBeNull();
-    expect(rpc.mock.calls.filter(([fn]) => fn === "check_invite_code")).toHaveLength(2);
-    rpc.mockImplementation((async () => ({ data: null, error: null })) as never);
   });
 
   it("diz como quem a pessoa vai entrar, sem a deixar escolher", () => {
