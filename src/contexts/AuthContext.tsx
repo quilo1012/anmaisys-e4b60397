@@ -117,6 +117,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ]);
 
 
+  /**
+   * Keeps the shared-tablet stored refresh token equal to the session's current one.
+   * Called from every place a session is accepted (sync, keep-alive, TOKEN_REFRESHED),
+   * not only one listener branch: a refresh that lands in a path that skipped the cred
+   * update leaves a stale snapshot, and re-using a rotated token is what makes Supabase
+   * revoke the whole session. No-op when no tablet credential exists.
+   */
+  const keepTabletCredentialCurrent = (s: Session) => {
+    if (!s.refresh_token) return;
+    try {
+      const raw = localStorage.getItem(TABLET_CRED_KEY);
+      if (!raw) return;
+      const cred = JSON.parse(raw) as { accountId?: string; refresh_token?: string };
+      if (cred?.refresh_token && cred.refresh_token !== s.refresh_token) {
+        localStorage.setItem(
+          TABLET_CRED_KEY,
+          JSON.stringify({ accountId: cred.accountId, refresh_token: s.refresh_token }),
+        );
+      }
+    } catch { /* storage unavailable: nothing to keep */ }
+  };
+
   const tryTabletRelogin = async (): Promise<boolean> => {
     if (reLoginInFlightRef.current) return false;
     // If the account was just deactivated, skip silent re-login for 60s.
@@ -294,6 +316,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const syncSessionUser = (newSession: Session) => {
       stopReconnecting();
+      keepTabletCredentialCurrent(newSession);
       lastKnownSessionRef.current = newSession;
       setSession(newSession);
       setUser(newSession.user);
@@ -529,6 +552,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         // If supabase already has a fresh session, sync it silently.
         if (data.session) {
+          keepTabletCredentialCurrent(data.session);
           lastKnownSessionRef.current = data.session;
           setSession(data.session);
           setUser(data.session.user);
