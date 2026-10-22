@@ -139,9 +139,9 @@ export default function AttendancePage() {
   const { data: roster = [], isError: rosterErr, refetch: refetchRoster } = useQuery({
     queryKey: ["attendance-roster"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("employees").select("id, full_name, department").eq("active", true);
+      const { data, error } = await supabase.from("employees").select("id, full_name, department, sheet_aliases").eq("active", true);
       if (error) throw error;
-      return (data ?? []) as { id: string; full_name: string; department: string | null }[];
+      return (data ?? []) as { id: string; full_name: string; department: string | null; sheet_aliases: string | null }[];
     },
   });
 
