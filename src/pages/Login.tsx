@@ -569,7 +569,7 @@ export default function Login() {
                 ref={listRef}
                 role="listbox"
                 aria-label="Tablets"
-                className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-auth-line bg-auth-paper py-1 shadow-lg"
+                className="absolute z-20 mt-1 max-h-[min(15rem,50dvh)] w-full max-w-full overflow-auto rounded-lg border border-auth-line bg-auth-paper py-1 shadow-lg"
               >
                 {accountsLoading && (
                   <li className="px-4 py-2.5 text-sm text-auth-ink-muted">Loading tablets…</li>
@@ -599,7 +599,7 @@ export default function Login() {
                             {acc.label}
                           </span>
                           <span
-                            className={`block truncate text-2xs ${
+                            className={`block truncate text-[13px] ${
                               acc.line_names?.length ? "text-auth-ink-muted" : "text-auth-warning"
                             }`}
                           >
@@ -617,7 +617,7 @@ export default function Login() {
           {/* O que o sistema reconheceu, dito antes de submeter. */}
           {/* Na letra do formulário, não em maiúsculas monoespaçadas: é uma frase para
               ler, não uma etiqueta de máquina. */}
-          <p className="flex min-h-[1.25rem] items-center gap-1.5 text-xs">
+          <p className="flex min-h-[1.25rem] flex-wrap items-center gap-1.5 text-[13px] leading-snug">
             {matchedTablet ? (
               <span className="flex items-center gap-1.5 font-medium text-auth-brand">
                 <Tablet className="h-3.5 w-3.5" />
@@ -661,7 +661,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => navigate("/reset-password")}
-                className="-my-3 inline-flex min-h-11 items-center rounded px-1 text-xs font-medium text-auth-ink-muted underline-offset-4 transition-colors hover:text-auth-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40"
+                className="-my-3 inline-flex min-h-11 items-center rounded px-1 text-[13px] font-medium text-auth-ink-muted underline-offset-4 transition-colors hover:text-auth-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40"
               >
                 Forgot password?
               </button>
@@ -723,7 +723,7 @@ export default function Login() {
           type="submit"
           disabled={loading || authed || lockedMsLeft > 0}
           aria-live="polite"
-          className={`${authBtnBase} mt-2 text-white shadow-sm ${
+          className={`${authBtnBase} mt-2 whitespace-nowrap text-base sm:text-sm text-white shadow-sm ${
             authed ? "bg-auth-success" : "bg-auth-brand hover:bg-auth-brand/90 disabled:opacity-60"
           }`}
         >
@@ -746,7 +746,7 @@ export default function Login() {
 
         {/* Remaining-attempts hint */}
         {lockedMsLeft === 0 && remaining < 5 && (
-          <p className="pt-1 text-center text-2xs text-auth-warning">
+          <p className="pt-1 text-center text-[13px] text-auth-warning">
             {remaining} attempt{remaining === 1 ? "" : "s"} remaining before lockout
           </p>
         )}

@@ -48,7 +48,7 @@ export function AuthShell({
   const hasBanner = (backgroundImages?.length ?? 0) > 0;
 
   return (
-    <div className="flex min-h-[100dvh] w-full flex-col bg-auth-paper lg:grid lg:grid-cols-[minmax(0,44%)_minmax(0,56%)]">
+    <div className="flex min-h-[100dvh] w-full flex-col overflow-x-hidden bg-auth-paper lg:grid lg:grid-cols-[minmax(0,44%)_minmax(0,56%)]">
       {/* ── Placa da marca ─────────────────────────────────────────── */}
       <aside
         className="relative isolate hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12"
