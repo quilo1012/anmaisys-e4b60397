@@ -287,3 +287,23 @@ describe("matchNames", () => {
     expect(r.matched).toEqual([{ name: "Ana Silva", employeeId: "e3" }]);
   });
 });
+
+describe("matchNames — sheet_aliases", () => {
+  const R = [
+    { id: "a1", full_name: "Abner Silva", sheet_aliases: "Abner Alex Silva" },
+    { id: "a2", full_name: "Wesley Jhony", sheet_aliases: "Wesley Paula" },
+    { id: "a3", full_name: "Lucas Santos", sheet_aliases: "Lucas" },
+    { id: "a4", full_name: "Lucas Bombo", sheet_aliases: "Lucas" },
+  ];
+  it("casa pelo alias quando o nome da folha é outro", () => {
+    expect(matchNames(["Abner Alex Silva", "Wesley Paula"], R).matched).toEqual([
+      { name: "Abner Alex Silva", employeeId: "a1" },
+      { name: "Wesley Paula", employeeId: "a2" },
+    ]);
+  });
+  it("um alias partilhado por duas pessoas fica por resolver, não é adivinhado", () => {
+    const r = matchNames(["Lucas"], R);
+    expect(r.matched).toEqual([]);
+    expect(r.unmatched[0].reason).toBe("ambiguous");
+  });
+});

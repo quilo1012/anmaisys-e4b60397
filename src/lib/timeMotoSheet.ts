@@ -246,12 +246,13 @@ export interface NameMatch {
  */
 export function matchNames(
   names: string[],
-  roster: { id: string; full_name: string }[],
+  roster: { id: string; full_name: string; sheet_aliases?: string | null }[],
   assigned: Record<string, string> = {},
 ): NameMatch {
   const clean = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const onRoster = new Map(roster.map((e) => [e.id, e]));
   const byFull = new Map<string, { id: string; full_name: string }[]>();
+  const byAlias = new Map<string, { id: string; full_name: string }[]>();
   const byFirst = new Map<string, { id: string; full_name: string }[]>();
   for (const e of roster) {
     const full = clean(e.full_name);
@@ -260,6 +261,15 @@ export function matchNames(
     byFull.get(full)!.push(e);
     if (!byFirst.has(first)) byFirst.set(first, []);
     byFirst.get(first)!.push(e);
+    // The names the sheet is known to use for this person, set on the record in the
+    // headcount's employee list (`sheet_aliases`, comma-separated). Read before the
+    // first name, so "Abner Alex Silva" reaches Abner Silva without a guess.
+    for (const raw of (e.sheet_aliases ?? "").split(",")) {
+      const alias = clean(raw);
+      if (!alias) continue;
+      if (!byAlias.has(alias)) byAlias.set(alias, []);
+      if (!byAlias.get(alias)!.some((x) => x.id === e.id)) byAlias.get(alias)!.push(e);
+    }
   }
   const matched: { name: string; employeeId: string }[] = [];
   const unmatched: UnsettledName[] = [];
@@ -273,6 +283,9 @@ export function matchNames(
     const full = byFull.get(c);
     if (full?.length === 1) { matched.push({ name: n, employeeId: full[0].id }); continue; }
     if (full && full.length > 1) { unmatched.push({ name: n, reason: "ambiguous", candidates: full }); continue; }
+    const alias = byAlias.get(c);
+    if (alias?.length === 1) { matched.push({ name: n, employeeId: alias[0].id }); continue; }
+    if (alias && alias.length > 1) { unmatched.push({ name: n, reason: "ambiguous", candidates: alias }); continue; }
     const first = byFirst.get(c);
     if (first?.length === 1) { matched.push({ name: n, employeeId: first[0].id }); continue; }
     if (first && first.length > 1) { unmatched.push({ name: n, reason: "ambiguous", candidates: first }); continue; }
