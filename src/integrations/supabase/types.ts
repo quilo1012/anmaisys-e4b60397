@@ -7405,22 +7405,6 @@ export type Database = {
         Returns: number
       }
       can_manage_overtime: { Args: { uid: string }; Returns: boolean }
-      delete_overtime_ask: {
-        Args: { p_request_id: string }
-        Returns: undefined
-      }
-      leave_my_reserve: {
-        Args: { p_request_id: string }
-        Returns: undefined
-      }
-      swap_my_overtime: {
-        Args: { p_from: string; p_note?: string; p_to: string }
-        Returns: {
-          outcome: string
-          promoted_employee_id: string
-          promoted_response_id: string
-        }[]
-      }
       cancel_my_overtime: {
         Args: { p_note?: string; p_request_id: string }
         Returns: {
@@ -7673,6 +7657,10 @@ export type Database = {
         Returns: Database["public"]["Enums"]["app_role"]
       }
       delete_leader: { Args: { _id: string }; Returns: undefined }
+      delete_overtime_ask: {
+        Args: { p_request_id: string }
+        Returns: undefined
+      }
       distinct_rag_lines: {
         Args: never
         Returns: {
@@ -7806,6 +7794,14 @@ export type Database = {
           name: string
           sessions: number
           shift: string
+        }[]
+      }
+      line_leaders_for: {
+        Args: { p_date: string; p_shift: string }
+        Returns: {
+          lider: string
+          linha: string
+          turno: string
         }[]
       }
       line_team_board: {
