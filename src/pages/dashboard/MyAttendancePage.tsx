@@ -33,6 +33,9 @@ const STATUS: Record<DayStatus, { label: string; cell: string }> = {
   no_record: { label: "No record yet", cell: "bg-muted/50 text-muted-foreground border-dashed border-muted-foreground/30" },
 };
 
+/** Overtime on a present day gets its own colour, so it is not read as an ordinary day. */
+const OVERTIME_CELL = "bg-indigo-500/15 text-indigo-700 border-indigo-500/40 dark:text-indigo-300";
+
 const fmtHours = (h: number | null) => (h == null ? "—" : `${h.toFixed(h % 1 === 0 ? 0 : 2)} h`);
 const fmtMin = (m: number | null) => (m == null ? "—" : `${m < 0 ? "−" : ""}${Math.floor(Math.abs(m) / 60)}:${String(Math.abs(m) % 60).padStart(2, "0")}`);
 
@@ -274,7 +277,7 @@ function Calendar({ days, today, onPick, selected }: {
               "relative flex min-h-11 flex-col items-center justify-center rounded-md border text-xs transition-colors sm:min-h-14",
               "hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               d.date < today && d.status === "rest" && "opacity-60",
-              STATUS[d.status].cell,
+              d.overtime && d.status === "present" ? OVERTIME_CELL : STATUS[d.status].cell,
               isToday && "border-2 border-primary border-solid",
               selected === d.date && "ring-2 ring-foreground ring-offset-1 ring-offset-background",
             )}
@@ -312,6 +315,12 @@ function Legend({ days }: { days: MyDay[] }) {
             {STATUS[k].label}
           </li>
         ))}
+        {days.some((d) => d.overtime && d.status === "present") && (
+          <li className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("h-3 w-3 shrink-0 rounded-sm border", OVERTIME_CELL)} />
+            Overtime
+          </li>
+        )}
         <li className="flex items-center gap-1.5">
           <span aria-hidden className="h-3 w-3 shrink-0 rounded-sm border-2 border-primary" />
           Today
