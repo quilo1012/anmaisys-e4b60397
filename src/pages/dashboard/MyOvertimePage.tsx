@@ -278,6 +278,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const { data: block } = useMyOvertimeBlock(true);
   const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
   const { answer, cancelMyBooking, swapMyBooking, leaveReserve } = useOvertimeMutations();
+  const [filter, setFilter] = useState<"all" | "needs" | "accepted" | "declined">("all");
   /** Which booking is being moved to another day, and to which ask. */
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
   const [swapTo, setSwapTo] = useState<string>("");
@@ -487,6 +488,32 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
 
   const waiting = visible.filter((r) => r.status === "open" && !mine.get(r.id)?.decision && !mine.get(r.id)?.answer && !askHasStarted(r, now) && !clashes.get(r.id)).length;
 
+  /**
+   * One bucket per ask, read from the same records the cards read: needs a response,
+   * accepted (booked and not cancelled), or declined. Cancelled, closed or started asks
+   * fall in none of them, so they are never counted as available.
+   */
+  const bucketOf = (r: OvertimeRequest): "needs" | "accepted" | "declined" | null => {
+    const my = mine.get(r.id);
+    const cancelled = !!my && myOutcomes.some((o) => o.response_id === my.id
+      && (o.outcome === "cancelled_in_time" || o.outcome === "cancelled_late"));
+    if (cancelled || r.status !== "open") return null;
+    if (my?.decision === "accepted") return "accepted";
+    if (my?.decision === "declined" || my?.answer === "no") return "declined";
+    if (!my?.decision && !my?.answer && !askHasStarted(r, now) && !clashes.get(r.id)) return "needs";
+    return null;
+  };
+  const buckets = visible.map((r) => ({ r, b: bucketOf(r) }));
+  const countOf = (k: "needs" | "accepted" | "declined") => buckets.filter((x) => x.b === k).length;
+  const shownAsks = filter === "all" ? visible : buckets.filter((x) => x.b === filter).map((x) => x.r);
+  // Grouped by the day the ask is for, in the order the list already has.
+  const byDate: [string, OvertimeRequest[]][] = [];
+  for (const r of shownAsks) {
+    const last = byDate[byDate.length - 1];
+    if (last && last[0] === r.on_date) last[1].push(r);
+    else byDate.push([r.on_date, [r]]);
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -517,7 +544,41 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         </Card>
       )}
       {goneNotice}
-      {visible.map((r) => {
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {([
+          ["needs", "Needs your response"],
+          ["accepted", "Accepted"],
+          ["declined", "Declined"],
+        ] as const).map(([k, label]) => (
+          <button
+            key={k} type="button" onClick={() => setFilter(filter === k ? "all" : k)}
+            aria-pressed={filter === k}
+            className={cn(
+              "rounded-md border px-2 py-2 text-xs transition-colors",
+              filter === k ? "border-primary bg-primary/10" : "bg-card hover:bg-muted/50",
+            )}
+          >
+            <div className="text-lg font-semibold tabular-nums">{countOf(k)}</div>
+            <div className="text-muted-foreground">{label}</div>
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter offers">
+        {([["all", "All"], ["needs", "Needs response"], ["accepted", "Accepted"], ["declined", "Declined"]] as const).map(([k, label]) => (
+          <Button key={k} size="sm" variant={filter === k ? "default" : "outline"} className="h-8" onClick={() => setFilter(k)}>
+            {label}
+          </Button>
+        ))}
+      </div>
+      {byDate.length === 0 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">Nothing in this view.</p>
+      )}
+      {byDate.map(([date, asks]) => (
+        <section key={date} className="space-y-2">
+          <h3 className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
+          </h3>
+          {asks.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
         // A booking I took back. The decision row still says accepted — the outcome
@@ -689,7 +750,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     {inFlight?.requestId === r.id && inFlight.answer === "yes"
                       ? <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       : <Check className="mr-2 h-5 w-5" />}
-                    Yes, I can
+                    Accept overtime
                   </Button>
                   <Button
                     size="lg" variant={my?.answer === "no" ? "secondary" : "outline"} className="h-12"
@@ -699,14 +760,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     {inFlight?.requestId === r.id && inFlight.answer === "no"
                       ? <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       : <X className="mr-2 h-5 w-5" />}
-                    No
+                    Decline
                   </Button>
                 </div>
               )}
             </CardContent>
           </Card>
         );
-      })}
+          })}
+        </section>
+      ))}
       {confirmDialog}
     </div>
   );
