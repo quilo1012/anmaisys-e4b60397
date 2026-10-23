@@ -41,6 +41,8 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeOutcomesFor: () => ({ data: [] }),
   useOvertimeMutations: () => ({
     cancelMyBooking: { mutate: vi.fn(), isPending: false },
+    swapMyBooking: { mutate: vi.fn(), isPending: false },
+    leaveReserve: { mutate: vi.fn(), isPending: false },
     answer: { mutate: state.mutate, isPending: false },
     linkMe: { mutate: vi.fn(), isPending: false },
     linkMeByEmail: { mutate: vi.fn(), isPending: false },

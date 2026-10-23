@@ -51,6 +51,8 @@ const hooks = vi.hoisted(() => {
     useOvertimeMutations: vi.fn(() => ({
       answer: { mutate: vi.fn() }, linkMe: { mutate: vi.fn(), isPending: false },
       cancelMyBooking: { mutate: vi.fn(), isPending: false },
+      swapMyBooking: { mutate: vi.fn(), isPending: false },
+      leaveReserve: { mutate: vi.fn(), isPending: false },
     })),
   };
 });

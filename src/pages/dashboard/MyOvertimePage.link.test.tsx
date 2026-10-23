@@ -50,6 +50,8 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeOutcomesFor: () => ({ data: [] }),
   useOvertimeMutations: () => ({
     cancelMyBooking: { mutate: vi.fn(), isPending: false },
+    swapMyBooking: { mutate: vi.fn(), isPending: false },
+    leaveReserve: { mutate: vi.fn(), isPending: false },
     answer: { mutate: vi.fn() },
     linkMe: { mutate: hooks.linkMutate, isPending: false },
     // A tentativa silenciosa pelo email, que corre antes de este formulário aparecer.
