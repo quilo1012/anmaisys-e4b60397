@@ -8,7 +8,6 @@ import { readFileSync } from "node:fs";
  */
 describe("overtime screens never format dates in the browser's language", () => {
   const files = [
-    "src/components/workforce/OvertimeOfferAlert.tsx",
     "src/components/workforce/OvertimeRequestsPanel.tsx",
     "src/pages/dashboard/MyOvertimePage.tsx",
   ];

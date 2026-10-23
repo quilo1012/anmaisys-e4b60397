@@ -53,7 +53,6 @@ import { InShellContentContext, ShellTitleContext } from "@/components/shell/she
 import { cn } from "@/lib/utils";
 import { PushOnboarding } from "@/components/PushOnboarding";
 import { PushPromptBanner } from "@/components/PushPromptBanner";
-import { OvertimeOfferAlert } from "@/components/workforce/OvertimeOfferAlert";
 import { AudioStatusButton } from "@/components/AudioStatusButton";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { useHeartbeat } from "@/hooks/useHeartbeat";
@@ -242,9 +241,9 @@ export const navItems: NavItem[] = [
   // records, and `overtime_responses` has 281 answers from employees and not one from
   // any of them.
   //
-  // Nothing was taken away but the row. `OvertimeOfferAlert` is mounted in this layout
-  // for everyone holding `overtime.respond`, so an ask that does reach one of them
-  // still arrives as a modal and is still answerable; the route still opens by URL.
+  // Nothing was taken away but the row. The overtime ask no longer pops up as an
+  // alert on the employee's app: asks are seen on the board, and My Overtime is still
+  // reachable by URL.
   // That matters for the admin account that is linked to a record and has answered
   // five times — admin never had this row and reached it that way already.
   { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["employee"], group: "Production", action: "overtime.respond" },
@@ -1194,10 +1193,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             <MobileTabBar tabs={mobileTabs} />
           </main>
         </div>
-        {/* The overtime ask, as a modal like the Maintenance Order alert. Only for
-            roles that may answer; it stays silent until the login is linked to an
-            employee and an ask is waiting on them. */}
-        {can(role, "overtime.respond") && <OvertimeOfferAlert />}
         <ProfilePhotoDialog open={photoOpen} onOpenChange={setPhotoOpen} />
         <AlertDialog open={signOutConfirmOpen} onOpenChange={setSignOutConfirmOpen}>
           <AlertDialogContent>
