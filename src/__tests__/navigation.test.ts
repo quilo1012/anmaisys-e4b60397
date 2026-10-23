@@ -162,6 +162,36 @@ describe("sidebar", () => {
     }
   });
 
+  it("offers the two own-record screens to employees and nobody else", () => {
+    // 23/10. My Attendance and Where I'm working read the factory clock and the
+    // headcount board — TimeMoto writes a row when a badge touches the door, the board
+    // places people on lines. Nobody but the floor is on either, so for a manager, the
+    // office admin, quality, warehouse and the maintenance manager both screens opened
+    // on an empty fortnight and read as broken rather than as empty.
+    //
+    // Re-adding a role here is one word, which is why this is a test: it is a product
+    // decision, not a tidy-up. The routes were NOT touched — both still open and still
+    // ask for `attendance.view_own` — so the way back is the Permissions page, not this
+    // file.
+    for (const url of ["/dashboard/my-attendance", "/dashboard/my-work-area"]) {
+      const row = navItems.find((i) => i.url === url);
+      expect(row, `${url} has lost its menu row entirely`).toBeDefined();
+      expect(
+        row!.roles,
+        `${row!.title} is offered to ${row!.roles.join(", ")} — these two are the floor's own record`,
+      ).toEqual(["employee"]);
+    }
+  });
+
+  it("leaves the employee a way to each of their own screens", () => {
+    // The other half: employee is the one role that MUST keep them. An employee's whole
+    // sidebar is four rows, and two of them are these.
+    const employeeRows = navItems.filter((i) => (i.roles as string[]).includes("employee")).map((i) => i.url);
+    expect(employeeRows).toContain("/dashboard/my-attendance");
+    expect(employeeRows).toContain("/dashboard/my-work-area");
+    expect(employeeRows).toContain("/dashboard/my-overtime");
+  });
+
   it("puts the leader scorecard behind scorecard.fill", () => {
     expect(can("manager", "scorecard.fill")).toBe(true);
     expect(can("operator", "scorecard.fill")).toBe(false);

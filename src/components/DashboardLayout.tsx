@@ -232,11 +232,24 @@ export const navItems: NavItem[] = [
   // `operator_line_accounts` e a migração 20261009090000, que já recusa ligá-las a um
   // funcionário. Um turno inteiro ao mesmo tablet respondia como a mesma pessoa.
   { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
-  // The signed-in person's own record. Same people as My Overtime; the database answers
-  // it from the session alone (`my_attendance`), so it can only ever be their own.
-  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
-  // Where the person works the next two weeks — its own item, not a card inside My Attendance.
-  { title: "Where I'm working", shortTitle: "Work area", url: "/dashboard/my-work-area", icon: MapPin, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "attendance.view_own" },
+  // The signed-in person's own record, and where they work the next two weeks. The
+  // database answers both from the session alone (`my_attendance`), so they can only
+  // ever show the reader's own.
+  //
+  // `employee` ONLY, asked for on 23/10. These two read the factory clock and the
+  // headcount board, and both are records of the floor: TimeMoto writes a row when a
+  // badge touches the door, and the board places people on lines. A manager, a
+  // maintenance manager, the office admin, quality and warehouse are not placed on the
+  // board and mostly are not clocked by that door, so the screens opened on an empty
+  // fortnight and read as broken rather than as empty. Two menu rows apiece, for a
+  // question those roles do not ask.
+  //
+  // Only the rows went. Both routes still open, still ask for `attendance.view_own`,
+  // and the matrix still grants it — anybody who holds it reaches the screen by URL,
+  // and the Permissions page can put the row back for a role without touching this
+  // file. Same treatment /dashboard/workforce and Control Center already have.
+  { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["employee"], group: "Production", action: "attendance.view_own" },
+  { title: "Where I'm working", shortTitle: "Work area", url: "/dashboard/my-work-area", icon: MapPin, roles: ["employee"], group: "Production", action: "attendance.view_own" },
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
