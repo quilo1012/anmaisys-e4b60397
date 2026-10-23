@@ -204,6 +204,14 @@ function neighbours(date: string, shift: OvertimeShift): { date: string; shift: 
     : [{ date, shift: "Day" }, { date: addDays(date, 1), shift: "Day" }];
 }
 
+/**
+ * A booking whose person is not coming after all: any recorded outcome but 'attended'.
+ * The same rule as the database's schedule check and its count of places taken.
+ */
+export function droppedOut(outcome: string | undefined): boolean {
+  return outcome !== undefined && outcome !== "attended";
+}
+
 const OFF_STATUS: Record<string, string> = {
   holiday: "On holiday", sick: "Off sick", unpaid: "Unpaid leave", training: "On training",
 };
@@ -232,6 +240,11 @@ const OFF_STATUS: Record<string, string> = {
  * the rota for days the board has not been drawn yet (`overtime_schedule_clashes`,
  * keyed by `scheduleClashKey`). It is what the employee's phone obeys, so the desk
  * refuses what the phone would: a block, added when the board alone found none.
+ *
+ * `outcomeOf` reads what happened to a booking. One that was cancelled (or called in
+ * sick) keeps `decision = 'accepted'` as the record of what was agreed, but the person
+ * no longer holds those hours, so it is not "already accepted" for anything — as in
+ * `overtime_schedule_clash`, which is what the phone obeys.
  */
 export function clashesFor(
   employeeId: string,
@@ -239,13 +252,15 @@ export function clashesFor(
   others: { request: OvertimeRequest; responses: OvertimeResponse[] }[],
   board: BoardRow[],
   schedule?: ReadonlyMap<string, string>,
+  outcomeOf?: (responseId: string) => string | undefined,
 ): Clash[] {
   const out: Clash[] = [];
   const shift = askShift(request);
 
   for (const o of others) {
     if (o.request.id === request.id || o.request.status === "cancelled") continue;
-    if (!o.responses.some((x) => x.employee_id === employeeId && x.decision === "accepted")) continue;
+    if (!o.responses.some((x) => x.employee_id === employeeId && x.decision === "accepted"
+      && !droppedOut(outcomeOf?.(x.id)))) continue;
     const when = `${fmt(o.request.on_date)} ${o.request.starts_at.slice(0, 5)}–${o.request.ends_at.slice(0, 5)}`;
     const oShift = askShift(o.request);
     if (o.request.on_date === request.on_date && oShift === shift) {

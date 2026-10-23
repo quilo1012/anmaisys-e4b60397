@@ -63,3 +63,44 @@ describe("Where I'm working", () => {
     expect(screen.getByText(/not linked to your badge/i)).toBeInTheDocument();
   });
 });
+
+/**
+ * 23/10: an employee on a Tue–Thu Day rota cancelled her Monday 06:00–18:00 overtime and
+ * the page kept listing it as "Overtime · Work area not yet assigned". These are the two
+ * payloads `my_attendance` returned for her on the development database: before the fix
+ * the cancelled ask still came back in `overtime`, after it does not. The page only draws
+ * what it is given, so the fix is the payload; this pins what each one looks like.
+ */
+describe("Where I'm working after an overtime is cancelled", () => {
+  beforeEach(() => { env.result.mockReset(); env.shared.mockReturnValue(false); });
+
+  const tuesday = { on_date: "2026-10-27", shift: "Day", status: "assigned", half_day: false, area: "Gel Packing", area_kind: "production", is_leader: false };
+  const cancelledDay = {
+    ...DATA,
+    me: { ...DATA.me, full_name: "Dev Rosana", employee_ref: "D129" },
+    pattern: { name: "Tue–Thu days", days: [2, 3, 4], starts_at: "06:00:00", ends_at: "18:00:00", break_minutes: 60, annual_leave_days: 17 },
+    board: [tuesday],
+  } as unknown as MyAttendanceData;
+  const rows = () => Array.from(screen.getByTestId("where-im-working").querySelectorAll("li")).map((li) => li.textContent ?? "");
+
+  it("before the fix: the cancelled Monday came back as unplaced overtime", () => {
+    const before = { ...cancelledDay, overtime: [{ on_date: "2026-10-26", starts_at: "06:00:00", ends_at: "18:00:00" }] } as unknown as MyAttendanceData;
+    env.result.mockReturnValue({ data: { state: "ready", data: before }, isPending: false, isError: false });
+    renderPage();
+    const monday = rows().filter((t) => t.includes("Overtime"));
+    expect(monday).toHaveLength(1);
+    expect(monday[0]).toMatch(/06:00–18:00/);
+    expect(monday[0]).toMatch(/Work area not yet assigned/);
+  });
+
+  it("after the fix: no overtime row, and her rota and placed Tuesday are still there", () => {
+    const after = { ...cancelledDay, overtime: [] } as unknown as MyAttendanceData;
+    env.result.mockReturnValue({ data: { state: "ready", data: after }, isPending: false, isError: false });
+    renderPage();
+    const all = rows();
+    expect(all.some((t) => t.includes("Overtime"))).toBe(false);
+    expect(all.some((t) => t.includes("Gel Packing") && t.includes("06:00–18:00"))).toBe(true);
+    // Tue 20/10 is today here; Wed–Thu of both weeks are rota days the board has not placed.
+    expect(all.filter((t) => t.includes("Work area not yet assigned"))).toHaveLength(5);
+  });
+});

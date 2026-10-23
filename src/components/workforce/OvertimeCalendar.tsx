@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { countResponses, windowLabel, audienceLine, type OvertimeRequest, type OvertimeResponse } from "@/lib/overtimeRequests";
 import { askShift, OVERTIME_SHIFTS, type OvertimeShift } from "@/lib/overtimeShifts";
 import {
-  calendarStatus, endsNextDay, monthGrid, weekDays, viewTitle, stepAnchor, isoDate,
+  calendarStatus, placesHeld, endsNextDay, monthGrid, weekDays, viewTitle, stepAnchor, isoDate,
   CALENDAR_STATUS_LABEL, CALENDAR_STATUS_BADGE, type CalendarView, type CalendarStatus,
 } from "@/lib/overtimeCalendar";
 
@@ -38,6 +38,8 @@ interface Props {
   onAnchorChange: (iso: string) => void;
   asks: OvertimeRequest[];
   responsesByRequest: Map<string, OvertimeResponse[]>;
+  /** What happened to each booking; a cancelled one is not "in". */
+  outcomeOf?: (responseId: string) => string | undefined;
   mayManage: boolean;
   onSelect: (requestId: string) => void;
   onCreate: (date: string) => void;
@@ -60,7 +62,7 @@ interface Entry {
  * decisions are made; pressing an empty day (or its "+") starts a new ask on it.
  */
 export function OvertimeCalendar({
-  view, anchor, onViewChange, onAnchorChange, asks, responsesByRequest, mayManage, onSelect, onCreate,
+  view, anchor, onViewChange, onAnchorChange, asks, responsesByRequest, outcomeOf, mayManage, onSelect, onCreate,
 }: Props) {
   const today = isoDate(new Date());
   const now = new Date();
@@ -72,8 +74,10 @@ export function OvertimeCalendar({
       const c = countResponses(r, rs);
       const e: Entry = {
         request: r,
-        status: calendarStatus(r, rs, now),
-        accepted: c.accepted,
+        status: calendarStatus(r, rs, now, outcomeOf),
+        // People still coming: somebody who cancelled keeps 'accepted' as the record,
+        // but is not in.
+        accepted: outcomeOf ? placesHeld(rs, outcomeOf) : c.accepted,
         pending: rs.filter((x) => x.answer === "yes" && x.decision === null).length,
         shift: askShift(r),
       };
@@ -82,7 +86,7 @@ export function OvertimeCalendar({
     return m;
     // `now` is read once per render on purpose; the list refetches every mutation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asks, responsesByRequest]);
+  }, [asks, responsesByRequest, outcomeOf]);
 
   const canCreateOn = (d: string) => mayManage && d >= today;
 

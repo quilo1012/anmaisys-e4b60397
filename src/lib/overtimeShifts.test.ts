@@ -128,6 +128,17 @@ describe("clashesFor", () => {
       [{ request: other, responses: [ans("o", "e1", { decision: "accepted" })] }],
       [board({ shift: "Night", status: "overtime" })])).toEqual([]);
   });
+  it("a booking the person cancelled (or called in sick for) no longer holds the hours; one still on does", () => {
+    const other = ask("o", { on_date: "2026-10-14", starts_at: "20:00", ends_at: "02:00" });
+    const others = [{ request: other, responses: [ans("o", "e1", { decision: "accepted" })] }];
+    const id = others[0].responses[0].id;
+    for (const cancelled of ["cancelled_in_time", "cancelled_late"]) {
+      expect(clashesFor("e1", nightAsk, others, [], undefined, (r) => (r === id ? cancelled : undefined))).toEqual([]);
+    }
+    expect(clashesFor("e1", nightAsk, others, [], undefined, () => undefined)[0].severity).toBe("block");
+    expect(clashesFor("e1", nightAsk, others, [], undefined, () => "called_sick")).toEqual([]);
+    expect(clashesFor("e1", nightAsk, others, [], undefined, () => "attended")[0].severity).toBe("block");
+  });
   it("accepted on the day ask before a night ask warns — no rest, but not a duplicate", () => {
     const dayAsk = ask("d", { on_date: "2026-10-14", starts_at: "06:00", ends_at: "18:00" });
     const c = clashesFor("e1", nightAsk, [{ request: dayAsk, responses: [ans("d", "e1", { decision: "accepted" })] }], []);

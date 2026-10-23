@@ -10,7 +10,19 @@
  * There is no "Draft": `overtime_requests` has no such status, and an ask is
  * published the moment it is saved. Nothing here pretends otherwise.
  */
-import { countResponses, type OvertimeRequest, type OvertimeResponse } from "@/lib/overtimeRequests";
+import { countResponses, placesTaken, type OvertimeRequest, type OvertimeResponse } from "@/lib/overtimeRequests";
+
+/**
+ * People still holding a place: accepted, and not dropped out since (`placesTaken`, the
+ * database's own count). A response without an id cannot be looked up, so it counts.
+ */
+export function placesHeld(
+  responses: readonly (Pick<OvertimeResponse, "decision"> & { id?: string })[],
+  outcomeOf: (responseId: string) => string | undefined,
+): number {
+  return placesTaken(responses.map((r, i) => ({ id: r.id ?? `#${i}`, decision: r.decision })),
+    (id) => (id.startsWith("#") ? undefined : outcomeOf(id)));
+}
 
 export type CalendarView = "month" | "week" | "day";
 
@@ -71,19 +83,22 @@ export function endsNextDay(r: Pick<OvertimeRequest, "starts_at" | "ends_at">): 
  */
 export function calendarStatus(
   request: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at" | "status" | "headcount">,
-  responses: Pick<OvertimeResponse, "answer" | "decision">[],
+  responses: (Pick<OvertimeResponse, "answer" | "decision"> & { id?: string })[],
   now: Date = new Date(),
+  /** What happened to each booking. Given, somebody who cancelled no longer counts as booked. */
+  outcomeOf?: (responseId: string) => string | undefined,
 ): CalendarStatus {
   if (request.status === "cancelled") return "cancelled";
   const { start, end } = askWindow(request);
   if (now >= end) return "completed";
   if (now >= start) return "in_progress";
   if (request.status === "closed") return "closed";
-  const c = countResponses(request, responses);
+  const c = countResponses(request, responses, outcomeOf);
+  const held = outcomeOf ? placesHeld(responses, outcomeOf) : c.accepted;
   // No number: nothing to be "partially" — somebody is booked, or nobody is yet.
-  if (c.short == null) return c.accepted > 0 ? "booked" : "needs";
+  if (c.short == null) return held > 0 ? "booked" : "needs";
   if (c.short === 0) return "full";
-  return c.accepted > 0 ? "partial" : "needs";
+  return held > 0 ? "partial" : "needs";
 }
 
 /* ------------------------------------------------------------------ dates */

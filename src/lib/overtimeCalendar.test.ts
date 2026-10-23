@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   calendarStatus, monthGrid, weekDays, viewRange, stepAnchor, viewTitle, duplicateOf, mondayOf, endsNextDay, CALENDAR_STATUS_BADGE,
+  placesHeld,
 } from "./overtimeCalendar";
 
 const ask = (over: Partial<Parameters<typeof calendarStatus>[0]> = {}) => ({
@@ -21,6 +22,16 @@ describe("calendarStatus", () => {
     expect(calendarStatus(ask({ headcount: null }), [], before)).toBe("needs");
     expect(calendarStatus(ask({ headcount: null }), [yes("accepted")], before)).toBe("booked");
     expect(calendarStatus(ask({ headcount: null }), Array(30).fill(yes("accepted")), before)).toBe("booked");
+  });
+  it("a booking that was cancelled is not a place: the ask is back to needing people", () => {
+    const booked = { id: "r1", answer: "yes" as const, decision: "accepted" as const };
+    const cancelled = (id: string) => (id === "r1" ? "cancelled_in_time" : undefined);
+    expect(calendarStatus(ask({ headcount: null }), [booked], before)).toBe("booked");
+    expect(calendarStatus(ask({ headcount: null }), [booked], before, cancelled)).toBe("needs");
+    expect(calendarStatus(ask({ headcount: 1 }), [booked], before, cancelled)).toBe("needs");
+    expect(calendarStatus(ask({ headcount: 1 }), [booked], before, () => undefined)).toBe("full");
+    expect(placesHeld([booked, { id: "r2", decision: "accepted" }], cancelled)).toBe(1);
+    expect(placesHeld([booked], () => "attended")).toBe(1);
   });
   it("a night ask runs past midnight, and is completed only when it ends the next morning", () => {
     expect(calendarStatus(ask(), [], new Date(2026, 9, 21, 3))).toBe("in_progress");
