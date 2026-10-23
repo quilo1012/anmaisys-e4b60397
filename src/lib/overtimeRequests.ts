@@ -495,3 +495,26 @@ export function hoursBetween(startsAt: string, endsAt: string): string {
   const h = Math.floor(total / 60), m = total % 60;
   return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`;
 }
+
+/**
+ * The absolute minutes an ask covers, so two asks on the same or neighbouring days can
+ * be compared. An end at or before its start is the next day (the night shift).
+ */
+export function askMinuteWindow(request: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at">): [number, number] {
+  const [y, m, d] = request.on_date.split("-").map(Number);
+  const base = Date.UTC(y, m - 1, d) / 60000;
+  const hm = (t: string) => { const [h, mi] = t.slice(0, 5).split(":").map(Number); return h * 60 + mi; };
+  const start = hm(request.starts_at);
+  const end = hm(request.ends_at) + (hm(request.ends_at) <= start ? 1440 : 0);
+  return [base + start, base + end];
+}
+
+/** True when two asks cover any of the same hours. */
+export function asksOverlap(
+  a: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at">,
+  b: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at">,
+): boolean {
+  const [as, ae] = askMinuteWindow(a);
+  const [bs, be] = askMinuteWindow(b);
+  return as < be && bs < ae;
+}

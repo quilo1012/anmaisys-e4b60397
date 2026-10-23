@@ -19,7 +19,7 @@ import {
 import { useConfirm } from "@/hooks/useConfirm";
 import {
   upcomingForMe, askHasStarted, myStatusLabel, myAnswerLabel, supervisorLabel, windowLabel,
-  headcountLine, audienceLine, placesLine, type OvertimeRequest,
+  headcountLine, audienceLine, placesLine, asksOverlap, type OvertimeRequest,
 } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -381,6 +381,13 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
    * reserve list at once — and if the shift is close, the database counts it as a
    * late cancellation, which the person should hear before they tap, not after.
    */
+  /** Asks I am confirmed on and have not cancelled — their hours are already mine. */
+  const bookedAsks = useMemo(() => requests.filter((q) => {
+    const resp = mine.get(q.id);
+    if (resp?.decision !== "accepted") return false;
+    return !myOutcomes.some((o) => o.response_id === resp.id
+      && (o.outcome === "cancelled_in_time" || o.outcome === "cancelled_late"));
+  }), [requests, mine, myOutcomes]);
   const cancelling = useRef(false);
   /** Asks this person could move a booking to: open, undecided, not started. */
   const swapTargets = (from: OvertimeRequest) => requests.filter((q) =>
@@ -525,7 +532,13 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         const canAnswer = r.status === "open" && !my?.decision && !askHasStarted(r, now);
         // Answered before the board or the rota put them on these hours. Their answer
         // stays; a yes no longer can — the database would refuse it.
-        const ownHours = clashes.get(r.id);
+        // Another ask I am already booked on that covers the same hours (a 06:00–18:00
+        // booking is not a place for a 06:00–14:00 ask on the same date). The schedule
+        // check above does not see the bookings themselves, so this one is made here.
+        const overlapping = bookedAsks.find((b) => b.id !== r.id && asksOverlap(b, r));
+        const ownHours = clashes.get(r.id) ?? (overlapping
+          ? `you are already booked for overtime ${fmtShort(overlapping.on_date)}, ${windowLabel(overlapping.starts_at, overlapping.ends_at)}`
+          : undefined);
         const tone =
           my?.decision === "accepted" ? "bg-success/15 text-success border-success/30"
           : my?.decision === "reserve" ? "bg-warning/15 text-warning border-warning/30"
