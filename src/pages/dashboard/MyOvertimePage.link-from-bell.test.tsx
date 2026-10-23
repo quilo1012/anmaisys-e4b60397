@@ -77,7 +77,7 @@ describe("a link from a notification", () => {
     state.clashes = new Map();
     renderAt("/dashboard/my-overtime?ask=cancelled-one");
     expect(screen.getByText("That overtime is no longer available")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /yes, i can/i })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /accept overtime/i })).toHaveLength(2);
   });
 
   it("says so too when it was on the person's own hours and the list is empty", () => {

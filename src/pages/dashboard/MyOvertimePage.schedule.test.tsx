@@ -68,7 +68,7 @@ describe("overtime on the person's own hours", () => {
     renderPage();
     expect(screen.queryByText(/06:00–18:00/)).not.toBeInTheDocument();
     expect(screen.getByText(/18:00–06:00/)).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /yes, i can/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /accept overtime/i })).toHaveLength(1);
   });
 
   it("an ask already answered stays, says why, and offers only no", () => {
@@ -79,7 +79,7 @@ describe("overtime on the person's own hours", () => {
     state.clashes = new Map([["sat-day", "Your rota has you on the day shift on Sat, 06:00–18:00"]]);
     renderPage();
     expect(screen.getByText(/These hours are already yours — your rota has you/)).toBeInTheDocument();
-    const yes = screen.getAllByRole("button", { name: /yes, i can/i });
+    const yes = screen.getAllByRole("button", { name: /accept overtime/i });
     expect(yes).toHaveLength(2);
     expect(yes.filter((b) => (b as HTMLButtonElement).disabled)).toHaveLength(1);
   });
@@ -88,6 +88,6 @@ describe("overtime on the person's own hours", () => {
     state.responses = [];
     state.clashes = new Map();
     renderPage();
-    expect(screen.getAllByRole("button", { name: /yes, i can/i })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /accept overtime/i })).toHaveLength(2);
   });
 });

@@ -89,7 +89,7 @@ describe("My Overtime num tablet partilhado", () => {
     renderPage();
     await waitFor(() => expect(screen.getByText(/the line's tablet/i)).toBeTruthy());
     expect(screen.queryByRole("button", { name: /yes/i })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^no/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^decline/i })).toBeNull();
     expect(screen.queryByText(/Who are you\?/i)).toBeNull();
     expect(screen.queryByText(/Pick your name once/i)).toBeNull();
   });

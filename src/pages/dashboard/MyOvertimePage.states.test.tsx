@@ -94,7 +94,7 @@ describe("My Overtime — states", () => {
   it("a double tap on Yes sends one answer", () => {
     state.upcoming = { data: [ask("a", 3)], isLoading: false, isError: false, refetch: vi.fn() };
     renderPage();
-    const yes = screen.getByRole("button", { name: /yes, i can/i });
+    const yes = screen.getByRole("button", { name: /accept overtime/i });
     fireEvent.click(yes);
     fireEvent.click(yes);
     expect(state.mutate).toHaveBeenCalledTimes(1);

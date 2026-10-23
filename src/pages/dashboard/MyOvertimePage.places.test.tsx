@@ -73,7 +73,7 @@ describe("room left on an ask", () => {
     expect(screen.getByText("1 of 2 places left")).toBeInTheDocument();
     expect(screen.getByText(/All 2 places are filled — a yes puts you on the reserve list/)).toBeInTheDocument();
     // Full is not a closed door: the reserve is who steps in when somebody drops out.
-    expect(screen.getAllByRole("button", { name: /yes, i can/i }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByRole("button", { name: /accept overtime/i }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
   });
 
   it("is not said to somebody the supervisor has already picked", () => {

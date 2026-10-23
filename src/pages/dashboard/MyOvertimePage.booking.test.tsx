@@ -76,7 +76,7 @@ describe("a yes is a booking", () => {
   it("says booked when the database booked it", () => {
     state.responses = []; state.written = { answer: "yes", decision: "accepted" };
     renderPage();
-    fireEvent.click(screen.getAllByRole("button", { name: /yes, i can/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /accept overtime/i })[0]);
     expect(toast.success).toHaveBeenLastCalledWith(expect.stringMatching(/^You're booked for/),
       expect.objectContaining({ description: expect.stringMatching(/Your supervisor has been told/) }));
   });
@@ -84,14 +84,14 @@ describe("a yes is a booking", () => {
   it("says reserve when the ask's number was already reached", () => {
     state.responses = []; state.written = { answer: "yes", decision: "reserve" };
     renderPage();
-    fireEvent.click(screen.getAllByRole("button", { name: /yes, i can/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /accept overtime/i })[0]);
     expect(toast.success).toHaveBeenLastCalledWith(expect.stringMatching(/^You're on the reserve list/), expect.anything());
   });
 
   it("does not promise a booking the database did not make (block not pasted)", () => {
     state.responses = []; state.written = { answer: "yes", decision: null };
     renderPage();
-    fireEvent.click(screen.getAllByRole("button", { name: /yes, i can/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /accept overtime/i })[0]);
     expect(toast.success).toHaveBeenLastCalledWith(expect.stringMatching(/^You said yes/),
       expect.objectContaining({ description: expect.stringMatching(/supervisor picks/) }));
   });
@@ -104,7 +104,7 @@ describe("a yes is a booking", () => {
     renderPage();
     expect(screen.getByText("Booked — your supervisor has been told")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Message supervisor" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /yes, i can/i })).toHaveLength(1); // only the other ask
+    expect(screen.getAllByRole("button", { name: /accept overtime/i })).toHaveLength(1); // only the other ask
   });
 
   it("an ask with no number says nothing about how many", () => {
