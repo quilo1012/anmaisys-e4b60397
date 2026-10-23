@@ -1,5 +1,5 @@
 import { announceSummary } from "@/lib/overtimeAnnounce";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -153,6 +153,7 @@ export function OvertimeRequestsPanel() {
     () => new Map(outcomes.map((o) => [o.response_id, o.outcome])),
     [outcomes],
   );
+  const outcomeOf = useCallback((id: string) => outcomeByResponse.get(id), [outcomeByResponse]);
 
   // On the calendar the dates are the calendar's; the date filter is the list's.
   const filtered = useMemo(
@@ -322,6 +323,7 @@ export function OvertimeRequestsPanel() {
         <OvertimeCalendar
           view={calView} anchor={anchor} onViewChange={setCalView} onAnchorChange={setAnchor}
           asks={calendarAsks} responsesByRequest={responsesByRequest} mayManage={mayManage}
+          outcomeOf={outcomeOf}
           onSelect={setSelectedId}
           onCreate={(d) => { setCreateOn(d); setCreating(true); }}
         />
@@ -781,7 +783,8 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
   const saidNo = responses.filter((r) => r.answer === "no")
     .map((r) => byId.get(r.employee_id)).filter(Boolean).map((e) => displayName(e!, ctx));
 
-  const clashOf = (employeeId: string) => clashesFor(employeeId, request, ctx.others, ctx.board, ctx.schedule);
+  const clashOf = (employeeId: string) =>
+    clashesFor(employeeId, request, ctx.others, ctx.board, ctx.schedule, (id) => ctx.outcomeByResponse.get(id));
 
   // Not narrowed by the ask's crew or department: those say who is asked, and a
   // supervisor may add anybody — a Day person on Night overtime included. Those
@@ -827,9 +830,11 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
           <div className="w-full min-w-[11rem] text-sm sm:w-auto">
             <div className="flex items-baseline justify-between gap-2">
               <span className="font-medium tabular-nums">
+                {/* Places still held, not every 'accepted' given: a cancelled booking keeps
+                    its decision as the record but the person is not coming. */}
                 {counts.headcount == null
-                  ? `${counts.accepted} ${counts.accepted === 1 ? "person" : "people"} booked`
-                  : `${counts.accepted} of ${counts.headcount} picked`}
+                  ? `${taken} ${taken === 1 ? "person" : "people"} booked`
+                  : `${taken} of ${counts.headcount} picked`}
               </span>
               {counts.short != null && counts.short > 0 && request.status === "open" && (
                 <span className="text-xs font-medium text-warning-strong">{counts.short} to go</span>
@@ -839,12 +844,12 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <div
                 className="mt-1 h-2 w-full overflow-hidden rounded-full bg-muted"
                 role="img"
-                aria-label={`${counts.accepted} of ${counts.headcount} picked`}
+                aria-label={`${taken} of ${counts.headcount} picked`}
               >
                 <div
                   className={cn("h-full rounded-full transition-[width]",
                     counts.short === 0 ? "bg-success" : "bg-warning")}
-                  style={{ width: `${Math.min(100, (counts.accepted / Math.max(1, counts.headcount)) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (taken / Math.max(1, counts.headcount)) * 100)}%` }}
                 />
               </div>
             )}

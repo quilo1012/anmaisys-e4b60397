@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { invokeFunction } from "@/lib/invokeFunction";
@@ -384,20 +384,35 @@ const announceDeps: AnnounceDeps = {
 const pushTo = (requestId: string, message: PushMessage, employeeIds: string[] | null) =>
   pushToVia(announceDeps, requestId, message, employeeIds);
 
+/**
+ * Every cached read an overtime change can alter. A booking, a cancellation or a move
+ * also changes the Headcount Board and "Where I'm working" (`my_attendance`), so those
+ * are marked stale too: otherwise a cancelled day stays on the employee's screen for
+ * up to the 30-second stale time, and on the board until its next poll.
+ */
+export const OVERTIME_REFRESH_KEYS: readonly (readonly string[])[] = [
+  KEYS.requests,
+  ["overtime_responses"],
+  ["overtime_outcomes"],
+  KEYS.reliability,
+  ["my_overtime_block"],
+  ["overtime_board_rows"],
+  ["my_overtime_clashes"],
+  ["overtime_schedule_clashes"],
+  ["overtime_places"],
+  ["my_attendance"],
+  ["headcount-allocations"],
+  ["headcount-confirmed-overtime"],
+];
+
+export function refreshAfterOvertimeChange(qc: Pick<QueryClient, "invalidateQueries">) {
+  for (const queryKey of OVERTIME_REFRESH_KEYS) void qc.invalidateQueries({ queryKey });
+}
+
 export function useOvertimeMutations() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const refresh = () => {
-    void qc.invalidateQueries({ queryKey: KEYS.requests });
-    void qc.invalidateQueries({ queryKey: ["overtime_responses"] });
-    void qc.invalidateQueries({ queryKey: ["overtime_outcomes"] });
-    void qc.invalidateQueries({ queryKey: KEYS.reliability });
-    void qc.invalidateQueries({ queryKey: ["my_overtime_block"] });
-    void qc.invalidateQueries({ queryKey: ["overtime_board_rows"] });
-    void qc.invalidateQueries({ queryKey: ["my_overtime_clashes"] });
-    void qc.invalidateQueries({ queryKey: ["overtime_schedule_clashes"] });
-    void qc.invalidateQueries({ queryKey: ["overtime_places"] });
-  };
+  const refresh = () => refreshAfterOvertimeChange(qc);
 
   const createRequest = useMutation({
     mutationFn: async (input: {
