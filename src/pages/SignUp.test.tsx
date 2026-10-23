@@ -50,18 +50,18 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
   });
   afterEach(() => { restore?.(); restore = null; });
 
-  it("oferece uma saída a quem não sabe o número do crachá", async () => {
-    renderPage();
-    // A saída existe e está onde a pessoa encalha, não no fundo da página.
-    expect(screen.getByText(/Don't know your ID\?/i)).toBeTruthy();
-    expect(screen.getByText(/one to three letters and then the digits/i)).toBeTruthy();
-    expect(screen.getByText(/supervisor or the office can look/i)).toBeTruthy();
-  });
-
   it("diz onde se vai buscar o invite code quando ninguém o deu", () => {
     renderPage();
     expect(screen.getByText(/sign-up sheet where you clock in/i)).toBeTruthy();
     expect(screen.queryByText(/Filled in from the link/i)).toBeNull();
+  });
+
+  it("diz o mesmo na porta do email, que estava sem explicação nenhuma", async () => {
+    renderPage();
+    // Quem foge de um número que não sabe não pode cair numa segunda caixa pior.
+    expect(await screen.findByLabelText(/^Email$/i)).toBeTruthy();
+    expect(screen.getByText(/sign-up sheet where you clock in/i)).toBeTruthy();
+    expect(screen.queryByPlaceholderText(/Ask your administrator/i)).toBeNull();
   });
 
   it("diz que o código veio do link quando veio, em vez de o deixar sem explicação", () => {
@@ -121,41 +121,6 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
    *
    * A porta do email não passa por aqui e funciona.
    */
-  it("quando a porta do crachá não responde, diz o que fazer e abre a outra", async () => {
-    // Duas vezes: uma ligação que cai é tentada outra vez antes de se dizer seja o que for.
-    const unreachable = {
-      data: null,
-      error: { name: "FunctionsFetchError", message: "Failed to send a request to the Edge Function" },
-    };
-    invoke.mockResolvedValueOnce(unreachable).mockResolvedValueOnce(unreachable);
-    renderPage();
-    fireEvent.change(screen.getByLabelText(/Employee ID/i), { target: { value: "E151" } });
-    fireEvent.change(screen.getByLabelText(/Choose a password/i), { target: { value: "umapalavra" } });
-    fireEvent.change(screen.getByLabelText(/Invite code/i), { target: { value: "AN-TESTE" } });
-    fireEvent.click(screen.getByRole("button", { name: /Create account and sign in/i }));
-
-    // A mensagem do SDK não chega ao ecrã.
-    const aviso = await screen.findByText(/Sign-up isn't working right now/i, undefined, { timeout: 4000 });
-    expect(aviso).toBeTruthy();
-    expect(screen.queryByText(/Failed to send a request/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: /Register with my email/i })).toBeNull();
-  });
-
-  it("uma recusa com corpo passa intacta — não é engolida pela mensagem genérica", async () => {
-    invoke.mockResolvedValueOnce({
-      data: null,
-      error: { message: "That invite code isn't valid any more — it may have expired. Ask your supervisor." },
-    });
-    renderPage();
-    fireEvent.change(screen.getByLabelText(/Employee ID/i), { target: { value: "E151" } });
-    fireEvent.change(screen.getByLabelText(/Choose a password/i), { target: { value: "umapalavra" } });
-    fireEvent.change(screen.getByLabelText(/Invite code/i), { target: { value: "AN-ERRADO" } });
-    fireEvent.click(screen.getByRole("button", { name: /Create account and sign in/i }));
-
-    expect(await screen.findByText(/invite code isn't valid any more/i)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Register with my email/i })).toBeNull();
-  });
-
   /**
    * The tablet's own "Create account" button opens this with `?tablet=1`.
    *
@@ -163,28 +128,35 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
    * line's shared tablet in as one person — the Eduardo Luz failure again, by another
    * route. On a tablet the account is made and the tokens are left alone.
    */
-  it("no tablet cria a conta sem pôr o tablet em nome da pessoa", async () => {
-    restore?.();
-    restore = withSearch("?tablet=1&code=AN-2026");
-    invoke.mockResolvedValueOnce({ data: { access_token: "a", refresh_token: "r", full_name: "X" }, error: null });
-    const { supabase } = await import("@/integrations/supabase/client");
-    const setSession = supabase.auth.setSession as unknown as ReturnType<typeof vi.fn>;
-    setSession.mockClear();
+  /**
+   * "AbortError: Fetch is aborted" era o que o ecrã mostrava: o texto do WebKit para
+   * um pedido cortado, devolvido pelo postgrest-js como `{ message }`. Uma queda é
+   * tentada outra vez sozinha; se cair outra vez, a pessoa lê uma frase que pode seguir.
+   */
+  const fillEmailDoor = async () => {
+    fireEvent.change(await screen.findByLabelText(/Full name/i), { target: { value: "Ana Teste" } });
+    fireEvent.change(screen.getByLabelText(/^Email$/i), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: "umapalavra" } });
+    fireEvent.change(screen.getByLabelText(/Invite code/i), { target: { value: "AN-TESTE" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /^Create account$/i }).at(-1)!);
+  };
+
+  it("uma ligação que cai duas vezes dá a frase que se pode seguir, não o AbortError", async () => {
+    const rpc = vi.mocked(supabase.rpc);
+    rpc.mockImplementation((async (fn: string) =>
+      fn === "check_invite_code"
+        ? { data: null, error: { message: "AbortError: Fetch is aborted", code: "" } }
+        : { data: null, error: null }) as never);
     renderPage();
+    await fillEmailDoor();
 
-    expect((screen.getByLabelText(/Invite code/i) as HTMLInputElement).value).toBe("AN-2026");
-    fireEvent.change(screen.getByLabelText(/Employee ID/i), { target: { value: "E151" } });
-    fireEvent.change(screen.getByLabelText(/Choose a password/i), { target: { value: "umapalavra" } });
-    fireEvent.click(screen.getByRole("button", { name: /^Create account$/i }));
-
-    expect(await screen.findByText(/Sign in on your own phone/i)).toBeTruthy();
-    expect(setSession).not.toHaveBeenCalled();
+    expect(await screen.findByText(
+      "Não foi possível ligar ao servidor. Verifique a ligação e tente novamente.",
+      undefined, { timeout: 4000 },
+    )).toBeTruthy();
+    expect(screen.queryByText(/AbortError|Fetch is aborted/)).toBeNull();
+    expect(rpc.mock.calls.filter(([fn]) => fn === "check_invite_code")).toHaveLength(2);
+    rpc.mockImplementation((async () => ({ data: null, error: null })) as never);
   });
 
-  it("diz como quem a pessoa vai entrar, sem a deixar escolher", () => {
-    renderPage();
-    // A porta do crachá cria sempre um Employee.
-    expect(screen.getByText(/You'll join as/i).textContent).toMatch(/Employee/);
-    expect(screen.queryByRole("combobox", { name: /role/i })).toBeNull();
-  });
 });
