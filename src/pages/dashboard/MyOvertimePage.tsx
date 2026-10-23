@@ -277,7 +277,10 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
   const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
-  const { answer, cancelMyBooking } = useOvertimeMutations();
+  const { answer, cancelMyBooking, swapMyBooking, leaveReserve } = useOvertimeMutations();
+  /** Which booking is being moved to another day, and to which ask. */
+  const [swapFrom, setSwapFrom] = useState<string | null>(null);
+  const [swapTo, setSwapTo] = useState<string>("");
   const { confirm, confirmDialog } = useConfirm();
   const fmtShort = (d: string) => d.split("-").slice(1).reverse().join("/");
 
@@ -379,6 +382,41 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
    * late cancellation, which the person should hear before they tap, not after.
    */
   const cancelling = useRef(false);
+  /** Asks this person could move a booking to: open, undecided, not started. */
+  const swapTargets = (from: OvertimeRequest) => requests.filter((q) =>
+    q.id !== from.id && q.status === "open" && !askHasStarted(q, now) && !mine.get(q.id)?.decision);
+  const leaveReserveFor = async (request: OvertimeRequest) => {
+    const ok = await confirm({
+      title: "Leave the reserve list?",
+      description: `You will no longer be on the reserve list for ${fmtDate(request.on_date)}. This is not a cancellation.`,
+      confirmText: "Yes, leave it",
+      cancelText: "Stay on it",
+    });
+    if (!ok) return;
+    leaveReserve.mutate({ requestId: request.id }, {
+      onSuccess: () => toast.success(`You left the reserve list for ${fmtDate(request.on_date)}`),
+      onError: (e) => toast.error((e as Error).message || "Could not leave the reserve list"),
+    });
+  };
+  const moveBooking = async (from: OvertimeRequest) => {
+    const target = requests.find((q) => q.id === swapTo);
+    if (!target) return;
+    const ok = await confirm({
+      title: "Move to another day?",
+      description: `Your booking on ${fmtDate(from.on_date)} will be cancelled and you will be booked on ${fmtDate(target.on_date)}, ${windowLabel(target.starts_at, target.ends_at)}. If the new day is not confirmed, nothing changes.`,
+      confirmText: "Yes, move it",
+      cancelText: "Keep my booking",
+    });
+    if (!ok) return;
+    swapMyBooking.mutate({ fromRequestId: from.id, toRequestId: target.id }, {
+      onSuccess: () => {
+        setSwapFrom(null);
+        setSwapTo("");
+        toast.success(`Moved to ${fmtDate(target.on_date)}`);
+      },
+      onError: (e) => toast.error((e as Error).message || "Could not move your booking"),
+    });
+  };
   const cancelBooking = async (request: OvertimeRequest) => {
     if (cancelling.current) return;
     const ok = await confirm({
@@ -571,6 +609,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     <MessageSupervisorDialog request={r} fmtDate={fmtDate} />
+                    {my.decision === "reserve" && (
+                      <Button variant="outline" size="sm" disabled={leaveReserve.isPending}
+                        onClick={() => void leaveReserveFor(r)}>
+                        Leave the reserve list
+                      </Button>
+                    )}
+                    {canCancel && swapTargets(r).length > 0 && swapFrom !== r.id && (
+                      <Button variant="outline" size="sm" onClick={() => { setSwapFrom(r.id); setSwapTo(""); }}>
+                        Move to another day
+                      </Button>
+                    )}
                     {canCancel && (
                       <Button
                         variant="outline" size="sm"
@@ -585,6 +634,28 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                       </Button>
                     )}
                   </div>
+                  {canCancel && swapFrom === r.id && (
+                    <div className="space-y-2 rounded-md border bg-muted/40 p-3">
+                      <label htmlFor={`swap-${r.id}`} className="text-xs font-medium">Move to</label>
+                      <select id={`swap-${r.id}`} value={swapTo} onChange={(e) => setSwapTo(e.target.value)}
+                        className="block w-full rounded-md border bg-background px-2 py-2 text-sm">
+                        <option value="">Choose a day</option>
+                        {swapTargets(r).map((q) => (
+                          <option key={q.id} value={q.id}>
+                            {fmtDate(q.on_date)}, {windowLabel(q.starts_at, q.ends_at)}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-muted-foreground">Your current booking is cancelled only once the new day is confirmed.</p>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={!swapTo || swapMyBooking.isPending} onClick={() => void moveBooking(r)}>
+                          {swapMyBooking.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                          Move booking
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setSwapFrom(null)}>Keep it here</Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               {canAnswer && ownHours && (

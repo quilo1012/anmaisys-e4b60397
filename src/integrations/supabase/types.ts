@@ -7409,6 +7409,18 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: undefined
       }
+      leave_my_reserve: {
+        Args: { p_request_id: string }
+        Returns: undefined
+      }
+      swap_my_overtime: {
+        Args: { p_from: string; p_note?: string; p_to: string }
+        Returns: {
+          outcome: string
+          promoted_employee_id: string
+          promoted_response_id: string
+        }[]
+      }
       cancel_my_overtime: {
         Args: { p_note?: string; p_request_id: string }
         Returns: {

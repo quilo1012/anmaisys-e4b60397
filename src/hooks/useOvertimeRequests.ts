@@ -734,5 +734,37 @@ export function useOvertimeMutations() {
     },
   });
 
-  return { createRequest, editRequest, setRequestStatus, deleteRequest, answer, answerFor, removeAnswer, decide, recordOutcome, cancelMyBooking, linkMe, linkMeByEmail, saveRules };
+  /**
+   * Trocar de dia: responde ao pedido novo e, só se ficar confirmado, cancela o atual.
+   * Tudo numa transacção no servidor — se o novo não ficar confirmado, nada é cancelado.
+   */
+  const swapMyBooking = useMutation({
+    mutationFn: async ({ fromRequestId, toRequestId }: { fromRequestId: string; toRequestId: string }) => {
+      const { data, error } = await db.rpc("swap_my_overtime", {
+        p_from: fromRequestId, p_to: toRequestId, p_note: "Troca de dia",
+      });
+      if (error) throw error;
+      const row = (data as { outcome: "cancelled_in_time" | "cancelled_late"; promoted_employee_id: string | null }[] | null)?.[0];
+      if (!row) throw new Error("Nothing was moved. Check your signal and try again.");
+      if (row.promoted_employee_id) {
+        const { data: req } = await db.from("overtime_requests")
+          .select("id, on_date, starts_at, ends_at").eq("id", fromRequestId).single();
+        const message = req ? decisionMessage(req, "accepted") : null;
+        if (message) await pushTo(fromRequestId, message, [row.promoted_employee_id]);
+      }
+      return { outcome: row.outcome };
+    },
+    onSuccess: refresh,
+  });
+
+  /** Sair da lista de reserva. Não é cancelamento: não há turno marcado. */
+  const leaveReserve = useMutation({
+    mutationFn: async ({ requestId }: { requestId: string }) => {
+      const { error } = await db.rpc("leave_my_reserve", { p_request_id: requestId });
+      if (error) throw error;
+    },
+    onSuccess: refresh,
+  });
+
+  return { createRequest, editRequest, setRequestStatus, deleteRequest, answer, answerFor, removeAnswer, decide, recordOutcome, cancelMyBooking, swapMyBooking, leaveReserve, linkMe, linkMeByEmail, saveRules };
 }
