@@ -173,13 +173,28 @@ describe("sidebar", () => {
     // decision, not a tidy-up. The routes were NOT touched — both still open and still
     // ask for `attendance.view_own` — so the way back is the Permissions page, not this
     // file.
-    for (const url of ["/dashboard/my-attendance", "/dashboard/my-work-area"]) {
+    // My Overtime joined them on 23/10, on the same argument and with the numbers to
+    // match: an ask finds a person through `my_overtime_identity()`, which reads
+    // `employees.user_id = auth.uid()`, and the five roles that carried this row have
+    // seven logins and zero employee records between them — 281 of the 281 answers in
+    // `overtime_responses` from a role with the row came from employees.
+    for (const url of ["/dashboard/my-attendance", "/dashboard/my-work-area", "/dashboard/my-overtime"]) {
       const row = navItems.find((i) => i.url === url);
       expect(row, `${url} has lost its menu row entirely`).toBeDefined();
       expect(
         row!.roles,
-        `${row!.title} is offered to ${row!.roles.join(", ")} — these two are the floor's own record`,
+        `${row!.title} is offered to ${row!.roles.join(", ")} — these three are the floor's own record`,
       ).toEqual(["employee"]);
+    }
+  });
+
+  it("still lets anyone who can answer an ask be shown one", () => {
+    // The row went; the right did not. `OvertimeOfferAlert` is mounted for everyone
+    // holding `overtime.respond`, so an ask that does reach a non-employee still
+    // arrives as a modal. Removing the action from a role is a different decision from
+    // removing its row, and this is the line between them.
+    for (const role of ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor"] as Role[]) {
+      expect(can(role, "overtime.respond"), `${role} can no longer answer an overtime ask at all`).toBe(true);
     }
   });
 

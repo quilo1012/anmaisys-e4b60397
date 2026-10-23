@@ -228,10 +228,26 @@ export const navItems: NavItem[] = [
   // gets a row of its own rather than living only on the board's tab bar.
   { title: "Overtime", url: "/dashboard/overtime", icon: HandCoins, roles: ["manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
   // The floor's side of the same thing: the asks that apply to you, and Yes / No.
+  //
   // Sem `operator`: essas contas são de LINHA, não de pessoa — ver
   // `operator_line_accounts` e a migração 20261009090000, que já recusa ligá-las a um
   // funcionário. Um turno inteiro ao mesmo tablet respondia como a mesma pessoa.
-  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["manager", "production_office_admin", "maintenance_manager", "warehouse", "quality_supervisor", "employee"], group: "Production", action: "overtime.respond" },
+  //
+  // `employee` ONLY, 23/10, joining the two rows below it. An ask reaches a person
+  // through `my_overtime_identity()`, which reads `employees.user_id = auth.uid()` — so
+  // a login with no employee record can never be asked, and this screen can never have
+  // anything on it. Counted in production before removing the row: of the five roles
+  // that carried it, manager, production_office_admin, maintenance_manager, warehouse
+  // and quality_supervisor hold SEVEN logins between them and ZERO linked employee
+  // records, and `overtime_responses` has 281 answers from employees and not one from
+  // any of them.
+  //
+  // Nothing was taken away but the row. `OvertimeOfferAlert` is mounted in this layout
+  // for everyone holding `overtime.respond`, so an ask that does reach one of them
+  // still arrives as a modal and is still answerable; the route still opens by URL.
+  // That matters for the admin account that is linked to a record and has answered
+  // five times — admin never had this row and reached it that way already.
+  { title: "My Overtime", shortTitle: "Overtime", url: "/dashboard/my-overtime", icon: Hand, roles: ["employee"], group: "Production", action: "overtime.respond" },
   // The signed-in person's own record, and where they work the next two weeks. The
   // database answers both from the session alone (`my_attendance`), so they can only
   // ever show the reader's own.
