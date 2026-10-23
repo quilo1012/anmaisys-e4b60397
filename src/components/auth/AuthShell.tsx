@@ -118,13 +118,51 @@ export function AuthShell({
           Fica a marca numa linha, em papel, à mesma margem do formulário — e uma
           aresta de 3px no azul da casa, a única cor antes do botão. */}
       <header
-        className="flex items-center gap-2.5 border-t-[3px] border-auth-brand px-6 pb-2 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-10 lg:hidden"
+        className="relative flex items-center gap-3 px-6 pb-1.5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-10 lg:hidden"
       >
-        {/* The AN atom on its own — the square app icon. appliedlogo.jpeg is the wide
-            lockup; cropped to a square it read "APPLIE / NUTRI". */}
-        <img src="/android-chrome-192x192.png" alt="" className="h-8 w-8 select-none rounded-lg" />
-        <span className="font-display text-[15px] font-bold tracking-tight text-auth-ink">PMSystem</span>
-        <span className="ml-auto text-xs text-auth-ink-muted">Applied Nutrition</span>
+        {/* A aresta da casa, agora com direcção em vez de um azul chapado: do azul
+            profundo da placa à esquerda até ao azul claro do campo à direita — as
+            mesmas três paragens do gradiente que pinta a coluna da marca no
+            computador, para que o telemóvel e o ecrã grande sejam a mesma casa. */}
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-[3px]"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, hsl(var(--auth-panel-deep)) 0%, hsl(var(--auth-field)) 55%, hsl(var(--auth-field-top)) 100%)",
+          }}
+        />
+
+        {/* Uma chapa de máquina, que é como a fábrica identifica o que tem à frente:
+            o átomo gravado numa placa, com um anel fino e uma sombra curta a dar-lhe
+            espessura. O ficheiro já traz o seu próprio azul, por isso a placa é o
+            próprio ícone — não mais uma caixa à volta de uma caixa.
+
+            36px em vez de 32, e o espaço de baixo encolhe os mesmos 4px: a linha
+            cresce para o olho e não cresce para o teclado. Essa é a restrição que
+            manda aqui — a faixa e a capa que aqui estiveram foram removidas porque
+            empurravam o botão de entrar para debaixo do teclado, e nada do que se
+            acrescente a este cabeçalho pode voltar a fazê-lo. */}
+        <img
+          src="/android-chrome-192x192.png"
+          alt=""
+          className="h-9 w-9 select-none rounded-[10px] shadow-sm ring-1 ring-auth-brand/20"
+        />
+        <span className="shrink-0 font-display text-base font-bold tracking-[-0.01em] text-auth-ink">PMSystem</span>
+
+        {/* Quem faz a máquina, onde a chapa o diz: a seguir ao nome, depois de uma
+            régua, e não solto no canto oposto.
+
+            `min-w-0` + `truncate`: num ecrã de 320px esta linha mede cerca de 295px, o
+            que cabe — mas cabe por 25px, e a largura real depende da Archivo ter
+            chegado ou de estar a ser substituída por uma face mais larga. O nome do
+            sistema e o ícone não encolhem; se faltar espaço é este texto que cede.
+            A linha nunca empurra a página para o lado, que é o que
+            `e2e/login-responsive.spec.ts` mede a 320, 375, 390 e 430. */}
+        <span className="ml-auto flex min-w-0 items-center gap-3">
+          <span aria-hidden="true" className="h-4 w-px shrink-0 bg-auth-line" />
+          <span className="truncate text-xs text-auth-ink-muted">Applied Nutrition</span>
+        </span>
       </header>
 
       {/* ── Formulário ─────────────────────────────────────────────── */}
