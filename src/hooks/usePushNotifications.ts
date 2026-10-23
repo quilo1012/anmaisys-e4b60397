@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VAPID_PUBLIC_KEY as VAPID_KEY_CONST } from "@/lib/vapid";
 import { currentPushEnvironment, type PushEnvironment } from "@/lib/pushEnvironment";
+import { sameApplicationServerKey, isDifferentKeyError, describeSubscribeError, withTimeout } from "@/lib/pushSubscribe";
 
 const VAPID_PUBLIC_KEY =
   (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) || VAPID_KEY_CONST;
@@ -89,7 +90,7 @@ export function usePushNotifications() {
       return false;
     }
     if (!VAPID_PUBLIC_KEY) {
-      toast.error("VAPID public key missing (VITE_VAPID_PUBLIC_KEY)");
+      toast.error("Notifications are not set up on this server yet. Report it — there is nothing to fix on your phone.");
       return false;
     }
     setLoading(true);
@@ -97,17 +98,42 @@ export function usePushNotifications() {
       const perm = await Notification.requestPermission();
       setPermission(perm as PermissionState);
       if (perm !== "granted") {
-        toast.warning("Permission denied");
+        toast.warning("Notifications stayed off. Tap Turn on again and choose Allow.");
         return false;
       }
       await registerSW();
       // On the first tap the worker register() returns is still installing, and
-      // subscribe() on a registration with no active worker rejects. `ready` waits for it.
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
+      // subscribe() on a registration with no active worker rejects. `ready` waits for
+      // it — and never rejects, so it is bounded: an unbounded wait is a button that
+      // spins for ever and says nothing.
+      const reg = await withTimeout(navigator.serviceWorker.ready, 20_000, "Preparing notifications");
+
+      const wantedKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      // A subscription minted under a different key cannot be reused, and the browser
+      // will not replace it: it refuses the new one. This app has changed key — it used
+      // to read VITE_VAPID_PUBLIC_KEY and now falls back to the constant in lib/vapid —
+      // so every phone that said yes under the old value arrives here holding one.
+      // Dropping it costs nothing: it is a subscription this server cannot send to.
+      const held = await reg.pushManager.getSubscription();
+      if (held && !sameApplicationServerKey(held.options?.applicationServerKey, wantedKey)) {
+        try { await held.unsubscribe(); } catch { /* gone already is the outcome we wanted */ }
+      }
+
+      const mint = () => reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
+        applicationServerKey: wantedKey.buffer as ArrayBuffer,
       });
+      let sub: PushSubscription;
+      try {
+        sub = await mint();
+      } catch (err) {
+        // Belt and braces: some browsers do not report options.applicationServerKey, so
+        // the check above cannot see the mismatch and only the refusal reveals it.
+        if (!isDifferentKeyError(err)) throw err;
+        const stale = await reg.pushManager.getSubscription();
+        if (stale) await stale.unsubscribe();
+        sub = await mint();
+      }
       const { data: userRes } = await supabase.auth.getUser();
       const user_id = userRes.user?.id;
       if (!user_id) {
@@ -118,8 +144,8 @@ export function usePushNotifications() {
       setSubscribed(true);
       toast.success("Push notifications enabled");
       return true;
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to subscribe");
+    } catch (e: unknown) {
+      toast.error(describeSubscribeError(e));
       return false;
     } finally {
       setLoading(false);
