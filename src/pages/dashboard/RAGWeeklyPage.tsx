@@ -57,6 +57,7 @@ function formatIsoDay(isoDay: string, withYear = false): string {
 import { ragBoardLines } from "@/lib/ragBoardLines";
 import { PlanHistoryPopover } from "@/components/rag/PlanHistoryPopover";
 import { useRagPlanHistory } from "@/hooks/useRagPlanHistory";
+import { WEEK, defaultMobileDay, stepMobileDay, swipeDirection, type MobileDay } from "@/lib/ragMobileDay";
 
 /** Display-only label mapping for line names. Keeps DB identity untouched. */
 function displayLineLabel(name: string): string {
@@ -190,6 +191,27 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
  * a aparecer só no fim, o que faz o lado esquerdo parecer uma data incompleta. Quando
  * a semana atravessa o mês — ou o ano, no Natal — cada extremo leva o que precisa.
  */
+// Telemóvel é abaixo do `md` do Tailwind (768 px). O `useIsMobile` do projecto corta
+// nos 1024 para a gaveta da barra lateral, e aí os tablets também contam — mas num
+// tablet a semana inteira cabe e é útil vê-la junta.
+const PHONE_QUERY = "(max-width: 767px)";
+function useIsPhone(): boolean {
+  const [phone, setPhone] = useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia(PHONE_QUERY).matches
+      : false,
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia(PHONE_QUERY);
+    const onChange = () => setPhone(mql.matches);
+    onChange();
+    mql.addEventListener?.("change", onChange);
+    return () => mql.removeEventListener?.("change", onChange);
+  }, []);
+  return phone;
+}
+
 function weekRangeLabel(weekStart: Date): string {
   const end = addDays(weekStart, 6);
   if (weekStart.getFullYear() !== end.getFullYear()) {
@@ -213,6 +235,27 @@ export default function RAGWeeklyPage() {
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
+  const isPhone = useIsPhone();
+  const [mobileDay, setMobileDay] = useState<MobileDay>(() =>
+    defaultMobileDay(startOfWeek(new Date(), { weekStartsOn: 1 }), getCurrentFactoryShift().sessionDate),
+  );
+  // Antes de mudar de dia, o campo que está a ser escrito perde o foco — é no blur que
+  // o Plan e as notas gravam. Num toque do iOS o botão não rouba o foco, e um gesto
+  // de arrastar também não; sem isto o número escrito ia-se com o dia.
+  const flushEditing = () => {
+    const el = document.activeElement as HTMLElement | null;
+    if (el && el !== document.body && typeof el.blur === "function") el.blur();
+  };
+  const pickMobileDay = (day: MobileDay) => {
+    flushEditing();
+    setMobileDay(day);
+  };
+  const stepDay = (dir: -1 | 1) => {
+    flushEditing();
+    const next = stepMobileDay(weekStart, mobileDay, dir);
+    if (next.weekStart.getTime() !== weekStart.getTime()) setWeekStart(next.weekStart);
+    setMobileDay(next.day);
+  };
   const [editing, setEditing] = useState<{
     date: string; line: string; shift: Shift; entry?: Entry;
   } | null>(null);
@@ -1139,7 +1182,9 @@ export default function RAGWeeklyPage() {
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              {/* `min-w-0`: sem ele o grupo não encolhe abaixo da largura de uma linha só, e a
+                  320 px o "This week" e o +1% ficavam cortados na margem em vez de descer. */}
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
                 {/* The truth is whether the reader answered, not whether the screen
                     finished its own refetch. A green badge over a dead tunnel is how
                     the plan figures drifted from the workbook unnoticed. */}
@@ -1161,7 +1206,7 @@ export default function RAGWeeklyPage() {
                   {syncingSharePoint ? "Reading SharePoint…" : "Sync from SharePoint"}
                 </Button>
                 {canEditRagEntries && (
-                  <div className="flex h-8 items-center gap-1 rounded-md border bg-muted/30 px-1.5">
+                  <div className="flex min-h-8 flex-wrap items-center gap-1 rounded-md border bg-muted/30 px-1.5 py-0.5">
                     {/* `break-normal`: o `overflow-wrap: anywhere` global parte palavras a
                         meio quando a caixa aperta, e num telemóvel esta chapa lia-se
                         "TARGE / T". Um rótulo de seis letras nunca se parte. */}
@@ -1215,6 +1260,10 @@ export default function RAGWeeklyPage() {
           canEditEntries={canEditRagEntries}
           canComment={canComment}
           weekStartStr={weekStartStr}
+          isPhone={isPhone}
+          mobileDay={mobileDay}
+          onPickMobileDay={pickMobileDay}
+          onStepDay={stepDay}
           onSave={(payload) => upsertMutation.mutate(payload)}
           onOpenFull={(date, line, shift) => {
             const e = entryMap.get(`${date}|${line}|${shift}`);
@@ -1578,6 +1627,10 @@ function DayNightTotalSummary({
   canEditEntries = false,
   canComment = false,
   weekStartStr,
+  isPhone = false,
+  mobileDay = WEEK,
+  onPickMobileDay,
+  onStepDay,
   onSave,
   onOpenFull,
 }: {
@@ -1594,6 +1647,10 @@ function DayNightTotalSummary({
   canEditEntries?: boolean;
   canComment?: boolean;
   weekStartStr?: string;
+  isPhone?: boolean;
+  mobileDay?: MobileDay;
+  onPickMobileDay?: (day: MobileDay) => void;
+  onStepDay?: (dir: -1 | 1) => void;
   onSave?: (payload: Omit<Entry, "id">) => void;
   onOpenFull?: (date: string, line: string, shift: Shift) => void;
 }) {
@@ -1716,6 +1773,7 @@ function DayNightTotalSummary({
 
   // All non-empty bucket names found anywhere in the auto map.
   // IMPORTANT: hook must run on every render — keep it ABOVE any early return.
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const allBucketNames = useMemo(() => {
     return Array.from(autoDtBucketMap?.keys() ?? []);
   }, [autoDtBucketMap]);
@@ -1728,7 +1786,29 @@ function DayNightTotalSummary({
   );
   const { byEntry: planHistoryByEntry } = useRagPlanHistory(weekEntryIds);
 
+  // O bloco de cada linha tem de ser o MESMO componente de um render para o outro.
+  // Era uma função nova a cada render do resumo, e o React desmontava e voltava a
+  // montar todos os blocos sempre que chegava uma resposta — as notas, as exclusões,
+  // o histórico do plano, ou a troca de dia no telemóvel. O Plan que se estava a
+  // escrever desaparecia a meio, e a grelha voltava ao início da rolagem. O
+  // componente estável lê o corpo mais recente por uma ref, e assim os estados lá
+  // dentro (campos, rolagem, popovers) sobrevivem a um render novo.
+  type BlockProps = { label: string; lineFilter: string[] };
+  const blockBody = useRef<(p: BlockProps) => JSX.Element>();
+  const Block = useMemo(() => {
+    const StableBlock = (p: BlockProps) => blockBody.current!(p);
+    return StableBlock;
+  }, []);
+
   if (!lines.length) return null;
+
+  // Os dias que têm alguma coisa: um plano, um actual ou uma nota em qualquer linha.
+  const nowIsoSummary = getCurrentFactoryShift().sessionDate;
+  const daysWithData = new Set<string>();
+  for (const e of entryMap.values()) {
+    if ((Number(e.plan_qty) || 0) > 0 || (Number(e.actual_qty) || 0) > 0) daysWithData.add(e.entry_date);
+  }
+  for (const r of commentRows) if ((r.comment ?? "").trim()) daysWithData.add(r.entry_date);
 
   const fmtHm = (min: number) => {
     if (!min || min <= 0) return "—";
@@ -1819,7 +1899,16 @@ function DayNightTotalSummary({
     };
   };
 
-  const Block = ({ label, lineFilter }: { label: string; lineFilter: string[] }) => {
+  // No telemóvel a grelha desenha um dia (Day / Night / Total) ou só o total da
+  // semana. As contas não mudam: o total da semana continua a somar os sete dias e
+  // as linhas de downtime continuam a ser as que a semana tem, para que a grelha não
+  // mude de forma ao passar de um dia para o outro.
+  const shownDays = weekDates
+    .map((d, i) => ({ d, i }))
+    .filter(({ i }) => !isPhone || (mobileDay !== WEEK && i === mobileDay));
+  const showWeekCols = !isPhone || mobileDay === WEEK;
+
+  const BlockBody = ({ label, lineFilter }: BlockProps) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const scroll = (dx: number) => scrollRef.current?.scrollBy({ left: dx, behavior: "smooth" });
     const [showLeft, setShowLeft] = useState(false);
@@ -2015,7 +2104,9 @@ function DayNightTotalSummary({
               title={`${weekAll.actual.toLocaleString()} made against a plan of ${weekAll.plan.toLocaleString()} for the week`}
             >
               <span className="font-figure text-sm font-bold leading-none">{attainment}%</span>
-              <span className="font-display text-2xs font-bold uppercase tracking-[0.1em] opacity-80">of plan</span>
+              {/* No telemóvel a grelha é de um dia; a chapa continua a ser da semana e
+                  tem de o dizer, ou lia-se como o resultado do dia escolhido. */}
+              <span className="font-display text-2xs font-bold uppercase tracking-[0.1em] opacity-80">{isPhone ? "of week plan" : "of plan"}</span>
             </span>
           )}
           <span className="flex-1" />
@@ -2039,7 +2130,8 @@ function DayNightTotalSummary({
         <div className="relative">
           <div
             ref={scrollRef}
-            className="overflow-x-auto overflow-y-hidden -mx-2 px-2 scroll-smooth border rounded-md shadow-sm"
+            data-rag-scroll
+            className={cn("overflow-x-auto overflow-y-hidden scroll-smooth border rounded-md shadow-sm", !isPhone && "-mx-2 px-2")}
             onScroll={updateScroll}
             onWheel={(e) => {
               // Do not trap vertical wheel — forward it to the page so users can
@@ -2060,11 +2152,13 @@ function DayNightTotalSummary({
                   tabela de indicadores. Vinte e uma colunas só se comparam de relance
                   se os dígitos tiverem todos a mesma largura — era o que faltava aqui,
                   onde havia `tabular-nums` aparafusado a uma face de texto. */}
-            <table className="w-full min-w-[880px] border-collapse font-figure text-2xs">
+            {/* No telemóvel são três colunas e cabem a 320 px: sem largura mínima, e no
+                corpo de 12 px, porque já não há vinte e uma colunas a disputar a linha. */}
+            <table className={cn("w-full border-collapse font-figure", isPhone ? "text-xs" : "min-w-[880px] text-2xs")}>
               <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
                 <tr className="border-b bg-background">
-                  <th className="text-left p-1.5 sticky left-0 bg-background z-30 min-w-[100px]" />
-                  {weekDates.map((d, i) => {
+                  <th className={cn("text-left p-1.5 sticky left-0 bg-background z-30", isPhone ? "w-[38%]" : "min-w-[100px]")} />
+                  {shownDays.map(({ d, i }) => {
                     const ds = format(d, "yyyy-MM-dd");
                     const excluded = isDateExcluded(label, ds);
                     return (
@@ -2097,7 +2191,8 @@ function DayNightTotalSummary({
                               </span>
                             )}
                           </span>
-                          <span className="mt-0.5 block font-normal text-muted-foreground">{format(d, "dd MMM")}</span>
+                          {/* No telemóvel a data já está na régua dos dias, por cima. */}
+                          {!isPhone && <span className="mt-0.5 block font-normal text-muted-foreground">{format(d, "dd MMM")}</span>}
                         </button>
                       </th>
                     );
@@ -2106,14 +2201,16 @@ function DayNightTotalSummary({
                   {/* A régua do total fecha com um filete grosso, não com um banho azul.
                       O azul é a marca de HOJE nesta grelha — uma coluna com ele ao
                       fundo dizia "hoje" a sete dias de distância. */}
-                  <th colSpan={3} className="whitespace-nowrap border-l-2 border-l-foreground/25 bg-muted/50 p-1.5 text-center font-bold">
-                    <div className="font-display uppercase tracking-[0.1em]">Week total</div>
-                    <div className="font-normal text-muted-foreground">All days</div>
-                  </th>
+                  {showWeekCols && (
+                    <th colSpan={3} className={cn("whitespace-nowrap bg-muted/50 p-1.5 text-center font-bold", !isPhone && "border-l-2 border-l-foreground/25")}>
+                      <div className="font-display uppercase tracking-[0.1em]">Week total</div>
+                      <div className="font-normal text-muted-foreground">All days</div>
+                    </th>
+                  )}
                 </tr>
                 <tr className="border-b bg-muted/40">
                   <th className="sticky left-0 bg-muted/40 z-30" />
-                  {weekDates.map((d, i) => {
+                  {shownDays.map(({ d, i }) => {
                     const ds = format(d, "yyyy-MM-dd");
                     const dayOff = isShiftExcluded(label, ds, "DAY");
                     const nightOff = isShiftExcluded(label, ds, "NIGHT");
@@ -2127,7 +2224,9 @@ function DayNightTotalSummary({
                         aria-pressed={!off}
                         title={off ? `Include the ${shift} shift` : `Exclude the ${shift} shift`}
                         className={cn(
-                          "w-full px-1 py-0.5 text-right font-display font-bold uppercase tracking-[0.08em] transition-colors",
+                          "w-full px-1 text-right font-display",
+                          isPhone ? "py-2" : "py-0.5",
+                          "font-display font-bold uppercase tracking-[0.08em] transition-colors",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                           off ? "text-muted-foreground/60 line-through decoration-warning/70" : "hover:text-foreground",
                         )}
@@ -2142,19 +2241,23 @@ function DayNightTotalSummary({
                             dizer "Day" e "Night" — e o âmbar, três linhas abaixo, é o
                             que marca uma variância perdida. A coluna distingue-se pela
                             posição e pelo filete, que é o que uma grelha usa. */}
-                        <th className={`min-w-[60px] border-l p-0 text-muted-foreground ${dayOff ? "bg-muted/60" : "bg-muted/40"}`}>
+                        <th className={`${isPhone ? "min-w-[52px]" : "min-w-[60px]"} border-l p-0 text-muted-foreground ${dayOff ? "bg-muted/60" : "bg-muted/40"}`}>
                           <Btn off={dayOff} shift="day" onClick={() => toggleShift(label, ds, "DAY")}>Day</Btn>
                         </th>
-                        <th className={`min-w-[60px] p-0 text-muted-foreground ${nightOff ? "bg-muted/60" : "bg-muted/40"}`}>
+                        <th className={`${isPhone ? "min-w-[52px]" : "min-w-[60px]"} p-0 text-muted-foreground ${nightOff ? "bg-muted/60" : "bg-muted/40"}`}>
                           <Btn off={nightOff} shift="night" onClick={() => toggleShift(label, ds, "NIGHT")}>Night</Btn>
                         </th>
-                        <th className="min-w-[60px] bg-muted/60 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground">Total</th>
+                        <th className={`${isPhone ? "min-w-[52px]" : "min-w-[60px]"} bg-muted/60 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground`}>Total</th>
                       </Fragment>
                     );
                   })}
-                  <th className="min-w-[64px] border-l-2 border-l-foreground/25 bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground">Day</th>
-                  <th className="min-w-[64px] bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground">Night</th>
-                  <th className="min-w-[64px] bg-muted/70 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground">Total</th>
+                  {showWeekCols && (
+                    <>
+                      <th className={cn("bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground", isPhone ? "min-w-[52px]" : "min-w-[64px] border-l-2 border-l-foreground/25")}>Day</th>
+                      <th className={cn("bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground", isPhone ? "min-w-[52px]" : "min-w-[64px]")}>Night</th>
+                      <th className={cn("bg-muted/70 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground", isPhone ? "min-w-[52px]" : "min-w-[64px]")}>Total</th>
+                    </>
+                  )}
                 </tr>
 
               </thead>
@@ -2163,7 +2266,7 @@ function DayNightTotalSummary({
                   const wtDay = weekTotal("DAY");
                   const wtNight = weekTotal("NIGHT");
                   const wtTot = weekTotal("TOTAL");
-                  const cls = `px-1.5 py-1 text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
+                  const cls = `px-1.5 ${isPhone ? "py-1.5" : "py-1"} text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
                   // Plan is typed here; actual is not. Actual is the sum of what
                   // operators logged for the line and shift, derived on write, so an
                   // inline editor would silently discard whatever was entered.
@@ -2274,8 +2377,8 @@ function DayNightTotalSummary({
                     isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
                   return (
                     <tr key={row.key} className="border-b hover:bg-muted/20">
-                      <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-1.5 py-1 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">{row.label}</td>
-                      {weekDates.map((d, i) => {
+                      <td className={cn("sticky left-0 z-10 bg-background px-1.5 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground", isPhone ? "break-normal py-1.5 leading-tight" : "whitespace-nowrap py-1")}>{row.label}</td>
+                      {shownDays.map(({ d, i }) => {
                         const ds = format(d, "yyyy-MM-dd");
                         const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
                         const nightDim = isShiftExcluded(label, ds, "NIGHT") ? "bg-muted/60 text-muted-foreground" : "";
@@ -2291,9 +2394,13 @@ function DayNightTotalSummary({
                       })}
 
 
-                      <td className={`${cls} border-l-2 border-l-foreground/25 bg-muted/30`}>{row.render(wtDay)}</td>
-                      <td className={`${cls} bg-muted/30`}>{row.render(wtNight)}</td>
-                      <td className={`${cls} bg-muted/50 font-bold`}>{row.render(wtTot)}</td>
+                      {showWeekCols && (
+                        <>
+                          <td className={cn(cls, "bg-muted/30", !isPhone && "border-l-2 border-l-foreground/25")}>{row.render(wtDay)}</td>
+                          <td className={`${cls} bg-muted/30`}>{row.render(wtNight)}</td>
+                          <td className={`${cls} bg-muted/50 font-bold`}>{row.render(wtTot)}</td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}
@@ -2335,7 +2442,7 @@ function DayNightTotalSummary({
               <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
             <div className="mt-2 grid gap-2 md:grid-cols-7">
-              {weekDates.map((d) => {
+              {(isPhone && mobileDay !== WEEK ? [weekDates[mobileDay]] : weekDates).map((d) => {
                 const ds = format(d, "yyyy-MM-dd");
                 return (
                   <LineCommentBox
@@ -2355,9 +2462,7 @@ function DayNightTotalSummary({
       </div>
     );
   };
-
-
-
+  blockBody.current = BlockBody;
 
   return (
     /* Sem barra âmbar. Um bordo esquerdo colorido diz "atenção a isto" — é o mecanismo
@@ -2371,7 +2476,121 @@ function DayNightTotalSummary({
           {allCollapsed ? <><Eye className="h-4 w-4 mr-1" />Expand all</> : <><EyeOff className="h-4 w-4 mr-1" />Collapse all</>}
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent
+        className={cn(isPhone && "px-2 pb-3")}
+        onTouchStart={isPhone ? (e) => {
+          const t = e.touches[0];
+          touchStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+        } : undefined}
+        onTouchEnd={isPhone ? (e) => {
+          const s0 = touchStart.current;
+          touchStart.current = null;
+          const t = e.changedTouches[0];
+          if (!s0 || !t) return;
+          // Um arrasto que começou dentro de uma grelha que ainda rola de lado é
+          // dessa grelha, não da página.
+          const target = e.target as HTMLElement | null;
+          const scroller = target?.closest?.("[data-rag-scroll]") as HTMLElement | null;
+          if (scroller && scroller.scrollWidth > scroller.clientWidth + 1) return;
+          const dir = swipeDirection(t.clientX - s0.x, t.clientY - s0.y);
+          if (dir !== 0) onStepDay?.(dir);
+        } : undefined}
+      >
+        {isPhone && lines.length > 0 && (
+          /* A régua dos dias. Fica colada ao topo enquanto se desce pelas linhas,
+             porque é ela que diz de que dia são os números que se estão a ler. */
+          <div className="sticky top-0 z-40 -mx-2 mb-3 border-b bg-card px-2 pb-2 pt-1">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-11 w-11 shrink-0"
+                onClick={() => onStepDay?.(-1)}
+                aria-label="Previous day"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <div className="min-w-0 flex-1 text-center" aria-live="polite">
+                <div className="font-display text-2xs font-bold uppercase tracking-[0.13em] text-muted-foreground">
+                  {mobileDay === WEEK
+                    ? "Whole week"
+                    : format(weekDates[mobileDay], "yyyy-MM-dd") === nowIsoSummary
+                      ? "Today"
+                      : format(weekDates[mobileDay], "EEEE")}
+                </div>
+                <div className="font-figure text-base font-bold leading-tight text-foreground">
+                  {mobileDay === WEEK
+                    ? `${format(weekDates[0], "dd MMM")} – ${format(weekDates[6], "dd MMM")}`
+                    : format(weekDates[mobileDay], "EEE dd MMM yyyy")}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-11 w-11 shrink-0"
+                onClick={() => onStepDay?.(1)}
+                aria-label="Next day"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="mt-2 grid grid-cols-8 gap-1" role="tablist" aria-label="Day of the week">
+              {weekDates.map((d, i) => {
+                const ds = format(d, "yyyy-MM-dd");
+                const active = mobileDay === i;
+                return (
+                  <button
+                    key={ds}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-label={`${format(d, "EEEE dd MMM")}${daysWithData.has(ds) ? ", has RAG data" : ""}`}
+                    onClick={() => onPickMobileDay?.(i)}
+                    className={cn(
+                      "flex h-12 flex-col items-center justify-center rounded-md border text-center transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : ds === nowIsoSummary
+                          ? "border-primary/60 text-foreground"
+                          : "border-border text-muted-foreground",
+                    )}
+                  >
+                    <span className="font-display text-2xs font-bold uppercase leading-none">{DAY_LABELS[i].slice(0, 2)}</span>
+                    <span className="mt-0.5 font-figure text-xs font-bold leading-none">{format(d, "dd")}</span>
+                    {/* O ponto diz que o dia tem números; um dia sem ponto está vazio. */}
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "mt-1 h-1 w-1 rounded-full",
+                        daysWithData.has(ds) ? (active ? "bg-primary-foreground" : "bg-primary") : "bg-transparent",
+                      )}
+                    />
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mobileDay === WEEK}
+                aria-label="Week total"
+                onClick={() => onPickMobileDay?.(WEEK)}
+                className={cn(
+                  "flex h-12 flex-col items-center justify-center rounded-md border text-center transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  mobileDay === WEEK
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-muted/40 text-muted-foreground",
+                )}
+              >
+                <span className="font-display text-2xs font-bold uppercase leading-none">Wk</span>
+                <span className="mt-0.5 font-figure text-2xs font-bold leading-none">Σ</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {lines.length === 0 ? (
           <EmptyState
