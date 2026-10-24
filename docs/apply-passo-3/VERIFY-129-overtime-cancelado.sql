@@ -17,6 +17,7 @@
 -- Esperado depois de colar o 129: "VERIFY 129: TUDO CERTO". Antes de colar, a 24/10 às
 -- 10h, dava 3 funções erradas, 4 reservas canceladas ainda à vista (Rosana 24/10 e 26/10,
 -- Karoline 25/10, Marcio 27/10) e 1 linha a mais no board (Karoline, 25/10).
+-- Depois de colado (24/10 ~19h): TUDO CERTO, 34 reservas de pé verificadas.
 --
 -- EN: Read-only; always ends in a deliberate error that carries the report. After BLOCO
 -- 129 the first line reads "VERIFY 129: TUDO CERTO".
@@ -75,7 +76,10 @@ begin
     end;
     select count(*) into v_n
       from jsonb_array_elements(coalesce(v_page -> 'overtime', '[]'::jsonb)) x
-     where (x ->> 'on_date')::date = r.on_date and (x ->> 'starts_at')::time = r.starts_at;
+     -- Dia, início E fim: a 24/10 o Marcio cancelou 06:00–14:00 de 27/10 e tem outra
+     -- reserva de pé 06:00–18:00 no mesmo dia; só pelo início pareciam a mesma.
+     where (x ->> 'on_date')::date = r.on_date and (x ->> 'starts_at')::time = r.starts_at
+       and (x ->> 'ends_at')::time = r.ends_at;
     if r.cancelled and v_n > 0 then
       v_bad := v_bad + 1;
       v_log := v_log || format(E'\nFALHOU  %s (%s) ainda vê o overtime cancelado de %s, %s–%s',

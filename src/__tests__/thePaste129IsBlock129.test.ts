@@ -61,6 +61,10 @@ describe("VERIFY-129 checks production against this migration", () => {
     });
   }
 
+  it("tells two bookings on the same day and start apart by their end", () => {
+    expect(code(verify)).toMatch(/\(x ->> 'ends_at'\)::time = r\.ends_at/);
+  });
+
   it("only reads", () => {
     expect(code(verify)).not.toMatch(/\b(insert|update|delete|truncate|create|drop|alter|grant|revoke)\b/i);
   });
