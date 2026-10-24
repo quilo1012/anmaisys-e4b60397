@@ -653,10 +653,14 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                    One line could only ever say one of them, and that is how "I
                    confirmed" started reading as "I am in". */
                 <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Your answer</span>
-                    <span className="font-medium">{myAnswerLabel(my)}</span>
-                  </div>
+                  {/* Once the supervisor has acted, the badge above already says what was
+                      decided, so "Your answer" is only repeated when there is nothing else. */}
+                  {!supervisorLabel(r, my) && !myCancel && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Your answer</span>
+                      <span className="font-medium">{myAnswerLabel(my)}</span>
+                    </div>
+                  )}
                   {supervisorLabel(r, my) && (
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-muted-foreground">Supervisor</span>
