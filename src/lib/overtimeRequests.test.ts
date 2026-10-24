@@ -332,6 +332,8 @@ describe("upcomingForMe", () => {
     expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: "declined" }]]), now))).toEqual([]);
     expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: "accepted" }]]), now))).toEqual(["x"]);
     expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: "reserve" }]]), now))).toEqual(["x"]);
+    // A no stays, so somebody who changed their mind finds the ask and reads why it is shut.
+    expect(ids(upcomingForMe([closed], me, new Map([["x", { decision: null, answer: "no" as const }]]), now))).toEqual(["x"]);
   });
 
   it("offers an open ask only to its audience, unless the person is already on it", () => {

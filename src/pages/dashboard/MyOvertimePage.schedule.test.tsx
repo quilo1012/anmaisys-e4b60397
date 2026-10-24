@@ -79,7 +79,7 @@ describe("overtime on the person's own hours", () => {
     state.clashes = new Map([["sat-day", "Your rota has you on the day shift on Sat, 06:00–18:00"]]);
     renderPage();
     expect(screen.getByText(/These hours are already yours — your rota has you/)).toBeInTheDocument();
-    const yes = screen.getAllByRole("button", { name: /accept overtime/i });
+    const yes = screen.getAllByRole("button", { name: /accept overtime|change to accept/i });
     expect(yes).toHaveLength(2);
     expect(yes.filter((b) => (b as HTMLButtonElement).disabled)).toHaveLength(1);
   });

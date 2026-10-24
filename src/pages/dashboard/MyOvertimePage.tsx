@@ -346,6 +346,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const reply = (request: OvertimeRequest, a: "yes" | "no") => {
     if (sending.current) return;
     sending.current = true;
+    // A no turned into a yes is the same row changing (one answer per person per ask);
+    // the toast says it changed, so nobody wonders whether they now hold two answers.
+    const changedToYes = a === "yes" && mine.get(request.id)?.answer === "no";
     answer.mutate({ requestId: request.id, answer: a }, {
       onSettled: () => { sending.current = false; },
       // Said from the row the database wrote, not from the button pressed: since
@@ -356,11 +359,11 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         if (a === "no") {
           toast.success(`You said no to ${fmtDate(request.on_date)}`, { description: `${when}.` });
         } else if (row?.decision === "accepted") {
-          toast.success(`You're booked for ${fmtDate(request.on_date)}`, {
+          toast.success(`${changedToYes ? "Answer changed to yes. " : ""}You're booked for ${fmtDate(request.on_date)}`, {
             description: `${when}. Your supervisor has been told.`,
           });
         } else if (row?.decision === "reserve") {
-          toast.success(`You're on the reserve list for ${fmtDate(request.on_date)}`, {
+          toast.success(`${changedToYes ? "Answer changed to yes. " : ""}You're on the reserve list for ${fmtDate(request.on_date)}`, {
             description: `${when}. Every place was taken; you're next if somebody drops out.`,
           });
         } else {
@@ -736,6 +739,18 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   )}
                 </div>
               )}
+              {/* A no is not final while the ask is open: the same buttons change it. Said
+                  in words, because a highlighted Decline reads as a decision already taken. */}
+              {canAnswer && my?.answer === "no" && !ownHours && !block && (
+                <p className="text-sm text-muted-foreground">
+                  You declined this. Changed your mind? You can still accept while it is open.
+                </p>
+              )}
+              {my?.answer === "no" && r.status === "closed" && (
+                <p className="text-sm text-muted-foreground">
+                  This overtime has been closed by your supervisor, so your answer can no longer be changed.
+                </p>
+              )}
               {canAnswer && ownHours && (
                 <p className="text-sm text-muted-foreground">
                   {ownHours.includes("not enough rest")
@@ -754,7 +769,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     {inFlight?.requestId === r.id && inFlight.answer === "yes"
                       ? <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       : <Check className="mr-2 h-5 w-5" />}
-                    Accept overtime
+                    {my?.answer === "no" ? "Change to Accept" : "Accept overtime"}
                   </Button>
                   <Button
                     size="lg" variant={my?.answer === "no" ? "secondary" : "outline"} className="h-12"

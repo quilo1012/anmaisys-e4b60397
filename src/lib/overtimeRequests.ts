@@ -405,7 +405,10 @@ export function localDate(now: Date = new Date()): string {
  *   board and rota), or one they are already on (a supervisor may add somebody from
  *   outside the audience at the desk);
  * - a closed (filled) ask only when this person is in it, accepted or reserve, so
- *   "You're in" for Thursday does not vanish the moment the supervisor closes it.
+ *   "You're in" for Thursday does not vanish the moment the supervisor closes it —
+ *   or when they said no to it. Somebody who declined and then changed their mind
+ *   comes back looking for that ask; if it had gone they could not tell "closed"
+ *   from "lost", so it stays, and the card says why the answer can no longer change.
  *
  * Cancelled asks are never listed. The query already leaves them out; repeating it
  * here keeps the whole rule in one readable place.
@@ -413,7 +416,7 @@ export function localDate(now: Date = new Date()): string {
 export function upcomingForMe<R extends Pick<OvertimeRequest, "id" | "on_date" | "starts_at" | "status" | "department" | "shift_group">>(
   requests: R[],
   employee: { department: string | null; shift_group: string | null },
-  mine: ReadonlyMap<string, Pick<OvertimeResponse, "decision">>,
+  mine: ReadonlyMap<string, Pick<OvertimeResponse, "decision"> & Partial<Pick<OvertimeResponse, "answer">>>,
   now: Date = new Date(),
   clashes: ReadonlyMap<string, string> = new Map(),
 ): R[] {
@@ -425,7 +428,7 @@ export function upcomingForMe<R extends Pick<OvertimeRequest, "id" | "on_date" |
     // 06:00–18:00 ask. One answered before the board was drawn stays, so the answer
     // does not vanish; the page then refuses the yes.
     if (r.status === "open") return !!my || (requestIsForEmployee(r, employee) && !clashes.has(r.id));
-    if (r.status === "closed") return my?.decision === "accepted" || my?.decision === "reserve";
+    if (r.status === "closed") return my?.decision === "accepted" || my?.decision === "reserve" || my?.answer === "no";
     return false;
   });
 }
