@@ -246,11 +246,9 @@ function formatLong(iso: string) {
 function formatWeekday(iso: string) {
   return new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
 }
-function dayTypeLabel(iso: string) {
-  const w = new Date(`${iso}T12:00:00`).getDay();
-  if (w === 0) return "Sunday";
-  if (w === 6) return "Saturday";
-  return "Weekday";
+/** "Tuesday" — the band's name for the day; the strip at the foot already carries the date. */
+function formatDayName(iso: string) {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long" });
 }
 
 /**
@@ -2169,7 +2167,12 @@ export default function ProductionHeadcountPage() {
                     className="print-keep min-w-[8.5rem] rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 print:px-0 print:text-black print:hover:bg-transparent"
                     aria-label={`Showing ${formatLong(date)} — pick another day`}
                   >
-                    {formatLong(date)}
+                    {/* On screen the day's name: the tab strip at the foot already says
+                        03.11.2026, and "Weekday" beside a date was the one thing the
+                        date did not say. The printed sheet has no strip, so it keeps
+                        the date. */}
+                    <span className="print:hidden">{formatDayName(date)}</span>
+                    <span className="hidden print:inline">{formatLong(date)}</span>
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="center">
@@ -2207,7 +2210,6 @@ export default function ProductionHeadcountPage() {
                 Today
               </Button>
             )}
-            <Badge variant="outline" className="border-white/40 text-white print:text-black">{dayTypeLabel(date)}</Badge>
             {/* Whether the day being viewed is a plan or a record. One badge per board,
                 because the two boards answer differently on the same day — see
                 DayClockBadge. In Split both are named, so neither can be read as
