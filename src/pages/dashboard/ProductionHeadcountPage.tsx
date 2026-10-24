@@ -74,6 +74,7 @@ import { printSheetLayout } from "@/lib/headcountSheet";
 import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
+import { OvertimeAttendancePanel } from "@/components/workforce/OvertimeAttendancePanel";
 import { currentShift } from "@/lib/operationalShift";
 import { useSearchParams } from "react-router-dom";
 import { boardNotImported } from "@/lib/headcountImportReport";
@@ -2288,6 +2289,18 @@ export default function ProductionHeadcountPage() {
           Reading them is what the screen is for. */}
       {/* As abas da folha, uma por dia do mês, como no fundo do Excel. */}
       <SheetDayTabs date={date} today={opened.operationalDate} onPick={setDate} />
+
+      {/* Quem aceitou overtime neste board e quem veio de facto. Fora do "hours and
+          overtime" porque é trabalho do turno, não leitura do período; só aparece a quem
+          gere overtime e quando há pedidos que caem neste board. */}
+      {view === "Split" ? (
+        <>
+          <OvertimeAttendancePanel date={date} shift="Day" />
+          <OvertimeAttendancePanel date={date} shift="Night" />
+        </>
+      ) : (
+        <OvertimeAttendancePanel date={date} shift={view} />
+      )}
 
       {/* Fora da vista principal, à espera de quem os peça. O board é para ver quem está
           onde; as horas por linha, o período e as horas extra são outra pergunta, e de

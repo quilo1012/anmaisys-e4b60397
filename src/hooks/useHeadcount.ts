@@ -479,6 +479,7 @@ export function useConfirmedOvertime(onDate: string, shift: string) {
     const refresh = () => {
       void qc.invalidateQueries({ queryKey: ["headcount-confirmed-overtime"] });
       void qc.invalidateQueries({ queryKey: ["headcount-allocations"] });
+      void qc.invalidateQueries({ queryKey: ["overtime-attendance"] });
     };
     const channel = supabase
       .channel(`board_overtime_${Math.random().toString(36).slice(2, 8)}`)
