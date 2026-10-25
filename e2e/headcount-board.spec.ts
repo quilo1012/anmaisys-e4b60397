@@ -434,3 +434,11 @@ test("num ecrã de toque a pega da coluna tem 32×44 e não tapa o título da co
   expect(grips.length).toBeGreaterThan(0);
   for (const g of grips) expect(g).toEqual({ w: 32, h: 44, clear: true, shown: true });
 });
+
+// 25/10: a confirmação à parte ("Overtime attendance — Day board") saiu. Quem tem overtime
+// confirmado está no board e conta no Total staff só por isso (ver o teste do 26 acima).
+test("o board não pede outra confirmação de quem tem overtime", async ({ page }) => {
+  await openBoard(page);
+  await expect(page.getByText(/Overtime attendance/)).toHaveCount(0);
+  await expect(page.getByRole("searchbox", { name: /Mark overtime absent/ })).toHaveCount(0);
+});

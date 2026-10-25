@@ -403,7 +403,6 @@ export const OVERTIME_REFRESH_KEYS: readonly (readonly string[])[] = [
   ["my_attendance"],
   ["headcount-allocations"],
   ["headcount-confirmed-overtime"],
-  ["overtime-attendance"],
 ];
 
 export function refreshAfterOvertimeChange(qc: Pick<QueryClient, "invalidateQueries">) {
