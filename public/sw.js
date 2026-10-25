@@ -83,8 +83,20 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   if (event.action === "dismiss") return;
 
-  const targetUrl =
-    (event.notification.data && event.notification.data.url) || "/";
+  // The tag rides along in the address so the page can mark this notification's bell row
+  // read (useOpenedNotification). Opening it is never an answer to anything.
+  const tag = event.notification.tag || "";
+  let targetUrl = (event.notification.data && event.notification.data.url) || "/";
+  try {
+    const u = new URL(targetUrl, self.location.origin);
+    // Only this app's own screens, as the bell does (notificationTarget): a link to
+    // another site on a lock screen is how a phishing push would look.
+    if (u.origin !== self.location.origin) throw new Error("not this app");
+    if (tag) u.searchParams.set("notification", tag);
+    targetUrl = u.pathname + u.search + u.hash;
+  } catch {
+    targetUrl = "/";
+  }
 
   event.waitUntil(
     (async () => {
@@ -95,6 +107,9 @@ self.addEventListener("notificationclick", (event) => {
       for (const client of allClients) {
         if ("focus" in client) {
           await client.focus();
+          // Also told directly: navigate() is refused for a page this worker does not
+          // control, and then only the message reaches it.
+          if (tag) client.postMessage({ type: "notification-opened", tag });
           if ("navigate" in client) {
             try {
               await client.navigate(targetUrl);

@@ -14,8 +14,9 @@
 -- booking the person had already cancelled in time — and a no-show counts against
 -- them (overtime reliability, the no-show block in answer_overtime).
 --
--- WHAT CHANGES: attended / no_show / called_sick now need decision = 'accepted' on a
--- request that is not cancelled, and no_show is refused over a cancellation. The
+-- WHAT CHANGES: no_show / called_sick now need decision = 'accepted', attended needs a
+-- yes (accepted, or a reserve who came in anyway), none of them on a cancelled request,
+-- and no_show is refused over a cancellation. The
 -- messages are the ones the board shows. Everything else is the body of
 -- 20261023200000 (block 129, in production since 24/10), unchanged: the role check,
 -- one outcome per response (on conflict (response_id) — a second mark is a
@@ -23,6 +24,10 @@
 -- the board following a cancellation, and the reserve moving up.
 --
 -- Not applied by this file: paste it in the Lovable SQL editor.
+
+-- Tudo ou nada: se alguma linha falhar, nada fica aplicado e pode colar-se outra vez.
+-- Pode colar-se mais de uma vez: só substitui a função (e o trigger, no 131).
+begin;
 
 create or replace function public.record_overtime_outcome(p_response_id uuid, p_outcome text, p_note text default null)
 returns table (promoted_response_id uuid, promoted_employee_id uuid)
@@ -58,7 +63,14 @@ begin
   -- A declined answer, a reserve that was never moved up, or an ask that was called
   -- off is not a no-show, and recording it as one would count against the person.
   if v_outcome in ('attended', 'no_show', 'called_sick') then
-    if v_resp.decision is distinct from 'accepted' then
+    -- A reserve who came in anyway is recorded as having turned up, as before; only a
+    -- no-show or a sick call needs a booking, because only those count against them.
+    if v_outcome = 'attended' and (v_resp.answer is distinct from 'yes'
+                                   or v_resp.decision not in ('accepted', 'reserve')) then
+      raise exception 'This person did not say yes to this overtime, so attendance cannot be recorded'
+        using errcode = 'P0001';
+    end if;
+    if v_outcome in ('no_show', 'called_sick') and v_resp.decision is distinct from 'accepted' then
       raise exception 'This person did not accept this overtime, so an overtime no-show cannot be recorded'
         using errcode = 'P0001';
     end if;
@@ -103,5 +115,7 @@ begin
 end;
 $$;
 
+
+commit;
 
 notify pgrst, 'reload schema';

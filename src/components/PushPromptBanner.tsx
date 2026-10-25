@@ -21,18 +21,32 @@ import type { Role } from "@/lib/permissions";
  */
 const SNOOZE_KEY = "an_push_banner_snooze_until";
 const SNOOZE_MS = 12 * 60 * 60 * 1000;
+/**
+ * The iPhone "add to Home Screen" version can be put away for good on this phone: some
+ * people will never install it, and a line that comes back twice a day to someone who has
+ * decided is an interruption, not a reminder. Only that version — "turn notifications on"
+ * still comes back, because it is one tap and it is how messages reach the phone. The
+ * same steps stay on My Overtime and in Settings, where nobody is interrupted by them.
+ */
+export const INSTALL_HINT_OFF_KEY = "an_install_hint_off";
 
 function snoozed(): boolean {
   try { return Number(localStorage.getItem(SNOOZE_KEY) ?? 0) > Date.now(); } catch { return false; }
 }
 
+function installHintOff(): boolean {
+  try { return localStorage.getItem(INSTALL_HINT_OFF_KEY) === "1"; } catch { return false; }
+}
+
 export function PushPromptBanner({ role }: { role: Role | null | undefined }) {
   const { environment, permission, subscribed, loading, subscribe } = usePushNotifications();
   const [hidden, setHidden] = useState(snoozed);
+  const [installOff, setInstallOff] = useState(installHintOff);
 
   if (!role || role === "operator") return null;
   if (subscribed || hidden) return null;
   if (environment.kind === "unsupported") return null;
+  if (environment.kind === "ios-install" && installOff) return null;
 
   const snooze = () => {
     try { localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS)); } catch { /* it just comes back sooner */ }
@@ -51,6 +65,20 @@ export function PushPromptBanner({ role }: { role: Role | null | undefined }) {
         <span className="font-medium">Add to Home Screen</span>, open the app from its icon and
         turn notifications on. Without it, messages and overtime only show when the app is open.
       </>
+    );
+    action = (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-9 px-2 text-muted-foreground"
+        onClick={() => {
+          try { localStorage.setItem(INSTALL_HINT_OFF_KEY, "1"); } catch { /* it stays a twelve-hour snooze */ }
+          setInstallOff(true);
+          snooze();
+        }}
+      >
+        Don't show again
+      </Button>
     );
   } else if (environment.kind === "ios-too-old") {
     body = <>This iPhone is on iOS {environment.version}. Notifications need iOS 16.4 or later — update in Settings → General → Software Update.</>;

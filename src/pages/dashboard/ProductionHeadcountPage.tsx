@@ -182,6 +182,7 @@ function SheetColumn({
       <div
         className={cn(
           "relative flex min-h-[40px] items-center border-b px-1",
+          grip && "[@media(hover:none)]:min-h-11 [@media(hover:none)]:pl-9",
           SHEET_RULE, SHEET_FILL[head],
           onHeadClick && "cursor-pointer hover:brightness-95",
         )}
@@ -597,7 +598,11 @@ function SortableColumn({ id, children }: { id: string; children: (grip: React.R
           // the board nobody could find, on a screen used through gloves. Full
           // contrast and a real hit area — the drag still only starts from here, so
           // the heading keeps opening the picker.
-          className="grid h-8 w-5 shrink-0 place-items-center cursor-grab touch-none rounded text-black/60 hover:bg-black/10 hover:text-black active:cursor-grabbing no-print"
+          // Where a finger drives it (no hover: phones and the line tablets) it is a
+          // 32×44 handle with the column's title moved clear of it; the global 48px
+          // touch rule would have made it a 48px square sitting on top of the title, in
+          // a column 116px wide. `touch-exempt` because it sizes itself here.
+          className="touch-exempt grid h-8 w-5 shrink-0 place-items-center cursor-grab touch-none rounded text-black/60 hover:bg-black/10 hover:text-black active:cursor-grabbing no-print [@media(hover:none)]:h-11 [@media(hover:none)]:w-8"
           title="Drag to move this column"
           onClick={(e) => e.stopPropagation()}
           {...listeners}

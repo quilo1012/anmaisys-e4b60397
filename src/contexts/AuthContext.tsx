@@ -615,6 +615,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("an_tablet_cred");
     } catch { /* ignore */ }
     await releaseThisDevicePush();
+    // The Home Screen icon must not keep showing the last person's unread count.
+    try {
+      void (navigator as Navigator & { clearAppBadge?: () => Promise<void> }).clearAppBadge?.().catch(() => {});
+    } catch { /* no badging here */ }
     // `local` ends this device's session, on the server too. The default, `global`,
     // revoked every session the account had, so signing out of the office PC also
     // signed the same person out of their phone, and one tablet signing out of a
