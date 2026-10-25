@@ -52,6 +52,30 @@ export async function saveSubscription(sub: SavedSubscription, userId: string): 
   if (error) throw error;
 }
 
+/**
+ * Signing out takes this phone off the list. Without it the phone kept buzzing with the
+ * previous person's messages until someone else signed in on it (only then did
+ * `register_push_subscription` move the row). The row is deleted while the session still
+ * exists, because the table's policy only lets a login delete its own rows. The browser's
+ * subscription goes too; the next login gets a fresh one from
+ * `useKeepPushSubscriptionCurrent` without a prompt, as the permission stays granted.
+ * Bounded and silent: signing out must never wait on, or fail because of, the push service.
+ */
+export async function releaseThisDevicePush(): Promise<void> {
+  if (currentPushEnvironment().kind !== "ready") return;
+  try {
+    await withTimeout((async () => {
+      const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+      const sub = await reg?.pushManager.getSubscription();
+      if (!sub) return;
+      await (supabase as any).from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+      await sub.unsubscribe();
+    })(), 4_000, "Releasing notifications");
+  } catch (e) {
+    console.warn("push release on sign-out failed", e);
+  }
+}
+
 export function usePushNotifications() {
   const [permission, setPermission] = useState<PermissionState>("default");
   const [subscribed, setSubscribed] = useState(false);

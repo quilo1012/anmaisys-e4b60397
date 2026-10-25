@@ -309,7 +309,7 @@ function SectionLabel({
       // button that does not carry it, and these headings are buttons because they
       // fold — so a printed board came out as an unbroken wall of columns with
       // Production, Sectors, Support and Away & overtime all missing from it.
-      className="print-keep headcount-section-label mb-2 mt-5 flex w-full items-center gap-2 text-left text-2xs font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0"
+      className="print-keep headcount-section-label mb-2 mt-5 flex min-h-11 w-full items-center gap-2 text-left text-2xs sm:min-h-0 font-extrabold uppercase tracking-widest text-muted-foreground first:mt-0"
     >
       {onToggle && (
         <ChevronRight className={cn("h-3.5 w-3.5 transition-transform print:hidden", open && "rotate-90")} />
@@ -798,6 +798,8 @@ function ShiftBoard({
   const matrix = useHeadcountMatrix(shift, onDate);
   const saveMatrix = useSaveMatrix(onDate, shift);
   const [matrixOpen, setMatrixOpen] = useState(false);
+  /** Controlled so the phone's Plan menu can open the same "Save as matrix" question. */
+  const [saveMatrixOpen, setSaveMatrixOpen] = useState(false);
 
   /**
    * The copy that can still be taken back off this board.
@@ -1154,6 +1156,73 @@ function ShiftBoard({
     return <Skeleton className="h-64 w-full" />;
   }
 
+  // What "copy" can copy from: the matrices, then the days that have anybody on them.
+  // One list, shown by the split button beside "Copy from the last day" on a wide
+  // screen and inside the Plan menu on a phone, so the two can never disagree.
+  const copyChoices = (
+    <>
+      <DropdownMenuLabel className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
+        Copy this board from
+      </DropdownMenuLabel>
+      {/* The matrix first, and apart, because it is a different kind of
+          answer: the board as it should look, not as it looked once. The
+          count is the people it holds who are actually due in today —
+          every weekday is a crossover of two rotas, so the matrix's own
+          total would be a number this day never sees. */}
+      {matrix.matrices.map((m) => (
+        <DropdownMenuItem
+          key={m.kind}
+          onSelect={() => runCopy({ kind: "matrix", matrix: m.kind })}
+          disabled={m.due.length === 0}
+          className="flex items-center justify-between gap-3"
+        >
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5 truncate">
+              <Star className="h-3.5 w-3.5 shrink-0 text-primary" />
+              {shift} · {m.label}
+            </span>
+            <span className="block truncate pl-5 text-2xs text-muted-foreground">
+              {m.rows.length === 0
+                ? "none saved yet"
+                : m.due.length === 0
+                  ? `${m.rows.length} people, none of them due in today`
+                  : `of ${m.rows.length}, due in today${m.savedFrom ? ` · saved ${formatWeekday(m.savedFrom)}` : ""}`}
+            </span>
+          </span>
+          <span className="shrink-0 font-figure text-xs font-bold tabular-nums">
+            {m.due.length || "—"}
+          </span>
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuItem
+        onSelect={() => setMatrixOpen(true)}
+        className="pl-5 text-2xs text-muted-foreground"
+      >
+        See what the matrices hold
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      {copyableLoading && <div className="px-2 py-1.5 text-xs text-muted-foreground">Looking…</div>}
+      {!copyableLoading && copyableDays.length === 0 && (
+        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+          No earlier {shift.toLowerCase()} day has anybody on it yet.
+        </div>
+      )}
+      {copyableDays.map((d, i) => (
+        <DropdownMenuItem
+          key={d.on_date}
+          onSelect={() => runCopy({ kind: "day", on_date: d.on_date })}
+          className="flex items-center justify-between gap-3"
+        >
+          <span className="truncate">
+            {formatWeekday(d.on_date)}
+            {i === 0 && <span className="ml-1.5 text-2xs text-muted-foreground">last</span>}
+          </span>
+          <span className="shrink-0 font-figure text-xs font-bold tabular-nums">{d.people}</span>
+        </DropdownMenuItem>
+      ))}
+    </>
+  );
+
   return (
     <>
     {/* What goes to the printer. The board below is `headcount-on-screen` and stays
@@ -1240,7 +1309,7 @@ function ShiftBoard({
                   key={s.key}
                   size="sm"
                   variant={on ? "secondary" : "outline"}
-                  className={cn("h-8 px-2.5 text-2xs", !on && "text-muted-foreground")}
+                  className={cn("h-11 px-3 text-xs sm:h-8 sm:px-2.5 sm:text-2xs", !on && "text-muted-foreground")}
                   aria-pressed={on}
                   title={on ? `Hide ${s.label}` : `Show ${s.label}`}
                   onClick={() => setVisibleBlocks((v) => ({ ...v, [s.key]: !on }))}
@@ -1253,22 +1322,61 @@ function ShiftBoard({
           <Button
             size="sm"
             variant="outline"
-            className="h-8 print:hidden"
+            className="h-11 px-3 print:hidden sm:h-8"
             onClick={() => setShowAll((v) => !v)}
             title={showAll ? "Only the people the rota puts in today" : "Everyone on this shift, rota or not"}
           >
-            {showAll ? <UserCheck className="mr-2 h-4 w-4" /> : <UserX className="mr-2 h-4 w-4" />}
-            {showAll ? "Only today's rota" : "Show everyone"}
+            {showAll ? <UserCheck className="mr-2 hidden h-4 w-4 sm:block" /> : <UserX className="mr-2 hidden h-4 w-4 sm:block" />}
+            {/* The short word on a phone keeps the three filters on one row. */}
+            <span className="sm:hidden">{showAll ? "Rota only" : "Everyone"}</span>
+            <span className="hidden sm:inline">{showAll ? "Only today's rota" : "Show everyone"}</span>
           </Button>
-          <div className="relative print:hidden">
+          {/* Find comes first and takes the row on a phone: it is how a supervisor on the
+              floor gets to one person among eighty. 16px type there, or iOS zooms the page
+              on focus. On a wide screen it sits where it always did. */}
+          <div className="order-first flex w-full items-center gap-2 print:hidden sm:order-none sm:w-auto">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={find}
               onChange={(e) => setFind(e.target.value)}
               placeholder="Find a person…"
+              type="search"
+              enterKeyHint="search"
               aria-label="Find a person on the board"
-              className="h-8 w-44 pl-8 text-xs"
+              className="h-11 w-full pl-8 text-base sm:h-8 sm:w-44 sm:text-xs"
             />
+          </div>
+            {/* Planning on a phone: one menu instead of a split button and a third button
+                on rows of their own, which pushed Line 1 under the fold. The same actions,
+                the same confirmations. */}
+            {canManage && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-11 shrink-0 gap-1.5 px-3 print:hidden sm:hidden"
+                    aria-label="Plan this board"
+                    disabled={copyLastLikeDay.isPending}
+                  >
+                    <CopyPlus className="h-4 w-4" />
+                    Plan
+                    <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-[70vh] w-72 overflow-y-auto">
+                  <DropdownMenuItem onSelect={() => runCopy({ kind: "last" })} className="gap-2">
+                    <CopyPlus className="h-4 w-4" /> Copy from the last day
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setSaveMatrixOpen(true)} disabled={saveMatrix.isPending} className="gap-2">
+                    <Star className="h-4 w-4" /> Save as matrix…
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {copyChoices}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
           {/* Named for what it does. "Copy from last same day" promised a matching
               weekday, and on a board without one it could only fail — which is what it
@@ -1281,7 +1389,7 @@ function ShiftBoard({
               so the choice is made before the copy rather than read off the toast
               afterwards. */}
           {canManage && (
-            <div className="flex print:hidden">
+            <div className="hidden print:hidden sm:flex">
               <Button
                 size="sm"
                 variant="outline"
@@ -1306,65 +1414,7 @@ function ShiftBoard({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72">
-                  <DropdownMenuLabel className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Copy this board from
-                  </DropdownMenuLabel>
-                  {/* The matrix first, and apart, because it is a different kind of
-                      answer: the board as it should look, not as it looked once. The
-                      count is the people it holds who are actually due in today —
-                      every weekday is a crossover of two rotas, so the matrix's own
-                      total would be a number this day never sees. */}
-                  {matrix.matrices.map((m) => (
-                    <DropdownMenuItem
-                      key={m.kind}
-                      onSelect={() => runCopy({ kind: "matrix", matrix: m.kind })}
-                      disabled={m.due.length === 0}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-1.5 truncate">
-                          <Star className="h-3.5 w-3.5 shrink-0 text-primary" />
-                          {shift} · {m.label}
-                        </span>
-                        <span className="block truncate pl-5 text-2xs text-muted-foreground">
-                          {m.rows.length === 0
-                            ? "none saved yet"
-                            : m.due.length === 0
-                              ? `${m.rows.length} people, none of them due in today`
-                              : `of ${m.rows.length}, due in today${m.savedFrom ? ` · saved ${formatWeekday(m.savedFrom)}` : ""}`}
-                        </span>
-                      </span>
-                      <span className="shrink-0 font-figure text-xs font-bold tabular-nums">
-                        {m.due.length || "—"}
-                      </span>
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuItem
-                    onSelect={() => setMatrixOpen(true)}
-                    className="pl-5 text-2xs text-muted-foreground"
-                  >
-                    See what the matrices hold
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {copyableLoading && <div className="px-2 py-1.5 text-xs text-muted-foreground">Looking…</div>}
-                  {!copyableLoading && copyableDays.length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                      No earlier {shift.toLowerCase()} day has anybody on it yet.
-                    </div>
-                  )}
-                  {copyableDays.map((d, i) => (
-                    <DropdownMenuItem
-                      key={d.on_date}
-                      onSelect={() => runCopy({ kind: "day", on_date: d.on_date })}
-                      className="flex items-center justify-between gap-3"
-                    >
-                      <span className="truncate">
-                        {formatWeekday(d.on_date)}
-                        {i === 0 && <span className="ml-1.5 text-2xs text-muted-foreground">last</span>}
-                      </span>
-                      <span className="shrink-0 font-figure text-xs font-bold tabular-nums">{d.people}</span>
-                    </DropdownMenuItem>
-                  ))}
+                  {copyChoices}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1376,9 +1426,9 @@ function ShiftBoard({
               front of them. A press by accident on a half-arranged board would
               otherwise quietly become what every future day starts from. */}
           {canManage && (
-            <AlertDialog>
+            <AlertDialog open={saveMatrixOpen} onOpenChange={setSaveMatrixOpen}>
               <AlertDialogTrigger asChild>
-                <Button size="sm" variant="ghost" className="h-8 print:hidden" disabled={saveMatrix.isPending}>
+                <Button size="sm" variant="ghost" className="hidden h-8 print:hidden sm:inline-flex" disabled={saveMatrix.isPending}>
                   <Star className="mr-2 h-4 w-4" />
                   Save as matrix
                 </Button>
@@ -2008,7 +2058,7 @@ function SheetDayTabs({ date, today, onPick }: { date: string; today: string; on
               aria-current={active ? "date" : undefined}
               title={formatLong(d) + (d === today ? " (today)" : "")}
               className={cn(
-                "shrink-0 border-r border-neutral-400 px-3 py-2 font-figure text-xs tabular-nums",
+                "shrink-0 border-r border-neutral-400 px-3 py-3 font-figure text-xs tabular-nums sm:py-2",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 // O separador aberto é branco e sobe sobre a linha, como no Excel.
                 active
@@ -2131,8 +2181,10 @@ export default function ProductionHeadcountPage() {
             {/* Which board, beside which day: the two answer one question together, and
                 with Day / Night / Both on a row of its own under the band they were read
                 as separate settings. */}
-            <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="print:hidden">
-              <TabsList className="h-9 bg-white/10 p-1 text-white/70">
+            {/* On a phone the three boards share the band's width, 44px tall, so a thumb
+                hits the one it means; from 640px up they are the compact pill they were. */}
+            <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="w-full print:hidden sm:w-auto">
+              <TabsList className="h-12 w-full bg-white/10 p-1 text-white/70 sm:h-9 sm:w-auto">
                 {/* Two boards, not four. Day carries everybody whose shift runs while the
                     lines do — Mon–Thu, Fri–Mon and the warehouse — which is how the
                     factory's own sheets are drawn. Each card says which crew. */}
@@ -2140,7 +2192,7 @@ export default function ProductionHeadcountPage() {
                   <TabsTrigger
                     key={v}
                     value={v}
-                    className="h-7 px-3 text-xs text-white/75 focus-visible:ring-white/70 focus-visible:ring-offset-0 data-[state=inactive]:hover:text-white data-[state=active]:bg-white data-[state=active]:text-[hsl(var(--section))]"
+                    className="h-10 flex-1 px-3 text-sm text-white/75 sm:h-7 sm:flex-none sm:text-xs focus-visible:ring-white/70 focus-visible:ring-offset-0 data-[state=inactive]:hover:text-white data-[state=active]:bg-white data-[state=active]:text-[hsl(var(--section))]"
                   >
                     {v === "Split" ? "Both" : v}
                   </TabsTrigger>
@@ -2153,8 +2205,8 @@ export default function ProductionHeadcountPage() {
                 twenty-one presses, so people gave up and read the spreadsheet instead.
                 The date looked like a label because it was one; it is now the control
                 its position always promised. */}
-            <div className="flex items-center gap-0.5 rounded-lg bg-white/10 p-0.5 print:bg-transparent">
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20 print:hidden" onClick={() => shiftDate(-1)} aria-label="Previous day">
+            <div className="order-1 flex min-w-[11rem] flex-1 items-center gap-0.5 rounded-lg bg-white/10 p-0.5 print:bg-transparent sm:order-none sm:min-w-0 sm:flex-none">
+              <Button size="icon" variant="ghost" className="h-11 w-11 shrink-0 text-white hover:bg-white/20 print:hidden sm:h-8 sm:w-8" onClick={() => shiftDate(-1)} aria-label="Previous day">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
@@ -2164,7 +2216,7 @@ export default function ProductionHeadcountPage() {
                     // `print-keep` because this is where the printed sheet says which
                     // day it is. Everything else in this band is a control and prints
                     // hidden; the date is the record.
-                    className="print-keep min-w-[8.5rem] rounded-md px-2 py-1 text-center text-sm font-semibold tabular-nums text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 print:px-0 print:text-black print:hover:bg-transparent"
+                    className="print-keep min-h-11 min-w-0 flex-1 whitespace-nowrap rounded-md px-2 py-1 text-center sm:min-h-0 sm:min-w-[8.5rem] sm:flex-none text-sm font-semibold tabular-nums text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 print:px-0 print:text-black print:hover:bg-transparent"
                     aria-label={`Showing ${formatLong(date)} — pick another day`}
                   >
                     {/* On screen the day's name: the tab strip at the foot already says
@@ -2190,7 +2242,7 @@ export default function ProductionHeadcountPage() {
                   />
                 </PopoverContent>
               </Popover>
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20 print:hidden" onClick={() => shiftDate(1)} aria-label="Next day">
+              <Button size="icon" variant="ghost" className="h-11 w-11 shrink-0 text-white hover:bg-white/20 print:hidden sm:h-8 sm:w-8" onClick={() => shiftDate(1)} aria-label="Next day">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -2200,7 +2252,7 @@ export default function ProductionHeadcountPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 px-2.5 text-white hover:bg-white/20 print:hidden"
+                className="order-1 h-11 px-3 text-white hover:bg-white/20 print:hidden sm:order-none sm:h-8 sm:px-2.5"
                 // Asked again on the press rather than reused from mount: this screen
                 // is left open on a wall tablet for days, and `opened` is the shift that
                 // was running when it was loaded. A "Today" that returns to Tuesday is
@@ -2214,6 +2266,10 @@ export default function ProductionHeadcountPage() {
                 because the two boards answer differently on the same day — see
                 DayClockBadge. In Split both are named, so neither can be read as
                 covering the other. */}
+            {/* On a phone the badges take the line under the date, so the arrows, the day
+                and Actions stay on one row; `sm:contents` gives the wide band back its
+                single line unchanged. */}
+            <div className="order-2 flex flex-wrap items-center gap-2 sm:order-none sm:contents">
             {view === "Split" ? (
               <>
                 <DayClockBadge onDate={date} shift="Day" boardLabel="Day" />
@@ -2229,6 +2285,7 @@ export default function ProductionHeadcountPage() {
                 Night still running — filed under {formatLong(date)}
               </Badge>
             )}
+            </div>
             {/* The actions, apart from the date by a rule. Below 1536px they keep their
                 icon and lose the word (the name stays as the accessible name and the
                 tooltip), which is what lets the band stay one line on a laptop. Sync
@@ -2237,7 +2294,7 @@ export default function ProductionHeadcountPage() {
             {/* All board actions behind one menu, so the header stays clean. */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="secondary" className="h-8 gap-1.5 print:hidden" aria-label="Board actions">
+                <Button size="sm" variant="secondary" className="order-1 h-11 gap-1.5 print:hidden sm:order-none sm:h-8" aria-label="Board actions">
                   <CloudDownload className="h-4 w-4" />
                   Actions
                   <ChevronDown className="h-3.5 w-3.5 opacity-70" />

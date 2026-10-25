@@ -320,3 +320,64 @@ test("o Total staff in Production conta as horas extra numa área, e é o númer
   });
   expect(got).toEqual({ purple: 26, paper: 26, big: 26 });
 });
+
+// 25/10: no telemóvel o board começava a mais de um ecrã de altura, com cada acção numa
+// fila sua e controlos de 32px. Agora: procurar e Plan numa fila, os três filtros noutra,
+// e tudo com 44px. A 320 (iPhone SE), 375 e 430.
+for (const width of [320, 375, 430]) {
+  test(`no telemóvel (${width}px) o board cabe na largura e as acções estão à mão do polegar`, async ({ page }) => {
+    await openBoard(page);
+    await page.setViewportSize({ width, height: 844 });
+    // As abas têm `transition-all`: medidas logo a seguir ao resize, apanhavam a altura a meio.
+    await page.waitForTimeout(400);
+    const find = page.getByRole("searchbox", { name: "Find a person on the board" });
+    const plan = page.getByRole("button", { name: "Plan this board" });
+    await expect(find).toBeVisible();
+    await expect(plan).toBeVisible();
+
+    const m = await page.evaluate(() => {
+      const box = (el: Element | null) => el?.getBoundingClientRect();
+      const byName = (n: string) => [...document.querySelectorAll("button, [role=tab], input")]
+        .find((el) => (el.getAttribute("aria-label") ?? (el as HTMLElement).innerText ?? "").trim() === n);
+      const find = box(document.querySelector('input[aria-label="Find a person on the board"]'))!;
+      const plan = box(document.querySelector('button[aria-label="Plan this board"]'))!;
+      const sectors = box(document.querySelector('[aria-label="Show sectors"]'))!;
+      const everyone = box(byName("Everyone") ?? null)!;
+      return {
+        scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        heights: ["Previous day", "Next day", "Board actions", "Production", "Support", "Everyone"]
+          .map((n) => [n, Math.round(box(byName(n) ?? null)?.height ?? 0)]),
+        tabs: [...document.querySelectorAll('[role=tab]')].filter((t) => ["Day", "Night", "Both"].includes(t.textContent ?? ""))
+          .map((t) => Math.round(t.getBoundingClientRect().height)),
+        findH: Math.round(find.height),
+        findAndPlanShareARow: Math.abs(find.top - plan.top) < 4,
+        filtersShareARow: Math.abs(sectors.top - everyone.top) < 4,
+        findFontPx: parseFloat(getComputedStyle(document.querySelector('input[aria-label="Find a person on the board"]')!).fontSize),
+      };
+    });
+    expect(m.scroll).toBe(0);
+    for (const [name, h] of m.heights) expect.soft(h, `${name} tem ${h}px`).toBeGreaterThanOrEqual(44);
+    for (const h of m.tabs) expect(h).toBeGreaterThanOrEqual(40);
+    expect(m.findH).toBeGreaterThanOrEqual(44);
+    expect(m.findAndPlanShareARow).toBe(true);
+    expect(m.filtersShareARow).toBe(true);
+    // Abaixo de 16px o Safari do iPhone amplia a página ao tocar no campo.
+    expect(m.findFontPx).toBeGreaterThanOrEqual(16);
+  });
+}
+
+test("no telemóvel o Plan tem o copiar do último dia e o guardar como matrix, com a mesma pergunta", async ({ page }) => {
+  await openBoard(page);
+  await page.setViewportSize({ width: 375, height: 844 });
+  await page.getByRole("button", { name: "Plan this board" }).click();
+  await expect(page.getByRole("menuitem", { name: "Copy from the last day" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Save as matrix…" }).click();
+  await expect(page.getByRole("alertdialog", { name: "What is this board the standard for?" })).toBeVisible();
+});
+
+test("na secretária os botões de copiar e guardar matrix continuam na barra, e o Plan não aparece", async ({ page }) => {
+  await openBoard(page);
+  await expect(page.getByRole("button", { name: "Copy from the last day" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save as matrix" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Plan this board" })).toBeHidden();
+});
