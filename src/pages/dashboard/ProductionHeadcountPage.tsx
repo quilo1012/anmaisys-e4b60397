@@ -74,7 +74,6 @@ import { printSheetLayout } from "@/lib/headcountSheet";
 import { MatrixDialog } from "@/components/workforce/MatrixDialog";
 import { PeriodCalendar } from "@/components/workforce/PeriodCalendar";
 import { HeadcountOvertimePanel } from "@/components/workforce/HeadcountOvertimePanel";
-import { OvertimeAttendancePanel } from "@/components/workforce/OvertimeAttendancePanel";
 import { currentShift } from "@/lib/operationalShift";
 import { useSearchParams } from "react-router-dom";
 import { boardNotImported } from "@/lib/headcountImportReport";
@@ -2354,17 +2353,12 @@ export default function ProductionHeadcountPage() {
       {/* As abas da folha, uma por dia do mês, como no fundo do Excel. */}
       <SheetDayTabs date={date} today={opened.operationalDate} onPick={setDate} />
 
-      {/* Quem aceitou overtime neste board e quem veio de facto. Fora do "hours and
-          overtime" porque é trabalho do turno, não leitura do período; só aparece a quem
-          gere overtime e quando há pedidos que caem neste board. */}
-      {view === "Split" ? (
-        <>
-          <OvertimeAttendancePanel date={date} shift="Day" />
-          <OvertimeAttendancePanel date={date} shift="Night" />
-        </>
-      ) : (
-        <OvertimeAttendancePanel date={date} shift={view} />
-      )}
+      {/* No "Overtime attendance" panel here any more (removed 25/10). Confirmed overtime
+          is on the board as an overtime row (the bridge writes it on acceptance and takes
+          it off on cancellation) and is counted in Total staff from that alone: nobody
+          has to confirm it a second time. Being on the board means expected to work, not
+          clocked in — what actually happened is still recorded per person on the
+          Overtime Requests screen ("What happened?"), and the clock is TimeMoto. */}
 
       {/* Fora da vista principal, à espera de quem os peça. O board é para ver quem está
           onde; as horas por linha, o período e as horas extra são outra pergunta, e de
