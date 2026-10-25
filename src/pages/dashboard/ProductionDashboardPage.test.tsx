@@ -34,13 +34,13 @@ vi.mock("@/hooks/useHeadcount", () => ({
   useHeadcountAreas: () => ({ data: areas, isLoading: false }),
   useShiftRoster: (shift: string) => ({
     data: shift === "Day" ? ["a", "b", "c", "d", "e"].map((id) => ({ id })) : [{ id: "n1" }],
-    boardById: new Map(["a", "b", "c", "d", "e", "n1"].map((id) => [id, { id }])),
+    boardById: new Map(["a", "b", "c", "d", "e", "f", "n1"].map((id) => [id, { id }])),
     isLoading: false,
   }),
   useAllocations: (_d: string, shift: string) => {
     state.calls.allocations += 1;
     return {
-      data: shift === "Day" ? [alloc("a", "assigned", "l1"), alloc("b", "assigned", "wh"), alloc("c", "sick")] : [alloc("n1", "assigned", "l1")],
+      data: shift === "Day" ? [alloc("a", "assigned", "l1"), alloc("b", "assigned", "wh"), alloc("c", "sick"), alloc("f", "overtime", "l1")] : [alloc("n1", "assigned", "l1")],
       isLoading: false,
       error: state.allocError,
     };
@@ -94,11 +94,12 @@ describe("Production dashboard", () => {
   it("adds the board up by the board's rules, both shifts", () => {
     renderPage();
     const staffing = screen.getByRole("region", { name: /Staffing/ });
-    // Day: a, b working; c sick; d, e due in with no row. Night: n1 working.
+    // Day: a, b working; f on overtime on Line 1; c sick; d, e due in with no row.
+    // Night: n1 working. Overtime on a line is in production, as on the board.
     const fig = (label: string) => within(staffing).getAllByText(label)[0].closest("div")!.parentElement!;
     expect(fig("Due in")).toHaveTextContent("6");
-    expect(fig("Working")).toHaveTextContent("3");
-    expect(fig("Working")).toHaveTextContent("2 on lines · 1 support");
+    expect(fig("In production")).toHaveTextContent("4");
+    expect(fig("In production")).toHaveTextContent("3 on lines · 1 support");
     expect(fig("Away")).toHaveTextContent("1 sick");
     expect(fig("Not placed")).toHaveTextContent("2");
   });
