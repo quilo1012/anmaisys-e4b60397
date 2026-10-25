@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLiveSession } from "@/lib/liveSession";
+import { NoLiveSessionError, hasLiveSession, useLiveSession } from "@/lib/liveSession";
 import {
   PRESENCE_MAX_IDS, PRESENCE_REFRESH_MS, chunk, myDisplayedAvailability, parseAutomaticReason, parseAvailability, stableIds,
   type AutomaticReason, type AvailabilityStatus,
@@ -46,6 +46,8 @@ export function useMyAvailability() {
     // A shift starts and ends without anyone clicking; re-read so the picker follows the clock.
     refetchInterval: 60_000,
     queryFn: async (): Promise<MyAvailability> => {
+      // Asked again here, at the call: the gate above can be thirty seconds old.
+      if (!(await hasLiveSession())) throw new NoLiveSessionError();
       const { data, error } = await supabase.rpc("communication_my_availability");
       if (error) throw error;
       // The generated types predate `automatic_status`/`automatic_reason`; read them as optional.
@@ -115,6 +117,7 @@ export function usePresenceOf(userIds: readonly (string | null | undefined)[]) {
     refetchOnWindowFocus: true,
     placeholderData: keepPreviousData,
     queryFn: async (): Promise<[string, AvailabilityStatus][]> => {
+      if (!(await hasLiveSession())) throw new NoLiveSessionError();
       const parts = await Promise.all(
         chunk(ids, PRESENCE_MAX_IDS).map(async (part) => {
           const { data, error } = await supabase.rpc("communication_presence_for", { p_user_ids: part });
