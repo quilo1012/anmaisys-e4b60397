@@ -6,6 +6,7 @@ import { setIsOwner } from "@/lib/permissions";
 import type { Database } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { classifyBootSession, clearSessionEndNotice, noteSessionEnded } from "@/lib/sessionRestore";
+import { releaseThisDevicePush } from "@/hooks/usePushNotifications";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -613,6 +614,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Wipe persisted Tablet credentials on explicit sign-out only.
       localStorage.removeItem("an_tablet_cred");
     } catch { /* ignore */ }
+    await releaseThisDevicePush();
     // `local` ends this device's session, on the server too. The default, `global`,
     // revoked every session the account had, so signing out of the office PC also
     // signed the same person out of their phone, and one tablet signing out of a

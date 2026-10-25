@@ -280,6 +280,18 @@ export function NotificationPanel() {
     notifications.filter((n) => !n.read && (n.priority === "critical" || n.priority === "high")).length
     + storedUnread.filter((n) => n.priority === "critical" || n.priority === "high").length;
 
+  // The Home Screen icon carries the same number as the bell (iOS 16.4+ installed app,
+  // Chrome/Edge installed). Only the stored rows count: the live ones vanish on reload, and a
+  // badge that outlives what it counted is a badge nobody believes.
+  const badgeCount = stored.loaded ? storedUnread.length : null;
+  useEffect(() => {
+    if (badgeCount === null) return;
+    const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+    if (typeof nav.setAppBadge !== "function") return;
+    const done = badgeCount > 0 ? nav.setAppBadge(badgeCount) : nav.clearAppBadge?.();
+    void done?.catch(() => { /* not permitted here: the bell still shows it */ });
+  }, [badgeCount]);
+
   const markAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     if (storedUnread.length > 0) stored.markRead.mutate("all");
