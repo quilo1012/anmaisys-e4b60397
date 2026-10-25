@@ -959,9 +959,21 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
                             <SelectValue placeholder={isPast ? "What happened?" : response.decision === "accepted" ? "Still coming" : "On reserve"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {OUTCOMES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                            {(() => { const v = outcomeByResponse.get(response.id); return v && STORED_LABEL[v]
-                              ? <SelectItem value={v} disabled>{STORED_LABEL[v]}</SelectItem> : null; })()}
+                            {(() => {
+                              // A reserve was never booked, so a no-show or a sick call cannot be
+                              // held against them (the database refuses it, BLOCO 130).
+                              const offered = OUTCOMES.filter((o) => response.decision === "accepted" || (o.value !== "no_show" && o.value !== "called_sick"));
+                              const v = outcomeByResponse.get(response.id);
+                              // What is already stored stays readable even when it is not offered.
+                              const stored = v && !offered.some((o) => o.value === v)
+                                ? STORED_LABEL[v] ?? OUTCOMES.find((o) => o.value === v)?.label ?? v : null;
+                              return (
+                                <>
+                                  {offered.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                                  {stored && <SelectItem value={v!} disabled>{stored}</SelectItem>}
+                                </>
+                              );
+                            })()}
                           </SelectContent>
                         </Select>
                         {mayManage && request.status === "open" && !outcomeByResponse.has(response.id) && (

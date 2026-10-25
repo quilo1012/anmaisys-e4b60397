@@ -7,7 +7,8 @@
 -- Night that moved to 20:00 still had the old hours on the lock screen.
 --
 -- WHO: the people already told about the ask (an 'overtime_new' row) and the people
--- who said yes to it (booked or reserve). Somebody who said no is not told again.
+-- who said yes to it (booked or reserve). Not told again: who said no, whose yes the
+-- supervisor declined, and who had already cancelled their booking.
 -- WHAT: 'overtime_cancelled' when status becomes 'cancelled'; 'overtime_changed' when
 -- the date or the hours move on an ask that is still open. Each change replaces the
 -- previous change notice for that person and ask (a cancellation removes it too), so a new row is inserted and the
@@ -76,6 +77,17 @@ begin
           join public.employees e on e.id = r.employee_id
          where r.request_id = new.id and r.answer = 'yes' and e.user_id is not null
       ) w
+     -- Not those it is no longer about: who said no, whose yes the supervisor declined,
+     -- and who already cancelled their own booking.
+     where not exists (
+       select 1
+         from public.overtime_responses r
+         join public.employees e on e.id = r.employee_id
+        where r.request_id = new.id and e.user_id = w.user_id
+          and (r.answer = 'no' or r.decision = 'declined'
+               or exists (select 1 from public.overtime_outcomes o
+                           where o.response_id = r.id
+                             and o.outcome in ('cancelled_in_time', 'cancelled_late'))))
     on conflict (user_id, kind, overtime_request_id) do nothing;
   exception when others then
     raise warning 'overtime_request_change_notify(%): %', new.id, sqlerrm;

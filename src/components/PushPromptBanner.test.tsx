@@ -52,6 +52,25 @@ describe("PushPromptBanner", () => {
     expect(screen.queryByRole("button", { name: /Turn on notifications/ })).toBeNull();
   });
 
+  it("the iPhone install line can be put away for good, and stays away after a reload", () => {
+    state.environment = { kind: "ios-install" };
+    const { unmount } = render(<PushPromptBanner role="employee" />);
+    fireEvent.click(screen.getByRole("button", { name: "Don't show again" }));
+    expect(screen.queryByTestId("push-prompt")).toBeNull();
+    unmount();
+    // Long after the twelve-hour snooze would have run out.
+    localStorage.removeItem("an_push_banner_snooze_until");
+    render(<PushPromptBanner role="employee" />);
+    expect(screen.queryByTestId("push-prompt")).toBeNull();
+  });
+
+  it("putting the install line away does not silence 'turn notifications on' once the app is installed", () => {
+    localStorage.setItem("an_install_hint_off", "1");
+    render(<PushPromptBanner role="employee" />);
+    expect(screen.getByRole("button", { name: /Turn on notifications/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Don't show again" })).toBeNull();
+  });
+
   it("tells an old iPhone to update", () => {
     state.environment = { kind: "ios-too-old", version: "15.8" };
     render(<PushPromptBanner role="employee" />);

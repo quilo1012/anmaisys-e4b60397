@@ -363,6 +363,16 @@ for (const width of [320, 375, 430]) {
     expect(m.filtersShareARow).toBe(true);
     // Abaixo de 16px o Safari do iPhone amplia a página ao tocar no campo.
     expect(m.findFontPx).toBeGreaterThanOrEqual(16);
+
+    // E com a regra dos 48px de um ecrã de toque (simulada, ver asIfTouch): continua sem
+    // deslizar para o lado, e os três filtros continuam numa fila.
+    await asIfTouch(page);
+    const t = await page.evaluate(() => {
+      const sectors = document.querySelector('[aria-label="Show sectors"]')!.getBoundingClientRect();
+      const everyone = [...document.querySelectorAll("button")].find((b) => b.innerText.trim() === "Everyone")!.getBoundingClientRect();
+      return { scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth, oneRow: Math.abs(sectors.top - everyone.top) < 4 };
+    });
+    expect(t).toEqual({ scroll: 0, oneRow: true });
   });
 }
 
@@ -380,4 +390,47 @@ test("na secretária os botões de copiar e guardar matrix continuam na barra, e
   await expect(page.getByRole("button", { name: "Copy from the last day" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save as matrix" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Plan this board" })).toBeHidden();
+});
+
+/**
+ * O Chromium sem cabeça tem rato: `(pointer: coarse)` e `(hover: none)` nunca casam, e o
+ * CDP não os emula. Para medir o que um telemóvel vê, as regras desses media queries são
+ * repostas sem condição, e as de `(hover: hover)` retiradas. É uma simulação do CSS, não
+ * um telemóvel: o toque e o arrastar a sério ficam para o aparelho.
+ */
+async function asIfTouch(page: Page) {
+  await page.evaluate(() => {
+    const css: string[] = [];
+    for (const sh of [...document.styleSheets]) {
+      let rules: CSSRule[] = [];
+      try { rules = [...sh.cssRules]; } catch { continue; }
+      for (const r of rules) if (r instanceof CSSMediaRule && /pointer:\s*coarse|hover:\s*none/.test(r.conditionText)) for (const x of [...r.cssRules]) css.push(x.cssText);
+      for (let i = sh.cssRules.length - 1; i >= 0; i--) {
+        const r = sh.cssRules[i];
+        if (r instanceof CSSMediaRule && /hover:\s*hover/.test(r.conditionText)) sh.deleteRule(i);
+      }
+    }
+    const st = document.createElement("style");
+    st.textContent = css.join("\n");
+    document.head.appendChild(st);
+  });
+  await page.waitForTimeout(400);
+}
+
+// 25/10: a pega de arrastar a coluna era 20×32 com rato; num ecrã de toque a regra global
+// dos 48px fazia dela um quadrado de 48 em cima do título, numa coluna de 116px.
+test("num ecrã de toque a pega da coluna tem 32×44 e não tapa o título da coluna", async ({ page }) => {
+  await openBoard(page);
+  await page.setViewportSize({ width: 375, height: 1000 });
+  await asIfTouch(page);
+  const grips = await page.evaluate(() =>
+    [...document.querySelectorAll('.headcount-on-screen button[aria-label="Reorder column"]')].slice(0, 6).map((b) => {
+      const r = b.getBoundingClientRect();
+      const cell = b.closest(".relative")!;
+      const label = [...cell.querySelectorAll("span,div")]
+        .find((el) => !el.contains(b) && (el.textContent ?? "").trim().length > 0)!.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height), clear: label.left >= r.right - 1, shown: getComputedStyle(b.parentElement!).opacity === "1" };
+    }));
+  expect(grips.length).toBeGreaterThan(0);
+  for (const g of grips) expect(g).toEqual({ w: 32, h: 44, clear: true, shown: true });
 });

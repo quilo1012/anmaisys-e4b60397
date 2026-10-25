@@ -102,3 +102,47 @@ describe("BLOCO 121", () => {
     expect(sql).toMatch(/new\.kind = 'chat_group' and new\.read_at is null and new\.created_at > old\.created_at/);
   });
 });
+
+describe("tapping a notification", () => {
+  // The worker run for real, in a sandbox with a fake `self`.
+  async function tap(tag: string, url: string, open: { postMessage?: (m: unknown) => void; navigate?: (u: string) => Promise<void> }[]) {
+    const listeners: Record<string, (e: unknown) => void> = {};
+    const opened: string[] = [];
+    const self = {
+      location: { origin: "https://anpmsystem.co.uk" },
+      addEventListener: (n: string, f: (e: unknown) => void) => { listeners[n] = f; },
+      clients: {
+        matchAll: async () => open.map((c) => ({ focus: async () => {}, ...c })),
+        openWindow: async (u: string) => { opened.push(u); },
+      },
+      registration: {},
+    };
+    new Function("self", "caches", sw)(self, { keys: async () => [] });
+    let done: Promise<unknown> = Promise.resolve();
+    listeners.notificationclick({
+      action: "",
+      notification: { tag, data: { url }, close: () => {} },
+      waitUntil: (p: Promise<unknown>) => { done = p; },
+    });
+    await done;
+    return opened;
+  }
+
+  it("opens the app at the destination, carrying the tag so the page can mark the bell row read", async () => {
+    const opened = await tap("overtime_cancelled:abc", "/dashboard/my-overtime?ask=r1", []);
+    expect(opened).toEqual(["/dashboard/my-overtime?ask=r1&notification=overtime_cancelled%3Aabc"]);
+  });
+
+  it("an app already open is told directly too, in case it cannot be navigated", async () => {
+    const posted: unknown[] = [];
+    const went: string[] = [];
+    await tap("chat_message:xyz", "/dashboard/messages", [{ postMessage: (m) => posted.push(m), navigate: async (u) => { went.push(u); } }]);
+    expect(posted).toEqual([{ type: "notification-opened", tag: "chat_message:xyz" }]);
+    expect(went).toEqual(["/dashboard/messages?notification=chat_message%3Axyz"]);
+  });
+
+  it("never sends anyone to another site: a foreign link opens the app's home", async () => {
+    expect(await tap("x:1", "https://evil.example/phish", [])).toEqual(["/"]);
+    expect(await tap("x:1", "//evil.example/phish", [])).toEqual(["/"]);
+  });
+});
