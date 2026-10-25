@@ -125,3 +125,32 @@ describe("usePresenceOf", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 });
+
+// 25/10, 07:59 e 14:12, no Headcount board, como admin: `communication_my_availability`
+// 42501 outra vez. O portao abre com token e so volta a olhar 30 s depois; um computador
+// a acordar perde a token nesse intervalo, e o refetch do minuto saia so com a anon key.
+// Agora cada pedido pergunta pela token no momento em que sai.
+describe("a token perguntada no momento do pedido", () => {
+  it("o portao aberto ha pouco nao chega: sem token agora, nao sai pedido nenhum", async () => {
+    getSession.mockResolvedValue(viva);
+    const { result } = renderHook(() => useMyAvailability(), { wrapper: wrap });
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    getSession.mockResolvedValue({ data: { session: null } });
+    await result.current.refetch();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    // e o que ja se sabia fica no ecra
+    expect(result.current.data).toBeDefined();
+  });
+
+  it("o mesmo na presenca dos outros", async () => {
+    getSession.mockResolvedValue(viva);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const own = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => usePresenceOf(["11111111-0000-4000-8000-000000000000"]), { wrapper: own });
+    await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+    getSession.mockResolvedValue({ data: { session: null } });
+    await qc.refetchQueries();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(result.current.statuses).toBeInstanceOf(Map);
+  });
+});

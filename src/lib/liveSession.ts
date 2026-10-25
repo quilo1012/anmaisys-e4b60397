@@ -43,6 +43,24 @@ export async function hasLiveSession(): Promise<boolean> {
 export const LIVE_SESSION_POLL_MS = 30_000;
 
 /**
+ * Thrown by a query that asked again, at the moment of the call, and found no token.
+ *
+ * `useLiveSession` is a gate, not a guarantee: it is checked every thirty seconds, and a
+ * phone or laptop waking up can lose its token inside that window. The request then goes
+ * out with only the anon key, PostgREST answers 401/42501, and Root Diagnostics files an
+ * RLS_ERROR for a grant that is there (25/10, `communication_my_availability`, 07:59 and
+ * 14:12 on the Headcount board, admin). A query that throws this keeps the data it had;
+ * the app's usual retry asks again a few seconds later, without a request going out
+ * until the token is back, and the gate opening again refetches too.
+ */
+export class NoLiveSessionError extends Error {
+  constructor() {
+    super("No live session yet");
+    this.name = "NoLiveSessionError";
+  }
+}
+
+/**
  * O mesmo em forma de booleano, para o `enabled` de uma query.
  *
  * Comeca em `false` e passa a `true` no primeiro check — uma query fica desactivada
