@@ -181,9 +181,9 @@ function useBoardTally(shift: Shift, day: string) {
 }
 
 function sumTallies(ts: BoardTally[]) {
-  const s = { onRota: 0, working: 0, onLines: 0, support: 0, overtime: 0, training: 0, notPlaced: 0, sick: 0, holiday: 0, unpaid: 0, away: 0 };
+  const s = { onRota: 0, working: 0, inProduction: 0, onLines: 0, support: 0, overtime: 0, training: 0, notPlaced: 0, sick: 0, holiday: 0, unpaid: 0, away: 0 };
   for (const t of ts) {
-    s.onRota += t.onRota; s.working += t.working; s.onLines += t.onLines; s.support += t.support;
+    s.onRota += t.onRota; s.working += t.working; s.inProduction += t.inProduction; s.onLines += t.onLines; s.support += t.support;
     s.overtime += t.overtime; s.training += t.training; s.notPlaced += t.notPlaced;
     s.sick += t.away.sick; s.holiday += t.away.holiday; s.unpaid += t.away.unpaid; s.away += t.away.total;
   }
@@ -226,7 +226,9 @@ function Staffing({ day, shifts, from, to }: { day: string; shifts: Shift[]; fro
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Due in" value={t.onRota} loading={loading} icon={<Users className="h-4 w-4" />}
           sublabel="On the rota for this day" accent="muted" onClick={() => navigate(boardLink())} />
-        <KpiCard label="Working" value={t.working} loading={loading} icon={<UserCheck className="h-4 w-4" />}
+        {/* The board's "Total staff in Production": overtime on a line counts, so the
+            two lines below add up to it and the board and this card say one number. */}
+        <KpiCard label="In production" value={t.inProduction} loading={loading} icon={<UserCheck className="h-4 w-4" />}
           sublabel={`${t.onLines} on lines · ${t.support} support`} accent="info" onClick={() => navigate(boardLink())} />
         <KpiCard label="Away" value={t.away} loading={loading} icon={<PlaneTakeoff className="h-4 w-4" />}
           sublabel={`${t.sick} sick · ${t.holiday} holiday · ${t.unpaid} unpaid`}

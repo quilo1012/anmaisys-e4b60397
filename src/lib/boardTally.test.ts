@@ -23,10 +23,15 @@ describe("tallyBoard", () => {
   const roster = ["a", "b", "c", "e", "f", "x", "y"].map((id) => ({ id }));
   const t = tallyBoard({ allocations, areas, roster, drawable: (id) => id !== "gone" });
 
-  it("counts working as assigned only, split into lines and support", () => {
+  it("counts working as assigned only", () => {
     expect(t.working).toBe(3);
-    expect(t.onLines).toBe(2);
+  });
+  // 25/10: the board said 40, the printed sheet 51 — the overtime people on the lines.
+  it("counts everybody in an area column as in production, overtime included, split into lines and support", () => {
+    expect(t.inProduction).toBe(4);
+    expect(t.onLines).toBe(3);
     expect(t.support).toBe(1);
+    expect(t.onLines + t.support).toBe(t.inProduction);
   });
   it("keeps overtime and training out of working and out of away", () => {
     expect(t.overtime).toBe(1);
@@ -65,6 +70,8 @@ describe("tallyBoard, a row with no line", () => {
     expect(t.working).toBe(1);
     expect(t.notPlaced).toBe(1);
     expect(t.overtime).toBe(1);
+    // Overtime with no area is in its own block only, as on paper.
+    expect(t.inProduction).toBe(1);
   });
 });
 

@@ -6,10 +6,16 @@
  * how a dashboard and the screen it summarises come to disagree, so both read this.
  *
  * The rules, as the board has them:
- * - **Working** is status `assigned`. Overtime, training and the away columns are not
- *   in it: that total is the crew the day was planned with.
- * - **On lines** is working people in a `production` area; **support** is the rest of
- *   working.
+ * - **Working** is status `assigned`: the crew the day was planned with, measured
+ *   against the rota.
+ * - **In production** is everybody standing in an area column — `assigned` plus
+ *   `overtime` with an area. It is the sheet's "Total staff in Production" and the sum
+ *   of the column totals. On 25/10 the board said 40 and the printed sheet 51: the
+ *   eleven on overtime were in the columns, in the columns' totals and on paper, and
+ *   not in the purple number. Overtime with no area is only in its own block, so it is
+ *   not here either, as on paper.
+ * - **On lines** is people in production in a `production` area; **support** is the
+ *   rest of them. The two add up to in production.
  * - **Away** is `sick`, `unpaid` and `holiday`. Training is apart from it: a person in
  *   training is here and is paid.
  * - Only rows the board can draw count (`drawable` — active people, and leavers up to
@@ -45,6 +51,8 @@ export interface BoardTally {
   /** Due in, by the rota. */
   onRota: number;
   working: number;
+  /** In an area column, assigned or overtime: "Total staff in Production". */
+  inProduction: number;
   onLines: number;
   support: number;
   overtime: number;
@@ -78,13 +86,15 @@ export function tallyBoard({ allocations, areas, roster, drawable }: BoardTallyI
   // Any row at all places a person — away and training included — as the board's
   // "Not placed yet" tray reads it.
   const placed = new Set(allocations.filter(hasPlaceOnBoard).map((a) => a.employee_id));
-  const onLines = working.filter((a) => a.area_id && production.has(a.area_id)).length;
+  const inAreas = [...working, ...overtime].filter((a) => a.area_id);
+  const onLines = inAreas.filter((a) => production.has(a.area_id!)).length;
 
   return {
     onRota: roster.length,
     working: working.length,
+    inProduction: inAreas.length,
     onLines,
-    support: working.length - onLines,
+    support: inAreas.length - onLines,
     overtime: overtime.length,
     training: is("training").length,
     away: { sick, unpaid, holiday, total: sick + unpaid + holiday },

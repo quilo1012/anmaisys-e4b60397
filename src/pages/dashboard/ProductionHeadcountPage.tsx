@@ -952,11 +952,10 @@ function ShiftBoard({
     ...noCrewUnplaced,
   ]);
 
-  // Working = status `assigned`. Sickness, Unpaid and Overtime are columns of their
-  // own at the end of the sheet and are not added into "Total staff in Production":
-  // that total is the crew the day was planned with. It used to count the overtime
-  // people as well, which put the purple number above what the lines and support
-  // add up to. Overtime keeps its own figure.
+  // "Total staff in Production" is everybody in an area column: assigned, and overtime
+  // on a line or in support. Sickness, Unpaid, Holidays, Training and overtime with no
+  // area stay out. On 18/10 overtime was taken out of it, and on 25/10 the board read
+  // 40 under columns whose own totals came to 51 — the figure the printed sheet gave.
   // Only people the board can actually draw. A leaver is drawn on the days up to their
   // last one, so they count there and nowhere after; a row for anybody else the board
   // cannot draw stays out of the total. Counting what is not drawn is how a column
@@ -964,6 +963,7 @@ function ShiftBoard({
   // The rules live in `tallyBoard`, which the Production dashboard reads too, so the
   // dashboard and this board cannot come to different totals.
   const tally = tallyBoard({ allocations, areas, roster, drawable: (id) => employeeById.has(id) });
+  const totalStaff = tally.inProduction;
   const assignedCount = tally.working;
 
   /**
@@ -1045,12 +1045,12 @@ function ShiftBoard({
             cabeçalho ter a altura dos outros. O nome inteiro fica no title. */}
         <div
           className={cn("flex min-h-[40px] items-center justify-center border-b px-1.5 text-center text-sm font-bold", SHEET_RULE, SHEET_FILL.grand)}
-          title="Total staff in Production — everyone on a line or in support; Sickness, Unpaid and Overtime are not added in"
+          title="Total staff in Production — everyone on a line or in support, overtime included; Sickness, Unpaid, Holidays and Training are not added in"
         >
           Total staff in Pr
         </div>
         <div className={cn("flex min-h-[44px] items-center justify-center font-figure text-2xl font-bold tabular-nums", SHEET_FILL.grand)}>
-          {assignedCount}
+          {totalStaff}
         </div>
         <div className="flex-1 bg-card" />
       </div>
@@ -1191,7 +1191,7 @@ function ShiftBoard({
               in production"), e a segunda lia-se como outra coisa. */}
           <div className="headcount-summary shrink-0 sm:border-l sm:pl-4">
             <div className="flex items-baseline gap-2">
-              <b className={cn("font-figure text-3xl font-extrabold leading-none tabular-nums", look.ink)}>{assignedCount}</b>
+              <b className={cn("font-figure text-3xl font-extrabold leading-none tabular-nums", look.ink)}>{totalStaff}</b>
               <span className="whitespace-nowrap text-sm font-semibold leading-tight">
                 total staff in production
                 <span className="ml-1 font-normal text-muted-foreground">
@@ -1202,7 +1202,7 @@ function ShiftBoard({
             <div className="mt-1.5 h-1 w-full min-w-[11rem] overflow-hidden rounded-full bg-border">
               <div
                 className={cn("h-full rounded-full", look.rule.replace("border-l-", "bg-"))}
-                style={{ width: `${roster.length ? Math.min(100, (assignedCount / roster.length) * 100) : 0}%` }}
+                style={{ width: `${roster.length ? Math.min(100, (totalStaff / roster.length) * 100) : 0}%` }}
               />
             </div>
           </div>

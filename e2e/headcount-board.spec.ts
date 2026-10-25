@@ -301,3 +301,22 @@ test("carregar no Overtime da barra leva à coluna Overtime", async ({ page }) =
   await page.getByRole("button", { name: /Overtime — go to the Overtime column/ }).first().click();
   await expect(col).toBeInViewport({ timeout: 5000 });
 });
+
+// 25/10: o board dizia 40 e a folha impressa 51. Os onze em horas extra estavam nas
+// colunas e nos Totais das colunas, e fora do número roxo. Três em overtime numa linha.
+test("o Total staff in Production conta as horas extra numa área, e é o número que vai para o papel", async ({ page }) => {
+  const withOvertime = ALLOCS.map((a, i) => (i < 3 ? { ...a, status: "overtime" } : a));
+  await openBoard(page, (p) => p.route(/\/rest\/v1\/daily_allocations/, (r) =>
+    r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withOvertime) })));
+
+  // 23 em `assigned` numa área e 3 em overtime numa área: 26. Sem as horas extra eram 23.
+  const got = await page.evaluate(() => {
+    const head = document.querySelector('[title^="Total staff in Production"]');
+    return {
+      purple: Number(head?.nextElementSibling?.textContent?.trim()),
+      paper: Number(document.querySelector(".hps-total-staff-figure")?.textContent?.trim()),
+      big: Number(document.querySelector(".headcount-summary b")?.textContent?.trim()),
+    };
+  });
+  expect(got).toEqual({ purple: 26, paper: 26, big: 26 });
+});
