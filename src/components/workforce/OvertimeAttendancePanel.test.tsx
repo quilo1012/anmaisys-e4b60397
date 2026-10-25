@@ -48,12 +48,13 @@ describe("overtime attendance on the Headcount Board", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("keeps an accepted person Not yet checked and flags it once the shift has started", () => {
+  it("keeps an accepted person Expected, without asking for everybody to be marked Present", () => {
     state.asks = [askOn(day(-1), [person({})])];
     render(<OvertimeAttendancePanel date={day(-1)} shift="Day" />);
-    expect(screen.getAllByText("Not yet checked")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Expected")[0]).toBeInTheDocument();
     expect(screen.getByText("Accepted 1 of 3")).toBeInTheDocument();
-    expect(screen.getByText(/1 accepted overtime with no attendance recorded yet/)).toBeInTheDocument();
+    expect(screen.getByText("Expected 1")).toBeInTheDocument();
+    expect(screen.queryByText(/no attendance recorded yet/)).not.toBeInTheDocument();
   });
 
   it("records Present, and Absent with a note, through the audited RPC", () => {
@@ -66,7 +67,7 @@ describe("overtime attendance on the Headcount Board", () => {
       { responseId: "r1", outcome: "attended", note: undefined },
       { responseId: "r1", outcome: "no_show", note: "Phoned at 06:20, car broke down" },
     ]);
-    expect(toast.success).toHaveBeenLastCalledWith("Ana marked absent.", expect.anything());
+    expect(toast.success).toHaveBeenLastCalledWith("Ana marked Absent — Overtime No-Show.", expect.anything());
   });
 
   it("does not let Present or Absent be marked before the overtime starts", () => {
@@ -98,5 +99,64 @@ describe("overtime attendance on the Headcount Board", () => {
     expect(screen.getByText("Booking cancelled")).toBeInTheDocument();
     expect(screen.getByText("Accepted 0 of 3")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Present — Cy" })).not.toBeInTheDocument();
+  });
+
+  describe("mark overtime absent by name", () => {
+    const twoAsks = (): AskAttendance[] => [
+      askOn(day(-1), [person({}), person({ responseId: "r2", employeeId: "e2", name: "Bruno" })]),
+      {
+        request: { id: "q2", on_date: day(-1), starts_at: "14:00:00", ends_at: "18:00:00", headcount: 2, status: "open", note: null },
+        rows: [
+          person({ responseId: "r3" }),
+          person({ responseId: "r4", employeeId: "e3", name: "Carla", response: "declined" }),
+          person({ responseId: "r5", employeeId: "e4", name: "Dario", response: "reserve" }),
+        ],
+      },
+    ];
+    const find = (v: string) => fireEvent.change(screen.getByLabelText(/Mark overtime absent/), { target: { value: v } });
+
+    it("narrows to the person and records the absence on that booking only", () => {
+      state.asks = twoAsks();
+      render(<OvertimeAttendancePanel date={day(-1)} shift="Day" />);
+      find("bru");
+      expect(screen.queryByText("Ana")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Absent — Bruno" }));
+      expect(state.sent).toEqual([{ responseId: "r2", outcome: "no_show", note: undefined }]);
+    });
+
+    it("with two bookings on the day, shows both and asks for the one they missed", () => {
+      state.asks = twoAsks();
+      render(<OvertimeAttendancePanel date={day(-1)} shift="Day" />);
+      find("ana");
+      expect(screen.getByText("Ana has 2 overtime bookings on this board. Mark the one they missed.")).toBeInTheDocument();
+      const buttons = screen.getAllByRole("button", { name: "Absent — Ana" });
+      expect(buttons).toHaveLength(2);
+      fireEvent.click(buttons[1]);
+      expect(state.sent).toEqual([{ responseId: "r3", outcome: "no_show", note: undefined }]);
+    });
+
+    it("refuses somebody who declined or is only on reserve, and offers no Absent", () => {
+      state.asks = twoAsks();
+      render(<OvertimeAttendancePanel date={day(-1)} shift="Day" />);
+      find("carla");
+      expect(screen.getByText("Carla did not accept overtime on this board, so an overtime no-show cannot be recorded.")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Absent/ })).not.toBeInTheDocument();
+      find("dario");
+      expect(screen.getByText(/Dario did not accept overtime/)).toBeInTheDocument();
+    });
+
+    it("says so when nobody by that name answered", () => {
+      state.asks = twoAsks();
+      render(<OvertimeAttendancePanel date={day(-1)} shift="Day" />);
+      find("zed");
+      expect(screen.getByText("Nobody called “zed” answered overtime on this board.")).toBeInTheDocument();
+    });
+
+    it("keeps the ask's counts whole while the list is narrowed", () => {
+      state.asks = twoAsks();
+      render(<OvertimeAttendancePanel date={day(-1)} shift="Day" />);
+      find("bru");
+      expect(screen.getByText("Accepted 2 of 3")).toBeInTheDocument();
+    });
   });
 });

@@ -6,7 +6,8 @@
  * the day (`overtime_outcomes`, written only by `record_overtime_outcome`). Neither is
  * read from the other: an accepted yes is not a person on the floor, and logging in or
  * having an account is not attendance. Until somebody records it, attendance is
- * "Not yet checked" — never Absent by default.
+ * "Expected" — never Absent by default, and nobody has to be marked Present: only an
+ * absence is recorded.
  *
  * Pure functions over rows the database already holds, so the Headcount Board and its
  * tests read the same rule.
@@ -24,9 +25,9 @@ export const RESPONSE_LABEL: Record<ResponseState, string> = {
 };
 
 export const ATTENDANCE_LABEL: Record<AttendanceState, string> = {
-  not_checked: "Not yet checked",
+  not_checked: "Expected",
   present: "Present",
-  absent: "Absent",
+  absent: "Absent — Overtime No-Show",
   called_sick: "Absent — called sick",
   cancelled: "Booking cancelled",
 };
