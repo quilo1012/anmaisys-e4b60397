@@ -13,6 +13,12 @@ describe("openedNotificationFromTag", () => {
     expect(openedNotificationFromTag(`overtime-ask-${ID}`)).toEqual({ by: "ask", requestId: ID });
   });
 
+  it("reads the ask from the shared tag of the notices about it", () => {
+    expect(openedNotificationFromTag(`overtime-notice-${ID}`)).toEqual({ by: "notice", requestId: ID });
+    expect(openedNotificationFromTag(`overtime-notice-${ID.toUpperCase()}`)).toEqual({ by: "notice", requestId: ID });
+    expect(openedNotificationFromTag(`overtime-notice-${ID}x`)).toBeNull();
+  });
+
   it("ignores tags with no bell row behind them", () => {
     for (const t of [null, undefined, "", "test:1730000000000", "line-chat-l1", `overtime-decision-${ID}`, `x:${ID}; drop`]) {
       expect(openedNotificationFromTag(t)).toBeNull();
