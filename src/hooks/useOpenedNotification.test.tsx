@@ -12,7 +12,7 @@ const calls: { method: string; args: unknown[] }[] = [];
 let result: { error: unknown } = { error: null };
 function chain() {
   const c: Record<string, unknown> = {};
-  for (const m of ["update", "eq", "is"]) c[m] = (...args: unknown[]) => { calls.push({ method: m, args }); return c; };
+  for (const m of ["update", "eq", "is", "in"]) c[m] = (...args: unknown[]) => { calls.push({ method: m, args }); return c; };
   (c as { then: unknown }).then = (ok: (v: unknown) => unknown, ko: (e: unknown) => unknown) => Promise.resolve(result).then(ok, ko);
   return c;
 }
@@ -54,6 +54,21 @@ describe("useOpenedNotification", () => {
       { method: "is", args: ["read_at", null] },
       { method: "eq", args: ["id", ID] },
     ]));
+  });
+
+  it("marks every unread notice about an ask by the shared overtime-notice tag", async () => {
+    const ask = "3e7ebd61-4f50-4182-9dce-3f4a5b6c7d8e";
+    renderAt(`/dashboard/my-overtime?ask=${ask}&notification=${encodeURIComponent(`overtime-notice-${ask}`)}`);
+    await waitFor(() => expect(from).toHaveBeenCalledWith("notifications"));
+    expect(calls).toEqual(expect.arrayContaining([
+      { method: "eq", args: ["user_id", "u-1"] },
+      { method: "is", args: ["read_at", null] },
+      { method: "in", args: ["kind", ["overtime_changed", "overtime_cancelled", "overtime_reminder_24h", "overtime_reminder_2h"]] },
+      { method: "eq", args: ["overtime_request_id", ask] },
+    ]));
+    // Never by id, and never the ask's own overtime_new row.
+    expect(calls.some((c) => c.method === "eq" && c.args[0] === "id")).toBe(false);
+    expect(calls.some((c) => c.method === "eq" && c.args[1] === "overtime_new")).toBe(false);
   });
 
   it("marks the office's overtime ask by its ask", async () => {

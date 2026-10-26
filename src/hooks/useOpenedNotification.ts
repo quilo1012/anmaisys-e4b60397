@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { OPENED_PARAM, openedNotificationFromTag, type OpenedNotification } from "@/lib/notificationOpen";
+import { OPENED_PARAM, OVERTIME_NOTICE_KINDS, openedNotificationFromTag, type OpenedNotification } from "@/lib/notificationOpen";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -18,9 +18,9 @@ const handled = new Set<string>();
 export async function markOpenedNotification(userId: string, opened: OpenedNotification): Promise<void> {
   let q = db.from("notifications").update({ read_at: new Date().toISOString() })
     .eq("user_id", userId).is("read_at", null);
-  q = opened.by === "id"
-    ? q.eq("id", opened.id)
-    : q.eq("kind", "overtime_new").eq("overtime_request_id", opened.requestId);
+  if (opened.by === "id") q = q.eq("id", opened.id);
+  else if (opened.by === "ask") q = q.eq("kind", "overtime_new").eq("overtime_request_id", opened.requestId);
+  else q = q.in("kind", [...OVERTIME_NOTICE_KINDS]).eq("overtime_request_id", opened.requestId);
   const { error } = await q;
   if (error) throw error;
 }

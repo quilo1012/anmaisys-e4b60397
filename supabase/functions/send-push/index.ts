@@ -11,6 +11,10 @@ const PushPayloadSchema = z.object({
   tag: z.string().max(100).optional(),
   requireInteraction: z.boolean().optional(),
   action_url: z.string().max(2048).optional(),
+  // Seconds the push service may hold the message for a phone that is off. A reminder
+  // for a shift that starts in two hours is worthless after two hours; the default stays
+  // a day, so every sender that does not pass it is unchanged (BLOCO 132).
+  ttl: z.number().int().min(60).max(24 * 60 * 60).optional(),
   wo_id: z.string().uuid().optional(),
   // False when the bell row already exists: an overtime ask's rows are written by the
   // database when the ask is saved (BLOCO 100), so this call is for the phones only.
@@ -175,7 +179,7 @@ Deno.serve(async (req) => {
             payload,
             // "high" is what lets a locked Android phone in Doze show it now rather than at
             // its next maintenance window; a day is long enough for a phone that was off.
-            { urgency: "high", TTL: 24 * 60 * 60 }
+            { urgency: "high", TTL: body.ttl ?? 24 * 60 * 60 }
           )
           .catch(async (err: WebPushError) => {
             // 404/410: the phone's push service says this subscription is gone (app removed,
