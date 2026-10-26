@@ -44,8 +44,8 @@ describe("overtime notices share one tag (BLOCO 132)", () => {
   });
 
   it("is BLOCO 132 in the apply package, word for word, and its own paste is all-or-nothing", () => {
-    expect(apply).toContain(`-- BLOCO 132\n-- ${MIG}\n`);
-    expect(apply.endsWith(sql)).toBe(true);
+    // The whole block, header and body, word for word — wherever later blocks put it.
+    expect(apply).toContain(`-- BLOCO 132\n-- ${MIG}\n-- ${"=".repeat(64)}\n${sql}`);
     expect(paste).toContain(sql.slice(sql.indexOf("create or replace function public.notification_push()")));
     expect(paste).toMatch(/\nbegin;\n/);
     expect(paste.trimEnd().endsWith("commit;")).toBe(true);
