@@ -328,7 +328,6 @@ export default function Login() {
     if (!identifier.trim()) {
       const msg = "Enter your email or employee ID, or pick your tablet.";
       setFormError(msg);
-      toast({ title: msg, variant: "destructive" });
       return;
     }
     // Nem email nem tablet: dizer isso agora é melhor do que deixar o Supabase
@@ -338,7 +337,6 @@ export default function Login() {
         ? "Not recognised. Use your work email, your employee ID (like E045), or pick your tablet from the list."
         : "Not recognised. Use your work email address or your employee ID (like E045).";
       setFormError(msg);
-      toast({ title: "Not recognised", description: msg, variant: "destructive" });
       return;
     }
 
@@ -354,7 +352,6 @@ export default function Login() {
     if (pre.lockedMsLeft > 0) {
       const msg = `Too many attempts. Try again in ${Math.ceil(pre.lockedMsLeft / 1000)}s.`;
       setFormError(msg);
-      toast({ title: "Too many attempts", description: msg, variant: "destructive" });
       return;
     }
 
@@ -472,10 +469,11 @@ export default function Login() {
             ? NOT_ACTIVATED_MESSAGE
             : failure.kind === "credentials"
               ? `That password is not right for ${matchedTablet ? `"${matchedTablet.label}"` : "this account"}.${attemptsLeft ? ` ${after.remaining} attempt${after.remaining === 1 ? "" : "s"} left before it locks.` : ""}`
-              : reason;
+              : "Sign-in failed. Try again, or ask your supervisor if it keeps happening.";
 
+      // The raw reason stays in the console for whoever is debugging, not on the screen.
+      if (failure.kind === "unknown") console.warn("login failed:", reason);
       setFormError(description);
-      toast({ title: "Sign-in failed", description, variant: "destructive" });
       setAuthed(false);
       // A password errada é para reescrever; o posto não. Deixar o foco onde o erro
       // é, em vez de obrigar a procurá-lo.
@@ -547,6 +545,8 @@ export default function Login() {
               required
               autoComplete="username"
               spellCheck={false}
+              autoCapitalize="none"
+              autoCorrect="off"
               role="combobox"
               aria-expanded={listOpen}
               aria-controls="tablet-list"
@@ -665,7 +665,7 @@ export default function Login() {
             {!matchedTablet && (
               <button
                 type="button"
-                onClick={() => navigate("/reset-password")}
+                onClick={() => navigate("/reset-password", { state: { identifier: identifier.trim() } })}
                 className="-my-3 inline-flex min-h-11 items-center rounded px-1 text-[13px] font-medium text-auth-ink-muted underline-offset-4 transition-colors hover:text-auth-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-auth-brand/40"
               >
                 Forgot password?
