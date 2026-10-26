@@ -6,7 +6,12 @@ import { announceAsk, pushTo as pushToVia, type AnnounceDeps, type PushOutcome }
 import { newAskMessage, decisionMessage, type PushMessage } from "@/lib/overtimePush";
 import { localDate } from "@/lib/overtimeRequests";
 import type {
-  OvertimeRequest, OvertimeResponse, OvertimeDecision, OvertimeOutcome, Reliability, OvertimeRules,
+  OvertimeRequest,
+  OvertimeResponse,
+  OvertimeDecision,
+  OvertimeOutcome,
+  Reliability,
+  OvertimeRules,
 } from "@/lib/overtimeRequests";
 import { scheduleClashKey, type BoardRow } from "@/lib/overtimeShifts";
 
@@ -129,8 +134,11 @@ export function useOvertimeResponsesFor(requestIds: string[]) {
     queryKey: ["overtime_responses", "for", ...ids],
     enabled: ids.length > 0,
     queryFn: async (): Promise<OvertimeResponse[]> => {
-      const { data, error } = await db.from("overtime_responses").select("*")
-        .in("request_id", ids).order("answered_at", { ascending: true });
+      const { data, error } = await db
+        .from("overtime_responses")
+        .select("*")
+        .in("request_id", ids)
+        .order("answered_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as OvertimeResponse[];
     },
@@ -144,8 +152,10 @@ export function useOvertimeOutcomesFor(responseIds: string[]) {
     queryKey: ["overtime_outcomes", "for", ...ids],
     enabled: ids.length > 0,
     queryFn: async (): Promise<OutcomeRow[]> => {
-      const { data, error } = await db.from("overtime_outcomes")
-        .select("response_id, outcome, note").in("response_id", ids);
+      const { data, error } = await db
+        .from("overtime_outcomes")
+        .select("response_id, outcome, note")
+        .in("response_id", ids);
       if (error) throw error;
       return (data ?? []) as OutcomeRow[];
     },
@@ -164,8 +174,10 @@ export function useOvertimeBoardRows(dates: string[]) {
     enabled: dates.length > 0,
     staleTime: 60_000,
     queryFn: async (): Promise<BoardRow[]> => {
-      const { data, error } = await db.from("daily_allocations")
-        .select("on_date, shift, employee_id, status").in("on_date", dates);
+      const { data, error } = await db
+        .from("daily_allocations")
+        .select("on_date, shift, employee_id, status")
+        .in("on_date", dates);
       if (error) throw error;
       return (data ?? []) as BoardRow[];
     },
@@ -290,15 +302,22 @@ export function useOvertimeRules() {
     queryKey: ["overtime_rules"],
     staleTime: 60_000,
     queryFn: async (): Promise<OvertimeRules> => {
-      const { data, error } = await db.from("overtime_rules")
-        .select("no_show_block_days, late_cancel_hours, late_cancel_blocks").eq("id", true).maybeSingle();
+      const { data, error } = await db
+        .from("overtime_rules")
+        .select("no_show_block_days, late_cancel_hours, late_cancel_blocks")
+        .eq("id", true)
+        .maybeSingle();
       if (error) throw error;
       return data ?? { no_show_block_days: 0, late_cancel_hours: 0, late_cancel_blocks: false };
     },
   });
 }
 
-export interface MyBlock { blocked_until: string; reason: string; on_date: string }
+export interface MyBlock {
+  blocked_until: string;
+  reason: string;
+  on_date: string;
+}
 
 /** Until when the signed-in person may not say yes, and why. Null when they may. */
 export function useMyOvertimeBlock(enabled: boolean) {
@@ -365,7 +384,6 @@ export function useMyEmployee() {
   });
 }
 
-
 /**
  * Tell some logins about an ask. Best effort, on purpose: the ask is already saved by
  * the time this runs, and a notification is a courtesy — the row is the record. The
@@ -378,7 +396,9 @@ const announceDeps: AnnounceDeps = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rpc: async (fn, args) => (await (db.rpc as any)(fn, args)) as Awaited<ReturnType<AnnounceDeps["rpc"]>>,
   invoke: async (fn, body) =>
-    (await invokeFunction<{ sent?: number; in_app?: number; note?: string }>(fn, body)) as Awaited<ReturnType<AnnounceDeps["invoke"]>>,
+    (await invokeFunction<{ sent?: number; in_app?: number; note?: string }>(fn, body)) as Awaited<
+      ReturnType<AnnounceDeps["invoke"]>
+    >,
 };
 
 const pushTo = (requestId: string, message: PushMessage, employeeIds: string[] | null) =>
@@ -416,8 +436,13 @@ export function useOvertimeMutations() {
 
   const createRequest = useMutation({
     mutationFn: async (input: {
-      on_date: string; starts_at: string; ends_at: string; headcount: number | null;
-      department: string | null; shift_group: string | null; note: string | null;
+      on_date: string;
+      starts_at: string;
+      ends_at: string;
+      headcount: number | null;
+      department: string | null;
+      shift_group: string | null;
+      note: string | null;
       /** Only sent when something is skipped, so an ask that skips nobody still saves before BLOCO 116. */
       excluded_shift_groups?: string[];
     }): Promise<{ request: OvertimeRequest; push: PushOutcome }> => {
@@ -431,7 +456,9 @@ export function useOvertimeMutations() {
       if (error) {
         // An empty "People needed" before BLOCO 102 is in: the column is still NOT NULL.
         if ((error as { code?: string }).code === "23502" && input.headcount == null) {
-          throw new Error("Leaving People needed empty needs a database update that is not in yet. Put a number in for now.");
+          throw new Error(
+            "Leaving People needed empty needs a database update that is not in yet. Put a number in for now.",
+          );
         }
         throw error;
       }
@@ -459,13 +486,10 @@ export function useOvertimeMutations() {
     mutationFn: async ({ id, status }: { id: string; status: OvertimeRequest["status"] }) => {
       const patch: Partial<Pick<OvertimeRequest, "status" | "closed_at">> = { status };
       if (status !== "open") patch.closed_at = new Date().toISOString();
-      const { data, error } = await db
-        .from("overtime_requests").update(patch).eq("id", id).select("id");
+      const { data, error } = await db.from("overtime_requests").update(patch).eq("id", id).select("id");
       if (error) throw error;
-      if (!((data as { id: string }[] | null)?.length)) {
-        throw new Error(
-          "You do not have permission to change this overtime ask, or it no longer exists.",
-        );
+      if (!(data as { id: string }[] | null)?.length) {
+        throw new Error("You do not have permission to change this overtime ask, or it no longer exists.");
       }
     },
     onSuccess: refresh,
@@ -500,16 +524,14 @@ export function useOvertimeMutations() {
    * ar de morto sem poder dizer porquê.
    */
   const editRequest = useMutation({
-    mutationFn: async ({ id, ...patch }: { id: string } & Pick<
-      OvertimeRequest, "on_date" | "starts_at" | "ends_at" | "headcount"
-    >) => {
-      const { data, error } = await db
-        .from("overtime_requests").update(patch).eq("id", id).select("id");
+    mutationFn: async ({
+      id,
+      ...patch
+    }: { id: string } & Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at" | "headcount">) => {
+      const { data, error } = await db.from("overtime_requests").update(patch).eq("id", id).select("id");
       if (error) throw error;
-      if (!((data as { id: string }[] | null)?.length)) {
-        throw new Error(
-          "You do not have permission to change this overtime ask, or it no longer exists.",
-        );
+      if (!(data as { id: string }[] | null)?.length) {
+        throw new Error("You do not have permission to change this overtime ask, or it no longer exists.");
       }
     },
     onSuccess: refresh,
@@ -532,12 +554,19 @@ export function useOvertimeMutations() {
 
   /** A supervisor answering on behalf of somebody who has no login and said yes at the desk. */
   const answerFor = useMutation({
-    mutationFn: async ({ requestId, employeeId, window }: {
-      requestId: string; employeeId: string;
+    mutationFn: async ({
+      requestId,
+      employeeId,
+      window,
+    }: {
+      requestId: string;
+      employeeId: string;
       window?: Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at"> | null;
     }) => {
       const base = {
-        request_id: requestId, employee_id: employeeId, answer: "yes",
+        request_id: requestId,
+        employee_id: employeeId,
+        answer: "yes",
         answered_at: new Date().toISOString(),
       };
       // O mesmo instantâneo que o `answer_overtime` guarda. Sem isto, um sim dado
@@ -551,7 +580,8 @@ export function useOvertimeMutations() {
       };
       // Colunas de 20261012080000; o types.ts só as conhece depois de o bloco ser colado.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const write = (row: object) => db.from("overtime_responses").upsert(row as any, { onConflict: "request_id,employee_id" });
+      const write = (row: object) =>
+        db.from("overtime_responses").upsert(row as any, { onConflict: "request_id,employee_id" });
       let { error } = await write({ ...base, ...snapshot });
       // Produção ainda não tem estas colunas (bloco 87 por colar, sonda de 18/10):
       // o PostgREST recusa o corpo inteiro com PGRST204 e o "Add" falhava para toda
@@ -576,8 +606,11 @@ export function useOvertimeMutations() {
    */
   const removeAnswer = useMutation({
     mutationFn: async ({ responseId }: { responseId: string }) => {
-      const cleared = await db.from("overtime_responses")
-        .update({ decision: null, decided_at: null, decided_by: null }).eq("id", responseId).select("id");
+      const cleared = await db
+        .from("overtime_responses")
+        .update({ decision: null, decided_at: null, decided_by: null })
+        .eq("id", responseId)
+        .select("id");
       if (cleared.error) throw cleared.error;
       // A refused write is zero rows and no error: say so instead of looking done.
       if (!cleared.data?.length) throw new Error("Could not change this answer — you may not have permission.");
@@ -589,15 +622,23 @@ export function useOvertimeMutations() {
 
   const decide = useMutation({
     mutationFn: async ({ responseId, decision }: { responseId: string; decision: OvertimeDecision | null }) => {
-      const { data, error } = await db.from("overtime_responses").update({
-        decision,
-        decided_at: decision ? new Date().toISOString() : null,
-        decided_by: decision ? user!.id : null,
-      }).eq("id", responseId).select("request_id, employee_id").single();
+      const { data, error } = await db
+        .from("overtime_responses")
+        .update({
+          decision,
+          decided_at: decision ? new Date().toISOString() : null,
+          decided_by: decision ? user!.id : null,
+        })
+        .eq("id", responseId)
+        .select("request_id, employee_id")
+        .single();
       if (error) throw error;
       if (!decision) return;
-      const { data: req } = await db.from("overtime_requests")
-        .select("id, on_date, starts_at, ends_at").eq("id", data.request_id).single();
+      const { data: req } = await db
+        .from("overtime_requests")
+        .select("id, on_date, starts_at, ends_at")
+        .eq("id", data.request_id)
+        .single();
       const message = req ? decisionMessage(req, decision) : null;
       if (message) await pushTo(data.request_id, message, [data.employee_id]);
     },
@@ -610,17 +651,30 @@ export function useOvertimeMutations() {
    * promoted and comes back here, and the push tells them their place opened.
    */
   const recordOutcome = useMutation({
-    mutationFn: async ({ responseId, outcome, note }: { responseId: string; outcome: OvertimeOutcome; note?: string })
-      : Promise<{ promotedEmployeeId: string | null; push: PushOutcome | null }> => {
+    mutationFn: async ({
+      responseId,
+      outcome,
+      note,
+    }: {
+      responseId: string;
+      outcome: OvertimeOutcome;
+      note?: string;
+    }): Promise<{ promotedEmployeeId: string | null; push: PushOutcome | null }> => {
       const { data, error } = await db.rpc("record_overtime_outcome", {
-        p_response_id: responseId, p_outcome: outcome, ...(note ? { p_note: note } : {}),
+        p_response_id: responseId,
+        p_outcome: outcome,
+        ...(note ? { p_note: note } : {}),
       });
       if (error) throw error;
       const promoted = (data as { promoted_response_id: string; promoted_employee_id: string }[] | null)?.[0];
       if (!promoted) return { promotedEmployeeId: null, push: null };
       const { data: resp } = await db.from("overtime_responses").select("request_id").eq("id", responseId).single();
       const { data: req } = resp
-        ? await db.from("overtime_requests").select("id, on_date, starts_at, ends_at").eq("id", resp.request_id).single()
+        ? await db
+            .from("overtime_requests")
+            .select("id, on_date, starts_at, ends_at")
+            .eq("id", resp.request_id)
+            .single()
         : { data: null };
       const message = req ? decisionMessage(req, "accepted") : null;
       const push = message && req ? await pushTo(req.id, message, [promoted.promoted_employee_id]) : null;
@@ -640,11 +694,13 @@ export function useOvertimeMutations() {
    */
   const saveRules = useMutation({
     mutationFn: async (rules: OvertimeRules) => {
-      const { data, error } = await db.from("overtime_rules")
+      const { data, error } = await db
+        .from("overtime_rules")
         .update({ ...rules, updated_at: new Date().toISOString(), updated_by: user!.id })
-        .eq("id", true).select("id");
+        .eq("id", true)
+        .select("id");
       if (error) throw error;
-      if (!((data as { id: boolean }[] | null)?.length)) {
+      if (!(data as { id: boolean }[] | null)?.length) {
         throw new Error("You do not have permission to change the overtime rules.");
       }
     },
@@ -664,23 +720,37 @@ export function useOvertimeMutations() {
    * back here so the push can tell them their place opened.
    */
   const cancelMyBooking = useMutation({
-    mutationFn: async ({ requestId, note }: { requestId: string; note?: string }): Promise<{
+    mutationFn: async ({
+      requestId,
+      note,
+    }: {
+      requestId: string;
+      note?: string;
+    }): Promise<{
       outcome: "cancelled_in_time" | "cancelled_late";
       promotedEmployeeId: string | null;
     }> => {
       const { data, error } = await db.rpc("cancel_my_overtime", {
-        p_request_id: requestId, p_note: note ?? null,
+        p_request_id: requestId,
+        p_note: note ?? null,
       });
       if (error) throw error;
-      const row = (data as {
-        outcome: "cancelled_in_time" | "cancelled_late";
-        promoted_response_id: string | null;
-        promoted_employee_id: string | null;
-      }[] | null)?.[0];
+      const row = (
+        data as
+          | {
+              outcome: "cancelled_in_time" | "cancelled_late";
+              promoted_response_id: string | null;
+              promoted_employee_id: string | null;
+            }[]
+          | null
+      )?.[0];
       if (!row) throw new Error("Nothing was cancelled. Check your signal and try again.");
       if (row.promoted_employee_id) {
-        const { data: req } = await db.from("overtime_requests")
-          .select("id, on_date, starts_at, ends_at").eq("id", requestId).single();
+        const { data: req } = await db
+          .from("overtime_requests")
+          .select("id, on_date, starts_at, ends_at")
+          .eq("id", requestId)
+          .single();
         const message = req ? decisionMessage(req, "accepted") : null;
         if (message) await pushTo(requestId, message, [row.promoted_employee_id]);
       }
@@ -718,7 +788,9 @@ export function useOvertimeMutations() {
       // reclamada querem dizer todos a mesma coisa para o ecrã — mostra o formulário.
       return error ? null : (data ?? null);
     },
-    onSuccess: (linked) => { if (linked) refresh(); },
+    onSuccess: (linked) => {
+      if (linked) refresh();
+    },
   });
 
   const linkMe = useMutation({
@@ -755,15 +827,24 @@ export function useOvertimeMutations() {
    */
   const swapMyBooking = useMutation({
     mutationFn: async ({ fromRequestId, toRequestId }: { fromRequestId: string; toRequestId: string }) => {
-      const { data, error } = await db.rpc("swap_my_overtime", {
-        p_from: fromRequestId, p_to: toRequestId, p_note: "Troca de dia",
+      // swap_my_overtime is not in the generated types.ts yet; same pattern as the other untyped RPCs here.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (db.rpc as any)("swap_my_overtime", {
+        p_from: fromRequestId,
+        p_to: toRequestId,
+        p_note: "Troca de dia",
       });
       if (error) throw error;
-      const row = (data as { outcome: "cancelled_in_time" | "cancelled_late"; promoted_employee_id: string | null }[] | null)?.[0];
+      const row = (
+        data as { outcome: "cancelled_in_time" | "cancelled_late"; promoted_employee_id: string | null }[] | null
+      )?.[0];
       if (!row) throw new Error("Nothing was moved. Check your signal and try again.");
       if (row.promoted_employee_id) {
-        const { data: req } = await db.from("overtime_requests")
-          .select("id, on_date, starts_at, ends_at").eq("id", fromRequestId).single();
+        const { data: req } = await db
+          .from("overtime_requests")
+          .select("id, on_date, starts_at, ends_at")
+          .eq("id", fromRequestId)
+          .single();
         const message = req ? decisionMessage(req, "accepted") : null;
         if (message) await pushTo(fromRequestId, message, [row.promoted_employee_id]);
       }
@@ -775,11 +856,29 @@ export function useOvertimeMutations() {
   /** Sair da lista de reserva. Não é cancelamento: não há turno marcado. */
   const leaveReserve = useMutation({
     mutationFn: async ({ requestId }: { requestId: string }) => {
-      const { error } = await db.rpc("leave_my_reserve", { p_request_id: requestId });
+      // leave_my_reserve is not in the generated types.ts yet; same pattern as the other untyped RPCs here.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (db.rpc as any)("leave_my_reserve", { p_request_id: requestId });
       if (error) throw error;
     },
     onSuccess: refresh,
   });
 
-  return { createRequest, editRequest, setRequestStatus, deleteRequest, answer, answerFor, removeAnswer, decide, recordOutcome, cancelMyBooking, swapMyBooking, leaveReserve, linkMe, linkMeByEmail, saveRules };
+  return {
+    createRequest,
+    editRequest,
+    setRequestStatus,
+    deleteRequest,
+    answer,
+    answerFor,
+    removeAnswer,
+    decide,
+    recordOutcome,
+    cancelMyBooking,
+    swapMyBooking,
+    leaveReserve,
+    linkMe,
+    linkMeByEmail,
+    saveRules,
+  };
 }
