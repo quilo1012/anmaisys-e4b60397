@@ -3141,6 +3141,101 @@ export type Database = {
         }
         Relationships: []
       }
+      overtime_booking_notices: {
+        Row: {
+          attempts: number
+          created_at: string
+          due_at: string
+          employee_id: string
+          id: string
+          kind: string
+          last_attempt_at: string | null
+          last_error: string | null
+          net_request_id: number | null
+          next_attempt_at: string | null
+          notification_id: string | null
+          reason: string | null
+          request_id: string
+          response_id: string
+          sent_at: string | null
+          shift_starts: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          due_at: string
+          employee_id: string
+          id?: string
+          kind: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          net_request_id?: number | null
+          next_attempt_at?: string | null
+          notification_id?: string | null
+          reason?: string | null
+          request_id: string
+          response_id: string
+          sent_at?: string | null
+          shift_starts: string
+          status: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          due_at?: string
+          employee_id?: string
+          id?: string
+          kind?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          net_request_id?: number | null
+          next_attempt_at?: string | null
+          notification_id?: string | null
+          reason?: string | null
+          request_id?: string
+          response_id?: string
+          sent_at?: string | null
+          shift_starts?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "overtime_booking_notices_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overtime_booking_notices_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overtime_booking_notices_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "overtime_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "overtime_booking_notices_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "overtime_responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       overtime_entries: {
         Row: {
           created_at: string
@@ -8289,6 +8384,34 @@ export type Database = {
       }
       overtime_book_waiting_yeses: {
         Args: never
+        Returns: Record<string, unknown>
+      }
+      overtime_booking_facts: {
+        Args: { p_response_id: string }
+        Returns: Record<string, unknown>
+      }
+      overtime_booking_notice_send: {
+        Args: { p_id: string; p_now?: string }
+        Returns: string
+      }
+      overtime_booking_notice_text: {
+        Args: { p_kind: string; p_now: string; p_request_id: string }
+        Returns: Record<string, unknown>
+      }
+      overtime_booking_notices_plan: {
+        Args: { p_confirm?: boolean; p_now?: string; p_response_id: string }
+        Returns: undefined
+      }
+      overtime_booking_notices_run: {
+        Args: { p_now?: string }
+        Returns: number
+      }
+      overtime_booking_notices_settle: {
+        Args: { p_now?: string }
+        Returns: number
+      }
+      overtime_booking_push_answer: {
+        Args: { p_request: number }
         Returns: Record<string, unknown>
       }
       overtime_notify_targets: {
