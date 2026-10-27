@@ -1,5 +1,10 @@
 # Roadmap
 
+## Production permission and SKU errors (27 Oct)
+- [ ] Verify deployed database identity and inspect live function definitions, permissions and SKU dependencies through the approved production tool.
+- [ ] Apply minimal verified permission fixes and SKU relationship/deactivation safeguards.
+- [ ] Test administrator, operator and anonymous scenarios; report migrations and deployment status.
+
 ## Communication presence (uploaded brief 20/10)
 - [ ] Prepare isolated implementation and pull request to `main` for review (20/10 clarification); no production deployment before review. PR creation tool unavailable in this session; production inspection needs the project-approved read-only query tool, and live verification needs two explicitly authorized accounts.
 - [x] Inspect existing Hub, auth and leave sources; approved precedence and session expiry rules recorded. Production policy inspection blocked: required `query_database` tool unavailable; do not use unrelated databases.
