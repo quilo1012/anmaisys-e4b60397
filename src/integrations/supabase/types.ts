@@ -86,6 +86,86 @@ export type Database = {
         }
         Relationships: []
       }
+      announcement_reads: {
+        Row: {
+          acknowledged_at: string | null
+          announcement_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          announcement_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          announcement_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_reads_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          audience_department: string | null
+          audience_shift_group: string | null
+          body: string
+          category: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          image_path: string | null
+          published_at: string
+          requires_ack: boolean
+          title: string
+          urgent: boolean
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        Insert: {
+          audience_department?: string | null
+          audience_shift_group?: string | null
+          body?: string
+          category?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          image_path?: string | null
+          published_at?: string
+          requires_ack?: boolean
+          title: string
+          urgent?: boolean
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Update: {
+          audience_department?: string | null
+          audience_shift_group?: string | null
+          body?: string
+          category?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          image_path?: string | null
+          published_at?: string
+          requires_ack?: boolean
+          title?: string
+          urgent?: boolean
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Relationships: []
+      }
       app_owner: {
         Row: {
           created_at: string
@@ -2842,6 +2922,7 @@ export type Database = {
       notifications: {
         Row: {
           action_url: string | null
+          announcement_id: string | null
           body: string
           created_at: string
           id: string
@@ -2855,6 +2936,7 @@ export type Database = {
         }
         Insert: {
           action_url?: string | null
+          announcement_id?: string | null
           body?: string
           created_at?: string
           id?: string
@@ -2868,6 +2950,7 @@ export type Database = {
         }
         Update: {
           action_url?: string | null
+          announcement_id?: string | null
           body?: string
           created_at?: string
           id?: string
@@ -2880,6 +2963,13 @@ export type Database = {
           wo_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "notifications_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "notifications_overtime_request_id_fkey"
             columns: ["overtime_request_id"]
@@ -7374,6 +7464,49 @@ export type Database = {
         }
         Returns: Json
       }
+      announcement_audience: {
+        Args: { p_id: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
+      announcement_audience_count: {
+        Args: { p_department: string; p_shift_group: string }
+        Returns: number
+      }
+      announcement_audience_for: {
+        Args: { p_department: string; p_shift_group: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
+      announcement_audience_options: {
+        Args: never
+        Returns: {
+          kind: string
+          value: string
+        }[]
+      }
+      announcement_confirmations: {
+        Args: { p_id: string }
+        Returns: {
+          acknowledged_at: string
+          department: string
+          name: string
+          read_at: string
+          user_id: string
+        }[]
+      }
+      announcement_is_for: {
+        Args: { p_id: string; p_uid: string }
+        Returns: boolean
+      }
+      announcement_may_see_photo: { Args: { p_name: string }; Returns: boolean }
+      announcements_forget_expired: { Args: never; Returns: number }
+      announcements_may_publish: {
+        Args: { p_department: string; p_uid: string }
+        Returns: boolean
+      }
       answer_overtime: {
         Args: { p_answer: string; p_request_id: string }
         Returns: {
@@ -7405,18 +7538,6 @@ export type Database = {
         Returns: number
       }
       can_manage_overtime: { Args: { uid: string }; Returns: boolean }
-      leave_my_reserve: {
-        Args: { p_request_id: string }
-        Returns: undefined
-      }
-      swap_my_overtime: {
-        Args: { p_from: string; p_note?: string; p_to: string }
-        Returns: {
-          outcome: string
-          promoted_employee_id: string
-          promoted_response_id: string
-        }[]
-      }
       cancel_my_overtime: {
         Args: { p_note?: string; p_request_id: string }
         Returns: {
@@ -7808,6 +7929,7 @@ export type Database = {
           shift: string
         }[]
       }
+      leave_my_reserve: { Args: { p_request_id: string }; Returns: undefined }
       line_leaders_for: {
         Args: { p_date: string; p_shift: string }
         Returns: {
@@ -8200,6 +8322,7 @@ export type Database = {
           sick_this_month: number
         }[]
       }
+      overtime_reminders_due: { Args: { p_now?: string }; Returns: number }
       overtime_rest_short: {
         Args: {
           p_a_from: string
@@ -8254,6 +8377,20 @@ export type Database = {
         Args: { _occurred_date: string; _shift: string }
         Returns: string
       }
+      publish_announcement: {
+        Args: {
+          p_body: string
+          p_category: string
+          p_department?: string
+          p_expires_at?: string
+          p_image_path?: string
+          p_requires_ack?: boolean
+          p_shift_group?: string
+          p_title: string
+          p_urgent?: boolean
+        }
+        Returns: string
+      }
       push_coverage: {
         Args: never
         Returns: {
@@ -8279,6 +8416,10 @@ export type Database = {
           sku_name: string
           user_name: string
         }[]
+      }
+      read_announcement: {
+        Args: { p_acknowledge?: boolean; p_id: string }
+        Returns: undefined
       }
       receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
       record_overtime_outcome: {
@@ -8532,6 +8673,14 @@ export type Database = {
           ord: number
         }[]
       }
+      swap_my_overtime: {
+        Args: { p_from: string; p_note?: string; p_to: string }
+        Returns: {
+          outcome: string
+          promoted_employee_id: string
+          promoted_response_id: string
+        }[]
+      }
       touch_device: { Args: { _token: string }; Returns: undefined }
       touch_last_seen: { Args: never; Returns: undefined }
       unlink_login_from_employee: {
@@ -8582,6 +8731,7 @@ export type Database = {
         Returns: boolean
       }
       verify_target_pin: { Args: { _pin: string }; Returns: boolean }
+      withdraw_announcement: { Args: { p_id: string }; Returns: undefined }
       wo_downtime_seconds: { Args: { _wo: string }; Returns: number }
       wo_total_pause_seconds: { Args: { _wo_id: string }; Returns: number }
       work_order_access_hint: { Args: { _wo_id: string }; Returns: Json }
