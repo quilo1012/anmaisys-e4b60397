@@ -679,6 +679,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
       const { data, error } = await (supabase as any)
         .from("sku_products")
         .select("id, code, name")
+        .eq("active", true) // deactivated SKUs stay in history but are not offered for new production
         .or(`code.ilike."%${safe}%",name.ilike."%${safe}%"`)
         .order("code", { ascending: true })
         .limit(200);

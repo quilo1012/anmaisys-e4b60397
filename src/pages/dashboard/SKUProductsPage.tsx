@@ -15,7 +15,7 @@ import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes, M
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
-import { skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
+import { assertSkuRowsChanged, isSkuInUse, skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
 import { Switch } from "@/components/ui/switch";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
@@ -224,12 +224,16 @@ export default function SKUProductsPage() {
     mutationFn: async (sku: Partial<Sku>) => {
       const payload = skuUpdatePayload(sku);
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
+      // Ask for the affected id back: RLS turns a refused write into "0 rows,
+      // no error", which must not be reported as saved.
       if (sku.id) {
-        const { error } = await supabase.from("sku_products").update(payload).eq("id", sku.id);
+        const { data, error } = await supabase.from("sku_products").update(payload).eq("id", sku.id).select("id");
         if (error) throw error;
+        assertSkuRowsChanged(data, "save");
       } else {
-        const { error } = await supabase.from("sku_products").insert(payload);
+        const { data, error } = await supabase.from("sku_products").insert(payload).select("id");
         if (error) throw error;
+        assertSkuRowsChanged(data, "save");
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); setOpen(false); toast.success("Saved"); },
@@ -244,13 +248,32 @@ export default function SKUProductsPage() {
     ),
   });
 
-  const del = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("sku_products").delete().eq("id", id);
+  // Retire a SKU that production still uses: only the active flag changes, by id,
+  // so targets, production items and history keep pointing at the same row.
+  const deactivate = useMutation({
+    mutationFn: async (sku: Sku) => {
+      const { data, error } = await supabase.from("sku_products").update({ active: false }).eq("id", sku.id).select("id");
       if (error) throw error;
+      assertSkuRowsChanged(data, "save");
+    },
+    onSuccess: (_d, sku) => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); toast.success(`${sku.code} deactivated — its production records are kept.`); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const del = useMutation({
+    mutationFn: async (sku: Sku) => {
+      const { data, error } = await supabase.from("sku_products").delete().eq("id", sku.id).select("id");
+      if (error) throw error;
+      assertSkuRowsChanged(data, "delete");
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); toast.success("Deleted"); },
-    onError: (e: Error & { code?: string }) => toast.error(skuDeleteError(e)),
+    onError: (e: Error & { code?: string }, sku) => {
+      if (isSkuInUse(e) && sku.active) {
+        toast.error(skuDeleteError(e), { action: { label: "Deactivate", onClick: () => deactivate.mutate(sku) } });
+      } else {
+        toast.error(skuDeleteError(e));
+      }
+    },
   });
 
   const handleImport = async (file: File) => {
@@ -470,7 +493,7 @@ export default function SKUProductsPage() {
                     <TableCell>{p.active ? <Badge className="bg-success hover:bg-success/90 text-success-foreground border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" aria-label="Edit this SKU" title="Edit" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" aria-label="Delete this SKU" title="Delete" className="ml-2" onClick={() => { void confirm({ title: "Delete SKU?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(p.id); }); }}><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete this SKU" title="Delete" className="ml-2" onClick={() => { void confirm({ title: "Delete SKU?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(p); }); }}><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}
