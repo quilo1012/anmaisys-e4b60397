@@ -15,6 +15,8 @@ import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes, M
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
+import { skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
+import { Switch } from "@/components/ui/switch";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
 
@@ -220,10 +222,7 @@ export default function SKUProductsPage() {
 
   const save = useMutation({
     mutationFn: async (sku: Partial<Sku>) => {
-      const payload = {
-        code: (sku.code ?? "").trim(), name: sku.name ?? "", category: sku.category ?? null,
-        target_per_hour: sku.target_per_hour ?? 0, weight: sku.weight ?? null, active: sku.active ?? true,
-      };
+      const payload = skuUpdatePayload(sku);
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
       if (sku.id) {
         const { error } = await supabase.from("sku_products").update(payload).eq("id", sku.id);
@@ -251,7 +250,7 @@ export default function SKUProductsPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); toast.success("Deleted"); },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error & { code?: string }) => toast.error(skuDeleteError(e)),
   });
 
   const handleImport = async (file: File) => {
@@ -438,6 +437,10 @@ export default function SKUProductsPage() {
                   </div>
                   <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
                   <div><Label>Weight</Label><Input type="number" inputMode="decimal" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="sku-active">Active</Label>
+                    <Switch id="sku-active" checked={editing?.active ?? true} onCheckedChange={(active) => setEditing({ ...editing, active })} />
+                  </div>
                 </div>
                 <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>Save</Button></DialogFooter>
               </DialogContent>

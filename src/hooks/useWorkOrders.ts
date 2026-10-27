@@ -5,6 +5,7 @@ import { WAREHOUSE_WO_TYPE } from "@/lib/woKinds";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
+import { authenticatedRpc } from "@/lib/authenticatedRpc";
 
 export type WOStatus = "open" | "received" | "arrived" | "in_progress" | "finished" | "closed" | "force_closed";
 
@@ -203,7 +204,7 @@ export function useWorkOrders(filter?: {
       }
       const [profilesRes, engineersRes] = await Promise.all([
         supabase.rpc("list_active_profile_names"),
-        supabase.rpc("list_engineer_names"),
+        authenticatedRpc("list_engineer_names"),
       ]);
 
       const profileNames = new Map((profilesRes.data || []).map((p) => [p.id, p.name]));
@@ -924,7 +925,7 @@ export function useWorkOrderById(id: string) {
       const wo = data as unknown as WorkOrder;
       const [profilesRes, engineersRes] = await Promise.all([
         supabase.rpc("list_active_profile_names"),
-        supabase.rpc("list_engineer_names"),
+        authenticatedRpc("list_engineer_names"),
       ]);
       const profileNames = new Map((profilesRes.data || []).map((p) => [p.id, p.name]));
       const engineerNames = new Map((engineersRes.data || []).map((e) => [e.id, e.name]));

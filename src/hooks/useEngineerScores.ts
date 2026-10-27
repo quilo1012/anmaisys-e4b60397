@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { authenticatedRpc } from "@/lib/authenticatedRpc";
 
 export interface EngineerScore {
   id: string;
@@ -28,7 +29,7 @@ export function useEngineerScores() {
       // We fetch ALL active rows (no `.in()` filter) because list_engineer_names
       // doesn't accept arguments — then build a map locally.
       const [enginRes, profRes] = await Promise.all([
-        (supabase as any).rpc("list_engineer_names"),
+        authenticatedRpc("list_engineer_names"),
         supabase.from("profiles_safe").select("id, name, email").in("id", ids),
       ]);
 
