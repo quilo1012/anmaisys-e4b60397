@@ -481,13 +481,26 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
       const newSkuMap = new Map<string, string>();
       if (missing.size > 0) {
         const rows = Array.from(missing.entries()).map(([code, name]) => ({ code, name, active: true }));
+        // "Missing" here means missing from the ACTIVE catalogue, so a code can
+        // belong to a SKU that was deactivated. Insert only the genuinely new
+        // codes and leave existing rows alone: an upsert would rename them to the
+        // iTouching description and silently reactivate retired SKUs.
         const { data: inserted, error } = await supabase
           .from("sku_products")
-          .upsert(rows, { onConflict: "code" })
+          .upsert(rows, { onConflict: "code", ignoreDuplicates: true })
           .select("id, code");
         if (error) throw error;
         for (const r of inserted ?? []) newSkuMap.set(r.code.toUpperCase(), r.id);
         createdSkus = inserted?.length ?? 0;
+        const stillUnresolved = rows.map((r) => r.code).filter((c) => !newSkuMap.has(c.toUpperCase()));
+        if (stillUnresolved.length > 0) {
+          const { data: existing, error: lookupError } = await supabase
+            .from("sku_products")
+            .select("id, code")
+            .in("code", stillUnresolved);
+          if (lookupError) throw lookupError;
+          for (const r of existing ?? []) newSkuMap.set(r.code.toUpperCase(), r.id);
+        }
       }
 
       // Merge sections that resolve to the same line so we don't overwrite
