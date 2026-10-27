@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { PRESENCE_HEARTBEAT_MS } from "@/lib/communicationPresence";
 import { hasLiveSession } from "@/lib/liveSession";
+import { authenticatedRpc } from "@/lib/authenticatedRpc";
 import { MY_AVAILABILITY_KEY, PRESENCE_KEY } from "@/hooks/useCommunicationPresence";
 
 const TAB_KEY = "an_presence_tab";
@@ -35,7 +36,7 @@ export function presenceTabId(storage?: Pick<Storage, "getItem" | "setItem"> | n
 export async function endMyPresence(): Promise<void> {
   try {
     if (!(await hasLiveSession())) return;
-    await supabase.rpc("communication_end_presence", { p_tab_id: presenceTabId() });
+    await authenticatedRpc("communication_end_presence", { p_tab_id: presenceTabId() });
   } catch { /* the lease runs out in 180 s */ }
 }
 
@@ -74,7 +75,7 @@ export function PresenceHeartbeat() {
         // seguinte passa assim que o refresh chegar — saltar nao e um erro e nao se
         // regista como tal.
         if (!(await hasLiveSession())) return;
-        const { error } = await supabase.rpc("communication_touch_presence", { p_tab_id: tab });
+        const { error } = await authenticatedRpc("communication_touch_presence", { p_tab_id: tab });
         if (error && !warned) { warned = true; console.warn("Presence heartbeat refused:", error.message); }
         if (!error) warned = false;
       } catch { /* offline: the next beat tries again */ }
