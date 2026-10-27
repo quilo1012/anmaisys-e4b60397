@@ -43,6 +43,13 @@
       "when": 1792566280938,
       "tag": "0005_communication_availability_and_connection_leases",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793101670688,
+      "tag": "0006_protect_sku_identity_and_authenticated_engineer_directory",
+      "breakpoints": true
     }
   ]
 }
