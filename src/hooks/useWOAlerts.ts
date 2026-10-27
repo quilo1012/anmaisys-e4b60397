@@ -32,8 +32,8 @@ export function useWOAlerts() {
       // original dialog refused to close).
       if (ev && (ev as KeyboardEvent).key === "Escape") return;
       requestNotificationPermission();
-      // Engineers & admins must have alert audio unlocked to hear the siren
-      if ((role === "engineer" || role === "admin") && !audioEnabled) {
+      // Engineers must have alert audio unlocked to hear the siren
+      if (role === "engineer" && !audioEnabled) {
         promptEnableAudio();
       }
       document.removeEventListener("click", handler as EventListener);
@@ -48,10 +48,11 @@ export function useWOAlerts() {
     };
   }, [role, audioEnabled, promptEnableAudio]);
 
-  // Engineers & Admins: critical full-screen alert + audio loop + vibration
+  // Engineers only: critical full-screen alert + audio loop + vibration.
+  // Admins no longer receive the new-WO siren (27/10/2026).
   useEffect(() => {
     if (!role || !user) return;
-    if (role !== "engineer" && role !== "admin") return;
+    if (role !== "engineer") return;
 
     
 
