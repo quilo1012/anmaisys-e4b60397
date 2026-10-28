@@ -325,19 +325,13 @@ export function useDMUnreadCount() {
     queryKey: ["dm_unread", user?.id],
     queryFn: async () => {
       if (!user) return 0;
-      // Rows, not `count: "exact"`. The HEAD + exact-count request on this filter hit
-      // "canceling statement due to statement timeout" in production (27/10/2026, 503 on
-      // every page through DashboardLayout, logged from /dashboard/communication), while
-      // the plain GET on the same filter — useDMUnreadBySender — answers at once. Unread
-      // messages for one person are few, so counting the ids here costs nothing.
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from("direct_messages")
-        .select("id")
+        .select("id", { count: "exact", head: true })
         .eq("recipient_id", user.id)
-        .is("read_at", null)
-        .limit(1000);
+        .is("read_at", null);
       if (error) throw error;
-      return data?.length ?? 0;
+      return count ?? 0;
     },
     enabled: !!user,
   });
