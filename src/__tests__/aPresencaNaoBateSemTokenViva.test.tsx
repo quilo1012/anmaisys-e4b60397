@@ -32,7 +32,7 @@ const channel = {
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: (...args: unknown[]) => rpc(...args),
+    rpc: (...args: unknown[]) => ({ setHeader: () => rpc(...args) }),
     auth: { getSession: () => getSession() },
     channel: () => channel,
     removeChannel: () => {},

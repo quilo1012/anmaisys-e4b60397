@@ -12,7 +12,7 @@ const channelObj: { on: (...a: unknown[]) => typeof channelObj; subscribe: () =>
 const getSession = vi.fn();
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: (...a: unknown[]) => rpc(...a),
+    rpc: (...a: unknown[]) => ({ setHeader: () => rpc(...a) }),
     auth: { getSession: () => getSession() },
     channel: () => channelObj,
     removeChannel: (...a: unknown[]) => removeChannel(...a),
