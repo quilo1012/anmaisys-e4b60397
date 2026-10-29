@@ -145,9 +145,6 @@ const NARROW: Record<string, string> = {
     + "padding. The busiest week in the table has 83 such orders.",
   "downtime_events @ src/pages/dashboard/RAGWeeklyPage.tsx":
     "Same week picker, by `stopped_at`. The busiest week in the table has 123 events.",
-  "downtime_events @ src/pages/dashboard/EngineerDashboard.tsx":
-    "`.in(...)` over the ids of the history list above, which is itself `.limit(200)` — "
-    + "so at most 200 orders' worth of events, and the busiest day has 42.",
   "audit_logs @ src/hooks/useAuditLogs.ts":
     "Two reads, both bounded. The log viewer pages with `.range()` and an exact count. "
     + "`useStockAdjustmentHistory` takes the newest N of `action = adjust_stock` — 89 "
