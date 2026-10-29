@@ -1,8 +1,8 @@
 # Roadmap
 
 ## Telemetry errors (29 Oct)
-- [ ] Check every audit_logs query against the nine existing columns and add column regression coverage; current source has no table_name reference.
-- [ ] Skip presence lease RPCs silently when the pinned token lacks session_id; verify no RPC/error logging and preserve real-session behavior. No database changes or publishing.
+- [x] Check every audit_logs query against the nine existing columns; useAuditLogs.ts already uses entity_type and no current source references table_name. Added auditLogsColumns.test.ts; signed-in Audit Logs loads records with HTTP 206 and no invalid-column query.
+- [x] Guard both presence lease writes in authenticatedRpc.ts using the pinned token's session_id; updated authenticatedRpc.test.ts, PresenceHeartbeat.test.tsx and aPresencaNaoBateSemTokenViva.test.tsx. All 24 focused tests pass; signed-in manager/audit navigation sends zero presence lease requests and logs zero presence warnings with the minted token; build OK. No database changes or publishing.
 
 ## Operator and engineer display labels
 - [x] Trace TEC to Headcount chips and area/absence pickers; apply shared OP/ENG display mapping only; 39 regressions pass, signed-in preview shows 3 OP and 5 ENG badges with no TEC; no database changes or publishing.
