@@ -277,7 +277,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const { data: responses = [] } = useOvertimeResponses();
   const { data: block } = useMyOvertimeBlock(true);
   const { data: clashes = NO_CLASHES } = useMyOvertimeClashes(true);
-  const { answer, cancelMyBooking, swapMyBooking, leaveReserve } = useOvertimeMutations();
+  const { answer, cancelMyBooking, swapMyBooking, leaveReserve, rebookMyBooking } = useOvertimeMutations();
+  // Whose cancellation it was: only one this login recorded can be booked again here.
+  const { user } = useAuth();
   const [filter, setFilter] = useState<"all" | "needs" | "accepted" | "declined">("all");
   /** Which booking is being moved to another day, and to which ask. */
   const [swapFrom, setSwapFrom] = useState<string | null>(null);
@@ -393,6 +395,34 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       && (o.outcome === "cancelled_in_time" || o.outcome === "cancelled_late"));
   }), [requests, mine, myOutcomes]);
   const cancelling = useRef(false);
+  /**
+   * Booking again a booking the person cancelled in time (BLOCO 138). Said from the row
+   * the database wrote: booked, or the reserve list when the ask filled meanwhile —
+   * never "booked" on a place the database did not give.
+   */
+  const rebooking = useRef(false);
+  const bookAgain = (request: OvertimeRequest) => {
+    if (rebooking.current) return;
+    rebooking.current = true;
+    rebookMyBooking.mutate({ requestId: request.id }, {
+      onSettled: () => { rebooking.current = false; },
+      onSuccess: (row) => {
+        const when = `${windowLabel(request.starts_at, request.ends_at)}, ${audienceLine(request)}`;
+        if (row?.decision === "accepted") {
+          toast.success(`Booked again for ${fmtDate(request.on_date)}`, { description: `${when}. Your supervisor has been told.` });
+        } else if (row?.decision === "reserve") {
+          toast.success(`You're on the reserve list for ${fmtDate(request.on_date)}`, {
+            description: `${when}. Every place was taken in the meantime; you're next if somebody drops out.`,
+          });
+        } else {
+          toast.success(`Your yes for ${fmtDate(request.on_date)} is saved`, { description: `${when}. The supervisor picks the team next.` });
+        }
+      },
+      onError: (e) => toast.error((e as Error).message || "Could not book it again", {
+        description: "Nothing was changed.",
+      }),
+    });
+  };
   /** Asks this person could move a booking to: open, undecided, not started. */
   const swapTargets = (from: OvertimeRequest) => requests.filter((q) =>
     q.id !== from.id && q.status === "open" && !askHasStarted(q, now) && !mine.get(q.id)?.decision);
@@ -591,6 +621,10 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         // is what happened after, and it is what the card must show.
         const myCancel = my ? myOutcomes.find((o) => o.response_id === my.id
           && (o.outcome === "cancelled_in_time" || o.outcome === "cancelled_late")) : undefined;
+        // A cancellation recorded by somebody else is the supervisor's (record_overtime_outcome
+        // at the desk). Unknown — an older read without recorded_by — is taken as theirs to
+        // call: the database decides either way.
+        const cancelledByMe = !!myCancel && (myCancel.recorded_by == null || myCancel.recorded_by === user?.id);
         const canCancel = my?.decision === "accepted" && !myCancel && r.status === "open" && !askHasStarted(r, now);
         // Room is only news to somebody still deciding; once picked, it is not their question.
         const room = r.status === "open" && !my?.decision ? places?.get(r.id) : undefined;
@@ -652,7 +686,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                   {myCancel && <XCircle className="mr-1 h-3 w-3" />}
                   {!myCancel && my?.decision === "accepted" && <Check className="mr-1 h-3 w-3" />}
                   {!myCancel && onReserve && <Clock className="mr-1 h-3 w-3" />}
-                  {myCancel ? "Cancelled by you" : status}
+                  {myCancel ? (cancelledByMe ? "Cancelled by you" : "Cancelled by your supervisor") : status}
                 </Badge>
               </div>
               {r.note && <p className="text-sm italic text-foreground/80">“{r.note}”</p>}
@@ -671,7 +705,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                       <span className="font-medium">{myAnswerLabel(my)}</span>
                     </div>
                   )}
-                  {supervisorLabel(r, my) && (
+                  {/* A cancelled booking never reads "Booked": the decision row stays as the
+                      record, but the Booking line below is what is true now. */}
+                  {supervisorLabel(r, my) && !myCancel && (
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-muted-foreground">Supervisor</span>
                       <span className="font-medium">{supervisorLabel(r, my)}</span>
@@ -681,7 +717,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-muted-foreground">Booking</span>
                       <span className="font-medium">
-                        Cancelled by you{myCancel.outcome === "cancelled_late" ? " — counted as late" : ""}
+                        {cancelledByMe ? "Cancelled by you" : "Cancelled by your supervisor"}{myCancel.outcome === "cancelled_late" ? " — counted as late" : ""}
                       </span>
                     </div>
                   )}
@@ -745,6 +781,40 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                     </div>
                   )}
                 </div>
+              )}
+              {/* A booking taken back is not final either, while the ask is open (BLOCO 138) —
+                  if it was this person's own cancellation, made in time. A late one stands,
+                  and so does a supervisor's: those are said, with the way to reach them. */}
+              {myCancel && r.status === "open" && !askHasStarted(r, now) && (
+                cancelledByMe && myCancel.outcome === "cancelled_in_time" ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      {ownHours
+                        ? <>You can't book this again — {ownHours.charAt(0).toLowerCase() + ownHours.slice(1)}.</>
+                        : "You cancelled this booking. Changed your mind? You can book it again while it is open."}
+                    </p>
+                    <Button
+                      size="lg" className="h-12 w-full"
+                      disabled={rebookMyBooking.isPending || !!block || !!ownHours}
+                      onClick={() => bookAgain(r)}
+                      aria-busy={rebookMyBooking.isPending}
+                    >
+                      {rebookMyBooking.isPending
+                        ? <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        : <Check className="mr-2 h-5 w-5" />}
+                      Book it again
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-sm text-muted-foreground">
+                      {cancelledByMe
+                        ? "You cancelled this late, so the cancellation stands. If you can still come, message your supervisor."
+                        : "Your supervisor cancelled this booking. If you can still come, message them."}
+                    </p>
+                    <MessageSupervisorDialog request={r} fmtDate={fmtDate} />
+                  </div>
+                )
               )}
               {/* A no is not final while the ask is open: the same buttons change it. Said
                   in words, because a highlighted Decline reads as a decision already taken. */}
