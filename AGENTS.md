@@ -1,5 +1,7 @@
 # Project Architecture Rules
 
+- Derive workforce badge labels through `workforceRoles.roleStripe`, including existing role/source context when available; display distinctions must never alter identity or authorization.
+
 - Protected engineer-directory and presence-write RPCs pin the live session token on the request; a concurrent session change must not silently send them as anon.
 - SKU edits update attributes by the existing ID; server-side delete/ID guards protect all production dependencies, and retirement uses the existing active flag.
 
