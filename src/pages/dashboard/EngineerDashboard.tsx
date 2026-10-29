@@ -42,6 +42,7 @@ import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResp
 import { EngineerAlertLineFilter } from "@/components/EngineerAlertLineFilter";
 import { TechnicalInfoDialog } from "@/components/engineer/TechnicalInfoDialog";
 import { clearAcknowledgedWOLocal } from "@/lib/woAck";
+import { fetchMaintenanceShiftReport, shiftWindowAt } from "@/lib/maintenanceShiftReport";
 
 
 
@@ -467,101 +468,50 @@ function EngineerDashboardContent() {
     };
   }, [allCompleted]);
 
-  // Report: summary for the running shift window (06:00–18:00 or 18:00–06:00),
-  // listing only downtimes longer than 15 minutes.
-  const shiftWindow = useMemo(() => {
-    const now = new Date();
-    const start = new Date(now);
-    if (now.getHours() >= 6 && now.getHours() < 18) {
-      start.setHours(6, 0, 0, 0);
-    } else {
-      start.setHours(18, 0, 0, 0);
-      if (now.getHours() < 6) start.setDate(start.getDate() - 1);
+  // Report: the maintenance hand-over for the shift running at the click. Everything
+  // is read fresh at that moment (see maintenanceShiftReport.ts for why the old
+  // in-memory version printed "No issues today" over real stoppages). A failed read
+  // downloads nothing.
+  const [reportBusy, setReportBusy] = useState(false);
+  const handleReport = async () => {
+    if (reportBusy) return;
+    setReportBusy(true);
+    try {
+      const now = new Date();
+      const report = await fetchMaintenanceShiftReport(now);
+      const w = shiftWindowAt(now);
+      const stamp = `${w.sessionDate}_${w.shift === "day" ? "0600-1800" : "1800-0600"}`;
+      const blob = new Blob([report.text], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `maintenance_report_${stamp}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (report.problems.length > 0) {
+        toast({
+          title: "Report downloaded — NOT validated",
+          description: `${report.problems.length} record${report.problems.length === 1 ? "" : "s"} disagree. They are listed in the file.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Report downloaded",
+          description: `${w.shift === "day" ? "Day" : "Night"} shift ${w.sessionDate} · ${report.stopsRead} stop(s) read, ${report.items.length} listed`,
+        });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Report not downloaded",
+        description: err?.message ?? "The stoppages could not be read. Check the connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setReportBusy(false);
     }
-    const end = new Date(start.getTime() + 12 * 60 * 60 * 1000);
-    const label = start.getHours() === 6 ? "06:00-18:00" : "18:00-06:00";
-    return { start, end, label };
-  }, []);
-
-  const reportWOs = useMemo(() => {
-    return (engineerHistory || []).filter((wo: any) => {
-      const t = new Date(wo.finished_at || wo.completed_at || wo.closed_at || wo.created_at);
-      return t >= shiftWindow.start && t < shiftWindow.end;
-    });
-  }, [engineerHistory, shiftWindow]);
-
-  const reportWOIds = useMemo(() => reportWOs.map((wo) => wo.id), [reportWOs]);
-
-  const { data: reportDowntimeEvents } = useQuery({
-    queryKey: ["downtime_events", "report", reportWOIds],
-    enabled: reportWOIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("downtime_events")
-        .select("id, work_order_id, duration_minutes, stopped_at, resumed_at, stopped_reason")
-        .in("work_order_id", reportWOIds)
-        .order("stopped_at", { ascending: true });
-      if (error) throw error;
-      return (data || []) as any[];
-    },
-  });
-
-  const eventDurationMinutes = (e: any): number => {
-    if (typeof e.duration_minutes === "number" && !isNaN(e.duration_minutes)) return e.duration_minutes;
-    const stop = new Date(e.stopped_at);
-    const resume = e.resumed_at ? new Date(e.resumed_at) : new Date();
-    return Math.max(0, differenceInMinutes(resume, stop));
   };
-
-  const generateReport = (): string => {
-    const events = reportDowntimeEvents || [];
-    const clean = (text: any) => String(text ?? "—").replace(/\s+/g, " ").trim();
-    const isDay = shiftWindow.start.getHours() === 6;
-    const lines: string[] = [
-      "**Maintenance:**",
-      isDay ? "**Day Shift (06-18)**" : "**Night Shift (18-06)**",
-    ];
-    reportWOs.forEach((wo) => {
-      const qualifying = events
-        .filter((e: any) => e.work_order_id === wo.id)
-        // The stop itself must belong to this shift window.
-        .filter((e: any) => {
-          const t = new Date(e.stopped_at);
-          return t >= shiftWindow.start && t < shiftWindow.end;
-        })
-        .filter((e: any) => eventDurationMinutes(e) > 15);
-      // No downtime over 15 minutes in this window: leave the order out.
-      if (qualifying.length === 0) return;
-      const rawLine = wo.line_at_time || "—";
-      const line = typeof rawLine === "string" ? rawLine.replace(/^line\s+/i, "") : rawLine;
-      const resolution = wo.resolution_notes || wo.description || "—";
-      const downtimeText = qualifying
-        .map((e: any) => `${eventDurationMinutes(e)}m`)
-        .join("; ");
-      lines.push(`**Line ${line}:** ${clean(resolution)}`);
-      lines.push(`Downtime: ${downtimeText}`);
-    });
-    // Nothing qualified under the >15-minute rule: say so on the next line.
-    if (lines.length === 2) lines.push("- No issues today.");
-    lines.push("- Have a good day.");
-    return lines.join("\n");
-  };
-
-  const handleReport = () => {
-    const text = generateReport();
-    const stamp = `${shiftWindow.start.toISOString().slice(0, 10)}_${shiftWindow.label.replace(/:/g, "")}`;
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `maintenance_report_${stamp}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({ title: "Report downloaded", description: `Shift ${shiftWindow.label}` });
-  };
-
 
   const lineFilterParam = searchParams.get("line");
   const dateFilterParam = searchParams.get("date");
@@ -1054,8 +1004,8 @@ function EngineerDashboardContent() {
                   <DropdownMenuItem onClick={() => setTechInfoOpen(true)}>
                     <BookOpen className="mr-2 h-4 w-4" /> Technical Info
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleReport}>
-                    <FileText className="mr-2 h-4 w-4" /> Report
+                  <DropdownMenuItem onClick={() => void handleReport()} disabled={reportBusy}>
+                    {reportBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} Report
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setChangePinOpen(true)}>
                     <Lock className="mr-2 h-4 w-4" /> Change PIN
@@ -1078,8 +1028,8 @@ function EngineerDashboardContent() {
             <Button variant="outline" size="sm" onClick={() => setTechInfoOpen(true)} className="gap-1">
               <BookOpen className="h-4 w-4" /> Technical Info
             </Button>
-            <Button variant="outline" size="sm" onClick={handleReport} className="gap-1">
-              <FileText className="h-4 w-4" /> Report
+            <Button variant="outline" size="sm" onClick={() => void handleReport()} disabled={reportBusy} className="gap-1">
+              {reportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Report
             </Button>
             <Button variant="outline" size="sm" onClick={() => setChangePinOpen(true)} className="gap-1">
               <Lock className="h-4 w-4" /> Change PIN
