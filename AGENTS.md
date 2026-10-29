@@ -55,6 +55,26 @@ migration, leaves the app working in production and broken on any fresh database
 happened twice. `src/__tests__/aAppNaoLeNadaQueNaoEstejaNumaMigracao.test.ts` now fails
 when it recurs.
 
+## A merge does not publish the server functions
+
+A pull request that changes `supabase/functions/` reaches `main` and the Lovable project,
+and the app is published from there. **The functions running in production are not.**
+Found 29/10/2026: production `send-push` was still a build from before 21/10 19:19. It
+refused the database's `x-cron-secret` with 401, so every chat message, overtime reminder
+and confirmation the database tried to push since BLOCO 117 stopped at the last step. The
+bell showed them all the while. Every change to `send-push` merged since then (21/10 and
+26/10) was in the repository and nowhere else.
+
+- `.github/workflows/deploy-functions.yml` points at production, but its only run (10/10)
+  failed at the Deploy step. Do not count on it.
+- Production functions are published by the Lovable agent, at the owner's request. It
+  spends workspace credits, so ask first.
+- A PR that touches `supabase/functions/` says in its description which functions need
+  publishing. The work is not done until they are published and checked.
+- A bell row is not a delivery. To see whether a push left, read
+  `overtime_booking_notices.last_error`, or run
+  `docs/apply-passo-3/VERIFY-send-push-publicado.sql`. Never judge by the bell.
+
 ## Production follows `main` — change the code here, not in the Lovable chat
 
 The Lovable project serves what is on this repository's `main`. Verified 06/10/2026: the
