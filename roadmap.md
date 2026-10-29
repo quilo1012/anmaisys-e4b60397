@@ -1,5 +1,8 @@
 # Roadmap
 
+## Operator and engineer display labels
+- [ ] Trace all TEC label consumers; correct shared OP/ENG display mapping without data or permission changes; run regressions.
+
 ## Production permission and SKU errors (27 Oct)
 - [x] Verify deployed database identity: deployed scripts and live tool binding match; inspected function definitions, ACLs, owners, RLS and SKU dependencies.
 - [x] Apply minimal directory/security and SKU identity/history safeguards in migration 0006; add pinned-token RPC calls, clear delete error and Active control.
