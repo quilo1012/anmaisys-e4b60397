@@ -405,6 +405,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
     });
     if (!ok) return;
     leaveReserve.mutate({ requestId: request.id }, {
+      // No promise here that a yes can be given again: that is true only once BLOCO 137 is
+      // in the database. The card says it itself, from the row the database sends back —
+      // "Change to Accept" after 137, an explanation before it.
       onSuccess: () => toast.success(`You left the reserve list for ${fmtDate(request.on_date)}`),
       onError: (e) => toast.error((e as Error).message || "Could not leave the reserve list"),
     });
@@ -603,9 +606,13 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
         const ownHours = clashes.get(r.id) ?? (overlapping
           ? `you are already booked for overtime ${fmtShort(overlapping.on_date)}, ${windowLabel(overlapping.starts_at, overlapping.ends_at)}`
           : undefined);
+        // A no is never coloured as a place held, even if an older leave_my_reserve left
+        // `decision = 'reserve'` on it (before BLOCO 137): the badge already says "You said no".
+        const onReserve = my?.decision === "reserve" && my?.answer === "yes";
+        const leftReserveBefore137 = my?.decision === "reserve" && my?.answer === "no";
         const tone =
           my?.decision === "accepted" ? "bg-success/15 text-success border-success/30"
-          : my?.decision === "reserve" ? "bg-warning/15 text-warning border-warning/30"
+          : onReserve ? "bg-warning/15 text-warning border-warning/30"
           : my?.decision === "declined" || r.status !== "open" ? "bg-muted text-muted-foreground"
           : "";
         return (
@@ -644,7 +651,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
                 <Badge variant="outline" className={cn("shrink-0 font-normal", myCancel ? "bg-muted text-muted-foreground" : tone)}>
                   {myCancel && <XCircle className="mr-1 h-3 w-3" />}
                   {!myCancel && my?.decision === "accepted" && <Check className="mr-1 h-3 w-3" />}
-                  {!myCancel && my?.decision === "reserve" && <Clock className="mr-1 h-3 w-3" />}
+                  {!myCancel && onReserve && <Clock className="mr-1 h-3 w-3" />}
                   {myCancel ? "Cancelled by you" : status}
                 </Badge>
               </div>
@@ -744,6 +751,14 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
               {canAnswer && my?.answer === "no" && !ownHours && !block && (
                 <p className="text-sm text-muted-foreground">
                   You declined this. Changed your mind? You can still accept while it is open.
+                </p>
+              )}
+              {/* Only reachable before BLOCO 137 is pasted: the old leave_my_reserve kept the
+                  reserve decision on a no, and the database refuses any answer while a
+                  decision stands. Say so instead of drawing a card with nothing to press. */}
+              {leftReserveBefore137 && r.status === "open" && !askHasStarted(r, now) && (
+                <p className="text-sm text-muted-foreground">
+                  You left the reserve list for this day. To be put back on it, message your supervisor.
                 </p>
               )}
               {my?.answer === "no" && r.status === "closed" && (
