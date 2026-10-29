@@ -79,6 +79,9 @@ describe("PresenceHeartbeat", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(PRESENCE_HEARTBEAT_MS * 3); });
     const touches = calls("communication_touch_presence");
     expect(touches).toHaveLength(4);
+    for (const touch of touches) {
+      expect((touch[1] as { p_tab_id: string }).p_tab_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    }
     expect(new Set(touches.map((c) => (c[1] as { p_tab_id: string }).p_tab_id)).size).toBe(1);
     expect(Object.keys(touches[0][1] as object)).toEqual(["p_tab_id"]);   // no user id, no status: only the tab
   });
@@ -158,5 +161,13 @@ describe("presenceTabId", () => {
   it("still returns an id when storage is blocked", () => {
     const blocked = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
     expect(presenceTabId(blocked)).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+  it("generates a nonempty tab id when a stored id is missing or invalid", () => {
+    for (const known of [null, "", "   ", "invalid"]) {
+      const storage = { getItem: () => known, setItem: vi.fn() };
+      const id = presenceTabId(storage);
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      expect(storage.setItem).toHaveBeenCalledWith("an_presence_tab", id);
+    }
   });
 });

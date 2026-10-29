@@ -29,8 +29,10 @@ export async function authenticatedRpc<Name extends keyof Functions>(
   }
   // Minted verification tokens have no session_id and cannot hold a presence lease.
   // Check the very token pinned below, not an earlier getSession() snapshot.
-  if ((name === "communication_touch_presence" || name === "communication_end_presence")
-    && !hasSessionId(session.access_token)) {
+  const presenceWrite = name === "communication_touch_presence" || name === "communication_end_presence";
+  const tabId = args && "p_tab_id" in args ? args.p_tab_id : undefined;
+  if (presenceWrite && (!hasSessionId(session.access_token)
+    || typeof tabId !== "string" || !tabId.trim())) {
     // PresenceHeartbeat/endMyPresence already treat this local skip silently.
     throw new NoLiveSessionError();
   }
