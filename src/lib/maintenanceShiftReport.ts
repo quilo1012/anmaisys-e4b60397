@@ -120,8 +120,10 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     exclByWo.get(x.work_order_id)!.push(x);
   }
 
-  // A row read twice is still one stop.
-  const events = [...new Map(input.events.map((e) => [e.id, e])).values()];
+  // A row read twice is still one stop; and the file lists in the order the line
+  // stopped, whatever order the rows arrived in.
+  const events = [...new Map(input.events.map((e) => [e.id, e])).values()]
+    .sort((x, y) => new Date(x.stopped_at).getTime() - new Date(y.stopped_at).getTime());
 
   const stopsByWo = new Map<string, ReportStop[]>();
   let stopsRead = 0;

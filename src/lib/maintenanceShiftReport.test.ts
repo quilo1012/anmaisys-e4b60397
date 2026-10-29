@@ -229,4 +229,35 @@ describe("buildMaintenanceShiftReport", () => {
     }));
     expect(r.ordersRead).toBe(1);
   });
+
+  // The fixture docs/verify/maintenance-report-vs-records.sql was run against (local
+  // Postgres, 29/10/2026). The SQL said: listed WO-106 (30m, carried over) and WO-101
+  // (47m); planned 104 and the "no planned shift" stop on 101; 103 and 106's second stop
+  // under 15; 107 warehouse; 918 inverted. The report must say the same.
+  it("agrees with the verification SQL on the same rows", () => {
+    const W = (id: string, n: number, extra: Record<string, unknown> = {}) => wo(id, { wo_number: n, ...extra });
+    const r = buildMaintenanceShiftReport(data({
+      workOrders: [W("w101", 101), W("w103", 103), W("w104", 104, { description: "Planned Shutdown" }),
+        W("w918", 918, { status: "force_closed" }), W("w106", 106), W("w107", 107, { wo_type: "warehouse_service" })],
+      events: [
+        { id: "a", work_order_id: "w101", stopped_at: at("08:00"), resumed_at: at("08:47"), duration_minutes: 47 },
+        { id: "b", work_order_id: "w103", stopped_at: at("10:00"), resumed_at: at("10:05"), duration_minutes: 5 },
+        { id: "c", work_order_id: "w104", stopped_at: at("07:00"), resumed_at: at("09:00"), duration_minutes: 120 },
+        { id: "d", work_order_id: "w918", stopped_at: at("14:42"), resumed_at: at("05:59"), duration_minutes: -523 },
+        { id: "e", work_order_id: "w106", stopped_at: at("05:00"), resumed_at: at("06:30"), duration_minutes: 90 },
+        { id: "f", work_order_id: "w106", stopped_at: at("11:00"), resumed_at: at("11:30"), duration_minutes: 30 },
+        { id: "g", work_order_id: "w107", stopped_at: at("12:00"), resumed_at: at("13:00"), duration_minutes: 60 },
+        { id: "h", work_order_id: "w101", stopped_at: at("15:00"), resumed_at: at("16:00"), duration_minutes: 60, stopped_reason: "No planned shift" },
+      ],
+      exclusions: [{ work_order_id: "w106", started_at: at("11:00"), ended_at: at("11:20") }],
+      plannedProblems: ["planned shutdown"],
+      generatedAt: new Date(at("17:00")),
+    }));
+    expect(r.items.map((i) => [i.wo.wo_number, i.stops.map((s) => s.minutes)])).toEqual([[106, [30]], [101, [47]]]);
+    expect(r.plannedStops).toBe(2);
+    expect(r.problems).toHaveLength(1);
+    expect(r.problems[0]).toMatch(/WO-918/);
+    expect(r.stopsRead).toBe(6);
+    expect(r.ordersRead).toBe(4);
+  });
 });
