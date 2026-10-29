@@ -18,6 +18,7 @@ export interface PickerPerson {
   id: string;
   full_name: string;
   department: string | null;
+  position?: string | null;
   employee_ref?: string | null;
   /** The area they are in on the day being shown, resolved by the caller. */
   currentAreaId: string | null;
@@ -59,7 +60,7 @@ export function AreaPicker<T extends PickerPerson>({
   }, [people, areaId]);
 
   const row = (p: T, isHere: boolean) => {
-    const role = roleStripe(p.department);
+    const role = roleStripe(p);
     return (
       <CommandItem
         key={p.id}

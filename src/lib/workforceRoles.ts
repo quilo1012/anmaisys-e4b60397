@@ -17,6 +17,17 @@ export interface RoleStripe {
   cls: string;
 }
 
+export interface RoleDisplayPerson {
+  role?: string | null;
+  position?: string | null;
+  department?: string | null;
+  /** Use only when the caller already knows the person came from this table. */
+  source?: "employees" | "engineers";
+}
+
+const OPERATOR: RoleStripe = { label: "Operator", short: "OP", cls: "bg-primary text-primary-foreground" };
+const ENGINEER: RoleStripe = { label: "Engineer", short: "ENG", cls: "bg-primary text-primary-foreground" };
+
 const ROLE_STRIPES: Array<RoleStripe & { match: RegExp }> = [
   { match: /supervisor/i,             label: "Supervisor",  short: "SUP",  cls: "bg-destructive text-destructive-foreground" },
   { match: /team\s*lead/i,            label: "Team Leader", short: "LEAD", cls: "bg-primary text-primary-foreground" },
@@ -28,13 +39,24 @@ const ROLE_STRIPES: Array<RoleStripe & { match: RegExp }> = [
 ];
 
 /**
- * The stripe for a department, or null when it is not one of the named roles.
+ * Shared display-only mapping for a role, position or existing person record.
+ * Explicit operator/engineer identities take precedence over broad job patterns.
+ * Other positions retain the existing first-match mapping and job-first fallback.
  *
  * First match wins, so the order above is the order of specificity: "Lab Operative"
  * has to be tested before anything that would also match "Operative".
  */
-export function roleStripe(department: string | null | undefined): RoleStripe | null {
-  if (!department) return null;
-  const hit = ROLE_STRIPES.find((r) => r.match.test(department));
+export function roleStripe(value: string | RoleDisplayPerson | null | undefined): RoleStripe | null {
+  if (!value) return null;
+  if (typeof value !== "string") {
+    if (value.source === "engineers" || /^(engineer|maintenance_manager)$/i.test(value.role ?? "")) return { ...ENGINEER };
+    if (/^operator$/i.test(value.role ?? "")) return { ...OPERATOR };
+    return roleStripe(value.position) ?? roleStripe(value.department) ?? roleStripe(value.role);
+  }
+  const name = value.trim();
+  if (/^(operator|technician\s+operator)$/i.test(name)) return { ...OPERATOR };
+  if (/^(engineer|maintenance_manager)$/i.test(name)) return { ...ENGINEER };
+  const hit = ROLE_STRIPES.find((r) => r.match.test(name));
+  if (hit?.short === "TEC" && /maintenance/i.test(name)) return { ...ENGINEER };
   return hit ? { label: hit.label, short: hit.short, cls: hit.cls } : null;
 }

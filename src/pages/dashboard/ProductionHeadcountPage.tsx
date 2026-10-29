@@ -343,9 +343,8 @@ const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; sof
 };
 
 
-/** The role mark comes off the job first, for the same reason as `isLeader`. */
-const roleOf = (person: { position?: string | null; department?: string | null }) =>
-  roleStripe(person.position) ?? roleStripe(person.department);
+/** All role marks use the shared job-first display mapping. */
+const roleOf = roleStripe;
 
 function Chip({
   name,
@@ -386,7 +385,7 @@ function Chip({
   workHours?: PlacementHours | null;
   tone: "production" | "support" | "away" | "overtime" | "roster" | "training";
   leader?: boolean;
-  /** Named role — LEAD, SUP, TEC, LAB, WH, OFF — when the department says one. */
+  /** Named role — LEAD, SUP, OP, ENG, LAB, WH, OFF — from the shared mapping. */
   role?: { short: string; label: string; cls: string } | null;
   /** True when this person is the leader *marked on this line* — their name wears
       the line's own colour, not just the leader's amber. */
