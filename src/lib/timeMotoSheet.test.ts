@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
-import { parseTimeMotoWorkbook, parseHm, parseDmy, matchNames } from "@/lib/timeMotoSheet";
+import { parseTimeMotoWorkbook, parseHm, parseDmy, matchNames, settlementsFor } from "@/lib/timeMotoSheet";
 
 const book = (rows: unknown[][]) => {
   const wb = XLSX.utils.book_new();
@@ -305,5 +305,47 @@ describe("matchNames — sheet_aliases", () => {
     const r = matchNames(["Lucas"], R);
     expect(r.matched).toEqual([]);
     expect(r.unmatched[0].reason).toBe("ambiguous");
+  });
+});
+
+describe("settlementsFor — what a hand-made match leaves on the payroll record", () => {
+  const roster = [
+    { id: "e1", full_name: "Ezaquiel Silva", sheet_aliases: null },
+    { id: "e2", full_name: "Jordan", sheet_aliases: "Jordan Welsh" },
+    { id: "e3", full_name: "Wesley Jhony", sheet_aliases: "" },
+  ];
+
+  it("renames a record to the TimeMoto spelling and remembers the sheet name", () => {
+    expect(settlementsFor({ "Ezequiel Santos": "e1" }, roster)).toEqual([
+      { employeeId: "e1", sheet_aliases: "Ezequiel Santos", full_name: "Ezequiel Santos" },
+    ]);
+  });
+
+  it("does nothing when the name and alias are already on the record", () => {
+    const r = [{ id: "e5", full_name: "Ana Costa", sheet_aliases: "Ana Costa" }];
+    expect(settlementsFor({ "Ana Costa": "e5" }, r)).toEqual([]);
+  });
+
+  it("a first-name record with a full-name alias is renamed to the TimeMoto name", () => {
+    expect(settlementsFor({ "Jordan Welsh": "e2" }, roster)).toEqual([
+      { employeeId: "e2", sheet_aliases: "Jordan Welsh", full_name: "Jordan Welsh" },
+    ]);
+  });
+
+  it("a first name alone adds an alias but never renames", () => {
+    expect(settlementsFor({ Wesley: "e3" }, roster)).toEqual([
+      { employeeId: "e3", sheet_aliases: "Wesley" },
+    ]);
+  });
+
+  it("does not rename onto a name another person already has", () => {
+    const r = [...roster, { id: "e4", full_name: "Ezequiel Santos", sheet_aliases: null }];
+    expect(settlementsFor({ "Ezequiel Santos": "e1" }, r)).toEqual([
+      { employeeId: "e1", sheet_aliases: "Ezequiel Santos" },
+    ]);
+  });
+
+  it("ignores a choice for someone no longer on the roster", () => {
+    expect(settlementsFor({ "Anyone Here": "gone" }, roster)).toEqual([]);
   });
 });

@@ -357,3 +357,50 @@ export function mergeClockRowsPerDay(rows: ReadonlyArray<ClockRow>): ClockRow[] 
   }
   return [...by.values()];
 }
+
+/**
+ * The payroll record changes a hand-made match should leave behind, so the next import
+ * matches by itself and nobody has to pick the same person again.
+ *
+ * - The sheet's spelling is added to `sheet_aliases`, so the name matches on the next
+ *   import on any device (the browser's memory of the choice does not travel).
+ * - When the sheet gives a full name (two or more words) and the record's name is
+ *   different, the record takes the sheet's spelling, so the system's name is the
+ *   TimeMoto one. A first name alone never renames anybody.
+ *
+ * Returns only what changes. A name already present (in any casing or spacing) is not
+ * added twice, and a rename that would give two people the same name is not made.
+ */
+export function settlementsFor(
+  assigned: Record<string, string>,
+  roster: { id: string; full_name: string; sheet_aliases?: string | null }[],
+): { employeeId: string; sheet_aliases: string; full_name?: string }[] {
+  const clean = (s: string) => s.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const byId = new Map(roster.map((e) => [e.id, e]));
+  const takenNames = new Set(roster.map((e) => clean(e.full_name)));
+  const out: { employeeId: string; sheet_aliases: string; full_name?: string }[] = [];
+  for (const [sheetName, employeeId] of Object.entries(assigned)) {
+    const e = byId.get(employeeId);
+    if (!e) continue;
+    const aliases = (e.sheet_aliases ?? "").split(",").map((a) => a.trim()).filter(Boolean);
+    const sheetClean = clean(sheetName);
+    if (!sheetClean) continue;
+    const hasAlias = aliases.some((a) => clean(a) === sheetClean);
+    const nextAliases = hasAlias ? aliases : [...aliases, sheetName.trim()];
+    const wantsRename = sheetName.trim().split(/\s+/).length >= 2
+      && clean(e.full_name) !== sheetClean
+      && !takenNames.has(sheetClean);
+    if (!hasAlias || wantsRename) {
+      out.push({
+        employeeId,
+        sheet_aliases: nextAliases.join(", "),
+        ...(wantsRename ? { full_name: sheetName.trim() } : {}),
+      });
+      if (wantsRename) {
+        takenNames.delete(clean(e.full_name));
+        takenNames.add(sheetClean);
+      }
+    }
+  }
+  return out;
+}
