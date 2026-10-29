@@ -43,7 +43,13 @@ function auditReferences(body: string): { reads: number; referenced: string[] } 
         if (method === "or") {
           // Includes template literals nested in arrays joined for PostgREST filters.
           for (const match of arg.getText(tree).matchAll(/(?:["'`(,])\s*([a-z_]+)\.(?:not\.)?(?:eq|neq|gt|gte|lt|lte|like|ilike|is|in)\./g)) referenced.push(match[1]);
-        } else if (ts.isStringLiteral(arg)) {
+        } else if (method === "match" && ts.isObjectLiteralExpression(arg)) {
+          for (const property of arg.properties) {
+            if (ts.isPropertyAssignment(property) && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))) {
+              referenced.push(property.name.text);
+            }
+          }
+        } else if (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg)) {
           referenced.push(...arg.text.split(",").map((s) => s.trim()).filter((s) => s !== "*"));
         }
       }
@@ -62,6 +68,13 @@ describe("audit_logs reads use only deployed columns", () => {
     }
     expect(auditReferences('let q = db.from("audit_logs").select("*"); q = q.eq("table_name", "products");').referenced).toContain("table_name");
     expect(auditReferences('db.from("audit_logs").or(`table_name.ilike.%${term}%`);').referenced).toContain("table_name");
+    expect(auditReferences('db.from("audit_logs").match({ table_name: "products" });').referenced).toContain("table_name");
+    expect(auditReferences('db.from("audit_logs").select(`id,table_name`);').referenced).toContain("table_name");
+  });
+
+  it("rejects any missing audit column, not just table_name", () => {
+    const result = auditReferences('db.from("audit_logs").select("id,missing_column").order("another_missing_column");');
+    expect(result.referenced.filter((column) => !columns.has(column))).toEqual(["id", "missing_column", "another_missing_column"].filter((column) => !columns.has(column)));
   });
 
   it("checks every current audit query, including search filters", () => {

@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Telemetry errors (29 Oct)
+- [ ] Recheck 20:58 audit error across all client queries and extend column regression; validate missing-tab presence guard and genuine-session tab generation, without database changes or publishing.
 - [x] Check every audit_logs query against the nine existing columns; useAuditLogs.ts already uses entity_type and no current source references table_name. Added auditLogsColumns.test.ts; signed-in Audit Logs loads records with HTTP 206 and no invalid-column query.
 - [x] Guard both presence lease writes in authenticatedRpc.ts using the pinned token's session_id; updated authenticatedRpc.test.ts, PresenceHeartbeat.test.tsx and aPresencaNaoBateSemTokenViva.test.tsx. All 24 focused tests pass; signed-in manager/audit navigation sends zero presence lease requests and logs zero presence warnings with the minted token; build OK. No database changes or publishing.
 

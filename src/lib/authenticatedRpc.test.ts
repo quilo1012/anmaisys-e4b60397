@@ -37,6 +37,33 @@ describe("protected RPC session pinning", () => {
       expect(rpc).not.toHaveBeenCalled();
     },
   );
+  it.each(["communication_touch_presence", "communication_end_presence"] as const)(
+    "skips %s without a tab id even with a session_id", async (name) => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      getSession.mockResolvedValue({ data: { session: { access_token: `header.${btoa(JSON.stringify({ session_id: "real-session" }))}.signature` } } });
+      try {
+        for (const args of [undefined, { p_tab_id: "" }, { p_tab_id: "   " }, { p_tab_id: null }]) {
+          await expect(authenticatedRpc(name, args as Parameters<typeof authenticatedRpc<typeof name>>[1])).rejects.toThrow("No live session");
+        }
+        expect(rpc).not.toHaveBeenCalled();
+        expect(warn).not.toHaveBeenCalled();
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+        error.mockRestore();
+      }
+    },
+  );
+  it.each(["communication_touch_presence", "communication_end_presence"] as const)(
+    "%s still sends a pinned session_id token and tab id", async (name) => {
+      const token = `header.${btoa(JSON.stringify({ session_id: "real-session" }))}.signature`;
+      getSession.mockResolvedValue({ data: { session: { access_token: token } } });
+      await authenticatedRpc(name, { p_tab_id: "real-tab" });
+      expect(rpc).toHaveBeenCalledWith(name, { p_tab_id: "real-tab" });
+      expect(setHeader).toHaveBeenCalledWith("Authorization", `Bearer ${token}`);
+    },
+  );
   it("does not require session_id for the engineer directory", async () => {
     getSession.mockResolvedValue({ data: { session: { access_token: "minted-token" } } });
     await authenticatedRpc("list_engineer_names");
