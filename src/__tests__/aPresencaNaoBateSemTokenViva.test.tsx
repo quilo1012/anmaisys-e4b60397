@@ -48,6 +48,7 @@ let shared = false;
 const { PresenceHeartbeat } = await import("@/components/chat/PresenceHeartbeat");
 
 const secondsFromNow = (s: number) => Math.floor(Date.now() / 1000) + s;
+const sessionToken = `header.${btoa(JSON.stringify({ session_id: "real-session" }))}.signature`;
 
 const wrap = (children: ReactNode) => (
   <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
@@ -71,7 +72,7 @@ afterEach(() => {
 describe("o batimento de presenca", () => {
   it("bate quando a sessao esta viva", async () => {
     getSession.mockResolvedValue({
-      data: { session: { access_token: "jwt", expires_at: secondsFromNow(3600) } },
+      data: { session: { access_token: sessionToken, expires_at: secondsFromNow(3600) } },
     });
 
     render(wrap(<PresenceHeartbeat />));
@@ -107,7 +108,7 @@ describe("o batimento de presenca", () => {
 
   it("volta a bater assim que a token e reposta", async () => {
     getSession.mockResolvedValueOnce({ data: { session: null } }).mockResolvedValue({
-      data: { session: { access_token: "jwt-nova", expires_at: secondsFromNow(3600) } },
+      data: { session: { access_token: sessionToken, expires_at: secondsFromNow(3600) } },
     });
 
     render(wrap(<PresenceHeartbeat />));
@@ -123,7 +124,7 @@ describe("o batimento de presenca", () => {
   it("nao pergunta sequer pela sessao num tablet partilhado", async () => {
     shared = true;
     getSession.mockResolvedValue({
-      data: { session: { access_token: "jwt", expires_at: secondsFromNow(3600) } },
+      data: { session: { access_token: sessionToken, expires_at: secondsFromNow(3600) } },
     });
 
     render(wrap(<PresenceHeartbeat />));

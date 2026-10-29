@@ -41,7 +41,7 @@ beforeEach(() => {
   // testes sao sobre o ritmo e o alcance do batimento, por isso a sessao esta sa.
   getSession.mockReset();
   getSession.mockResolvedValue({
-    data: { session: { access_token: "jwt", expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+    data: { session: { access_token: `header.${btoa(JSON.stringify({ session_id: "real-session" }))}.signature`, expires_at: Math.floor(Date.now() / 1000) + 3600 } },
   });
   removeChannel.mockReset(); onChange = null; user = { id: "u-me" }; tablet = false;
   try { sessionStorage.clear(); } catch { /* ignore */ }
@@ -52,6 +52,26 @@ const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve();
 afterEach(() => { vi.useRealTimers(); });
 
 describe("PresenceHeartbeat", () => {
+  it("makes no presence call and logs no error for a token without session_id", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    getSession.mockResolvedValue({ data: { session: { access_token: `header.${btoa(JSON.stringify({ role: "authenticated" }))}.signature` } } });
+    const { unmount } = mount();
+    try {
+      await act(async () => { await vi.advanceTimersByTimeAsync(PRESENCE_HEARTBEAT_MS * 2); });
+      window.dispatchEvent(new Event("online"));
+      window.dispatchEvent(new Event("pagehide"));
+      await act(async () => { await flush(); });
+      expect(rpc).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      unmount();
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
   it("says this tab is open at once, then every 60 seconds, always with the same tab id", async () => {
     mount();
     await act(async () => { await flush(); });
