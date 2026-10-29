@@ -31,7 +31,8 @@ export async function authenticatedRpc<Name extends keyof Functions>(
   // Check the very token pinned below, not an earlier getSession() snapshot.
   if ((name === "communication_touch_presence" || name === "communication_end_presence")
     && !hasSessionId(session.access_token)) {
-    return { data: null, error: null };
+    // PresenceHeartbeat/endMyPresence already treat this local skip silently.
+    throw new NoLiveSessionError();
   }
   return supabase.rpc(name, args).setHeader("Authorization", `Bearer ${session.access_token}`);
 }

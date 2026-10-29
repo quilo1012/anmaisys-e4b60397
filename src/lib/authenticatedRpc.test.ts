@@ -33,7 +33,7 @@ describe("protected RPC session pinning", () => {
   it.each(["communication_touch_presence", "communication_end_presence"] as const)(
     "silently skips %s without a session_id claim", async (name) => {
       getSession.mockResolvedValue({ data: { session: { access_token: `header.${btoa(JSON.stringify({ role: "authenticated" }))}.signature` } } });
-      await expect(authenticatedRpc(name, { p_tab_id: "tab" })).resolves.toEqual({ data: null, error: null });
+      await expect(authenticatedRpc(name, { p_tab_id: "tab" })).rejects.toThrow("No live session");
       expect(rpc).not.toHaveBeenCalled();
     },
   );
