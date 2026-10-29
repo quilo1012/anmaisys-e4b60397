@@ -55,7 +55,8 @@ export function roleStripe(value: string | RoleDisplayPerson | null | undefined)
   }
   const name = value.trim();
   if (/^(operator|technician\s+operator)$/i.test(name)) return { ...OPERATOR };
-  if (/^(engineer|maintenance_manager)$/i.test(name) || /maintenance/i.test(name)) return { ...ENGINEER };
+  if (/^(engineer|maintenance_manager)$/i.test(name)) return { ...ENGINEER };
   const hit = ROLE_STRIPES.find((r) => r.match.test(name));
+  if (hit?.short === "TEC" && /maintenance/i.test(name)) return { ...ENGINEER };
   return hit ? { label: hit.label, short: hit.short, cls: hit.cls } : null;
 }

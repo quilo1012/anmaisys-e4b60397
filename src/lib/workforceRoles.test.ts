@@ -37,6 +37,7 @@ describe("workforce display labels", () => {
     ["Supervisor", "SUP"], ["Team Leader", "LEAD"], ["Technician", "TEC"],
     ["Lab Operative", "LAB"], ["Blender", "LAB"], ["Quality", "QA"],
     ["Warehouse", "WH"], ["Office", "OFF"], ["admin", "OFF"],
+    ["Maintenance Supervisor", "SUP"],
   ])("preserves the existing label for %s", (position, short) => {
     expect(roleStripe(position)?.short).toBe(short);
   });
