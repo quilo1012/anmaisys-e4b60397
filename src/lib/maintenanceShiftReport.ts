@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, londonHM, type ShiftCode } from "@/lib/shifts";
 import { toExclusionIntervals, exclusionOverlapMs } from "@/lib/downtimeExclusions";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
 
 /** Stops at or under this many minutes stay off the report. Unchanged from before. */
@@ -44,6 +45,7 @@ export interface ReportWorkOrder {
   description: string | null;
   resolution_notes: string | null;
   status: string;
+  wo_type?: string | null;
 }
 
 export interface ReportEvent {
@@ -52,6 +54,7 @@ export interface ReportEvent {
   stopped_at: string;
   resumed_at: string | null;
   duration_minutes: number | null;
+  stopped_reason?: string | null;
 }
 
 export interface ReportExclusion {
@@ -117,12 +120,15 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     exclByWo.get(x.work_order_id)!.push(x);
   }
 
-  // A row read twice is still one stop.
-  const events = [...new Map(input.events.map((e) => [e.id, e])).values()];
+  // A row read twice is still one stop; and the file lists in the order the line
+  // stopped, whatever order the rows arrived in.
+  const events = [...new Map(input.events.map((e) => [e.id, e])).values()]
+    .sort((x, y) => new Date(x.stopped_at).getTime() - new Date(y.stopped_at).getTime());
 
   const stopsByWo = new Map<string, ReportStop[]>();
   let stopsRead = 0;
   let plannedStops = 0;
+  const touched = new Set<string>();
   for (const e of events) {
     const s = new Date(e.stopped_at).getTime();
     const end = e.resumed_at ? new Date(e.resumed_at).getTime() : nowMs;
@@ -130,12 +136,26 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
       problems.push(`A stop has a time that cannot be read (event ${e.id.slice(0, 8)}).`);
       continue;
     }
+    const wo = woById.get(e.work_order_id);
+    // Warehouse service never stops a line; the Shift Breakdown leaves it out too.
+    if (wo?.wo_type === "warehouse_service") continue;
+    // An end before its start (two such rows in production, WO 498 and WO 918) is
+    // not a short stop, it is a broken one. The view floors it at zero; here it is
+    // named, because a report that skips it says less than the order does.
+    if (e.resumed_at && end < s) {
+      if (s >= winStart && s < winEnd) {
+        problems.push(
+          `WO-${wo?.wo_number ?? "?"}: ends ${londonHM(new Date(end))}, before it starts ${londonHM(new Date(s))}. Not counted.`,
+        );
+      }
+      continue;
+    }
     const from = Math.max(s, winStart);
     const to = Math.min(end, winEnd, nowMs);
     if (!(to > from)) continue;
     stopsRead++;
+    if (wo) touched.add(wo.id);
 
-    const wo = woById.get(e.work_order_id);
     if (!wo) {
       problems.push(`A stop at ${londonHM(new Date(s))} belongs to an order that could not be read.`);
       continue;
@@ -148,7 +168,9 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
         );
       }
     }
-    if (planned.has(clean(wo.description).toLowerCase())) {
+    // Same tests as the rest of the app: the view's `lower(name) = lower(description)`
+    // for a planned problem, and the Shift Breakdown's "no planned shift" reason.
+    if (planned.has((wo.description ?? "").toLowerCase()) || isNoPlannedShift(e.stopped_reason, null)) {
       plannedStops++;
       continue;
     }
@@ -171,7 +193,7 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     }
   }
 
-  const ordersRead = new Set(events.filter((e) => woById.has(e.work_order_id)).map((e) => e.work_order_id)).size;
+  const ordersRead = touched.size;
   const isDay = window.shift === "day";
   const lines: string[] = [
     "**Maintenance:**",
@@ -229,9 +251,11 @@ export async function fetchMaintenanceShiftReport(now: Date = new Date()): Promi
   const events = await read("the line stoppages", fetchAllRows<ReportEvent>({
     range: (from, to) =>
       db.from("downtime_events")
-        .select("id, work_order_id, stopped_at, resumed_at, duration_minutes")
+        .select("id, work_order_id, stopped_at, resumed_at, duration_minutes, stopped_reason")
         .lt("stopped_at", endIso)
-        .or(`resumed_at.is.null,resumed_at.gt.${startIso}`)
+        // The last clause brings in a stop that STARTED in the shift even when
+        // its end was written before its start, so the check above can name it.
+        .or(`resumed_at.is.null,resumed_at.gt.${startIso},stopped_at.gte.${startIso}`)
         .order("stopped_at", { ascending: true })
         .order("id", { ascending: true })
         .range(from, to),
@@ -241,7 +265,7 @@ export async function fetchMaintenanceShiftReport(now: Date = new Date()): Promi
   const [wos, exclusions, plannedRows] = await Promise.all([
     read("the work orders", fetchRowsByIds<any>(ids, (chunk, from, to) =>
       db.from("work_orders")
-        .select("id, wo_number, line_at_time, description, resolution_notes, status, line:lines!work_orders_line_id_fkey(name)")
+        .select("id, wo_number, line_at_time, description, resolution_notes, status, wo_type, line:lines!work_orders_line_id_fkey(name)")
         .in("id", chunk).order("id").range(from, to))),
     read("the downtime exclusions", fetchRowsByIds<ReportExclusion>(ids, (chunk, from, to) =>
       db.from("wo_downtime_exclusions")
