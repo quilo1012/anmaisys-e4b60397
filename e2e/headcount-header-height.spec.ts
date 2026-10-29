@@ -100,6 +100,36 @@ for (const [w, h] of [[1005, 600], [390, 844]] as const) {
   });
 }
 
+// Um telemóvel, com o aviso das notificações já arrumado (é dispensável e fica-se assim).
+// Em 29/10 a primeira coluna começava a 629px num ecrã de 812: o rodapé tapava o resto e
+// o primeiro nome ficava fora. As seis contagens passaram a uma fila só, e o "Day shift"
+// por cima delas sai quando o board está sozinho — a banda já o diz.
+test("on a 390×844 phone the first line starts within 580px, with the six counts on one row", async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem("an_push_banner_snooze_until", String(Date.now() + 3600e3)));
+  await open(page, 390, 844);
+  const px = await headerHeight(page);
+  console.log(`header 390x844: ${px}px`);
+  await page.screenshot({ path: "e2e/.results/headcount-header-390.png" });
+  expect(px).toBeLessThanOrEqual(580);
+  expect(await sideways(page)).toBeLessThanOrEqual(0);
+  const tops = await page.locator(".headcount-on-screen .headcount-kpis > button, .headcount-on-screen .headcount-kpis > div")
+    .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  expect(tops).toHaveLength(6);
+  expect(new Set(tops).size).toBe(1);
+  for (const b of await page.locator(".headcount-on-screen .headcount-kpis > button").all()) {
+    expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  for (const name of ["Day", "Night", "Both"]) {
+    expect((await page.getByRole("tab", { name }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  // Sozinho, o board não repete "Day shift" por baixo da banda; em Both volta, porque é
+  // o que distingue os dois.
+  await expect(page.locator(".headcount-on-screen").getByRole("heading", { name: "Day shift" })).toBeHidden();
+  await page.getByRole("tab", { name: "Both" }).click();
+  await expect(page.locator(".headcount-on-screen").getByRole("heading", { name: "Day shift" })).toBeVisible();
+  await expect(page.locator(".headcount-on-screen").getByRole("heading", { name: "Night shift" })).toBeVisible();
+});
+
 test("Both sets the two boards side by side without spilling", async ({ page }) => {
   await open(page, 1920, 1080);
   await page.getByRole("tab", { name: "Both" }).click();

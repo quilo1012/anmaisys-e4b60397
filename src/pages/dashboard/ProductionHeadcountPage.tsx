@@ -679,10 +679,12 @@ function HeaderAction({
 }
 
 function KpiPill({
-  icon: Icon, label, value, tone, highlight, valueTone, onClick, jumpTo,
+  icon: Icon, label, shortLabel, value, tone, highlight, valueTone, onClick, jumpTo,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string; value: number; tone: string; highlight?: boolean; valueTone?: string;
+  /** What fits a sixth of a phone; the full label stays the accessible name. */
+  shortLabel?: string;
   /** Takes the reader to the column or block the figure counts. */
   onClick?: () => void;
   /** What the jump lands on, for the tooltip and the accessible name. */
@@ -690,14 +692,26 @@ function KpiPill({
 }) {
   const body = (
     <>
-      <Icon className={cn("h-4 w-4 shrink-0", highlight ? "" : "text-muted-foreground")} />
-      <div className="flex flex-col items-start">
-        <span className={cn("font-figure text-xl font-bold leading-none tabular-nums", valueTone)}>{value}</span>
-        <span className="mt-0.5 text-2xs font-medium text-muted-foreground">{label}</span>
+      {/* On a phone the six share one row, a figure over its word, and the icon is the
+          first thing that does not fit. */}
+      <Icon className={cn("hidden h-4 w-4 shrink-0 sm:block", highlight ? "" : "text-muted-foreground")} />
+      <div className="flex flex-col items-center sm:items-start">
+        <span className={cn("font-figure text-lg font-bold leading-none tabular-nums sm:text-xl", valueTone)}>{value}</span>
+        <span className="mt-0.5 text-[10px] font-medium leading-tight text-muted-foreground sm:text-2xs">
+          {shortLabel ? (
+            <>
+              <span className="sm:hidden">{shortLabel}</span>
+              <span className="hidden sm:inline">{label}</span>
+            </>
+          ) : label}
+        </span>
       </div>
     </>
   );
-  const look = cn("flex items-center gap-2 whitespace-nowrap", highlight && cn(tone, "rounded-md px-2 py-1"));
+  const look = cn(
+    "flex min-h-11 min-w-0 items-center justify-center gap-2 whitespace-nowrap sm:min-h-0 sm:justify-start",
+    highlight && cn(tone, "rounded-md px-2 py-1"),
+  );
   if (!onClick) return <div className={look}>{body}</div>;
   // A number that says "5 overtime" is a question — who? — and the answer is a column
   // two screens to the right. Pressing the figure goes there.
@@ -707,7 +721,7 @@ function KpiPill({
       onClick={onClick}
       title={`Go to ${jumpTo ?? label}`}
       aria-label={`${value} ${label} — go to ${jumpTo ?? label}`}
-      className={cn(look, "-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:pointer-events-none")}
+      className={cn(look, "rounded-md px-0.5 py-1 text-center hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring print:pointer-events-none sm:-mx-1.5 sm:-my-1 sm:px-1.5 sm:text-left")}
     >
       {body}
     </button>
@@ -720,11 +734,18 @@ function ShiftBoard({
   areas: allAreas,
   canManage,
   onSync,
+  alone,
 }: {
   onDate: string;
   shift: ShiftKey;
   areas: HeadcountArea[];
   canManage: boolean;
+  /**
+   * The only board on the screen. On a phone its "Day shift" heading is then a row
+   * saying what the band above already says, so it goes; in Both the two boards stack
+   * and the heading is what tells them apart.
+   */
+  alone?: boolean;
   /**
    * Opens the SharePoint sync for this board's sheet, from the "not imported" notice.
    * Absent where the band's sync would read the other board's sheet — in Both, it reads
@@ -1248,7 +1269,7 @@ function ShiftBoard({
           counted the same way; they are just set in a line instead of in boxes. */}
       <div className={cn("rounded-xl border bg-card border-l-[3px]", look.rule)}>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-3 py-2">
-          <div className="flex items-center gap-2">
+          <div className={cn("items-center gap-2", alone ? "hidden sm:flex" : "flex")}>
             <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md", look.chip)}>
               <ShiftIcon className="h-4 w-4" />
             </div>
@@ -1262,9 +1283,9 @@ function ShiftBoard({
           {/* O número da folha — Total staff in Production — uma vez, grande, e contra o
               rota. Estava duas vezes nesta barra ("57 / 40 on the rota" e "57 total staff
               in production"), e a segunda lia-se como outra coisa. */}
-          <div className="headcount-summary shrink-0 sm:border-l sm:pl-4">
+          <div className="headcount-summary w-full shrink-0 sm:w-auto sm:border-l sm:pl-4">
             <div className="flex items-baseline gap-2">
-              <b className={cn("font-figure text-3xl font-extrabold leading-none tabular-nums", look.ink)}>{totalStaff}</b>
+              <b className={cn("font-figure text-2xl font-extrabold leading-none tabular-nums sm:text-3xl", look.ink)}>{totalStaff}</b>
               <span className="whitespace-nowrap text-sm font-semibold leading-tight">
                 total staff in production
                 <span className="ml-1 font-normal text-muted-foreground">
@@ -1281,7 +1302,9 @@ function ShiftBoard({
           </div>
           {/* `headcount-kpis`: the print sheet sets these in one row. See index.css.
               Como se divide o número de cima, e o que fica fora dele. */}
-          <div className="headcount-kpis flex min-w-0 flex-1 basis-80 flex-wrap items-center gap-x-6 gap-y-1.5 sm:border-l sm:pl-4">
+          {/* A phone gets them as one row of six, 44px tall, instead of two rows that
+              wrapped wherever the words ran out. */}
+          <div className="headcount-kpis grid w-full grid-cols-6 gap-0.5 sm:flex sm:w-auto sm:min-w-0 sm:flex-1 sm:basis-80 sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-1.5 sm:border-l sm:pl-4">
             <KpiPill icon={Factory} label="On lines" value={onLines} tone="" onClick={() => jumpTo("production")} jumpTo="the lines" />
             <KpiPill icon={Wrench} label="Support" value={support} tone="" onClick={() => jumpTo("support")} jumpTo="Support" />
             <span aria-hidden className="hidden h-7 w-px bg-border sm:block" />
@@ -1294,6 +1317,7 @@ function ShiftBoard({
             <KpiPill
               icon={UserX}
               label={noCrewUnplaced.length > 0 ? `Unplaced · ${noCrewUnplaced.length} no crew` : "Unplaced"}
+              shortLabel="Unplaced"
               value={trayPeople.length}
               tone=""
               valueTone={trayPeople.length ? "text-warning-strong" : "text-muted-foreground"}
@@ -2188,7 +2212,7 @@ export default function ProductionHeadcountPage() {
             {/* On a phone the three boards share the band's width, 44px tall, so a thumb
                 hits the one it means; from 640px up they are the compact pill they were. */}
             <Tabs value={view} onValueChange={(v) => setView(v as ViewKey)} className="w-full print:hidden sm:w-auto">
-              <TabsList className="h-12 w-full bg-white/10 p-1 text-white/70 sm:h-9 sm:w-auto">
+              <TabsList className="h-[3.25rem] w-full bg-white/10 p-1 text-white/70 sm:h-9 sm:w-auto">
                 {/* Two boards, not four. Day carries everybody whose shift runs while the
                     lines do — Mon–Thu, Fri–Mon and the warehouse — which is how the
                     factory's own sheets are drawn. Each card says which crew. */}
@@ -2196,7 +2220,7 @@ export default function ProductionHeadcountPage() {
                   <TabsTrigger
                     key={v}
                     value={v}
-                    className="h-10 flex-1 px-3 text-sm text-white/75 sm:h-7 sm:flex-none sm:text-xs focus-visible:ring-white/70 focus-visible:ring-offset-0 data-[state=inactive]:hover:text-white data-[state=active]:bg-white data-[state=active]:text-[hsl(var(--section))]"
+                    className="h-11 flex-1 px-3 text-sm text-white/75 sm:h-7 sm:flex-none sm:text-xs focus-visible:ring-white/70 focus-visible:ring-offset-0 data-[state=inactive]:hover:text-white data-[state=active]:bg-white data-[state=active]:text-[hsl(var(--section))]"
                   >
                     {v === "Split" ? "Both" : v}
                   </TabsTrigger>
@@ -2338,7 +2362,7 @@ export default function ProductionHeadcountPage() {
           <ShiftBoard onDate={date} shift="Night" areas={areas} canManage={canManage} />
         </div>
       ) : (
-        <ShiftBoard onDate={date} shift={view} areas={areas} canManage={canManage} onSync={openSync} />
+        <ShiftBoard onDate={date} shift={view} areas={areas} canManage={canManage} onSync={openSync} alone />
       )}
 
       {/* The board is today; these two are the period it adds up to. Kept on the same
