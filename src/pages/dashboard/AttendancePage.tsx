@@ -27,7 +27,7 @@ import { currentShift } from "@/lib/operationalShift";
 import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { ClockReconciliation } from "@/components/workforce/ClockReconciliation";
-import { parseTimeMotoWorkbook, matchNames, mergeClockRowsPerDay, type TimeMotoParse } from "@/lib/timeMotoSheet";
+import { parseTimeMotoWorkbook, matchNames, mergeClockRowsPerDay, settlementsFor, type TimeMotoParse } from "@/lib/timeMotoSheet";
 import { splitAbsences } from "@/lib/absenceKind";
 
 
@@ -328,6 +328,18 @@ export default function AttendancePage() {
       // Remembered only once the import went through, so a choice made for a file that
       // then failed to write does not come back pre-approved next week.
       writeAssigned(assigned);
+      // The choices are written to the payroll records, so the next import matches
+      // these people by itself. A failure here does not undo the import.
+      const settled = settlementsFor(assigned, roster);
+      let renamed = 0;
+      for (const change of settled) {
+        const { error: upErr } = await supabase.from("employees")
+          .update({ sheet_aliases: change.sheet_aliases, ...(change.full_name ? { full_name: change.full_name } : {}) })
+          .eq("id", change.employeeId);
+        if (upErr) toast.error(`Could not save the TimeMoto name for one employee: ${upErr.message}`);
+        else if (change.full_name) renamed++;
+      }
+      if (renamed > 0) qc.invalidateQueries({ queryKey: ["attendance-roster"] });
       toast.success(`Imported ${rows.length} day${rows.length === 1 ? "" : "s"}`);
       // Marked as chosen: the default-period query writes `from`/`to` from a
       // `periodTouched` it captured in its own closure, and without this the next
