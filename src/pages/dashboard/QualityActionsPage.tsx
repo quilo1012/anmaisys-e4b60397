@@ -28,7 +28,7 @@ import { QualityTemplateImportDialog } from "@/components/QualityTemplateImportD
 import { ComboboxInput } from "@/components/ComboboxInput";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -53,6 +53,7 @@ import { ActionScore } from "@/components/quality/ActionScore";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { filterByDomain, domainOf, safetyFormBlockers, type ActionDomainFilter } from "@/lib/actionDomain";
 import { onlyProduction, setAside } from "@/lib/actionVerdict";
+import { reportBlocker } from "@/lib/reportReadiness";
 import { priorityDisplay, priorityRank, priorityWeight } from "@/lib/scPriority";
 import { buildQualityActionPayload } from "@/lib/qualityActionPayload";
 
@@ -140,14 +141,18 @@ async function batchSkusFor(actions: QualityReportAction[]) {
       .filter((b): b is string => !!b),
   ));
   if (batches.length === 0) return [];
-  const { data: items } = await supabase
+  // A failed read here used to come back as "no SKU for this batch" — an empty cell
+  // that looks like a decision. It now stops the workbook instead.
+  const { data: items, error: itemsErr } = await supabase
     .from("production_items").select("batch_code, sku_id").in("batch_code", batches);
+  if (itemsErr) throw itemsErr;
   const rows = (items ?? [])
     .filter((r): r is { batch_code: string; sku_id: string } => !!r.batch_code && !!r.sku_id);
   const ids = Array.from(new Set(rows.map((r) => r.sku_id)));
   if (ids.length === 0) return [];
-  const { data: skus } = await supabase
+  const { data: skus, error: skusErr } = await supabase
     .from("sku_products").select("id, code, name").in("id", ids);
+  if (skusErr) throw skusErr;
   const byId = new Map((skus ?? []).map((p) => [p.id, p]));
   const out: { batch: string; code: string; name: string }[] = [];
   for (const r of rows) {
@@ -216,7 +221,7 @@ export function QualityActionsView() {
   // Points on this screen are charged, so they wait for the attribution table. An
   // empty exclusion set means "everything counts", which is a real answer and not a
   // loading state — see useLeaderAttribution.
-  const { excluded, ready: attributionReady } = useLeaderAttribution();
+  const { excluded, ready: attributionReady, failed: attributionFailed } = useLeaderAttribution();
 
   const { data: qOpts } = useQualityOptions();
   const LABELS = qOpts?.labels ?? [...QUALITY_LABELS];
@@ -378,7 +383,7 @@ export function QualityActionsView() {
     [skuCatalog],
   );
   const skuName = skuByCode.get(form.sku.trim().toUpperCase());
-  const { data: allActions = [] } = useQuery({
+  const { data: allActions = [], status: actionsStatus } = useQuery({
     queryKey: ["quality_actions", from, to],
     queryFn: async () => {
       const window = shiftDateFetchRange(from, to);
@@ -714,7 +719,20 @@ export function QualityActionsView() {
     return { header, body };
   };
 
+  /**
+   * Every export is built from `filtered`, and `filtered` is `[]` while the actions
+   * are loading or after their read failed — a file with no rows, signed with the
+   * period, that reads as a quiet period. Points also need the attribution table:
+   * without it every Maintenance and GMP action would be charged to the leader.
+   */
+  const exportBlocked = () => reportBlocker([
+    { what: "the quality actions", status: actionsStatus },
+    { what: "the leader attribution list", status: attributionReady ? "success" : attributionFailed ? "error" : "pending" },
+  ]);
+
   const exportCSV = () => {
+    const blocked = exportBlocked();
+    if (blocked) { toast.error(blocked); return; }
     const { header, body } = exportRows();
     const csv = [header, ...body].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -729,14 +747,21 @@ export function QualityActionsView() {
     generatedBy: profile?.name || "—",
     // The PDF shares this object and ignores the field.
     skuCatalog,
+    excludedLabels: excluded,
   });
-  const printPDF = () => { generateQualityReportPDF(reportInput()).catch(() => toast.error("Could not generate PDF")); };
+  const printPDF = () => {
+    const blocked = exportBlocked();
+    if (blocked) { toast.error(blocked); return; }
+    generateQualityReportPDF(reportInput()).catch(() => toast.error("Could not generate PDF"));
+  };
   /**
    * Async only for the batch lookup: the workbook recovers the SKU and the batch an
    * operator wrote into a SafetyCulture note, and a note names a BATCH, which is not
    * a SKU — only `production_items` knows what a batch was actually run as.
    */
   const fullExcel = async () => {
+    const blocked = exportBlocked();
+    if (blocked) { toast.error(blocked); return; }
     try {
       const actions = filtered.map(reportAction);
       generateQualityReportExcel({ ...reportInput(), actions, batchSkus: await batchSkusFor(actions) });
@@ -749,19 +774,28 @@ export function QualityActionsView() {
     // "Today" is the factory's day, not the calendar's: at 02:00 the night crew is
     // still working the day before, and the report they ask for is theirs.
     const day = getCurrentFactoryShift().sessionDate;
+    const blocked = reportBlocker([
+      { what: "the leader attribution list", status: attributionReady ? "success" : attributionFailed ? "error" : "pending" },
+    ]);
+    if (blocked) { toast.error(blocked); return; }
     try {
       const window = shiftDateFetchRange(day, day);
       const { data, error } = await supabase.from("quality_actions").select("*")
         .gte("recorded_at", window.gte).lte("recorded_at", window.lte)
         .order("recorded_at", { ascending: false });
       if (error) throw error;
-      const rows = ((data ?? []) as unknown as QualityAction[])
-        .filter((a) => shiftSessionDate(a.recorded_at, a.shift) === day);
+      // Production's actions only, as the screen and the period report count them.
+      // Facilities and Goods In findings were printed here and nowhere else.
+      const rows = onlyProduction(((data ?? []) as unknown as QualityAction[])
+        .filter((a) => shiftSessionDate(a.recorded_at, a.shift) === day));
       if (rows.length === 0) { toast.info("No quality actions logged today"); return; }
       await generateQualityReportPDF({
         actions: rows.map(reportAction),
-        periodLabel: `Daily report · ${format(new Date(), "dd/MM/yyyy")}`,
+        // The factory day the rows were read for. At 02:00 the calendar says
+        // tomorrow while the rows are still the night that began yesterday.
+        periodLabel: `Daily report · ${format(parseISO(day), "dd/MM/yyyy")}`,
         generatedBy: profile?.name || "—",
+        excludedLabels: excluded,
       });
     } catch { toast.error("Could not generate the daily report"); }
   };

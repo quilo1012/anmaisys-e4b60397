@@ -191,8 +191,17 @@ const INK = [20, 30, 60] as const;
 const HEAD_FILL = [30, 41, 59] as const;
 const ZEBRA = [245, 247, 250] as const;
 
-export async function generateQualityReportPDF(input: QualityReportInput) {
-  const { actions, periodLabel, generatedBy } = input;
+export async function generateQualityReportPDF(
+  input: QualityReportInput & {
+    /**
+     * Labels that are not the leader's to answer for (`useLeaderAttribution`).
+     * REQUIRED: leaderTracking's default is "nothing excluded", and with it the PDF
+     * charged leaders for Maintenance and GMP actions the screen does not charge.
+     */
+    excludedLabels: Set<string>;
+  },
+) {
+  const { actions, periodLabel, generatedBy, excludedLabels } = input;
   // Landscape: the log carries up to eleven columns, and portrait squeezed Notes to
   // a sliver while wrapping Leader and Department onto two lines each.
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -225,7 +234,7 @@ export async function generateQualityReportPDF(input: QualityReportInput) {
   // domains with no filter. The action log further down is unaffected: that is the
   // raw record, not a ranking.
   const qualityOnly = actions.filter((a) => a.domain !== "safety");
-  const tracking = leaderTracking(qualityOnly);
+  const tracking = leaderTracking(qualityOnly, excludedLabels);
   doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...INK);
   doc.text("Summary", margin, y);
   y += 5;
