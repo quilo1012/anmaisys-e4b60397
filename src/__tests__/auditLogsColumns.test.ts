@@ -74,7 +74,7 @@ describe("audit_logs reads use only deployed columns", () => {
 
   it("rejects any missing audit column, not just table_name", () => {
     const result = auditReferences('db.from("audit_logs").select("id,missing_column").order("another_missing_column");');
-    expect(result.referenced.filter((column) => !columns.has(column))).toEqual(["id", "missing_column", "another_missing_column"].filter((column) => !columns.has(column)));
+    expect(result.referenced.filter((column) => !columns.has(column)).sort()).toEqual(["another_missing_column", "missing_column"]);
   });
 
   it("checks every current audit query, including search filters", () => {
