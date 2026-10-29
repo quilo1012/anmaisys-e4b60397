@@ -44,7 +44,7 @@ const action = (i: number, over: Partial<QualityReportAction> = {}): QualityRepo
 
 const render = async (actions: QualityReportAction[]) => {
   mockPdfs.length = 0;
-  await generateQualityReportPDF({ actions, periodLabel: "Period: 22/05/2026 — 19/08/2026", generatedBy: "Daniel Quiló" });
+  await generateQualityReportPDF({ actions, periodLabel: "Period: 22/05/2026 — 19/08/2026", generatedBy: "Daniel Quiló", excludedLabels: new Set() });
   return mockPdfs[mockPdfs.length - 1];
 };
 
@@ -80,5 +80,30 @@ describe("generateQualityReportPDF — the footer of a filed document", () => {
     const pdf = await render([action(0), action(1, { action_no: "AC-6179", severity: "high" })]);
     expect(pdf).toContain("(Action #)");
     expect(pdf).toContain("(Severity)");
+  });
+});
+
+describe("generateQualityReportPDF — the leader table charges what the screen charges", () => {
+  // `quality_label_attribution` seeds Maintenance and GMP as not the leader's to answer
+  // for. The screen's QualityTrackingByLeader passes that set to leaderTracking; the PDF
+  // called it with none, so a machine failure cost the leader points on paper only.
+  const machineFault = action(1, { leader_name: "Marcio", severity: "high", labels: ["Maintenance"] });
+
+  it("does not charge a leader for a label the attribution table excludes", async () => {
+    mockPdfs.length = 0;
+    await generateQualityReportPDF({
+      actions: [machineFault], periodLabel: "p", generatedBy: "t", excludedLabels: new Set(["maintenance"]),
+    });
+    const pdf = mockPdfs[mockPdfs.length - 1];
+    expect(pdf).toContain("Still open: 0");
+    expect(pdf).not.toContain("3 pts");
+  });
+
+  it("still charges it when nothing is excluded, so the test above is about the set", async () => {
+    mockPdfs.length = 0;
+    await generateQualityReportPDF({ actions: [machineFault], periodLabel: "p", generatedBy: "t", excludedLabels: new Set() });
+    const pdf = mockPdfs[mockPdfs.length - 1];
+    expect(pdf).toContain("Still open: 1");
+    expect(pdf).toContain("3 pts");
   });
 });

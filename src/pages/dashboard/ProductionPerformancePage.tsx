@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Medal, BarChart3, Printer, AlertTriangle, Download } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { generatePerformanceReportPDF } from "@/lib/performanceReport";
+import { reportBlocker } from "@/lib/reportReadiness";
 import { aggregateLines, buildDailyHistory } from "@/lib/productionHistory";
 import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shiftDateFetchRange } from "@/lib/shifts";
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
@@ -312,7 +313,7 @@ export default function ProductionPerformancePage() {
   // in a different column: the sync writes the fault into `title` and leaves
   // `description` for the product and batch, so a report reading `description` alone
   // printed a page of dashes. See `actionSummary`.
-  const { data: periodActions = [] } = useQuery({
+  const { data: periodActions = [], status: periodActionsStatus } = useQuery({
     queryKey: ["perf-quality-actions", range.from, range.to, shift, leaderFilter],
     // Live feed: keep the panel current as actions are opened/closed elsewhere.
     refetchInterval: 15_000,
@@ -339,7 +340,7 @@ export default function ProductionPerformancePage() {
     },
   });
 
-  const { data: queryResult } = useQuery<{ sessions: SessionAgg[]; ragRows: RagRow[] }>({
+  const { data: queryResult, status: perfStatus } = useQuery<{ sessions: SessionAgg[]; ragRows: RagRow[] }>({
     queryKey: ["oee", range.from, range.to, shift, lineFilter, leaderFilter],
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
@@ -683,19 +684,38 @@ export default function ProductionPerformancePage() {
       generatedBy: profile?.name || "—",
     }, { output });
   };
+  /**
+   * The report is drawn from `sessions`, `ragRows` and `periodActions`, and each of
+   * them is `[]` until its read succeeds. Clicked before that, or after a failure,
+   * the PDF came out with no lines, a 0 target, a 0 actual and no quality actions —
+   * a well-formed page saying the factory made nothing. It now refuses instead.
+   */
+  const reportReady = () => {
+    const blocked = reportBlocker([
+      { what: "the production figures", status: perfStatus },
+      { what: "the quality actions", status: periodActionsStatus },
+    ]);
+    if (blocked) toast.error(blocked);
+    return !blocked;
+  };
   // Preview first: a data: URI renders in the iframe even inside a sandboxed
   // frame (the Lovable editor), where a blob: URL is blocked by Chrome.
   const printReport = async () => {
+    if (!reportReady()) return;
     try {
       const url = await buildReport("dataurl");
       if (url) setPreviewUrl(url as string);
     } catch { toast.error("Could not generate the performance report"); }
   };
-  const downloadReport = async () => { try { await buildReport("save"); } catch { toast.error("Could not download the report"); } };
+  const downloadReport = async () => {
+    if (!reportReady()) return;
+    try { await buildReport("save"); } catch { toast.error("Could not download the report"); }
+  };
   // Printing: open the PDF in a new tab (top-level blob nav is allowed and the
   // browser's PDF viewer has a print button). Falls back to download if pop-ups
   // are blocked.
   const printInTab = async () => {
+    if (!reportReady()) return;
     try {
       const url = await buildReport("bloburl");
       const w = url ? window.open(url as string, "_blank") : null;
