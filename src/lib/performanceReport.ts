@@ -89,6 +89,16 @@ const RED_BG: RGB = [254, 226, 226], RED_TX: RGB = [185, 28, 28];
 
 const n = (v: number) => Math.round(v).toLocaleString("en-US");
 const signed = (v: number) => (v >= 0 ? "+" : "") + n(v);
+
+/**
+ * A row with no plan has no efficiency. `aggregateLines` keeps a line that produced
+ * without a plan (target 0, eff 0) and the screen's totals leave it out; printed as
+ * "0%" in red it read as the worst line of the day, when the truth is that there was
+ * nothing to measure it against. It is shown, its output is shown, and it is kept
+ * out of every total — so each TOTAL is the sum of the rows that carry a percentage.
+ */
+const hasPlan = (r: { target: number }) => r.target > 0;
+const NO_PLAN = "No plan";
 const ragBg = (pct: number): RGB => (pct >= 100 ? GREEN_BG : pct >= 90 ? AMBER_BG : RED_BG);
 const ragTx = (pct: number): RGB => (pct >= 100 ? GREEN_TX : pct >= 90 ? AMBER_TX : RED_TX);
 const gapTx = (v: number): RGB => (v >= 0 ? GREEN_TX : RED_TX);
@@ -142,6 +152,7 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
   const logo = await loadLogoDataUrl();
   const generatedOn = new Date().toLocaleString("en-GB");
   const overall = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
+  const unplanned = lines.filter((l) => !hasPlan(l) && l.actual > 0);
   const totalGap = totalActual - totalTarget;
 
   // ── Branded header band ───────────────────────────────────────────────
@@ -175,14 +186,23 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
     doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...valueColor);
     doc.text(value, x + 5, cardY + 15.5);
   };
-  card(0, "Overall Efficiency", `${overall.toFixed(0)}%`, ragTx(overall), ragTx(overall));
+  card(0, "Overall Efficiency", totalTarget > 0 ? `${overall.toFixed(0)}%` : NO_PLAN,
+    totalTarget > 0 ? ragTx(overall) : SUBTLE, totalTarget > 0 ? ragTx(overall) : SUBTLE);
   card(1, "Actual", n(totalActual), INK, NAVY);
   card(2, "Target", n(totalTarget), INK, NAVY);
   card(3, "Gap", signed(totalGap), gapTx(totalGap), gapTx(totalGap));
 
   let y = cardY + cardH + 7;
   doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...SUBTLE);
-  doc.text(`${lines.length} ${lines.length === 1 ? "line" : "lines"} scored   ·   ${filtersLabel}`, margin, y);
+  const scoredCount = lines.filter(hasPlan).length;
+  doc.text(
+    `${scoredCount} ${scoredCount === 1 ? "line" : "lines"} scored`
+      + (unplanned.length
+        ? `   ·   ${unplanned.length} ${unplanned.length === 1 ? "line" : "lines"} with output and no plan (not in the totals)`
+        : "")
+      + `   ·   ${filtersLabel}`,
+    margin, y,
+  );
   y += 5;
 
   // ── Per-line table, once per shift when both are in scope ─────────────
@@ -197,6 +217,16 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
       head: [["Line", "Leader", "Target", "Actual", "Gap", "%"]],
       body: rows.map((l) => {
         const g = l.actual - l.target;
+        if (!hasPlan(l)) {
+          return [
+            l.line,
+            l.leader ?? "—",
+            { content: "—", styles: { halign: "right" } },
+            { content: n(l.actual), styles: { halign: "right" } },
+            { content: "—", styles: { halign: "right" } },
+            { content: NO_PLAN, styles: { halign: "center", textColor: SUBTLE } },
+          ];
+        }
         return [
           l.line,
           l.leader ?? "—",
@@ -212,7 +242,9 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
         { content: n(tTarget), styles: { halign: "right", fontStyle: "bold" } },
         { content: n(tActual), styles: { halign: "right", fontStyle: "bold" } },
         { content: signed(tGap), styles: { halign: "right", fontStyle: "bold", textColor: gapTx(tGap) } },
-        { content: `${tPct.toFixed(0)}%`, styles: { halign: "center", fontStyle: "bold", fillColor: ragBg(tPct), textColor: ragTx(tPct) } },
+        tTarget > 0
+          ? { content: `${tPct.toFixed(0)}%`, styles: { halign: "center", fontStyle: "bold", fillColor: ragBg(tPct), textColor: ragTx(tPct) } }
+          : { content: NO_PLAN, styles: { halign: "center", fontStyle: "bold", textColor: SUBTLE } },
       ]],
       styles: { fontSize: 9, cellPadding: 2.4, lineColor: [226, 232, 240], lineWidth: 0.1 },
       headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", halign: "left" },
@@ -258,8 +290,8 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
     // The shift column earns its width only when the report covers more than one.
     const shifts = new Set(daily.map((r) => (r.shift ?? "").toUpperCase()).filter(Boolean));
     const showShift = shifts.size > 1;
-    const dTotalTarget = daily.reduce((a, r) => a + r.target, 0);
-    const dTotalActual = daily.reduce((a, r) => a + r.actual, 0);
+    const dTotalTarget = daily.filter(hasPlan).reduce((a, r) => a + r.target, 0);
+    const dTotalActual = daily.filter(hasPlan).reduce((a, r) => a + r.actual, 0);
     const dTotalGap = dTotalActual - dTotalTarget;
     const dTotalPct = dTotalTarget > 0 ? (dTotalActual / dTotalTarget) * 100 : 0;
 
@@ -290,17 +322,26 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
         if (showShift) row.push(cell((r.shift ?? "—").toUpperCase(), { halign: "center" }));
         row.push(
           cell(r.line),
-          cell(n(r.target), { halign: "right" }),
-          cell(n(r.actual), { halign: "right" }),
-          cell(signed(g), { halign: "right", textColor: gapTx(g), fontStyle: "bold" }),
-          { content: `${r.eff.toFixed(0)}%`, styles: { halign: "center", fillColor: ragBg(r.eff), textColor: ragTx(r.eff), fontStyle: "bold" } },
+          ...(hasPlan(r)
+            ? [
+              cell(n(r.target), { halign: "right" }),
+              cell(n(r.actual), { halign: "right" }),
+              cell(signed(g), { halign: "right", textColor: gapTx(g), fontStyle: "bold" }),
+              { content: `${r.eff.toFixed(0)}%`, styles: { halign: "center", fillColor: ragBg(r.eff), textColor: ragTx(r.eff), fontStyle: "bold" } },
+            ]
+            : [
+              cell("—", { halign: "right" }),
+              cell(n(r.actual), { halign: "right" }),
+              cell("—", { halign: "right" }),
+              cell(NO_PLAN, { halign: "center", textColor: SUBTLE }),
+            ]),
         );
         body.push(row);
       }
       // A day's own total, only where there is more than one row to add up.
       if (group.length > 1) {
-        const t = group.reduce((a, r) => a + r.target, 0);
-        const a2 = group.reduce((a, r) => a + r.actual, 0);
+        const t = group.filter(hasPlan).reduce((a, r) => a + r.target, 0);
+        const a2 = group.filter(hasPlan).reduce((a, r) => a + r.actual, 0);
         const g = a2 - t;
         const pct = t > 0 ? (a2 / t) * 100 : 0;
         const sub = (content: string, extra: Record<string, any> = {}) => ({ content, styles: { fillColor: SUBTOTAL, fontStyle: "bold", ...extra } });
@@ -311,7 +352,7 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
           sub(n(t), { halign: "right" }),
           sub(n(a2), { halign: "right" }),
           sub(signed(g), { halign: "right", textColor: gapTx(g) }),
-          sub(`${pct.toFixed(0)}%`, { halign: "center", textColor: ragTx(pct) }),
+          sub(t > 0 ? `${pct.toFixed(0)}%` : NO_PLAN, { halign: "center", textColor: t > 0 ? ragTx(pct) : SUBTLE }),
         );
         body.push(row);
       }
@@ -327,7 +368,9 @@ export async function generatePerformanceReportPDF(input: PerfReportInput, opts?
       { content: n(dTotalTarget), styles: { halign: "right", fontStyle: "bold" } },
       { content: n(dTotalActual), styles: { halign: "right", fontStyle: "bold" } },
       { content: signed(dTotalGap), styles: { halign: "right", fontStyle: "bold", textColor: gapTx(dTotalGap) } },
-      { content: `${dTotalPct.toFixed(0)}%`, styles: { halign: "center", fontStyle: "bold", fillColor: ragBg(dTotalPct), textColor: ragTx(dTotalPct) } },
+      dTotalTarget > 0
+        ? { content: `${dTotalPct.toFixed(0)}%`, styles: { halign: "center", fontStyle: "bold", fillColor: ragBg(dTotalPct), textColor: ragTx(dTotalPct) } }
+        : { content: NO_PLAN, styles: { halign: "center", fontStyle: "bold", textColor: SUBTLE } },
     ]];
 
     autoTable(doc, {
