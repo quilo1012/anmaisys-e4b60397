@@ -20,6 +20,15 @@ const BOARD_ONLY: string[] = [];
 const EXCLUDED = ["sealer", "printer ink"];
 
 /**
+ * Linhas que existem em `lines` mas não vão ao quadro RAG — pedido a 29/10. Saem só
+ * daqui: continuam na tabela, no Production Control e no Performance, e os lançamentos
+ * já gravados em `rag_weekly_entries` ficam onde estão. O packing do gel é lançado e
+ * lido como "Gel Packing"; a GEL Line e a Gel Machine apareciam ao lado dele vazias
+ * (ou com a downtime de uma WO) e liam-se como se fossem o mesmo posto.
+ */
+const NOT_ON_BOARD = ["gel line", "gel machine", "capsules machine 1", "capsules machine 2"];
+
+/**
  * O fim do quadro, por esta ordem. São as três máquinas que correm sozinhas, sem
  * enchimento nem packing à frente, e é por isso que ficam juntas e em último.
  * "gel line" e "gel machine" são o mesmo posto com duas grafias — a base diz a
@@ -58,7 +67,7 @@ export function ragBoardLines(rows: { name: string; active?: boolean | null }[])
   const fromDb = rows
     .filter((r) => r.active !== false)
     .map((r) => r.name)
-    .filter((n) => !EXCLUDED.includes(key(n)));
+    .filter((n) => !EXCLUDED.includes(key(n)) && !NOT_ON_BOARD.includes(key(n)));
 
   const missing = BOARD_ONLY.filter((b) => !fromDb.some((n) => key(n) === key(b)));
 
