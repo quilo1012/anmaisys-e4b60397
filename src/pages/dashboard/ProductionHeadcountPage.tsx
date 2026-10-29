@@ -1286,14 +1286,16 @@ function ShiftBoard({
           <div className="headcount-summary w-full shrink-0 sm:w-auto sm:border-l sm:pl-4">
             <div className="flex items-baseline gap-2">
               <b className={cn("font-figure text-2xl font-extrabold leading-none tabular-nums sm:text-3xl", look.ink)}>{totalStaff}</b>
-              <span className="whitespace-nowrap text-sm font-semibold leading-tight">
+              {/* Numa linha a partir de 640px. A 320 (iPhone SE) "of 94 on the rota" não cabia
+                  e empurrava o cartão para fora do ecrã (29/10): aí parte, mas nunca a meio. */}
+              <span className="min-w-0 text-sm font-semibold leading-tight sm:whitespace-nowrap">
                 total staff in production
-                <span className="ml-1 font-normal text-muted-foreground">
+                <span className="ml-1 whitespace-nowrap font-normal text-muted-foreground">
                   of {roster.length} {showAll ? "on this shift" : "on the rota"}
                 </span>
               </span>
             </div>
-            <div className="mt-1.5 h-1 w-full min-w-[11rem] overflow-hidden rounded-full bg-border">
+            <div className="mt-1.5 h-1 w-full min-w-0 overflow-hidden rounded-full bg-border sm:min-w-[11rem]">
               <div
                 className={cn("h-full rounded-full", look.rule.replace("border-l-", "bg-"))}
                 style={{ width: `${roster.length ? Math.min(100, (totalStaff / roster.length) * 100) : 0}%` }}
@@ -1350,7 +1352,9 @@ function ShiftBoard({
           <Button
             size="sm"
             variant="outline"
-            className="h-11 px-3 print:hidden sm:h-8"
+            // 12px on a phone, like Production and Support beside it: at 14px the three read as
+            // two kinds of button, and at 14px all three no longer share a row at 320.
+            className="h-11 px-3 text-xs print:hidden sm:h-8 sm:text-sm"
             onClick={() => setShowAll((v) => !v)}
             title={showAll ? "Only the people the rota puts in today" : "Everyone on this shift, rota or not"}
           >

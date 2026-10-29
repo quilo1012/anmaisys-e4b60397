@@ -6,6 +6,18 @@ import type { NavItem } from "@/components/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { dashboardPathFor, type Role } from "@/lib/permissions";
 
+/**
+ * The word under a tab. The short title, unless another tab in the bar has the same one:
+ * the Maintenance and the Production dashboards are both "Overview" in their sidebar
+ * group, and side by side in the bar they read "Overview · Overview" with the same icon
+ * (seen 29/10 on a manager's phone). Then the group names them: "Maintenance", "Production".
+ */
+export function tabLabel(t: Pick<NavItem, "title" | "shortTitle" | "group">, tabs: ReadonlyArray<Pick<NavItem, "title" | "shortTitle">>): string {
+  const label = t.shortTitle ?? t.title;
+  const clash = tabs.filter((o) => (o.shortTitle ?? o.title) === label).length > 1;
+  return clash && t.group ? t.group : label;
+}
+
 /** Bottom tab bar for mobile: Home + the role's top screens + a Menu that opens the full drawer. */
 export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
   const navigate = useNavigate();
@@ -58,7 +70,7 @@ export function MobileTabBar({ tabs }: { tabs: NavItem[] }) {
       {/* Straight to the role's dashboard — /dashboard/home only redirects there now. */}
       <Tab active={pathname === home} icon={Home} label="Home" onClick={() => navigate(home)} />
       {tabs.map((t) => (
-        <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={t.shortTitle ?? t.title} onClick={() => navigate(t.url)} />
+        <Tab key={t.url} active={pathname === t.url.split("?")[0]} icon={t.icon} label={tabLabel(t, tabs)} onClick={() => navigate(t.url)} />
       ))}
       <Tab active={false} icon={Menu} label="Menu" onClick={openMenu} />
     </nav>

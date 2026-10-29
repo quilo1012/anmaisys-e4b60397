@@ -343,8 +343,14 @@ for (const width of [320, 375, 430]) {
       const plan = box(document.querySelector('button[aria-label="Plan this board"]'))!;
       const sectors = box(document.querySelector('[aria-label="Show sectors"]'))!;
       const everyone = box(byName("Everyone") ?? null)!;
+      const main = document.querySelector("#main-content") as HTMLElement | null;
       return {
-        scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        // A página não rola na janela mas na `#main-content`: medir só o documento deixou
+        // passar, a 320, o cartão do turno 23px para fora do ecrã (29/10).
+        scroll: Math.max(document.documentElement.scrollWidth - document.documentElement.clientWidth, main ? main.scrollWidth - main.clientWidth : 0),
+        filterFontPx: [...document.querySelectorAll('[aria-label="Show sectors"] button')]
+          .map((b) => parseFloat(getComputedStyle(b).fontSize)),
+        everyoneFontPx: parseFloat(getComputedStyle(byName("Everyone")!).fontSize),
         heights: ["Previous day", "Next day", "Board actions", "Production", "Support", "Everyone"]
           .map((n) => [n, Math.round(box(byName(n) ?? null)?.height ?? 0)]),
         tabs: [...document.querySelectorAll('[role=tab]')].filter((t) => ["Day", "Night", "Both"].includes(t.textContent ?? ""))
@@ -356,6 +362,8 @@ for (const width of [320, 375, 430]) {
       };
     });
     expect(m.scroll).toBe(0);
+    // Production, Support e Everyone são três botões iguais: o mesmo tamanho de letra.
+    for (const px of m.filterFontPx) expect(px).toBe(m.everyoneFontPx);
     for (const [name, h] of m.heights) expect.soft(h, `${name} tem ${h}px`).toBeGreaterThanOrEqual(44);
     for (const h of m.tabs) expect(h).toBeGreaterThanOrEqual(40);
     expect(m.findH).toBeGreaterThanOrEqual(44);
@@ -370,9 +378,18 @@ for (const width of [320, 375, 430]) {
     const t = await page.evaluate(() => {
       const sectors = document.querySelector('[aria-label="Show sectors"]')!.getBoundingClientRect();
       const everyone = [...document.querySelectorAll("button")].find((b) => b.innerText.trim() === "Everyone")!.getBoundingClientRect();
-      return { scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth, oneRow: Math.abs(sectors.top - everyone.top) < 4 };
+      const main = document.querySelector("#main-content") as HTMLElement | null;
+      return {
+        scroll: Math.max(document.documentElement.scrollWidth - document.documentElement.clientWidth, main ? main.scrollWidth - main.clientWidth : 0),
+        oneRow: Math.abs(sectors.top - everyone.top) < 4,
+      };
     });
     expect(t).toEqual({ scroll: 0, oneRow: true });
+
+    // E o título do ecrã cabe na barra de cima.
+    const title = page.getByTestId("mobile-app-header").locator("p[aria-current=page]");
+    await expect(title).toHaveText("Headcount");
+    expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   });
 }
 

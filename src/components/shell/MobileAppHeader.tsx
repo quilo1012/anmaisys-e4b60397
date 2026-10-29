@@ -155,6 +155,9 @@ export function MobileAppHeader({
 export function shortTitle(title: string): string {
   const t = (title || "").trim();
   if (!t) return "PMSystem";
+  // "Production Headcount" ended as "Production Headc…" at 390 and "Production…" at 320
+  // (29/10). There is only one Headcount, so the word that names it is enough.
+  if (/^Production\s+Headcount$/i.test(t)) return "Headcount";
   const short = t.replace(/\s+Dashboard$/i, "");
   return short || t;
 }
