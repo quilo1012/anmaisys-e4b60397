@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Production permission and SKU errors (27 Oct)
-- [ ] Verify deployed database identity and inspect live function definitions, permissions and SKU dependencies through the approved production tool.
-- [ ] Apply minimal verified permission fixes and SKU relationship/deactivation safeguards.
-- [ ] Test administrator, operator and anonymous scenarios; report migrations and deployment status.
+- [x] Verify deployed database identity: deployed scripts and live tool binding match; inspected function definitions, ACLs, owners, RLS and SKU dependencies.
+- [x] Apply minimal directory/security and SKU identity/history safeguards in migration 0006; add pinned-token RPC calls, clear delete error and Active control.
+- [x] Run 39 regressions; administrator manager/directory and same-value SKU edit pass; protected SKU delete rejected; anonymous functions reject access.
+- [ ] Verify genuine login presence and operator scenarios — managed test tokens lack session_id; operator account question skipped. Frontend production deployment/PR not confirmed; no publish performed.
 
 ## Communication presence (uploaded brief 20/10)
 - [ ] Prepare isolated implementation and pull request to `main` for review (20/10 clarification); no production deployment before review. PR creation tool unavailable in this session; production inspection needs the project-approved read-only query tool, and live verification needs two explicitly authorized accounts.
