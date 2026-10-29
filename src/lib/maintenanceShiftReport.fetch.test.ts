@@ -51,7 +51,7 @@ describe("fetchMaintenanceShiftReport", () => {
     await fetchMaintenanceShiftReport(NOW);
     const ev = calls.find((c) => c.table === "downtime_events")!;
     expect(ev.ops).toContain('lt("stopped_at","2026-10-29T18:00:00.000Z")');
-    expect(ev.ops).toContain('or("resumed_at.is.null,resumed_at.gt.2026-10-29T06:00:00.000Z")');
+    expect(ev.ops).toContain('or("resumed_at.is.null,resumed_at.gt.2026-10-29T06:00:00.000Z,stopped_at.gte.2026-10-29T06:00:00.000Z")');
   });
 
   it("prints exactly the stops and orders the source holds", async () => {
