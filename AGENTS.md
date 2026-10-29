@@ -2,7 +2,7 @@
 
 - Derive workforce badge labels through `workforceRoles.roleStripe`, including existing role/source context when available; display distinctions must never alter identity or authorization.
 
-- Protected engineer-directory and presence-write RPCs pin the live session token on the request; a concurrent session change must not silently send them as anon.
+- Protected engineer-directory and presence-write RPCs pin the live session token on the request; a concurrent session change must not silently send them as anon. Presence lease writes silently skip tokens without a session_id claim, because verification tokens cannot hold a server lease.
 - SKU edits update attributes by the existing ID; server-side delete/ID guards protect all production dependencies, and retirement uses the existing active flag.
 
 - Keep Communication availability preferences independent of connection leases and derive the final status through `communicationPresence`; server authorization and timestamps must be verified before wiring the Hub, so offline/reconnect cannot overwrite a preference or expose private leave/session records.
