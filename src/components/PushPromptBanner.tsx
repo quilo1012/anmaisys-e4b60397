@@ -29,24 +29,34 @@ const SNOOZE_MS = 12 * 60 * 60 * 1000;
  * same steps stay on My Overtime and in Settings, where nobody is interrupted by them.
  */
 export const INSTALL_HINT_OFF_KEY = "an_install_hint_off";
+/**
+ * The same, for a phone that said no. Its line has nothing to press — only where in
+ * Settings to change it — and someone who refused on purpose was reading it twice a day.
+ * Kept only while the answer is still "denied": if they reset it in Settings the
+ * browser asks fresh, and "turn notifications on" comes back by itself.
+ */
+export const DENIED_HINT_OFF_KEY = "an_push_denied_hint_off";
+
+function flagSet(key: string): boolean {
+  try { return localStorage.getItem(key) === "1"; } catch { return false; }
+}
 
 function snoozed(): boolean {
   try { return Number(localStorage.getItem(SNOOZE_KEY) ?? 0) > Date.now(); } catch { return false; }
 }
 
-function installHintOff(): boolean {
-  try { return localStorage.getItem(INSTALL_HINT_OFF_KEY) === "1"; } catch { return false; }
-}
 
 export function PushPromptBanner({ role }: { role: Role | null | undefined }) {
   const { environment, permission, subscribed, loading, subscribe } = usePushNotifications();
   const [hidden, setHidden] = useState(snoozed);
-  const [installOff, setInstallOff] = useState(installHintOff);
+  const [installOff, setInstallOff] = useState(() => flagSet(INSTALL_HINT_OFF_KEY));
+  const [deniedOff, setDeniedOff] = useState(() => flagSet(DENIED_HINT_OFF_KEY));
 
   if (!role || role === "operator") return null;
   if (subscribed || hidden) return null;
   if (environment.kind === "unsupported") return null;
   if (environment.kind === "ios-install" && installOff) return null;
+  if (environment.kind === "ready" && permission === "denied" && deniedOff) return null;
 
   const snooze = () => {
     try { localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_MS)); } catch { /* it just comes back sooner */ }
@@ -70,7 +80,7 @@ export function PushPromptBanner({ role }: { role: Role | null | undefined }) {
       <Button
         size="sm"
         variant="ghost"
-        className="h-9 px-2 text-muted-foreground"
+        className="h-11 px-2 text-muted-foreground sm:h-9"
         onClick={() => {
           try { localStorage.setItem(INSTALL_HINT_OFF_KEY, "1"); } catch { /* it stays a twelve-hour snooze */ }
           setInstallOff(true);
@@ -85,10 +95,24 @@ export function PushPromptBanner({ role }: { role: Role | null | undefined }) {
   } else if (permission === "denied") {
     icon = <BellOff className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />;
     body = <>Notifications are blocked for this app. On iPhone open Settings → Notifications, pick this app and allow them; elsewhere use the browser's site settings.</>;
+    action = (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-11 px-2 text-muted-foreground sm:h-9"
+        onClick={() => {
+          try { localStorage.setItem(DENIED_HINT_OFF_KEY, "1"); } catch { /* it stays a twelve-hour snooze */ }
+          setDeniedOff(true);
+          snooze();
+        }}
+      >
+        Don't show again
+      </Button>
+    );
   } else {
     body = <>Turn on notifications to get messages and overtime on this phone, even when the screen is locked.</>;
     action = (
-      <Button size="sm" className="h-9" onClick={() => { void subscribe(); }} disabled={loading}>
+      <Button size="sm" className="h-11 sm:h-9" onClick={() => { void subscribe(); }} disabled={loading}>
         {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bell className="mr-2 h-4 w-4" />}
         Turn on notifications
       </Button>
@@ -104,7 +128,8 @@ export function PushPromptBanner({ role }: { role: Role | null | undefined }) {
         <div className="mt-0.5 text-muted-foreground">{body}</div>
         {action && <div className="mt-2">{action}</div>}
       </div>
-      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={snooze} aria-label="Not now">
+      {/* 44px on a phone: it sits in the corner, where a thumb lands short of it. */}
+      <Button variant="ghost" size="icon" className="-m-1.5 h-11 w-11 shrink-0 sm:m-0 sm:h-8 sm:w-8" onClick={snooze} aria-label="Not now">
         <X className="h-4 w-4" />
       </Button>
     </div>

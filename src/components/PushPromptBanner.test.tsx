@@ -84,6 +84,23 @@ describe("PushPromptBanner", () => {
     expect(screen.queryByRole("button", { name: /Turn on notifications/ })).toBeNull();
   });
 
+  it("a phone that said no can put the unblock line away for good", () => {
+    state.permission = "denied";
+    const { unmount } = render(<PushPromptBanner role="employee" />);
+    fireEvent.click(screen.getByRole("button", { name: "Don't show again" }));
+    expect(screen.queryByTestId("push-prompt")).toBeNull();
+    unmount();
+    localStorage.removeItem("an_push_banner_snooze_until");
+    render(<PushPromptBanner role="employee" />);
+    expect(screen.queryByTestId("push-prompt")).toBeNull();
+  });
+
+  it("putting the unblock line away does not silence 'turn notifications on' once it is unblocked", () => {
+    localStorage.setItem("an_push_denied_hint_off", "1");
+    render(<PushPromptBanner role="employee" />);
+    expect(screen.getByRole("button", { name: /Turn on notifications/ })).toBeTruthy();
+  });
+
   it("is not drawn where push cannot work at all", () => {
     state.environment = { kind: "unsupported" };
     render(<PushPromptBanner role="employee" />);
