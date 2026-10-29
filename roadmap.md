@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Operator and engineer display labels
-- [ ] Trace all TEC label consumers; correct shared OP/ENG display mapping without data or permission changes; run regressions.
+- [x] Trace TEC to Headcount chips and area/absence pickers; apply shared OP/ENG display mapping only; 39 regressions pass, signed-in preview shows 3 OP and 5 ENG badges with no TEC; no database changes or publishing.
 
 ## Production permission and SKU errors (27 Oct)
 - [x] Verify deployed database identity: deployed scripts and live tool binding match; inspected function definitions, ACLs, owners, RLS and SKU dependencies.
