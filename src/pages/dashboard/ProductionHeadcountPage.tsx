@@ -357,7 +357,7 @@ function Chip({
   role,
   dimmed,
   overtime,
-  half,
+  half, halfWhere, hint,
   leftEarlyAt,
   arrivedLateAt,
   leftEarlyReason,
@@ -401,6 +401,10 @@ function Chip({
   overtime?: boolean;
   /** Off for half the shift. Shown on the chip so the block's count can be read honestly. */
   half?: boolean;
+  /** Where a half-day person is working, on their mirror in Holidays: "Line 1". */
+  halfWhere?: string | null;
+  /** A short instruction under the name, e.g. for a half day with no line yet. */
+  hint?: string | null;
   /** Came in and went home early, at this time. A day worked, not a day off. */
   leftEarlyAt?: string | null;
   /** Came in after the shift started, at this time. Also a day worked, not a day off. */
@@ -420,7 +424,7 @@ function Chip({
   // Células brancas, como na folha. A cor fica para os cabeçalhos e para o líder; um
   // nome numa coluna de Holidays já diz o que é pela coluna onde está.
   const plain = "bg-card text-foreground";
-  const marked = !!(workHours || startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
+  const marked = !!(hint || workHours || startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
   const tones: Record<string, string> = {
     production: plain, support: plain, away: plain, overtime: plain, training: plain, roster: plain,
   };
@@ -505,7 +509,7 @@ function Chip({
           {startTime}
         </span>
       )}
-      {tag && (
+      {tag && !isHalfDayTag(tag) && (
         <span title={tag} className="shrink-0 rounded-sm border border-border bg-muted px-1 py-px text-[10px] font-bold capitalize leading-tight text-muted-foreground">
           {tag}
         </span>
@@ -535,10 +539,16 @@ function Chip({
           look identical, when one of them worked the morning. */}
       {half && (
         <span
-          title="Half day — worked part of the shift"
-          className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-2xs font-bold leading-tight text-muted-foreground"
+          data-testid="half-day-badge"
+          title={halfWhere ? `Half day — worked half the shift on ${halfWhere}` : "Half day — worked part of the shift"}
+          className="shrink-0 rounded-sm border border-warning/40 bg-warning/15 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
         >
-          ½
+          {halfWhere ? `Half day · ${halfWhere}` : "Half day"}
+        </span>
+      )}
+      {hint && (
+        <span data-testid="chip-hint" title={hint} className="min-w-0 truncate text-2xs italic leading-tight text-muted-foreground">
+          {hint}
         </span>
       )}
       {/* Came in late. Same arrow, pointing the other way: the column counts them as in
