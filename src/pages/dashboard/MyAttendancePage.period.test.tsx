@@ -54,7 +54,7 @@ describe("My Attendance — employee view", () => {
     unmount();
     renderPage(base([{ period_id: "o", hours: 7.5 }]));
     const h2 = screen.getByTestId("hours-balance");
-    expect(h2).toHaveTextContent(/Approved by payroll\s*7.5 h/);
+    expect(h2).toHaveTextContent(/Approved by payroll\s*7\.50 h/);
     expect(h2).not.toHaveTextContent(/Holiday left/i);
   });
 
