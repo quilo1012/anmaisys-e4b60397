@@ -27,7 +27,7 @@ describe("Overtime on the board with no payroll rows", () => {
     expect(screen.getByText("Cancelled")).toBeTruthy();
     expect(screen.getByText("Attended")).toBeTruthy();
     expect(screen.getByText(/worked 10h/)).toBeTruthy();
-    // Two board shifts; the clock's 10h is not added in.
+    // One past board shift, one upcoming; the clock's 10h is not added in.
     expect(screen.getByTestId("ot-total").textContent).toBe("1");
     expect(screen.getByTestId("ot-upcoming").textContent).toBe("1");
   });
