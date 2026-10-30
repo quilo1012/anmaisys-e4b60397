@@ -56,3 +56,15 @@ export function placementForDrop(
     ...(half && areaId && current?.status === "holiday" ? { keptHalfDayOn: areaId } : {}),
   };
 }
+
+/**
+ * Which absence a placement writes over, for the "has replaced it" warning — null when
+ * nothing is replaced. A half-day holiday put on the line they worked replaces nothing:
+ * the half day is kept.
+ */
+export function replacedAbsence(was: string | null | undefined, status: string, halfDay?: boolean): string | null {
+  if (status !== "assigned" && status !== "overtime") return null;
+  if (was !== "holiday" && was !== "sick" && was !== "unpaid") return null;
+  if (was === "holiday" && halfDay === true) return null;
+  return was;
+}
