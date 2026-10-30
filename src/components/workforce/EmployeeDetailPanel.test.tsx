@@ -41,6 +41,8 @@ vi.mock("@/hooks/useWorkforce", () => ({
   useSetEmployeeSupervisors: () => ({ mutate: vi.fn(), isPending: false }),
   supervisorIdsOf: (e: { manager_id: string | null }) => (e.manager_id ? [e.manager_id] : []),
   useMovements: () => ({ data: [], isLoading: false }),
+  useRecentPlacements: () => ({ data: [], isLoading: false, isError: false }),
+  useEmployeeBoardOvertime: () => ({ board: { data: [], isLoading: false, isError: false }, asks: { data: [] }, clock: { data: [] } }),
   useEmployeeOvertime: () => ({ data: [], isLoading: false }),
   useOvertimeEverImported: () => ({ data: overtimeAlgumaVez }),
   useUpdateEmployee: () => ({ mutate: guardar, isPending: false }),
@@ -110,7 +112,7 @@ describe("o separador Overtime nao culpa a pessoa por uma tabela vazia", () => {
     overtimeAlgumaVez = true;
     mount(true);
     await abrirSeparador("Overtime");
-    await waitFor(() => expect(screen.getByText(/No overtime recorded for this person/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/No payroll balance has been imported for this person/i)).toBeTruthy());
   });
 });
 

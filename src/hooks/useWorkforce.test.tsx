@@ -95,4 +95,21 @@ describe("useUpdateEmployee", () => {
     const write = calls.find((c) => c.table === "employees" && c.op === "update");
     expect(write?.payload).toMatchObject({ full_name: "Felipe Araujo", email: "f@x.uk" });
   });
-});
+  });
+
+  // The held position in the mock is Day · mon-thu.
+  it("a save that resends the same shift and rota writes no history row", async () => {
+    const { result } = renderHook(() => useUpdateEmployee(), { wrapper: wrapper() });
+    result.current.mutate({ id: "e1", patch: { email: "a@x.uk", shift_group: "Day", shift_pattern_id: "mon-thu" } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(calls.some((c) => c.table === "employee_shift_history")).toBe(false);
+  });
+
+  it("a real shift change writes one history row", async () => {
+    const { result } = renderHook(() => useUpdateEmployee(), { wrapper: wrapper() });
+    result.current.mutate({ id: "e1", patch: { shift_group: "Night", shift_pattern_id: "mon-thu" } });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const rows = calls.filter((c) => c.table === "employee_shift_history" && c.op === "upsert");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].payload).toMatchObject({ shift_group: "Night", shift_pattern_id: "mon-thu" });
+  });
