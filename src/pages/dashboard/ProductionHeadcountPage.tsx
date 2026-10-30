@@ -41,7 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
-import { placementHours, workedNote, type PlacementHours } from "@/lib/boardOvertime";
+import { chipHours, placementHours, workedNote, type PlacementHours } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
 import { isHalfDay, isHalfDayTag, isWorkingHalfDay, placementForDrop } from "@/lib/halfDay";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
@@ -350,7 +350,7 @@ const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; sof
 /** All role marks use the shared job-first display mapping. */
 const roleOf = roleStripe;
 
-function Chip({
+export function Chip({
   name,
   personRef,
   sheetName,
@@ -875,29 +875,19 @@ function ShiftBoard({
     return m;
   }, [allocations]);
   /** Null unless confirmed overtime reaches this person's placement on this board. */
-  const workHoursOf = (employeeId: string): PlacementHours | null => {
-    const a = byEmployee.get(employeeId);
-    const asks = confirmedAsks?.get(employeeId);
-    if (!a || (a.status !== "assigned" && a.status !== "overtime")) return null;
-    const h = placementHours(a, onDate, shift, asks ?? []);
-    return h.overtimeLabels.length || h.marks.stayLate || h.marks.earlyStart ? h : null;
-  };
-  /**
-   * The late/early props for a chip, read against the booked hours (`workedWindow`):
-   * "←" only for a real early finish, "→" only for a real late start. A stay-late or an
-   * early start shows in the hours instead.
-   */
+  const chipOf = (employeeId: string) =>
+    chipHours(byEmployee.get(employeeId), onDate, shift, confirmedAsks?.get(employeeId) ?? []);
+  /** The worked hours a chip shows, when they differ from the plain shift. */
+  const workHoursOf = (employeeId: string): PlacementHours | null => chipOf(employeeId).workHours;
+  /** "←" only for a real early finish, "→" only for a real late start (`workedWindow`). */
   const marksOf = (employeeId: string) => {
+    const c = chipOf(employeeId);
     const a = byEmployee.get(employeeId);
-    if (!a) return { leftEarlyAt: null, arrivedLateAt: null, leftEarlyReason: null, arrivedLateReason: null };
-    const m = a.status === "assigned" || a.status === "overtime"
-      ? placementHours(a, onDate, shift, confirmedAsks?.get(employeeId) ?? []).marks : null;
     return {
-      leftEarlyAt: a.left_early_at && (!m || m.earlyFinish) ? a.left_early_at : null,
-      arrivedLateAt: a.arrived_late_at && (!m || m.lateStart) ? a.arrived_late_at : null,
-      leftEarlyReason: a.left_early_reason ?? null,
-      arrivedLateReason: a.arrived_late_reason ?? null,
+      leftEarlyAt: c.leftEarlyAt, arrivedLateAt: c.arrivedLateAt,
+      leftEarlyReason: a?.left_early_reason ?? null, arrivedLateReason: a?.arrived_late_reason ?? null,
     };
+  };
   };
 
   // Everyone active, not only whoever is eligible today: a saved allocation is a fact

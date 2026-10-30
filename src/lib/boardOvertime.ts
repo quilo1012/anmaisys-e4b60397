@@ -268,3 +268,27 @@ export function placementHours(
     marks: w.marks,
   };
 }
+
+/**
+ * What a board chip draws for one row: the worked hours (when they differ from the
+ * plain shift — confirmed overtime, a stay-late or an early start), and the "→" / "←"
+ * marks only for a real late start / early finish against the booked hours.
+ */
+export function chipHours(
+  a: PlacementLike | undefined,
+  boardDate: string,
+  shift: string,
+  asks: ReadonlyArray<ConfirmedAsk>,
+): { workHours: PlacementHours | null; leftEarlyAt: string | null; arrivedLateAt: string | null } {
+  if (!a) return { workHours: null, leftEarlyAt: null, arrivedLateAt: null };
+  if (a.status !== "assigned" && a.status !== "overtime") {
+    return { workHours: null, leftEarlyAt: a.left_early_at, arrivedLateAt: a.arrived_late_at };
+  }
+  const h = placementHours(a, boardDate, shift, asks);
+  const showHours = h.overtimeLabels.length > 0 || h.marks.stayLate > 0 || h.marks.earlyStart > 0;
+  return {
+    workHours: showHours ? h : null,
+    leftEarlyAt: a.left_early_at && h.marks.earlyFinish ? a.left_early_at : null,
+    arrivedLateAt: a.arrived_late_at && h.marks.lateStart ? a.arrived_late_at : null,
+  };
+}
