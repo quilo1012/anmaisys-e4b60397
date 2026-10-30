@@ -19,6 +19,8 @@ import { buildClose, countDaysAway, round2 } from "@/lib/financeClose";
 import { eachDate, leaveBalance, type LeaveBalance } from "@/lib/leaveDays";
 import { expectedShifts } from "@/lib/shiftBalance";
 import { overtimeBoardFor } from "@/lib/overtimeRequests";
+import { boardSlotOf } from "@/lib/boardOvertime";
+import { windowMinutes } from "@/lib/overtimeShifts";
 
 /* ---------------------------------------------------------------- the payload ---- */
 
@@ -397,4 +399,108 @@ export function myShifts(data: MyAttendanceData, from: string, to: string): MySh
     }
   }
   return out;
+}
+
+/* ------------------------------------------------- overtime placed on the board ---- */
+
+/**
+ * Overtime the Headcount Board holds for this person with no ask behind it: the office
+ * put their name in a column as `overtime` by hand, and nobody answered anything.
+ *
+ * Found 30/10/2026: Ailton Junior (E003) was placed on Line 2 as overtime for Sat 31/10.
+ * Where I'm working showed it, from this board row. My Overtime read only answers to
+ * asks, so it said "0 Accepted" — and the database hid that Saturday's asks from him as
+ * "already down for overtime" (`overtime_schedule_clash`). The booking was on no list
+ * of his at all.
+ *
+ * A board row is the bridge's (`overtime_board_apply`) when an ask this person is
+ * booked on lands on the same board — same date and shift, by `boardSlotOf`, the
+ * bridge's own split. Those are already cards on My Overtime, so they are left out
+ * here and nothing is counted twice. Nothing is written: the board row is the record.
+ */
+export function overtimeOnTheBoardOnly(data: MyAttendanceData, from: string, to: string): MyShift[] {
+  const asks = data.overtime ?? [];
+  const rotaHours = span(data.pattern?.starts_at, data.pattern?.ends_at);
+  const rotaShift = data.me.shift_group === "Night" ? "Night" : "Day";
+  return data.board
+    .filter((b) => b.status === "overtime" && b.on_date >= from && b.on_date <= to)
+    .filter((b) => !asks.some((o) => {
+      const slot = boardSlotOf(o.on_date, o.starts_at);
+      return slot.date === b.on_date && slot.shift === b.shift;
+    }))
+    .map((b): MyShift => ({
+      date: b.on_date,
+      shift: b.shift,
+      // The rota's hours on the person's own board, as Where I'm working says them;
+      // otherwise the board's own twelve hours.
+      hours: (b.shift === rotaShift ? rotaHours : null) ?? (b.shift === "Night" ? "18:00–06:00" : "06:00–18:00"),
+      kind: "overtime",
+      area: "area" in b ? b.area ?? null : undefined,
+      leader: !!b.is_leader,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.shift.localeCompare(b.shift));
+}
+
+/* ------------------------------------------- overtime shifts, the supervisor's record ---- */
+
+/** One booked overtime shift and what the supervisor recorded about it, if anything. */
+export interface MyOvertimeShiftRecord {
+  on_date: string;
+  starts_at: string;
+  ends_at: string;
+  /** `overtime_outcomes.outcome`, or null when nothing has been recorded yet. */
+  outcome: string | null;
+}
+
+export interface MyOvertimeShiftLine { date: string; hours: string; minutes: number }
+
+export interface MyOvertimeShiftSummary {
+  /** Marked `attended` by the supervisor. */
+  worked: MyOvertimeShiftLine[];
+  workedMinutes: number;
+  /** Still to come (today or later), nothing recorded yet. */
+  booked: MyOvertimeShiftLine[];
+  /** Over, booked, and the supervisor has not marked it yet. */
+  unmarked: MyOvertimeShiftLine[];
+  /** Worked shifts on days the clock record does not reach yet. */
+  notOnClock: MyOvertimeShiftLine[];
+  notOnClockMinutes: number;
+}
+
+/**
+ * The overtime shifts in a range, as the supervisor recorded them — beside the clock,
+ * never instead of it.
+ *
+ * "Overtime for <period>" is the finance close's figure, and the finance close reads the
+ * clock alone. TimeMoto is imported by hand, so a shift worked after the last import is
+ * not in it: on 30/10 Ailton Junior's clock stopped at 20/10, and his two attended
+ * weekend shifts (24/10, 12 h; 25/10, 8 h) left that figure at 0 h. Twelve people were
+ * in the same place. The supervisor's `attended` is a different record and is shown as
+ * such; it does not change the clock's figure (AGENTS.md: neither corrects the other).
+ *
+ * Hours are the ask's own window. A no-show, a sick call and a cancellation are not
+ * overtime, so they are left out.
+ */
+export function summariseOvertimeShifts(
+  records: MyOvertimeShiftRecord[],
+  clockedTo: string | null,
+  today: string,
+): MyOvertimeShiftSummary {
+  const line = (r: MyOvertimeShiftRecord): MyOvertimeShiftLine => ({
+    date: r.on_date,
+    hours: span(r.starts_at, r.ends_at) ?? "",
+    minutes: windowMinutes(r.starts_at, r.ends_at),
+  });
+  const sorted = [...records].sort((a, b) => a.on_date.localeCompare(b.on_date) || a.starts_at.localeCompare(b.starts_at));
+  const worked = sorted.filter((r) => r.outcome === "attended").map(line);
+  const open = sorted.filter((r) => r.outcome == null);
+  const booked = open.filter((r) => r.on_date >= today).map(line);
+  const unmarked = open.filter((r) => r.on_date < today).map(line);
+  // Any other outcome (no-show, sick, cancelled) is not overtime worked, and falls out here.
+  const notOnClock = worked.filter((w) => !clockedTo || w.date > clockedTo);
+  const sum = (xs: MyOvertimeShiftLine[]) => xs.reduce((n, x) => n + x.minutes, 0);
+  return {
+    worked, workedMinutes: sum(worked), booked, unmarked,
+    notOnClock, notOnClockMinutes: sum(notOnClock),
+  };
 }

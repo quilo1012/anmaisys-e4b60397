@@ -13,10 +13,12 @@ import { cn } from "@/lib/utils";
 import { ShiftTag } from "@/components/ShiftTag";
 import { shiftKind } from "@/lib/shiftLook";
 import { useMyAttendance } from "@/hooks/useMyAttendance";
+import { useMyOvertimeShifts } from "@/hooks/useMyOvertimeShifts";
 import { currentShift } from "@/lib/operationalShift";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import {
   buildMyDays, summarise, rangeChoices, defaultRange, myShifts,
+  overtimeOnTheBoardOnly, summariseOvertimeShifts,
   type DayStatus, type MyAttendanceData, type MyDay, type MyShift,
 } from "@/lib/myAttendance";
 
@@ -122,6 +124,20 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   const [selected, setSelected] = useState<MyDay | null>(null);
   const currentKey = choices.find((c) => c.from === range.from && c.to === range.to)?.key ?? "custom";
   const todayDay = days.find((d) => d.date === today) ?? null;
+  // The supervisor's record of the overtime shifts, shown beside the clock's figure.
+  const { data: otRecords } = useMyOvertimeShifts(data.me.id, range.from, range.to);
+  const ot = useMemo(
+    () => (otRecords ? summariseOvertimeShifts(otRecords, data.clocked_to, today) : null),
+    [otRecords, data.clocked_to, today],
+  );
+  // Overtime the office placed on the Headcount by hand, from today to the end of the range.
+  const boardAhead = useMemo(
+    () => (range.to < today ? [] : overtimeOnTheBoardOnly(data, range.from > today ? range.from : today, range.to)),
+    [data, range.from, range.to, today],
+  );
+  const clockGap = ot && ot.notOnClock.length > 0
+    ? ` Your clock record reaches ${data.clocked_to ? fmtDay(data.clocked_to) : "no day yet"}, so ${ot.notOnClock.length} overtime ${ot.notOnClock.length === 1 ? "shift" : "shifts"} after that (${fmtHours(ot.notOnClockMinutes / 60)}) ${ot.notOnClock.length === 1 ? "is" : "are"} not in this figure yet. It counts them once the clock is imported.`
+    : "";
 
   return (
     <>
@@ -187,7 +203,7 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
           {s.settled ? (
             <>
               <Row label={`Overtime for ${s.settled.period.name}`} value={fmtHours(s.settled.overtimeHours)}
-                note="Worked over your contract across the whole pay period, as the finance close counts it. Recorded on the clock — not yet approved or paid." />
+                note={`Worked over your contract across the whole pay period, as the finance close counts it. Recorded on the clock — not yet approved or paid.${clockGap}`} />
               {(s.settled.owedHours ?? 0) > 0 && (
                 <Row label="Hours short" value={fmtHours(s.settled.owedHours)} note="Under your contract across the period." />
               )}
@@ -197,9 +213,10 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
           ) : (
             <>
               <Row label="Running balance" value={s.balanceHours == null ? "—" : `${s.balanceHours > 0 ? "+" : ""}${fmtHours(s.balanceHours)}`}
-                note="Not overtime yet. Hours settle over the whole pay period, so a later week can cancel this out. Pick a pay period to see the overtime it settles at." />
+                note={`Not overtime yet. Hours settle over the whole pay period, so a later week can cancel this out. Pick a pay period to see the overtime it settles at.${clockGap}`} />
             </>
           )}
+          {ot && <OvertimeShifts ot={ot} boardAhead={boardAhead} />}
         </CardContent>
       </Card>
 
@@ -242,6 +259,54 @@ function Row({ label, value, note }: { label: string; value: string; note: strin
         <span className="font-figure tabular-nums">{value}</span>
       </div>
       <p className="text-xs text-muted-foreground">{note}</p>
+    </div>
+  );
+}
+
+/**
+ * The overtime shifts in the range, as the supervisor recorded them, and what is booked
+ * ahead — beside the clock's figure, never instead of it. The clock is imported by hand,
+ * so an attended shift is often here days before the figure above can count it.
+ */
+function OvertimeShifts({ ot, boardAhead }: { ot: ReturnType<typeof summariseOvertimeShifts>; boardAhead: MyShift[] }) {
+  const booked = [
+    ...ot.booked.map((b) => ({ date: b.date, hours: b.hours, where: null as string | null })),
+    ...boardAhead.map((b) => ({ date: b.date, hours: b.hours ?? "", where: "on the Headcount" })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  if (ot.worked.length === 0 && booked.length === 0 && ot.unmarked.length === 0) return null;
+  const list = (xs: { date: string; hours: string; where?: string | null }[]) => (
+    <ul className="mt-1 space-y-0.5 text-xs">
+      {xs.map((x, i) => (
+        <li key={`${x.date}-${x.hours}-${i}`} className="flex flex-wrap gap-x-2">
+          <span className="font-medium">{fmtDay(x.date)}</span>
+          {x.hours && <span className="tabular-nums text-muted-foreground">{x.hours}</span>}
+          {x.where && <span className="text-muted-foreground">({x.where})</span>}
+        </li>
+      ))}
+    </ul>
+  );
+  return (
+    <div className="rounded-md border px-3 py-2" data-testid="overtime-shifts">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium">Overtime shifts worked</span>
+        <span className="font-figure tabular-nums">{fmtHours(ot.workedMinutes / 60)}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Marked attended by your supervisor, at each shift's own hours. This is their record, not the clock's.
+      </p>
+      {ot.worked.length > 0 && list(ot.worked)}
+      {ot.unmarked.length > 0 && (
+        <>
+          <p className="mt-2 text-xs font-medium">Not marked by your supervisor yet</p>
+          {list(ot.unmarked)}
+        </>
+      )}
+      {booked.length > 0 && (
+        <>
+          <p className="mt-2 text-xs font-medium">Booked ahead</p>
+          {list(booked)}
+        </>
+      )}
     </div>
   );
 }

@@ -32,6 +32,10 @@ import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { useSignupInviteCode } from "@/hooks/useSignupInvite";
 import { MessageSupervisorDialog } from "@/components/workforce/MessageSupervisorDialog";
 import { useMySupervisor } from "@/hooks/useDirectMessages";
+import { useMyAttendance } from "@/hooks/useMyAttendance";
+import { currentShift } from "@/lib/operationalShift";
+import { overtimeOnTheBoardOnly, type MyShift } from "@/lib/myAttendance";
+import { areaText, plusDays } from "@/lib/myShiftText";
 
 const NO_CLASHES: ReadonlyMap<string, string> = new Map();
 
@@ -272,6 +276,50 @@ function LinkMyself() {
   );
 }
 
+/**
+ * Overtime the office put this person on in the Headcount, with no ask behind it.
+ *
+ * There is nothing to answer and nothing to cancel here: the row is the office's, and
+ * `cancel_my_overtime` only knows bookings made from an ask. So the card says it is
+ * booked, where, and who to talk to — the same facts Where I'm working shows.
+ */
+function BoardBookingCard({ b }: { b: MyShift }) {
+  return (
+    <Card className={shiftCard(b.shift)} data-testid="board-booking">
+      <CardContent className="space-y-3 pt-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-base font-semibold">{fmtDate(b.date)}</span>
+              <ShiftTag shift={b.shift} className="px-3 py-1 text-sm" />
+            </div>
+            {b.hours && (
+              <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                {b.hours}
+              </div>
+            )}
+            <div className="text-sm text-muted-foreground">{areaText(b)}</div>
+          </div>
+          <Badge variant="outline" className="shrink-0 bg-success/15 font-normal text-success border-success/30">
+            <Check className="mr-1 h-3 w-3" />
+            You're in
+          </Badge>
+        </div>
+        <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-muted-foreground">Booking</span>
+            <span className="font-medium">Put on the Headcount by the office</span>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          There was no ask to answer — you are already down for this overtime. To change it, talk to your supervisor.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AsksForMe({ me }: { me: { id: string; full_name: string; department: string | null; shift_group: string | null } }) {
   const { data: requests = [], isLoading, isError, refetch } = useMyUpcomingOvertime();
   const { data: responses = [] } = useOvertimeResponses();
@@ -316,6 +364,23 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const { data: places } = useOvertimePlaces(
     visible.filter((r) => r.status === "open").map((r) => r.id),
   );
+
+  /**
+   * Overtime the office put this person on in the Headcount by hand, with no ask to
+   * answer (`overtimeOnTheBoardOnly`). Same read and same fourteen days as Where I'm
+   * working, so the two screens share one answer and can never disagree about it. A
+   * shift that has already begun leaves, as an ask does.
+   */
+  const boardFrom = currentShift().operationalDate;
+  const boardTo = plusDays(boardFrom, 13);
+  const { data: attendance } = useMyAttendance(boardFrom, boardTo);
+  const boardBookings = useMemo(() => {
+    if (attendance?.state !== "ready") return [] as MyShift[];
+    return overtimeOnTheBoardOnly(attendance.data, boardFrom, boardTo).filter((b) => {
+      const start = (b.hours ?? "").slice(0, 5);
+      return !/^\d\d:\d\d$/.test(start) || !askHasStarted({ on_date: b.date, starts_at: start }, now);
+    });
+  }, [attendance, boardFrom, boardTo, now]);
 
   /**
    * Arriving from the bell: `?ask=<id>` scrolls to that ask and rings it. If it is not
@@ -505,7 +570,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       />
     );
   }
-  if (visible.length === 0) {
+  if (visible.length === 0 && boardBookings.length === 0) {
     return (
       <div className="space-y-3">
       {goneNotice}
@@ -540,14 +605,17 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
     return null;
   };
   const buckets = visible.map((r) => ({ r, b: bucketOf(r) }));
-  const countOf = (k: "needs" | "accepted" | "declined") => buckets.filter((x) => x.b === k).length;
+  // A placement on the Headcount is a booking: it counts as accepted, as a yes would.
+  const countOf = (k: "needs" | "accepted" | "declined") =>
+    buckets.filter((x) => x.b === k).length + (k === "accepted" ? boardBookings.length : 0);
   const shownAsks = filter === "all" ? visible : buckets.filter((x) => x.b === filter).map((x) => x.r);
-  // Grouped by the day the ask is for, in the order the list already has.
-  const byDate: [string, OvertimeRequest[]][] = [];
-  for (const r of shownAsks) {
-    const last = byDate[byDate.length - 1];
-    if (last && last[0] === r.on_date) last[1].push(r);
-    else byDate.push([r.on_date, [r]]);
+  const shownBoard = filter === "all" || filter === "accepted" ? boardBookings : [];
+  // Grouped by the day the shift is for, earliest first; on a day, the board's
+  // placement comes before the asks, because it is already settled.
+  const byDate: [string, OvertimeRequest[], MyShift[]][] = [];
+  const dates = [...new Set([...shownAsks.map((r) => r.on_date), ...shownBoard.map((b) => b.date)])].sort();
+  for (const d of dates) {
+    byDate.push([d, shownAsks.filter((r) => r.on_date === d), shownBoard.filter((b) => b.date === d)]);
   }
 
   return (
@@ -609,11 +677,12 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
       {byDate.length === 0 && (
         <p className="py-6 text-center text-sm text-muted-foreground">Nothing in this view.</p>
       )}
-      {byDate.map(([date, asks]) => (
+      {byDate.map(([date, asks, board]) => (
         <section key={date} className="space-y-2">
           <h3 className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
           </h3>
+          {board.map((b) => <BoardBookingCard key={`board-${b.date}-${b.shift}`} b={b} />)}
           {asks.map((r) => {
         const my = mine.get(r.id);
         const status = myStatusLabel(r, my);
