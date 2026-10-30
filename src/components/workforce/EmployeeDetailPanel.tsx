@@ -18,15 +18,16 @@ const SHIFT_GROUPS = ["Day", "Night", "Weekend", "Warehouse Day", "Warehouse Wee
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { AlertTriangle, ArrowRight, RotateCcw, Save, UserMinus } from "lucide-react";
+import { AlertTriangle, RotateCcw, Save, UserMinus } from "lucide-react";
 import { similarNames } from "@/lib/similarNames";
 import { personNameCase } from "@/lib/personName";
 import { cn } from "@/lib/utils";
 import {
-  describeDays, describeSchedule, useEmployeeOvertime, useEmployees, useMovements,
+  describeDays, describeSchedule, useEmployeeOvertime, useEmployees,
   useOvertimeEverImported, useShiftPatterns, useShiftHistory, useEmployeeRecordHistory,
   useUpdateEmployee, useEmployeeSupervisors, useSetEmployeeSupervisors, supervisorIdsOf, type Employee,
 } from "@/hooks/useWorkforce";
+import { BoardOvertimeSection, PositionTimelineSection, WhereTheyWorkedSection } from "@/components/workforce/EmployeeHistorySections";
 
 /**
  * One person, in three answers: who they are, where they have been, what they carry.
@@ -53,8 +54,7 @@ export function EmployeeDetailPanel({
   const { data: patterns } = useShiftPatterns();
   const { data: supervisorTable } = useEmployeeSupervisors();
   const setSupervisors = useSetEmployeeSupervisors();
-  const { data: movements, isLoading: loadingMoves } = useMovements(employee?.id ?? null);
-  const { data: overtime, isLoading: loadingOT } = useEmployeeOvertime(employee?.id ?? null);
+  const { data: overtime, isLoading: loadingOT, isError: overtimeError } = useEmployeeOvertime(employee?.id ?? null);
   const { data: overtimeEverImported } = useOvertimeEverImported();
   const { data: colleagues } = useEmployees();
   const shiftHistory = useShiftHistory();
@@ -656,65 +656,29 @@ export function EmployeeDetailPanel({
 
           <TabsContent value="history" className="space-y-2 pt-3">
             <h3 className="text-sm font-semibold">Position, shift and rota changes</h3>
-            {recordHistory.isError || shiftHistory.isError ? (
-              <div className="space-y-2 text-sm">
-                <p>Employee history could not be loaded.</p>
-                <Button variant="outline" onClick={() => { void recordHistory.refetch(); void shiftHistory.refetch(); }}>Retry</Button>
-              </div>
-            ) : recordHistory.isLoading || shiftHistory.isLoading ? <Skeleton className="h-24" /> : (
-              <>
-                {(recordHistory.data ?? []).length === 0 && <p className="text-sm text-muted-foreground">No position changes recorded yet.</p>}
-                {(recordHistory.data ?? []).map((change) => (
-                  <div key={change.id} className="space-y-1 rounded border p-3 text-sm">
-                    <p className="text-xs text-muted-foreground">{format(new Date(change.changed_at), "dd/MM/yyyy HH:mm")}</p>
-                    {(["position", "shift_group", "shift_pattern_id"] as const).filter((field) => change.before_values[field] !== change.after_values[field]).map((field) => {
-                      const label = field === "position" ? "Position" : field === "shift_group" ? "Shift" : "Shift pattern";
-                      const show = (value: string | null) => !value ? "Not set" : field === "shift_pattern_id" ? patterns?.find((p) => p.id === value)?.name ?? "Previous rota (no longer listed)" : value;
-                      return <p key={field}>{label}: {show(change.before_values[field])} → <strong>{show(change.after_values[field])}</strong></p>;
-                    })}
-                  </div>
-                ))}
-                <h3 className="pt-2 text-sm font-semibold">Dated shift and rota history</h3>
-                {(shiftHistory.data ?? []).filter((h) => h.employee_id === employee.id).map((h) => (
-                  <div key={h.effective_from} className="space-y-1 rounded border p-3 text-sm">
-                    <p className="text-xs text-muted-foreground">From {format(new Date(`${h.effective_from}T12:00:00`), "dd/MM/yyyy")}</p>
-                    <p>{h.shift_group ?? "No shift"} · {patterns?.find((p) => p.id === h.shift_pattern_id)?.name ?? "No rota listed"}</p>
-                    {h.note && <p className="text-xs text-muted-foreground">{h.note}</p>}
-                  </div>
-                ))}
-              </>
-            )}
-            <h3 className="pt-2 text-sm font-semibold">Line movements</h3>
-            {loadingMoves ? (
-              <Skeleton className="h-24" />
-            ) : (movements ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No moves recorded yet. History starts the first time someone is moved on the board.
-              </p>
-            ) : (
-              (movements ?? []).map((m) => (
-                <div key={m.id} className="flex items-center gap-2 rounded border p-2 text-xs">
-                  <span className="whitespace-nowrap text-muted-foreground">
-                    {format(new Date(m.moved_at), "dd/MM HH:mm")}
-                  </span>
-                  <span className="truncate">{m.from_line ?? "Unassigned"}</span>
-                  <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                  <span className="truncate font-medium">{m.to_line ?? "Unassigned"}</span>
-                </div>
-              ))
-            )}
+            <PositionTimelineSection
+              dated={{ ...shiftHistory, data: (shiftHistory.data ?? []).filter((h) => h.employee_id === employee.id) }}
+              record={recordHistory}
+              patternName={(id) => (!id ? "No rota" : patterns?.find((p) => p.id === id)?.name ?? "Previous rota (no longer listed)")}
+            />
+            <h3 className="pt-2 text-sm font-semibold">Where they worked</h3>
+            <WhereTheyWorkedSection employeeId={employee.id} />
           </TabsContent>
 
           <TabsContent value="overtime" className="space-y-2 pt-3">
+            <h3 className="text-sm font-semibold">Overtime on the board</h3>
+            <BoardOvertimeSection employeeId={employee.id} />
+            <h3 className="pt-2 text-sm font-semibold">Payroll balance</h3>
             {loadingOT ? (
               <Skeleton className="h-24" />
+            ) : overtimeError ? (
+              <p className="text-sm text-muted-foreground">Payroll balances are not available to your role.</p>
             ) : (overtime ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {overtimeEverImported === false
                   // Nao e sobre esta pessoa: a tabela esta vazia para toda a gente.
-                  // Dizer "for this person" fazia parecer que os outros tinham.
-                  ? "No payroll overtime has ever been imported, for anybody. This tab fills in once the office imports a period."
-                  : "No overtime recorded for this person."}
+                  ? "No payroll balance has ever been imported, for anybody. This section fills in once the office imports a period."
+                  : "No payroll balance has been imported for this person."}
               </p>
             ) : (
               <>
