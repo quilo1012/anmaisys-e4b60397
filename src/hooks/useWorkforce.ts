@@ -459,6 +459,7 @@ export function useRecentPlacements(employeeId: string | null) {
         .from("daily_allocations")
         .select("id, on_date, shift, status, area:headcount_areas(name)")
         .eq("employee_id", employeeId)
+        .lte("on_date", currentShift().operationalDate)
         .order("on_date", { ascending: false })
         .order("shift")
         .limit(30);

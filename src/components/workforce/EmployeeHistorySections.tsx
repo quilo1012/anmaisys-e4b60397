@@ -102,7 +102,9 @@ export function WhereTheyWorkedSection({ employeeId }: { employeeId: string }) {
 
 const clockLine = (c: { start_time: string | null; end_time: string | null; worked_minutes: number | null; balance_minutes: number | null }) => {
   const parts: string[] = [];
-  if (c.start_time || c.end_time) parts.push(`${c.start_time?.slice(0, 5) ?? "?"}–${c.end_time?.slice(0, 5) ?? "?"}`);
+  // TimeMoto writes "<" / ">" for a shift that runs on from the day before / into the next.
+  const t = (v: string | null, edge: string) => (!v ? "?" : v === "<" || v === ">" ? edge : v.slice(0, 5));
+  if (c.start_time || c.end_time) parts.push(`${t(c.start_time, "from the day before")}–${t(c.end_time, "into the next day")}`);
   if (c.worked_minutes != null) parts.push(`worked ${hoursLabel(c.worked_minutes)}`);
   if (c.balance_minutes != null && c.balance_minutes !== 0) {
     parts.push(`balance ${c.balance_minutes < 0 ? "−" : "+"}${hoursLabel(Math.abs(c.balance_minutes))}`);
