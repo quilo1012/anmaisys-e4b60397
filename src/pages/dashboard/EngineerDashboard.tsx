@@ -42,7 +42,7 @@ import { useChecklistsByProblemName, useChecklistResponses, useSaveChecklistResp
 import { EngineerAlertLineFilter } from "@/components/EngineerAlertLineFilter";
 import { TechnicalInfoDialog } from "@/components/engineer/TechnicalInfoDialog";
 import { clearAcknowledgedWOLocal } from "@/lib/woAck";
-import { fetchMaintenanceShiftReport, shiftWindowAt } from "@/lib/maintenanceShiftReport";
+import { MaintenanceReportDialog } from "@/components/engineer/MaintenanceReportDialog";
 
 
 
@@ -468,50 +468,9 @@ function EngineerDashboardContent() {
     };
   }, [allCompleted]);
 
-  // Report: the maintenance hand-over for the shift running at the click. Everything
-  // is read fresh at that moment (see maintenanceShiftReport.ts for why the old
-  // in-memory version printed "No issues today" over real stoppages). A failed read
-  // downloads nothing.
-  const [reportBusy, setReportBusy] = useState(false);
-  const handleReport = async () => {
-    if (reportBusy) return;
-    setReportBusy(true);
-    try {
-      const now = new Date();
-      const report = await fetchMaintenanceShiftReport(now);
-      const w = shiftWindowAt(now);
-      const stamp = `${w.sessionDate}_${w.shift === "day" ? "0600-1800" : "1800-0600"}`;
-      const blob = new Blob([report.text], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `maintenance_report_${stamp}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      if (report.problems.length > 0) {
-        toast({
-          title: "Report downloaded — NOT validated",
-          description: `${report.problems.length} record${report.problems.length === 1 ? "" : "s"} disagree. They are listed in the file.`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Report downloaded",
-          description: `${w.shift === "day" ? "Day" : "Night"} shift ${w.sessionDate} · ${report.stopsRead} stop(s) read, ${report.items.length} listed`,
-        });
-      }
-    } catch (err: any) {
-      toast({
-        title: "Report not downloaded",
-        description: err?.message ?? "The stoppages could not be read. Check the connection and try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setReportBusy(false);
-    }
-  };
+  // Report: opens the shift picker. The report is read from the database for the
+  // shift chosen there, at the moment Generate is pressed — see MaintenanceReportDialog.
+  const [reportOpen, setReportOpen] = useState(false);
 
   const lineFilterParam = searchParams.get("line");
   const dateFilterParam = searchParams.get("date");
@@ -1004,8 +963,8 @@ function EngineerDashboardContent() {
                   <DropdownMenuItem onClick={() => setTechInfoOpen(true)}>
                     <BookOpen className="mr-2 h-4 w-4" /> Technical Info
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => void handleReport()} disabled={reportBusy}>
-                    {reportBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />} Report
+                  <DropdownMenuItem onClick={() => setReportOpen(true)}>
+                    <FileText className="mr-2 h-4 w-4" /> Report
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setChangePinOpen(true)}>
                     <Lock className="mr-2 h-4 w-4" /> Change PIN
@@ -1028,8 +987,8 @@ function EngineerDashboardContent() {
             <Button variant="outline" size="sm" onClick={() => setTechInfoOpen(true)} className="gap-1">
               <BookOpen className="h-4 w-4" /> Technical Info
             </Button>
-            <Button variant="outline" size="sm" onClick={() => void handleReport()} disabled={reportBusy} className="gap-1">
-              {reportBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Report
+            <Button variant="outline" size="sm" onClick={() => setReportOpen(true)} className="gap-1">
+              <FileText className="h-4 w-4" /> Report
             </Button>
             <Button variant="outline" size="sm" onClick={() => setChangePinOpen(true)} className="gap-1">
               <Lock className="h-4 w-4" /> Change PIN
@@ -1483,6 +1442,7 @@ function EngineerDashboardContent() {
 
       <EngineerChangePinDialog open={changePinOpen} onOpenChange={setChangePinOpen} />
       <TechnicalInfoDialog open={techInfoOpen} onOpenChange={setTechInfoOpen} />
+      <MaintenanceReportDialog open={reportOpen} onOpenChange={setReportOpen} generatedBy={currentEngineer?.name ?? profile?.name ?? null} />
       <RejectWoDialog
         woId={rejectDialogWO?.id ?? null}
         woNumber={rejectDialogWO?.number ?? null}
