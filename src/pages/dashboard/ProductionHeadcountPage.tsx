@@ -1944,7 +1944,7 @@ function ShiftBoard({
               const p = employeeById.get(id);
               if (!p) return "A person no longer on the staff list";
               const ref = refOf.get(id);
-              return ref ? `${p.full_name} #${ref}` : p.full_name;
+              return ref ? `${p.full_name} ${ref}` : p.full_name;
             };
             const plan = planTeamMove({
               allocations,
