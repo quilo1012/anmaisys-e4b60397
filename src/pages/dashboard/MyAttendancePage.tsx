@@ -120,13 +120,14 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   onRange: (r: { from: string; to: string }, key: string) => void; pickedKey: string | null;
 }) {
   const days = useMemo(() => buildMyDays(data, range.from, range.to, today), [data, range, today]);
-  // The supervisor's record of the overtime shifts. Those attended on a day the clock has
-  // no hours for yet go into the period's overtime, so the figure is not 0 h for overtime
-  // that was worked and simply not imported (30/10/2026).
+  // The booked overtime shifts. One that has ended counts as worked — the supervisor only
+  // records the exception — and on a day the clock has no hours for yet it goes into the
+  // period's overtime, so the figure is not 0 h for overtime that was worked and simply
+  // not imported (30/10/2026).
   const { data: otRecords } = useMyOvertimeShifts(data.me.id, range.from, range.to);
   const ot = useMemo(
-    () => (otRecords ? summariseOvertimeShifts(otRecords, data.clocks, today) : null),
-    [otRecords, data.clocks, today],
+    () => (otRecords ? summariseOvertimeShifts(otRecords, data.clocks, new Date()) : null),
+    [otRecords, data.clocks],
   );
   const s = useMemo(
     () => summarise(data, days, range.from, range.to, today, ot?.notOnClockMinutes ?? 0),
@@ -144,13 +145,13 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   const gapShifts = ot ? ot.notOnClock.length : 0;
   const gapWords = gapShifts === 1 ? "1 overtime shift" : `${gapShifts} overtime shifts`;
   const clockReach = data.clocked_to ? `Your clock record reaches ${fmtDay(data.clocked_to)}.` : "No clock record has been imported for you yet.";
-  // For the period: the attended shifts are IN the figure, and the note says how much.
+  // For the period: the worked shifts are IN the figure, and the note says how much.
   const periodNote = s.settled && s.settled.attendedHours > 0
-    ? `${fmtHours(s.settled.clockOvertimeHours ?? 0)} on the clock + ${fmtHours(s.settled.attendedHours)} from ${gapWords} your supervisor marked attended on days the clock has no hours for yet. ${clockReach} Not yet approved or paid; the office's close counts these hours once the clock is imported.`
+    ? `${fmtHours(s.settled.clockOvertimeHours ?? 0)} on the clock + ${fmtHours(s.settled.attendedHours)} from ${gapWords} you worked on days the clock has no hours for yet. ${clockReach} Not yet paid; the office's close counts these hours once the clock is imported.`
     : "Worked over your contract across the whole pay period, as the finance close counts it. Recorded on the clock — not yet approved or paid.";
   // For a week or a month there is no settlement: the running balance stays the clock's.
   const balanceGap = gapShifts > 0
-    ? ` ${clockReach} ${gapWords} your supervisor marked attended (${fmtHours((ot?.notOnClockMinutes ?? 0) / 60)}) ${gapShifts === 1 ? "is" : "are"} not in this balance yet.`
+    ? ` ${clockReach} ${gapWords} you worked (${fmtHours((ot?.notOnClockMinutes ?? 0) / 60)}) ${gapShifts === 1 ? "is" : "are"} not in this balance yet.`
     : "";
 
   return (
@@ -313,16 +314,16 @@ function Row({ label, value, note }: { label: string; value: string; note: strin
 }
 
 /**
- * The overtime shifts in the range, as the supervisor recorded them, and what is booked
- * ahead — beside the clock's figure, never instead of it. The clock is imported by hand,
- * so an attended shift is often here days before the figure above can count it.
+ * The overtime shifts in the range: those worked, and those still booked. A booked shift
+ * counts as worked once it has ended; the supervisor records only the exception (no-show,
+ * sick, cancelled), and nothing here waits on anybody's approval (30/10/2026).
  */
 function OvertimeShifts({ ot, boardAhead }: { ot: ReturnType<typeof summariseOvertimeShifts>; boardAhead: MyShift[] }) {
   const booked = [
     ...ot.booked.map((b) => ({ date: b.date, hours: b.hours, where: null as string | null })),
     ...boardAhead.map((b) => ({ date: b.date, hours: b.hours ?? "", where: "on the Headcount" })),
   ].sort((a, b) => a.date.localeCompare(b.date));
-  if (ot.worked.length === 0 && booked.length === 0 && ot.unmarked.length === 0) return null;
+  if (ot.worked.length === 0 && booked.length === 0) return null;
   const list = (xs: { date: string; hours: string; where?: string | null }[]) => (
     <ul className="mt-1 space-y-0.5 text-xs">
       {xs.map((x, i) => (
@@ -341,15 +342,9 @@ function OvertimeShifts({ ot, boardAhead }: { ot: ReturnType<typeof summariseOve
         <span className="font-figure tabular-nums">{fmtHours(ot.workedMinutes / 60)}</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Marked attended by your supervisor, at each shift's own hours. On a day the clock has no hours for yet, they count in the overtime above.
+        Your booked overtime that has taken place, at each shift's own hours. On a day the clock has no hours for yet, it counts in the overtime above.
       </p>
       {ot.worked.length > 0 && list(ot.worked)}
-      {ot.unmarked.length > 0 && (
-        <>
-          <p className="mt-2 text-xs font-medium">Not marked by your supervisor yet</p>
-          {list(ot.unmarked)}
-        </>
-      )}
       {booked.length > 0 && (
         <>
           <p className="mt-2 text-xs font-medium">Booked ahead</p>

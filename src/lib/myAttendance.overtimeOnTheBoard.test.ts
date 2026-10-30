@@ -85,6 +85,8 @@ describe("overtime shifts as the supervisor recorded them", () => {
   const rec = (on_date: string, starts_at: string, ends_at: string, outcome: string | null): MyOvertimeShiftRecord =>
     ({ on_date, starts_at, ends_at, outcome });
 
+  // 30/10/2026, 17:11 on the phone — when Dimas Oliveira's screen was taken.
+  const NOW = new Date("2026-10-30T17:11:00");
   // His clock: rota days to 20/10, nothing after.
   const AILTON_CLOCK = ["2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-20"]
     .map((on_date) => ({ on_date, worked_minutes: 720 }));
@@ -93,7 +95,7 @@ describe("overtime shifts as the supervisor recorded them", () => {
     const s = summariseOvertimeShifts([
       rec("2026-10-25", "06:00:00", "14:00:00", "attended"),
       rec("2026-10-24", "06:00:00", "18:00:00", "attended"),
-    ], AILTON_CLOCK, "2026-10-30");
+    ], AILTON_CLOCK, NOW);
     expect(s.workedMinutes).toBe(20 * 60);
     expect(s.worked.map((w) => [w.date, w.hours])).toEqual([
       ["2026-10-24", "06:00–18:00"], ["2026-10-25", "06:00–14:00"],
@@ -104,19 +106,19 @@ describe("overtime shifts as the supervisor recorded them", () => {
 
   it("leaves a day the clock has hours for to the clock, so nothing counts twice", () => {
     const s = summariseOvertimeShifts([rec("2026-10-24", "06:00:00", "18:00:00", "attended")],
-      [...AILTON_CLOCK, { on_date: "2026-10-24", worked_minutes: 720 }], "2026-10-30");
+      [...AILTON_CLOCK, { on_date: "2026-10-24", worked_minutes: 720 }], NOW);
     expect(s.workedMinutes).toBe(720);
     expect(s.notOnClock).toEqual([]);
   });
 
   it("counts a day the clock has a row for but no worked minutes — the clock has no hours to count", () => {
     const s = summariseOvertimeShifts([rec("2026-10-24", "06:00:00", "18:00:00", "attended")],
-      [...AILTON_CLOCK, { on_date: "2026-10-24", worked_minutes: 0 }], "2026-10-30");
+      [...AILTON_CLOCK, { on_date: "2026-10-24", worked_minutes: 0 }], NOW);
     expect(s.notOnClockMinutes).toBe(720);
   });
 
   it("counts a gap inside the clock's reach too: an import that skipped the day", () => {
-    const s = summariseOvertimeShifts([rec("2026-10-18", "06:00:00", "14:00:00", "attended")], AILTON_CLOCK, "2026-10-30");
+    const s = summariseOvertimeShifts([rec("2026-10-18", "06:00:00", "14:00:00", "attended")], AILTON_CLOCK, NOW);
     expect(s.notOnClockMinutes).toBe(480);
   });
 
@@ -125,21 +127,38 @@ describe("overtime shifts as the supervisor recorded them", () => {
       rec("2026-10-17", "06:00:00", "18:00:00", "no_show"),
       rec("2026-10-18", "06:00:00", "18:00:00", "called_sick"),
       rec("2026-10-19", "06:00:00", "18:00:00", "cancelled_late"),
-    ], AILTON_CLOCK, "2026-10-30");
+    ], AILTON_CLOCK, NOW);
     expect(s.worked).toEqual([]);
     expect(s.workedMinutes).toBe(0);
-    expect(s.unmarked).toEqual([]);
     expect(s.booked).toEqual([]);
   });
 
-  it("splits what has nothing recorded into booked ahead and not marked yet", () => {
+  it("counts a booked shift that has ended as worked, with no supervisor mark — Dimas, 27/10 and 28/10", () => {
+    const DIMAS_CLOCK = ["2026-10-23", "2026-10-24", "2026-10-25"].map((on_date) => ({ on_date, worked_minutes: 720 }));
     const s = summariseOvertimeShifts([
-      rec("2026-10-26", "18:00:00", "06:00:00", null),
-      rec("2026-11-01", "06:00:00", "14:00:00", null),
-    ], AILTON_CLOCK, "2026-10-30");
-    expect(s.unmarked.map((x) => [x.date, x.minutes])).toEqual([["2026-10-26", 720]]);
-    expect(s.booked.map((x) => [x.date, x.minutes])).toEqual([["2026-11-01", 480]]);
-    expect(s.workedMinutes).toBe(0);
+      rec("2026-10-27", "06:00:00", "14:00:00", null),
+      rec("2026-10-28", "06:00:00", "14:00:00", null),
+      rec("2026-11-03", "06:00:00", "14:00:00", null),
+      rec("2026-11-04", "06:00:00", "14:00:00", null),
+      rec("2026-11-05", "06:00:00", "14:00:00", null),
+    ], DIMAS_CLOCK, NOW);
+    expect(s.worked.map((w) => w.date)).toEqual(["2026-10-27", "2026-10-28"]);
+    expect(s.workedMinutes).toBe(16 * 60);
+    expect(s.notOnClockMinutes).toBe(16 * 60);
+    expect(s.booked.map((b) => b.date)).toEqual(["2026-11-03", "2026-11-04", "2026-11-05"]);
+  });
+
+  it("is booked until the shift has ended — a night still running at 02:00 is not worked yet", () => {
+    const night = rec("2026-10-30", "18:00:00", "06:00:00", null);
+    expect(summariseOvertimeShifts([night], [], new Date("2026-10-31T02:00:00")).booked).toHaveLength(1);
+    const after = summariseOvertimeShifts([night], [], new Date("2026-10-31T06:00:00"));
+    expect(after.worked.map((w) => w.minutes)).toEqual([720]);
+    expect(after.booked).toEqual([]);
+  });
+
+  it("an attended mark counts even before the planned end (the supervisor said so)", () => {
+    const s = summariseOvertimeShifts([rec("2026-10-30", "06:00:00", "18:00:00", "attended")], [], NOW);
+    expect(s.workedMinutes).toBe(720);
   });
 });
 
