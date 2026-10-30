@@ -112,7 +112,7 @@ describe("o separador Overtime nao culpa a pessoa por uma tabela vazia", () => {
     overtimeAlgumaVez = true;
     mount(true);
     await abrirSeparador("Overtime");
-    await waitFor(() => expect(screen.getByText(/No overtime recorded for this person/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/No payroll balance has been imported for this person/i)).toBeTruthy());
   });
 });
 
