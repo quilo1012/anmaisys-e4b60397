@@ -495,7 +495,7 @@ function Chip({
           data-testid="board-work-hours"
           aria-label={workHours.overtimeLabels.length ? `Confirmed overtime, on ${workHours.label}` : `Worked ${workHours.label}`}
           title={[
-            workedNote(workHours.marks, workHours.label.split(" + ").length === 1 ? workHours.label : `${workHours.label.split("–")[0]}–${workHours.label.split("–").pop()}`),
+            workedNote(workHours.marks, workHours.workedSpan),
             workHours.shiftLabel ? `Shift ${workHours.shiftLabel}` : null,
             workHours.overtimeLabels.length ? `confirmed overtime ${workHours.overtimeLabels.join(", ")}` : null,
             `${Number.isInteger(workHours.total) ? workHours.total : workHours.total.toFixed(1)}h on`,

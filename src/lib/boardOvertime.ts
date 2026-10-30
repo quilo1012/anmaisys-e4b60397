@@ -51,6 +51,8 @@ export interface PlacementHours {
   overtimeLabels: string[];
   /** The booked hours before any late start / early finish / stay-late: "06:00–14:00". */
   bookedLabel: string;
+  /** First start to last end actually worked: "06:00–18:00". */
+  workedSpan: string;
   /** What `left_early_at` / `arrived_late_at` mean against the booked hours. */
   marks: WorkedMarks;
 }
@@ -231,7 +233,7 @@ export function placementHours(
   if (!base && mine.length === 0) {
     const whole: [number, number] = shift === "Night" ? [1080, 1800] : [360, 1080];
     const w = workedWindow(whole, a);
-    return { base: 0, overtime: (w.window[1] - w.window[0]) / 60, total: (w.window[1] - w.window[0]) / 60, label: show(w.window), short: showShort(w.window), shiftLabel: null, overtimeLabels: [], bookedLabel: show(whole), marks: w.marks };
+    return { base: 0, overtime: (w.window[1] - w.window[0]) / 60, total: (w.window[1] - w.window[0]) / 60, label: show(w.window), short: showShort(w.window), shiftLabel: null, overtimeLabels: [], bookedLabel: show(whole), workedSpan: show(w.window), marks: w.marks };
   }
 
   const booked = merge([...(fullBase ? [fullBase] : []), ...mine]);
@@ -262,6 +264,7 @@ export function placementHours(
     shiftLabel: base ? show(base) : null,
     overtimeLabels: mine.map(show),
     bookedLabel: booked.map(show).join(" + "),
+    workedSpan: show([all[0][0], all[all.length - 1][1]]),
     marks: w.marks,
   };
 }
