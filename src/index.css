@@ -1733,3 +1733,14 @@ html, body, #root {
 }
 .close-preview-table th.print-caption { font-weight: 400; color: #6B7078; border-bottom: 0; padding-bottom: 6px; }
 .close-preview-table tfoot td { border: 0; color: #6B7078; font-size: 9px; padding-top: 6px; }
+
+/* Uma equipa acabada de mudar de linha: as células que chegaram ficam amarelo-claro um
+   instante, a cor de selecção do Excel, e voltam a branco. É o único movimento do board. */
+@keyframes headcount-arrived {
+  from { background-color: #fff2cc; }
+  to { background-color: transparent; }
+}
+.headcount-arrived { animation: headcount-arrived 1.4s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .headcount-arrived { animation: none; outline: 2px solid #f1c232; outline-offset: -2px; }
+}

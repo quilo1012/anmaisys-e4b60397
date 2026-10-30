@@ -87,7 +87,7 @@ import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { MoveTeamDialog, type MoveTeamPreview } from "@/components/workforce/MoveTeamDialog";
 import { HiddenLinesMenu } from "@/components/workforce/HiddenLinesMenu";
 import { planTeamMove } from "@/lib/teamMove";
-import { linesToDraw } from "@/lib/hiddenLines";
+import { linesToDraw, hiddenGaps } from "@/lib/hiddenLines";
 
 /**
  * The boards there are. Two, and Weekend is not one of them.
@@ -168,6 +168,42 @@ const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
  * essa fila em degraus.
  */
 const NO_HIDDEN: ReadonlySet<string> = new Set();
+
+/**
+ * Where a line is hidden, marked the way Excel marks a hidden column: a double rule on
+ * the edge of the next column drawn. Hovering says which lines; a tap shows them again.
+ */
+function HiddenColumnMark({
+  lines, side, shift, onShow,
+}: {
+  lines: { id: string; name: string }[];
+  side: "left" | "right";
+  shift: string;
+  /** Absent for somebody who may not change the board: the mark still says what is hidden. */
+  onShow?: (ids: string[]) => void;
+}) {
+  const names = lines.map((l) => l.name).join(", ");
+  const label = `${names} hidden on the ${shift.toLowerCase()} shift`;
+  const rule = (
+    <span aria-hidden className="block h-full w-[4px] border-x border-neutral-600 bg-card dark:border-neutral-300" />
+  );
+  const place = cn(
+    "absolute inset-y-0 z-20 flex w-3 justify-center print:hidden",
+    side === "left" ? "-left-1.5" : "-right-1.5",
+  );
+  if (!onShow) return <span className={place} title={label} role="img" aria-label={label}>{rule}</span>;
+  return (
+    <button
+      type="button"
+      className={cn(place, "touch-exempt cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&:hover>span]:border-primary [&:hover>span]:bg-primary/10")}
+      title={`${label} — show`}
+      aria-label={`Show ${label}`}
+      onClick={(e) => { e.stopPropagation(); onShow(lines.map((l) => l.id)); }}
+    >
+      {rule}
+    </button>
+  );
+}
 
 function SheetColumn({
   title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled, countLabel, actions,
@@ -367,6 +403,7 @@ const LOOK: Record<ShiftKey, { icon: typeof Sun; rule: string; chip: string; sof
 const roleOf = roleStripe;
 
 export function Chip({
+  arrived,
   name,
   personRef,
   sheetName,
@@ -406,6 +443,8 @@ export function Chip({
    */
   workHours?: PlacementHours | null;
   tone: "production" | "support" | "away" | "overtime" | "roster" | "training";
+  /** Just moved here with the rest of the team: one brief Excel-yellow wash, then plain. */
+  arrived?: boolean;
   leader?: boolean;
   /** Named role — LEAD, SUP, OP, ENG, LAB, WH, OFF — from the shared mapping. */
   role?: { short: string; label: string; cls: string } | null;
@@ -479,6 +518,7 @@ export function Chip({
           : tones[tone],
         draggable ? "cursor-grab active:cursor-grabbing" : onOpen ? "cursor-pointer" : "cursor-default",
         dimmed && "opacity-20",
+        arrived && "headcount-arrived",
       )}
       title={[name, personRef, sheetName && sheetName !== name ? `on the sheet: ${sheetName}` : null].filter(Boolean).join(" — ")}
       onClick={onOpen}
@@ -633,7 +673,8 @@ function SortableColumn({ id, children }: { id: string; children: (grip: React.R
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(isDragging && "z-10 opacity-70")}
+      // Relative so a hidden-column mark can sit on its edge.
+      className={cn("relative", isDragging && "z-10 opacity-70")}
     >
       {children(
         <button
@@ -871,6 +912,14 @@ function ShiftBoard({
   const hideAvailable = hiddenQ.data?.available === true;
   const hiddenHere = hiddenQ.data?.byShift[shift] ?? NO_HIDDEN;
   const [movingFrom, setMovingFrom] = useState<{ id: string; name: string } | null>(null);
+  // The rows that just arrived with a team move, washed once so the eye finds them.
+  const [arrived, setArrived] = useState<ReadonlySet<string>>(NO_HIDDEN);
+  useEffect(() => {
+    if (!arrived.size) return;
+    const t = window.setTimeout(() => setArrived(NO_HIDDEN), 1600);
+    return () => window.clearTimeout(t);
+  }, [arrived]);
+  const showLines = (ids: string[]) => ids.forEach((id) => setHidden.mutate({ areaId: id, shift, hidden: false }));
   const { data: copyableDays = [], isLoading: copyableLoading } = useCopyableDays(onDate, shift);
   const matrix = useHeadcountMatrix(shift, onDate);
   const saveMatrix = useSaveMatrix(onDate, shift);
@@ -1432,7 +1481,7 @@ function ShiftBoard({
             hidden={areas
               .filter((a) => hiddenHere.has(a.id))
               .map((a) => ({ id: a.id, name: a.name, staffed: peopleIn(a.id).length > 0 }))}
-            onShow={(ids) => ids.forEach((id) => setHidden.mutate({ areaId: id, shift, hidden: false }))}
+            onShow={showLines}
           />
           <Button
             size="sm"
@@ -1729,6 +1778,8 @@ function ShiftBoard({
         // Hidden on this shift and empty today: not drawn. Hidden but with people on it:
         // drawn anyway and flagged, so a filter never takes anybody off the headcount.
         const { drawn: ofKind, hiddenButStaffed } = linesToDraw(allOfKind, hiddenHere, (id) => peopleIn(id).length);
+        const gaps = hiddenGaps(allOfKind, new Set(ofKind.map((a) => a.id)));
+        const lastDrawn = ofKind[ofKind.length - 1]?.id;
         const open = openSections[section.key] !== false;
         const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
         // A banda inteira tem a altura da coluna mais comprida, mais uma linha livre
@@ -1782,6 +1833,13 @@ function ShiftBoard({
           return (
             <SortableColumn key={area.id} id={area.id}>
             {(grip) => (
+            <>
+            {gaps.before.has(area.id) && (
+              <HiddenColumnMark side="left" lines={gaps.before.get(area.id)!} shift={shift} onShow={canManage ? showLines : undefined} />
+            )}
+            {area.id === lastDrawn && gaps.after.length > 0 && (
+              <HiddenColumnMark side="right" lines={gaps.after} shift={shift} onShow={canManage ? showLines : undefined} />
+            )}
             <DropZone
               disabled={!canManage}
               className="-mb-px -mr-px h-full rounded-none"
@@ -1873,6 +1931,7 @@ function ShiftBoard({
                         leader={leadsToday}
                         lineLeader={leadsToday}
                         lineName={area.name}
+                        arrived={arrived.has(byEmployee.get(p.id)?.id ?? "")}
                         role={roleOf(p)}
                         dimmed={isDimmed(shown) && isDimmed(p.full_name)}
                         overtime={isOt}
@@ -1901,6 +1960,7 @@ function ShiftBoard({
                     ))}
               </SheetColumn>
             </DropZone>
+            </>
             )}
             </SortableColumn>
           );
@@ -1959,18 +2019,37 @@ function ShiftBoard({
               staying: plan.staying.map((s) => ({ id: s.row.employee_id, name: nameOf(s.row.employee_id), reason: s.reason })),
               carriesLeader: plan.carryLeader ? nameOf(plan.carryLeader.employee_id) : null,
               destinationLeader: plan.destinationLeader ? nameOf(plan.destinationLeader.employee_id) : null,
+              counts: { from: peopleIn(movingFrom.id).length, to: to ? peopleIn(to).length : null },
             };
           }}
           onConfirm={(to) => {
             const plan = planTeamMove({ allocations, from: movingFrom.id, to, drawable: (id) => employeeById.has(id) });
+            const from = movingFrom.id;
             const fromName = movingFrom.name;
             const toName = areas.find((a) => a.id === to)?.name ?? "the line";
+            // The source's leader, whether or not the mark travelled: undoing puts it back
+            // on the line it came from, which the move has just left without a leader.
+            const sourceLeaderRowId = plan.movers.find((r) => r.is_leader)?.id ?? null;
             moveTeam.mutate(
-              { rowIds: plan.movers.map((r) => r.id), from: movingFrom.id, to, carryLeaderRowId: plan.carryLeader?.id ?? null },
+              { rowIds: plan.movers.map((r) => r.id), from, to, carryLeaderRowId: plan.carryLeader?.id ?? null },
               {
-                onSuccess: ({ moved, asked }) => {
-                  if (moved === asked) toast.success(`Moved ${moved} from ${fromName} to ${toName}`);
-                  else toast.warning(`Moved ${moved} of ${asked} from ${fromName} to ${toName} — the others had already been moved by someone else.`);
+                onSuccess: ({ moved, asked, movedIds }) => {
+                  if (!moved) { toast.warning(`Nobody was moved — the team had already left ${fromName}.`); return; }
+                  setArrived(new Set(movedIds));
+                  const undo = {
+                    label: "Undo",
+                    onClick: () => moveTeam.mutate(
+                      { rowIds: movedIds, from: to, to: from, carryLeaderRowId: sourceLeaderRowId },
+                      {
+                        onSuccess: (back) => {
+                          setArrived(new Set(back.movedIds));
+                          toast.success(`Moved ${back.moved} back to ${fromName}`, { id: "headcount-move-team" });
+                        },
+                      },
+                    ),
+                  };
+                  if (moved === asked) toast.success(`Moved ${moved} from ${fromName} to ${toName}`, { id: "headcount-move-team", action: undo, duration: 10000 });
+                  else toast.warning(`Moved ${moved} of ${asked} from ${fromName} to ${toName} — the others had already been moved by someone else.`, { id: "headcount-move-team", action: undo, duration: 10000 });
                 },
               },
             );

@@ -13,6 +13,8 @@ export type MoveTeamPreview = {
   carriesLeader: string | null;
   /** Name of whoever already leads the destination, if anyone. */
   destinationLeader: string | null;
+  /** People drawn on each line now: the source, and the destination once one is chosen. */
+  counts: { from: number; to: number | null };
 };
 
 /**
@@ -65,6 +67,31 @@ export function MoveTeamDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {to && toName && p.movers.length > 0 && p.counts.to !== null && (
+            // The decision is the two totals; the names below are the check.
+            <table aria-label="Headcount before and after" className="w-full border-collapse text-sm tabular-nums">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground">
+                  <th className="py-1 font-medium">Line</th>
+                  <th className="py-1 text-right font-medium">Now</th>
+                  <th className="py-1 text-right font-medium">After</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t">
+                  <td className="py-1.5">{from.name}</td>
+                  <td className="py-1.5 text-right">{p.counts.from}</td>
+                  <td className="py-1.5 text-right font-semibold">{p.counts.from - p.movers.length}</td>
+                </tr>
+                <tr className="border-t">
+                  <td className="py-1.5">{toName}</td>
+                  <td className="py-1.5 text-right">{p.counts.to}</td>
+                  <td className="py-1.5 text-right font-semibold">{p.counts.to + p.movers.length}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
 
           <div>
             <p className="font-semibold">
