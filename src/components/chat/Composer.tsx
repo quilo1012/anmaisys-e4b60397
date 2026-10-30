@@ -216,15 +216,18 @@ export function Composer({
               <Captions className={cn("h-5 w-5", listening && "animate-pulse")} />
             </Button>
           )}
-          {canRecord && !text.trim() && files.length === 0 ? (
+          {/* The microphone sits beside Send, never in its place. Swapping them meant a
+              private conversation opened with no Send button anywhere on the screen,
+              and on a phone that read as "the chat cannot send" (30/10/2026). It steps
+              aside once something is typed, to give the box the room. */}
+          {canRecord && !text.trim() && files.length === 0 && (
             <Button size="icon" variant="ghost" className="h-11 w-11 shrink-0" onClick={startRecording} disabled={disabled || uploadingVoice} aria-label="Record voice message" title="Record voice message">
               {uploadingVoice ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
             </Button>
-          ) : (
-            <Button size="icon" className="h-11 w-11 shrink-0" onClick={send} disabled={disabled || (!text.trim() && files.length === 0)} aria-label="Send message">
-              <Send className="h-5 w-5" />
-            </Button>
           )}
+          <Button size="icon" className="h-11 w-11 shrink-0" onClick={send} disabled={disabled || (!text.trim() && files.length === 0)} aria-label="Send message">
+            <Send className="h-5 w-5" />
+          </Button>
         </div>
       )}
     </div>

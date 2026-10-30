@@ -354,12 +354,26 @@ export default function DirectMessagesPage() {
           of the grid keeping h-full and pushing the composer off the bottom. The card
           removes itself the moment this phone is subscribed, and on most days it is
           not there at all. */}
-      <div className="flex h-[calc(100dvh-10rem)] min-h-[420px] flex-col gap-3 lg:h-[calc(100dvh-7rem)]">
-        <OvertimePushNudge
-          title="Turn on notifications to get messages on your phone"
-          reason="Without this a message only reaches you when you next open the app — it will not buzz."
-        />
-        <div className="grid min-h-0 flex-1 overflow-hidden rounded-xl border bg-card md:grid-cols-[300px_1fr] lg:grid-cols-[340px_1fr]">
+      {/* Below 1024px the height is the shell's, worked out rather than guessed: the
+          screen less the top bar (3.5rem + its border + the notch), the content's top
+          padding (p-3 / sm:p-4 / md:p-6) and its bottom padding, which is there for the
+          fixed tab bar (4.5rem + the home indicator). The old `100dvh-10rem` with a 420px
+          floor left the notch and the home indicator out and, with the keyboard open,
+          outgrew the screen — the composer ended under the tab bar (30/10/2026). */}
+      <div className="flex h-[calc(100dvh-var(--app-banner-h)-env(safe-area-inset-top)-env(safe-area-inset-bottom)-8.75rem-1px)] min-h-[240px] flex-col gap-3 sm:h-[calc(100dvh-var(--app-banner-h)-env(safe-area-inset-top)-env(safe-area-inset-bottom)-9rem-1px)] md:h-[calc(100dvh-var(--app-banner-h)-env(safe-area-inset-top)-env(safe-area-inset-bottom)-9.75rem-1px)] lg:h-[calc(100dvh-7rem)] lg:min-h-[420px]">
+        {/* On a phone with a conversation open the card is not drawn: it took 264px of
+            a 667px screen, and the thread under it then started below the tab bar. It
+            stays on the list of conversations, and on a desk beside the thread. */}
+        <div className={cn(active ? "hidden md:block" : "block", "empty:hidden")}>
+          <OvertimePushNudge
+            title="Turn on notifications to get messages on your phone"
+            reason="Without this a message only reaches you when you next open the app — it will not buzz."
+          />
+        </div>
+        {/* `grid-cols-1` is minmax(0, 1fr). Without it a phone's one column was sized by
+            its content, came out wider than the screen, and the overflow-hidden here cut
+            the Send button off at 360px — out of sight, and out of every "cut off" check. */}
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-xl border bg-card md:grid-cols-[300px_1fr] lg:grid-cols-[340px_1fr]">
           <aside className={cn("min-h-0 border-r", active ? "hidden md:block" : "block")} aria-label="Conversations">
             <ConversationList
               conversations={shown}
