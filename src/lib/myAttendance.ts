@@ -232,7 +232,7 @@ export interface MySummary {
    * pay period, because only a whole period settles.
    *
    * `overtimeHours` and `owedHours` include `attendedHours`: shifts the supervisor marked
-   * attended on days the clock has no hours for yet (`summariseOvertimeShifts`). They go
+   * worked on days the clock has no hours for yet (`summariseOvertimeShifts`). They go
    * into the period's balance, so a shortfall elsewhere still nets against them.
    * `clockOvertimeHours` is the clock alone — what the office's finance close shows.
    */
@@ -504,40 +504,54 @@ export interface MyOvertimeShiftRecord {
 export interface MyOvertimeShiftLine { date: string; hours: string; minutes: number }
 
 export interface MyOvertimeShiftSummary {
-  /** Marked `attended` by the supervisor. */
+  /**
+   * Booked shifts that have taken place: everything that has ended, unless the supervisor
+   * recorded that it did not happen (no-show, sick, cancelled). An `attended` mark is not
+   * needed to count (owner's decision, 30/10/2026).
+   */
   worked: MyOvertimeShiftLine[];
   workedMinutes: number;
-  /** Still to come (today or later), nothing recorded yet. */
+  /** Still to come, or on now. */
   booked: MyOvertimeShiftLine[];
-  /** Over, booked, and the supervisor has not marked it yet. */
-  unmarked: MyOvertimeShiftLine[];
-  /** Attended shifts on dates the clock has no worked minutes for. */
+  /** Worked shifts on dates the clock has no worked minutes for. */
   notOnClock: MyOvertimeShiftLine[];
   notOnClockMinutes: number;
 }
 
+/** Outcomes that say the shift was not worked. Anything else — `attended` or nothing — is worked once it has ended. */
+const NOT_WORKED: ReadonlySet<string> = new Set(["no_show", "called_sick", "cancelled", "cancelled_in_time", "cancelled_late"]);
+
+/** When a shift ends, on the device's clock: an end at or before the start is the next morning. */
+export function overtimeShiftEnd(r: Pick<MyOvertimeShiftRecord, "on_date" | "starts_at">, endsAt: string): Date {
+  const start = new Date(`${r.on_date}T${r.starts_at.slice(0, 5)}:00`);
+  return new Date(start.getTime() + windowMinutes(r.starts_at, endsAt) * 60_000);
+}
+
 /**
- * The overtime shifts in a range, as the supervisor recorded them.
+ * The overtime shifts in a range: what has been worked, and what is still booked.
  *
  * "Overtime for <period>" started as the finance close's figure, which reads the clock
  * alone. TimeMoto is imported by hand, so a shift worked after the last import was not
- * in it: on 30/10 Ailton Junior's clock stopped at 20/10, and his two attended weekend
- * shifts (24/10, 12 h; 25/10, 8 h) left that figure at 0 h — ten people, thirteen shifts
- * and 136 h in October alone. The owner asked for the figure to count them (30/10).
+ * in it: on 30/10 Ailton Junior's clock stopped at 20/10, and his two weekend shifts
+ * (24/10, 12 h; 25/10, 8 h) left that figure at 0 h. The owner asked for the figure to
+ * count them (30/10).
  *
- * So a shift the supervisor marked `attended` is counted on the person's own screen
- * when the clock has no worked minutes on its date (`notOnClock`). A day the clock has
- * hours for is the clock's, so nothing is counted twice; once the import reaches the
- * day, the clock takes over by itself. The office's finance close still reads the clock
- * alone, and the screen says which part came from where.
+ * Then the same evening: Dimas Oliveira's 27/10 and 28/10 (06:00–14:00) sat under "Not
+ * marked by your supervisor yet" and counted 0 h, with 44 such shifts in October — the
+ * screen read as overtime waiting on a supervisor's approval, which it never was. So a
+ * booked shift counts as worked once it has ended; the supervisor records only the
+ * exception (no-show, sick, cancelled), and that takes it out.
  *
- * Hours are the ask's own window. A no-show, a sick call and a cancellation are not
- * overtime, so they are left out.
+ * A worked shift goes into the person's own figure when the clock has no worked minutes on
+ * its date (`notOnClock`). A day the clock has hours for is the clock's, so nothing is
+ * counted twice; once the import reaches the day, the clock takes over by itself. The
+ * office's finance close still reads the clock alone, and the screen says which part came
+ * from where. Hours are the ask's own window.
  */
 export function summariseOvertimeShifts(
   records: MyOvertimeShiftRecord[],
   clocks: ReadonlyArray<Pick<MyClockRow, "on_date" | "worked_minutes">>,
-  today: string,
+  now: Date = new Date(),
 ): MyOvertimeShiftSummary {
   const clockedDays = new Set(clocks.filter((c) => (c.worked_minutes ?? 0) > 0).map((c) => c.on_date));
   const line = (r: MyOvertimeShiftRecord): MyOvertimeShiftLine => ({
@@ -545,16 +559,16 @@ export function summariseOvertimeShifts(
     hours: span(r.starts_at, r.ends_at) ?? "",
     minutes: windowMinutes(r.starts_at, r.ends_at),
   });
-  const sorted = [...records].sort((a, b) => a.on_date.localeCompare(b.on_date) || a.starts_at.localeCompare(b.starts_at));
-  const worked = sorted.filter((r) => r.outcome === "attended").map(line);
-  const open = sorted.filter((r) => r.outcome == null);
-  const booked = open.filter((r) => r.on_date >= today).map(line);
-  const unmarked = open.filter((r) => r.on_date < today).map(line);
-  // Any other outcome (no-show, sick, cancelled) is not overtime worked, and falls out here.
+  const sorted = [...records]
+    .filter((r) => !(r.outcome && NOT_WORKED.has(r.outcome)))
+    .sort((a, b) => a.on_date.localeCompare(b.on_date) || a.starts_at.localeCompare(b.starts_at));
+  const ended = (r: MyOvertimeShiftRecord) => r.outcome === "attended" || overtimeShiftEnd(r, r.ends_at) <= now;
+  const worked = sorted.filter(ended).map(line);
+  const booked = sorted.filter((r) => !ended(r)).map(line);
   const notOnClock = worked.filter((w) => !clockedDays.has(w.date));
   const sum = (xs: MyOvertimeShiftLine[]) => xs.reduce((n, x) => n + x.minutes, 0);
   return {
-    worked, workedMinutes: sum(worked), booked, unmarked,
+    worked, workedMinutes: sum(worked), booked,
     notOnClock, notOnClockMinutes: sum(notOnClock),
   };
 }

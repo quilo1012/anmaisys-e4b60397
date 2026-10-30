@@ -64,7 +64,7 @@ describe("overtime shifts beside the clock's figure", () => {
     expect(env.shifts).toHaveBeenCalledWith("e-003", "2026-10-12", "2026-11-08");
     const hours = screen.getByTestId("hours-balance");
     expect(hours).toHaveTextContent(/Overtime for October 2026\s*20 h/);
-    expect(hours).toHaveTextContent(/0 h on the clock \+ 20 h from 2 overtime shifts your supervisor marked attended/);
+    expect(hours).toHaveTextContent(/0 h on the clock \+ 20 h from 2 overtime shifts you worked on days the clock has no hours for yet/);
     expect(hours).toHaveTextContent(/the office's close counts these hours once the clock is imported/);
   });
 

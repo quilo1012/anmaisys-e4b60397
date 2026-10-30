@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, XCircle, Clock, Loader2, Ban, CalendarClock } from "lucide-react";
+import { Check, X, XCircle, Clock, Loader2, Ban, CalendarClock, AlarmClock } from "lucide-react";
 import { LoadFailed } from "@/components/portal/LoadFailed";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,8 @@ import { useMyAttendance } from "@/hooks/useMyAttendance";
 import { currentShift } from "@/lib/operationalShift";
 import { overtimeOnTheBoardOnly, type MyShift } from "@/lib/myAttendance";
 import { areaText, plusDays } from "@/lib/myShiftText";
+import { boardSlotOf } from "@/lib/boardOvertime";
+import { countdownLabel, dayWord, nextBookedShift, type BookedShift, type NextShift } from "@/lib/overtimeCountdown";
 
 const NO_CLASHES: ReadonlyMap<string, string> = new Map();
 
@@ -320,6 +322,74 @@ function BoardBookingCard({ b }: { b: MyShift }) {
   );
 }
 
+/**
+ * The next booked overtime, as a reminder: the day, the hours, the column, and the time
+ * left before it starts — or before it ends, while it is on. Amber in the last hour.
+ * Asked for on 30/10/2026; the push reminders 24 h and 1 h before are the same booking
+ * reaching the lock screen.
+ */
+function NextOvertimeCard({ next, more, now, onShowAll }: {
+  next: NextShift; more: number; now: Date; onShowAll: () => void;
+}) {
+  const left = (next.onNow ? next.end : next.start).getTime() - now.getTime();
+  const soon = !next.onNow && left <= 60 * 60_000;
+  const hm = (t: string) => t.slice(0, 5);
+  return (
+    <Card
+      data-testid="next-overtime"
+      className={cn("overflow-hidden", next.onNow ? "border-success/40" : soon ? "border-warning/50" : "border-primary/30")}
+    >
+      <CardContent className="p-0">
+        <div className={cn(
+          "flex items-center justify-between gap-2 px-4 py-1.5 text-2xs font-semibold uppercase tracking-wide",
+          next.onNow ? "bg-success/15 text-success-strong" : soon ? "bg-warning/15 text-warning-strong" : "bg-primary/10 text-primary",
+        )}>
+          <span className="flex items-center gap-1.5">
+            <AlarmClock className="h-3.5 w-3.5" aria-hidden />
+            {next.onNow ? "Overtime on now" : "Next overtime"}
+          </span>
+          <span className="flex items-center gap-1"><Check className="h-3 w-3" aria-hidden /> Booked</span>
+        </div>
+        <div className="flex items-start justify-between gap-3 px-4 py-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-base font-semibold">{fmtDate(next.date)}</span>
+              <ShiftTag shift={next.shift} />
+            </div>
+            <div className="flex items-center gap-1.5 text-sm font-medium tabular-nums">
+              <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+              {windowLabel(next.startsAt, next.endsAt)}
+            </div>
+            <div className={cn("text-sm", next.area ? "text-foreground" : "text-muted-foreground")}>
+              {next.area ?? "Work area not yet assigned"}
+            </div>
+          </div>
+          <div className="shrink-0 text-right" aria-live="polite">
+            <div className="text-2xs text-muted-foreground">{next.onNow ? "Ends in" : "Starts in"}</div>
+            <div className={cn(
+              "font-figure text-xl font-semibold leading-tight tabular-nums",
+              soon && "text-warning-strong", next.onNow && "text-success-strong",
+            )} data-testid="next-overtime-countdown">
+              {countdownLabel(left)}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-xs text-muted-foreground">
+          <span>
+            {next.onNow ? `On until ${hm(next.endsAt)}.` : `Starts ${dayWord(next.date, now)} at ${hm(next.startsAt)}.`}
+            {next.source === "headcount" ? " Put on the Headcount by the office." : ""}
+          </span>
+          {more > 0 && (
+            <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={onShowAll}>
+              +{more} more booked
+            </button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AsksForMe({ me }: { me: { id: string; full_name: string; department: string | null; shift_group: string | null } }) {
   const { data: requests = [], isLoading, isError, refetch } = useMyUpcomingOvertime();
   const { data: responses = [] } = useOvertimeResponses();
@@ -374,13 +444,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   const boardFrom = currentShift().operationalDate;
   const boardTo = plusDays(boardFrom, 13);
   const { data: attendance } = useMyAttendance(boardFrom, boardTo);
-  const boardBookings = useMemo(() => {
-    if (attendance?.state !== "ready") return [] as MyShift[];
-    return overtimeOnTheBoardOnly(attendance.data, boardFrom, boardTo).filter((b) => {
-      const start = (b.hours ?? "").slice(0, 5);
-      return !/^\d\d:\d\d$/.test(start) || !askHasStarted({ on_date: b.date, starts_at: start }, now);
-    });
-  }, [attendance, boardFrom, boardTo, now]);
+  // Every Headcount booking in the fortnight, started or not — the reminder card keeps
+  // one that is on now; the list below shows only those still to start.
+  const boardAll = useMemo(
+    () => (attendance?.state === "ready" ? overtimeOnTheBoardOnly(attendance.data, boardFrom, boardTo) : [] as MyShift[]),
+    [attendance, boardFrom, boardTo],
+  );
+  const boardBookings = useMemo(() => boardAll.filter((b) => {
+    const start = (b.hours ?? "").slice(0, 5);
+    return !/^\d\d:\d\d$/.test(start) || !askHasStarted({ on_date: b.date, starts_at: start }, now);
+  }), [boardAll, now]);
 
   /**
    * Arriving from the bell: `?ask=<id>` scrolls to that ask and rings it. If it is not
@@ -459,6 +532,32 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
     return !myOutcomes.some((o) => o.response_id === resp.id
       && (o.outcome === "cancelled_in_time" || o.outcome === "cancelled_late"));
   }), [requests, mine, myOutcomes]);
+
+  /**
+   * The next booked overtime, as a reminder with the time left (30/10/2026): asks this
+   * person is confirmed on, and placements the office made on the Headcount. The column
+   * comes from the board row the booking landed on, when somebody has placed them.
+   */
+  const next = useMemo(() => {
+    const board = attendance?.state === "ready" ? attendance.data.board : [];
+    const areaOf = (date: string, shift: string) =>
+      board.find((b) => b.on_date === date && b.shift === shift && b.status === "overtime")?.area ?? null;
+    const items: BookedShift[] = [
+      ...bookedAsks.map((q): BookedShift => {
+        const slot = boardSlotOf(q.on_date, q.starts_at);
+        return {
+          key: `ask-${q.id}`, date: q.on_date, startsAt: q.starts_at, endsAt: q.ends_at,
+          shift: askShift(q), area: areaOf(slot.date, slot.shift), source: "ask",
+        };
+      }),
+      ...boardAll.filter((b) => /^\d\d:\d\d–\d\d:\d\d$/.test(b.hours ?? "")).map((b): BookedShift => ({
+        key: `board-${b.date}-${b.shift}`, date: b.date,
+        startsAt: (b.hours as string).slice(0, 5), endsAt: (b.hours as string).slice(6, 11),
+        shift: b.shift, area: b.area ?? null, source: "headcount",
+      })),
+    ];
+    return nextBookedShift(items, now);
+  }, [bookedAsks, boardAll, attendance, now]);
   const cancelling = useRef(false);
   /**
    * Booking again a booking the person cancelled in time (BLOCO 138). Said from the row
@@ -633,6 +732,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           {waiting > 0 ? `${waiting} waiting for your answer` : "All answered"}
         </span>
       </div>
+      {next.next && (
+        <NextOvertimeCard next={next.next} more={next.more} now={now} onShowAll={() => setFilter("accepted")} />
+      )}
       {block && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="flex items-start gap-3 py-4 text-sm">

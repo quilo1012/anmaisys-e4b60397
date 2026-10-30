@@ -81,6 +81,11 @@ test("My Overtime lists the Headcount booking and counts it as accepted (390px)"
   await expect(card).toContainText("You're in");
   await expect(page.getByRole("button", { name: /^1\s*Accepted$/ })).toBeVisible();
   expect(await sideways(page), "page scrolls sideways").toBeLessThanOrEqual(0);
+  // The reminder: the Headcount booking is the next overtime, with the time left.
+  const next = page.getByTestId("next-overtime");
+  await expect(next).toContainText("Line 2");
+  await expect(next).toContainText(/Starts in/);
+  await next.screenshot({ path: "test-results/my-overtime-next-phone.png" });
   await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/my-overtime-board-booking-phone.png", fullPage: false });
 });
