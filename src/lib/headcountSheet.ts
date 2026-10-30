@@ -4,6 +4,7 @@ import XLSX from "xlsx-js-style";
 import { claimsLeadership, keepsLeadership } from "@/lib/leaderMark";
 import { sheetBandOf } from "@/lib/headcountBlocks";
 import { isHalfDay, isWorkingHalfDay } from "@/lib/halfDay";
+import { placementHours, type ConfirmedAsk, type WorkedMarks } from "@/lib/boardOvertime";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
@@ -303,11 +304,28 @@ const STATE_LOOK: Record<string, SheetLook> = {
  * sheet is actually for. It is written to be recognised, not to be elegant: this is
  * the shape people already read every morning.
  */
+/**
+ * The board's own reading of a working row's hours (`placementHours` / `workedWindow`):
+ * the marks, and the worked span the sheet writes ("06–18") when somebody stayed past
+ * the booked end or came in before its start. Null for a row that is not working.
+ */
+export function sheetHoursOf(
+  a: Allocation, date: string, shift: string, asks: ReadonlyArray<ConfirmedAsk> = [],
+): { marks: WorkedMarks; extended: string | null } | null {
+  if (a.status !== "assigned" && a.status !== "overtime") return null;
+  const h = placementHours(a, date, shift, asks);
+  const short = (t: string) => (t.endsWith(":00") ? t.slice(0, 2) : t);
+  const [ws, we] = h.workedSpan.split("–");
+  return { marks: h.marks, extended: h.marks.stayLate || h.marks.earlyStart ? `${short(ws)}–${short(we)}` : null };
+}
+
 export function buildHeadcountWorkbook(input: {
   days: SheetDay[];
   areas: HeadcountArea[];
   employeeById: Map<string, HeadcountEmployee>;
   allocationsFor: (date: string, shift: string) => Array<Allocation & { planned?: boolean }>;
+  /** Confirmed asks per person for a day, so a stay-late reads against the ask's end. */
+  asksFor?: (date: string, shift: string) => ReadonlyMap<string, ReadonlyArray<ConfirmedAsk>> | undefined;
 }): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
   const production = columnsOf(input.areas.filter((a) => sheetBandOf(a) === "production"));
@@ -315,7 +333,14 @@ export function buildHeadcountWorkbook(input: {
 
   for (const day of input.days) {
     const allocs = input.allocationsFor(day.date, day.shift);
+    const asks = input.asksFor?.(day.date, day.shift);
     const nameOf = (a: Allocation) => a.sheet_name ?? input.employeeById.get(a.employee_id)?.full_name ?? "";
+    // A stay-late / early start is written as the hours worked, "Name (06–18)".
+    const workedName = (a: Allocation) => {
+      const n = nameOf(a);
+      const x = n ? sheetHoursOf(a, day.date, day.shift, asks?.get(a.employee_id))?.extended : null;
+      return x ? `${n} (${x})` : n;
+    };
 
     const working = allocs.filter((a) => a.status === "assigned" || a.status === "overtime");
     // Leader first, then by name. The first row of a column on the company's sheet is
@@ -323,7 +348,7 @@ export function buildHeadcountWorkbook(input: {
     const inColumn = (col: { areas: HeadcountArea[] }) => {
       const ids = new Set(col.areas.map((a) => a.id));
       return working.filter((a) => a.area_id && ids.has(a.area_id))
-        .map((a) => ({ name: nameOf(a), leader: a.is_leader ?? false, planned: !!a.planned }))
+        .map((a) => ({ name: workedName(a), leader: a.is_leader ?? false, planned: !!a.planned }))
         .filter((x) => x.name)
         .sort((x, y) => Number(y.leader) - Number(x.leader) || x.name.localeCompare(y.name));
     };
@@ -403,7 +428,7 @@ export function buildHeadcountWorkbook(input: {
      * sempre foi.
      */
     const namesWith = (statuses: string[]): Cell[] =>
-      allocs.filter((a) => statuses.includes(a.status)).map((a) => nameOf(a)).filter(Boolean).sort()
+      allocs.filter((a) => statuses.includes(a.status)).map((a) => (a.status === "overtime" ? workedName(a) : nameOf(a))).filter(Boolean).sort()
         .map((name) => ({ name, leader: false }));
 
     // Holidays carries the half days too: a full-day holiday as a name, a half day as
@@ -531,6 +556,10 @@ export function printSheetLayout(input: {
   areas: HeadcountArea[];
   allocations: Allocation[];
   employeeById: Map<string, HeadcountEmployee>;
+  /** The board's date and shift and its confirmed asks, so hours read as worked. */
+  boardDate?: string;
+  shift?: string;
+  confirmedAsks?: ReadonlyMap<string, ReadonlyArray<ConfirmedAsk>>;
 }): PrintSheetLayout {
   const known = input.allocations.filter((a) => input.employeeById.has(a.employee_id));
 
@@ -551,10 +580,13 @@ export function printSheetLayout(input: {
 
   const hhmm = (t: string | null | undefined) => (t ?? "").slice(0, 5);
   const cell = (a: Allocation, leader = false): PrintSheetName => {
+    const h = input.boardDate && input.shift
+      ? sheetHoursOf(a, input.boardDate, input.shift, input.confirmedAsks?.get(a.employee_id)) : null;
     const notes = [
       isHalfDay(a) ? "Half day" : "",
-      a.arrived_late_at ? `in ${hhmm(a.arrived_late_at)}` : "",
-      a.left_early_at ? `left ${hhmm(a.left_early_at)}` : "",
+      a.arrived_late_at && (!h || h.marks.lateStart) ? `in ${hhmm(a.arrived_late_at)}` : "",
+      a.left_early_at && (!h || h.marks.earlyFinish) ? `left ${hhmm(a.left_early_at)}` : "",
+      h?.extended ? `worked ${h.extended}` : "",
     ].filter(Boolean);
     return {
       name: a.sheet_name ?? printed(input.employeeById.get(a.employee_id)!.full_name),

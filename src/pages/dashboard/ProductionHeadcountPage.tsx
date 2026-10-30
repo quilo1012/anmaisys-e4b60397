@@ -1320,7 +1320,7 @@ function ShiftBoard({
         there; see HeadcountPrintSheet for why paper gets the company's grid instead. */}
     <HeadcountPrintSheet
       title={`Production Headcount — ${shift} shift — ${format(parseISO(onDate), "EEEE dd.MM.yyyy")}`}
-      layout={printSheetLayout({ areas, allocations, employeeById })}
+      layout={printSheetLayout({ areas, allocations, employeeById, boardDate: onDate, shift, confirmedAsks })}
     />
     <div className="headcount-on-screen space-y-3">
       {/* Says whose board this is before a single column is read.
