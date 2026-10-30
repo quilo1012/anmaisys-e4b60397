@@ -1185,7 +1185,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               )}
             >
               <div className="min-w-0 w-full">
-                <PushPromptBanner role={role} />
+                {/* The Communication Hub has its own notifications card, worded for
+                    messages. Both at once were 464px of a phone saying the same thing,
+                    and the conversation started under the tab bar (30/10/2026). */}
+                {!location.pathname.startsWith("/dashboard/communication") && <PushPromptBanner role={role} />}
                 <ShellTitleContext.Provider value={currentPageTitle}><InShellContentContext.Provider value={true}>{children}</InShellContentContext.Provider></ShellTitleContext.Provider>
               </div>
             </div>

@@ -263,13 +263,80 @@ for (const width of [360, 390]) {
       await ana.click();
       await expect(page.getByText("Can I swap Saturday?").last()).toBeVisible();
       await expect(page.getByRole("button", { name: "Back to conversations" })).toBeVisible();
-      const send = page.getByRole("button", { name: /Send message|Record voice message/ });
+      const send = page.getByRole("button", { name: "Send message" });
       expect((await send.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       expect(await clipped(page)).toEqual([]);
       await page.screenshot({ path: `e2e/.results/messages-phone-${width}.png` });
 
       await page.getByRole("button", { name: "Back to conversations" }).click();
       await expect(ana).toBeVisible();
+    });
+  });
+}
+
+/**
+ * Where the phone puts the composer, measured with the page scrolled to the top.
+ *
+ * On 30/10/2026 a phone that had not turned notifications on opened a conversation to
+ * two stacked "turn notifications on" cards — 464px of a 667px screen — and the thread
+ * and the box to write in started under the tab bar. The test above passed all along:
+ * it asked how tall the button was, not whether it was on the screen. And in a private
+ * conversation the box offered a microphone in place of Send until something was typed,
+ * so there was no Send button to find at all.
+ *
+ * Headless Chromium answers "denied" for notifications, so the blocked-phone cards are
+ * what this page draws here: the worst case, which is also the common one on the floor.
+ */
+const PHONES = [
+  { name: "iPhone SE", width: 375, height: 667 },
+  { name: "small Android", width: 360, height: 640 },
+  { name: "iPhone 13", width: 390, height: 844 },
+  { name: "keyboard open", width: 390, height: 420 },
+];
+for (const phone of PHONES) {
+  test.describe(`composer on the first screen, ${phone.name} ${phone.width}x${phone.height}`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height } });
+
+    test("Send and the message box are visible without scrolling, and a message goes", async ({ page }) => {
+      const calls: Calls = { send: [], failNextSend: false };
+      await stub(page, calls);
+      await page.goto("/dashboard/communication");
+
+      const onScreen = async () => page.evaluate(() => {
+        document.getElementById("main-content")!.scrollTo(0, 0);
+        const box = document.querySelector<HTMLElement>('textarea[aria-label="Message"]');
+        const send = document.querySelector<HTMLElement>('button[aria-label="Send message"]');
+        const tabBar = document.querySelector<HTMLElement>('nav.fixed.bottom-0, .fixed.inset-x-0.bottom-0');
+        const floor = tabBar ? tabBar.getBoundingClientRect().top : innerHeight;
+        const seen = (el: HTMLElement | null) => {
+          if (!el) return "missing";
+          const r = el.getBoundingClientRect();
+          if (r.top < 0 || r.bottom > floor + 0.5) return `off screen: ${Math.round(r.top)}–${Math.round(r.bottom)}, floor ${Math.round(floor)}`;
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          // A disabled button takes no pointer events, so the point falls through to
+          // its own row; anything else there is on top of it.
+          return hit && (el.contains(hit) || hit === el.parentElement) ? "ok" : `covered by ${hit?.tagName}.${(hit as HTMLElement)?.className} at ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} vw ${innerWidth}`;
+        };
+        return { box: seen(box), send: seen(send) };
+      });
+
+      // A private conversation, nothing typed yet: Send is there, and there to be seen.
+      await page.getByRole("button", { name: /Ana Silva/ }).click();
+      await expect(page.getByText("Can I swap Saturday?").last()).toBeVisible();
+      await page.waitForTimeout(300);
+      expect(await onScreen()).toEqual({ box: "ok", send: "ok" });
+      await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
+
+      // A group, typed and sent with the button.
+      await page.getByRole("button", { name: "Back to conversations" }).click();
+      await page.getByRole("button", { name: /Packing team/ }).click();
+      await expect(page.getByText("Line 3 is down")).toBeVisible();
+      await page.waitForTimeout(300);
+      expect(await onScreen()).toEqual({ box: "ok", send: "ok" });
+      await page.getByRole("textbox", { name: "Message" }).fill("Coming now");
+      await page.getByRole("button", { name: "Send message" }).click();
+      await expect.poll(() => calls.send.length).toBe(1);
+      await expect(page.getByRole("textbox", { name: "Message" })).toHaveValue("");
     });
   });
 }
