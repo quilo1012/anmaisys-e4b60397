@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { lineLeadersByArea } from "@/lib/leaderMark";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1705,7 +1706,7 @@ function ShiftBoard({
         const bandRows = Math.max(
           0,
           ...ofKind.map((a) => peopleIn(a.id).length + ghostsIn(a.id).length),
-          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length) : []),
+          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0)) : []),
         ) + 1;
         return (
         <div key={section.key} id={jumpId(section.key)}>
@@ -2022,7 +2023,7 @@ function ShiftBoard({
         <>
           <SectionLabel>Away, overtime &amp; training</SectionLabel>
           <div className="headcount-away grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length)) + 1)}
+            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0))) + 1)}
           </div>
         </>
       )}
