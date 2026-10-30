@@ -874,7 +874,6 @@ function ShiftBoard({
     allocations.forEach((a) => m.set(a.employee_id, a));
     return m;
   }, [allocations]);
-  /** Null unless confirmed overtime reaches this person's placement on this board. */
   const chipOf = (employeeId: string) =>
     chipHours(byEmployee.get(employeeId), onDate, shift, confirmedAsks?.get(employeeId) ?? []);
   /** The worked hours a chip shows, when they differ from the plain shift. */
@@ -887,7 +886,6 @@ function ShiftBoard({
       leftEarlyAt: c.leftEarlyAt, arrivedLateAt: c.arrivedLateAt,
       leftEarlyReason: a?.left_early_reason ?? null, arrivedLateReason: a?.arrived_late_reason ?? null,
     };
-  };
   };
 
   // Everyone active, not only whoever is eligible today: a saved allocation is a fact
