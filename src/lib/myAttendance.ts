@@ -230,8 +230,19 @@ export interface MySummary {
   /**
    * The settlement, from `buildClose` — present only when the range is exactly one
    * pay period, because only a whole period settles.
+   *
+   * `overtimeHours` and `owedHours` include `attendedHours`: shifts the supervisor marked
+   * attended on days the clock has no hours for yet (`summariseOvertimeShifts`). They go
+   * into the period's balance, so a shortfall elsewhere still nets against them.
+   * `clockOvertimeHours` is the clock alone — what the office's finance close shows.
    */
-  settled: { period: MyPeriod; overtimeHours: number | null; owedHours: number | null } | null;
+  settled: {
+    period: MyPeriod;
+    overtimeHours: number | null;
+    owedHours: number | null;
+    clockOvertimeHours: number | null;
+    attendedHours: number;
+  } | null;
   /** Hours payroll has recorded for that period. The figure that is paid. */
   payrollHours: number | null;
   leave: LeaveBalance;
@@ -243,6 +254,8 @@ export function periodMatching(periods: MyPeriod[], from: string, to: string): M
 
 export function summarise(
   data: MyAttendanceData, days: MyDay[], from: string, to: string, today: string,
+  /** Attended overtime on days the clock has no hours for (`notOnClockMinutes`). */
+  attendedNotOnClockMin = 0,
 ): MySummary {
   const id = data.me.id;
   const counted = countDaysAway(
@@ -262,14 +275,20 @@ export function summarise(
   if (period) {
     const mine = data.payroll.filter((p) => p.period_id === period.id);
     payrollHours = mine.length ? round2(mine.reduce((s, p) => s + Number(p.hours), 0)) : null;
-    const [row] = buildClose([{
+    const close = (clockedBalanceMin: number | null) => buildClose([{
       employeeId: id, name: data.me.full_name, department: data.me.department, shift: null,
-      openingBalanceMin: null, clockedBalanceMin: balanceMin, payrollOtHours: payrollHours,
+      openingBalanceMin: null, clockedBalanceMin, payrollOtHours: payrollHours,
       absences: counted.absences, daysPresent: counted.daysPresent, partDayHours: 0,
       patternName: data.pattern?.name ?? null, patternDays: data.pattern?.days ?? null,
       shiftsWorked: 0, shiftsHoliday: 0, plannedDates: null,
-    }], from, to);
-    settled = { period, overtimeHours: row.overtimeHours, owedHours: row.owedHours };
+    }], from, to)[0];
+    const clockOnly = close(balanceMin);
+    const added = Math.max(0, attendedNotOnClockMin);
+    const row = added > 0 ? close((balanceMin ?? 0) + added) : clockOnly;
+    settled = {
+      period, overtimeHours: row.overtimeHours, owedHours: row.owedHours,
+      clockOvertimeHours: clockOnly.overtimeHours, attendedHours: round2(added / 60),
+    };
   }
 
   return {
@@ -462,30 +481,35 @@ export interface MyOvertimeShiftSummary {
   booked: MyOvertimeShiftLine[];
   /** Over, booked, and the supervisor has not marked it yet. */
   unmarked: MyOvertimeShiftLine[];
-  /** Worked shifts on days the clock record does not reach yet. */
+  /** Attended shifts on dates the clock has no worked minutes for. */
   notOnClock: MyOvertimeShiftLine[];
   notOnClockMinutes: number;
 }
 
 /**
- * The overtime shifts in a range, as the supervisor recorded them — beside the clock,
- * never instead of it.
+ * The overtime shifts in a range, as the supervisor recorded them.
  *
- * "Overtime for <period>" is the finance close's figure, and the finance close reads the
- * clock alone. TimeMoto is imported by hand, so a shift worked after the last import is
- * not in it: on 30/10 Ailton Junior's clock stopped at 20/10, and his two attended
- * weekend shifts (24/10, 12 h; 25/10, 8 h) left that figure at 0 h. Twelve people were
- * in the same place. The supervisor's `attended` is a different record and is shown as
- * such; it does not change the clock's figure (AGENTS.md: neither corrects the other).
+ * "Overtime for <period>" started as the finance close's figure, which reads the clock
+ * alone. TimeMoto is imported by hand, so a shift worked after the last import was not
+ * in it: on 30/10 Ailton Junior's clock stopped at 20/10, and his two attended weekend
+ * shifts (24/10, 12 h; 25/10, 8 h) left that figure at 0 h — ten people, thirteen shifts
+ * and 136 h in October alone. The owner asked for the figure to count them (30/10).
+ *
+ * So a shift the supervisor marked `attended` is counted on the person's own screen
+ * when the clock has no worked minutes on its date (`notOnClock`). A day the clock has
+ * hours for is the clock's, so nothing is counted twice; once the import reaches the
+ * day, the clock takes over by itself. The office's finance close still reads the clock
+ * alone, and the screen says which part came from where.
  *
  * Hours are the ask's own window. A no-show, a sick call and a cancellation are not
  * overtime, so they are left out.
  */
 export function summariseOvertimeShifts(
   records: MyOvertimeShiftRecord[],
-  clockedTo: string | null,
+  clocks: ReadonlyArray<Pick<MyClockRow, "on_date" | "worked_minutes">>,
   today: string,
 ): MyOvertimeShiftSummary {
+  const clockedDays = new Set(clocks.filter((c) => (c.worked_minutes ?? 0) > 0).map((c) => c.on_date));
   const line = (r: MyOvertimeShiftRecord): MyOvertimeShiftLine => ({
     date: r.on_date,
     hours: span(r.starts_at, r.ends_at) ?? "",
@@ -497,7 +521,7 @@ export function summariseOvertimeShifts(
   const booked = open.filter((r) => r.on_date >= today).map(line);
   const unmarked = open.filter((r) => r.on_date < today).map(line);
   // Any other outcome (no-show, sick, cancelled) is not overtime worked, and falls out here.
-  const notOnClock = worked.filter((w) => !clockedTo || w.date > clockedTo);
+  const notOnClock = worked.filter((w) => !clockedDays.has(w.date));
   const sum = (xs: MyOvertimeShiftLine[]) => xs.reduce((n, x) => n + x.minutes, 0);
   return {
     worked, workedMinutes: sum(worked), booked, unmarked,

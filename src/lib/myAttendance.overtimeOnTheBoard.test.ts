@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
-  overtimeOnTheBoardOnly, summariseOvertimeShifts,
+  overtimeOnTheBoardOnly, summariseOvertimeShifts, summarise, buildMyDays,
   type MyAttendanceData, type MyBoardRow, type MyOvertimeShiftRecord,
 } from "./myAttendance";
 
@@ -85,11 +85,15 @@ describe("overtime shifts as the supervisor recorded them", () => {
   const rec = (on_date: string, starts_at: string, ends_at: string, outcome: string | null): MyOvertimeShiftRecord =>
     ({ on_date, starts_at, ends_at, outcome });
 
-  it("counts Ailton's two attended shifts, and says the clock does not reach them yet", () => {
+  // His clock: rota days to 20/10, nothing after.
+  const AILTON_CLOCK = ["2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-20"]
+    .map((on_date) => ({ on_date, worked_minutes: 720 }));
+
+  it("counts Ailton's two attended shifts, and says the clock does not have them", () => {
     const s = summariseOvertimeShifts([
       rec("2026-10-25", "06:00:00", "14:00:00", "attended"),
       rec("2026-10-24", "06:00:00", "18:00:00", "attended"),
-    ], "2026-10-20", "2026-10-30");
+    ], AILTON_CLOCK, "2026-10-30");
     expect(s.workedMinutes).toBe(20 * 60);
     expect(s.worked.map((w) => [w.date, w.hours])).toEqual([
       ["2026-10-24", "06:00–18:00"], ["2026-10-25", "06:00–14:00"],
@@ -98,10 +102,22 @@ describe("overtime shifts as the supervisor recorded them", () => {
     expect(s.notOnClockMinutes).toBe(20 * 60);
   });
 
-  it("does not call a shift missing from the clock when the clock reaches it", () => {
-    const s = summariseOvertimeShifts([rec("2026-10-24", "06:00:00", "18:00:00", "attended")], "2026-10-26", "2026-10-30");
+  it("leaves a day the clock has hours for to the clock, so nothing counts twice", () => {
+    const s = summariseOvertimeShifts([rec("2026-10-24", "06:00:00", "18:00:00", "attended")],
+      [...AILTON_CLOCK, { on_date: "2026-10-24", worked_minutes: 720 }], "2026-10-30");
     expect(s.workedMinutes).toBe(720);
     expect(s.notOnClock).toEqual([]);
+  });
+
+  it("counts a day the clock has a row for but no worked minutes — the clock has no hours to count", () => {
+    const s = summariseOvertimeShifts([rec("2026-10-24", "06:00:00", "18:00:00", "attended")],
+      [...AILTON_CLOCK, { on_date: "2026-10-24", worked_minutes: 0 }], "2026-10-30");
+    expect(s.notOnClockMinutes).toBe(720);
+  });
+
+  it("counts a gap inside the clock's reach too: an import that skipped the day", () => {
+    const s = summariseOvertimeShifts([rec("2026-10-18", "06:00:00", "14:00:00", "attended")], AILTON_CLOCK, "2026-10-30");
+    expect(s.notOnClockMinutes).toBe(480);
   });
 
   it("leaves out no-shows, sick calls and cancellations", () => {
@@ -109,7 +125,7 @@ describe("overtime shifts as the supervisor recorded them", () => {
       rec("2026-10-17", "06:00:00", "18:00:00", "no_show"),
       rec("2026-10-18", "06:00:00", "18:00:00", "called_sick"),
       rec("2026-10-19", "06:00:00", "18:00:00", "cancelled_late"),
-    ], "2026-10-20", "2026-10-30");
+    ], AILTON_CLOCK, "2026-10-30");
     expect(s.worked).toEqual([]);
     expect(s.workedMinutes).toBe(0);
     expect(s.unmarked).toEqual([]);
@@ -120,9 +136,44 @@ describe("overtime shifts as the supervisor recorded them", () => {
     const s = summariseOvertimeShifts([
       rec("2026-10-26", "18:00:00", "06:00:00", null),
       rec("2026-11-01", "06:00:00", "14:00:00", null),
-    ], "2026-10-20", "2026-10-30");
+    ], AILTON_CLOCK, "2026-10-30");
     expect(s.unmarked.map((x) => [x.date, x.minutes])).toEqual([["2026-10-26", 720]]);
     expect(s.booked.map((x) => [x.date, x.minutes])).toEqual([["2026-11-01", 480]]);
     expect(s.workedMinutes).toBe(0);
+  });
+});
+
+describe("the period's overtime counts attended shifts the clock does not have", () => {
+  const PERIOD = { id: "p", name: "October 2026", start_date: "2026-10-12", end_date: "2026-11-08" };
+  const clockRow = (on_date: string, balance: number) => ({
+    on_date, start_time: "6:00", end_time: "18:00", worked_minutes: 720, balance_minutes: balance,
+    scheduled_minutes: 720, overtime_adj_minutes: 0, absence_name: null,
+  });
+  const base = (balances: number[]): MyAttendanceData => ({
+    ...data([]),
+    clocks: ["2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-20"].map((d, i) => clockRow(d, balances[i] ?? 0)),
+    periods: [PERIOD],
+  });
+  const settle = (d: MyAttendanceData, added: number) =>
+    summarise(d, buildMyDays(d, PERIOD.start_date, PERIOD.end_date, "2026-10-30"), PERIOD.start_date, PERIOD.end_date, "2026-10-30", added).settled!;
+
+  it("Ailton: 0 h on the clock + 20 h attended = 20 h, and says which is which", () => {
+    const s = settle(base([0, 0, 0, 0, 0]), 20 * 60);
+    expect(s.overtimeHours).toBe(20);
+    expect(s.clockOvertimeHours).toBe(0);
+    expect(s.attendedHours).toBe(20);
+  });
+
+  it("nets a shortfall on the clock against them, as the period always settles", () => {
+    const s = settle(base([-120, -120, -120, -120, 0]), 12 * 60); // 8 h short, 12 h attended
+    expect(s.overtimeHours).toBe(4);
+    expect(s.owedHours).toBe(0);
+  });
+
+  it("is the clock's figure, untouched, when there is nothing to add", () => {
+    const s = settle(base([90, 0, 0, 0, 0]), 0);
+    expect(s.overtimeHours).toBe(1.5);
+    expect(s.clockOvertimeHours).toBe(1.5);
+    expect(s.attendedHours).toBe(0);
   });
 });
