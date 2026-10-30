@@ -481,13 +481,13 @@ export function useEmployeeBoardOvertime(employeeId: string | null) {
     queryKey: ["employee_board_overtime", employeeId],
     enabled: !!employeeId,
     queryFn: async (): Promise<BoardOvertimeRow[]> => {
-      const rows = await fetchAllRows<{ on_date: string; shift: string; overtime_request_id: string | null; area: { name: string } | null }>({
+      const rows = await fetchAllRows<{ on_date: string; shift: string; overtime_request_id: string | null; left_early_at: string | null; arrived_late_at: string | null; area: { name: string } | null }>({
         range: (from, to) => db.from("daily_allocations")
-          .select("id, on_date, shift, overtime_request_id, area:headcount_areas(name)")
+          .select("id, on_date, shift, overtime_request_id, left_early_at, arrived_late_at, area:headcount_areas(name)")
           .eq("employee_id", employeeId).eq("status", "overtime")
           .order("on_date", { ascending: false }).order("id").range(from, to),
       });
-      return rows.map((r) => ({ on_date: r.on_date, shift: r.shift, overtime_request_id: r.overtime_request_id, area_name: r.area?.name ?? null }));
+      return rows.map((r) => ({ on_date: r.on_date, shift: r.shift, overtime_request_id: r.overtime_request_id, left_early_at: r.left_early_at, arrived_late_at: r.arrived_late_at, area_name: r.area?.name ?? null }));
     },
   });
   const asks = useQuery({
