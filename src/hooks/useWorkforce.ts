@@ -605,13 +605,17 @@ export function useUpdateEmployee() {
         );
       }
 
-      if (movesPosition) {
+      // A row only when the position actually moved. The panel sends both fields on
+      // every Save, so "contains" wrote a "Position changed" row for an email edit.
+      const nextGroup = "shift_group" in patch ? patch.shift_group ?? null : held?.shift_group ?? null;
+      const nextPattern = "shift_pattern_id" in patch ? patch.shift_pattern_id ?? null : held?.shift_pattern_id ?? null;
+      const moved = movesPosition && (nextGroup !== (held?.shift_group ?? null) || nextPattern !== (held?.shift_pattern_id ?? null));
+      if (moved) {
         const { error: histErr } = await db.from("employee_shift_history").upsert(
           {
             employee_id: id,
-            shift_group: "shift_group" in patch ? patch.shift_group ?? null : held?.shift_group ?? null,
-            shift_pattern_id:
-              "shift_pattern_id" in patch ? patch.shift_pattern_id ?? null : held?.shift_pattern_id ?? null,
+            shift_group: nextGroup,
+            shift_pattern_id: nextPattern,
             effective_from: currentShift().operationalDate,
             note: "Position changed on the employee panel",
           },
