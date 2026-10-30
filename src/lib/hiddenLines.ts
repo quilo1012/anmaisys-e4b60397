@@ -23,3 +23,26 @@ export function linesToDraw<A extends { id: string }>(
   });
   return { drawn, hiddenButStaffed };
 }
+
+/**
+ * Where the hidden lines sit between the ones drawn, the way Excel marks a hidden column:
+ * a double rule on the edge of the next visible column. `before` holds, for each drawn
+ * line, the hidden lines just to its left; `after` holds those past the last drawn line.
+ * Order is the band's own (`areas` as given).
+ */
+export function hiddenGaps<A extends { id: string }>(
+  areas: ReadonlyArray<A>,
+  drawnIds: ReadonlySet<string>,
+): { before: Map<string, A[]>; after: A[] } {
+  const before = new Map<string, A[]>();
+  let pending: A[] = [];
+  for (const a of areas) {
+    if (drawnIds.has(a.id)) {
+      if (pending.length) before.set(a.id, pending);
+      pending = [];
+    } else {
+      pending.push(a);
+    }
+  }
+  return { before, after: pending };
+}

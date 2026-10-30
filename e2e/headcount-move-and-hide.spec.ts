@@ -80,13 +80,17 @@ test("a whole team moves from Line 4 to Line 5 in one update, after saying who g
   const dialog = page.getByRole("alertdialog");
   await expect(dialog.getByRole("list", { name: "People who will move" }).getByRole("listitem")).toHaveCount(5);
   // The row of somebody no longer on the staff list is named as staying, with the reason.
-  await expect(dialog.getByRole("list", { name: "People who will stay" })).toContainText(/not on the active staff list/i);
+  await expect(dialog.getByRole("list", { name: "People who will stay" })).toContainText(/no longer active/i);
 
   // Nothing is written before a destination is chosen and confirmed.
   await expect(dialog.getByRole("button", { name: /^Move/ })).toBeDisabled();
   await dialog.getByRole("combobox", { name: "Destination line" }).click();
   await page.getByRole("option", { name: "Line 5" }).click();
   await expect(dialog).toContainText("Ana Lima keeps leading the team on Line 5");
+  // The two totals first: Line 4 goes from 5 to 0, Line 5 from 1 to 6.
+  const totals = dialog.getByRole("table", { name: "Headcount before and after" });
+  await expect(totals.getByRole("row", { name: /Line 4/ })).toHaveText(/Line 4\s*5\s*0/);
+  await expect(totals.getByRole("row", { name: /Line 5/ })).toHaveText(/Line 5\s*1\s*6/);
   expect(patches).toHaveLength(0);
   await dialog.getByRole("button", { name: "Move 5 to Line 5" }).click();
 
@@ -160,4 +164,40 @@ test("without BLOCO 140 the board draws every line and the hide switch says why 
   await expect(page.locator(".headcount-columns .headcount-column-title")).toHaveCount(4);
   await page.getByRole("button", { name: "Line 6 actions" }).click();
   await expect(page.getByRole("menuitem", { name: "Hide line (not available yet)" })).toHaveAttribute("aria-disabled", "true");
+});
+
+test("a team move can be undone from the message that confirms it", async ({ page }) => {
+  const patches: { url: string; body: Record<string, unknown> }[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/rest/v1/daily_allocations") && r.method() === "PATCH") patches.push({ url: decodeURIComponent(r.url()), body: r.postDataJSON() });
+  });
+  await stub(page);
+  await openDay(page);
+  await page.getByRole("button", { name: "Line 4 actions" }).click();
+  await page.getByRole("menuitem", { name: /Move entire team/ }).click();
+  const dialog = page.getByRole("alertdialog");
+  await dialog.getByRole("combobox", { name: "Destination line" }).click();
+  await page.getByRole("option", { name: "Line 5" }).click();
+  await dialog.getByRole("button", { name: "Move 5 to Line 5" }).click();
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect.poll(() => patches.filter((p) => "area_id" in p.body).length).toBe(2);
+  const back = patches.filter((p) => "area_id" in p.body)[1];
+  expect(back.body).toEqual({ area_id: "l4" });
+  expect(back.url).toContain("id=in.(a1,a2,a3,a4,a5)");
+  // Guarded on the destination: anybody moved again by hand since is left alone.
+  expect(back.url).toContain("area_id=eq.l5");
+  // And the leader mark goes back to the line it came from.
+  await expect.poll(() => patches.filter((p) => "is_leader" in p.body).length).toBe(2);
+});
+
+test("a hidden line leaves Excel's double rule where it was, and a tap brings it back", async ({ page }) => {
+  await stub(page, { hidden: [{ area_id: "l3", shift: "Day" }] });
+  await openDay(page);
+  await expect(page.locator(".headcount-columns .headcount-column-title").filter({ hasText: "Line 3" })).toHaveCount(0);
+  const deletes: string[] = [];
+  page.on("request", (r) => { if (r.url().includes("/rest/v1/headcount_area_hidden") && r.method() === "DELETE") deletes.push(decodeURIComponent(r.url())); });
+  await page.getByRole("button", { name: "Show Line 3 hidden on the day shift" }).click();
+  await expect.poll(() => deletes.length).toBe(1);
+  expect(deletes[0]).toContain("area_id=eq.l3");
 });

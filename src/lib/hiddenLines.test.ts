@@ -21,3 +21,26 @@ describe("hiding a line on one shift", () => {
     expect([...r.hiddenButStaffed]).toEqual(["L4"]);
   });
 });
+
+import { hiddenGaps } from "@/lib/hiddenLines";
+
+describe("where a hidden line is marked", () => {
+  const band = ["L1", "L2", "L3", "L4", "L5"].map((id) => ({ id }));
+  it("marks a hidden line on the left edge of the next line drawn, like Excel", () => {
+    const g = hiddenGaps(band, new Set(["L1", "L3", "L5"]));
+    expect(g.before.get("L3")?.map((a) => a.id)).toEqual(["L2"]);
+    expect(g.before.get("L5")?.map((a) => a.id)).toEqual(["L4"]);
+    expect(g.before.has("L1")).toBe(false);
+    expect(g.after).toEqual([]);
+  });
+  it("groups neighbours hidden together into one mark", () => {
+    const g = hiddenGaps(band, new Set(["L1", "L4"]));
+    expect(g.before.get("L4")?.map((a) => a.id)).toEqual(["L2", "L3"]);
+    expect(g.after.map((a) => a.id)).toEqual(["L5"]);
+  });
+  it("has no marks when nothing is hidden", () => {
+    const g = hiddenGaps(band, new Set(band.map((a) => a.id)));
+    expect(g.before.size).toBe(0);
+    expect(g.after).toEqual([]);
+  });
+});

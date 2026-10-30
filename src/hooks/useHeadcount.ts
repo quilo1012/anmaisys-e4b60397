@@ -1398,8 +1398,8 @@ export function useAllocationMutations(onDate: string, shift: string) {
   const moveTeam = useMutation({
     mutationFn: async (input: {
       rowIds: string[]; from: string; to: string; carryLeaderRowId: string | null;
-    }): Promise<{ moved: number; asked: number; leaderKept: boolean }> => {
-      if (!input.rowIds.length) return { moved: 0, asked: 0, leaderKept: false };
+    }): Promise<{ moved: number; asked: number; leaderKept: boolean; movedIds: string[] }> => {
+      if (!input.rowIds.length) return { moved: 0, asked: 0, leaderKept: false, movedIds: [] };
       if (!input.to || input.to === input.from) throw new Error("Pick a different line to move the team to.");
       const { data, error } = await supabase
         .from("daily_allocations")
@@ -1426,7 +1426,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
         const leadErr = await markTeamLeaders(onDate, shift, moved);
         if (leadErr) toast.warning(`Team moved, but could not mark the line's leader: ${leadErr}`);
       }
-      return { moved: moved.length, asked: input.rowIds.length, leaderKept };
+      return { moved: moved.length, asked: input.rowIds.length, leaderKept, movedIds: moved.map((r) => r.id) };
     },
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message ?? "Could not move the team", { id: "headcount-move-team" }),
