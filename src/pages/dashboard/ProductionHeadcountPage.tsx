@@ -43,7 +43,7 @@ import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
 import { placementHours, type PlacementHours } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
-import { isHalfDay, isHalfDayTag, isWorkingHalfDay } from "@/lib/halfDay";
+import { isHalfDay, isHalfDayTag, isWorkingHalfDay, placementForDrop } from "@/lib/halfDay";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
@@ -1202,29 +1202,13 @@ function ShiftBoard({
     if (target === "roster") { remove.mutate(employeeId); return; }
     const current = byEmployee.get(employeeId);
 
-    // Overtime says *how* the day counts; the area says *where* they are. They are
-    // two answers, and moving somebody between lines only changes the second — so an
-    // overtime person dragged onto Line 2 stays overtime and simply moves. Before,
-    // every area drop wrote "assigned" and quietly cancelled the overtime.
-    const status: AllocStatus =
-      target.status === "assigned" && current?.status === "overtime" ? "overtime" : target.status;
-
-    // Marking somebody overtime from the Overtime card keeps the area they are on,
-    // for the same reason. Absence and holiday do clear it: they are not at a place.
-    const areaId = target.status === "overtime"
-      ? target.areaId ?? current?.area_id ?? null
-      : target.areaId;
-
-    // A half-day holiday stays a half day wherever the person is moved — onto the line
-    // they worked, between lines, or back to Holidays. Without it the upsert wrote
-    // `half_day: false` and the half day was lost.
-    const half = isHalfDay(current) && (status === "assigned" || status === "overtime" || status === "holiday");
-    const lineName = areaId ? areas.find((x) => x.id === areaId)?.name ?? "the line" : null;
+    // Overtime stays overtime on a line, marking overtime keeps the area, and a
+    // half-day holiday stays a half day — the rules are in `placementForDrop`.
+    const p = placementForDrop(current, target);
+    const lineName = p.keptHalfDayOn ? areas.find((x) => x.id === p.keptHalfDayOn)?.name ?? "the line" : null;
     place.mutate(
-      { employeeId, areaId, status, ...(half ? { halfDay: true } : {}) },
-      half && lineName && current?.status === "holiday"
-        ? { onSuccess: () => toast.success(`Half-day holiday kept — also on ${lineName}`) }
-        : undefined,
+      { employeeId, areaId: p.areaId, status: p.status as AllocStatus, ...(p.halfDay ? { halfDay: true } : {}) },
+      lineName ? { onSuccess: () => toast.success(`Half-day holiday kept — also on ${lineName}`) } : undefined,
     );
   };
 
