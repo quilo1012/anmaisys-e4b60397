@@ -57,7 +57,7 @@ export function planTeamMove<R extends TeamRow>(input: {
     .filter((a) => !drawable(a.employee_id))
     .map((row) => ({
       row,
-      reason: "Not on the active staff list (left, or a deactivated record). Their row is history and stays where it is.",
+      reason: "Their staff record is no longer active, so this row stays here as history.",
     }));
 
   const destinationLeader =

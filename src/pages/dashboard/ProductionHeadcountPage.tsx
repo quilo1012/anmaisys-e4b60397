@@ -174,10 +174,12 @@ const NO_HIDDEN: ReadonlySet<string> = new Set();
  * the edge of the next column drawn. Hovering says which lines; a tap shows them again.
  */
 function HiddenColumnMark({
-  lines, side, shift, onShow,
+  lines, side, shift, onShow, edge,
 }: {
   lines: { id: string; name: string }[];
   side: "left" | "right";
+  /** On the band's outer edge: drawn just inside the column, where nothing clips it. */
+  edge?: boolean;
   shift: string;
   /** Absent for somebody who may not change the board: the mark still says what is hidden. */
   onShow?: (ids: string[]) => void;
@@ -189,7 +191,7 @@ function HiddenColumnMark({
   );
   const place = cn(
     "absolute inset-y-0 z-20 flex w-3 justify-center print:hidden",
-    side === "left" ? "-left-1.5" : "-right-1.5",
+    side === "left" ? (edge ? "left-0" : "-left-1.5") : (edge ? "right-0" : "-right-1.5"),
   );
   if (!onShow) return <span className={place} title={label} role="img" aria-label={label}>{rule}</span>;
   return (
@@ -1835,10 +1837,10 @@ function ShiftBoard({
             {(grip) => (
             <>
             {gaps.before.has(area.id) && (
-              <HiddenColumnMark side="left" lines={gaps.before.get(area.id)!} shift={shift} onShow={canManage ? showLines : undefined} />
+              <HiddenColumnMark side="left" edge={area.id === ofKind[0]?.id} lines={gaps.before.get(area.id)!} shift={shift} onShow={canManage ? showLines : undefined} />
             )}
             {area.id === lastDrawn && gaps.after.length > 0 && (
-              <HiddenColumnMark side="right" lines={gaps.after} shift={shift} onShow={canManage ? showLines : undefined} />
+              <HiddenColumnMark side="right" edge lines={gaps.after} shift={shift} onShow={canManage ? showLines : undefined} />
             )}
             <DropZone
               disabled={!canManage}
@@ -2002,7 +2004,7 @@ function ShiftBoard({
           preview={(to): MoveTeamPreview => {
             const nameOf = (id: string) => {
               const p = employeeById.get(id);
-              if (!p) return "A person no longer on the staff list";
+              if (!p) return "Someone who has left";
               const ref = refOf.get(id);
               return ref ? `${p.full_name} ${ref}` : p.full_name;
             };

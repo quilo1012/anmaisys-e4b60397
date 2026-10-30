@@ -20,7 +20,7 @@ describe("moving a whole line's team", () => {
     const plan = planTeamMove({ allocations: rows, from: "L4", to: "L5", drawable: (id) => id !== "left" });
     expect(plan.movers.map((r) => r.employee_id)).toEqual(["a"]);
     expect(plan.staying.map((s) => s.row.employee_id)).toEqual(["left"]);
-    expect(plan.staying[0].reason).toMatch(/not on the active staff list/i);
+    expect(plan.staying[0].reason).toMatch(/no longer active/i);
   });
 
   it("carries the line's leader when the destination has none", () => {
