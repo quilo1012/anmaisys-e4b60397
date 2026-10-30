@@ -21,6 +21,9 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 interface SavedSubscription { endpoint: string; toJSON: () => unknown }
 
+/** Fired on `window` when this phone's subscription was saved for the signed-in login. */
+export const PUSH_SAVED_EVENT = "pmsystem:push-subscription-saved";
+
 /**
  * Stores this phone against the signed-in login. Goes through `register_push_subscription`
  * (BLOCO 121), which also removes the same phone from any other login — on a shared phone
@@ -53,12 +56,20 @@ export async function saveSubscription(sub: SavedSubscription, userId: string): 
 }
 
 /**
- * Signing out takes this phone off the list. Without it the phone kept buzzing with the
- * previous person's messages until someone else signed in on it (only then did
+ * Signing out takes this phone off the login's list. Without it the phone kept buzzing with
+ * the previous person's messages until someone else signed in on it (only then did
  * `register_push_subscription` move the row). The row is deleted while the session still
- * exists, because the table's policy only lets a login delete its own rows. The browser's
- * subscription goes too; the next login gets a fresh one from
- * `useKeepPushSubscriptionCurrent` without a prompt, as the permission stays granted.
+ * exists, because the table's policy only lets a login delete its own rows.
+ *
+ * The browser's own subscription is KEPT. It used to be dropped too, on the promise that the
+ * next login would get a fresh one from `useKeepPushSubscriptionCurrent` without a prompt.
+ * That holds on Android and fails on iPhone: Safari only subscribes from a tap, so every
+ * sign-out on an iPhone turned notifications off until the person found the card and tapped
+ * "Turn on" again ("every time I have to turn notifications on", 30/10/2026). A subscription
+ * with no row is never sent to — `send-push` only reads the table — and the next login's
+ * `useKeepPushSubscriptionCurrent` finds it and registers it for whoever signed in, with no
+ * tap, on every phone.
+ *
  * Bounded and silent: signing out must never wait on, or fail because of, the push service.
  */
 export async function releaseThisDevicePush(): Promise<void> {
@@ -69,7 +80,6 @@ export async function releaseThisDevicePush(): Promise<void> {
       const sub = await reg?.pushManager.getSubscription();
       if (!sub) return;
       await (supabase as any).from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
-      await sub.unsubscribe();
     })(), 4_000, "Releasing notifications");
   } catch (e) {
     console.warn("push release on sign-out failed", e);
@@ -90,7 +100,7 @@ export function usePushNotifications() {
       return;
     }
     setPermission(Notification.permission as PermissionState);
-    (async () => {
+    const check = async () => {
       try {
         const reg = await navigator.serviceWorker.getRegistration("/sw.js");
         const sub = await reg?.pushManager.getSubscription();
@@ -98,7 +108,14 @@ export function usePushNotifications() {
       } catch {
         /* noop */
       }
-    })();
+    };
+    void check();
+    // `useKeepPushSubscriptionCurrent` may register the phone a moment after this screen
+    // looked: the "Turn on" card must then go away by itself, not ask for a tap that is
+    // no longer needed.
+    const onSaved = () => { setPermission(Notification.permission as PermissionState); void check(); };
+    window.addEventListener(PUSH_SAVED_EVENT, onSaved);
+    return () => window.removeEventListener(PUSH_SAVED_EVENT, onSaved);
   }, [supported]);
 
   const registerSW = useCallback(async () => {
@@ -276,15 +293,34 @@ export function useKeepPushSubscriptionCurrent(userId: string | null | undefined
             applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY).buffer as ArrayBuffer,
           });
         }
-        if (sub && !cancelled) await saveSubscription(sub, userId);
+        if (sub && !cancelled) {
+          await saveSubscription(sub, userId);
+          window.dispatchEvent(new Event(PUSH_SAVED_EVENT));
+        }
       } catch (e) {
         console.warn("push sync failed", e);
       }
     };
     void sync();
+    let lastSync = Date.now();
 
     const onMessage = (ev: MessageEvent) => { if (ev.data?.type === "push-subscription-changed") void sync(); };
     navigator.serviceWorker.addEventListener("message", onMessage);
-    return () => { cancelled = true; navigator.serviceWorker.removeEventListener("message", onMessage); };
+    // An app left open on the Home Screen can go days without a fresh start, and this hook
+    // only ran at start. Coming back to the screen puts the row back too — at most every
+    // half hour — so a phone pruned by the push service or taken by another login on it
+    // does not stay silent until somebody notices.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastSync < 30 * 60_000) return;
+      if (Notification.permission !== "granted") return;
+      lastSync = Date.now();
+      void sync();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [userId]);
 }
