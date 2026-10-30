@@ -210,15 +210,15 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
       </Card>
 
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex flex-wrap items-baseline justify-between gap-x-3 text-base">
-            Calendar
-            {days.length > 0 && (
-              <span className="text-xs font-normal text-muted-foreground">
-                {fmtShort(days[0].date)} – {fmtShort(days[days.length - 1].date)}
-              </span>
-            )}
-          </CardTitle>
+        <CardHeader className="space-y-2 pb-2">
+          <PeriodSelector
+            periods={data.periods} choices={choices} today={today} range={range}
+            currentKey={currentKey} pickedKey={pickedKey} onRange={onRange}
+          />
+          <span className="sr-only">Calendar</span>
+          {days.length > 0 && (
+            <span className="sr-only" data-testid="calendar-span">{days[0].date}..{days[days.length - 1].date}</span>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           <Calendar days={days} today={today} onPick={setSelected} selected={selected?.date ?? null} />
