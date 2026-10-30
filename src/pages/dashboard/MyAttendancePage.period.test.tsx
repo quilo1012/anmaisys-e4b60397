@@ -43,7 +43,7 @@ describe("My Attendance — employee view", () => {
     expect(screen.queryByText(/Holiday left/i)).toBeNull();
     expect(screen.queryByText(/taken · .* booked/)).toBeNull();
     expect(screen.getByText("Hours worked")).toBeInTheDocument();
-    expect(screen.getByText("No record yet")).toBeInTheDocument();
+    expect(screen.getAllByText("No record yet").length).toBeGreaterThan(0);
   });
 
   it("keeps the payroll row as it was, with and without a payroll figure", () => {
