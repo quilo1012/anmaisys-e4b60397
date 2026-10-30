@@ -24,6 +24,7 @@ import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shift
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useLeaderShifts } from "@/hooks/useLeaderShifts";
+import { useActiveLines } from "@/hooks/useProductionPlanner";
 import { actionsInReportPeriod, actionShift, shiftWasRecorded } from "@/lib/performanceActions";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
 import { useLineLiveStatus } from "@/hooks/useLineLiveStatus";
@@ -195,14 +196,9 @@ export default function ProductionPerformancePage() {
   // nobody had updated. See resolvePerfRange.
   const range = useMemo(() => resolvePerfRange(filters), [filters]);
 
-  const { data: lines = [] } = useQuery({
-    queryKey: ["lines"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("lines").select("name").order("name");
-      if (error) throw error;
-      return (data ?? []) as { name: string }[];
-    },
-  });
+  // Só as activas: uma linha retirada (a "Gel Machine", que era o Gel Packing) não
+  // aparece no filtro nem ganha um cartão vazio. Os cartões com dados vêm das sessões.
+  const { data: lines = [] } = useActiveLines();
 
   /**
    * What iTouching says each line is doing right now.

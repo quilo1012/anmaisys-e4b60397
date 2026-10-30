@@ -36,3 +36,15 @@ SELECT s.line,
  WHERE s.line ILIKE '%gel%'
  GROUP BY 1, 2
  ORDER BY 1, 2;
+
+-- 5. Triggers que vão disparar com o 2-CORRIGIR.sql. As migrações do repo não provam o
+--    que está em produção; se aparecer aqui um trigger que envia notificações ou chama
+--    uma edge function, parar antes de correr a correcção.
+SELECT event_object_table AS tabela, trigger_name, action_timing, event_manipulation
+  FROM information_schema.triggers
+ WHERE event_object_schema = 'public'
+   AND event_object_table IN ('lines', 'operator_line_accounts', 'intouch_machine_map',
+                              'production_sessions', 'sku_production_history',
+                              'rag_weekly_entries', 'production_targets',
+                              'production_downtimes', 'intouch_status_log')
+ ORDER BY 1, 2, 4;

@@ -32,7 +32,7 @@ import { printElementAsDocument } from "@/lib/printDocument";
 import { ReportPrintHeader } from "@/components/reports/ReportPrintHeader";
 import { format, parseISO } from "date-fns";
 import { DateRangeFilter, type DateRangePreset } from "@/components/DateRangeFilter";
-import { useLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
+import { useActiveLines, useLeaders, useSkuProducts } from "@/hooks/useProductionPlanner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, ReferenceLine, CartesianGrid } from "recharts";
 import XLSX from "xlsx-js-style";
@@ -950,7 +950,7 @@ export default function ShiftHistoryPage() {
   // it was written out here and the production office admin was missing from it,
   // which left him the one cell on the row he could not touch. See the file.
   const isAdmin = canAdjustProductionControl(role);
-  const { data: lines = [] } = useLines();
+  const { data: lines = [] } = useActiveLines();
   const { data: leaders = [] } = useLeaders();
   const { data: skus = [] } = useSkuProducts(false);
   const skuMap = useMemo(() => new Map(skus.map((s) => [s.id, s])), [skus]);
