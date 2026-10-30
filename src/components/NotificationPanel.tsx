@@ -228,6 +228,9 @@ export function NotificationPanel() {
           // The backfill guard the work-order listener uses, for the same reason: a
           // reconnect must not replay this morning's crashes as if they just happened.
           if (Date.now() - mountedAt.current < 1500) return;
+          // A phone reporting its push state (pushDiagnostics) is a reading, not a fault:
+          // one per phone per day would ring the admin's bell dozens of times a morning.
+          if (row.error_type === "PUSH_STATE") return;
           const type = row.error_type ?? "ERROR";
           addNotification({
             type: "system_error",
