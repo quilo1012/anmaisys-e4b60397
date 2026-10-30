@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { VAPID_PUBLIC_KEY as VAPID_KEY_CONST } from "@/lib/vapid";
 import { currentPushEnvironment, type PushEnvironment } from "@/lib/pushEnvironment";
 import { sameApplicationServerKey, isDifferentKeyError, describeSubscribeError, withTimeout } from "@/lib/pushSubscribe";
+import { clearPushError, readServerRegistration, rememberPushError, type ServerRegistration } from "@/lib/pushDiagnostics";
 
 const VAPID_PUBLIC_KEY =
   (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) || VAPID_KEY_CONST;
@@ -89,6 +90,7 @@ export async function releaseThisDevicePush(): Promise<void> {
 export function usePushNotifications() {
   const [permission, setPermission] = useState<PermissionState>("default");
   const [subscribed, setSubscribed] = useState(false);
+  const [registration, setRegistration] = useState<ServerRegistration>("not_checked");
   const [loading, setLoading] = useState(false);
 
   const environment: PushEnvironment = currentPushEnvironment();
@@ -100,11 +102,24 @@ export function usePushNotifications() {
       return;
     }
     setPermission(Notification.permission as PermissionState);
+    // "On" means the server can reach this phone, not only that the phone holds a
+    // subscription. A subscription whose save failed is a phone nothing is ever sent to
+    // (`send-push` reads only the table), and judging by the phone alone hid every "Turn on"
+    // card from exactly those people. When the server cannot be asked (offline), the phone's
+    // own answer stands, as before.
     const check = async () => {
       try {
         const reg = await navigator.serviceWorker.getRegistration("/sw.js");
         const sub = await reg?.pushManager.getSubscription();
-        setSubscribed(!!sub);
+        if (!sub) { setSubscribed(false); setRegistration("not_checked"); return; }
+        let server: ServerRegistration = "unknown";
+        try {
+          const { data } = await supabase.auth.getSession();
+          const userId = data.session?.user?.id;
+          if (userId) server = (await readServerRegistration(sub.endpoint, userId)).server;
+        } catch { /* stays unknown */ }
+        setRegistration(server);
+        setSubscribed(server !== "missing");
       } catch {
         /* noop */
       }
@@ -178,14 +193,18 @@ export function usePushNotifications() {
       const { data: userRes } = await supabase.auth.getUser();
       const user_id = userRes.user?.id;
       if (!user_id) {
+        rememberPushError("enable", new Error("Not authenticated"));
         toast.error("Not authenticated");
         return false;
       }
       await saveSubscription(sub, user_id);
+      clearPushError();
       setSubscribed(true);
+      setRegistration("registered");
       toast.success("Push notifications enabled");
       return true;
     } catch (e: unknown) {
+      rememberPushError("enable", e);
       toast.error(describeSubscribeError(e));
       return false;
     } finally {
@@ -256,6 +275,8 @@ export function usePushNotifications() {
     environment,
     permission,
     subscribed,
+    /** Whether the server holds this phone for this login (see `check`). */
+    registration,
     loading,
     subscribe,
     unsubscribe,
@@ -295,9 +316,13 @@ export function useKeepPushSubscriptionCurrent(userId: string | null | undefined
         }
         if (sub && !cancelled) {
           await saveSubscription(sub, userId);
+          clearPushError();
           window.dispatchEvent(new Event(PUSH_SAVED_EVENT));
         }
       } catch (e) {
+        // Silent to the person, but no longer to us: this is the failure that left a phone
+        // believing it was on while the server had nothing (see pushDiagnostics).
+        rememberPushError("resync", e);
         console.warn("push sync failed", e);
       }
     };
