@@ -7,8 +7,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { sheetBandOf, isTrainingArea, foldTrainingArea } from "@/lib/headcountBlocks";
 import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
-import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
+import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Check, Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle, MoreVertical, EyeOff, Eye, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,7 @@ import { MoveTeamDialog, type MoveTeamPreview } from "@/components/workforce/Mov
 import { HiddenLinesMenu } from "@/components/workforce/HiddenLinesMenu";
 import { planTeamMove } from "@/lib/teamMove";
 import { linesToDraw, hiddenGaps } from "@/lib/hiddenLines";
+import { moveLine, renumber } from "@/lib/lineOrder";
 
 /**
  * The boards there are. Two, and Weekend is not one of them.
@@ -669,19 +670,21 @@ export function Chip({
  * a header that both opens a dialog and starts a drag would do the wrong one about
  * half the time on a tablet.
  */
-function SortableColumn({ id, children }: { id: string; children: (grip: React.ReactNode) => React.ReactNode }) {
+function SortableColumn({ id, name, children }: { id: string; name: string; children: (grip: React.ReactNode) => React.ReactNode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      // Relative so a hidden-column mark can sit on its edge.
-      className={cn("relative", isDragging && "z-10 opacity-70")}
+      // Relative so a hidden-column mark can sit on its edge. While it is being
+      // dragged the column itself stays behind as the outline of where it will land —
+      // the other columns slide round it — and a lifted copy follows the finger.
+      className={cn("relative", isDragging && "z-10 opacity-40 outline-dashed outline-2 -outline-offset-2 outline-primary")}
     >
       {children(
         <button
           type="button"
-          aria-label="Reorder column"
+          aria-label={`Move ${name} to another position`}
           // Was 14px at half opacity with no padding around it: the one control on
           // the board nobody could find, on a screen used through gloves. Full
           // contrast and a real hit area — the drag still only starts from here, so
@@ -701,6 +704,46 @@ function SortableColumn({ id, children }: { id: string; children: (grip: React.R
       )}
     </div>
   );
+}
+
+/**
+ * The copy of a column that follows the pointer while it is moved: the yellow heading,
+ * the names going with it, and how many. Deliberately plain — it only has to say "this
+ * line and these people", while the outline left behind says where they will land.
+ */
+function LiftedColumn({ name, people }: { name: string; people: string[] }) {
+  const shown = people.slice(0, 10);
+  return (
+    <div className={cn("flex h-full cursor-grabbing flex-col border bg-card shadow-2xl ring-2 ring-primary rotate-1", SHEET_RULE)}>
+      <div className={cn("flex min-h-[40px] items-center justify-center border-b px-2 text-center text-sm font-bold", SHEET_RULE, SHEET_FILL.heading)}>
+        {name}
+      </div>
+      <ul className="flex flex-col">
+        {shown.map((n, i) => (
+          <li key={`${n}-${i}`} className={cn("truncate border-b px-2 py-2 text-center text-[13px]", SHEET_RULE)}>{n}</li>
+        ))}
+        {people.length > shown.length && (
+          <li className="px-2 py-1.5 text-center text-xs text-muted-foreground">+{people.length - shown.length} more</li>
+        )}
+      </ul>
+      <div className={cn("mt-auto flex h-8 items-center justify-between px-2.5", SHEET_FILL.total)}>
+        <span className="text-xs font-semibold">Total</span>
+        <span className="font-figure text-base font-bold tabular-nums">{people.length}</span>
+      </div>
+    </div>
+  );
+}
+
+/** What a screen reader hears while a column is moved: line names, not row ids. */
+function columnAnnouncements(lines: { id: string; name: string }[]): Announcements {
+  const name = (id: string | number) => lines.find((a) => a.id === String(id))?.name ?? "the line";
+  const pos = (id: string | number) => lines.findIndex((a) => a.id === String(id)) + 1;
+  return {
+    onDragStart: ({ active }) => `Picked up ${name(active.id)}, column ${pos(active.id)} of ${lines.length}.`,
+    onDragOver: ({ active, over }) => (over ? `${name(active.id)} would go to column ${pos(over.id)}.` : `${name(active.id)} is not over a column.`),
+    onDragEnd: ({ active, over }) => (over ? `${name(active.id)} put down at column ${pos(over.id)}.` : `${name(active.id)} put back.`),
+    onDragCancel: ({ active }) => `Move cancelled. ${name(active.id)} stays where it was.`,
+  };
 }
 
 function DropZone({
@@ -899,8 +942,14 @@ function ShiftBoard({
   const reorder = useReorderAreas();
   const setPattern = useSetShiftPattern(onDate);
   const { data: patterns = [] } = useShiftPatterns();
-  // A little distance first, so a tap on the heading is not read as a drag.
-  const columnSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // A little distance first, so a tap on the heading is not read as a drag. The
+  // keyboard too: focus a column's grip, Space to lift, arrows to move, Space to put down.
+  const columnSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  // The column being carried, for the lifted copy that follows the pointer.
+  const [liftedLine, setLiftedLine] = useState<string | null>(null);
   const { data: savedAllocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   // Confirmed overtime laid over each placement, so the card says the hours really worked.
   const { data: confirmedAsks } = useConfirmedOvertime(onDate, shift);
@@ -1811,16 +1860,30 @@ function ShiftBoard({
         <DndContext
           sensors={columnSensors}
           collisionDetection={closestCenter}
+          accessibility={{ announcements: columnAnnouncements(ofKind) }}
+          onDragStart={(e) => setLiftedLine(String(e.active.id))}
+          onDragCancel={() => setLiftedLine(null)}
           onDragEnd={(e: DragEndEvent) => {
+            setLiftedLine(null);
             const { active, over } = e;
-            if (!over || active.id === over.id) return;
-            // Over every line of the band, hidden ones included, so renumbering the ones
-            // on screen never lands a hidden line on the same sort order as a shown one.
-            const ids = allOfKind.map((a) => a.id);
-            const moved = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
-            // Renumbered in tens, leaving room to slide something in later without
-            // rewriting the whole section.
-            reorder.mutate(moved.map((id, i) => ({ id, sort_order: (i + 1) * 10 })));
+            if (!over) return;
+            // The whole band, hidden lines included (see `moveLine`). Only sort_order is
+            // written: the people point at the line, so the team goes with it as it is.
+            const moved = moveLine(allOfKind.map((a) => a.id), String(active.id), String(over.id));
+            if (!moved) return;
+            const { save, undo } = renumber(moved, new Map(allOfKind.map((a) => [a.id, a.sort_order])));
+            if (!save.length) return;
+            const name = allOfKind.find((a) => a.id === active.id)?.name ?? "Line";
+            const drawnIds = new Set(ofKind.map((a) => a.id));
+            const at = moved.filter((id) => drawnIds.has(id)).indexOf(String(active.id)) + 1;
+            reorder.mutate(save, {
+              onSuccess: () => toast.success(`${name} moved to column ${at} of ${drawnIds.size}`, {
+                id: "headcount-reorder",
+                description: "Its team went with it. The order is the same on both shifts.",
+                duration: 10000,
+                action: undo.length ? { label: "Undo", onClick: () => reorder.mutate(undo) } : undefined,
+              }),
+            });
           }}
         >
         <SortableContext items={ofKind.map((a) => a.id)} strategy={rectSortingStrategy}>
@@ -1833,7 +1896,7 @@ function ShiftBoard({
         {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
-            <SortableColumn key={area.id} id={area.id}>
+            <SortableColumn key={area.id} id={area.id} name={area.name}>
             {(grip) => (
             <>
             {gaps.before.has(area.id) && (
@@ -1971,6 +2034,14 @@ function ShiftBoard({
         {section.key === "support" && awayInSupport && sheetTail(bandRows)}
         </div>
         </SortableContext>
+        <DragOverlay dropAnimation={{ duration: 180, easing: "ease-out" }}>
+          {liftedLine && ofKind.some((a) => a.id === liftedLine) ? (
+            <LiftedColumn
+              name={ofKind.find((a) => a.id === liftedLine)!.name}
+              people={peopleIn(liftedLine).map((x) => x.shown)}
+            />
+          ) : null}
+        </DragOverlay>
         </DndContext>
         </div>
         </div>

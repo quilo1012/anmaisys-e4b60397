@@ -13,6 +13,7 @@ import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftP
 import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
 import type { PreviousPlace } from "@/lib/headcountSuggestions";
 import { boardSlotOf, type ConfirmedAsk } from "@/lib/boardOvertime";
+import { applyLineOrder, type LineOrder } from "@/lib/lineOrder";
 
 export type HeadcountArea = {
   id: string;
@@ -1633,21 +1634,42 @@ async function recordPosition(input: {
  * SQL client. The order is a property of the area, not of a person or a day, so
  * moving Line 2 sticks for everyone and for every date; that is the point, because
  * the board is meant to read like the sheet the factory already has.
+ *
+ * The board moves first and the database catches up: the cached list is re-sorted
+ * before any request goes out, so a dropped column stays where it was dropped instead
+ * of springing back while the saves run. The changed lines are written together, and
+ * any failure puts the whole band back as it was — a half-saved order is a board
+ * nobody arranged.
+ *
+ * `.select("id")` because an update the row policy refuses is not an error to
+ * PostgREST, just zero rows: without it a role that may not reorder would watch the
+ * columns move, then quietly move back on the next refresh.
  */
 export function useReorderAreas() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (ordered: { id: string; sort_order: number }[]) => {
-      for (const a of ordered) {
-        const { error } = await supabase
-          .from("headcount_areas")
-          .update({ sort_order: a.sort_order })
-          .eq("id", a.id);
+    mutationFn: async (changes: LineOrder[]) => {
+      const results = await Promise.all(
+        changes.map((a) =>
+          supabase.from("headcount_areas").update({ sort_order: a.sort_order }).eq("id", a.id).select("id"),
+        ),
+      );
+      for (const { error, data } of results) {
         if (error) throw error;
+        if (!data?.length) throw new Error("The new order was not saved — your role may not change the board's columns.");
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["headcount-areas"] }),
-    onError: (e: Error) => toast.error(e.message ?? "Could not save the new order"),
+    onMutate: async (changes) => {
+      await qc.cancelQueries({ queryKey: ["headcount-areas"] });
+      const before = qc.getQueryData<HeadcountArea[]>(["headcount-areas"]);
+      if (before) qc.setQueryData(["headcount-areas"], applyLineOrder(before, changes));
+      return { before };
+    },
+    onError: (e: Error, _changes, ctx) => {
+      if (ctx?.before) qc.setQueryData(["headcount-areas"], ctx.before);
+      toast.error(e.message ?? "Could not save the new order");
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["headcount-areas"] }),
   });
 }
 
