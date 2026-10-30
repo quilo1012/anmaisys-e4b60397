@@ -152,9 +152,12 @@ export function useOvertimeOutcomesFor(responseIds: string[]) {
     queryKey: ["overtime_outcomes", "for", ...ids],
     enabled: ids.length > 0,
     queryFn: async (): Promise<OutcomeRow[]> => {
+      // recorded_by tells "cancelled by you" from "cancelled by your supervisor": only the
+      // first can be booked again from My Overtime (BLOCO 138). The read policy already
+      // lets a person read the outcome of their own answer, and nobody else's.
       const { data, error } = await db
         .from("overtime_outcomes")
-        .select("response_id, outcome, note")
+        .select("response_id, outcome, note, recorded_by")
         .in("response_id", ids);
       if (error) throw error;
       return (data ?? []) as OutcomeRow[];
@@ -279,6 +282,8 @@ export interface OutcomeRow {
   response_id: string;
   outcome: OvertimeOutcome;
   note: string | null;
+  /** The login that recorded it. Read by `useOvertimeOutcomesFor` only. */
+  recorded_by?: string | null;
 }
 
 export function useOvertimeOutcomes(requestId: string, responseIds: string[]) {
@@ -864,6 +869,28 @@ export function useOvertimeMutations() {
     onSuccess: refresh,
   });
 
+  /**
+   * Book again a booking the person cancelled themselves, in time (BLOCO 138). The
+   * database checks everything a first yes meets and returns the row it wrote: booked,
+   * or on the reserve list when the ask filled in the meantime.
+   */
+  const rebookMyBooking = useMutation({
+    mutationFn: async ({ requestId }: { requestId: string }): Promise<OvertimeResponse> => {
+      // rebook_my_overtime is newer than the generated types.ts; same pattern as the other untyped RPCs here.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (db.rpc as any)("rebook_my_overtime", { p_request_id: requestId });
+      if (error) {
+        // Merged before the paste: the function is not in the database yet.
+        if ((error as { code?: string }).code === "PGRST202") {
+          throw new Error("Booking again is not switched on yet. Message your supervisor if you can still come.");
+        }
+        throw error;
+      }
+      return data as OvertimeResponse;
+    },
+    onSuccess: refresh,
+  });
+
   return {
     createRequest,
     editRequest,
@@ -877,6 +904,7 @@ export function useOvertimeMutations() {
     cancelMyBooking,
     swapMyBooking,
     leaveReserve,
+    rebookMyBooking,
     linkMe,
     linkMeByEmail,
     saveRules,

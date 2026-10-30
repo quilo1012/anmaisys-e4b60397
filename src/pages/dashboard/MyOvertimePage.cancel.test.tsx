@@ -53,6 +53,7 @@ vi.mock("@/hooks/useOvertimeRequests", () => ({
     answer: { mutate: vi.fn(), isPending: false },
     swapMyBooking: { mutate: vi.fn(), isPending: false },
     leaveReserve: { mutate: vi.fn(), isPending: false },
+    rebookMyBooking: { mutate: vi.fn(), isPending: false },
 
     cancelMyBooking: {
       mutate: (v: unknown, o: { onSuccess?: (r: unknown) => void; onSettled?: () => void }) => {
