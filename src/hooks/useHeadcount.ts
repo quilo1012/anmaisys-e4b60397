@@ -886,7 +886,10 @@ export function useAllocationMutations(onDate: string, shift: string) {
       const was = prev?.status;
       let replaced: string | null = null;
       if ((input.status === "assigned" || input.status === "overtime")
-        && (was === "holiday" || was === "sick" || was === "unpaid")) {
+        && (was === "holiday" || was === "sick" || was === "unpaid")
+        // A half-day holiday put on the line they worked is not replaced: the half day
+        // is kept, and the board says so itself.
+        && !(was === "holiday" && input.halfDay === true)) {
         replaced = was;
       }
 
