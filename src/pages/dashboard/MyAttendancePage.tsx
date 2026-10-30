@@ -6,8 +6,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronDown, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { areaText, fmtDay } from "@/lib/myShiftText";
 import { cn } from "@/lib/utils";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -19,7 +20,7 @@ import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import {
   buildMyDays, summarise, rangeChoices, defaultRange, myShifts,
   overtimeOnTheBoardOnly, summariseOvertimeShifts,
-  type DayStatus, type MyAttendanceData, type MyDay, type MyShift,
+  type DayStatus, type MyPeriod, type RangeChoice, type MyAttendanceData, type MyDay, type MyShift,
 } from "@/lib/myAttendance";
 
 const STATUS: Record<DayStatus, { label: string; cell: string }> = {
@@ -227,6 +228,99 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * The one period selector, directly above the calendar. Steps through the configured
+ * pay periods as they are named and dated in `workforce_payroll_periods`; the title list
+ * also offers the week/month/custom ranges.
+ */
+function PeriodSelector({ periods, choices, today, range, currentKey, pickedKey, onRange }: {
+  periods: MyPeriod[]; choices: RangeChoice[]; today: string; range: { from: string; to: string };
+  currentKey: string; pickedKey: string | null;
+  onRange: (r: { from: string; to: string }, key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const sorted = useMemo(() => [...periods].sort((a, b) => a.start_date.localeCompare(b.start_date)), [periods]);
+  const exact = sorted.findIndex((p) => p.start_date === range.from && p.end_date === range.to);
+  const prev = exact >= 0 ? sorted[exact - 1] : [...sorted].reverse().find((p) => p.start_date < range.from);
+  const next = exact >= 0 ? sorted[exact + 1] : sorted.find((p) => p.start_date > range.from);
+  const isCurrent = (p: MyPeriod) => p.start_date <= today && p.end_date >= today;
+  const period = exact >= 0 ? sorted[exact] : null;
+  const custom = currentKey === "custom" || pickedKey === "custom";
+  const other = choices.find((c) => c.key === currentKey && !c.key.startsWith("period:"));
+  const title = period
+    ? `${period.name}${isCurrent(period) ? " (This Pay Period)" : ""}`
+    : other ? other.label : "Custom dates";
+  const go = (p: MyPeriod | undefined) => p && onRange({ from: p.start_date, to: p.end_date }, `period:${p.id}`);
+  const others = choices.filter((c) => !c.key.startsWith("period:"));
+  return (
+    <div className="space-y-2" data-testid="period-selector">
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
+          aria-label="Previous pay period" disabled={!prev} onClick={() => go(prev)}>
+          <ChevronLeft className="h-5 w-5" />
+        </Button>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button type="button" aria-label={`Period: ${title}. Choose another`}
+              className="flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center rounded-md px-2 py-1 text-center hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <span className="flex items-center gap-1 text-base font-semibold leading-tight" data-testid="period-title">
+                <span className="break-words">{title}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
+              </span>
+              <span className="text-xs text-muted-foreground" data-testid="period-span">
+                {fmtShort(range.from)} – {fmtShort(range.to)}
+              </span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="center" className="max-h-80 w-72 overflow-y-auto p-1">
+            <ul role="listbox" aria-label="Pay periods">
+              {[...sorted].reverse().map((p) => (
+                <li key={p.id}>
+                  <button type="button" role="option" aria-selected={period?.id === p.id}
+                    className={cn("flex min-h-11 w-full flex-col items-start justify-center rounded px-3 text-left text-sm hover:bg-muted", period?.id === p.id && "bg-muted font-medium")}
+                    onClick={() => { go(p); setOpen(false); }}>
+                    <span>{p.name}{isCurrent(p) ? " (This Pay Period)" : ""}</span>
+                    <span className="text-xs text-muted-foreground">{fmtShort(p.start_date)} – {fmtShort(p.end_date)}</span>
+                  </button>
+                </li>
+              ))}
+              <li role="separator" className="my-1 border-t" />
+              {others.map((c) => (
+                <li key={c.key}>
+                  <button type="button" role="option" aria-selected={currentKey === c.key}
+                    className="flex min-h-11 w-full items-center rounded px-3 text-left text-sm hover:bg-muted"
+                    onClick={() => { onRange({ from: c.from, to: c.to }, c.key); setOpen(false); }}>
+                    {c.label}
+                  </button>
+                </li>
+              ))}
+              <li>
+                <button type="button" role="option" aria-selected={custom}
+                  className="flex min-h-11 w-full items-center rounded px-3 text-left text-sm hover:bg-muted"
+                  onClick={() => { onRange(range, "custom"); setOpen(false); }}>
+                  Custom dates…
+                </button>
+              </li>
+            </ul>
+          </PopoverContent>
+        </Popover>
+        <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0"
+          aria-label="Next pay period" disabled={!next} onClick={() => go(next)}>
+          <ChevronRight className="h-5 w-5" />
+        </Button>
+      </div>
+      {custom && (
+        <div className="grid grid-cols-2 gap-2">
+          <Input type="date" aria-label="From" value={range.from} max={range.to} className="h-11"
+            onChange={(e) => e.target.value && onRange({ from: e.target.value, to: range.to }, "custom")} />
+          <Input type="date" aria-label="To" value={range.to} min={range.from} className="h-11"
+            onChange={(e) => e.target.value && onRange({ from: range.from, to: e.target.value }, "custom")} />
+        </div>
+      )}
+    </div>
   );
 }
 
