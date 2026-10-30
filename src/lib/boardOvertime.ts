@@ -179,8 +179,10 @@ export function shiftWindow(a: PlacementLike, shift: string): [number, number] |
   const rel = (t: string) => start + (((toMin(t) - start) % DAY) + DAY) % DAY;
   let from = start;
   let to = start + (a.half_day ? SHIFT_MIN / 2 : SHIFT_MIN);
-  if (a.arrived_late_at) from = Math.min(to, rel(a.arrived_late_at));
-  if (a.left_early_at) to = Math.max(from, Math.min(to, rel(a.left_early_at)));
+  // Only a real late start / early finish cuts the shift here; an early start or a
+  // stay-late is laid on by `placementHours` through `workedWindow`.
+  if (a.arrived_late_at && signedFrom(from, a.arrived_late_at) > 0) from = Math.min(to, rel(a.arrived_late_at));
+  if (a.left_early_at && signedFrom(to, a.left_early_at) < 0) to = Math.max(from, Math.min(to, rel(a.left_early_at)));
   return [from, to];
 }
 
@@ -229,7 +231,7 @@ export function placementHours(
   if (!base && mine.length === 0) {
     const whole: [number, number] = shift === "Night" ? [1080, 1800] : [360, 1080];
     const w = workedWindow(whole, a);
-    return { base: 0, overtime: w.window[1] - w.window[0] ? (w.window[1] - w.window[0]) / 60 : 0, total: (w.window[1] - w.window[0]) / 60, label: show(w.window), short: showShort(w.window), shiftLabel: null, overtimeLabels: [], bookedLabel: show(whole), marks: w.marks };
+    return { base: 0, overtime: (w.window[1] - w.window[0]) / 60, total: (w.window[1] - w.window[0]) / 60, label: show(w.window), short: showShort(w.window), shiftLabel: null, overtimeLabels: [], bookedLabel: show(whole), marks: w.marks };
   }
 
   const booked = merge([...(fullBase ? [fullBase] : []), ...mine]);
