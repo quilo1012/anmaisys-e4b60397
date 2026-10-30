@@ -150,6 +150,7 @@ export function BoardOvertimeSection({ employeeId, today = localDate() }: { empl
                 {l.shift && <ShiftTag shift={l.shift} />}
                 {l.area && <span className="truncate">{l.area}</span>}
                 {l.hours && <span className="text-muted-foreground">{l.hours}</span>}
+                {l.booked && <span className="text-2xs text-muted-foreground">(booked {l.booked})</span>}
                 <span className="ml-auto flex gap-1">
                   {l.state === "booked" && <Badge variant="outline" className="text-2xs">Booked</Badge>}
                   {l.state === "worked" && !l.outcome && <Badge variant="outline" className="text-2xs">Placed</Badge>}
