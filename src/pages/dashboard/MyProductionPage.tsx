@@ -20,6 +20,7 @@ import { canUseLineChat } from "@/lib/permissions";
 import { londonHM } from "@/lib/shifts";
 import { parseWholeQuantity } from "@/lib/wholeQuantity";
 import { parseBlenderLabel } from "@/lib/blenderLabel";
+import { literalIlikePattern, pickSkuForTypedCode, skuCodeKey, type CatalogueSkuCandidate } from "@/lib/typedSkuCode";
 import { LoggingShiftProvider, useLoggingShift } from "@/contexts/LoggingShiftContext";
 import { ShiftHandoverGate, CarriedOverShiftBanner } from "@/components/production/ShiftHandoverGate";
 import { shiftTimeToIso, runMinutes } from "@/lib/productionTime";
@@ -915,11 +916,25 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
       return;
     }
 
-    const skuId: string | null = selectedSku?.id ?? null;
-    const skuText: string | null = selectedSku ? null : rawCode;
-
     setSaving(true);
     try {
+      // A code typed without tapping the list still names a catalogue product when
+      // it IS a catalogue code — "Bagcw6c" is BAGCW6C, and "CORGS" typed exactly is
+      // CORGS. Matched by the code only, ignoring case; see src/lib/typedSkuCode.ts.
+      let product = selectedSku;
+      if (!product && rawCode) {
+        const { data: candidates, error: lookupErr } = await supabase
+          .from("sku_products")
+          .select("id, code, name, active")
+          .ilike("code", literalIlikePattern(skuCodeKey(rawCode)))
+          .limit(20);
+        if (lookupErr) throw lookupErr;
+        const hit = pickSkuForTypedCode((candidates ?? []) as CatalogueSkuCandidate[], rawCode);
+        if (hit) product = { id: hit.id, code: String(hit.code ?? ""), name: String(hit.name ?? "") };
+      }
+      const skuId: string | null = product?.id ?? null;
+      const skuText: string | null = product ? null : rawCode;
+
       // 1) Find or create the production_items row for this session + SKU + batch.
       // Multiple batches of the same SKU in one shift are separate items,
       // distinguished by the batch code.
@@ -1044,15 +1059,18 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
       }
 
       // 3) actual_qty is auto-synced by DB trigger from blender entries.
-      toast.success(`Logged ${quantity} on Blender ${blenderLabel} for ${selectedSku?.code ?? skuText}`);
+      toast.success(`Logged ${quantity} on Blender ${blenderLabel} for ${product?.code ?? skuText}`);
       setLastSaved({
         at: new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }),
         blender: blenderLabel,
         qty: quantity,
-        sku: selectedSku?.code ?? skuText,
+        sku: product?.code ?? skuText,
       });
-      if (opts?.keepProduct) resetRunFields();
-      else reset();
+      if (opts?.keepProduct) {
+        resetRunFields();
+        // The product stays for the next blender, now as the linked catalogue row.
+        if (product && !selectedSku) pickSku(product);
+      } else reset();
       qc.invalidateQueries({ queryKey: ["my-prod-items", sessionId] });
       qc.invalidateQueries({ queryKey: ["blender-entries", sessionId] });
       qc.invalidateQueries({ queryKey: ["log-prefill"] });
@@ -1264,7 +1282,7 @@ function LogProductionCard({ sessionId, target = 0, produced = 0, plannedSkus = 
 
           {!selectedSku && skuQuery.trim() && (
             <div className="text-2xs text-warning-strong">
-              Not linked to the catalog — will be logged exactly as typed. Admin reconciles it later.
+              Not picked from the list. A catalog part code is linked on save (any case); anything else is logged as typed for admin to reconcile.
             </div>
           )}
         </div>
