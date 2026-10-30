@@ -52,10 +52,9 @@ describe("My Attendance — employee view", () => {
     expect(hours).toHaveTextContent(/Approved by payroll\s*Not recorded yet/);
     expect(hours).toHaveTextContent("This is the figure that is paid.");
     unmount();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    renderPage(base([{ period_id: "o", period_name: "October 2026", hours: 7.5 } as any]));
+    renderPage(base([{ period_id: "o", hours: 7.5 }]));
     const h2 = screen.getByTestId("hours-balance");
-    expect(h2).toHaveTextContent(/Approved by payroll/);
+    expect(h2).toHaveTextContent(/Approved by payroll\s*7.5 h/);
     expect(h2).not.toHaveTextContent(/Holiday left/i);
   });
 
