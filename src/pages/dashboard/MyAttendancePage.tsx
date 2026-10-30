@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { areaText, fmtDay } from "@/lib/myShiftText";
 import { cn } from "@/lib/utils";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -17,7 +18,7 @@ import { useMyOvertimeShifts } from "@/hooks/useMyOvertimeShifts";
 import { currentShift } from "@/lib/operationalShift";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import {
-  buildMyDays, summarise, rangeChoices, defaultRange, myShifts,
+  buildMyDays, summarise, rangeChoices, defaultRange, myShifts, periodAround,
   overtimeOnTheBoardOnly, summariseOvertimeShifts,
   type DayStatus, type MyAttendanceData, type MyDay, type MyShift,
 } from "@/lib/myAttendance";
@@ -202,8 +203,6 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
         <Tile label="Hours worked" value={fmtHours(s.workedHours)} note="On the clock" />
         <Tile label="Hours scheduled" value={fmtHours(s.scheduledHours)} note="On the days recorded" />
         <Tile label="Days present" value={String(s.daysPresent)} note={s.shiftsDue != null ? `of ${s.shiftsDue} on your rota` : undefined} />
-        <Tile label="Holiday left" value={s.leave.remaining == null ? "Not available" : `${s.leave.remaining} d`}
-          note={s.leave.total == null ? "No allowance on file for your rota" : `${s.leave.taken} taken · ${s.leave.booked} booked`} />
         <Tile label="Holiday" value={`${s.holidayDays} d`} />
         <Tile label="Sickness" value={`${s.sickDays} d`} />
         <Tile label="Absent / other" value={`${s.unpaidDays + s.otherAbsenceDays} d`} note={s.unpaidDays ? `${s.unpaidDays} unpaid` : undefined} />
@@ -235,14 +234,10 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="flex flex-wrap items-baseline justify-between gap-x-3 text-base">
-            Calendar
-            {days.length > 0 && (
-              <span className="text-xs font-normal text-muted-foreground">
-                {fmtShort(days[0].date)} – {fmtShort(days[days.length - 1].date)}
-              </span>
-            )}
-          </CardTitle>
+          <PeriodNav
+            periods={data.periods} range={range} today={today}
+            onGo={(p) => onRange({ from: p.start_date, to: p.end_date }, `period:${p.id}`)}
+          />
         </CardHeader>
         <CardContent className="space-y-3">
           <Calendar days={days} today={today} onPick={setSelected} selected={selected?.date ?? null} />
@@ -251,6 +246,47 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+/**
+ * The pay period, named right above the calendar, with the periods either side one tap
+ * away. Moving changes the range the page asks for, so the calendar and the hours above
+ * it follow. The periods are the payroll calendar as configured; nothing here makes one.
+ */
+function PeriodNav({ periods, range, today, onGo }: {
+  periods: MyAttendanceData["periods"]; range: { from: string; to: string }; today: string;
+  onGo: (p: MyAttendanceData["periods"][number]) => void;
+}) {
+  const at = periodAround(periods, range, today);
+  const dates = `${fmtShort(range.from)} – ${fmtShort(range.to)}`;
+  const title = at.exact && at.period
+    ? `${at.period.name}${at.current ? " (This Pay Period)" : ""}`
+    : dates;
+  const sub = at.exact ? dates : at.period ? `Part of ${at.period.name}` : "Outside the pay periods";
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline" size="icon" className="h-11 w-11 shrink-0"
+        disabled={!at.prev} onClick={() => at.prev && onGo(at.prev)}
+        aria-label={at.prev ? `Previous pay period: ${at.prev.name}` : "No earlier pay period"}
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </Button>
+      <div className="min-w-0 flex-1 text-center">
+        <h2 className="text-lg font-semibold leading-tight sm:text-xl" aria-live="polite" data-testid="pay-period-title">
+          {title}
+        </h2>
+        <p className="text-xs text-muted-foreground">{sub}</p>
+      </div>
+      <Button
+        variant="outline" size="icon" className="h-11 w-11 shrink-0"
+        disabled={!at.next} onClick={() => at.next && onGo(at.next)}
+        aria-label={at.next ? `Next pay period: ${at.next.name}` : "No later pay period"}
+      >
+        <ChevronRight className="h-5 w-5" />
+      </Button>
+    </div>
   );
 }
 
