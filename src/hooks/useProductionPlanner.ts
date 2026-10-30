@@ -55,6 +55,27 @@ export function useLines() {
   });
 }
 
+/**
+ * As linhas que um filtro ou um "nova sessão" deve oferecer: só as activas.
+ *
+ * Chave própria, e não ["lines"]: três hooks partilham essa chave com selects
+ * diferentes, e o primeiro a carregar decide o que os outros recebem.
+ */
+export function useActiveLines() {
+  return useQuery({
+    queryKey: ["lines", "active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lines")
+        .select("id, name")
+        .eq("active", true)
+        .order("name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useLeaders() {
   return useQuery({
     queryKey: ["leaders"],
