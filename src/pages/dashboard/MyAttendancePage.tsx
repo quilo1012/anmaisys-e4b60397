@@ -171,39 +171,15 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
               ? `Your clock record reaches ${fmtDay(data.clocked_to)}${data.clocks_imported_at ? `, imported ${new Date(data.clocks_imported_at).toLocaleDateString()}` : ""}. Days after that show as "no record yet", not as absences.`
               : "No clock record has been imported for you yet."}
           </p>
-          <div className="flex flex-wrap items-end gap-2">
-            <Select
-              value={currentKey}
-              onValueChange={(k) => {
-                if (k === "custom") { onRange(range, "custom"); return; }
-                const c = choices.find((x) => x.key === k);
-                if (c) onRange({ from: c.from, to: c.to }, k);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-64" aria-label="Period"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {choices.map((c) => <SelectItem key={c.key} value={c.key}>{c.label}</SelectItem>)}
-                <SelectItem value="custom">Custom dates…</SelectItem>
-              </SelectContent>
-            </Select>
-            {(currentKey === "custom" || pickedKey === "custom") && (
-              <div className="flex gap-2">
-                <Input type="date" aria-label="From" value={range.from} max={range.to}
-                  onChange={(e) => e.target.value && onRange({ from: e.target.value, to: range.to }, "custom")} />
-                <Input type="date" aria-label="To" value={range.to} min={range.from}
-                  onChange={(e) => e.target.value && onRange({ from: range.from, to: e.target.value }, "custom")} />
-              </div>
-            )}
-          </div>
         </CardContent>
       </Card>
 
+      {/* No holiday-left counter on the employee's own screen (owner's decision, 30/10/2026);
+          the balance is still computed in `summarise` for the office screens. */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Tile label="Hours worked" value={fmtHours(s.workedHours)} note="On the clock" />
+        <div className="col-span-2"><Tile label="Hours worked" value={fmtHours(s.workedHours)} note="On the clock" /></div>
         <Tile label="Hours scheduled" value={fmtHours(s.scheduledHours)} note="On the days recorded" />
         <Tile label="Days present" value={String(s.daysPresent)} note={s.shiftsDue != null ? `of ${s.shiftsDue} on your rota` : undefined} />
-        <Tile label="Holiday left" value={s.leave.remaining == null ? "Not available" : `${s.leave.remaining} d`}
-          note={s.leave.total == null ? "No allowance on file for your rota" : `${s.leave.taken} taken · ${s.leave.booked} booked`} />
         <Tile label="Holiday" value={`${s.holidayDays} d`} />
         <Tile label="Sickness" value={`${s.sickDays} d`} />
         <Tile label="Absent / other" value={`${s.unpaidDays + s.otherAbsenceDays} d`} note={s.unpaidDays ? `${s.unpaidDays} unpaid` : undefined} />
