@@ -8,6 +8,7 @@
  */
 import { currentShift } from "@/lib/operationalShift";
 import { windowLabel } from "@/lib/overtimeRequests";
+import { askWindow, clock, workedWindow } from "@/lib/boardOvertime";
 
 /* ------------------------------------------------------------ position timeline ---- */
 
@@ -110,6 +111,9 @@ export interface BoardOvertimeRow {
   shift: string;
   area_name: string | null;
   overtime_request_id: string | null;
+  /** "Went home at" / "came in at" on the board row; read through `workedWindow`. */
+  left_early_at?: string | null;
+  arrived_late_at?: string | null;
 }
 
 export interface AskResponse {
@@ -135,8 +139,10 @@ export interface OvertimeLine {
   date: string;
   shift: string | null;
   area: string | null;
-  /** The ask's own hours, when this row came from one. */
+  /** The hours worked on the board: the ask's window, moved by a late start / early finish / stay-late. */
   hours: string | null;
+  /** The ask's window as offered, when it differs from what was worked. */
+  booked?: string | null;
   outcome: string | null;
   state: OvertimeLineState;
   clock: ClockDay | null;
@@ -165,6 +171,16 @@ const addDays = (iso: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+/** Worked hours for a board row from an ask, with the ask's window as "booked". */
+function workedOf(b: BoardOvertimeRow, ask: AskResponse | undefined): { hours: string | null; booked: string | null } {
+  if (!ask) return { hours: null, booked: null };
+  const offered = windowLabel(ask.starts_at, ask.ends_at);
+  if (!b.left_early_at && !b.arrived_late_at) return { hours: offered, booked: null };
+  const w = workedWindow(askWindow(ask, ask.on_date), { left_early_at: b.left_early_at ?? null, arrived_late_at: b.arrived_late_at ?? null });
+  const worked = windowLabel(clock(w.window[0]), clock(w.window[1]));
+  return worked === offered ? { hours: offered, booked: null } : { hours: worked, booked: offered };
+}
+
 /**
  * The board's overtime rows for one person, newest first, with the ask they came from
  * and, beside them, the clock's own record for the date. Cancelled bookings from an
@@ -186,7 +202,7 @@ export function buildBoardOvertime(
       date: b.on_date,
       shift: b.shift,
       area: b.area_name,
-      hours: ask ? windowLabel(ask.starts_at, ask.ends_at) : null,
+      ...workedOf(b, ask),
       outcome: ask?.outcome ?? null,
       state: b.on_date > today ? "booked" : "worked",
       clock: clockByDate.get(b.on_date) ?? null,

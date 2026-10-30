@@ -49,6 +49,72 @@ export interface PlacementHours {
   shiftLabel: string | null;
   /** The confirmed overtime that reached this placement, in order. */
   overtimeLabels: string[];
+  /** The booked hours before any late start / early finish / stay-late: "06:00–14:00". */
+  bookedLabel: string;
+  /** First start to last end actually worked: "06:00–18:00". */
+  workedSpan: string;
+  /** What `left_early_at` / `arrived_late_at` mean against the booked hours. */
+  marks: WorkedMarks;
+}
+
+/**
+ * `left_early_at` is used by the office as "went home at" — before the booked end it is
+ * an early finish, after it a stay-late. `arrived_late_at` likewise: after the booked
+ * start a late start, before it an early start. Minutes, signed, nearest way round the
+ * clock, so a night shift crossing midnight reads right.
+ */
+export interface WorkedMarks {
+  /** Minutes before the booked end they went home (> 0), else 0. */
+  earlyFinish: number;
+  /** Minutes after the booked end they stayed (> 0), else 0. */
+  stayLate: number;
+  lateStart: number;
+  earlyStart: number;
+  /** "HH:MM" of the booked start / end. */
+  bookedStart: string;
+  bookedEnd: string;
+}
+
+/** Signed minutes from `ref` (minutes from board midnight) to clock time `t`, in (-720, 720]. */
+const signedFrom = (ref: number, t: string): number => {
+  let d = (((toMin(t) - ref) % DAY) + DAY) % DAY;
+  if (d > DAY / 2) d -= DAY;
+  return d;
+};
+
+/**
+ * The hours actually on the board for one booked window and the two marks. The single
+ * place a "went home at" / "came in at" is turned into worked hours.
+ */
+export function workedWindow(
+  booked: [number, number],
+  marks: { arrived_late_at: string | null; left_early_at: string | null },
+): { window: [number, number]; marks: WorkedMarks } {
+  const dIn = marks.arrived_late_at ? signedFrom(booked[0], marks.arrived_late_at) : 0;
+  const dOut = marks.left_early_at ? signedFrom(booked[1], marks.left_early_at) : 0;
+  const from = booked[0] + dIn;
+  const to = Math.max(from, booked[1] + dOut);
+  return {
+    window: [Math.min(from, to), to],
+    marks: {
+      earlyFinish: dOut < 0 ? -dOut : 0,
+      stayLate: dOut > 0 ? dOut : 0,
+      lateStart: dIn > 0 ? dIn : 0,
+      earlyStart: dIn < 0 ? -dIn : 0,
+      bookedStart: clock(booked[0]),
+      bookedEnd: clock(booked[1]),
+    },
+  };
+}
+
+/** "Booked 06:00–14:00, stayed until 18:00" — the tooltip line for the worked hours. */
+export function workedNote(m: WorkedMarks, worked: string): string | null {
+  const [ws, we] = worked.split("–");
+  const bits = [
+    m.earlyStart ? `came in at ${ws}` : m.lateStart ? `arrived late at ${ws}` : null,
+    m.stayLate ? `stayed until ${we}` : m.earlyFinish ? `left early at ${we}` : null,
+  ].filter(Boolean);
+  return bits.length ? `Booked ${m.bookedStart}–${m.bookedEnd}, ${bits.join(", ")}` : null;
 }
 
 /** The fields of a board row this reads. */
@@ -115,8 +181,10 @@ export function shiftWindow(a: PlacementLike, shift: string): [number, number] |
   const rel = (t: string) => start + (((toMin(t) - start) % DAY) + DAY) % DAY;
   let from = start;
   let to = start + (a.half_day ? SHIFT_MIN / 2 : SHIFT_MIN);
-  if (a.arrived_late_at) from = Math.min(to, rel(a.arrived_late_at));
-  if (a.left_early_at) to = Math.max(from, Math.min(to, rel(a.left_early_at)));
+  // Only a real late start / early finish cuts the shift here; an early start or a
+  // stay-late is laid on by `placementHours` through `workedWindow`.
+  if (a.arrived_late_at && signedFrom(from, a.arrived_late_at) > 0) from = Math.min(to, rel(a.arrived_late_at));
+  if (a.left_early_at && signedFrom(to, a.left_early_at) < 0) to = Math.max(from, Math.min(to, rel(a.left_early_at)));
   return [from, to];
 }
 
@@ -153,6 +221,7 @@ export function placementHours(
   asks: ReadonlyArray<ConfirmedAsk>,
 ): PlacementHours {
   const base = shiftWindow(a, shift);
+  const fullBase = a.overtime_request_id ? null : shiftWindow({ ...a, left_early_at: null, arrived_late_at: null }, shift);
   const mine = asks
     .filter((q) => { const s = boardSlotOf(q.on_date, q.starts_at); return s.date === boardDate && s.shift === shift; })
     // A bridge row is that one ask's; any other ask lands on a planned row, if there is one.
@@ -163,10 +232,27 @@ export function placementHours(
   // A bridge row whose ask is not (or no longer) confirmed: the old reading, a full shift.
   if (!base && mine.length === 0) {
     const whole: [number, number] = shift === "Night" ? [1080, 1800] : [360, 1080];
-    return { base: 0, overtime: SHIFT_MIN / 60, total: SHIFT_MIN / 60, label: show(whole), short: showShort(whole), shiftLabel: null, overtimeLabels: [] };
+    const w = workedWindow(whole, a);
+    return { base: 0, overtime: (w.window[1] - w.window[0]) / 60, total: (w.window[1] - w.window[0]) / 60, label: show(w.window), short: showShort(w.window), shiftLabel: null, overtimeLabels: [], bookedLabel: show(whole), workedSpan: show(w.window), marks: w.marks };
   }
 
-  const all = merge([...(base ? [base] : []), ...mine]);
+  const booked = merge([...(fullBase ? [fullBase] : []), ...mine]);
+  const bookedSpan: [number, number] = [booked[0][0], booked[booked.length - 1][1]];
+  const w = workedWindow(bookedSpan, a);
+  let all: Array<[number, number]>;
+  if (base) {
+    // A planned row: an early finish / late start already cut the shift part (an ask
+    // after it still counts, as before); only hours outside everything booked extend it.
+    all = merge([base, ...mine]);
+    if (w.marks.stayLate) all[all.length - 1][1] = w.window[1];
+    if (w.marks.earlyStart) all[0][0] = w.window[0];
+  } else {
+    // The bridge's row is the ask alone, so the marks move its ends both ways.
+    all = merge(booked.map(([x, y]) => [Math.max(x, w.window[0]), Math.min(y, w.window[1])] as [number, number]));
+    if (w.marks.stayLate) all[all.length - 1][1] = w.window[1];
+    if (w.marks.earlyStart) all[0][0] = w.window[0];
+    if (!all.length) all = [[w.window[0], w.window[0]]];
+  }
   const total = span(all);
   const baseMin = base ? base[1] - base[0] : 0;
   return {
@@ -177,5 +263,32 @@ export function placementHours(
     short: all.map(showShort).join("+"),
     shiftLabel: base ? show(base) : null,
     overtimeLabels: mine.map(show),
+    bookedLabel: booked.map(show).join(" + "),
+    workedSpan: show([all[0][0], all[all.length - 1][1]]),
+    marks: w.marks,
+  };
+}
+
+/**
+ * What a board chip draws for one row: the worked hours (when they differ from the
+ * plain shift — confirmed overtime, a stay-late or an early start), and the "→" / "←"
+ * marks only for a real late start / early finish against the booked hours.
+ */
+export function chipHours(
+  a: PlacementLike | undefined,
+  boardDate: string,
+  shift: string,
+  asks: ReadonlyArray<ConfirmedAsk>,
+): { workHours: PlacementHours | null; leftEarlyAt: string | null; arrivedLateAt: string | null } {
+  if (!a) return { workHours: null, leftEarlyAt: null, arrivedLateAt: null };
+  if (a.status !== "assigned" && a.status !== "overtime") {
+    return { workHours: null, leftEarlyAt: a.left_early_at, arrivedLateAt: a.arrived_late_at };
+  }
+  const h = placementHours(a, boardDate, shift, asks);
+  const showHours = h.overtimeLabels.length > 0 || h.marks.stayLate > 0 || h.marks.earlyStart > 0;
+  return {
+    workHours: showHours ? h : null,
+    leftEarlyAt: a.left_early_at && h.marks.earlyFinish ? a.left_early_at : null,
+    arrivedLateAt: a.arrived_late_at && h.marks.lateStart ? a.arrived_late_at : null,
   };
 }
