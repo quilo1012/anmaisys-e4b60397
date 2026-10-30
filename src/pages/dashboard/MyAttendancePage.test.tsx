@@ -113,4 +113,37 @@ describe("My Attendance", () => {
     renderPage();
     expect(screen.queryByTestId("where-im-working")).toBeNull();
   });
+
+  it("shows no count of holiday left, while the payroll figures stay", () => {
+    env.result.mockReturnValue(ready());
+    renderPage();
+    expect(screen.queryByText(/Holiday left/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No allowance on file/i)).not.toBeInTheDocument();
+    const hours = screen.getByTestId("hours-balance");
+    expect(hours).toHaveTextContent(/Approved by payroll\s*Not recorded yet/);
+    expect(hours).toHaveTextContent("What payroll has entered for this period. This is the figure that is paid.");
+  });
+
+  it("names the pay period above the calendar, and moves to the ones either side", () => {
+    const periods = [
+      { id: "sep", name: "September 2026", start_date: "2026-09-07", end_date: "2026-10-11" },
+      PERIOD,
+      { id: "nov", name: "November 2026", start_date: "2026-11-09", end_date: "2026-12-06" },
+    ];
+    env.result.mockReturnValue({ data: { state: "ready", data: { ...DATA, periods } }, isLoading: false, isError: false });
+    renderPage();
+    const title = screen.getByTestId("pay-period-title");
+    expect(title).toHaveTextContent("October 2026 (This Pay Period)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Next pay period: November 2026" }));
+    expect(env.result).toHaveBeenLastCalledWith("2026-11-09", "2026-12-06");
+    expect(screen.getByTestId("pay-period-title")).toHaveTextContent(/^November 2026$/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous pay period: October 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous pay period: September 2026" }));
+    expect(env.result).toHaveBeenLastCalledWith("2026-09-07", "2026-10-11");
+    expect(screen.getByTestId("pay-period-title")).toHaveTextContent(/^September 2026$/);
+    expect(screen.getByRole("button", { name: "No earlier pay period" })).toBeDisabled();
+  });
 });
+

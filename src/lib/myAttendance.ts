@@ -328,7 +328,7 @@ export function rangeChoices(periods: MyPeriod[], today: string): RangeChoice[] 
   const past = periods.filter((p) => p.start_date <= today).slice(-6).reverse();
   for (const p of past) {
     const current = p.start_date <= today && p.end_date >= today;
-    out.push({ key: `period:${p.id}`, label: current ? `${p.name} (this pay period)` : p.name, from: p.start_date, to: p.end_date });
+    out.push({ key: `period:${p.id}`, label: current ? `${p.name} (This Pay Period)` : p.name, from: p.start_date, to: p.end_date });
   }
   const monday = addDays(today, 1 - isoWeekday(today));
   out.push({ key: "week:this", label: "This week", from: monday, to: addDays(monday, 6) });
@@ -339,6 +339,36 @@ export function rangeChoices(periods: MyPeriod[], today: string): RangeChoice[] 
   out.push({ key: "month:this", label: "This month", from: first, to: addDays(nextFirst, -1) });
   out.push({ key: "month:last", label: "Last month", from: prevFirst, to: addDays(first, -1) });
   return out;
+}
+
+/**
+ * The pay period a range sits in, and its neighbours, for the title above the calendar.
+ *
+ * `index` is the period whose dates the range is exactly, or else the one holding its first
+ * day; null when no period does (a custom range before the first period, say). `prev` and
+ * `next` are the periods either side, null at the ends of the list — the list itself is the
+ * payroll calendar as configured, never extended or guessed here.
+ */
+export function periodAround(
+  periods: MyPeriod[],
+  range: { from: string; to: string },
+  today: string,
+): { period: MyPeriod | null; exact: boolean; current: boolean; prev: MyPeriod | null; next: MyPeriod | null } {
+  const sorted = [...periods].sort((a, b) => a.start_date.localeCompare(b.start_date));
+  let i = sorted.findIndex((p) => p.start_date === range.from && p.end_date === range.to);
+  const exact = i >= 0;
+  if (!exact) i = sorted.findIndex((p) => p.start_date <= range.from && p.end_date >= range.from);
+  const period = i >= 0 ? sorted[i] : null;
+  // Off every period: step to whichever period starts after / ended before the range.
+  const prev = i >= 0 ? sorted[i - 1] ?? null : [...sorted].reverse().find((p) => p.end_date < range.from) ?? null;
+  const next = i >= 0 ? sorted[i + 1] ?? null : sorted.find((p) => p.start_date > range.from) ?? null;
+  return {
+    period,
+    exact,
+    current: !!period && period.start_date <= today && period.end_date >= today,
+    prev: exact || i < 0 ? prev : period,
+    next,
+  };
 }
 
 /** The range the page opens on: the pay period running today, else this month. */
