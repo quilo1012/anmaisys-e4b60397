@@ -1381,7 +1381,101 @@ export function useAllocationMutations(onDate: string, shift: string) {
     [onDate, shift],
   );
 
-  return { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader, setLateEarlyReason };
+  /**
+   * A whole line's team onto another line, as one statement.
+   *
+   * The ids come from `planTeamMove`, which the confirmation showed. The update is
+   * guarded on the row still being on the source line, so anybody moved by hand since
+   * the dialog opened is left where they now are — and the rows actually moved are read
+   * back and counted, rather than assumed. Only `area_id` changes: status, half day,
+   * times and the attendance record stay exactly as they were.
+   *
+   * The leadership trigger drops the mark on every row that changes column, so the
+   * line's leader is marked again on the destination afterwards, when the plan says the
+   * destination has none. That second write failing loses only the mark, which the
+   * board shows and one press puts back — never the move.
+   */
+  const moveTeam = useMutation({
+    mutationFn: async (input: {
+      rowIds: string[]; from: string; to: string; carryLeaderRowId: string | null;
+    }): Promise<{ moved: number; asked: number; leaderKept: boolean }> => {
+      if (!input.rowIds.length) return { moved: 0, asked: 0, leaderKept: false };
+      if (!input.to || input.to === input.from) throw new Error("Pick a different line to move the team to.");
+      const { data, error } = await supabase
+        .from("daily_allocations")
+        .update({ area_id: input.to })
+        .in("id", input.rowIds)
+        .eq("on_date", onDate)
+        .eq("shift", shift)
+        .eq("area_id", input.from)
+        .in("status", ["assigned", "overtime"])
+        .select("id,employee_id,area_id,status");
+      if (error) throw error;
+      const moved = (data ?? []) as Array<{ id: string; employee_id: string; area_id: string | null; status: AllocStatus }>;
+
+      let leaderKept = false;
+      if (input.carryLeaderRowId && moved.some((r) => r.id === input.carryLeaderRowId)) {
+        const { error: leadErr } = await supabase
+          .from("daily_allocations")
+          .update({ is_leader: true })
+          .eq("id", input.carryLeaderRowId)
+          .eq("area_id", input.to);
+        if (leadErr) toast.warning(`Team moved, but the line leader mark did not carry over: ${leadErr.message}`);
+        else leaderKept = true;
+      } else if (moved.length) {
+        const leadErr = await markTeamLeaders(onDate, shift, moved);
+        if (leadErr) toast.warning(`Team moved, but could not mark the line's leader: ${leadErr}`);
+      }
+      return { moved: moved.length, asked: input.rowIds.length, leaderKept };
+    },
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message ?? "Could not move the team", { id: "headcount-move-team" }),
+  });
+
+  return { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader, setLateEarlyReason, moveTeam };
+}
+
+/**
+ * Which lines are hidden on which board (BLOCO 140, `headcount_area_hidden`).
+ *
+ * Until that block is pasted the table does not exist; the board then simply shows every
+ * line and says the switch is not available yet, rather than failing to draw.
+ */
+export function useHiddenAreas() {
+  return useQuery({
+    queryKey: ["headcount-area-hidden"],
+    queryFn: async (): Promise<{ available: boolean; byShift: Record<string, Set<string>> }> => {
+      const { data, error } = await (supabase as any)
+        .from("headcount_area_hidden")
+        .select("area_id,shift");
+      const byShift: Record<string, Set<string>> = { Day: new Set(), Night: new Set() };
+      if (error) {
+        if (error.code === "PGRST205" || error.code === "42P01") return { available: false, byShift };
+        throw error;
+      }
+      for (const r of (data ?? []) as Array<{ area_id: string; shift: string }>) {
+        (byShift[r.shift] ??= new Set()).add(r.area_id);
+      }
+      return { available: true, byShift };
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+/** Hide or show one line on one board. Never touches the line or its allocations. */
+export function useSetAreaHidden() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ areaId, shift, hidden }: { areaId: string; shift: string; hidden: boolean }) => {
+      const table = (supabase as any).from("headcount_area_hidden");
+      const { error } = hidden
+        ? await table.upsert({ area_id: areaId, shift }, { onConflict: "area_id,shift", ignoreDuplicates: true })
+        : await table.delete().eq("area_id", areaId).eq("shift", shift);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["headcount-area-hidden"] }),
+    onError: (e: Error) => toast.error(e.message ?? "Could not change the line's visibility", { id: "headcount-hide-line" }),
+  });
 }
 
 /**
