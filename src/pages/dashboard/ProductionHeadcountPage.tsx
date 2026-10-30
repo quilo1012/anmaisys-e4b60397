@@ -41,7 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
-import { placementHours, type PlacementHours } from "@/lib/boardOvertime";
+import { placementHours, workedNote, type PlacementHours } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
 import { isHalfDay, isHalfDayTag, isWorkingHalfDay, placementForDrop } from "@/lib/halfDay";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
@@ -493,8 +493,9 @@ function Chip({
       {workHours && (
         <span
           data-testid="board-work-hours"
-          aria-label={`Confirmed overtime, on ${workHours.label}`}
+          aria-label={workHours.overtimeLabels.length ? `Confirmed overtime, on ${workHours.label}` : `Worked ${workHours.label}`}
           title={[
+            workedNote(workHours.marks, workHours.label.split(" + ").length === 1 ? workHours.label : `${workHours.label.split("–")[0]}–${workHours.label.split("–").pop()}`),
             workHours.shiftLabel ? `Shift ${workHours.shiftLabel}` : null,
             workHours.overtimeLabels.length ? `confirmed overtime ${workHours.overtimeLabels.join(", ")}` : null,
             `${Number.isInteger(workHours.total) ? workHours.total : workHours.total.toFixed(1)}h on`,
@@ -506,6 +507,16 @@ function Chip({
         >
           <Check aria-hidden className="h-2 w-2 shrink-0 text-[#4B8217]" strokeWidth={4} />
           {workHours.short}
+        </span>
+      )}
+      {/* Stayed after the booked end: a distinct mark, never the early-finish arrow. */}
+      {workHours && workHours.marks.stayLate > 0 && (
+        <span
+          data-testid="stay-late"
+          title={`Stayed ${workHours.marks.stayLate / 60}h after the booked ${workHours.marks.bookedEnd}`}
+          className="shrink-0 rounded-sm bg-success/15 px-1 py-px text-2xs font-bold leading-tight text-foreground"
+        >
+          +{Number.isInteger(workHours.marks.stayLate / 60) ? workHours.marks.stayLate / 60 : (workHours.marks.stayLate / 60).toFixed(1)}h
         </span>
       )}
       {startTime && (
@@ -867,9 +878,26 @@ function ShiftBoard({
   const workHoursOf = (employeeId: string): PlacementHours | null => {
     const a = byEmployee.get(employeeId);
     const asks = confirmedAsks?.get(employeeId);
-    if (!a || !asks?.length) return null;
-    const h = placementHours(a, onDate, shift, asks);
-    return h.overtimeLabels.length ? h : null;
+    if (!a || (a.status !== "assigned" && a.status !== "overtime")) return null;
+    const h = placementHours(a, onDate, shift, asks ?? []);
+    return h.overtimeLabels.length || h.marks.stayLate || h.marks.earlyStart ? h : null;
+  };
+  /**
+   * The late/early props for a chip, read against the booked hours (`workedWindow`):
+   * "←" only for a real early finish, "→" only for a real late start. A stay-late or an
+   * early start shows in the hours instead.
+   */
+  const marksOf = (employeeId: string) => {
+    const a = byEmployee.get(employeeId);
+    if (!a) return { leftEarlyAt: null, arrivedLateAt: null, leftEarlyReason: null, arrivedLateReason: null };
+    const m = a.status === "assigned" || a.status === "overtime"
+      ? placementHours(a, onDate, shift, confirmedAsks?.get(employeeId) ?? []).marks : null;
+    return {
+      leftEarlyAt: a.left_early_at && (!m || m.earlyFinish) ? a.left_early_at : null,
+      arrivedLateAt: a.arrived_late_at && (!m || m.lateStart) ? a.arrived_late_at : null,
+      leftEarlyReason: a.left_early_reason ?? null,
+      arrivedLateReason: a.arrived_late_reason ?? null,
+    };
   };
 
   // Everyone active, not only whoever is eligible today: a saved allocation is a fact
@@ -1167,10 +1195,7 @@ function ShiftBoard({
                   halfWhere={p.halfWhere}
                   hint={block.status === "holiday" && !p.halfWhere && isHalfDay(byEmployee.get(p.id)) && !byEmployee.get(p.id)?.area_id
                     ? "Worked half — drag onto the line they worked" : null}
-                  leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
-                  arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
-                  leftEarlyReason={byEmployee.get(p.id)?.left_early_reason ?? null}
-                  arrivedLateReason={byEmployee.get(p.id)?.arrived_late_reason ?? null}
+                  {...marksOf(p.id)}
                   crew={crewBadge(p.shift_group)}
                   leftOn={p.left_on ?? null}
                   draggable={canManage}
@@ -1778,10 +1803,7 @@ function ShiftBoard({
                         dimmed={isDimmed(shown) && isDimmed(p.full_name)}
                         overtime={isOt}
                         half={isHalfDay(byEmployee.get(p.id))}
-                        leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
-                        arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
-                        leftEarlyReason={byEmployee.get(p.id)?.left_early_reason ?? null}
-                        arrivedLateReason={byEmployee.get(p.id)?.arrived_late_reason ?? null}
+                        {...marksOf(p.id)}
                         crew={crewBadge(p.shift_group)}
                         leftOn={p.left_on ?? null}
                         onOpen={() => setEditing(p.id)}
@@ -1940,6 +1962,9 @@ function ShiftBoard({
               explicit: true,
             })}
             leftEarlyAt={leftEarly}
+            bookedEnd={alloc && (alloc.status === "assigned" || alloc.status === "overtime")
+              ? placementHours({ ...alloc, left_early_at: null, arrived_late_at: null }, onDate, shift, confirmedAsks?.get(editing) ?? []).marks.bookedEnd
+              : null}
             onSetLeftEarlyAt={(v) => place.mutate({
               employeeId: editing,
               areaId: alloc?.area_id ?? null,
