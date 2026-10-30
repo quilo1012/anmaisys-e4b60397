@@ -5,6 +5,7 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { personNameCase } from "@/lib/personName";
 import { currentShift } from "@/lib/operationalShift";
 import type { PatternDayOverride } from "@/lib/overtime";
+import type { AskResponse, BoardOvertimeRow, ClockDay } from "@/lib/employeePanelHistory";
 
 /**
  * Workforce data: who works here, on which days, and the overtime they carry.
@@ -446,6 +447,78 @@ export function useMovements(employeeId: string | null) {
       return (data ?? []) as Array<{ id: string; from_line: string | null; to_line: string | null; moved_at: string; reason: string | null }>;
     },
   });
+}
+
+/** This person's last 30 placements on the Headcount Board, newest first. Read-only. */
+export function useRecentPlacements(employeeId: string | null) {
+  return useQuery({
+    queryKey: ["employee_recent_placements", employeeId],
+    enabled: !!employeeId,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("daily_allocations")
+        .select("id, on_date, shift, status, area:headcount_areas(name)")
+        .eq("employee_id", employeeId)
+        .order("on_date", { ascending: false })
+        .order("shift")
+        .limit(30);
+      if (error) throw error;
+      return ((data ?? []) as Array<{ id: string; on_date: string; shift: string; status: string; area: { name: string } | null }>)
+        .map((r) => ({ id: r.id, on_date: r.on_date, shift: r.shift, status: r.status, area_name: r.area?.name ?? null }));
+    },
+  });
+}
+
+/**
+ * Overtime for one person as each source holds it: the board's `overtime` rows, the
+ * asks they were booked on (with outcome), and the clock for those dates. Each read
+ * reports its own failure, so a source the viewer's role cannot read says so instead
+ * of reading as "no overtime".
+ */
+export function useEmployeeBoardOvertime(employeeId: string | null) {
+  const board = useQuery({
+    queryKey: ["employee_board_overtime", employeeId],
+    enabled: !!employeeId,
+    queryFn: async (): Promise<BoardOvertimeRow[]> => {
+      const rows = await fetchAllRows<{ on_date: string; shift: string; overtime_request_id: string | null; area: { name: string } | null }>({
+        range: (from, to) => db.from("daily_allocations")
+          .select("id, on_date, shift, overtime_request_id, area:headcount_areas(name)")
+          .eq("employee_id", employeeId).eq("status", "overtime")
+          .order("on_date", { ascending: false }).order("id").range(from, to),
+      });
+      return rows.map((r) => ({ on_date: r.on_date, shift: r.shift, overtime_request_id: r.overtime_request_id, area_name: r.area?.name ?? null }));
+    },
+  });
+  const asks = useQuery({
+    queryKey: ["employee_overtime_asks", employeeId],
+    enabled: !!employeeId,
+    queryFn: async (): Promise<AskResponse[]> => {
+      type Row = {
+        request_id: string;
+        request: { on_date: string; starts_at: string; ends_at: string } | null;
+        outcome: { outcome: string } | Array<{ outcome: string }> | null;
+      };
+      const rows = await fetchAllRows<Row>({
+        range: (from, to) => db.from("overtime_responses")
+          .select("id, request_id, request:overtime_requests(on_date, starts_at, ends_at), outcome:overtime_outcomes(outcome)")
+          .eq("employee_id", employeeId).order("id").range(from, to),
+      });
+      return rows.filter((r) => r.request).map((r) => {
+        const o = Array.isArray(r.outcome) ? r.outcome[0] : r.outcome;
+        return { request_id: r.request_id, on_date: r.request!.on_date, starts_at: r.request!.starts_at, ends_at: r.request!.ends_at, outcome: o?.outcome ?? null };
+      });
+    },
+  });
+  const clock = useQuery({
+    queryKey: ["employee_clock_days", employeeId],
+    enabled: !!employeeId,
+    queryFn: () => fetchAllRows<ClockDay>({
+      range: (from, to) => db.from("attendance_days")
+        .select("id, on_date, start_time, end_time, worked_minutes, balance_minutes")
+        .eq("employee_id", employeeId).order("on_date", { ascending: false }).order("id").range(from, to),
+    }),
+  });
+  return { board, asks, clock };
 }
 
 export function useLines() {
