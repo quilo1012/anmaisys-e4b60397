@@ -793,12 +793,14 @@ export type Database = {
         Row: {
           area_id: string | null
           arrived_late_at: string | null
+          arrived_late_reason: string | null
           created_at: string | null
           employee_id: string
           half_day: boolean | null
           id: string
           is_leader: boolean
           left_early_at: string | null
+          left_early_reason: string | null
           note: string | null
           on_date: string
           overtime_request_id: string | null
@@ -812,12 +814,14 @@ export type Database = {
         Insert: {
           area_id?: string | null
           arrived_late_at?: string | null
+          arrived_late_reason?: string | null
           created_at?: string | null
           employee_id: string
           half_day?: boolean | null
           id?: string
           is_leader?: boolean
           left_early_at?: string | null
+          left_early_reason?: string | null
           note?: string | null
           on_date: string
           overtime_request_id?: string | null
@@ -831,12 +835,14 @@ export type Database = {
         Update: {
           area_id?: string | null
           arrived_late_at?: string | null
+          arrived_late_reason?: string | null
           created_at?: string | null
           employee_id?: string
           half_day?: boolean | null
           id?: string
           is_leader?: boolean
           left_early_at?: string | null
+          left_early_reason?: string | null
           note?: string | null
           on_date?: string
           overtime_request_id?: string | null

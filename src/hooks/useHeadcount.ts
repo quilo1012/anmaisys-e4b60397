@@ -73,6 +73,10 @@ export type Allocation = {
   left_early_at: string | null;
   /** They came in after the shift started, at this time. Null means they were in on time. */
   arrived_late_at: string | null;
+  /** Why they came in late, as the supervisor typed it (BLOCO 139). Cleared with the time. */
+  arrived_late_reason?: string | null;
+  /** Why they went home early, as the supervisor typed it (BLOCO 139). Cleared with the time. */
+  left_early_reason?: string | null;
   note: string | null;
   /** Leads this area on this day. A line can lead differently tomorrow. */
   is_leader: boolean | null;
@@ -448,7 +452,7 @@ export function useAllocations(onDate: string, shift: string) {
     queryFn: async (): Promise<Allocation[]> => {
       const { data, error } = await supabase
         .from("daily_allocations")
-        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,note,is_leader,sheet_name,sheet_start_time,sheet_tag,overtime_request_id")
+        .select("id,on_date,shift,employee_id,area_id,status,half_day,left_early_at,arrived_late_at,arrived_late_reason,left_early_reason,note,is_leader,sheet_name,sheet_start_time,sheet_tag,overtime_request_id")
         .eq("on_date", onDate)
         .eq("shift", shift);
       if (error) throw error;
@@ -835,6 +839,9 @@ function batched<T>(items: readonly T[], size: number): T[][] {
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
 }
+
+/** The longest reason the database keeps (`daily_allocations_late_early_reason_length`). */
+export const LATE_EARLY_REASON_MAX = 300;
 
 export function useAllocationMutations(onDate: string, shift: string) {
   const qc = useQueryClient();
@@ -1333,6 +1340,31 @@ export function useAllocationMutations(onDate: string, shift: string) {
     onError: (e: Error) => toast.error(e.message ?? "Could not set the leader"),
   });
 
+  /**
+   * Why somebody came in late or went home early (BLOCO 139).
+   *
+   * Its own write, not `place`: a reason is typed a word at a time and saved when the box
+   * is left, and `place` re-reads the row, re-runs the rota rule and rewrites the payroll
+   * mark every time it runs. This only touches the one column on a row that already has
+   * the time — the database clears it again if the time goes (`late_early_reason_follows_the_time`).
+   */
+  const setLateEarlyReason = useMutation({
+    mutationFn: async ({ employeeId, which, reason }: {
+      employeeId: string; which: "arrived_late" | "left_early"; reason: string | null;
+    }) => {
+      const value = (reason ?? "").trim().slice(0, LATE_EARLY_REASON_MAX) || null;
+      const { error } = await supabase
+        .from("daily_allocations")
+        .update(which === "arrived_late" ? { arrived_late_reason: value } : { left_early_reason: value })
+        .eq("on_date", onDate).eq("shift", shift).eq("employee_id", employeeId);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message ?? "Could not save the reason", {
+      description: "The time is saved; only the reason was not. Type it again.",
+    }),
+  });
+
   /** What can still be taken back off this board, read fresh from the browser. */
   const readUndo = useCallback(
     () => readReceipt(window.localStorage, onDate, shift),
@@ -1351,7 +1383,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
     [onDate, shift],
   );
 
-  return { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader };
+  return { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader, setLateEarlyReason };
 }
 
 /**

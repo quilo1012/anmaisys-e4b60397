@@ -360,6 +360,8 @@ function Chip({
   half,
   leftEarlyAt,
   arrivedLateAt,
+  leftEarlyReason,
+  arrivedLateReason,
   crew,
   leftOn,
   startTime,
@@ -403,6 +405,10 @@ function Chip({
   leftEarlyAt?: string | null;
   /** Came in after the shift started, at this time. Also a day worked, not a day off. */
   arrivedLateAt?: string | null;
+  /** Why they went home early, when somebody wrote it down (BLOCO 139). In the tooltip. */
+  leftEarlyReason?: string | null;
+  /** Why they came in late. In the tooltip. */
+  arrivedLateReason?: string | null;
   /** Which crew they belong to — FRI–MON, WH, NIGHT. Null for the plain day shift,
       which is most of the board and needs no label to say so. */
   crew?: string | null;
@@ -540,7 +546,7 @@ function Chip({
           because that is the order the day happened in. */}
       {arrivedLateAt && (
         <span
-          title={`Arrived late — came in at ${arrivedLateAt.slice(0, 5)}`}
+          title={`Arrived late — came in at ${arrivedLateAt.slice(0, 5)}${arrivedLateReason ? ` — ${arrivedLateReason}` : ""}`}
           className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
         >
           {arrivedLateAt.slice(0, 5)}→
@@ -551,7 +557,7 @@ function Chip({
           line lost somebody at two without opening every card. */}
       {leftEarlyAt && (
         <span
-          title={`Left early — went home at ${leftEarlyAt.slice(0, 5)}`}
+          title={`Left early — went home at ${leftEarlyAt.slice(0, 5)}${leftEarlyReason ? ` — ${leftEarlyReason}` : ""}`}
           className="shrink-0 rounded-sm bg-warning/20 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
         >
           ←{leftEarlyAt.slice(0, 5)}
@@ -817,7 +823,7 @@ function ShiftBoard({
   // One Training column, not two: the area of that name is read as the Training state.
   const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
   const allocations = useMemo(() => foldTrainingArea(savedAllocations, allAreas), [savedAllocations, allAreas]);
-  const { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader } = useAllocationMutations(onDate, shift);
+  const { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader, setLateEarlyReason } = useAllocationMutations(onDate, shift);
   const { data: copyableDays = [], isLoading: copyableLoading } = useCopyableDays(onDate, shift);
   const matrix = useHeadcountMatrix(shift, onDate);
   const saveMatrix = useSaveMatrix(onDate, shift);
@@ -1123,6 +1129,8 @@ function ShiftBoard({
                   half={byEmployee.get(p.id)?.half_day === true}
                   leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                   arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
+                  leftEarlyReason={byEmployee.get(p.id)?.left_early_reason ?? null}
+                  arrivedLateReason={byEmployee.get(p.id)?.arrived_late_reason ?? null}
                   crew={crewBadge(p.shift_group)}
                   leftOn={p.left_on ?? null}
                   draggable={canManage}
@@ -1737,6 +1745,8 @@ function ShiftBoard({
                         overtime={isOt}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                         arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
+                        leftEarlyReason={byEmployee.get(p.id)?.left_early_reason ?? null}
+                        arrivedLateReason={byEmployee.get(p.id)?.arrived_late_reason ?? null}
                         crew={crewBadge(p.shift_group)}
                         leftOn={p.left_on ?? null}
                         onOpen={() => setEditing(p.id)}
@@ -1904,6 +1914,10 @@ function ShiftBoard({
               arrivedLateAt: arrivedLate,
               explicit: true,
             })}
+            arrivedLateReason={alloc?.arrived_late_reason ?? null}
+            onSetArrivedLateReason={(v) => setLateEarlyReason.mutate({ employeeId: editing, which: "arrived_late", reason: v })}
+            leftEarlyReason={alloc?.left_early_reason ?? null}
+            onSetLeftEarlyReason={(v) => setLateEarlyReason.mutate({ employeeId: editing, which: "left_early", reason: v })}
             arrivedLateAt={arrivedLate}
             onSetArrivedLateAt={(v) => place.mutate({
               employeeId: editing,

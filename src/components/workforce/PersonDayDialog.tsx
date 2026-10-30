@@ -6,8 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { UserMinus } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import type { AllocStatus, HeadcountArea } from "@/hooks/useHeadcount";
+import { LATE_EARLY_REASON_MAX, type AllocStatus, type HeadcountArea } from "@/hooks/useHeadcount";
 import { describeSchedule, type ShiftPattern } from "@/hooks/useWorkforce";
 import { partDay } from "@/lib/partDay";
 
@@ -25,6 +26,67 @@ function anHourIn(startsAt: string | null | undefined): string {
   const m = /^(\d{1,2}):(\d{2})/.exec((startsAt ?? "").trim());
   if (!m) return "09:00";
   return `${String((Number(m[1]) + 1) % 24).padStart(2, "0")}:${m[2]}`;
+}
+
+/**
+ * The reasons a supervisor reaches for most, offered as they type. Anything else can be
+ * written in full: these only save thumbs on a phone held on the line.
+ */
+export const LATE_EARLY_REASONS = [
+  "Doctor / hospital appointment",
+  "Felt unwell",
+  "Family emergency",
+  "Childcare",
+  "Transport / traffic",
+  "Overslept",
+  "Agreed with supervisor",
+  "Sent home — no work on the line",
+] as const;
+
+/**
+ * Why they came in late or went home early (BLOCO 139).
+ *
+ * Saved when the box is left or Enter is pressed, not on every key: each save is a write,
+ * and a supervisor typing "doctor's appointment" on a phone is twenty of them otherwise.
+ * Kept in the box while typing, and put back to what the board holds when the board
+ * changes underneath (another supervisor, a refresh).
+ */
+function ReasonField({ id, label, value, disabled, onSave }: {
+  id: string; label: string; value: string | null; disabled: boolean;
+  onSave: (v: string | null) => void;
+}) {
+  const [text, setText] = useState(value ?? "");
+  // What was last sent, so Enter followed by leaving the box is one save, not two: the
+  // board has not refetched yet when the blur arrives, so `value` still holds the old text.
+  const sent = useRef<string | null>(value ?? null);
+  useEffect(() => { sent.current = value ?? null; setText(value ?? ""); }, [value]);
+  const listId = useId();
+  const commit = () => {
+    const next = text.trim() || null;
+    if (next === sent.current) return;
+    sent.current = next;
+    onSave(next);
+  };
+  return (
+    <div className="mt-1.5 pl-7">
+      <Label htmlFor={id} className="text-2xs text-muted-foreground">{label}</Label>
+      <Input
+        id={id}
+        value={text}
+        disabled={disabled}
+        maxLength={LATE_EARLY_REASON_MAX}
+        list={listId}
+        placeholder="Why? e.g. doctor's appointment"
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } }}
+        className="mt-1 h-8 text-xs"
+      />
+      <datalist id={listId}>
+        {LATE_EARLY_REASONS.map((r) => <option key={r} value={r} />)}
+      </datalist>
+    </div>
+  );
 }
 
 const STATUS: { value: AllocStatus; label: string; hint: string; cls: string }[] = [
@@ -47,6 +109,8 @@ export function PersonDayDialog({
   open, onOpenChange, name, fullName, shiftGroup, status, areaId, areas, canManage, isLeader, halfDay, onSetHalfDay,
   leftEarlyAt, onSetLeftEarlyAt,
   arrivedLateAt, onSetArrivedLateAt,
+  arrivedLateReason = null, onSetArrivedLateReason,
+  leftEarlyReason = null, onSetLeftEarlyReason,
   patterns, patternId,
   onSetStatus, onSetArea, onSetShift, onSetPattern, onSetLeader, onRemove,
 }: {
@@ -71,6 +135,13 @@ export function PersonDayDialog({
   /** `"HH:MM"` if they came in after the shift started, null if they were in on time. */
   arrivedLateAt: string | null;
   onSetArrivedLateAt: (v: string | null) => void;
+  /** Why they came in late. Absent from a board read before BLOCO 139. */
+  arrivedLateReason?: string | null;
+  /** Saves the reason. Without it the box is not offered. */
+  onSetArrivedLateReason?: (v: string | null) => void;
+  /** Why they went home early. */
+  leftEarlyReason?: string | null;
+  onSetLeftEarlyReason?: (v: string | null) => void;
   onSetArea: (areaId: string) => void;
   onSetShift: (shiftGroup: string) => void;
   onSetPattern: (patternId: string | null) => void;
@@ -220,6 +291,15 @@ export function PersonDayDialog({
                       {leftEarlyAt === null && cost}
                     </div>
                   )}
+                  {arrivedLateAt !== null && onSetArrivedLateReason && (
+                    <ReasonField
+                      id="arrived-late-reason"
+                      label="Reason for arriving late"
+                      value={arrivedLateReason}
+                      disabled={!canManage}
+                      onSave={onSetArrivedLateReason}
+                    />
+                  )}
                 </div>
 
                 <div className="border-t pt-2">
@@ -261,6 +341,15 @@ export function PersonDayDialog({
                           shift counted as a full day everywhere. */}
                       {cost}
                     </div>
+                  )}
+                  {leftEarlyAt !== null && onSetLeftEarlyReason && (
+                    <ReasonField
+                      id="left-early-reason"
+                      label="Reason for leaving early"
+                      value={leftEarlyReason}
+                      disabled={!canManage}
+                      onSave={onSetLeftEarlyReason}
+                    />
                   )}
                 </div>
 
