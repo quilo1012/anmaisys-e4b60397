@@ -91,7 +91,8 @@ test("My Attendance shows the attended shifts beside the clock's figure (390px)"
   await expect(box).toBeVisible({ timeout: 20000 });
   await expect(box).toContainText("20 h");
   await expect(box).toContainText("on the Headcount");
-  await expect(page.getByTestId("hours-balance")).toContainText("not in this figure yet");
+  await expect(page.getByTestId("hours-balance")).toContainText(/Overtime for October 2026\s*20 h/);
+  await expect(page.getByTestId("hours-balance")).toContainText("0 h on the clock + 20 h");
   expect(await sideways(page), "page scrolls sideways").toBeLessThanOrEqual(0);
   await page.getByTestId("hours-balance").screenshot({ path: "test-results/my-attendance-overtime-shifts-phone.png" });
 });

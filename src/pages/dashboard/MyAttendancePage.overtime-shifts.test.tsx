@@ -1,8 +1,8 @@
 /**
  * "Overtime for October 2026: 0 h" on 30/10/2026, for somebody who had worked two
- * weekend overtime shifts. The figure is the finance close's and reads the clock alone;
- * his clock record stopped at 20/10. The page now shows the supervisor's record of the
- * shifts beside it, and says why the clock's figure does not have them yet.
+ * weekend overtime shifts. The figure read the clock alone, and his clock record stopped
+ * at 20/10. It now counts the shifts the supervisor marked attended on days the clock has
+ * no hours for, and says which part came from where.
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -58,13 +58,24 @@ describe("overtime shifts beside the clock's figure", () => {
     env.shifts.mockReset();
   });
 
-  it("keeps the clock's 0 h, and says the clock does not reach the shifts yet", () => {
+  it("counts the two attended shifts in October's overtime: 20 h, not 0 h", () => {
     env.shifts.mockReturnValue({ data: SHIFTS });
     renderPage();
     expect(env.shifts).toHaveBeenCalledWith("e-003", "2026-10-12", "2026-11-08");
     const hours = screen.getByTestId("hours-balance");
-    expect(hours).toHaveTextContent(/Overtime for October 2026\s*0 h/);
-    expect(hours).toHaveTextContent(/2 overtime shifts after that \(20 h\) are not in this figure yet/);
+    expect(hours).toHaveTextContent(/Overtime for October 2026\s*20 h/);
+    expect(hours).toHaveTextContent(/0 h on the clock \+ 20 h from 2 overtime shifts your supervisor marked attended/);
+    expect(hours).toHaveTextContent(/the office's close counts these hours once the clock is imported/);
+  });
+
+  it("does not count a shift twice once the clock has the day", () => {
+    const withClock = { ...DATA, clocks: [...DATA.clocks, { ...DATA.clocks[0], on_date: "2026-10-24", balance_minutes: 720, scheduled_minutes: 0 }] };
+    env.attendance.mockReturnValue({ data: { state: "ready", data: withClock }, isPending: false, isError: false });
+    env.shifts.mockReturnValue({ data: SHIFTS });
+    renderPage();
+    // 12 h from the clock (24/10) + 8 h attended (25/10, not on the clock).
+    expect(screen.getByTestId("hours-balance")).toHaveTextContent(/Overtime for October 2026\s*20 h/);
+    expect(screen.getByTestId("hours-balance")).toHaveTextContent(/12 h on the clock \+ 8 h from 1 overtime shift/);
   });
 
   it("shows the supervisor's record: 20 h over two shifts, and the Headcount booking ahead", () => {
@@ -82,7 +93,8 @@ describe("overtime shifts beside the clock's figure", () => {
     env.shifts.mockReturnValue({ data: [] });
     renderPage();
     expect(screen.queryByTestId("overtime-shifts")).not.toBeInTheDocument();
-    expect(screen.getByTestId("hours-balance")).not.toHaveTextContent(/not in this figure yet/);
+    expect(screen.getByTestId("hours-balance")).toHaveTextContent(/Overtime for October 2026\s*0 h/);
+    expect(screen.getByTestId("hours-balance")).toHaveTextContent(/as the finance close counts it/);
   });
 
   it("adds nothing while the shifts are loading", () => {

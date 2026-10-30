@@ -119,24 +119,37 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   onRange: (r: { from: string; to: string }, key: string) => void; pickedKey: string | null;
 }) {
   const days = useMemo(() => buildMyDays(data, range.from, range.to, today), [data, range, today]);
-  const s = useMemo(() => summarise(data, days, range.from, range.to, today), [data, days, range, today]);
+  // The supervisor's record of the overtime shifts. Those attended on a day the clock has
+  // no hours for yet go into the period's overtime, so the figure is not 0 h for overtime
+  // that was worked and simply not imported (30/10/2026).
+  const { data: otRecords } = useMyOvertimeShifts(data.me.id, range.from, range.to);
+  const ot = useMemo(
+    () => (otRecords ? summariseOvertimeShifts(otRecords, data.clocks, today) : null),
+    [otRecords, data.clocks, today],
+  );
+  const s = useMemo(
+    () => summarise(data, days, range.from, range.to, today, ot?.notOnClockMinutes ?? 0),
+    [data, days, range, today, ot],
+  );
   const choices = useMemo(() => rangeChoices(data.periods, today), [data.periods, today]);
   const [selected, setSelected] = useState<MyDay | null>(null);
   const currentKey = choices.find((c) => c.from === range.from && c.to === range.to)?.key ?? "custom";
   const todayDay = days.find((d) => d.date === today) ?? null;
-  // The supervisor's record of the overtime shifts, shown beside the clock's figure.
-  const { data: otRecords } = useMyOvertimeShifts(data.me.id, range.from, range.to);
-  const ot = useMemo(
-    () => (otRecords ? summariseOvertimeShifts(otRecords, data.clocked_to, today) : null),
-    [otRecords, data.clocked_to, today],
-  );
   // Overtime the office placed on the Headcount by hand, from today to the end of the range.
   const boardAhead = useMemo(
     () => (range.to < today ? [] : overtimeOnTheBoardOnly(data, range.from > today ? range.from : today, range.to)),
     [data, range.from, range.to, today],
   );
-  const clockGap = ot && ot.notOnClock.length > 0
-    ? ` Your clock record reaches ${data.clocked_to ? fmtDay(data.clocked_to) : "no day yet"}, so ${ot.notOnClock.length} overtime ${ot.notOnClock.length === 1 ? "shift" : "shifts"} after that (${fmtHours(ot.notOnClockMinutes / 60)}) ${ot.notOnClock.length === 1 ? "is" : "are"} not in this figure yet. It counts them once the clock is imported.`
+  const gapShifts = ot ? ot.notOnClock.length : 0;
+  const gapWords = gapShifts === 1 ? "1 overtime shift" : `${gapShifts} overtime shifts`;
+  const clockReach = data.clocked_to ? `Your clock record reaches ${fmtDay(data.clocked_to)}.` : "No clock record has been imported for you yet.";
+  // For the period: the attended shifts are IN the figure, and the note says how much.
+  const periodNote = s.settled && s.settled.attendedHours > 0
+    ? `${fmtHours(s.settled.clockOvertimeHours ?? 0)} on the clock + ${fmtHours(s.settled.attendedHours)} from ${gapWords} your supervisor marked attended on days the clock has no hours for yet. ${clockReach} Not yet approved or paid; the office's close counts these hours once the clock is imported.`
+    : "Worked over your contract across the whole pay period, as the finance close counts it. Recorded on the clock — not yet approved or paid.";
+  // For a week or a month there is no settlement: the running balance stays the clock's.
+  const balanceGap = gapShifts > 0
+    ? ` ${clockReach} ${gapWords} your supervisor marked attended (${fmtHours((ot?.notOnClockMinutes ?? 0) / 60)}) ${gapShifts === 1 ? "is" : "are"} not in this balance yet.`
     : "";
 
   return (
@@ -203,7 +216,7 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
           {s.settled ? (
             <>
               <Row label={`Overtime for ${s.settled.period.name}`} value={fmtHours(s.settled.overtimeHours)}
-                note={`Worked over your contract across the whole pay period, as the finance close counts it. Recorded on the clock — not yet approved or paid.${clockGap}`} />
+                note={periodNote} />
               {(s.settled.owedHours ?? 0) > 0 && (
                 <Row label="Hours short" value={fmtHours(s.settled.owedHours)} note="Under your contract across the period." />
               )}
@@ -213,7 +226,7 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
           ) : (
             <>
               <Row label="Running balance" value={s.balanceHours == null ? "—" : `${s.balanceHours > 0 ? "+" : ""}${fmtHours(s.balanceHours)}`}
-                note={`Not overtime yet. Hours settle over the whole pay period, so a later week can cancel this out. Pick a pay period to see the overtime it settles at.${clockGap}`} />
+                note={`Not overtime yet. Hours settle over the whole pay period, so a later week can cancel this out. Pick a pay period to see the overtime it settles at.${balanceGap}`} />
             </>
           )}
           {ot && <OvertimeShifts ot={ot} boardAhead={boardAhead} />}
@@ -292,7 +305,7 @@ function OvertimeShifts({ ot, boardAhead }: { ot: ReturnType<typeof summariseOve
         <span className="font-figure tabular-nums">{fmtHours(ot.workedMinutes / 60)}</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Marked attended by your supervisor, at each shift's own hours. This is their record, not the clock's.
+        Marked attended by your supervisor, at each shift's own hours. On a day the clock has no hours for yet, they count in the overtime above.
       </p>
       {ot.worked.length > 0 && list(ot.worked)}
       {ot.unmarked.length > 0 && (
