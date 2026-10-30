@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff, Share, Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { isIOSDevice } from "@/lib/pushEnvironment";
 
 /**
  * The one thing that decides whether anybody answers an ask: whether their phone buzzes.
@@ -60,16 +61,32 @@ export function OvertimePushNudge({
   if (!supported) return null;
 
   if (permission === "denied") {
+    // Blocked is the phone's decision, and only the phone's settings undo it: the app may
+    // not ask again. So the card says where the switch is, for the phone in hand, instead
+    // of "your browser settings" — which nobody on the floor could find (30/10/2026).
+    const iPhone = typeof navigator !== "undefined" && isIOSDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     return (
-      <Card className="border-warning/30 bg-warning/5">
+      <Card className="border-warning/30 bg-warning/5" data-testid="push-blocked">
         <CardContent className="flex items-start gap-3 py-4">
           <BellOff className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div className="text-sm">
-            <div className="font-medium">Notifications are blocked for this site</div>
+            <div className="font-medium">Notifications are blocked on this phone</div>
             <div className="mt-0.5 text-muted-foreground">
-              You'll still see them here, but your phone won't buzz. To turn them back on, allow
-              notifications for this site in your browser settings.
+              You'll still see them here, but your phone won't buzz. Turn them on once and they stay on:
             </div>
+            {iPhone ? (
+              <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-muted-foreground">
+                <li>Open <span className="font-medium text-foreground">Settings</span> on the iPhone.</li>
+                <li>Tap <span className="font-medium text-foreground">Notifications</span>, then this app.</li>
+                <li>Switch <span className="font-medium text-foreground">Allow Notifications</span> on, and open the app again.</li>
+              </ol>
+            ) : (
+              <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-muted-foreground">
+                <li>Tap the <span className="font-medium text-foreground">padlock</span> or <span className="font-medium text-foreground">⋮</span> next to the address, then <span className="font-medium text-foreground">Permissions</span> or <span className="font-medium text-foreground">Site settings</span>.</li>
+                <li>Set <span className="font-medium text-foreground">Notifications</span> to <span className="font-medium text-foreground">Allow</span>.</li>
+                <li>Using the app icon instead? Hold the icon, tap <span className="font-medium text-foreground">App info → Notifications</span> and switch them on.</li>
+              </ol>
+            )}
           </div>
         </CardContent>
       </Card>

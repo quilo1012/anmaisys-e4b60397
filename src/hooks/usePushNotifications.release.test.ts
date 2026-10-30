@@ -4,6 +4,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  * Signing out takes this phone off the list. Before, the row stayed until somebody else
  * signed in on the phone, so a shared phone kept buzzing with the last person's messages.
  * And signing out must never wait on, or fail because of, the push service.
+ *
+ * The browser's subscription stays (30/10/2026): an iPhone cannot subscribe again without a
+ * tap, so dropping it switched notifications off at every sign-out.
  */
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 
@@ -28,12 +31,12 @@ describe("releaseThisDevicePush", () => {
   beforeEach(() => { vi.clearAllMocks(); eq.mockResolvedValue({ error: null }); });
   afterEach(() => { delete (window as unknown as { PushManager?: unknown }).PushManager; });
 
-  it("deletes this phone's row, by its endpoint, and drops the browser's subscription", async () => {
+  it("deletes this phone's row, by its endpoint, and keeps the browser's subscription for the next login", async () => {
     installPush({ endpoint: "https://web.push.apple.com/abc", unsubscribe });
     await releaseThisDevicePush();
     expect(from).toHaveBeenCalledWith("push_subscriptions");
     expect(eq).toHaveBeenCalledWith("endpoint", "https://web.push.apple.com/abc");
-    expect(unsubscribe).toHaveBeenCalled();
+    expect(unsubscribe).not.toHaveBeenCalled();
   });
 
   it("does nothing on a phone that never subscribed", async () => {

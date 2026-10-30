@@ -28,7 +28,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { toast } from "sonner";
-import { saveSubscription, useKeepPushSubscriptionCurrent, usePushNotifications } from "./usePushNotifications";
+import { PUSH_SAVED_EVENT, saveSubscription, useKeepPushSubscriptionCurrent, usePushNotifications } from "./usePushNotifications";
 
 const subscription = { endpoint: "https://web.push.apple.com/abc", toJSON: () => ({ keys: { p256dh: "p-key", auth: "a-key" } }) };
 
@@ -155,5 +155,35 @@ describe("useKeepPushSubscriptionCurrent", () => {
     renderHook(() => useKeepPushSubscriptionCurrent(null));
     await new Promise((r) => setTimeout(r, 20));
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("tells the screen it saved, so the Turn on card goes away by itself", async () => {
+    getSubscription.mockResolvedValue(subscription);
+    const heard = vi.fn();
+    window.addEventListener(PUSH_SAVED_EVENT, heard);
+    renderHook(() => useKeepPushSubscriptionCurrent("u-1"));
+    await waitFor(() => expect(heard).toHaveBeenCalled());
+    window.removeEventListener(PUSH_SAVED_EVENT, heard);
+  });
+
+  it("registers the phone again when the app comes back to the screen, at most every half hour", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      getSubscription.mockResolvedValue(subscription);
+      renderHook(() => useKeepPushSubscriptionCurrent("u-1"));
+      await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
+      const show = () => {
+        Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+        document.dispatchEvent(new Event("visibilitychange"));
+      };
+      show();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(rpc).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(31 * 60_000);
+      show();
+      await waitFor(() => expect(rpc).toHaveBeenCalledTimes(2));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
