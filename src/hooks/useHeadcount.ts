@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { toast } from "sonner";
+import { replacedAbsence } from "@/lib/halfDay";
 import { attendanceForDay, attendanceForStatus, attendanceFromBoard } from "@/lib/attendanceFromBoard";
 import { copyableDays, rowsToCopy, type BoardPlacement, type CopyableDay } from "@/lib/copyBoard";
 import { dropReceipt, readReceipt, saveReceipt, type CopyReceipt } from "@/lib/copyUndo";
@@ -884,11 +885,8 @@ export function useAllocationMutations(onDate: string, shift: string) {
         .maybeSingle();
       const prev = prevRow as { status?: string; area_id?: string | null; is_leader?: boolean } | null;
       const was = prev?.status;
-      let replaced: string | null = null;
-      if ((input.status === "assigned" || input.status === "overtime")
-        && (was === "holiday" || was === "sick" || was === "unpaid")) {
-        replaced = was;
-      }
+      // A half-day holiday put on the line they worked replaces nothing — see `replacedAbsence`.
+      const replaced = replacedAbsence(was, input.status, input.halfDay);
 
       // A shift nobody's rota covers is overtime whether or not anyone remembers to say
       // so. Eleven people were on the night board on Friday 07/08, which no night rota

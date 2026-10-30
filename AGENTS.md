@@ -95,3 +95,4 @@ read or set them — ask the owner. Keeping them out is deliberate: on 15/09 a
 it was public. Do not "fix" a missing secret by putting it in a file.
 
 - The employee panel's History and Overtime are built in `employeePanelHistory` from the board, the asks, the clock and payroll side by side; `useUpdateEmployee` writes a shift-history row only when the held shift or rota actually differs, so saves that change nothing leave no dated change.
+- Decide "half day" on the Headcount board only through `isHalfDay` (`half_day` true or a "half day" sheet tag); a working half day is drawn on its line and mirrored in Holidays (board, print, export), counted once on the line, and drops/imports keep the marker instead of replacing the holiday.

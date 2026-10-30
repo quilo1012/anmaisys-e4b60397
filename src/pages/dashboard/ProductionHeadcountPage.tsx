@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable";
 import { lineLeadersByArea } from "@/lib/leaderMark";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +43,7 @@ import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
 import { placementHours, type PlacementHours } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
+import { isHalfDay, isHalfDayTag, isWorkingHalfDay, placementForDrop } from "@/lib/halfDay";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
@@ -160,8 +162,10 @@ const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
  * essa fila em degraus.
  */
 function SheetColumn({
-  title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled,
+  title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled, countLabel,
 }: {
+  /** What the Total cell says when the count needs words, e.g. "7 + 1 half day". */
+  countLabel?: string;
   /** Células já ocupadas, quando há mais do que `count` (nomes do plano, a cinzento). */
   filled?: number;
   /** O que vai na primeira célula vazia — o campo para escrever um nome. */
@@ -217,7 +221,7 @@ function SheetColumn({
           só, lado a lado: em duas eram 56px de verde por banda para dizer um número. */}
       <div className={cn("mt-auto flex h-8 items-center justify-between px-2.5", SHEET_FILL.total)}>
         <span className="text-xs font-semibold">Total</span>
-        <span className="font-figure text-base font-bold tabular-nums">{count}</span>
+        <span className="font-figure text-base font-bold tabular-nums">{countLabel ?? count}</span>
       </div>
     </div>
   );
@@ -357,7 +361,7 @@ function Chip({
   role,
   dimmed,
   overtime,
-  half,
+  half, halfWhere, hint,
   leftEarlyAt,
   arrivedLateAt,
   leftEarlyReason,
@@ -401,6 +405,10 @@ function Chip({
   overtime?: boolean;
   /** Off for half the shift. Shown on the chip so the block's count can be read honestly. */
   half?: boolean;
+  /** Where a half-day person is working, on their mirror in Holidays: "Line 1". */
+  halfWhere?: string | null;
+  /** A short instruction under the name, e.g. for a half day with no line yet. */
+  hint?: string | null;
   /** Came in and went home early, at this time. A day worked, not a day off. */
   leftEarlyAt?: string | null;
   /** Came in after the shift started, at this time. Also a day worked, not a day off. */
@@ -420,7 +428,7 @@ function Chip({
   // Células brancas, como na folha. A cor fica para os cabeçalhos e para o líder; um
   // nome numa coluna de Holidays já diz o que é pela coluna onde está.
   const plain = "bg-card text-foreground";
-  const marked = !!(workHours || startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
+  const marked = !!(hint || workHours || startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
   const tones: Record<string, string> = {
     production: plain, support: plain, away: plain, overtime: plain, training: plain, roster: plain,
   };
@@ -505,7 +513,7 @@ function Chip({
           {startTime}
         </span>
       )}
-      {tag && (
+      {tag && !isHalfDayTag(tag) && (
         <span title={tag} className="shrink-0 rounded-sm border border-border bg-muted px-1 py-px text-[10px] font-bold capitalize leading-tight text-muted-foreground">
           {tag}
         </span>
@@ -535,10 +543,16 @@ function Chip({
           look identical, when one of them worked the morning. */}
       {half && (
         <span
-          title="Half day — worked part of the shift"
-          className="shrink-0 rounded-sm bg-background/70 px-1 py-px text-2xs font-bold leading-tight text-muted-foreground"
+          data-testid="half-day-badge"
+          title={halfWhere ? `Half day — worked half the shift on ${halfWhere}` : "Half day — worked part of the shift"}
+          className="shrink-0 rounded-sm border border-warning/40 bg-warning/15 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
         >
-          ½
+          {halfWhere ? `Half day · ${halfWhere}` : "Half day"}
+        </span>
+      )}
+      {hint && (
+        <span data-testid="chip-hint" title={hint} className="min-w-0 truncate text-2xs italic leading-tight text-muted-foreground">
+          {hint}
         </span>
       )}
       {/* Came in late. Same arrow, pointing the other way: the column counts them as in
@@ -946,7 +960,23 @@ function ShiftBoard({
           tag: a.sheet_tag ?? null,
         });
       })
-      .sort((a, b) => a.shown.localeCompare(b.shown));
+      .sort((a, b) => a.shown.localeCompare(b.shown))
+      .map((p) => Object.assign(p, { halfWhere: null as string | null }));
+
+  /** People on a line who are on a half-day holiday: drawn on their line, mirrored in Holidays. */
+  const halfDayMirrors = allocations
+    .filter((a) => isWorkingHalfDay(a) && employeeById.has(a.employee_id))
+    .map((a) => {
+      const p = employeeById.get(a.employee_id)!;
+      return Object.assign({}, p, {
+        shown: p.full_name,
+        sheetName: a.sheet_name ?? null,
+        startTime: a.sheet_start_time ?? null,
+        tag: a.sheet_tag ?? null,
+        halfWhere: areas.find((x) => x.id === a.area_id)?.name ?? "a line" as string | null,
+      });
+    })
+    .sort((a, b) => a.shown.localeCompare(b.shown));
 
   // A row that places nobody anywhere (`assigned` with no line) is no place: the person
   // goes to the tray rather than vanishing from the board. Somebody the rota does not
@@ -1087,7 +1117,12 @@ function ShiftBoard({
         <div className="flex-1 bg-card" />
       </div>
       {AWAY_BLOCKS.map((block) => {
-        const people = peopleWith(block.status);
+        // Holidays also mirrors everybody on a line who is on a half-day holiday, the
+        // way Overtime lists people who are on their line. The mirror is not a second
+        // person: they are counted once, on their line, and the column says so.
+        const people = block.status === "holiday" ? [...peopleWith("holiday"), ...halfDayMirrors] : peopleWith(block.status);
+        const own = block.status === "holiday" ? people.length - halfDayMirrors.length : people.length;
+        const mirrored = people.length - own;
         return (
           <DropZone
             key={block.status}
@@ -1102,7 +1137,9 @@ function ShiftBoard({
               onHeadClick={canManage ? () => setPickingAway({ status: block.status, label: block.label }) : undefined}
               headHint={canManage ? `Add or remove people in ${block.label}` : undefined}
               rows={rows}
-              count={people.length}
+              count={own}
+              filled={people.length}
+              countLabel={mirrored ? `${own} + ${mirrored} half day` : undefined}
               blank={canManage ? (
                 <SheetCellInput
                   className="h-full"
@@ -1115,7 +1152,7 @@ function ShiftBoard({
             >
               {people.map((p) => (
                 <Chip
-                  key={p.id}
+                  key={`${p.id}${p.halfWhere ? "-half" : ""}`}
                   name={p.shown}
                   personRef={refOf.get(p.id)}
                   sheetName={p.sheetName}
@@ -1126,7 +1163,10 @@ function ShiftBoard({
                   dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
                   role={roleOf(p)}
                   tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
-                  half={byEmployee.get(p.id)?.half_day === true}
+                  half={isHalfDay(byEmployee.get(p.id))}
+                  halfWhere={p.halfWhere}
+                  hint={block.status === "holiday" && !p.halfWhere && isHalfDay(byEmployee.get(p.id)) && !byEmployee.get(p.id)?.area_id
+                    ? "Worked half — drag onto the line they worked" : null}
                   leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                   arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                   leftEarlyReason={byEmployee.get(p.id)?.left_early_reason ?? null}
@@ -1162,20 +1202,14 @@ function ShiftBoard({
     if (target === "roster") { remove.mutate(employeeId); return; }
     const current = byEmployee.get(employeeId);
 
-    // Overtime says *how* the day counts; the area says *where* they are. They are
-    // two answers, and moving somebody between lines only changes the second — so an
-    // overtime person dragged onto Line 2 stays overtime and simply moves. Before,
-    // every area drop wrote "assigned" and quietly cancelled the overtime.
-    const status: AllocStatus =
-      target.status === "assigned" && current?.status === "overtime" ? "overtime" : target.status;
-
-    // Marking somebody overtime from the Overtime card keeps the area they are on,
-    // for the same reason. Absence and holiday do clear it: they are not at a place.
-    const areaId = target.status === "overtime"
-      ? target.areaId ?? current?.area_id ?? null
-      : target.areaId;
-
-    place.mutate({ employeeId, areaId, status });
+    // Overtime stays overtime on a line, marking overtime keeps the area, and a
+    // half-day holiday stays a half day — the rules are in `placementForDrop`.
+    const p = placementForDrop(current, target);
+    const lineName = p.keptHalfDayOn ? areas.find((x) => x.id === p.keptHalfDayOn)?.name ?? "the line" : null;
+    place.mutate(
+      { employeeId, areaId: p.areaId, status: p.status as AllocStatus, ...(p.halfDay ? { halfDay: true } : {}) },
+      lineName ? { onSuccess: () => toast.success(`Half-day holiday kept — also on ${lineName}`) } : undefined,
+    );
   };
 
   const term = find.trim().toLowerCase();
@@ -1656,7 +1690,7 @@ function ShiftBoard({
         const bandRows = Math.max(
           0,
           ...ofKind.map((a) => peopleIn(a.id).length + ghostsIn(a.id).length),
-          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length) : []),
+          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0)) : []),
         ) + 1;
         return (
         <div key={section.key} id={jumpId(section.key)}>
@@ -1743,6 +1777,7 @@ function ShiftBoard({
                         role={roleOf(p)}
                         dimmed={isDimmed(shown) && isDimmed(p.full_name)}
                         overtime={isOt}
+                        half={isHalfDay(byEmployee.get(p.id))}
                         leftEarlyAt={byEmployee.get(p.id)?.left_early_at ?? null}
                         arrivedLateAt={byEmployee.get(p.id)?.arrived_late_at ?? null}
                         leftEarlyReason={byEmployee.get(p.id)?.left_early_reason ?? null}
@@ -1891,7 +1926,7 @@ function ShiftBoard({
             areaId={alloc?.area_id ?? null}
             areas={areas}
             canManage={canManage}
-            halfDay={alloc?.half_day === true}
+            halfDay={isHalfDay(alloc)}
             // Explicit, like the status buttons: the day already says how it counts and
             // this only says how much of it was worked. Without that, ticking Half day
             // on somebody off their rota re-ran the rule and quietly made them overtime.
@@ -1909,7 +1944,7 @@ function ShiftBoard({
               employeeId: editing,
               areaId: alloc?.area_id ?? null,
               status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
-              halfDay: alloc?.half_day === true,
+              halfDay: isHalfDay(alloc),
               leftEarlyAt: v,
               arrivedLateAt: arrivedLate,
               explicit: true,
@@ -1923,7 +1958,7 @@ function ShiftBoard({
               employeeId: editing,
               areaId: alloc?.area_id ?? null,
               status: (alloc?.status as AllocStatus | undefined) ?? "assigned",
-              halfDay: alloc?.half_day === true,
+              halfDay: isHalfDay(alloc),
               leftEarlyAt: leftEarly,
               arrivedLateAt: v,
               explicit: true,
@@ -1933,7 +1968,7 @@ function ShiftBoard({
               // Overtime is still a place; absence and holiday are not.
               areaId: st === "assigned" || st === "overtime" ? alloc?.area_id ?? null : null,
               status: st,
-              halfDay: alloc?.half_day === true,
+              halfDay: isHalfDay(alloc),
               // Carried, not dropped: the upsert writes every column, so leaving it
               // out would silently clear an early finish somebody had recorded. The
               // mutation itself drops it when the status stops being a day worked.
@@ -1949,10 +1984,12 @@ function ShiftBoard({
               employeeId: editing,
               areaId: id,
               status: alloc?.status === "overtime" ? "overtime" : "assigned",
-              halfDay: alloc?.half_day === true,
+              halfDay: isHalfDay(alloc),
               leftEarlyAt: leftEarly,
               arrivedLateAt: arrivedLate,
-            })}
+            }, isHalfDay(alloc) && alloc?.status === "holiday" && id
+              ? { onSuccess: () => toast.success(`Half-day holiday kept — also on ${areas.find((x) => x.id === id)?.name ?? "the line"}`) }
+              : undefined)}
             onSetShift={(sg) => changeShift.mutate({ employeeId: editing, shiftGroup: sg })}
             patterns={patterns}
             patternId={person.shift_pattern_id}
@@ -1970,7 +2007,7 @@ function ShiftBoard({
         <>
           <SectionLabel>Away, overtime &amp; training</SectionLabel>
           <div className="headcount-away grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length)) + 1)}
+            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0))) + 1)}
           </div>
         </>
       )}

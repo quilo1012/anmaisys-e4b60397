@@ -3,6 +3,7 @@
 import XLSX from "xlsx-js-style";
 import { claimsLeadership, keepsLeadership } from "@/lib/leaderMark";
 import { sheetBandOf } from "@/lib/headcountBlocks";
+import { isHalfDay, isWorkingHalfDay } from "@/lib/halfDay";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
@@ -405,9 +406,20 @@ export function buildHeadcountWorkbook(input: {
       allocs.filter((a) => statuses.includes(a.status)).map((a) => nameOf(a)).filter(Boolean).sort()
         .map((name) => ({ name, leader: false }));
 
+    // Holidays carries the half days too: a full-day holiday as a name, a half day as
+    // "Name (half day)" — and a half day worked on a line is written there AND here,
+    // the way the board draws it. The importer reads the bracket back as the marker
+    // and folds the two cells into one row on the line.
+    const holidayCells: Cell[] = [
+      ...allocs.filter((a) => a.status === "holiday")
+        .map((a) => ({ name: nameOf(a), half: isHalfDay(a) })),
+      ...allocs.filter((a) => isWorkingHalfDay(a)).map((a) => ({ name: nameOf(a), half: true })),
+    ].filter((x) => x.name).sort((x, y) => x.name.localeCompare(y.name))
+      .map((x) => ({ name: x.half ? `${x.name} (half day)` : x.name, leader: false }));
+
     const states: [string, Cell[]][] = [
       ["Absence", namesWith(["sick", "unpaid"])],
-      ["Holidays", namesWith(["holiday"])],
+      ["Holidays", holidayCells],
       // "Overtime staff" é como a planilha escreve a coluna. O importador já lê os
       // dois, por `also`, por isso uma folha antiga continua a entrar.
       ["Overtime staff", namesWith(["overtime"])],
@@ -540,7 +552,7 @@ export function printSheetLayout(input: {
   const hhmm = (t: string | null | undefined) => (t ?? "").slice(0, 5);
   const cell = (a: Allocation, leader = false): PrintSheetName => {
     const notes = [
-      a.half_day ? "Half day" : "",
+      isHalfDay(a) ? "Half day" : "",
       a.arrived_late_at ? `in ${hhmm(a.arrived_late_at)}` : "",
       a.left_early_at ? `left ${hhmm(a.left_early_at)}` : "",
     ].filter(Boolean);
@@ -577,7 +589,15 @@ export function printSheetLayout(input: {
     bottom: [
       ...support,
       state("Absence", "absence", ["sick", "unpaid"]),
-      state("Holidays", "holiday", ["holiday"]),
+      {
+        // A half day worked on a line is on its line and here too, as the board draws it.
+        // The purple total counts area columns only, so it is still counted once.
+        label: "Holidays", tone: "holiday",
+        names: ordered([
+          ...known.filter((a) => a.status === "holiday").map((a) => cell(a)),
+          ...known.filter((a) => isWorkingHalfDay(a)).map((a) => cell(a)),
+        ]),
+      },
       state("Overtime staff", "overtime", ["overtime"]),
       ...(training.names.length ? [training] : []),
     ],
@@ -906,7 +926,15 @@ export function parseHeadcountWorkbook(
   for (const key of keyOrder) {
     const list = pending.get(key)!;
     const spellings = [...new Map(list.map((p) => [spellingKey(p.alloc.sheetName), p.alloc.sheetName ?? ""])).values()];
-    if (spellings.length === 1) { out.matched.push(list[0].alloc); continue; }
+    if (spellings.length === 1) {
+      // The same person on a line and in Holidays marked "half day" is one row: working
+      // on that line, carrying the half-day marker — never two rows, never a holiday.
+      const onLine = list.find((p) => p.alloc.status === "assigned" || p.alloc.status === "overtime");
+      const halfOff = list.some((p) => p.alloc.status === "holiday" && isHalfDay({ sheet_tag: p.alloc.sheetTag }));
+      if (onLine && halfOff) { out.matched.push({ ...onLine.alloc, sheetTag: "half day" }); continue; }
+      out.matched.push(list[0].alloc);
+      continue;
+    }
     const choice = ctx.conflictChoice?.[key];
     const winner = choice ? list.find((p) => spellingKey(p.alloc.sheetName) === spellingKey(choice)) : undefined;
     if (!winner) {
