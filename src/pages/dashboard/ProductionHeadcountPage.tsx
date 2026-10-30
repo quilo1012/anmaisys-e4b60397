@@ -10,7 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle } from "lucide-react";
+import { Check, Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle, MoreVertical, EyeOff, Eye, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -65,6 +65,8 @@ import {
   useChangeShift,
   useReorderAreas,
   useSetShiftPattern,
+  useHiddenAreas,
+  useSetAreaHidden,
   crewBadge,
   type AllocStatus,
   type HeadcountArea,
@@ -82,6 +84,10 @@ import { boardNotImported } from "@/lib/headcountImportReport";
 import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { DayClockBadge } from "@/components/workforce/DayClockBadge";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
+import { MoveTeamDialog, type MoveTeamPreview } from "@/components/workforce/MoveTeamDialog";
+import { HiddenLinesMenu } from "@/components/workforce/HiddenLinesMenu";
+import { planTeamMove } from "@/lib/teamMove";
+import { linesToDraw } from "@/lib/hiddenLines";
 
 /**
  * The boards there are. Two, and Weekend is not one of them.
@@ -161,9 +167,13 @@ const SHEET_RULE = "border-neutral-900 dark:border-neutral-400";
  * outro sem procurar. Uma coluna que encolhe para o tamanho dos seus nomes partia
  * essa fila em degraus.
  */
+const NO_HIDDEN: ReadonlySet<string> = new Set();
+
 function SheetColumn({
-  title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled, countLabel,
+  title, head, onHeadClick, headHint, grip, rows, count, children, blank, filled, countLabel, actions,
 }: {
+  /** The column's own menu (move the team, hide the line), at the right of the heading. */
+  actions?: React.ReactNode;
   /** What the Total cell says when the count needs words, e.g. "7 + 1 half day". */
   countLabel?: string;
   /** Células já ocupadas, quando há mais do que `count` (nomes do plano, a cinzento). */
@@ -200,7 +210,13 @@ function SheetColumn({
         {/* Duas linhas, partidas nos espaços: "Capsules Machine 1" lia-se "Capsu…" numa
             coluna de 113px, e o cabeçalho é o que diz que coluna é. */}
         <span className="headcount-column-title line-clamp-2 flex-1 text-center text-sm font-bold leading-tight [overflow-wrap:normal]" title={title}>{title}</span>
-        {onHeadClick && (
+        {actions && (
+          // Its own click: the heading's click opens the people picker.
+          <span className="absolute inset-y-0 right-0 flex items-center no-print" onClick={(e) => e.stopPropagation()}>
+            {actions}
+          </span>
+        )}
+        {onHeadClick && !actions && (
           <UserPlus
             aria-hidden
             className="absolute right-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-0 transition-opacity group-hover/col:opacity-70 no-print"
@@ -848,7 +864,13 @@ function ShiftBoard({
   // One Training column, not two: the area of that name is read as the Training state.
   const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
   const allocations = useMemo(() => foldTrainingArea(savedAllocations, allAreas), [savedAllocations, allAreas]);
-  const { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader, setLateEarlyReason } = useAllocationMutations(onDate, shift);
+  const { place, remove, copyLastLikeDay, undoCopy, readUndo, keepCopy, setLeader, setLateEarlyReason, moveTeam } = useAllocationMutations(onDate, shift);
+  // Lines hidden on this board (BLOCO 140). Per shift: hiding Line 4 at night leaves Day alone.
+  const hiddenQ = useHiddenAreas();
+  const setHidden = useSetAreaHidden();
+  const hideAvailable = hiddenQ.data?.available === true;
+  const hiddenHere = hiddenQ.data?.byShift[shift] ?? NO_HIDDEN;
+  const [movingFrom, setMovingFrom] = useState<{ id: string; name: string } | null>(null);
   const { data: copyableDays = [], isLoading: copyableLoading } = useCopyableDays(onDate, shift);
   const matrix = useHeadcountMatrix(shift, onDate);
   const saveMatrix = useSaveMatrix(onDate, shift);
@@ -1403,6 +1425,15 @@ function ShiftBoard({
               );
             })}
           </div>
+          <HiddenLinesMenu
+            shiftLabel={shift}
+            canManage={canManage}
+            busy={setHidden.isPending}
+            hidden={areas
+              .filter((a) => hiddenHere.has(a.id))
+              .map((a) => ({ id: a.id, name: a.name, staffed: peopleIn(a.id).length > 0 }))}
+            onShow={(ids) => ids.forEach((id) => setHidden.mutate({ areaId: id, shift, hidden: false }))}
+          />
           <Button
             size="sm"
             variant="outline"
@@ -1693,8 +1724,11 @@ function ShiftBoard({
 
       {SECTIONS.map((section) => {
         if (!blockVisible(section.key)) return null;
-        const ofKind = areas.filter((a) => sheetBandOf(a) === section.key);
-        if (ofKind.length === 0) return null;
+        const allOfKind = areas.filter((a) => sheetBandOf(a) === section.key);
+        if (allOfKind.length === 0) return null;
+        // Hidden on this shift and empty today: not drawn. Hidden but with people on it:
+        // drawn anyway and flagged, so a filter never takes anybody off the headcount.
+        const { drawn: ofKind, hiddenButStaffed } = linesToDraw(allOfKind, hiddenHere, (id) => peopleIn(id).length);
         const open = openSections[section.key] !== false;
         const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
         // A banda inteira tem a altura da coluna mais comprida, mais uma linha livre
@@ -1727,7 +1761,9 @@ function ShiftBoard({
           onDragEnd={(e: DragEndEvent) => {
             const { active, over } = e;
             if (!over || active.id === over.id) return;
-            const ids = ofKind.map((a) => a.id);
+            // Over every line of the band, hidden ones included, so renumbering the ones
+            // on screen never lands a hidden line on the same sort order as a shown one.
+            const ids = allOfKind.map((a) => a.id);
             const moved = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
             // Renumbered in tens, leaving room to slide something in later without
             // rewriting the whole section.
@@ -1757,6 +1793,51 @@ function ShiftBoard({
                 grip={canManage ? grip : undefined}
                 onHeadClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
                 headHint={canManage ? `Add or remove people on ${area.name}` : undefined}
+                actions={canManage ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-11 w-9 [@media(hover:hover)]:h-8 [@media(hover:hover)]:w-7 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/col:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                        aria-label={`${area.name} actions`}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>{area.name}</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        disabled={people.length === 0}
+                        onSelect={() => setMovingFrom({ id: area.id, name: area.name })}
+                      >
+                        <ArrowRightLeft className="mr-2 h-4 w-4" />
+                        Move entire team{people.length ? ` (${people.length})` : ""}…
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {hiddenHere.has(area.id) ? (
+                        <DropdownMenuItem onSelect={() => setHidden.mutate({ areaId: area.id, shift, hidden: false })}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Show on {shift.toLowerCase()} shift
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          disabled={!hideAvailable}
+                          title={hideAvailable ? undefined : "Needs BLOCO 140 pasted in the SQL editor"}
+                          onSelect={() => setHidden.mutate(
+                            { areaId: area.id, shift, hidden: true },
+                            people.length
+                              ? { onSuccess: () => toast.info(`${area.name} is hidden on the ${shift.toLowerCase()} shift, but stays on screen while people are on it today.`) }
+                              : undefined,
+                          )}
+                        >
+                          <EyeOff className="mr-2 h-4 w-4" />
+                          {hideAvailable ? `Hide on ${shift.toLowerCase()} shift` : "Hide line (not available yet)"}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : undefined}
                 rows={bandRows}
                 count={people.length}
                 filled={people.length + ghostsIn(area.id).length}
@@ -1770,6 +1851,11 @@ function ShiftBoard({
                   />
                 ) : undefined}
               >
+                    {hiddenButStaffed.has(area.id) && (
+                      <div role="note" className={cn("border-b bg-muted px-2 py-1 text-2xs font-medium text-muted-foreground", SHEET_RULE)}>
+                        Hidden on this shift · shown while people are on it
+                      </div>
+                    )}
                     {leaderConflicts.has(area.id) && (
                       <div role="alert" className="border-b border-warning bg-warning/15 px-2 py-1 text-xs font-semibold text-warning">
                         Leader conflict: {leaderConflicts.get(area.id)} leaders marked on {area.name} this shift
@@ -1842,6 +1928,56 @@ function ShiftBoard({
         areas={areas}
         employeeById={employeeById}
       />
+
+      {movingFrom && (
+        <MoveTeamDialog
+          open
+          onOpenChange={(o) => { if (!o) setMovingFrom(null); }}
+          from={movingFrom}
+          shiftLabel={shift}
+          busy={moveTeam.isPending}
+          destinations={areas
+            .filter((a) => a.id !== movingFrom.id)
+            .map((a) => ({ id: a.id, name: a.name, hidden: hiddenHere.has(a.id) }))}
+          preview={(to): MoveTeamPreview => {
+            const nameOf = (id: string) => {
+              const p = employeeById.get(id);
+              if (!p) return "A person no longer on the staff list";
+              const ref = refOf.get(id);
+              return ref ? `${p.full_name} ${ref}` : p.full_name;
+            };
+            const plan = planTeamMove({
+              allocations,
+              from: movingFrom.id,
+              // No destination yet: preview the people as if moving anywhere else.
+              to: to ?? "__none__",
+              drawable: (id) => employeeById.has(id),
+            });
+            return {
+              movers: plan.movers.map((r) => ({ id: r.employee_id, name: nameOf(r.employee_id) }))
+                .sort((a, b) => a.name.localeCompare(b.name)),
+              staying: plan.staying.map((s) => ({ id: s.row.employee_id, name: nameOf(s.row.employee_id), reason: s.reason })),
+              carriesLeader: plan.carryLeader ? nameOf(plan.carryLeader.employee_id) : null,
+              destinationLeader: plan.destinationLeader ? nameOf(plan.destinationLeader.employee_id) : null,
+            };
+          }}
+          onConfirm={(to) => {
+            const plan = planTeamMove({ allocations, from: movingFrom.id, to, drawable: (id) => employeeById.has(id) });
+            const fromName = movingFrom.name;
+            const toName = areas.find((a) => a.id === to)?.name ?? "the line";
+            moveTeam.mutate(
+              { rowIds: plan.movers.map((r) => r.id), from: movingFrom.id, to, carryLeaderRowId: plan.carryLeader?.id ?? null },
+              {
+                onSuccess: ({ moved, asked }) => {
+                  if (moved === asked) toast.success(`Moved ${moved} from ${fromName} to ${toName}`);
+                  else toast.warning(`Moved ${moved} of ${asked} from ${fromName} to ${toName} — the others had already been moved by someone else.`);
+                },
+              },
+            );
+            setMovingFrom(null);
+          }}
+        />
+      )}
 
       {/* Filling a line by dragging seventy cards is the reason people go back to the
           spreadsheet. The column heading opens a search over the whole shift — the same
