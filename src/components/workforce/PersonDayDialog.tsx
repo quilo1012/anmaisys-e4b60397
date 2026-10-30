@@ -111,6 +111,7 @@ export function PersonDayDialog({
   arrivedLateAt, onSetArrivedLateAt,
   arrivedLateReason = null, onSetArrivedLateReason,
   leftEarlyReason = null, onSetLeftEarlyReason,
+  bookedEnd = null,
   patterns, patternId,
   onSetStatus, onSetArea, onSetShift, onSetPattern, onSetLeader, onRemove,
 }: {
@@ -142,6 +143,8 @@ export function PersonDayDialog({
   /** Why they went home early. */
   leftEarlyReason?: string | null;
   onSetLeftEarlyReason?: (v: string | null) => void;
+  /** "HH:MM" the booked hours end (the ask's end on an overtime row). Lets a time after it read as a stay-late. */
+  bookedEnd?: string | null;
   onSetArea: (areaId: string) => void;
   onSetShift: (shiftGroup: string) => void;
   onSetPattern: (patternId: string | null) => void;
@@ -165,6 +168,8 @@ export function PersonDayDialog({
         breakMinutes: rota.break_minutes,
       })
     : null;
+  // "Went home at" after the booked end is a stay-late, not an early finish.
+  const wentHome = leftEarlyAt && bookedEnd ? goneHomeAgainst(leftEarlyAt, bookedEnd) : null;
   // Shown under whichever box was ticked last, so the figure sits beside the time that
   // changed it. Under both would print the same two numbers twice.
   const cost = cut && (
@@ -315,9 +320,9 @@ export function PersonDayDialog({
                       onCheckedChange={(v) => onSetLeftEarlyAt(v === true ? "14:00" : null)}
                     />
                     <span>
-                      <span className="font-semibold">Left early</span>
+                      <span className="font-semibold">Left early / stayed late</span>
                       <span className="block text-2xs text-muted-foreground">
-                        Went home before the end of the shift.
+                        Went home before — or after — the booked end.
                       </span>
                     </span>
                   </label>
@@ -339,7 +344,11 @@ export function PersonDayDialog({
                           the early finish for months and no screen ever turned it into
                           hours, so somebody who went home two hours into an eleven-hour
                           shift counted as a full day everywhere. */}
-                      {cost}
+                      {wentHome && wentHome.after > 0
+                        ? <span data-testid="went-home-meaning" className="text-2xs text-muted-foreground">
+                            Went home at {leftEarlyAt} — {wentHome.text} after the booked {bookedEnd}
+                          </span>
+                        : cost}
                     </div>
                   )}
                   {leftEarlyAt !== null && onSetLeftEarlyReason && (
@@ -453,4 +462,14 @@ export function PersonDayDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Signed minutes from the booked end to "went home at", nearest way round the clock. */
+export function goneHomeAgainst(left: string, bookedEnd: string): { after: number; text: string } {
+  const m = (t: string) => { const [h, mm] = t.split(":").map(Number); return h * 60 + (mm || 0); };
+  let d = (((m(left) - m(bookedEnd)) % 1440) + 1440) % 1440;
+  if (d > 720) d -= 1440;
+  const a = Math.abs(d);
+  const text = `${Math.floor(a / 60)}h${a % 60 ? String(a % 60).padStart(2, "0") : ""}`;
+  return { after: d, text };
 }
