@@ -11,7 +11,7 @@ function builder(table: string) {
   const call = { table, ops: [] as string[] };
   calls.push(call);
   const b: any = {};
-  for (const op of ["select", "lt", "or", "order", "in", "eq"]) {
+  for (const op of ["select", "lt", "or", "order", "in", "eq", "neq", "is"]) {
     b[op] = (...args: unknown[]) => { call.ops.push(`${op}(${args.map((a) => JSON.stringify(a)).join(",")})`); return b; };
   }
   b.range = (from: number, to: number) => {
@@ -26,7 +26,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (t: string) => builder(t) },
 }));
 
-import { fetchMaintenanceShiftReport } from "@/lib/maintenanceShiftReport";
+import { fetchMaintenanceShiftReport, shiftWindowFor } from "@/lib/maintenanceShiftReport";
 
 const NOW = new Date("2026-10-29T14:30:00Z");
 
@@ -69,15 +69,39 @@ describe("fetchMaintenanceShiftReport", () => {
     expect(r.problems).toEqual([]);
     expect(r.stopsRead).toBe(3);
     expect(r.ordersRead).toBe(3);
-    expect(r.text.split("\n").slice(0, 6)).toEqual([
-      "**Maintenance:**",
-      "**Day Shift (06-18)** · 29/10/2026",
+    const t = r.text;
+    const body = t.slice(t.indexOf("**Stops over 15 minutes**")).split("\n").slice(0, 5);
+    expect(body).toEqual([
+      "**Stops over 15 minutes**",
       "**Line 2:** Reset sensor (WO-101)",
       "Downtime: 47m",
       "**Line 7:** Filler leak (in progress) (WO-102)",
       "Downtime: 90m so far (still stopped)",
     ]);
-    expect(r.text).not.toContain("WO-103");
-    expect(r.text).toContain("3 stops on 3 orders; 2 listed over 15 min");
+    expect(t).not.toContain("WO-103");
+    expect(t).toContain("- Stops recorded: 3 stops on 3 work orders");
+    expect(t).toContain("- Stops over 15 min: 2 (137 min)");
+  });
+
+  it("reads the chosen night, 18:00 to 06:00 the next day, not the shift running now", async () => {
+    await fetchMaintenanceShiftReport(NOW, { window: shiftWindowFor("2026-10-27", "night") });
+    const ev = calls.find((c) => c.table === "downtime_events")!;
+    expect(ev.ops).toContain('lt("stopped_at","2026-10-28T06:00:00.000Z")');
+    expect(ev.ops).toContain('or("resumed_at.is.null,resumed_at.gt.2026-10-27T18:00:00.000Z,stopped_at.gte.2026-10-27T18:00:00.000Z")');
+  });
+
+  it("does not read today's pending orders for a shift too old for a hand-over", async () => {
+    await fetchMaintenanceShiftReport(NOW, { window: shiftWindowFor("2026-10-27", "night") });
+    expect(calls.filter((c) => c.table === "work_orders" && c.ops.some((o) => o.startsWith("neq(")))).toHaveLength(0);
+  });
+
+  it("reads them for the running shift, and refuses the whole report if that read fails", async () => {
+    let n = 0;
+    tables.work_orders = { data: [] };
+    await fetchMaintenanceShiftReport(NOW);
+    n = calls.filter((c) => c.table === "work_orders" && c.ops.some((o) => o.startsWith("neq("))).length;
+    expect(n).toBe(1);
+    tables.work_orders = { error: { message: "timeout" } };
+    await expect(fetchMaintenanceShiftReport(NOW)).rejects.toThrow(/Could not read/);
   });
 });

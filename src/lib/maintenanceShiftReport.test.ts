@@ -109,7 +109,7 @@ describe("buildMaintenanceShiftReport", () => {
     }));
     expect(r.items).toHaveLength(0);
     expect(r.plannedStops).toBe(1);
-    expect(r.text).toContain("1 planned stop not counted");
+    expect(r.text).toContain("- Planned stops not counted: 1");
   });
 
   it("ignores a stop that starts after the shift and one that ended before it", () => {
@@ -159,8 +159,15 @@ describe("buildMaintenanceShiftReport", () => {
 
   it("says which shift, date and source the numbers came from", () => {
     const r = buildMaintenanceShiftReport(data());
-    expect(r.text).toContain("**Day Shift (06-18)** · 29/10/2026");
-    expect(r.text).toMatch(/Source: downtime_events, 06:00–18:00 29\/10\/2026 \(Europe\/London\), read 14:30\. 0 stops on 0 orders/);
+    expect(r.text.split("\n").slice(0, 6)).toEqual([
+      "**Maintenance Report**",
+      "Shift: Day Shift (06:00–18:00)",
+      "Date: 29/10/2026",
+      "Period: 29/10/2026 06:00 → 29/10/2026 18:00 (Europe/London) — shift still running, figures up to now",
+      "Generated: 29/10/2026 14:30",
+      "Source: downtime_events, work_orders, wo_downtime_exclusions — read when the report was generated",
+    ]);
+    expect(r.text).toContain("- Stops recorded: 0 stops on 0 work orders");
   });
 
   it("total minutes on each item equal the sum of the stops listed", () => {

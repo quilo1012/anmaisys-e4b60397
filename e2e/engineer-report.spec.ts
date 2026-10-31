@@ -41,7 +41,11 @@ const WOS = [
   { id: "w3", wo_number: 103, line_at_time: "Line 3", description: "Jam", resolution_notes: "Cleared", status: "finished", wo_type: "corrective", line: null },
 ];
 
+/** Every downtime_events URL the page asked for, to check which window it read. */
+const asked: string[] = [];
+
 async function stub(page: Page, opts: { failEvents?: boolean } = {}) {
+  asked.length = 0;
   await page.clock.setFixedTime(NOW);
   await page.addInitScript(
     ([ref, session]) => window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session)),
@@ -60,6 +64,7 @@ async function stub(page: Page, opts: { failEvents?: boolean } = {}) {
       return json([{ id: FAKE_SESSION.user.id, name: "Fixture Engineer", email: FAKE_SESSION.user.email, active: true }]);
     }
     if (url.includes("/rest/v1/downtime_events") && url.includes("stopped_at=lt.")) {
+      asked.push(decodeURIComponent(url));
       if (opts.failEvents) return json({ message: "upstream timeout" }, 503);
       return json(EVENTS);
     }
@@ -70,36 +75,77 @@ async function stub(page: Page, opts: { failEvents?: boolean } = {}) {
 
 test.use({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
 
-test("Report downloads the stops the database returned, for the shift at the click", async ({ page }) => {
-  await stub(page);
+async function openDialog(page: Page) {
   await page.goto("/dashboard/engineer");
   const button = page.getByRole("button", { name: /^Report$/ });
   await expect(button).toBeVisible({ timeout: 20_000 });
-  const [download] = await Promise.all([page.waitForEvent("download"), button.click()]);
-  expect(download.suggestedFilename()).toBe("maintenance_report_2026-10-29_0600-1800.txt");
+  await button.click();
+  const dialog = page.getByRole("dialog", { name: "Maintenance Shift Report" });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+test("Current shift as TXT: the file holds exactly the stops the database returned", async ({ page }) => {
+  await stub(page);
+  const dialog = await openDialog(page);
+  await expect(dialog.getByText("Day Shift · 29/10/2026")).toBeVisible();
+  await dialog.getByRole("radio", { name: "TXT" }).click();
+  const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Generate Report" }).click()]);
+  expect(download.suggestedFilename()).toBe("Maintenance_Report_Day_Shift_2026-10-29.txt");
   const text = await readFile((await download.path())!, "utf8");
-  expect(text.split("\n").slice(0, 6)).toEqual([
-    "**Maintenance:**",
-    "**Day Shift (06-18)** · 29/10/2026",
+  expect(text.split("\n").slice(0, 3)).toEqual(["**Maintenance Report**", "Shift: Day Shift (06:00–18:00)", "Date: 29/10/2026"]);
+  const body = text.slice(text.indexOf("**Stops over 15 minutes**")).split("\n").slice(1, 5);
+  expect(body).toEqual([
     "**Line 2:** Reset sensor (WO-101)",
     "Downtime: 47m",
     "**Line 7:** Filler leak (in progress) (WO-102)",
     "Downtime: 90m so far (still stopped)",
   ]);
   expect(text).not.toContain("WO-103");
-  expect(text).not.toMatch(/no issues/i);
-  expect(text).toContain("3 stops on 3 orders; 2 listed over 15 min");
+  expect(text).toContain("- Stops recorded: 3 stops on 3 work orders");
+  expect(asked[0]).toContain("stopped_at=lt.2026-10-29T18:00:00.000Z");
+  await expect(dialog.getByText("Checked")).toBeVisible();
 });
 
-test("Report downloads nothing when the stoppages cannot be read", async ({ page }) => {
+test("Yesterday — Night reads 28/10 18:00 to 29/10 06:00 and names the file after that night", async ({ page }) => {
+  await stub(page);
+  const dialog = await openDialog(page);
+  await dialog.getByRole("radio", { name: "Yesterday — Night" }).click();
+  await expect(dialog.getByText("Night Shift · 28/10/2026")).toBeVisible();
+  await expect(dialog.getByText("28/10/2026 18:00 → 29/10/2026 06:00 (Europe/London)")).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Generate Report" }).click()]);
+  expect(download.suggestedFilename()).toBe("Maintenance_Report_Night_Shift_2026-10-28.pdf");
+  expect(asked[0]).toContain("stopped_at=lt.2026-10-29T06:00:00.000Z");
+  expect(asked[0]).toContain("resumed_at.gt.2026-10-28T18:00:00.000Z");
+});
+
+test("Custom date, Excel: any earlier day can be chosen", async ({ page }) => {
+  await stub(page);
+  const dialog = await openDialog(page);
+  await dialog.getByLabel("Report date").fill("2026-10-20");
+  await dialog.getByRole("radio", { name: "Day Shift (06:00–18:00)" }).click();
+  await dialog.getByRole("radio", { name: "Excel" }).click();
+  const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Generate Report" }).click()]);
+  expect(download.suggestedFilename()).toBe("Maintenance_Report_Day_Shift_2026-10-20.xlsx");
+  expect(asked[0]).toContain("stopped_at=lt.2026-10-20T17:00:00.000Z"); // 18:00 BST
+});
+
+test("A shift that has not started cannot be generated", async ({ page }) => {
+  await stub(page);
+  const dialog = await openDialog(page);
+  await dialog.getByRole("radio", { name: "Night Shift (18:00–06:00)" }).click(); // tonight, 29/10 at 14:30
+  await expect(dialog.getByText("That shift has not started yet.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Generate Report" })).toBeDisabled();
+  expect(asked).toHaveLength(0);
+});
+
+test("Nothing is downloaded when the stoppages cannot be read", async ({ page }) => {
   await stub(page, { failEvents: true });
-  await page.goto("/dashboard/engineer");
-  const button = page.getByRole("button", { name: /^Report$/ });
-  await expect(button).toBeVisible({ timeout: 20_000 });
+  const dialog = await openDialog(page);
   let downloaded = false;
   page.on("download", () => { downloaded = true; });
-  await button.click();
-  await expect(page.getByText("Report not downloaded").first()).toBeVisible({ timeout: 10_000 });
+  await dialog.getByRole("button", { name: "Generate Report" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Could not read the line stoppages", { timeout: 20_000 });
   await page.waitForTimeout(500);
   expect(downloaded).toBe(false);
 });

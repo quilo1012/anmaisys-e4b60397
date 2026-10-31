@@ -4,8 +4,10 @@
 -- (More → Cloud → SQL editor) ou noutro cliente com acesso de leitura.
 --
 -- Como usar:
---   1. Descarregar o relatório (botão Report) e anotar o turno e a data do cabeçalho,
---      p. ex. "**Day Shift (06-18)** · 29/10/2026".
+--   1. Gerar o relatório (botão Report → turno e data → Generate Report) e anotar o
+--      "Period" do cabeçalho, p. ex. "Period: 28/10/2026 18:00 → 29/10/2026 06:00".
+--      O formato Excel traz a folha "All stops read" com as mesmas colunas e o mesmo
+--      veredicto por paragem que esta query: é a comparação mais directa.
 --   2. Pôr esse turno nas duas linhas marcadas com  <<<  abaixo (hora de Londres).
 --   3. Correr. Cada linha é uma paragem que tocou o turno, com os minutos contados
 --      pelas mesmas regras do relatório e a coluna `no_relatorio` a dizer se devia
@@ -15,8 +17,9 @@
 --          mesma ordem (WO-nº), a mesma linha e os mesmos minutos (±1);
 --        - nenhuma outra ordem pode estar no ficheiro;
 --        - 'INVERTED' tem de aparecer em "NOT VALIDATED";
---        - o rodapé "N stops on M orders" = número de linhas com no_relatorio
---          diferente de 'INVERTED' / 'outside', e ordens distintas dessas.
+--        - "Stops recorded: N stops on M work orders" no Summary = número de linhas
+--          com no_relatorio diferente de 'INVERTED' / 'outside' / warehouse, e
+--          ordens distintas dessas.
 --   Correr pouco depois de descarregar: uma paragem aberta conta até now().
 --
 -- Diferença conhecida: o relatório junta exclusões sobrepostas antes de as subtrair
