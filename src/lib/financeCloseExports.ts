@@ -178,9 +178,11 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   });
 
   autoTable(doc, {
-    startY: y,
+    startY: HEADER_H + 6,
     head: [bandRow, cols.map((c) => c.header)],
-    body: input.rows.map((r) => closeDisplayValues(r, cols)),
+    // The totals close the register as its last row, under a rule — the sheet adds
+    // itself up instead of carrying a separate summary above it.
+    body: [...input.rows.map((r) => closeDisplayValues(r, cols)), closeTotalValues(input.rows, cols)],
     theme: "grid",
     styles: { font: "FinanceReport", fontSize: 6.4, cellPadding: 0.65, lineColor: CARD_BORDER, lineWidth: 0.1, overflow: "linebreak" },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 5.5 },
@@ -188,6 +190,14 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     columnStyles,
     margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
     rowPageBreak: "avoid",
+    didParseCell: (d: any) => {
+      if (d.section === "body" && d.row.index === input.rows.length) {
+        d.cell.styles.fontStyle = "bold";
+        d.cell.styles.fillColor = [255, 255, 255];
+        d.cell.styles.lineWidth = { top: 0.4, right: 0.1, bottom: 0.1, left: 0.1 };
+        d.cell.styles.lineColor = { top: INK, right: CARD_BORDER, bottom: CARD_BORDER, left: CARD_BORDER };
+      }
+    },
     didDrawPage: () => header(),
   });
 
