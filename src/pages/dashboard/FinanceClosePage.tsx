@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2, Columns3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { downloadCsv } from "@/lib/exportCsv";
 import { exportClosePdf, exportCloseExcel, type CloseExportInput } from "@/lib/financeCloseExports";
-import { CLOSE_COLUMNS, closeBandSpans, pickPrintColumns, printOrientation } from "@/lib/financeCloseColumns";
+import { CLOSE_COLUMNS, closeBandSpans, closeTotalValues, pickPrintColumns, printOrientation } from "@/lib/financeCloseColumns";
 import { ClosePrintSettings, ClosePrintTable, usePrintColumnKeys } from "@/components/workforce/FinanceClosePrint";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useEmployees, useOvertimeEntries } from "@/hooks/useWorkforce";
@@ -29,13 +29,12 @@ import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
   closeCrews, filterByCrew, crewLabel, NO_CREW,
   closeDepartments, departmentLabel, filterClose, inDepartments, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
-  summaryCrewRows, searchClose, closeLineOptions, NO_LINE,
+  searchClose, closeLineOptions, NO_LINE,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 import { plannedBoardDates, periodElapsedTo } from "@/lib/shiftBalance";
 import { partDay } from "@/lib/partDay";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
-import { Figure, FigureRow } from "@/components/ui/Figure";
 import { currentShift } from "@/lib/operationalShift";
 
 /** `10/08/2026`. A fábrica lê as datas ao contrário, e esta folha lê-se lá. */
