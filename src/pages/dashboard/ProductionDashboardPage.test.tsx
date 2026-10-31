@@ -131,7 +131,7 @@ describe("Production dashboard", () => {
     expect(state.calls.allocations).toBe(0);
     expect(state.calls.overtime).toBeGreaterThan(0);
     const shortcuts = screen.getByRole("navigation", { name: "Quick actions" });
-    expect(within(shortcuts).queryByRole("link", { name: "Headcount Board" })).not.toBeInTheDocument();
+    expect(within(shortcuts).queryByRole("link", { name: "Board" })).not.toBeInTheDocument();
     expect(within(shortcuts).getByRole("link", { name: "Overtime" })).toHaveAttribute("href", "/dashboard/overtime");
   });
 

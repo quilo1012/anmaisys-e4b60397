@@ -212,13 +212,13 @@ function openTab(name: string) {
 describe("os dois separadores", () => {
   it("a banda diz qual dos dois registos está aberto", async () => {
     renderPage();
-    await screen.findByText(/Hours clocked, from TimeMoto/);
+    await screen.findByText(/TimeMoto Attendance Import and Records\. · \d/);
 
     openTab("Board marks");
 
     await waitFor(() =>
-      expect(screen.queryByText(/Hours clocked, from TimeMoto/)).not.toBeInTheDocument());
-    expect(screen.getByText(/headcount board/i)).toBeInTheDocument();
+      expect(screen.queryByText(/TimeMoto Attendance Import and Records\. · \d/)).not.toBeInTheDocument());
+    expect(screen.getByText(/Board records shown separately/)).toBeInTheDocument();
   });
 
   it("cada folha leva o papel de que precisa", async () => {
