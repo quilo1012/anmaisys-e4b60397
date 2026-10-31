@@ -139,11 +139,11 @@ describe("procurar no Finance Close", () => {
   it("leva a pesquisa ao papel: o total impresso é o das filas impressas", async () => {
     const c = await renderClose();
     search("ana");
-    const total = c.querySelector("table.close-summary tr.close-total")!;
-    expect(total.textContent).toContain("matching “ana”");
-    // Duas pessoas, 2 h + 5 h de overtime.
-    expect(total.children[1].textContent).toBe("2");
-    expect(total.children[4].textContent).toBe("7.00");
+    // O total é a última fila do registo, e é o das filas impressas: duas pessoas,
+    // 2 h + 5 h de overtime.
+    const total = c.querySelector("tr.close-total-row")!;
+    expect(total.textContent).toContain("Total · 2 people");
+    expect(total.textContent).toContain("7.00");
     expect(c.querySelector("th.print-caption")!.textContent).toContain("matching “ana”");
   });
 });
