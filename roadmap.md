@@ -1,5 +1,10 @@
 # Roadmap
 
+## End-to-end module labels and Finance Close output (31 Oct)
+- [ ] Correct all seven exact names/descriptions at the actual navigation and heading sources, preserving routes and permissions.
+- [ ] Correct Finance Close PDF/print clipping, formatting and completeness without changing figures or records.
+- [ ] Verify authenticated preview labels, generate/download real PDF and print output, inspect every page and compare against screen; provide PDF and changed-file report. No publishing or deployment.
+
 ## Targeted seven-module correction
 - [x] Correct verified Board/User Management navigation names, Board/Attendance/Overtime headings and all seven descriptions; reuse existing tabs/shortcuts and preserve route/action/role gates, design and workflows.
 - [x] Run 297 existing tests across 14 files (all pass), including migration coverage; automatic preview build OK. Browser correctly redirects to login; signed-in module verification blocked because no requesting-user session could be minted. No database changes or deployment. Existing iTouch controls remain in System with their original permissions.
