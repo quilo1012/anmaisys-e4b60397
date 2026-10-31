@@ -1,5 +1,9 @@
 # Roadmap
 
+## Targeted seven-module correction
+- [ ] Correct only verified navigation/header name and description mismatches; preserve routes, permissions, design and workflows.
+- [ ] Run relevant existing tests and verify module navigation read-only; no database changes or deployment.
+
 ## Telemetry errors (29 Oct)
 - [x] Rechecked 20:58 audit error: no current client reads table_name; both reads in useAuditLogs.ts already use deployed columns. Extended audit column regression for match/object and template selects; added missing-tab presence guard and valid-session/tab tests. All 30 focused tests pass; signed-in manager/Headcount/Audit Logs check sends zero presence RPCs or warnings, audit returns 206 with rows, build OK. The reported published-site query is not reproduced in current code; no production fix/deployment claimed. No database changes or publishing.
 - [x] Check every audit_logs query against the nine existing columns; useAuditLogs.ts already uses entity_type and no current source references table_name. Added auditLogsColumns.test.ts; signed-in Audit Logs loads records with HTTP 206 and no invalid-column query.
