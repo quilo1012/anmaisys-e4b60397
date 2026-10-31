@@ -32,6 +32,7 @@ import {
   type CloseColumn,
 } from "@/lib/financeCloseColumns";
 import type { ClosePerson, CloseTotals } from "@/lib/financeClose";
+import { loadFinanceReportFont } from "@/lib/financeReportFont";
 
 export interface CloseExportInput {
   /** The pay period's name, e.g. "August 2026". */
@@ -63,6 +64,7 @@ export interface CloseExportInput {
    * The workbook ignores this: it is the one payroll sums, and it keeps every column.
    */
   columns?: CloseColumn[];
+  payrollRegister?: { name: string; employeeRef: string | null; department: string; hours: number; note: string; importedAt: string | null; sourceNote: string | null }[];
 }
 
 /** The subtitle both formats carry: which period, and which slice of it. */
@@ -74,7 +76,7 @@ export function closeSubtitle(
   // counts are a fifth of the rota, so it says so on the line under the title.
   const running = i.countedTo && i.countedTo !== i.to;
   return [
-    `${i.periodName} · ${i.from} → ${i.to}${running ? ` · counted to ${i.countedTo}` : ""}`,
+    `${i.periodName} · ${i.from.split("-").reverse().join("/")} → ${i.to.split("-").reverse().join("/")}${running ? ` · counted to ${i.countedTo?.split("-").reverse().join("/")}` : ""}`,
     i.scope || "Every crew, every department",
   ].join("  ·  ");
 }
@@ -122,14 +124,29 @@ const hrs = (n: number) => `${n.toFixed(2)} h`;
  */
 export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  await loadFinanceReportFont(doc);
+  doc.setProperties({ title: "AN Maintenance | Finance Close", subject: closeSubtitle(input), author: "Applied Nutrition" });
   const pageW = doc.internal.pageSize.getWidth();
   const logo = await loadLogoDataUrl();
   const generatedOn = new Date().toLocaleString("en-GB");
   const subtitle = closeSubtitle(input);
 
-  const header = () => drawReportHeader(doc, { title: "Finance Close", subtitle, logo });
-  const footer = (pageNumber: number) =>
-    drawReportFooter(doc, { pageNumber, generatedOn, generatedBy: input.generatedBy });
+  const header = () => {
+    doc.setFillColor(...NAVY); doc.rect(0, 0, pageW, HEADER_H, "F");
+    if (logo) doc.addImage(logo, "JPEG", M, 5, 25, 15);
+    doc.setTextColor(255); doc.setFont("FinanceReport", "bold"); doc.setFontSize(13);
+    doc.text("Finance Close", pageW - M, 9, { align: "right" });
+    doc.setFont("FinanceReport", "normal"); doc.setFontSize(7);
+    doc.text(doc.splitTextToSize(subtitle, pageW - M * 2 - 34), pageW - M, 15, { align: "right" });
+    doc.setTextColor(...INK);
+  };
+  const footer = (pageNumber: number, pages: number) => {
+    const h = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(...CARD_BORDER); doc.line(M, h - 10, pageW - M, h - 10);
+    doc.setFont("FinanceReport", "normal"); doc.setFontSize(6.5); doc.setTextColor(...SUBTLE);
+    doc.text(`Applied Nutrition · Confidential · Generated ${generatedOn}`, M, h - 6);
+    doc.text(`Page ${pageNumber} of ${pages}`, pageW - M, h - 6, { align: "right" });
+  };
   header();
 
   // ── The figures, in the order the screen leads with ────────────────────
@@ -149,14 +166,19 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   const gap = 3.5;
   const cardW = (pageW - M * 2 - gap * (cards.length - 1)) / cards.length;
   const cardY = HEADER_H + 6;
-  cards.forEach((c, i) => drawKpiCard(doc, {
-    x: M + i * (cardW + gap), y: cardY, w: cardW, h: 20,
-    label: c.label, value: c.value, valueColor: c.color, accent: c.accent,
-  }));
+  cards.forEach((c, i) => {
+    const x = M + i * (cardW + gap);
+    doc.setFillColor(...CARD_BG); doc.setDrawColor(...CARD_BORDER);
+    doc.roundedRect(x, cardY, cardW, 20, 1.5, 1.5, "FD");
+    doc.setFont("FinanceReport", "bold"); doc.setFontSize(5.5); doc.setTextColor(...SUBTLE);
+    doc.text(c.label.toUpperCase(), x + 2, cardY + 5);
+    doc.setFontSize(12); doc.setTextColor(...(c.color ?? INK));
+    doc.text(c.value, x + 2, cardY + 14);
+  });
 
   // ── The warning, before any table ──────────────────────────────────────
   let y = cardY + 20 + 6;
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...SUBTLE);
+  doc.setFont("FinanceReport", "normal"); doc.setFontSize(7); doc.setTextColor(...SUBTLE);
   const warn = doc.splitTextToSize(closeWarningText(t), pageW - M * 2 - 4);
   doc.setFillColor(...CARD_BG); doc.setDrawColor(...CARD_BORDER);
   doc.roundedRect(M, y, pageW - M * 2, warn.length * 3.2 + 4, 1.5, 1.5, "FD");
@@ -175,10 +197,10 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
         totals.payrollEmpty ? "not comparable" : hrs(totals.deltaHours),
       ]),
       theme: "grid",
-      styles: { fontSize: 7.5, cellPadding: 1.6, lineColor: CARD_BORDER, lineWidth: 0.1 },
+      styles: { font: "FinanceReport", fontSize: 7.5, cellPadding: 1.6, lineColor: CARD_BORDER, lineWidth: 0.1 },
       headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 7.5 },
       columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
-      margin: { left: M, right: M, top: HEADER_H + 4 },
+      margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
       didDrawPage: () => header(),
     });
     y = (doc as any).lastAutoTable.finalY + 6;
@@ -215,16 +237,44 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     head: [bandRow, cols.map((c) => c.header)],
     body: input.rows.map((r) => closeDisplayValues(r, cols)),
     theme: "grid",
-    styles: { fontSize: 6.4, cellPadding: 1.2, lineColor: CARD_BORDER, lineWidth: 0.1, overflow: "linebreak" },
+    styles: { font: "FinanceReport", fontSize: 6.4, cellPadding: 1.2, lineColor: CARD_BORDER, lineWidth: 0.1, overflow: "linebreak" },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 6.4 },
     alternateRowStyles: { fillColor: CARD_BG },
     columnStyles,
-    margin: { left: M, right: M, top: HEADER_H + 4 },
+    margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
+    rowPageBreak: "avoid",
     didDrawPage: () => header(),
   });
 
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 5,
+    head: [["Overtime register · payroll balances"], ["Employee", "Emp. no.", "Department", "Balance (h)", "Note / import source"]],
+    body: input.payrollRegister?.length ? input.payrollRegister.map((r) => [
+      r.name, r.employeeRef ?? "—", r.department || "to confirm", r.hours.toFixed(2),
+      [r.note || (r.hours < 0 ? "Sickness against banked hours" : ""), r.sourceNote,
+        r.importedAt ? new Date(r.importedAt).toLocaleString("en-GB") : null].filter(Boolean).join(" · "),
+    ]) : [[{ content: "No overtime recorded for this period", colSpan: 5 }]],
+    styles: { font: "FinanceReport", fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
+    headStyles: { fillColor: NAVY, fontStyle: "bold" },
+    columnStyles: { 3: { halign: "right" } },
+    margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
+    rowPageBreak: "avoid", didDrawPage: header,
+    didParseCell: (data) => {
+      if (data.section === "head" && data.row.index === 0) data.cell.colSpan = 5;
+    },
+  });
+
+  autoTable(doc, {
+    startY: (doc as any).lastAutoTable.finalY + 5,
+    body: [["Shifts come from the board; hours come from the clocks. Part day is hours from the board, not days away. Payroll balances are not hours worked and are not added to clock overtime."],
+      ...(t.onUnplannedBoard > 0 ? [[`${t.onUnplannedBoard} people have a rota but no board in this period; their shifts cannot be measured.`]] : []),
+      ["Prepared by: ____________________    Checked by: ____________________    Date: ____________________"]],
+    theme: "plain", styles: { font: "FinanceReport", fontSize: 7, cellPadding: 2 },
+    margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 }, didDrawPage: header,
+  });
+
   const pages = doc.getNumberOfPages();
-  for (let i = 1; i <= pages; i++) { doc.setPage(i); footer(i); }
+  for (let i = 1; i <= pages; i++) { doc.setPage(i); footer(i, pages); }
 
   return doc;
 }
