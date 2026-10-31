@@ -1258,27 +1258,9 @@ select:-webkit-autofill {
     border-bottom: 0 !important;
   }
 
-  /* O resumo: a mesma grelha, em cima, com o total do rodapé por baixo de uma
-     régua. Substitui as oito caixas. */
-  .close-sheet .close-summary {
-    table-layout: fixed !important;
-  }
-
-  /* A tripulação não precisa de um terço da folha. Com largura automática o nome
-     tomava a folga toda e deixava "People" a meio caminho do nada; fixa, os
-     números do resumo caem por cima dos números do registo. */
-  .close-sheet .close-summary th:first-child,
-  .close-sheet .close-summary td:first-child {
-    width: 52mm;
-  }
-
-  .close-sheet .close-summary th,
-  .close-sheet .close-summary td {
-    padding: 1.5mm 2mm !important;
-    font-size: 7.5pt !important;
-  }
-
-  .close-sheet .close-total td {
+  /* A fila de totais, a última do registo: uma régua por cima e negrito, e mais
+     nada — o documento começa no registo e fecha nele. */
+  .close-sheet .close-total-row td {
     border-top: 1pt solid #2B2F36 !important;
     border-bottom: 0 !important;
     font-weight: 600 !important;
