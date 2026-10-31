@@ -218,7 +218,11 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
 
   autoTable(doc, {
     startY: (doc as any).lastAutoTable.finalY + 5,
-    body: [["Shifts come from the board; hours come from the clocks. Part day is hours from the board, not days away. Payroll balances are not hours worked and are not added to clock overtime."],
+    // The warning that must travel with the numbers, at the end where a document's
+    // notes live — it used to sit above the register as a boxed paragraph, pushing
+    // the people off the first page.
+    body: [[closeWarningText(t)],
+      ["Shifts come from the board; hours come from the clocks. Part day is hours from the board, not days away. Payroll balances are not hours worked and are not added to clock overtime."],
       ...(t.onUnplannedBoard > 0 ? [[`${t.onUnplannedBoard} people have a rota but no board in this period; their shifts cannot be measured.`]] : []),
       ["Prepared by: ____________________    Checked by: ____________________    Date: ____________________"]],
     theme: "plain", styles: { font: "FinanceReport", fontSize: 7, cellPadding: 2 },
