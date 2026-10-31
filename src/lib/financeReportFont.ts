@@ -1,10 +1,8 @@
 import type jsPDF from "jspdf";
-import regular from "@/assets/finance-report-font.asset.json";
-import bold from "@/assets/finance-report-font-bold.asset.json";
 
 let fonts: Promise<string[]> | undefined;
 export async function loadFinanceReportFont(doc: jsPDF) {
-  fonts ??= Promise.all([regular.url, bold.url].map(async (url) => {
+  fonts ??= Promise.all(["/fonts/finance-report.ttf", "/fonts/finance-report-bold.ttf"].map(async (url) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error("The report font could not be loaded.");
     const bytes = new Uint8Array(await response.arrayBuffer());
