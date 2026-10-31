@@ -22,13 +22,12 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import {
-  NAVY, INK, SUBTLE, CARD_BORDER, CARD_BG, GREEN_TX, AMBER_TX,
+  NAVY, INK, SUBTLE, CARD_BORDER, CARD_BG,
   REPORT_MARGIN as M, HEADER_H,
   loadLogoDataUrl,
-  type RGB,
 } from "@/lib/reportTheme";
 import {
-  CLOSE_COLUMNS, closeBandSpans, closeDisplayValues, closeExportValues,
+  CLOSE_COLUMNS, closeBandSpans, closeDisplayValues, closeExportValues, closeTotalValues,
   type CloseColumn,
 } from "@/lib/financeCloseColumns";
 import type { ClosePerson, CloseTotals } from "@/lib/financeClose";
@@ -107,20 +106,22 @@ export function closeWarningText(totals: CloseTotals): string {
   return base;
 }
 
-const hrs = (n: number) => `${n.toFixed(2)} h`;
-
 // ============================================================
 // PDF
 // ============================================================
 
 /**
- * Landscape, and not by preference — and still landscape when the print settings
- * narrow the columns: the eight figure cards across the top need the width.
+ * Landscape, and not by preference.
  *
  * Eighteen columns across a portrait A4 leaves nine millimetres each — narrower than
  * "Opening bank" and far narrower than a name. The close was already unprintable once,
  * which is what the last sheet-of-hours commit was about; a portrait version of this
  * would be the same failure with more columns.
+ *
+ * The document starts at the register: no figure cards, no crew summary, no warning
+ * box above the table. The totals close the register as its last row, and the warning
+ * that must travel with the numbers is in the notes at the end, where a document's
+ * notes live.
  */
 export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
