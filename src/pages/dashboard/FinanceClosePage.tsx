@@ -976,6 +976,24 @@ export default function FinanceClosePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  {/* A fila de totais: o registo fecha a somar-se a si próprio, em
+                      vez de deixar a soma num bloco separado por cima da tabela. */}
+                  <TableFooter>
+                    <TableRow className="hover:bg-transparent">
+                      {closeTotalValues(shown, screenColumns).map((v, i) => (
+                        <TableCell
+                          key={screenColumns[i].key}
+                          className={[
+                            screenColumns[i].align === "right" ? "text-right" : "",
+                            i > 0 && screenColumns[i - 1].band !== screenColumns[i].band ? "border-l" : "",
+                            "font-figure font-semibold tabular-nums",
+                          ].filter(Boolean).join(" ") || undefined}
+                        >
+                          {v}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </div>
               </>
