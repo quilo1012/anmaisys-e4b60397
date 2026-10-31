@@ -221,12 +221,12 @@ export const navItems: NavItem[] = [
   // pattern and fourteen no department, so it would be read as the rota when it is
   // still an import. The route, the screen, the hooks and the data all remain —
   // /dashboard/workforce still opens for an admin who types it.
-  { title: "Board", description: "Workforce planning and Headcount Management.", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
-  { title: "Employee", description: "Employee Registration and Records.", url: "/dashboard/people", icon: Users, roles: ["manager"], group: "Production", action: "employees.view" },
+  { title: "Board", description: "Workforce Planning & Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
+  { title: "Employee", description: "Employee Records & Information", url: "/dashboard/people", icon: Users, roles: ["manager"], group: "Production", action: "employees.view" },
   // Overtime is asked for before it is worked, and the ask is the manager's: it is
   // the one Workforce screen a manager reaches without the admin-only board, so it
   // gets a row of its own rather than living only on the board's tab bar.
-  { title: "Overtime", description: "Available Overtime Publication and Employee Bookings.", url: "/dashboard/overtime", icon: HandCoins, roles: ["manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
+  { title: "Overtime", description: "Overtime Shifts & Bookings", url: "/dashboard/overtime", icon: HandCoins, roles: ["manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
   // The floor's side of the same thing: the asks that apply to you, and Yes / No.
   //
   // Sem `operator`: essas contas são de LINHA, não de pessoa — ver
@@ -343,7 +343,7 @@ export const navItems: NavItem[] = [
   // Users stays in the sidebar for managers, who can reach it but have no business
   // in the rest of the hub. Folding it in would have cost them the link or given
   // them the audit trail and the integration settings to go with it.
-  { title: "User Management", description: "User Accounts, Permissions and iTouch API.", url: "/users/manage", icon: Users, roles: ["manager"], group: "Administration", action: "users.manage" },
+  { title: "User Management", description: "Users, Roles & Permissions", url: "/users/manage", icon: Users, roles: ["manager"], group: "Administration", action: "users.manage" },
   // Beside Users for the same reason: the manager is the "supervisor" the badge prompt
   // sends people to. The admin reaches it from the System hub.
   { title: "Link accounts", url: "/dashboard/link-accounts", icon: Link2, roles: ["manager"], group: "Administration", action: "employees.link_login" },

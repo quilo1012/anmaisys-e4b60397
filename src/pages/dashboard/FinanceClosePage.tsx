@@ -470,6 +470,12 @@ export default function FinanceClosePage() {
     byCrew: byShift.map((t) => ({ crew: crewLabel(t.shift), totals: t })),
     fileBase,
     columns: printColumns,
+    payrollRegister: otShown.map((entry) => {
+      const employee = (otEmployees ?? []).find((e) => e.id === entry.employee_id);
+      return { name: employee?.full_name ?? "Employee no longer on file", employeeRef: employee?.employee_ref ?? null,
+        department: employee?.department ?? "", hours: Number(entry.hours), note: entry.note ?? "",
+        importedAt: entry.imported_at ?? null, sourceNote: entry.source_note ?? null };
+    }),
   });
 
   /* ─── Paper ───────────────────────────────────────────────────────────── */
@@ -572,7 +578,7 @@ export default function FinanceClosePage() {
 
         <ModuleHeader
           title="Finance Close"
-          description={`Overtime Payroll Period Closing. · ${headerDescription}`}
+          description={`Overtime Verification & Payroll · ${headerDescription}`}
           // Todo o `<header>` é escondido na impressão, e este carrega o nome do
           // documento, o período, as datas e o filtro que o produziu. Sem `print-keep`
           // a folha começava na tabela dos turnos: uma folha de pagamento sem data
@@ -847,8 +853,8 @@ export default function FinanceClosePage() {
             <b>Each period settles on its own.</b> Overtime is what this period ended above zero
             and hours deducted is what it ended below. <b>Opening</b> and <b>closing</b> are the hour
             bank — the running history, printed so a person paid 5 h this period can still be seen
-            50 h down since June — and they are <b>not</b> added to what is paid.
-            <b>Payroll OT</b> is what the office keyed in; the two are never added together, and the
+            50 h down since June — and they are <b>not</b> added to what is paid.{" "}
+            <b>Payroll OT</b> is what the office keyed in; the two are never added together, and the{" "}
             <b>Δ</b> is the disagreement to settle before anybody is paid. A dash means that side
             reported nothing, which is not zero.
             {totals.payrollEmpty && (
@@ -1180,7 +1186,7 @@ export default function FinanceClosePage() {
         </div>
 
         {/* Where the Payroll OT column above is filled in. */}
-        <div className="space-y-2 print:hidden">
+        <div className="space-y-2 close-payroll-register">
           <h2 className="text-lg font-semibold tracking-tight">Overtime register</h2>
           <p className="text-sm text-muted-foreground">
             Hours keyed from the payroll sheet. What is entered here becomes the

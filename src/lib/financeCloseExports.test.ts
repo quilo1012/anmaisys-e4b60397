@@ -8,6 +8,8 @@ import {
   type CloseExportInput,
 } from "@/lib/financeCloseExports";
 
+vi.mock("@/lib/financeReportFont", () => ({ loadFinanceReportFont: async () => undefined }));
+
 const PERIOD = { from: "2026-08-10", to: "2026-09-06" };
 
 const person = (over: Partial<ClosePersonInput> = {}): ClosePersonInput => ({
@@ -249,8 +251,8 @@ describe("a period still running", () => {
       periodName: "September 2026", from: "2026-09-07", to: "2026-10-11",
       countedTo: "2026-09-07", scope: "",
     });
-    expect(s).toContain("2026-09-07 → 2026-10-11");
-    expect(s).toContain("counted to 2026-09-07");
+    expect(s).toContain("07/09/2026 → 11/10/2026");
+    expect(s).toContain("counted to 07/09/2026");
   });
 
   it("says nothing extra once the period has closed", () => {
