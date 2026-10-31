@@ -64,7 +64,7 @@ beforeEach(() => window.localStorage.setItem("overtime.mode", "list"));
 describe("OvertimeRequestsPanel", () => {
   it("files each ask under the shift it is for, not the person's crew", () => {
     render(<OvertimeRequestsPanel />);
-    expect(screen.getByRole("heading", { name: /Overtime Management/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Overtime" })).toBeInTheDocument();
 
     const day = screen.getByRole("region", { name: /Day shift/ });
     const night = screen.getByRole("region", { name: /Night shift/ });

@@ -377,16 +377,16 @@ export default function AttendancePage() {
         <div className="no-print"><WorkforceTabs /></div>
 
         <ModuleHeader
-          title="Time &amp; Attendance"
+          title="Attendance"
           // The period, on the band, because the band is the only part of this screen
           // that survives onto paper — and a sheet of hours with no dates on it is a
           // sheet nobody can file or check.
           description={
             tab === "clocks"
-              ? `Hours clocked, from TimeMoto · ${fmtDate(from)} → ${fmtDate(to)}`
+              ? `TimeMoto Attendance Import and Records. · ${fmtDate(from)} → ${fmtDate(to)}`
               // Sem datas: as do quadro são as da tabela, e é a tabela que as leva para
               // o papel, em cada página.
-              : "Days marked on the headcount board"
+              : "TimeMoto Attendance Import and Records. · Board records shown separately"
           }
           // Sem `print-keep`. A banda é o cabeçalho do ECRÃ — navio, sobrancelha do
           // módulo, dois controlos — e ia para o papel por o papel não ter cabeçalho

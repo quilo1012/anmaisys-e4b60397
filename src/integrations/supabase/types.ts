@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      _bkp_gel_machine_20261030: {
+        Row: {
+          action: string
+          old: Json
+          row_id: string
+          saved_at: string
+          tbl: string
+        }
+        Insert: {
+          action: string
+          old: Json
+          row_id: string
+          saved_at?: string
+          tbl: string
+        }
+        Update: {
+          action?: string
+          old?: Json
+          row_id?: string
+          saved_at?: string
+          tbl?: string
+        }
+        Relationships: []
+      }
       _rls_snapshot: {
         Row: {
           linhas: number | null
@@ -1625,6 +1649,35 @@ export type Database = {
           pin_hash?: string
         }
         Relationships: []
+      }
+      headcount_area_hidden: {
+        Row: {
+          area_id: string
+          hidden_at: string
+          hidden_by: string | null
+          shift: string
+        }
+        Insert: {
+          area_id: string
+          hidden_at?: string
+          hidden_by?: string | null
+          shift: string
+        }
+        Update: {
+          area_id?: string
+          hidden_at?: string
+          hidden_by?: string | null
+          shift?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "headcount_area_hidden_area_id_fkey"
+            columns: ["area_id"]
+            isOneToOne: false
+            referencedRelation: "headcount_areas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       headcount_areas: {
         Row: {
@@ -8549,6 +8602,28 @@ export type Database = {
       read_announcement: {
         Args: { p_acknowledge?: boolean; p_id: string }
         Returns: undefined
+      }
+      rebook_my_overtime: {
+        Args: { p_request_id: string }
+        Returns: {
+          answer: string
+          answered_at: string
+          answered_for_date: string | null
+          answered_for_ends_at: string | null
+          answered_for_starts_at: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decision: string | null
+          employee_id: string
+          id: string
+          request_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "overtime_responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       receive_purchase_order: { Args: { _po_id: string }; Returns: Json }
       record_overtime_outcome: {

@@ -1,5 +1,9 @@
 # Roadmap
 
+## Targeted seven-module correction
+- [x] Correct verified Board/User Management navigation names, Board/Attendance/Overtime headings and all seven descriptions; reuse existing tabs/shortcuts and preserve route/action/role gates, design and workflows.
+- [x] Run 297 existing tests across 14 files (all pass), including migration coverage; automatic preview build OK. Browser correctly redirects to login; signed-in module verification blocked because no requesting-user session could be minted. No database changes or deployment. Existing iTouch controls remain in System with their original permissions.
+
 ## Telemetry errors (29 Oct)
 - [x] Rechecked 20:58 audit error: no current client reads table_name; both reads in useAuditLogs.ts already use deployed columns. Extended audit column regression for match/object and template selects; added missing-tab presence guard and valid-session/tab tests. All 30 focused tests pass; signed-in manager/Headcount/Audit Logs check sends zero presence RPCs or warnings, audit returns 206 with rows, build OK. The reported published-site query is not reproduced in current code; no production fix/deployment claimed. No database changes or publishing.
 - [x] Check every audit_logs query against the nine existing columns; useAuditLogs.ts already uses entity_type and no current source references table_name. Added auditLogsColumns.test.ts; signed-in Audit Logs loads records with HTTP 206 and no invalid-column query.

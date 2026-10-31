@@ -48,10 +48,10 @@ const SHIFTS: Shift[] = ["Day", "Night"];
 const iso = (d: Date) => format(d, "yyyy-MM-dd");
 
 const SHORTCUTS: Shortcut[] = [
-  { label: "Headcount Board", to: "/dashboard/headcount", icon: UsersRound, action: "headcount.view" },
+  { label: "Board", to: "/dashboard/headcount", icon: UsersRound, action: "headcount.view" },
   { label: "Overtime", to: "/dashboard/overtime", icon: HandCoins, action: "overtime.manage" },
   { label: "Attendance", to: "/dashboard/attendance", icon: CalendarCheck, action: "workforce.view" },
-  { label: "Leave", to: "/dashboard/leave", icon: CalendarDays, action: "workforce.view" },
+  { label: "Annual Leave", to: "/dashboard/leave", icon: CalendarDays, action: "workforce.view" },
   { label: "RAG Weekly", to: "/dashboard/rag-weekly", icon: Gauge, action: "rag.view" },
   { label: "Production Control", to: "/dashboard/shift-history", icon: History, action: "production.manage" },
   { label: "Reports", to: "/dashboard/reports", icon: FileBarChart, action: "reports.analytics" },

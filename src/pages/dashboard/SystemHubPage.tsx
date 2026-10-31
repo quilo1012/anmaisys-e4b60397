@@ -33,8 +33,8 @@ export interface Tool {
  */
 export const SYSTEM_TOOLS: Tool[] = [
   {
-    title: "Users",
-    description: "Who has an account, what role they hold, and what that role can reach.",
+    title: "User Management",
+    description: "User Accounts, Permissions and iTouch API.",
     url: "/users/manage", icon: Users, action: "users.manage", category: "People",
   },
   {

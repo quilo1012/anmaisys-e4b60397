@@ -203,8 +203,8 @@ export function OvertimeRequestsPanel() {
   return (
     <div className="space-y-4">
       <ModuleHeader
-        title="Overtime Management"
-        description="Manage overtime requests, approvals and shift coverage."
+        title="Overtime"
+        description="Available Overtime Publication and Employee Bookings."
       >
         {mayManage && (
           <Button size="sm" variant="secondary" onClick={() => { setCreateOn(null); setCreating(true); }}>
