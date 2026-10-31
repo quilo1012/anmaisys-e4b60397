@@ -149,63 +149,7 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     doc.text(`Page ${pageNumber} of ${pages}`, pageW - M, h - 6, { align: "right" });
   };
   header();
-
-  // ── The figures, in the order the screen leads with ────────────────────
-  // Overtime paid first: it is the number somebody is about to pay.
   const t = input.totals;
-  const cards: { label: string; value: string; color?: RGB; accent?: RGB }[] = [
-    { label: "Overtime paid", value: hrs(t.overtimeHours), color: GREEN_TX, accent: GREEN_TX },
-    { label: "Hours deducted", value: hrs(t.owedHours), color: t.owedHours > 0 ? AMBER_TX : INK },
-    { label: "Part day", value: hrs(t.partDayHours), color: t.partDayHours > 0 ? AMBER_TX : INK },
-    { label: "Payroll OT", value: t.payrollEmpty ? "—" : hrs(t.payrollOtHours) },
-    // A dash, never "0.00 h" — see closeWarningText.
-    { label: "Gap to settle", value: t.payrollEmpty ? "—" : hrs(t.deltaHours), color: !t.payrollEmpty && Math.abs(t.deltaHours) >= 1 ? AMBER_TX : INK },
-    { label: "Shifts over rota", value: String(t.overtimeShifts) },
-    { label: "Shifts short", value: String(t.deficitShifts), color: t.deficitShifts > 0 ? AMBER_TX : INK },
-    { label: "People", value: String(t.people) },
-  ];
-  const gap = 3.5;
-  const cardW = (pageW - M * 2 - gap * (cards.length - 1)) / cards.length;
-  const cardY = HEADER_H + 6;
-  cards.forEach((c, i) => {
-    const x = M + i * (cardW + gap);
-    doc.setFillColor(...CARD_BG); doc.setDrawColor(...CARD_BORDER);
-    doc.roundedRect(x, cardY, cardW, 20, 1.5, 1.5, "FD");
-    doc.setFont("FinanceReport", "bold"); doc.setFontSize(5.5); doc.setTextColor(...SUBTLE);
-    doc.text(c.label.toUpperCase(), x + 2, cardY + 5);
-    doc.setFontSize(12); doc.setTextColor(...(c.color ?? INK));
-    doc.text(c.value, x + 2, cardY + 14);
-  });
-
-  // ── The warning, before any table ──────────────────────────────────────
-  let y = cardY + 20 + 6;
-  doc.setFont("FinanceReport", "normal"); doc.setFontSize(7); doc.setTextColor(...SUBTLE);
-  const warn = doc.splitTextToSize(closeWarningText(t), pageW - M * 2 - 4);
-  doc.setFillColor(...CARD_BG); doc.setDrawColor(...CARD_BORDER);
-  doc.roundedRect(M, y, pageW - M * 2, warn.length * 3.2 + 4, 1.5, 1.5, "FD");
-  doc.text(warn, M + 2, y + 4.2);
-  y += warn.length * 3.2 + 4 + 6;
-  doc.setTextColor(0);
-
-  // ── The split by crew, whatever the filter says ────────────────────────
-  if (input.byCrew.length > 1) {
-    autoTable(doc, {
-      startY: y,
-      head: [["Crew", "People", "Overtime paid", "Hours deducted", "Payroll OT", "Gap to settle"]],
-      body: input.byCrew.map(({ crew, totals }) => [
-        crew, totals.people, hrs(totals.overtimeHours), hrs(totals.owedHours),
-        totals.payrollEmpty ? "—" : hrs(totals.payrollOtHours),
-        totals.payrollEmpty ? "not comparable" : hrs(totals.deltaHours),
-      ]),
-      theme: "grid",
-      styles: { font: "FinanceReport", fontSize: 7.5, cellPadding: 1.6, lineColor: CARD_BORDER, lineWidth: 0.1 },
-      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 7.5 },
-      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
-      margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
-      didDrawPage: () => header(),
-    });
-    y = (doc as any).lastAutoTable.finalY + 6;
-  }
 
   // ── The people ─────────────────────────────────────────────────────────
   // Two header rows: the bands, then the names. Read off CLOSE_COLUMNS, so the spans
