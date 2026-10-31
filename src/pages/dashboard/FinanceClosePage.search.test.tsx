@@ -99,7 +99,8 @@ async function renderClose() {
 
 const screenRows = (c: HTMLElement) => [...c.querySelectorAll("table.close-screen tbody tr")];
 const printIds = (c: HTMLElement) =>
-  [...c.querySelectorAll("table.close-register tbody tr")].map((tr) => tr.getAttribute("data-employee-id"));
+  // Só as filas de pessoas: a fila de totais fecha o tbody sem `data-employee-id`.
+  [...c.querySelectorAll("table.close-register tbody tr[data-employee-id]")].map((tr) => tr.getAttribute("data-employee-id"));
 const printHeaders = (c: HTMLElement) =>
   [...c.querySelectorAll("table.close-register thead tr:last-child th")].map((th) => th.textContent);
 const search = (q: string) =>
