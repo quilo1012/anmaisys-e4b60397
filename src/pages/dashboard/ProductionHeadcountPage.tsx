@@ -1429,7 +1429,7 @@ function ShiftBoard({
     {/* What goes to the printer. The board below is `headcount-on-screen` and stays
         there; see HeadcountPrintSheet for why paper gets the company's grid instead. */}
     <HeadcountPrintSheet
-      title={`Production Headcount — ${shift} shift — ${format(parseISO(onDate), "EEEE dd.MM.yyyy")}`}
+      title={`Board — ${shift} shift — ${format(parseISO(onDate), "EEEE dd.MM.yyyy")}`}
       layout={printSheetLayout({ areas, allocations, employeeById, boardDate: onDate, shift, confirmedAsks })}
     />
     <div className="headcount-on-screen space-y-3">
@@ -2553,7 +2553,7 @@ export default function ProductionHeadcountPage() {
 
       <ModuleHeader
         title="Board"
-        description="Workforce planning and Headcount Management."
+        description="Workforce Planning & Headcount"
         compact
         // The band is a `<header>`, and the print sheet hides every one of those. It
         // carries the title and the date, which is everything that makes a printed

@@ -864,7 +864,7 @@ export default function ManageUsers() {
       <div className="space-y-6">
         <PageHeader
           title="User Management"
-          description="User Accounts, Permissions and iTouch API."
+          description="Users, Roles & Permissions"
           icon={<UsersIcon className="h-5 w-5" />}
         />
 

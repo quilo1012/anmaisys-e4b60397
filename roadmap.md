@@ -1,5 +1,10 @@
 # Roadmap
 
+## End-to-end module labels and Finance Close output (31 Oct)
+- [x] Correct all seven exact descriptions at navigation and heading sources; names already matched in the authenticated preview. Routes and permissions preserved.
+- [x] Correct PDF Unicode symbols, date formatting, heading wrapping, payroll register and footer spacing; print now includes company, payroll register and excludes notification prompt. Figures and records unchanged.
+- [x] Verify all seven signed-in preview headings/tabs, download October PDF (10 pages) and print output (12 pages); visually inspect every page and compare 195 rows, 144 available badge identifiers and headline figures. Payroll data is empty, so populated register/rates and other-role/mobile menus remain unverified. No publishing or deployment.
+
 ## Targeted seven-module correction
 - [x] Correct verified Board/User Management navigation names, Board/Attendance/Overtime headings and all seven descriptions; reuse existing tabs/shortcuts and preserve route/action/role gates, design and workflows.
 - [x] Run 297 existing tests across 14 files (all pass), including migration coverage; automatic preview build OK. Browser correctly redirects to login; signed-in module verification blocked because no requesting-user session could be minted. No database changes or deployment. Existing iTouch controls remain in System with their original permissions.

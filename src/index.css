@@ -1210,6 +1210,16 @@ select:-webkit-autofill {
   }
 
   /* A banda do título é a testeira do documento. */
+  .close-sheet { letter-spacing: 0 !important; }
+  body:has(.close-sheet) [data-testid="push-prompt"] { display: none !important; }
+
+  .close-sheet .close-payroll-register { display: block !important; break-inside: auto !important; margin-top: 5mm !important; }
+  .close-sheet .close-payroll-register table { break-inside: auto !important; }
+  .close-sheet .close-payroll-register thead { display: table-header-group !important; }
+  .close-sheet .close-payroll-register tr { break-inside: avoid !important; }
+  .close-sheet .close-payroll-register p { font-size: 7pt !important; }
+  .close-sheet .close-payroll-register [class*="break-inside-avoid"],
+  .close-sheet .close-payroll-register [class*="rounded-"] { break-inside: auto !important; }
   .close-sheet header.print-keep {
     border-bottom: 1pt solid #2B2F36 !important;
     padding-bottom: 2mm !important;

@@ -383,10 +383,10 @@ export default function AttendancePage() {
           // sheet nobody can file or check.
           description={
             tab === "clocks"
-              ? `TimeMoto Attendance Import and Records. · ${fmtDate(from)} → ${fmtDate(to)}`
+              ? `Time & Attendance Management · ${fmtDate(from)} → ${fmtDate(to)}`
               // Sem datas: as do quadro são as da tabela, e é a tabela que as leva para
               // o papel, em cada página.
-              : "TimeMoto Attendance Import and Records. · Board records shown separately"
+              : "Time & Attendance Management · Board records shown separately"
           }
           // Sem `print-keep`. A banda é o cabeçalho do ECRÃ — navio, sobrancelha do
           // módulo, dois controlos — e ia para o papel por o papel não ter cabeçalho

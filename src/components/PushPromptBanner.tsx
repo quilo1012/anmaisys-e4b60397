@@ -121,7 +121,7 @@ export function PushPromptBanner({ role }: { role: Role | null | undefined }) {
 
   return (
     <div role="region" aria-label="Phone notifications" data-testid="push-prompt"
-      className="mb-3 flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
+      className="mb-3 flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm print:hidden">
       {icon}
       <div className="min-w-0 flex-1">
         <div className="font-medium">Get your messages on this phone</div>

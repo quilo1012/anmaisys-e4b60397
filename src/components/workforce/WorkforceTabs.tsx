@@ -19,13 +19,13 @@ import { Users, Contact, CalendarDays, Clock, Calculator, HandCoins, UserCog } f
  * it did. Only the way in moved.
  */
 const TABS = [
-  { to: "/dashboard/headcount", label: "Board", description: "Workforce planning and Headcount Management.", icon: Users },
-  { to: "/dashboard/people", label: "Employee", description: "Employee Registration and Records.", icon: Contact },
-  { to: "/dashboard/leave", label: "Annual Leave", description: "Holiday and Leave Management.", icon: CalendarDays },
-  { to: "/dashboard/attendance", label: "Attendance", description: "TimeMoto Attendance Import and Records.", icon: Clock },
-  { to: "/dashboard/overtime", label: "Overtime", description: "Available Overtime Publication and Employee Bookings.", icon: HandCoins },
-  { to: "/dashboard/finance-close", label: "Finance Close", description: "Overtime Payroll Period Closing.", icon: Calculator },
-  { to: "/users/manage", label: "User Management", description: "User Accounts, Permissions and iTouch API.", icon: UserCog },
+  { to: "/dashboard/headcount", label: "Board", description: "Workforce Planning & Headcount", icon: Users },
+  { to: "/dashboard/people", label: "Employee", description: "Employee Records & Information", icon: Contact },
+  { to: "/dashboard/leave", label: "Annual Leave", description: "Holidays & Unpaid Leave", icon: CalendarDays },
+  { to: "/dashboard/attendance", label: "Attendance", description: "Time & Attendance Management", icon: Clock },
+  { to: "/dashboard/overtime", label: "Overtime", description: "Overtime Shifts & Bookings", icon: HandCoins },
+  { to: "/dashboard/finance-close", label: "Finance Close", description: "Overtime Verification & Payroll", icon: Calculator },
+  { to: "/users/manage", label: "User Management", description: "Users, Roles & Permissions", icon: UserCog },
 ];
 
 export function WorkforceTabs() {
