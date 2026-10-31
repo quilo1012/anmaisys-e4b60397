@@ -22,13 +22,12 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import {
-  NAVY, INK, SUBTLE, CARD_BORDER, CARD_BG, GREEN_TX, AMBER_TX,
+  NAVY, INK, SUBTLE, CARD_BORDER, CARD_BG,
   REPORT_MARGIN as M, HEADER_H,
   loadLogoDataUrl,
-  type RGB,
 } from "@/lib/reportTheme";
 import {
-  CLOSE_COLUMNS, closeBandSpans, closeDisplayValues, closeExportValues,
+  CLOSE_COLUMNS, closeBandSpans, closeDisplayValues, closeExportValues, closeTotalValues,
   type CloseColumn,
 } from "@/lib/financeCloseColumns";
 import type { ClosePerson, CloseTotals } from "@/lib/financeClose";
@@ -107,20 +106,22 @@ export function closeWarningText(totals: CloseTotals): string {
   return base;
 }
 
-const hrs = (n: number) => `${n.toFixed(2)} h`;
-
 // ============================================================
 // PDF
 // ============================================================
 
 /**
- * Landscape, and not by preference — and still landscape when the print settings
- * narrow the columns: the eight figure cards across the top need the width.
+ * Landscape, and not by preference.
  *
  * Eighteen columns across a portrait A4 leaves nine millimetres each — narrower than
  * "Opening bank" and far narrower than a name. The close was already unprintable once,
  * which is what the last sheet-of-hours commit was about; a portrait version of this
  * would be the same failure with more columns.
+ *
+ * The document starts at the register: no figure cards, no crew summary, no warning
+ * box above the table. The totals close the register as its last row, and the warning
+ * that must travel with the numbers is in the notes at the end, where a document's
+ * notes live.
  */
 export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -148,63 +149,7 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     doc.text(`Page ${pageNumber} of ${pages}`, pageW - M, h - 6, { align: "right" });
   };
   header();
-
-  // ── The figures, in the order the screen leads with ────────────────────
-  // Overtime paid first: it is the number somebody is about to pay.
   const t = input.totals;
-  const cards: { label: string; value: string; color?: RGB; accent?: RGB }[] = [
-    { label: "Overtime paid", value: hrs(t.overtimeHours), color: GREEN_TX, accent: GREEN_TX },
-    { label: "Hours deducted", value: hrs(t.owedHours), color: t.owedHours > 0 ? AMBER_TX : INK },
-    { label: "Part day", value: hrs(t.partDayHours), color: t.partDayHours > 0 ? AMBER_TX : INK },
-    { label: "Payroll OT", value: t.payrollEmpty ? "—" : hrs(t.payrollOtHours) },
-    // A dash, never "0.00 h" — see closeWarningText.
-    { label: "Gap to settle", value: t.payrollEmpty ? "—" : hrs(t.deltaHours), color: !t.payrollEmpty && Math.abs(t.deltaHours) >= 1 ? AMBER_TX : INK },
-    { label: "Shifts over rota", value: String(t.overtimeShifts) },
-    { label: "Shifts short", value: String(t.deficitShifts), color: t.deficitShifts > 0 ? AMBER_TX : INK },
-    { label: "People", value: String(t.people) },
-  ];
-  const gap = 3.5;
-  const cardW = (pageW - M * 2 - gap * (cards.length - 1)) / cards.length;
-  const cardY = HEADER_H + 6;
-  cards.forEach((c, i) => {
-    const x = M + i * (cardW + gap);
-    doc.setFillColor(...CARD_BG); doc.setDrawColor(...CARD_BORDER);
-    doc.roundedRect(x, cardY, cardW, 20, 1.5, 1.5, "FD");
-    doc.setFont("FinanceReport", "bold"); doc.setFontSize(5.5); doc.setTextColor(...SUBTLE);
-    doc.text(c.label.toUpperCase(), x + 2, cardY + 5);
-    doc.setFontSize(12); doc.setTextColor(...(c.color ?? INK));
-    doc.text(c.value, x + 2, cardY + 14);
-  });
-
-  // ── The warning, before any table ──────────────────────────────────────
-  let y = cardY + 20 + 6;
-  doc.setFont("FinanceReport", "normal"); doc.setFontSize(7); doc.setTextColor(...SUBTLE);
-  const warn = doc.splitTextToSize(closeWarningText(t), pageW - M * 2 - 4);
-  doc.setFillColor(...CARD_BG); doc.setDrawColor(...CARD_BORDER);
-  doc.roundedRect(M, y, pageW - M * 2, warn.length * 3.2 + 4, 1.5, 1.5, "FD");
-  doc.text(warn, M + 2, y + 4.2);
-  y += warn.length * 3.2 + 4 + 6;
-  doc.setTextColor(0);
-
-  // ── The split by crew, whatever the filter says ────────────────────────
-  if (input.byCrew.length > 1) {
-    autoTable(doc, {
-      startY: y,
-      head: [["Crew", "People", "Overtime paid", "Hours deducted", "Payroll OT", "Gap to settle"]],
-      body: input.byCrew.map(({ crew, totals }) => [
-        crew, totals.people, hrs(totals.overtimeHours), hrs(totals.owedHours),
-        totals.payrollEmpty ? "—" : hrs(totals.payrollOtHours),
-        totals.payrollEmpty ? "not comparable" : hrs(totals.deltaHours),
-      ]),
-      theme: "grid",
-      styles: { font: "FinanceReport", fontSize: 7.5, cellPadding: 1.6, lineColor: CARD_BORDER, lineWidth: 0.1 },
-      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 7.5 },
-      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } },
-      margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
-      didDrawPage: () => header(),
-    });
-    y = (doc as any).lastAutoTable.finalY + 6;
-  }
 
   // ── The people ─────────────────────────────────────────────────────────
   // Two header rows: the bands, then the names. Read off CLOSE_COLUMNS, so the spans
@@ -233,9 +178,11 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
   });
 
   autoTable(doc, {
-    startY: y,
+    startY: HEADER_H + 6,
     head: [bandRow, cols.map((c) => c.header)],
-    body: input.rows.map((r) => closeDisplayValues(r, cols)),
+    // The totals close the register as its last row, under a rule — the sheet adds
+    // itself up instead of carrying a separate summary above it.
+    body: [...input.rows.map((r) => closeDisplayValues(r, cols)), closeTotalValues(input.rows, cols)],
     theme: "grid",
     styles: { font: "FinanceReport", fontSize: 6.4, cellPadding: 0.65, lineColor: CARD_BORDER, lineWidth: 0.1, overflow: "linebreak" },
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 5.5 },
@@ -243,6 +190,14 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     columnStyles,
     margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
     rowPageBreak: "avoid",
+    didParseCell: (d: any) => {
+      if (d.section === "body" && d.row.index === input.rows.length) {
+        d.cell.styles.fontStyle = "bold";
+        d.cell.styles.fillColor = [255, 255, 255];
+        d.cell.styles.lineWidth = { top: 0.4, right: 0.1, bottom: 0.1, left: 0.1 };
+        d.cell.styles.lineColor = { top: INK, right: CARD_BORDER, bottom: CARD_BORDER, left: CARD_BORDER };
+      }
+    },
     didDrawPage: () => header(),
   });
 
@@ -263,7 +218,11 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
 
   autoTable(doc, {
     startY: (doc as any).lastAutoTable.finalY + 5,
-    body: [["Shifts come from the board; hours come from the clocks. Part day is hours from the board, not days away. Payroll balances are not hours worked and are not added to clock overtime."],
+    // The warning that must travel with the numbers, at the end where a document's
+    // notes live — it used to sit above the register as a boxed paragraph, pushing
+    // the people off the first page.
+    body: [[closeWarningText(t)],
+      ["Shifts come from the board; hours come from the clocks. Part day is hours from the board, not days away. Payroll balances are not hours worked and are not added to clock overtime."],
       ...(t.onUnplannedBoard > 0 ? [[`${t.onUnplannedBoard} people have a rota but no board in this period; their shifts cannot be measured.`]] : []),
       ["Prepared by: ____________________    Checked by: ____________________    Date: ____________________"]],
     theme: "plain", styles: { font: "FinanceReport", fontSize: 7, cellPadding: 2 },

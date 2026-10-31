@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2, Columns3 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { downloadCsv } from "@/lib/exportCsv";
 import { exportClosePdf, exportCloseExcel, type CloseExportInput } from "@/lib/financeCloseExports";
-import { CLOSE_COLUMNS, closeBandSpans, pickPrintColumns, printOrientation } from "@/lib/financeCloseColumns";
+import { CLOSE_COLUMNS, closeBandSpans, closeTotalValues, pickPrintColumns, printOrientation } from "@/lib/financeCloseColumns";
 import { ClosePrintSettings, ClosePrintTable, usePrintColumnKeys } from "@/components/workforce/FinanceClosePrint";
 import { OvertimePanel } from "@/components/workforce/OvertimePanel";
 import { useEmployees, useOvertimeEntries } from "@/hooks/useWorkforce";
@@ -29,13 +29,12 @@ import {
   buildClose, closeTotals, closeToCsvRows, CLOSE_HEADERS, round2,
   closeCrews, filterByCrew, crewLabel, NO_CREW,
   closeDepartments, departmentLabel, filterClose, inDepartments, NO_DEPARTMENT, countDaysAway, pickClosePeriod,
-  summaryCrewRows, searchClose, closeLineOptions, NO_LINE,
+  searchClose, closeLineOptions, NO_LINE,
   type ClosePersonInput,
 } from "@/lib/financeClose";
 import { plannedBoardDates, periodElapsedTo } from "@/lib/shiftBalance";
 import { partDay } from "@/lib/partDay";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
-import { Figure, FigureRow } from "@/components/ui/Figure";
 import { currentShift } from "@/lib/operationalShift";
 
 /** `10/08/2026`. A fábrica lê as datas ao contrário, e esta folha lê-se lá. */
@@ -682,168 +681,9 @@ export default function FinanceClosePage() {
           </DropdownMenu>
         </ModuleHeader>
 
-        {/* O resumo do papel: uma tabela, no lugar de oito caixas.
-            Em papel as oito caixas ocupavam 55mm e partiam-se em 6 + 2, com as duas
-            últimas esticadas de lado a lado — e empurravam o registo, que é a razão da
-            folha, para a segunda página. Isto diz o mesmo em 26mm, na mesma grelha da
-            tabela de baixo, e acaba onde um resumo tem de acabar: numa régua e no
-            total da fábrica inteira. */}
-        <table className="hidden print:table close-summary w-full">
-          <thead>
-            <tr>
-              <th className="text-left">{allDepartments ? "Crew" : departmentNames}</th>
-              <th className="text-right">People</th>
-              <th className="border-l text-right">Shifts over</th>
-              <th className="text-right">Shifts short</th>
-              <th className="border-l text-right">Overtime</th>
-              <th className="text-right">Deducted</th>
-              <th className="text-right">Payroll OT</th>
-              <th className="text-right">Δ</th>
-              <th className="border-l text-right">Part day</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Só com "Every crew": com uma tripulação escolhida a folha é dela, e a
-                fila do total já é ela — ver `summaryCrewRows`. */}
-            {summaryCrewRows(byShift, crew).map((t) => (
-              <tr key={t.shift}>
-                <td>{crewLabel(t.shift)}</td>
-                <td className="text-right font-figure">{t.people}</td>
-                <td className="border-l text-right font-figure">{t.overtimeShifts || "—"}</td>
-                <td className="text-right font-figure">{t.deficitShifts || "—"}</td>
-                <td className="border-l text-right font-figure">{t.overtimeHours.toFixed(2)}</td>
-                <td className="text-right font-figure">{t.owedHours ? t.owedHours.toFixed(2) : "—"}</td>
-                <td className="text-right font-figure">{t.payrollEmpty ? "—" : t.payrollOtHours.toFixed(2)}</td>
-                <td className="text-right font-figure">
-                  {t.payrollEmpty ? "—" : t.deltaHours.toFixed(2)}
-                </td>
-                <td className="border-l text-right font-figure">
-                  {t.partDayHours ? t.partDayHours.toFixed(2) : "—"}
-                </td>
-              </tr>
-            ))}
-            {/* O total do que está à frente do leitor. Se a folha foi filtrada, é o
-                total do filtro — o que o cabeçalho já diz. */}
-            <tr className="close-total">
-              <td>{scope || "Whole factory"}</td>
-              <td className="text-right font-figure">{totals.people}</td>
-              <td className="border-l text-right font-figure">{totals.overtimeShifts || "—"}</td>
-              <td className="text-right font-figure">{totals.deficitShifts || "—"}</td>
-              <td className="border-l text-right font-figure">{totals.overtimeHours.toFixed(2)}</td>
-              <td className="text-right font-figure">{totals.owedHours ? totals.owedHours.toFixed(2) : "—"}</td>
-              <td className="text-right font-figure">{totals.payrollEmpty ? "—" : totals.payrollOtHours.toFixed(2)}</td>
-              <td className="text-right font-figure">
-                {totals.payrollEmpty ? "—" : totals.deltaHours.toFixed(2)}
-              </td>
-              <td className="border-l text-right font-figure">
-                {totals.partDayHours ? totals.partDayHours.toFixed(2) : "—"}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* The split, whatever the filter says. A close read as one number hid that the
-            night crew's overtime behaves nothing like the day crews'. */}
-        {byShift.length > 1 && (
-          <Card className="print:hidden">
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Shift</TableHead>
-                    <TableHead className="text-right">People</TableHead>
-                    <TableHead className="text-right">Overtime paid</TableHead>
-                    <TableHead className="text-right">Hours deducted</TableHead>
-                    <TableHead className="text-right">Payroll OT</TableHead>
-                    <TableHead className="text-right">Gap to settle</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {byShift.map((t) => (
-                    <TableRow
-                      key={t.shift}
-                      className={crew === t.shift ? "bg-muted/50" : undefined}
-                    >
-                      <TableCell className="font-medium">{crewLabel(t.shift)}</TableCell>
-                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.people}</TableCell>
-                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.overtimeHours.toFixed(2)} h</TableCell>
-                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.owedHours.toFixed(2)} h</TableCell>
-                      <TableCell className="text-right font-figure text-xs tabular-nums">{t.payrollEmpty ? "—" : `${t.payrollOtHours.toFixed(2)} h`}</TableCell>
-                      <TableCell className="text-right font-figure text-xs tabular-nums">
-                        {t.payrollEmpty ? <span className="text-muted-foreground">not comparable</span> : `${t.deltaHours.toFixed(2)} h`}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Overtime paid leads: it is the figure somebody is about to pay, and it was
-            sitting second in a row of six identical boxes with "People" first. */}
-        {/* Ecrã apenas: no papel isto é a tabela de resumo acima. */}
-        <div className="print:hidden">
-        <FigureRow>
-          <Figure
-            lead
-            label="Overtime paid"
-            value={totals.overtimeHours.toFixed(2)}
-            unit="h"
-            tone="earned"
-            hint="What this period ended above zero"
-          />
-          <Figure
-            label="Hours deducted"
-            value={totals.owedHours.toFixed(2)}
-            unit="h"
-            tone={totals.owedHours > 0 ? "owed" : "neutral"}
-          />
-          <Figure
-            label="Part day"
-            value={totals.partDayHours.toFixed(2)}
-            unit="h"
-            tone={totals.partDayHours > 0 ? "owed" : "neutral"}
-          />
-          {/* "—", not "0.00", when nothing was ever keyed.
-              The figure beside this one already drew that line and this one did not,
-              so the same emptiness read two ways a centimetre apart: "Gap to settle"
-              said there was nothing to compare while "Payroll OT" said the office had
-              entered zero hours. `overtime_entries` is empty in all 29 periods — it
-              has never been used — so the honest answer is that nobody has keyed
-              anything, not that they keyed nothing. */}
-          <Figure
-            label="Payroll OT"
-            value={totals.payrollEmpty ? "—" : totals.payrollOtHours.toFixed(2)}
-            unit={totals.payrollEmpty ? undefined : "h"}
-            hint={totals.payrollEmpty ? "Nothing keyed for this period" : undefined}
-          />
-          <Figure
-            label="Gap to settle"
-            // Nothing keyed means nothing to compare, and saying "0.00 h" would tell
-            // somebody the two sides agree.
-            value={totals.payrollEmpty ? "—" : totals.deltaHours.toFixed(2)}
-            unit={totals.payrollEmpty ? undefined : "h"}
-            hint={totals.payrollEmpty ? "Nothing keyed to compare" : undefined}
-            tone={!totals.payrollEmpty && Math.abs(totals.deltaHours) >= 1 ? "owed" : "neutral"}
-          />
-          <Figure
-            label="Shifts over rota"
-            value={String(totals.overtimeShifts)}
-            tone={totals.overtimeShifts > 0 ? "earned" : "neutral"}
-            hint="From the board, not the clocks"
-          />
-          <Figure
-            label="Shifts short"
-            value={String(totals.deficitShifts)}
-            tone={totals.deficitShifts > 0 ? "owed" : "neutral"}
-            hint={totals.onUnplannedBoard > 0
-              ? `${totals.onUnplannedBoard} have a rota but no board — nothing to measure`
-              : undefined}
-          />
-          <Figure label="People" value={String(totals.people)} />
-        </FigureRow>
-        </div>
+        {/* Sem resumo por cima do registo: as oito caixas e a tabela por tripulação
+            repetiam o que a tabela já diz, e empurravam-na para a segunda folha. O
+            documento começa no registo e fecha com a fila de totais no fim dele. */}
 
         {/* Said before the table, not in a footnote: somebody is about to pay from
             this, and the two columns are not two halves of a total. */}
@@ -1136,6 +976,24 @@ export default function FinanceClosePage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  {/* A fila de totais: o registo fecha a somar-se a si próprio, em
+                      vez de deixar a soma num bloco separado por cima da tabela. */}
+                  <TableFooter>
+                    <TableRow className="hover:bg-transparent">
+                      {closeTotalValues(shown, screenColumns).map((v, i) => (
+                        <TableCell
+                          key={screenColumns[i].key}
+                          className={[
+                            screenColumns[i].align === "right" ? "text-right" : "",
+                            i > 0 && screenColumns[i - 1].band !== screenColumns[i].band ? "border-l" : "",
+                            "font-figure font-semibold tabular-nums",
+                          ].filter(Boolean).join(" ") || undefined}
+                        >
+                          {v}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableFooter>
                 </Table>
               </div>
               </>

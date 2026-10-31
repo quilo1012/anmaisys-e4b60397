@@ -254,15 +254,19 @@ describe("a folha de papel do Finance Close", () => {
       .toBe(String(PRINTED[0].mm));
   });
 
-  it("troca as oito caixas por um resumo com o total da fábrica", async () => {
+  it("não leva resumos: a folha começa no registo e fecha com a fila de totais", async () => {
     const container = await renderClose();
-    const summary = container.querySelector("table.close-summary");
-    expect(summary).not.toBeNull();
-    // Em papel as caixas ocupavam 55mm e empurravam o registo para a folha dois.
-    const total = summary!.querySelector("tr.close-total");
+    // Nem o resumo em papel, nem as oito caixas do ecrã, nem a tabela por tripulação:
+    // os três repetiam o que o registo já diz e empurravam-no para a folha dois.
+    expect(container.querySelector("table.close-summary")).toBeNull();
+    expect(container.textContent).not.toContain("Overtime paid");
+    expect(container.textContent).not.toContain("Hours deducted");
+    expect(container.textContent).not.toContain("Gap to settle");
+    // O total é a última fila do próprio registo, e conta as pessoas da folha.
+    const total = container.querySelector("tr.close-total-row");
     expect(total).not.toBeNull();
-    expect(total!.textContent).toContain("Whole factory");
-    expect(total!.textContent).toContain("201");
+    const count = container.querySelector('[data-testid="close-count"]')!.textContent!;
+    expect(total!.textContent).toContain(`Total · ${count.replace(/[^0-9].*$/, "")} people`);
   });
 
   it("põe as notas no fim e tira o aviso de ecrã do papel", async () => {

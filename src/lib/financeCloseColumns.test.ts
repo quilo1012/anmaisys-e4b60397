@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildClose, type ClosePersonInput } from "@/lib/financeClose";
 import {
-  CLOSE_COLUMNS, closeBandSpans, closeExportValues, closeDisplayValues, BAND_LABELS,
+  CLOSE_COLUMNS, closeBandSpans, closeExportValues, closeDisplayValues, closeTotalValues, BAND_LABELS,
   ALL_PRINT_KEYS, DEFAULT_PRINT_KEYS, MIN_PRINT_KEYS, pickPrintColumns, printOrientation,
 } from "@/lib/financeCloseColumns";
 
@@ -172,5 +172,43 @@ describe("the columns chosen for paper", () => {
     // Unrecorded is a dash on paper and an empty cell in the workbook, never "0".
     expect(closeDisplayValues(one(), cols)).toEqual(["Ana Silva", "—", "—", "—"]);
     expect(at(closeExportValues(one()), "employeeRef")).toBeNull();
+  });
+});
+
+/**
+ * A fila de totais que fecha o registo.
+ *
+ * O fecho levava os totais num resumo separado — oito caixas no ecrã, uma tabela por
+ * tripulação no papel — e o próprio registo acabava sem se somar. A fila é só
+ * apresentação: soma os valores que a coluna já mostra, e uma coluna em que ninguém
+ * reportou nada totaliza um travessão, nunca um zero.
+ */
+describe("closeTotalValues", () => {
+  it("conta as pessoas na coluna do nome e soma as colunas numéricas", () => {
+    const rows = [
+      one({ clockedBalanceMin: 720 }), // 12 h
+      buildClose([person({ employeeId: "e2", name: "Bruno Costa", clockedBalanceMin: -60 })], PERIOD.from, PERIOD.to)[0],
+    ];
+    const t = closeTotalValues(rows);
+    expect(at(t, "name")).toBe("Total · 2 people");
+    expect(at(t, "clockedOtHours")).toBe("11.00");
+    expect(at(t, "shiftsWorked")).toBe("0");
+  });
+
+  it("uma coluna sem nada reportado totaliza um travessão, nunca um zero", () => {
+    const rows = [buildClose([person({ payrollOtHours: null })], PERIOD.from, PERIOD.to)[0]];
+    const t = closeTotalValues(rows);
+    expect(at(t, "payrollOtHours")).toBe("—");
+    expect(at(t, "deltaHours")).toBe("—");
+  });
+
+  it("deixa as colunas de texto em branco e assina o balanço de turnos", () => {
+    const rows = [one({ shiftsWorked: 14 })];
+    const t = closeTotalValues(rows);
+    expect(at(t, "department")).toBe("");
+    expect(at(t, "employeeRef")).toBe("");
+    expect(at(t, "shiftsWorked")).toBe("14");
+    // Uma pessoa só: "person", não "people".
+    expect(at(t, "name")).toBe("Total · 1 person");
   });
 });

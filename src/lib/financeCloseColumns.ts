@@ -167,6 +167,37 @@ export function closeDisplayValues(
   });
 }
 
+/**
+ * The totals row under the register, in the same display rule as the rows above it.
+ *
+ * The close used to carry its totals in a separate summary — eight cards on screen, a
+ * crew table on paper — and the register itself ended without a total, so the sheet
+ * somebody is paid from never added itself up. One row at the foot of the table now
+ * does that job: every numeric column is the sum of the values the column shows, and
+ * a column where nobody reported anything totals to a dash, never a nought.
+ *
+ * Display only: nothing here feeds a calculation. The per-person figures are built
+ * upstream and this row only adds up what is already on the sheet.
+ */
+export function closeTotalValues(
+  rows: ClosePerson[],
+  columns: CloseColumn[] = CLOSE_COLUMNS,
+): string[] {
+  return columns.map((c) => {
+    if (c.key === "name") return `Total · ${rows.length} ${rows.length === 1 ? "person" : "people"}`;
+    const nums = rows
+      .map((r) => c.value(r))
+      .filter((v): v is number => typeof v === "number");
+    if (nums.length === 0) return c.align === "right" ? "—" : "";
+    const sum = Math.round(nums.reduce((a, b) => a + b, 0) * 100) / 100;
+    if (c.key === "shiftBalance") return sum > 0 ? `+${sum}` : String(sum);
+    if (sum === 0 && c.dashWhenZero) return "—";
+    return Number.isInteger(sum) && c.band !== "clockedHours" && c.band !== "boardHours"
+      ? String(sum)
+      : sum.toFixed(2);
+  });
+}
+
 /* ─── What goes on paper ──────────────────────────────────────────────────── */
 
 /** The columns printed when nobody has chosen. */

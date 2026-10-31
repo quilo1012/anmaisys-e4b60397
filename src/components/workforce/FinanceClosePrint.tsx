@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import type { ClosePerson } from "@/lib/financeClose";
 import {
   ALL_PRINT_KEYS, BAND_LABELS, CLOSE_COLUMNS, DEFAULT_PRINT_KEYS, MIN_PRINT_KEYS,
-  closeBandSpans, closeDisplayValues, pickPrintColumns, printOrientation,
+  closeBandSpans, closeDisplayValues, closeTotalValues, pickPrintColumns, printOrientation,
   type CloseBand, type CloseColumn,
 } from "@/lib/financeCloseColumns";
 
@@ -113,6 +113,14 @@ export function ClosePrintTable({ rows, columns, caption, footer, className }: P
             ))}
           </tr>
         ))}
+        {/* The totals, as the last row of the register — in the tbody, not the tfoot,
+            because a tfoot repeats on every sheet and the total belongs only at the
+            end. */}
+        <tr className="close-total-row" data-testid="close-total-row">
+          {closeTotalValues(rows, columns).map((v, i) => (
+            <td key={columns[i].key} className={cell(columns[i], i)}>{v}</td>
+          ))}
+        </tr>
       </tbody>
       <tfoot className="print-edge">
         <tr><td colSpan={columns.length}>{footer}</td></tr>
