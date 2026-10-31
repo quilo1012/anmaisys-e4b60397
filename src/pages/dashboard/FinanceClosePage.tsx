@@ -504,10 +504,10 @@ export default function FinanceClosePage() {
   const toggleScreenColumn = (key: string) =>
     setScreenKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
   const orientation = printOrientation(printColumns);
-  const printCaption = `Finance Close · ${period?.name ?? "No period"} · ${fmtDate(from)} → ${fmtDate(periodEnd)}`
+  const printCaption = `Applied Nutrition · Finance Close · ${period?.name ?? "No period"} · ${fmtDate(from)} → ${fmtDate(periodEnd)}`
     + `${stillRunning ? ` · counted to ${fmtDate(to)}` : ""}`
     + `${scope ? ` · ${scope} only` : ""}`;
-  const printFooter = `Finance Close · ${period?.name ?? "No period"} · ${shown.length} people`
+  const printFooter = `Applied Nutrition · Finance Close · ${period?.name ?? "No period"} · ${shown.length} people`
     + `${scope ? ` · ${scope}` : ""} · printed ${fmtDate(today)}`;
   /** Closed first, then printed: an open dialog over the page would print over it. */
   const printNow = () => {

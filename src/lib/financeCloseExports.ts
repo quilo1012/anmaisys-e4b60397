@@ -24,7 +24,7 @@ import XLSX from "xlsx-js-style";
 import {
   NAVY, INK, SUBTLE, CARD_BORDER, CARD_BG, GREEN_TX, AMBER_TX,
   REPORT_MARGIN as M, HEADER_H,
-  loadLogoDataUrl, drawReportHeader, drawReportFooter, drawKpiCard,
+  loadLogoDataUrl,
   type RGB,
 } from "@/lib/reportTheme";
 import {
@@ -237,8 +237,8 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     head: [bandRow, cols.map((c) => c.header)],
     body: input.rows.map((r) => closeDisplayValues(r, cols)),
     theme: "grid",
-    styles: { font: "FinanceReport", fontSize: 6.4, cellPadding: 1.2, lineColor: CARD_BORDER, lineWidth: 0.1, overflow: "linebreak" },
-    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 6.4 },
+    styles: { font: "FinanceReport", fontSize: 6.4, cellPadding: 0.65, lineColor: CARD_BORDER, lineWidth: 0.1, overflow: "linebreak" },
+    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 5.5 },
     alternateRowStyles: { fillColor: CARD_BG },
     columnStyles,
     margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
@@ -248,7 +248,7 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
 
   autoTable(doc, {
     startY: (doc as any).lastAutoTable.finalY + 5,
-    head: [["Overtime register · payroll balances"], ["Employee", "Emp. no.", "Department", "Balance (h)", "Note / import source"]],
+    head: [[{ content: "Overtime register · payroll balances", colSpan: 5 }], ["Employee", "Emp. no.", "Department", "Balance (h)", "Note / import source"]],
     body: input.payrollRegister?.length ? input.payrollRegister.map((r) => [
       r.name, r.employeeRef ?? "—", r.department || "to confirm", r.hours.toFixed(2),
       [r.note || (r.hours < 0 ? "Sickness against banked hours" : ""), r.sourceNote,
@@ -259,9 +259,6 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     columnStyles: { 3: { halign: "right" } },
     margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
     rowPageBreak: "avoid", didDrawPage: header,
-    didParseCell: (data) => {
-      if (data.section === "head" && data.row.index === 0) data.cell.colSpan = 5;
-    },
   });
 
   autoTable(doc, {
