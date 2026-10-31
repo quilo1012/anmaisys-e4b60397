@@ -58,3 +58,9 @@
 - [ ] Stage 4 — Attendance notifications: late arrivals, missing clock-in/out alerts, employee attendance summaries
 - [ ] Stage 5 — Notification management: centralised categories, read/unread, history
 - [ ] Stage 6 — UI/UX polish: consistent professional look, clean Overview, desktop+mobile
+
+## Finance Close report cleanup (31 Oct, Daniel Quilo)
+- [x] Remove KPI cards, crew breakdown and print summary from screen, PDF and print
+- [x] Report opens on the employee register; totals row closes it (closeTotalValues)
+- [x] Pay warning moved to the end notes; header/period/page numbers kept
+- [x] Verified: 141 tests pass, build OK, real 7-page PDF and 8-page print inspected
