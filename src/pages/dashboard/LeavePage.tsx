@@ -570,7 +570,7 @@ export default function LeavePage() {
 
         <ModuleHeader
           title="Annual Leave"
-          description={`Holiday balances, sickness and unpaid leave · leave year ${year.from} → ${year.to}`}
+          description={`Holiday and Leave Management. · leave year ${year.from} → ${year.to}`}
         >
           <Button size="sm" variant="secondary" onClick={() => setShowNew((v) => !v)}>
             <Plus className="mr-1.5 h-4 w-4" /> Book leave

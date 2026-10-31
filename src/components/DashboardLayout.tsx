@@ -71,6 +71,7 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 
 export interface NavItem {
   title: string;
+  description?: string;
   /**
    * What the row is called on the phone's bottom bar, where the sidebar's width is
    * not available: each label is capped at 68px and truncated, which holds about
@@ -220,12 +221,12 @@ export const navItems: NavItem[] = [
   // pattern and fourteen no department, so it would be read as the rota when it is
   // still an import. The route, the screen, the hooks and the data all remain —
   // /dashboard/workforce still opens for an admin who types it.
-  { title: "Headcount", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
-  { title: "Employee", url: "/dashboard/people", icon: Users, roles: ["manager"], group: "Production", action: "employees.view" },
+  { title: "Board", description: "Workforce planning and Headcount Management.", url: "/dashboard/headcount", icon: UsersRound, roles: ["admin"], group: "Production", action: "headcount.view" },
+  { title: "Employee", description: "Employee Registration and Records.", url: "/dashboard/people", icon: Users, roles: ["manager"], group: "Production", action: "employees.view" },
   // Overtime is asked for before it is worked, and the ask is the manager's: it is
   // the one Workforce screen a manager reaches without the admin-only board, so it
   // gets a row of its own rather than living only on the board's tab bar.
-  { title: "Overtime", url: "/dashboard/overtime", icon: HandCoins, roles: ["manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
+  { title: "Overtime", description: "Available Overtime Publication and Employee Bookings.", url: "/dashboard/overtime", icon: HandCoins, roles: ["manager", "production_office_admin"], group: "Production", action: "overtime.manage" },
   // The floor's side of the same thing: the asks that apply to you, and Yes / No.
   //
   // Sem `operator`: essas contas são de LINHA, não de pessoa — ver
@@ -342,7 +343,7 @@ export const navItems: NavItem[] = [
   // Users stays in the sidebar for managers, who can reach it but have no business
   // in the rest of the hub. Folding it in would have cost them the link or given
   // them the audit trail and the integration settings to go with it.
-  { title: "Users", url: "/users/manage", icon: Users, roles: ["manager"], group: "Administration", action: "users.manage" },
+  { title: "User Management", description: "User Accounts, Permissions and iTouch API.", url: "/users/manage", icon: Users, roles: ["manager"], group: "Administration", action: "users.manage" },
   // Beside Users for the same reason: the manager is the "supervisor" the badge prompt
   // sends people to. The admin reaches it from the System hub.
   { title: "Link accounts", url: "/dashboard/link-accounts", icon: Link2, roles: ["manager"], group: "Administration", action: "employees.link_login" },
@@ -579,7 +580,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                     const button = (
                         <SidebarMenuButton
                           asChild
-                          tooltip={kids.length ? `${item.title} (${kids.length} pages)` : item.title}
+                          tooltip={kids.length ? `${item.title} (${kids.length} pages)` : item.description ?? item.title}
                           className={cn(
                             "h-9 rounded-md transition-colors [[data-mobile=true]_&]:h-11",
                             "group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10",
@@ -589,6 +590,7 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
                         >
                           <NavLink
                             to={item.url}
+                            title={item.description}
                             end
                             className={cn(
                               "relative transition-colors",
@@ -730,11 +732,11 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/suppliers": "Suppliers & Purchasing",
   "/dashboard/communication": "Communication Hub",
   "/dashboard/messages": "Communication Hub",
-  "/users/manage": "Users",
+  "/users/manage": "User Management",
   "/dashboard/permissions": "Permissions",
   "/dashboard/roles": "Role rules",
   "/dashboard/people": "Employee",
-  "/dashboard/headcount": "Production Headcount",
+  "/dashboard/headcount": "Board",
   "/dashboard/departments/production": "Production Dashboard",
   "/dashboard/departments/maintenance": "Maintenance Dashboard",
   "/dashboard/overtime": "Overtime",

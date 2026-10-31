@@ -2552,8 +2552,8 @@ export default function ProductionHeadcountPage() {
       </div>
 
       <ModuleHeader
-        title="Production Headcount"
-        description="Daily allocation of people to production and support areas"
+        title="Board"
+        description="Workforce planning and Headcount Management."
         compact
         // The band is a `<header>`, and the print sheet hides every one of those. It
         // carries the title and the date, which is everything that makes a printed

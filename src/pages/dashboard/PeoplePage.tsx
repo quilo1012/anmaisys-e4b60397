@@ -75,7 +75,7 @@ export default function PeoplePage() {
 
         <ModuleHeader
           title="Employee"
-          description="The employee records the board, Leave and Finance Close all read from"
+          description="Employee Registration and Records."
         />
 
         <Tabs defaultValue="people" className="space-y-4">

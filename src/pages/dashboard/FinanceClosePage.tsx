@@ -572,7 +572,7 @@ export default function FinanceClosePage() {
 
         <ModuleHeader
           title="Finance Close"
-          description={headerDescription}
+          description={`Overtime Payroll Period Closing. · ${headerDescription}`}
           // Todo o `<header>` é escondido na impressão, e este carrega o nome do
           // documento, o período, as datas e o filtro que o produziu. Sem `print-keep`
           // a folha começava na tabela dos turnos: uma folha de pagamento sem data

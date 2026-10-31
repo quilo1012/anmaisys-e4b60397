@@ -19,13 +19,13 @@ import { Users, Contact, CalendarDays, Clock, Calculator, HandCoins, UserCog } f
  * it did. Only the way in moved.
  */
 const TABS = [
-  { to: "/dashboard/headcount", label: "Board", icon: Users },
-  { to: "/dashboard/people", label: "Employee", icon: Contact },
-  { to: "/dashboard/leave", label: "Annual Leave", icon: CalendarDays },
-  { to: "/dashboard/attendance", label: "Attendance", icon: Clock },
-  { to: "/dashboard/overtime", label: "Overtime", icon: HandCoins },
-  { to: "/dashboard/finance-close", label: "Finance Close", icon: Calculator },
-  { to: "/users/manage", label: "User Management", icon: UserCog },
+  { to: "/dashboard/headcount", label: "Board", description: "Workforce planning and Headcount Management.", icon: Users },
+  { to: "/dashboard/people", label: "Employee", description: "Employee Registration and Records.", icon: Contact },
+  { to: "/dashboard/leave", label: "Annual Leave", description: "Holiday and Leave Management.", icon: CalendarDays },
+  { to: "/dashboard/attendance", label: "Attendance", description: "TimeMoto Attendance Import and Records.", icon: Clock },
+  { to: "/dashboard/overtime", label: "Overtime", description: "Available Overtime Publication and Employee Bookings.", icon: HandCoins },
+  { to: "/dashboard/finance-close", label: "Finance Close", description: "Overtime Payroll Period Closing.", icon: Calculator },
+  { to: "/users/manage", label: "User Management", description: "User Accounts, Permissions and iTouch API.", icon: UserCog },
 ];
 
 export function WorkforceTabs() {
@@ -55,6 +55,7 @@ export function WorkforceTabs() {
       {visibleTabs.map((t) => (
         <NavLink
           key={t.to}
+          title={t.description}
           // The Board keeps its date and shift (?date=&shift=) when pressed while already
           // on it. Other tabs go to their plain route, as before.
           to={t.to === "/dashboard/headcount" && pathname === t.to ? { pathname: t.to, search } : t.to}

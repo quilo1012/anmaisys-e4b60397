@@ -90,7 +90,10 @@ export function RoleShortcutGrid() {
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:h-10 sm:w-10">
                       <Icon className="h-5 w-5" />
                     </div>
-                    <span className="min-w-0 flex-1 text-sm font-medium leading-tight">{it.title}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm font-medium leading-tight">{it.title}</span>
+                      {it.description && <p className="mt-1 text-xs leading-snug text-muted-foreground">{it.description}</p>}
+                    </div>
                     <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 sm:block" />
                   </CardContent>
                 </Card>
