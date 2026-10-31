@@ -1,9 +1,9 @@
 # Roadmap
 
 ## End-to-end module labels and Finance Close output (31 Oct)
-- [ ] Correct all seven exact names/descriptions at the actual navigation and heading sources, preserving routes and permissions.
-- [ ] Correct Finance Close PDF/print clipping, formatting and completeness without changing figures or records.
-- [ ] Verify authenticated preview labels, generate/download real PDF and print output, inspect every page and compare against screen; provide PDF and changed-file report. No publishing or deployment.
+- [x] Correct all seven exact descriptions at navigation and heading sources; names already matched in the authenticated preview. Routes and permissions preserved.
+- [x] Correct PDF Unicode symbols, date formatting, heading wrapping, payroll register and footer spacing; print now includes company, payroll register and excludes notification prompt. Figures and records unchanged.
+- [x] Verify all seven signed-in preview headings/tabs, download October PDF (10 pages) and print output (12 pages); visually inspect every page and compare 195 rows, 144 available badge identifiers and headline figures. Payroll data is empty, so populated register/rates and other-role/mobile menus remain unverified. No publishing or deployment.
 
 ## Targeted seven-module correction
 - [x] Correct verified Board/User Management navigation names, Board/Attendance/Overtime headings and all seven descriptions; reuse existing tabs/shortcuts and preserve route/action/role gates, design and workflows.

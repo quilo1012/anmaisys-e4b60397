@@ -194,7 +194,7 @@ async function renderClose() {
     </QueryClientProvider>,
   );
   // Sem timers reais: bombear a fila até as filas todas estarem montadas.
-  for (let i = 0; i < 60 && !container.querySelector("tbody tr:nth-child(20)"); i++) {
+  for (let i = 0; i < 60 && !container.querySelector("table.close-screen tbody tr:nth-child(20)"); i++) {
     await vi.advanceTimersByTimeAsync(50);
   }
   if (process.env.FC_BODY_OUT) fs.writeFileSync(process.env.FC_BODY_OUT, container.innerHTML);
