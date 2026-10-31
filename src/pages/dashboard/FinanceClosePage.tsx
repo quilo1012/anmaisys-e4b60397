@@ -1195,11 +1195,21 @@ export default function FinanceClosePage() {
               <> Showing <b>{scope}</b> only, to match the filter above.</>
             )}
           </p>
-          <OvertimePanel
+          <table className="hidden print:table w-full close-payroll-table">
+            <thead><tr><th>Employee</th><th>Emp. no.</th><th>Department</th><th className="text-right">Balance (h)</th><th>Note / import source</th></tr></thead>
+            <tbody>
+              {exportInput().payrollRegister?.map((r, i) => (
+                <tr key={otShown[i].id}><td>{r.name}</td><td>{r.employeeRef ?? "—"}</td><td>{r.department || "to confirm"}</td><td className="text-right">{r.hours.toFixed(2)}</td>
+                  <td>{[r.note || (r.hours < 0 ? "Sickness against banked hours" : ""), r.sourceNote, r.importedAt ? new Date(r.importedAt).toLocaleString("en-GB") : null].filter(Boolean).join(" · ")}</td></tr>
+              ))}
+              {otShown.length === 0 && <tr><td colSpan={5}>No overtime recorded for this period</td></tr>}
+            </tbody>
+          </table>
+          <div className="print:hidden"><OvertimePanel
             employees={otEmployees ?? []}
             entries={otShown}
             activePeriod={period}
-          />
+          /></div>
         </div>
       </div>
     </DashboardLayout>
