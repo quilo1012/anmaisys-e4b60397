@@ -25,6 +25,7 @@ export interface ReportHistoryDetails {
   problems: number;
   stops_read: number;
   listed: number;
+  total_minutes: number;
   engineer: string | null;
 }
 
@@ -42,8 +43,9 @@ export function recordReportGenerated(report: ShiftReport, format: ReportFormat)
     format,
     validated: report.problems.length === 0,
     problems: report.problems.length,
-    stops_read: report.stopsRead,
-    listed: report.items.reduce((n, it) => n + it.stops.length, 0),
+    stops_read: report.downtimeEvents,
+    listed: report.completed.length,
+    total_minutes: report.totalCountedMinutes,
     engineer: report.generatedBy,
   };
   return logAuditEvent(REPORT_AUDIT_ACTION, ENTITY, undefined, details as unknown as Record<string, unknown>);

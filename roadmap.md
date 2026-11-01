@@ -64,3 +64,9 @@
 - [x] Report opens on the employee register; totals row closes it (closeTotalValues)
 - [x] Pay warning moved to the end notes; header/period/page numbers kept
 - [x] Verified: 141 tests pass, build OK, real 7-page PDF and 8-page print inspected
+
+## Maintenance Report redesign (1 Nov, Daniel Quilo)
+- [x] Removed technical info (sources, generated-by, counters, handover, greeting) from all three formats
+- [x] Completed orders listed from completion time in shift (not from stops); open orders separate, never counted as completed
+- [x] Downtime counted from validated records with existing exclusion rules; no 15-min floor; total most prominent
+- [x] Verified: 55 report tests + full suite (6213) pass, real 1-page PDF generated from production data and inspected
