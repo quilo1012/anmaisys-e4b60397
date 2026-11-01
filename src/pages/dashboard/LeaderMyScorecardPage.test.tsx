@@ -185,7 +185,9 @@ describe("LeaderMyScorecardPage", () => {
     const args = (rpc.mock.calls[0] as [string, Record<string, string>])[1];
     expect(args._shift).toBe("all");
     expect(args._from).toMatch(/-01$/);      // the first of the month
-    expect(args._to).not.toBe(args._from);   // …through to today
+    // …through to today. On the 1st of a month today *is* the first, so the
+    // window may be one day long (this failed CI on 01/11/2026).
+    expect(args._to >= args._from).toBe(true);
   });
 
   it("says what a wrong PIN was, and how many tries are left", async () => {
