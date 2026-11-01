@@ -805,11 +805,14 @@ export default function ProductionPerformancePage() {
                   and a night action from 03/10 answered a question somebody believed
                   was about September. The arrows either side have always re-anchored;
                   the boxes now agree with them. See withAnchor. */}
+              {/* `px-1`, not `px-1.5`, below `xs`: on a touch phone the two arrows are
+                  48px each (index.css, pointer: coarse), and at 320px that left each box
+                  67px for a 70px "01 Nov 26" — the year was cut. */}
               <DateField
                 aria-label="From"
                 value={range.from}
                 onChange={setAnchor}
-                className="min-w-0 flex-1 px-1.5 text-[13px] xs:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
+                className="min-w-0 flex-1 px-1 text-[13px] xs:px-1.5 xs:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
               />
               <span className="shrink-0 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground hidden xs:inline">to</span>
               {/* `range.to`, not `endDate`. On a week or a month the far end is DERIVED,
@@ -822,7 +825,7 @@ export default function ProductionPerformancePage() {
                 value={range.to}
                 min={range.from}
                 onChange={(v) => setFilters(withFarEnd(filters, v))}
-                className="min-w-0 flex-1 px-1.5 text-[13px] xs:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
+                className="min-w-0 flex-1 px-1 text-[13px] xs:px-1.5 xs:text-sm sm:w-[7.75rem] sm:flex-none sm:px-2.5"
               />
               <Button variant="outline" size="icon" aria-label="Next period" className="shrink-0" onClick={() => {
                 if (period === "custom") {
