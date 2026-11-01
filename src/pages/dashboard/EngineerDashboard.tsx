@@ -617,17 +617,17 @@ function EngineerDashboardContent() {
    * (and tidies the grammar when it is already English) before it is stored. If the AI
    * is unreachable, the engineer's own words are saved rather than losing the report.
    */
-  const polishToEnglish = async (text: string): Promise<string> => {
+  const polishToEnglish = async (text: string): Promise<string | null> => {
     try {
       const { data, error } = await invokeFunction<{ translated?: string }>("translate-message", {
         text,
         mode: "polish",
       });
-      if (error) return text;
+      if (error) return null;
       const out = (data?.translated ?? "").trim();
       return out || text;
     } catch {
-      return text;
+      return null;
     }
   };
 
@@ -637,6 +637,10 @@ function EngineerDashboardContent() {
     setPolishing(true);
     const fixed = await polishToEnglish(text);
     setPolishing(false);
+    if (fixed === null) {
+      toast({ title: "Couldn't review the English right now", description: "Your report is unchanged." });
+      return;
+    }
     setResolutionNotes(fixed);
     if (fixed === text) toast({ title: "Report already reads well in English" });
     else toast({ title: "Report rewritten in English" });
@@ -648,7 +652,7 @@ function EngineerDashboardContent() {
     const raw = resolutionNotes.trim();
     if (!raw) return;
     setPolishing(true);
-    const notes = await polishToEnglish(raw);
+    const notes = (await polishToEnglish(raw)) ?? raw;
     setPolishing(false);
 
     const engineer: EngineerIdentity = currentEngineer
