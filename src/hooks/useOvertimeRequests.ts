@@ -218,6 +218,10 @@ export function useMyOvertimeClashes(enabled: boolean) {
  * own hours it would land on. Empty until BLOCO 95 is pasted — the board-only check in
  * `clashesFor` still runs on its own then.
  */
+/** Asks per `overtime_schedule_clashes` call, and how many calls run at once. */
+export const SCHEDULE_CLASH_BATCH = 10;
+const SCHEDULE_CLASH_PARALLEL = 3;
+
 export function useOvertimeScheduleClashes(requestIds: string[]) {
   const ids = [...requestIds].sort();
   return useQuery({
@@ -227,17 +231,27 @@ export function useOvertimeScheduleClashes(requestIds: string[]) {
     staleTime: 60_000,
     queryFn: async (): Promise<Map<string, string>> => {
       const out = new Map<string, string>();
-      // The function takes at most 100 asks a call.
-      for (let i = 0; i < ids.length; i += 100) {
-        const { data, error } = await db.rpc("overtime_schedule_clashes", {
-          p_request_ids: ids.slice(i, i + 100),
-        });
-        if (error) {
-          if ((error as { code?: string }).code === "PGRST202") return new Map();
-          throw error;
-        }
-        for (const r of data ?? []) {
-          out.set(scheduleClashKey(r.request_id, r.employee_id), r.reason);
+      // The function checks every ask against every active person, one pair at a
+      // time (~0.25 ms a pair). A month of asks in one call (68 × 195 people) took
+      // 3.3 s idle and passed the 8 s statement timeout under load (31/10 17:24).
+      // Small batches keep each statement well under it; a few run side by side.
+      const batches: string[][] = [];
+      for (let i = 0; i < ids.length; i += SCHEDULE_CLASH_BATCH) {
+        batches.push(ids.slice(i, i + SCHEDULE_CLASH_BATCH));
+      }
+      for (let i = 0; i < batches.length; i += SCHEDULE_CLASH_PARALLEL) {
+        const results = await Promise.all(
+          batches.slice(i, i + SCHEDULE_CLASH_PARALLEL).map((batch) =>
+            db.rpc("overtime_schedule_clashes", { p_request_ids: batch })),
+        );
+        for (const { data, error } of results) {
+          if (error) {
+            if ((error as { code?: string }).code === "PGRST202") return new Map();
+            throw error;
+          }
+          for (const r of data ?? []) {
+            out.set(scheduleClashKey(r.request_id, r.employee_id), r.reason);
+          }
         }
       }
       return out;
