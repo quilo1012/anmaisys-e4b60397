@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { validateBody, MISSING_KEY_ERROR } from "./validate.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,7 +7,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const MAX_TEXT_LENGTH = 5000;
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
 // Tarefa curta e de grande volume: o Haiku é o mais rápido e o mais barato.
@@ -47,13 +47,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { text, mode } = await req.json().catch(() => ({ text: "", mode: undefined }));
-    if (!text || typeof text !== "string") {
-      return json({ error: "text is required" }, 400);
-    }
-    if (text.length > MAX_TEXT_LENGTH) {
-      return json({ error: `text must be at most ${MAX_TEXT_LENGTH} characters` }, 400);
-    }
+    const raw = await req.json().catch(() => null);
+    const v = validateBody(raw);
+    if (!v.ok) return json({ error: v.error }, v.status);
+    const { text, mode } = v;
 
     // No Claude o system prompt é um campo de topo, não uma mensagem com role.
     const system =
@@ -66,7 +63,7 @@ Deno.serve(async (req) => {
     const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     // Sem fallback para o gateway do Lovable: a IA saiu de lá a 06/10 (ver
     // src/__tests__/aIANaoVoltaAoGatewayDoLovable.test.ts). Chave em falta é erro claro.
-    if (!ANTHROPIC_KEY) return json({ error: "ANTHROPIC_API_KEY missing" }, 500);
+    if (!ANTHROPIC_KEY) return json({ error: MISSING_KEY_ERROR }, 503);
 
     const resp = await fetch(ANTHROPIC_URL, {
       method: "POST",
@@ -96,7 +93,7 @@ Deno.serve(async (req) => {
     const translated: string = extractText(aiJson).trim();
     return json({ translated: translated || text });
   } catch (e) {
-    return json({ error: (e as Error).message }, 500);
+    return json({ error: `translate-message failed: ${(e as Error).message}` }, 500);
   }
 });
 
