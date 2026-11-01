@@ -209,15 +209,6 @@ export function MaintenanceReportDialog({
             </ToggleGroup>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="report-notes">Handover notes (optional)</Label>
-            <Textarea
-              id="report-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)}
-              placeholder="Next actions, who follows up…"
-            />
-            <p className="text-xs text-muted-foreground">Printed as written, under your name, in the hand-over of a recent shift.</p>
-          </div>
-
           {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
 
           {result && (
@@ -227,7 +218,7 @@ export function MaintenanceReportDialog({
                   ? <Badge variant="secondary">Checked</Badge>
                   : <Badge variant="destructive">NOT validated · {result.report.problems.length}</Badge>}
                 <span className="text-xs text-muted-foreground">
-                  {result.report.stopsRead} stop(s) read · {result.report.items.length} order(s) over 15 min · read {londonStamp(result.report.generatedAt)}
+                  {result.report.completed.length} completed · {result.report.downtimeEvents} downtime event(s) · read {londonStamp(result.report.generatedAt)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
