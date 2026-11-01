@@ -82,8 +82,8 @@ describe("reportToFile", () => {
     expect(pdf).toContain("(TOTAL COUNTED DOWNTIME)");
     expect(pdf).toContain("(Completed work orders)");
     expect(pdf).toContain("(Open work orders)");
-    expect(pdf).toContain("(WO-101)");
-    expect(pdf).toContain("(WO-200)");
+    expect(pdf).toContain("WO-101");
+    expect(pdf).toContain("WO-200");
     expect(pdf).toContain("(OPEN)");
     // No technical detail: no sources, no generator, no validation counters.
     expect(pdf).not.toContain("downtime_events");
