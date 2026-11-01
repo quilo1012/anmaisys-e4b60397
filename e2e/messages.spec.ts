@@ -288,6 +288,7 @@ for (const width of [360, 390]) {
  * what this page draws here: the worst case, which is also the common one on the floor.
  */
 const PHONES = [
+  { name: "narrowest phone", width: 320, height: 568 },
   { name: "iPhone SE", width: 375, height: 667 },
   { name: "small Android", width: 360, height: 640 },
   { name: "iPhone 13", width: 390, height: 844 },
@@ -295,7 +296,11 @@ const PHONES = [
 ];
 for (const phone of PHONES) {
   test.describe(`composer on the first screen, ${phone.name} ${phone.width}x${phone.height}`, () => {
-    test.use({ viewport: { width: phone.width, height: phone.height } });
+    // A phone's own profile, not just its width: `isMobile` and `hasTouch` make the
+    // page answer `pointer: coarse`, which is what grows every button to 48px on a
+    // real phone (index.css). With the viewport alone that rule never applied here,
+    // and the composer was measured with buttons narrower than any phone draws them.
+    test.use({ viewport: { width: phone.width, height: phone.height }, isMobile: true, hasTouch: true });
 
     test("Send and the message box are visible without scrolling, and a message goes", async ({ page }) => {
       const calls: Calls = { send: [], failNextSend: false };
@@ -326,6 +331,12 @@ for (const phone of PHONES) {
       await page.waitForTimeout(300);
       expect(await onScreen()).toEqual({ box: "ok", send: "ok" });
       await expect(page.getByRole("button", { name: "Send message" })).toBeDisabled();
+      // Safari on an iPhone zooms the page into any field whose text is under 16px,
+      // and stays zoomed when the keyboard closes — with Send, the right-most control,
+      // pushed past the edge of the screen. The sign-in fields already learned this.
+      const fontPx = await page.getByRole("textbox", { name: "Message" })
+        .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      expect(fontPx).toBeGreaterThanOrEqual(16);
 
       // A group, typed and sent with the button.
       await page.getByRole("button", { name: "Back to conversations" }).click();

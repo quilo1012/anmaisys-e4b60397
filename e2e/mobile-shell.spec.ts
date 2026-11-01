@@ -76,7 +76,11 @@ const SCREENS = ["/dashboard/manager", "/dashboard/departments/production", "/da
 
 for (const width of PHONES) {
   test.describe(`phone ${width}px`, () => {
-    test.use({ viewport: { width, height: 800 } });
+    // A phone's profile, not only its width: with `isMobile` and `hasTouch` the page
+    // answers `pointer: coarse`, and index.css grows every button to 48px. The date
+    // boxes below were measured without that for months and fitted; on a real 320px
+    // phone the two 48px arrows took the room and "01 Nov 26" lost its year.
+    test.use({ viewport: { width, height: 800 }, isMobile: true, hasTouch: true });
 
     test("login fits and keeps its controls finger-sized", async ({ page }) => {
       await stubSupabase(page, false);
@@ -129,9 +133,11 @@ for (const width of PHONES) {
       // Not truncated: the visible text span is as wide as its content.
       const cut = await from.evaluate((b) => {
         const s = [...b.querySelectorAll("span")].find((x) => x.getBoundingClientRect().width > 0)!;
-        return s.scrollWidth > s.clientWidth + 1;
+        const row = b.parentElement!;
+        const sizes = [...row.children].map((c) => Math.round(c.getBoundingClientRect().width)).join("+");
+        return s.scrollWidth > s.clientWidth + 1 ? `"${s.textContent}" needs ${s.scrollWidth}px, has ${s.clientWidth}; row ${Math.round(row.getBoundingClientRect().width)} = ${sizes}` : "";
       });
-      expect(cut).toBe(false);
+      expect(cut).toBe("");
       await expect(from).toHaveText(/\d{2} \w{3} \d{2}/);
     });
   });
