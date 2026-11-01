@@ -77,7 +77,7 @@ describe("validateShiftSelection", () => {
     expect(r).toEqual({ ok: false, error: "That shift has not started yet." });
   });
   it("refuses an impossible date", () => {
-    expect(validateShiftSelection("2026-02-30", "day").ok).toBe(false);
+    expect(validateShiftSelection("2026-02-30", "day", now).ok).toBe(false);
   });
 });
 
