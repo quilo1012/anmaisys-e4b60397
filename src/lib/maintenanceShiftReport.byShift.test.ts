@@ -5,7 +5,7 @@ import {
   reportFileName,
   shiftWindowFor,
   validateShiftSelection,
-  HANDOVER_MAX_PENDING,
+  OPEN_MAX_LISTED,
   type PendingOrder,
   type ShiftReportData,
 } from "@/lib/maintenanceShiftReport";
@@ -77,7 +77,7 @@ describe("validateShiftSelection", () => {
     expect(r).toEqual({ ok: false, error: "That shift has not started yet." });
   });
   it("refuses an impossible date", () => {
-    expect(validateShiftSelection("2026-02-30", "day", now).ok).toBe(false);
+    expect(validateShiftSelection("2026-02-30", "day").ok).toBe(false);
   });
 });
 
@@ -94,12 +94,11 @@ const NIGHT_28 = shiftWindowFor("2026-10-28", "night"); // 28/10 18:00 → 29/10
 const t = (s: string) => `2026-10-${s}:00.000Z`;
 const wo = (id: string, n: number, extra: Record<string, unknown> = {}) => ({
   id, wo_number: n, line_at_time: "Line 4", line_name: null, description: "Capper jam",
-  resolution_notes: "Replaced belt", status: "closed", ...extra,
+  resolution_notes: "Replaced belt", status: "closed", engineer_name: "Eng A", machine: null, ...extra,
 });
 const pending = (n: number, extra: Partial<PendingOrder> = {}): PendingOrder => ({
   id: `p${n}`, wo_number: n, line_at_time: "Line 7", line_name: null, description: "Filler leak",
-  status: "in_progress", engineer_name: "Eng A", paused_at: null, pause_reason: null,
-  created_at: t("29T05:00"), stopped_since: null, ...extra,
+  status: "in_progress", engineer_name: "Eng A", created_at: t("29T05:00"), ...extra,
 });
 const base = (over: Partial<ShiftReportData> = {}): ShiftReportData => ({
   window: NIGHT_28,
@@ -120,9 +119,10 @@ describe("a report for a night that has ended", () => {
         { id: "e2", work_order_id: "b", stopped_at: t("29T06:05"), resumed_at: t("29T06:09"), duration_minutes: 4 },
       ],
     }));
-    expect(r.items.map((i) => [i.wo.wo_number, i.stops[0].minutes, i.stops[0].carriedOver])).toEqual([[1, 40, true]]);
+    expect(r.downtimeEvents).toBe(1);
+    expect(r.totalCountedMinutes).toBe(40);
     expect(r.stopsRead).toBe(1);
-    expect(r.text).toContain("Period: 28/10/2026 18:00 → 29/10/2026 06:00 (Europe/London)");
+    expect(r.text).toContain("Night Shift · 28/10/2026");
     expect(r.text).not.toContain("still running");
   });
 
@@ -132,20 +132,22 @@ describe("a report for a night that has ended", () => {
       workOrders: [wo("a", 1, { status: "in_progress" })],
       events: [{ id: "e1", work_order_id: "a", stopped_at: t("29T05:00"), resumed_at: null, duration_minutes: null }],
     }));
-    expect(r.items[0].stops[0].minutes).toBe(60);
-    expect(r.openItems).toBe(1);
+    expect(r.totalCountedMinutes).toBe(60);
   });
 
-  it("carries no hand-over once it is more than 12 hours old, and says why", () => {
+  it("lists the open orders as they stand, whatever the shift's age", () => {
     const r = buildMaintenanceShiftReport(base({ generatedAt: new Date(t("30T12:00")), pending: [pending(9)] }));
-    expect(r.handover).toBeNull();
-    expect(r.text).toContain("**Handover:** not included");
-    expect(r.text).not.toContain("WO-9");
+    expect(r.open.map((p) => p.wo_number)).toEqual([9]);
+    expect(r.text).toContain("*Open work orders*");
+    expect(r.text).toContain("WO-9 · Line 7 · Filler leak · Eng A · OPEN");
   });
 
-  it("says 'no stoppage' for an empty night only because the reads succeeded and found none", () => {
+  it("an empty night says so plainly, only because the reads succeeded and found none", () => {
     const r = buildMaintenanceShiftReport(base());
-    expect(r.text).toContain("- No line stoppage over 15 minutes recorded this shift.");
+    expect(r.text).toContain("Completed work orders: 0");
+    expect(r.text).toContain("Downtime events: 0");
+    expect(r.text).toContain("Total counted downtime: 0h 0m");
+    expect(r.text).toContain("None completed this shift.");
     expect(r.problems).toEqual([]);
   });
 });
@@ -166,10 +168,10 @@ describe("summary and audit trail", () => {
 
   it("gives every stop that touched the shift a verdict", () => {
     expect(r.rows.map((x) => [x.woNumber, x.verdict, x.minutes, x.excludedMinutes])).toEqual([
-      [1, "listed", 50, 0],
+      [1, "counted", 50, 0],
       [3, "planned", null, 0],
-      [2, "listed", 60, 0],
-      [4, "under 15 min", 10, 20],
+      [2, "counted", 60, 0],
+      [4, "counted", 10, 20],
       [null, "order not read", null, 0],
     ]);
   });
@@ -179,41 +181,32 @@ describe("summary and audit trail", () => {
     expect(r.ordersRead).toBe(4);
     expect(r.plannedStops).toBe(1);
     expect(r.excludedMinutes).toBe(20);
-    expect(r.openItems).toBe(1);
-    expect(r.resolvedItems).toBe(1);
-    expect(r.text).toContain("- Stops over 15 min: 2 (110 min)");
-    expect(r.text).toContain("- Team-activity time excluded: 20 min");
-    expect(r.text).toContain("- Still open: 1 · Resolved: 1");
-    expect(r.text).toContain("- Records not validated: 1");
-    expect(r.text).toContain("NOT VALIDATED");
+    expect(r.downtimeEvents).toBe(3);
+    expect(r.totalCountedMinutes).toBe(120);
+    expect(r.problems).toHaveLength(1);
   });
 });
 
-describe("hand-over for a recent shift", () => {
-  it("lists the lines still stopped, the pending orders as recorded, and the notes typed", () => {
+describe("open orders on a recent shift", () => {
+  it("lists them as recorded, and never as completed", () => {
     const r = buildMaintenanceShiftReport(base({
-      generatedBy: "Eng B",
       pending: [
-        pending(10, { stopped_since: t("29T05:30") }),
-        pending(11, { paused_at: t("29T04:00"), pause_reason: "Waiting for parts", line_at_time: "Line 2", engineer_name: null }),
-        pending(12, { status: "finished" }), // not pending: filtered out
+        pending(10),
+        pending(11, { line_at_time: "Line 2", engineer_name: null }),
+        pending(12, { status: "finished" }), // not open: filtered out
       ],
-      handoverNotes: "  Check Line 7 seal at 08:00  ",
     }));
-    expect(r.handover?.stillStopped.map((p) => p.wo_number)).toEqual([10]);
-    expect(r.handover?.pending.map((p) => p.wo_number)).toEqual([10, 11]);
-    expect(r.text).toContain("**Handover** (order status at 29/10/2026 06:10)");
-    expect(r.text).toContain("- Line 7 · WO-10 Filler leak · stopped since 05:30 (40m) · engineer: Eng A");
-    expect(r.text).toContain("- WO-11 · Line 2 · Filler leak · in_progress · paused: Waiting for parts · engineer: not assigned");
-    expect(r.text).toContain("Handover notes (Eng B): Check Line 7 seal at 08:00");
-    expect(r.text).toContain("Generated: 29/10/2026 06:10 by Eng B");
+    expect(r.open.map((p) => p.wo_number)).toEqual([10, 11]);
+    expect(r.completed).toHaveLength(0);
+    expect(r.text).toContain("WO-10 · Line 7 · Filler leak · Eng A · OPEN");
+    expect(r.text).toContain("WO-11 · Line 2 · Filler leak · not assigned · OPEN");
+    expect(r.text).not.toContain("WO-12");
   });
 
-  it("writes out the first twenty pending orders and counts the rest", () => {
-    const many = Array.from({ length: HANDOVER_MAX_PENDING + 3 }, (_, i) => pending(100 + i));
+  it("writes out the first orders and counts the rest", () => {
+    const many = Array.from({ length: OPEN_MAX_LISTED + 3 }, (_, i) => pending(100 + i));
     const r = buildMaintenanceShiftReport(base({ pending: many }));
-    expect(r.text).toContain(`Pending work orders: ${HANDOVER_MAX_PENDING + 3}`);
-    expect(r.text).toContain("- …and 3 more (see Work Orders).");
-    expect(r.text).not.toContain(`WO-${100 + HANDOVER_MAX_PENDING} `);
+    expect(r.text).toContain(`…and 3 more (see Work Orders).`);
+    expect(r.text).not.toContain(`WO-${100 + OPEN_MAX_LISTED} ·`);
   });
 });
