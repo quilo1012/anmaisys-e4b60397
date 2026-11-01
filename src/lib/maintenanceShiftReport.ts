@@ -1,19 +1,25 @@
 /**
- * The engineer console's "Report": the maintenance part of the shift hand-over.
+ * The engineer console's "Report": the maintenance report for one shift.
  *
- * The old version built the text from whatever the page already had in memory: the
- * shift window was fixed when the page opened (a tablet left on from the day shift
- * reported the day shift all night), only finished orders were looked at (a line
- * still down was "No issues today"), and the downtime query was fired in the
- * background — click before it returned, or after it failed, and the file said
- * "No issues today" with nothing to show it had not looked. Planned problems and
- * team-activity exclusions, which every other downtime figure leaves out, were
- * counted in full.
+ * The report answers three questions, in this order: how much counted downtime the
+ * shift had, which work orders were genuinely completed, and which are still open.
  *
- * Now the stops are read fresh from `downtime_events` for the shift the user picks —
- * the running one or any earlier one — and the report says what it read and where the
- * numbers disagree. "No line stoppage" is only ever written after a read that
- * succeeded and found none.
+ * What it deliberately does NOT carry (owner's decision, 01/11/2026): database source
+ * names, who generated it, long period descriptions, planned-stop / team-activity /
+ * not-validated counters, a hand-over section and greetings. Those details are still
+ * computed — `problems` and the counters stay on the report object for the dialog's
+ * "Checked / NOT validated" badge and the audit history — but they are not printed.
+ *
+ * Data accuracy rules:
+ * - A work order is "completed" only when its status is a finished one AND its
+ *   completion time (finished_at, else completed_at, else closed_at) falls inside
+ *   the shift. Open orders are listed separately and never counted as completed.
+ * - Downtime comes from the validated downtime records: every stop that touched the
+ *   shift, clipped to the shift, minus planned stops and team-activity exclusions —
+ *   the same rules the rest of the app uses. There is no minimum-minutes floor: a
+ *   1-minute stop is real downtime and is counted.
+ * - Nothing is invented: a missing name, repair description, engineer or downtime
+ *   value is shown as missing, never guessed.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, londonHM, londonWallToUtc, type ShiftCode } from "@/lib/shifts";
@@ -21,19 +27,10 @@ import { toExclusionIntervals, exclusionOverlapMs } from "@/lib/downtimeExclusio
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
+import { formatMinutes } from "@/lib/formatDuration";
 
-/** Stops at or under this many minutes stay off the report. Unchanged from before. */
-export const REPORT_MIN_MINUTES = 15;
-
-/**
- * How recent a shift must be for the report to carry a hand-over. The orders' state
- * is read as it is NOW; for a shift that ended long ago that is not the state it was
- * handed over in, and printing it under that shift's name would say otherwise.
- */
-export const HANDOVER_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-
-/** At most this many pending orders are written out; the rest are counted. */
-export const HANDOVER_MAX_PENDING = 20;
+/** At most this many open orders are written out; the rest are counted. */
+export const OPEN_MAX_LISTED = 20;
 
 export interface ShiftWindow {
   start: Date;
@@ -118,6 +115,10 @@ export interface ReportWorkOrder {
   resolution_notes: string | null;
   status: string;
   wo_type?: string | null;
+  engineer_name?: string | null;
+  machine?: string | null;
+  /** When it was finished: finished_at, else completed_at, else closed_at. */
+  completed_at_effective?: string | null;
 }
 
 export interface ReportEvent {
@@ -144,27 +145,24 @@ export interface PendingOrder {
   description: string | null;
   status: string;
   engineer_name: string | null;
-  paused_at: string | null;
-  pause_reason: string | null;
   created_at: string;
-  /** When its line went down, if a stop on it is still open. */
-  stopped_since: string | null;
 }
 
 export interface ShiftReportData {
   window: ShiftWindow;
   generatedAt: Date;
+  /** Orders behind the stops that touched the shift. */
   workOrders: ReportWorkOrder[];
   events: ReportEvent[];
   exclusions: ReportExclusion[];
   /** Lower-cased names of `problem_descriptions` marked planned. */
   plannedProblems: string[];
-  /** Who generated it, printed in the header. */
+  /** Who generated it. Kept for the audit history; never printed. */
   generatedBy?: string | null;
-  /** Orders still open now. Only used when the shift is recent enough for a hand-over. */
+  /** Orders genuinely completed inside the shift (status finished + completion time in window). */
+  completedOrders?: ReportWorkOrder[];
+  /** Orders still open now. */
   pending?: PendingOrder[];
-  /** Free text typed by the engineer; printed as written, under their name. */
-  handoverNotes?: string | null;
 }
 
 export interface ReportStop {
@@ -173,13 +171,14 @@ export interface ReportStop {
   carriedOver: boolean;
 }
 
-export interface ReportItem {
+/** A genuinely completed work order, with the downtime its stops caused this shift. */
+export interface CompletedOrder {
   wo: ReportWorkOrder;
   stops: ReportStop[];
   totalMinutes: number;
 }
 
-export type StopVerdict = "listed" | "under 15 min" | "planned" | "inverted" | "order not read";
+export type StopVerdict = "counted" | "planned" | "inverted" | "order not read";
 
 /** Every stop that touched the shift and what the report did with it — the audit trail. */
 export interface StopRow {
@@ -200,19 +199,21 @@ export interface ShiftReport {
   generatedAt: Date;
   generatedBy: string | null;
   text: string;
-  items: ReportItem[];
+  /** Genuinely completed in this shift, newest completion first. */
+  completed: CompletedOrder[];
+  /** Still open now, as recorded. Never counted as completed. */
+  open: PendingOrder[];
+  /** Validated stops that touched the window and were counted. */
+  downtimeEvents: number;
+  /** Sum of the counted stops' minutes inside the window, after exclusions. */
+  totalCountedMinutes: number;
   rows: StopRow[];
-  /** Distinct stops that touched the window. */
+  /** Distinct stops that touched the window, counted or not. */
   stopsRead: number;
   ordersRead: number;
   plannedStops: number;
   /** Minutes of team activity taken off the stops that were counted. */
   excludedMinutes: number;
-  /** Listed orders not finished, or with a stop still open. */
-  openItems: number;
-  resolvedItems: number;
-  /** Null when the shift is too old for one; see HANDOVER_MAX_AGE_MS. */
-  handover: { pending: PendingOrder[]; stillStopped: PendingOrder[]; notes: string | null } | null;
   /** Anything that means the numbers cannot be taken as checked. */
   problems: string[];
 }
@@ -250,6 +251,12 @@ export function reportFileName(w: Pick<ShiftWindow, "sessionDate" | "shift">, ex
   return `Maintenance_Report_${w.shift === "day" ? "Day" : "Night"}_Shift_${w.sessionDate}.${ext}`;
 }
 
+/** The heading of a completed order: "Line 2 – WO-1451". */
+export function completedHeading(wo: ReportWorkOrder): string {
+  const ref = wo.wo_number ? `WO-${wo.wo_number}` : "WO number not recorded";
+  return `${lineLabelOf(wo.line_at_time, wo.line_name)} – ${ref}`;
+}
+
 export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport {
   const { window, generatedAt } = input;
   const winStart = window.start.getTime();
@@ -275,6 +282,8 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
   let stopsRead = 0;
   let plannedStops = 0;
   let excludedMinutes = 0;
+  let downtimeEvents = 0;
+  let totalCountedMinutes = 0;
   const touched = new Set<string>();
   const row = (e: ReportEvent, wo: ReportWorkOrder | undefined, verdict: StopVerdict, minutes: number | null, excluded = 0) =>
     rows.push({
@@ -299,9 +308,9 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     const wo = woById.get(e.work_order_id);
     // Warehouse service never stops a line; the Shift Breakdown leaves it out too.
     if (wo?.wo_type === "warehouse_service") continue;
-    // An end before its start (two such rows in production, WO 498 and WO 918) is
-    // not a short stop, it is a broken one. The view floors it at zero; here it is
-    // named, because a report that skips it says less than the order does.
+    // An end before its start is not a short stop, it is a broken one. The view
+    // floors it at zero; here it is named, because a report that skips it says less
+    // than the order does.
     if (e.resumed_at && end < s) {
       if (s >= winStart && s < winEnd) {
         problems.push(
@@ -341,125 +350,87 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     const excludedMin = Math.round(excluded / 60_000);
     excludedMinutes += excludedMin;
     const minutes = Math.max(0, Math.round((to - from - excluded) / 60_000));
-    if (minutes <= REPORT_MIN_MINUTES) {
-      row(e, wo, "under 15 min", minutes, excludedMin);
-      continue;
-    }
-    row(e, wo, "listed", minutes, excludedMin);
+    row(e, wo, "counted", minutes, excludedMin);
+    downtimeEvents++;
+    totalCountedMinutes += minutes;
     if (!stopsByWo.has(wo.id)) stopsByWo.set(wo.id, []);
     stopsByWo.get(wo.id)!.push({ minutes, ongoing: !e.resumed_at, carriedOver: s < winStart });
   }
 
-  const items: ReportItem[] = [...stopsByWo.entries()].map(([id, stops]) => ({
-    wo: woById.get(id)!,
-    stops,
-    totalMinutes: stops.reduce((sum, x) => sum + x.minutes, 0),
-  }));
+  // Genuinely completed in this shift. The list comes from the completed-orders read,
+  // never from the stops: an order finished without a line stoppage is still completed,
+  // and an open order with a long stop is still open.
+  const completed: CompletedOrder[] = (input.completedOrders ?? [])
+    .filter((w) => FINISHED.has(w.status) && w.wo_type !== "warehouse_service")
+    .map((w) => {
+      const stops = stopsByWo.get(w.id) ?? [];
+      return { wo: w, stops, totalMinutes: stops.reduce((sum, x) => sum + x.minutes, 0) };
+    })
+    .sort((a, b) => {
+      const ta = a.wo.completed_at_effective ? new Date(a.wo.completed_at_effective).getTime() : 0;
+      const tb = b.wo.completed_at_effective ? new Date(b.wo.completed_at_effective).getTime() : 0;
+      return tb - ta || (a.wo.wo_number ?? 0) - (b.wo.wo_number ?? 0);
+    });
+
+  const open = (input.pending ?? []).filter((p) => (PENDING_STATUSES as readonly string[]).includes(p.status));
+
   // Self-check: what is printed is what was added up, and the audit trail agrees.
-  for (const it of items) {
-    if (it.totalMinutes !== it.stops.reduce((sum, x) => sum + x.minutes, 0)) {
-      problems.push(`WO-${it.wo.wo_number ?? "?"}: total does not match its stops.`);
-    }
-  }
-  const listedRows = rows.filter((r) => r.verdict === "listed");
-  if (listedRows.length !== items.reduce((n, it) => n + it.stops.length, 0)) {
-    problems.push("The stops listed do not match the stops counted.");
+  const countedRows = rows.filter((r) => r.verdict === "counted");
+  if (countedRows.length !== downtimeEvents || countedRows.reduce((n, r) => n + (r.minutes ?? 0), 0) !== totalCountedMinutes) {
+    problems.push("The stops counted do not match the stops listed.");
   }
 
-  const isOpen = (it: ReportItem) => !FINISHED.has(it.wo.status) || it.stops.some((x) => x.ongoing);
-  const openItems = items.filter(isOpen).length;
-  const resolvedItems = items.length - openItems;
-  const ordersRead = touched.size;
-  const listedMinutes = items.reduce((n, it) => n + it.totalMinutes, 0);
-
-  const handover = winEnd > nowMs - HANDOVER_MAX_AGE_MS && input.pending
-    ? (() => {
-      const pending = input.pending.filter((p) => (PENDING_STATUSES as readonly string[]).includes(p.status));
-      return {
-        pending,
-        stillStopped: pending.filter((p) => p.stopped_since),
-        notes: clean(input.handoverNotes) || null,
-      };
-    })()
-    : null;
-
-  // ── Text ───────────────────────────────────────────────────────────────
-  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  // ── Text (WhatsApp-friendly: *bold*, short lines, no technical detail) ──
   const by = clean(input.generatedBy);
   const lines: string[] = [
-    "**Maintenance Report**",
-    `Shift: ${shiftLabel(window.shift)}`,
-    `Date: ${ddmmyyyy(window.sessionDate)}`,
-    `Period: ${londonStamp(window.start)} → ${londonStamp(window.end)} (Europe/London)` +
-      (winEnd > nowMs ? " — shift still running, figures up to now" : ""),
-    `Generated: ${londonStamp(generatedAt)}${by ? ` by ${by}` : ""}`,
-    "Source: downtime_events, work_orders, wo_downtime_exclusions — read when the report was generated",
-    "",
-    "**Summary**",
-    `- Stops recorded: ${plural(stopsRead, "stop")} on ${plural(ordersRead, "work order")}`,
-    `- Stops over ${REPORT_MIN_MINUTES} min: ${listedRows.length} (${listedMinutes} min)`,
-    `- Planned stops not counted: ${plannedStops}`,
-    `- Team-activity time excluded: ${excludedMinutes} min`,
-    `- Still open: ${openItems} · Resolved: ${resolvedItems}`,
-    `- Records not validated: ${problems.length}`,
-    "",
-    `**Stops over ${REPORT_MIN_MINUTES} minutes**`,
+    "*Maintenance Report*",
+    `${window.shift === "day" ? "Day" : "Night"} Shift · ${ddmmyyyy(window.sessionDate)}`,
   ];
-  for (const { wo, stops } of items) {
-    const what = clean(wo.resolution_notes) || clean(wo.description) || "No description recorded";
-    const open = FINISHED.has(wo.status) ? "" : " (in progress)";
-    const ref = wo.wo_number ? ` (WO-${wo.wo_number})` : "";
-    lines.push(`**${lineLabelOf(wo.line_at_time, wo.line_name)}:** ${what}${open}${ref}`);
+  if (winEnd > nowMs) lines.push(`Shift still running — figures up to ${londonHM(generatedAt)}.`);
+  lines.push(
+    "",
+    "*Shift summary*",
+    `Completed work orders: ${completed.length}`,
+    `Downtime events: ${downtimeEvents}`,
+    `Total counted downtime: ${formatMinutes(totalCountedMinutes)}`,
+    "",
+    "*Completed work orders*",
+  );
+  if (completed.length === 0) {
+    lines.push("None completed this shift.");
+  }
+  for (const { wo, totalMinutes } of completed) {
+    const machine = clean(wo.machine);
+    const problem = clean(wo.description) || "Not recorded";
+    const work = clean(wo.resolution_notes) || "Not recorded";
+    const engineer = clean(wo.engineer_name) || "Not assigned";
     lines.push(
-      "Downtime: " +
-        stops
-          .map((x) => `${x.minutes}m${x.ongoing ? " so far (still stopped)" : ""}${x.carriedOver ? " (from previous shift)" : ""}`)
-          .join("; "),
+      "",
+      `*${completedHeading(wo)}*`,
+      ...(machine ? [`Work Order: ${machine}`] : []),
+      `Problem: ${problem}`,
+      `Work carried out: ${work}`,
+      `Engineer: ${engineer}`,
+      `DOWNTIME: ${formatMinutes(totalMinutes)}`,
     );
   }
-  if (problems.length > 0) {
-    lines.push("", "**NOT VALIDATED — the records disagree:**", ...problems.map((p) => `- ${p}`));
-  } else if (items.length === 0) {
-    lines.push(`- No line stoppage over ${REPORT_MIN_MINUTES} minutes recorded this shift.`);
-  }
-
-  lines.push("");
-  if (handover) {
-    lines.push(`**Handover** (order status at ${londonStamp(generatedAt)})`);
-    lines.push(`Lines still stopped: ${handover.stillStopped.length}`);
-    for (const p of handover.stillStopped) {
-      const mins = Math.max(0, Math.round((nowMs - new Date(p.stopped_since!).getTime()) / 60_000));
+  if (open.length > 0) {
+    lines.push("", "*Open work orders*");
+    for (const p of open.slice(0, OPEN_MAX_LISTED)) {
       lines.push(
-        `- ${lineLabelOf(p.line_at_time, p.line_name)} · WO-${p.wo_number ?? "?"} ${clean(p.description) || "—"}` +
-          ` · stopped since ${londonHM(new Date(p.stopped_since!))} (${mins}m) · engineer: ${clean(p.engineer_name) || "not assigned"}`,
+        `${p.wo_number ? `WO-${p.wo_number}` : "WO number not recorded"} · ${lineLabelOf(p.line_at_time, p.line_name)} · ` +
+          `${clean(p.description) || "Not recorded"} · ${clean(p.engineer_name) || "not assigned"} · OPEN`,
       );
     }
-    lines.push(`Pending work orders: ${handover.pending.length}`);
-    for (const p of handover.pending.slice(0, HANDOVER_MAX_PENDING)) {
-      // The pause reason is what the engineer typed. "Waiting for parts" is only ever
-      // printed because somebody wrote it, never inferred.
-      const paused = p.paused_at ? ` · paused: ${clean(p.pause_reason) || "no reason recorded"}` : "";
-      lines.push(
-        `- WO-${p.wo_number ?? "?"} · ${lineLabelOf(p.line_at_time, p.line_name)} · ${clean(p.description) || "—"}` +
-          ` · ${p.status}${paused} · engineer: ${clean(p.engineer_name) || "not assigned"}`,
-      );
+    if (open.length > OPEN_MAX_LISTED) {
+      lines.push(`…and ${open.length - OPEN_MAX_LISTED} more (see Work Orders).`);
     }
-    if (handover.pending.length > HANDOVER_MAX_PENDING) {
-      lines.push(`- …and ${handover.pending.length - HANDOVER_MAX_PENDING} more (see Work Orders).`);
-    }
-    if (handover.notes) lines.push(`Handover notes${by ? ` (${by})` : ""}: ${handover.notes}`);
-  } else {
-    lines.push(
-      `**Handover:** not included — this shift ended more than ${HANDOVER_MAX_AGE_MS / 3_600_000} hours before the report ` +
-        "was generated, and today's order statuses are not the ones it was handed over with.",
-    );
   }
-  lines.push("- Have a good day.");
 
   return {
     window, generatedAt, generatedBy: by || null,
-    text: lines.join("\n"), items, rows, stopsRead, ordersRead, plannedStops,
-    excludedMinutes, openItems, resolvedItems, handover, problems,
+    text: lines.join("\n"), completed, open, downtimeEvents, totalCountedMinutes,
+    rows, stopsRead, ordersRead: touched.size, plannedStops, excludedMinutes, problems,
   };
 }
 
@@ -471,7 +442,7 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
  */
 export async function fetchMaintenanceShiftReport(
   now: Date = new Date(),
-  opts: { window?: ShiftWindow; generatedBy?: string | null; handoverNotes?: string | null } = {},
+  opts: { window?: ShiftWindow; generatedBy?: string | null } = {},
 ): Promise<ShiftReport> {
   const window = opts.window ?? shiftWindowAt(now);
   const startIso = window.start.toISOString();
@@ -497,11 +468,18 @@ export async function fetchMaintenanceShiftReport(
   }));
 
   const ids = [...new Set(events.map((e) => e.work_order_id))];
-  const wantsHandover = window.end.getTime() > now.getTime() - HANDOVER_MAX_AGE_MS;
-  const [wos, exclusions, plannedRows, pendingRows, openStops] = await Promise.all([
+  // "Completed in this shift" = a finished status whose completion time falls inside
+  // the window. PostgREST has no COALESCE, so the OR covers the three columns the
+  // workflow writes; the builder picks the first non-null as the completion time.
+  const completedInWindow =
+    `and(status.in.(${[...FINISHED].join(",")}),finished_at.gte.${startIso},finished_at.lt.${endIso}),` +
+    `and(status.in.(${[...FINISHED].join(",")}),completed_at.gte.${startIso},completed_at.lt.${endIso}),` +
+    `and(status.in.(${[...FINISHED].join(",")}),closed_at.gte.${startIso},closed_at.lt.${endIso})`;
+
+  const [wos, exclusions, plannedRows, completedRows, pendingRows] = await Promise.all([
     read("the work orders", fetchRowsByIds<any>(ids, (chunk, from, to) =>
       db.from("work_orders")
-        .select("id, wo_number, line_at_time, description, resolution_notes, status, wo_type, line:lines!work_orders_line_id_fkey(name)")
+        .select("id, wo_number, line_at_time, description, resolution_notes, status, wo_type, engineer_name, machine, line:lines!work_orders_line_id_fkey(name)")
         .in("id", chunk).order("id").range(from, to))),
     read("the downtime exclusions", fetchRowsByIds<ReportExclusion>(ids, (chunk, from, to) =>
       db.from("wo_downtime_exclusions")
@@ -510,38 +488,26 @@ export async function fetchMaintenanceShiftReport(
     read("which problems are planned", fetchAllRows<{ name: string | null }>({
       range: (from, to) => db.from("problem_descriptions").select("id, name").eq("planned", true).order("id").range(from, to),
     })),
-    wantsHandover
-      ? read("the pending work orders", fetchAllRows<Omit<PendingOrder, "line_name" | "stopped_since"> & { line: { name: string } | null }>({
-        range: (from, to) =>
-          db.from("work_orders")
-            .select("id, wo_number, line_at_time, description, status, engineer_name, paused_at, pause_reason, created_at, line:lines!work_orders_line_id_fkey(name)")
-            .in("status", [...PENDING_STATUSES])
-            .neq("wo_type", "warehouse_service")
-            .order("created_at", { ascending: false })
-            .order("id", { ascending: true })
-            .range(from, to),
-      }))
-      : Promise.resolve(null),
-    wantsHandover
-      ? read("the open stoppages", fetchAllRows<{ work_order_id: string; stopped_at: string }>({
-        range: (from, to) =>
-          db.from("downtime_events").select("id, work_order_id, stopped_at")
-            .is("resumed_at", null).order("stopped_at", { ascending: true }).order("id", { ascending: true }).range(from, to),
-      }))
-      : Promise.resolve(null),
+    read("the completed work orders", fetchAllRows<any>({
+      range: (from, to) =>
+        db.from("work_orders")
+          .select("id, wo_number, line_at_time, description, resolution_notes, status, wo_type, engineer_name, machine, finished_at, completed_at, closed_at, line:lines!work_orders_line_id_fkey(name)")
+          .or(completedInWindow)
+          .neq("wo_type", "warehouse_service")
+          .order("wo_number", { ascending: true })
+          .range(from, to),
+    })),
+    read("the open work orders", fetchAllRows<Omit<PendingOrder, "line_name"> & { line: { name: string } | null }>({
+      range: (from, to) =>
+        db.from("work_orders")
+          .select("id, wo_number, line_at_time, description, status, engineer_name, created_at, line:lines!work_orders_line_id_fkey(name)")
+          .in("status", [...PENDING_STATUSES])
+          .neq("wo_type", "warehouse_service")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to),
+    })),
   ]);
-
-  let pending: PendingOrder[] | undefined;
-  if (pendingRows && openStops) {
-    const since = new Map<string, string>();
-    for (const s of openStops) if (!since.has(s.work_order_id)) since.set(s.work_order_id, s.stopped_at);
-    pending = pendingRows.map((w) => ({
-      id: w.id, wo_number: w.wo_number, line_at_time: w.line_at_time, line_name: w.line?.name ?? null,
-      description: w.description, status: w.status, engineer_name: w.engineer_name,
-      paused_at: w.paused_at, pause_reason: w.pause_reason, created_at: w.created_at,
-      stopped_since: since.get(w.id) ?? null,
-    }));
-  }
 
   return buildMaintenanceShiftReport({
     window,
@@ -551,7 +517,15 @@ export async function fetchMaintenanceShiftReport(
     exclusions,
     plannedProblems: plannedRows.map((p) => String(p.name ?? "").toLowerCase()),
     generatedBy: opts.generatedBy,
-    pending,
-    handoverNotes: opts.handoverNotes,
+    completedOrders: completedRows.map((w: any) => ({
+      id: w.id, wo_number: w.wo_number, line_at_time: w.line_at_time, line_name: w.line?.name ?? null,
+      description: w.description, resolution_notes: w.resolution_notes, status: w.status, wo_type: w.wo_type,
+      engineer_name: w.engineer_name, machine: w.machine,
+      completed_at_effective: w.finished_at ?? w.completed_at ?? w.closed_at ?? null,
+    })),
+    pending: pendingRows.map((w) => ({
+      id: w.id, wo_number: w.wo_number, line_at_time: w.line_at_time, line_name: w.line?.name ?? null,
+      description: w.description, status: w.status, engineer_name: w.engineer_name, created_at: w.created_at,
+    })),
   });
 }
