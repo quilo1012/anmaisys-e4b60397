@@ -38,3 +38,12 @@ export async function authenticatedRpc<Name extends keyof Functions>(
   }
   return supabase.rpc(name, args).setHeader("Authorization", `Bearer ${session.access_token}`);
 }
+/** The live session's access token, or NoLiveSessionError — so a read is never sent as anon. */
+export async function liveAccessToken(): Promise<string> {
+  const { data, error } = await supabase.auth.getSession();
+  const session = data?.session;
+  if (error || !session?.access_token || (session.expires_at && session.expires_at * 1000 <= Date.now())) {
+    throw new NoLiveSessionError();
+  }
+  return session.access_token;
+}

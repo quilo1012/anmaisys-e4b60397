@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { liveAccessToken } from "@/lib/authenticatedRpc";
 
 /**
  * How far behind the TimeMoto clock is, and how much of the factory it covers.
@@ -110,7 +111,9 @@ export function useClockCoverage(todayIso: string) {
       const { data, error } = await (supabase as any)
         .from("v_timemoto_coverage")
         .select("last_on_date, first_on_date, employees_covered, active_employees, rows_total")
-        .maybeSingle();
+        .maybeSingle()
+        // Pinned so a load during session restore cannot be sent as anon.
+        .setHeader("Authorization", `Bearer ${await liveAccessToken()}`);
       if (error) throw error;
       return (data ?? null) as CoverageRow | null;
     },

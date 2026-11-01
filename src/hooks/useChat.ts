@@ -3,6 +3,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { liveAccessToken } from "@/lib/authenticatedRpc";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCurrentFactoryShift, getCurrentShiftStart } from "@/lib/shifts";
 import { showDMToast } from "@/components/DMNotificationToast";
@@ -19,7 +20,11 @@ import { mergeMessages, storageSafeName, fileType } from "@/lib/chat";
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const rpc = (name: string, args?: Record<string, unknown>) => (supabase.rpc as any)(name, args);
+// Pin the live token: a request fired while the session is still restoring must wait, not go out as anon.
+const rpc = async (name: string, args?: Record<string, unknown>) => {
+  const token = await liveAccessToken();
+  return (supabase.rpc as any)(name, args).setHeader("Authorization", `Bearer ${token}`);
+};
 const from = (table: string) => (supabase.from as any)(table);
 
 const notThere = (e: { code?: string } | null | undefined) =>
