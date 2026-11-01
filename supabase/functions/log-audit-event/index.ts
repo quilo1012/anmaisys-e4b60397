@@ -17,11 +17,13 @@ const ALLOWED_ACTIONS = [
   "update", "user_created", "user_deleted", "user_login_activated",
   "user_role_changed", "wo_recurrence_reopened", "work_orders_cleared",
   "import_rag_plan_workbook",
+  // Engineer screen: "Shift maintenance report" (useMaintenanceReportHistory).
+  "maintenance_report_generated",
 ] as const;
 
 // Allow-list of accepted entity types.
 const ALLOWED_ENTITY_TYPES = [
-  "engineer", "machine", "problem", "product", "product_category",
+  "engineer", "machine", "maintenance_report", "problem", "product", "product_category",
   "rag_weekly_entry", "role_permission", "system", "user", "work_order",
 ] as const;
 
@@ -86,7 +88,7 @@ Deno.serve(async (req) => {
   try {
     rawBody = await req.json();
   } catch {
-    return new Response(JSON.stringify({ error: "invalid_json" }), {
+    return new Response(JSON.stringify({ error: "invalid_json", message: "log-audit-event refused: body is not JSON" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -94,7 +96,15 @@ Deno.serve(async (req) => {
 
   const parsedBody = BodySchema.safeParse(rawBody);
   if (!parsedBody.success) {
-    return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), {
+    // `message` is what Root Diagnostics records, so a refused entry says why.
+    const fields = parsedBody.error.flatten().fieldErrors as Record<string, string[] | undefined>;
+    const reason = Object.entries(fields)
+      .map(([field, msgs]) => `${field}: ${(msgs ?? []).join("; ")}`)
+      .join(" | ") || parsedBody.error.issues.map((i) => i.message).join("; ");
+    const raw = (rawBody ?? {}) as Record<string, unknown>;
+    const message =
+      `log-audit-event refused (action=${String(raw.action)}, entity_type=${String(raw.entity_type)}): ${reason}`;
+    return new Response(JSON.stringify({ error: "invalid_body", message, fields }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -105,7 +115,7 @@ Deno.serve(async (req) => {
   const details = parsedBody.data.details ?? {};
 
   if (JSON.stringify(details).length > 10000) {
-    return new Response(JSON.stringify({ error: "details_too_large" }), {
+    return new Response(JSON.stringify({ error: "details_too_large", message: "log-audit-event refused: details over 10,000 characters" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
