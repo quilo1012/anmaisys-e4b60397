@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -68,7 +67,6 @@ export function MaintenanceReportDialog({
   const [sessionDate, setSessionDate] = useState(() => shiftWindowAt(new Date()).sessionDate);
   const [shift, setShift] = useState<ShiftCode>(() => shiftWindowAt(new Date()).shift);
   const [format, setFormat] = useState<ReportFormat>("pdf");
-  const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ report: ShiftReport; file: File; format: ReportFormat } | null>(null);
@@ -106,7 +104,7 @@ export function MaintenanceReportDialog({
     if ("error" in v) { setError(v.error); return; }
     setBusy(true); setError(null); setResult(null);
     try {
-      const report = await fetchMaintenanceShiftReport(now, { window: v.window, generatedBy, handoverNotes: notes });
+      const report = await fetchMaintenanceShiftReport(now, { window: v.window, generatedBy });
       const file = await reportToFile(report, format);
       download(file);
       setResult({ report, file, format });
