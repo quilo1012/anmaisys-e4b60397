@@ -652,7 +652,7 @@ function EngineerDashboardContent() {
     const raw = resolutionNotes.trim();
     if (!raw) return;
     setPolishing(true);
-    const notes = await polishToEnglish(raw);
+    const notes = (await polishToEnglish(raw)) ?? raw;
     setPolishing(false);
 
     const engineer: EngineerIdentity = currentEngineer
