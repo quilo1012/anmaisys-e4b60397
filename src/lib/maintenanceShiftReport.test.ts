@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
+import { boldText,
   buildMaintenanceShiftReport,
   shiftWindowAt,
   type ShiftReportData,
@@ -77,12 +77,12 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
     }));
     expect(r.completed).toHaveLength(1);
     expect(r.completed[0].totalMinutes).toBe(40);
-    expect(r.text).toContain("*Line 4 – WO-1*");
-    expect(r.text).toContain("Work Order: Capper");
+    expect(r.text).toContain(boldText("Line 4 – WO-1"));
+    expect(r.text).toContain("Machine: Capper");
     expect(r.text).toContain("Problem: Capper jam");
     expect(r.text).toContain("Work carried out: Replaced the capper belt");
     expect(r.text).toContain("Engineer: Eng A");
-    expect(r.text).toContain("DOWNTIME: 0h 40m");
+    expect(r.text).toContain(`Downtime: ${boldText("0h 40m")}`);
   });
 
   it("lists a completed order that had no stoppage at all — completed is not derived from downtime", () => {
@@ -92,7 +92,7 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
     expect(r.completed).toHaveLength(1);
     expect(r.completed[0].totalMinutes).toBe(0);
     expect(r.text).toContain("Completed work orders: 1");
-    expect(r.text).toContain("DOWNTIME: 0h 0m");
+    expect(r.text).toContain(`Downtime: ${boldText("0h 0m")}`);
   });
 
   it("an open order with a stoppage is open, never completed — and its minutes still count", () => {
@@ -107,9 +107,9 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
     expect(r.downtimeEvents).toBe(1);
     expect(r.totalCountedMinutes).toBe(12);
     expect(r.text).toContain("Completed work orders: 0");
-    expect(r.text).toContain("Total counted downtime: 0h 12m");
-    expect(r.text).toContain("WO-1451 · Line 2 · Printer Fault · not assigned · OPEN");
-    expect(r.text).not.toContain("*Line 2 – WO-1451*");
+    expect(r.text).toContain(`Total counted downtime: ${boldText("0h 12m")}`);
+    expect(r.text).toContain("WO-1451 · Line 2 · Printer Fault · Not assigned · Open");
+    expect(r.text).not.toContain(boldText("Line 2 – WO-1451"));
   });
 
   it("counts short stops: there is no minimum-minutes floor on real downtime", () => {
@@ -192,11 +192,11 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
     const r = buildMaintenanceShiftReport(data({
       completedOrders: [wo("w9", { line_at_time: null, line_name: null, description: "", resolution_notes: null, engineer_name: null, machine: null, completed_at_effective: at("10:00") })],
     }));
-    expect(r.text).toContain("*Line not recorded – WO-9*");
+    expect(r.text).toContain(boldText("Line not recorded – WO-9"));
     expect(r.text).toContain("Problem: Not recorded");
     expect(r.text).toContain("Work carried out: Not recorded");
     expect(r.text).toContain("Engineer: Not assigned");
-    expect(r.text).not.toContain("Work Order:");
+    expect(r.text).not.toContain("Machine:");
   });
 
   it("flags a stop that ends before it starts instead of dropping it in silence (WO 918's shape)", () => {
@@ -242,17 +242,17 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
   it("says which shift and date the report is for, and when the shift is still running", () => {
     const r = buildMaintenanceShiftReport(data());
     expect(r.text.split("\n").slice(0, 3)).toEqual([
-      "*Maintenance Report*",
-      "Day Shift · 29/10/2026",
-      "Shift still running — figures up to 14:30.",
+      boldText("MAINTENANCE REPORT"),
+      "Day Shift (06:00–18:00) · 29/10/2026",
+      "Shift in progress — figures as at 14:30.",
     ]);
     expect(r.text).toContain("Completed work orders: 0");
-    expect(r.text).toContain("None completed this shift.");
+    expect(r.text).toContain("No work orders were completed during this shift.");
   });
 
   it("a finished shift carries no 'still running' line", () => {
     const r = buildMaintenanceShiftReport(data({ generatedAt: new Date("2026-10-30T09:00:00Z") }));
-    expect(r.text).not.toContain("still running");
+    expect(r.text).not.toContain("in progress");
   });
 
   it("writes out the first twenty open orders and counts the rest", () => {
@@ -262,7 +262,7 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
     }));
     const r = buildMaintenanceShiftReport(data({ pending: many }));
     expect(r.open).toHaveLength(23);
-    expect(r.text).toContain("…and 3 more (see Work Orders).");
+    expect(r.text).toContain("…and 3 more — see Work Orders.");
     expect(r.text).not.toContain("WO-120 ·");
   });
 
@@ -271,7 +271,7 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
       pending: [{ id: "p", wo_number: 9, line_at_time: "Line 7", line_name: null, description: "Filler leak", status: "finished", engineer_name: null, created_at: at("10:00") }],
     }));
     expect(r.open).toHaveLength(0);
-    expect(r.text).not.toContain("*Open work orders*");
+    expect(r.text).not.toContain(boldText("OPEN WORK ORDERS"));
   });
 
   // The fixture docs/verify/maintenance-report-vs-records.sql was run against (local

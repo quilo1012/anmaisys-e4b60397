@@ -26,7 +26,7 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: (t: string) => builder(t) },
 }));
 
-import { fetchMaintenanceShiftReport, shiftWindowFor } from "@/lib/maintenanceShiftReport";
+import { boldText, fetchMaintenanceShiftReport, shiftWindowFor } from "@/lib/maintenanceShiftReport";
 
 const NOW = new Date("2026-10-29T14:30:00Z");
 
@@ -86,16 +86,16 @@ describe("fetchMaintenanceShiftReport", () => {
     const t = r.text;
     expect(t).toContain("Completed work orders: 2");
     expect(t).toContain("Downtime events: 3");
-    expect(t).toContain("Total counted downtime: 2h 22m");
-    expect(t).toContain("*Line 3 – WO-103*");
-    expect(t).toContain("*Line 2 – WO-101*");
-    expect(t).toContain("Work Order: Labeller");
+    expect(t).toContain(`Total counted downtime: ${boldText("2h 22m")}`);
+    expect(t).toContain(boldText("Line 3 – WO-103"));
+    expect(t).toContain(boldText("Line 2 – WO-101"));
+    expect(t).toContain("Machine: Labeller");
     expect(t).toContain("Problem: Labeller fault");
     expect(t).toContain("Work carried out: Reset sensor");
     expect(t).toContain("Engineer: Eng A");
-    expect(t).toContain("DOWNTIME: 0h 47m");
-    expect(t).toContain("WO-102 · Line 7 · Filler leak · not assigned · OPEN");
-    expect(t).not.toContain("*Line 7 – WO-102*");
+    expect(t).toContain(`Downtime: ${boldText("0h 47m")}`);
+    expect(t).toContain("WO-102 · Line 7 · Filler leak · Not assigned · Open");
+    expect(t).not.toContain(boldText("Line 7 – WO-102"));
   });
 
   it("reads the chosen night, 18:00 to 06:00 the next day, not the shift running now", async () => {

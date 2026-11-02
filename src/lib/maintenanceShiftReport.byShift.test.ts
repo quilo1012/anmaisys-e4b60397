@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
+import { boldText,
   buildMaintenanceShiftReport,
   quickShift,
   reportFileName,
@@ -122,8 +122,8 @@ describe("a report for a night that has ended", () => {
     expect(r.downtimeEvents).toBe(1);
     expect(r.totalCountedMinutes).toBe(40);
     expect(r.stopsRead).toBe(1);
-    expect(r.text).toContain("Night Shift · 28/10/2026");
-    expect(r.text).not.toContain("still running");
+    expect(r.text).toContain("Night Shift (18:00–06:00) · 28/10/2026");
+    expect(r.text).not.toContain("in progress");
   });
 
   it("a stop still open now counts to the end of that night, not to now", () => {
@@ -138,16 +138,16 @@ describe("a report for a night that has ended", () => {
   it("lists the open orders as they stand, whatever the shift's age", () => {
     const r = buildMaintenanceShiftReport(base({ generatedAt: new Date(t("30T12:00")), pending: [pending(9)] }));
     expect(r.open.map((p) => p.wo_number)).toEqual([9]);
-    expect(r.text).toContain("*Open work orders*");
-    expect(r.text).toContain("WO-9 · Line 7 · Filler leak · Eng A · OPEN");
+    expect(r.text).toContain(boldText("OPEN WORK ORDERS"));
+    expect(r.text).toContain("WO-9 · Line 7 · Filler leak · Eng A · Open");
   });
 
   it("an empty night says so plainly, only because the reads succeeded and found none", () => {
     const r = buildMaintenanceShiftReport(base());
     expect(r.text).toContain("Completed work orders: 0");
     expect(r.text).toContain("Downtime events: 0");
-    expect(r.text).toContain("Total counted downtime: 0h 0m");
-    expect(r.text).toContain("None completed this shift.");
+    expect(r.text).toContain(`Total counted downtime: ${boldText("0h 0m")}`);
+    expect(r.text).toContain("No work orders were completed during this shift.");
     expect(r.problems).toEqual([]);
   });
 });
@@ -198,15 +198,15 @@ describe("open orders on a recent shift", () => {
     }));
     expect(r.open.map((p) => p.wo_number)).toEqual([10, 11]);
     expect(r.completed).toHaveLength(0);
-    expect(r.text).toContain("WO-10 · Line 7 · Filler leak · Eng A · OPEN");
-    expect(r.text).toContain("WO-11 · Line 2 · Filler leak · not assigned · OPEN");
+    expect(r.text).toContain("WO-10 · Line 7 · Filler leak · Eng A · Open");
+    expect(r.text).toContain("WO-11 · Line 2 · Filler leak · Not assigned · Open");
     expect(r.text).not.toContain("WO-12");
   });
 
   it("writes out the first orders and counts the rest", () => {
     const many = Array.from({ length: OPEN_MAX_LISTED + 3 }, (_, i) => pending(100 + i));
     const r = buildMaintenanceShiftReport(base({ pending: many }));
-    expect(r.text).toContain(`…and 3 more (see Work Orders).`);
+    expect(r.text).toContain(`…and 3 more — see Work Orders.`);
     expect(r.text).not.toContain(`WO-${100 + OPEN_MAX_LISTED} ·`);
   });
 });
