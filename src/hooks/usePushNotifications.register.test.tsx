@@ -142,6 +142,28 @@ describe("useKeepPushSubscriptionCurrent", () => {
     await waitFor(() => expect(rpc).toHaveBeenCalled());
   });
 
+  it("puts the worker back when permission is granted but the phone has none", async () => {
+    // The state on 02/11: permission granted (by a bare prompt that only asked), no worker
+    // ever registered, so this hook found no registration and returned in silence — the
+    // phone said yes and the server never heard of it.
+    getSubscription.mockResolvedValue(null);
+    subscribe.mockResolvedValue(subscription);
+    const reg = { active: {}, pushManager: { getSubscription, subscribe } };
+    const register = vi.fn(async () => reg);
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        getRegistration: vi.fn(async () => undefined),
+        register,
+        ready: Promise.resolve(reg),
+        addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      },
+    });
+    renderHook(() => useKeepPushSubscriptionCurrent("u-1"));
+    await waitFor(() => expect(register).toHaveBeenCalledWith("/sw.js", { scope: "/" }));
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("register_push_subscription", expect.objectContaining({ p_endpoint: subscription.endpoint })));
+  });
+
   it("does nothing without permission, and never asks for it", async () => {
     (window as unknown as { Notification: unknown }).Notification = { permission: "default", requestPermission: vi.fn() };
     renderHook(() => useKeepPushSubscriptionCurrent("u-1"));

@@ -32,3 +32,29 @@ export function asksForNotificationPermissionAtLogin(role: Role | null | undefin
 
 /** The list itself, so a test can hold it against the roles that exist. */
 export const FLOOR_ROLES_NOT_PROMPTED = FLOOR_ROLES;
+
+type PermissionAsker = Pick<typeof Notification, "permission" | "requestPermission">;
+
+/**
+ * The first-tap ask in `DashboardLayout` (27/07, so DM alerts reach the tablet), held to
+ * the same list as the login ask. Before 02/11/2026 it asked every role, the floor
+ * included: the employee's first tap anywhere in the Home Screen app opened the bare iOS
+ * prompt, with no sentence. A no there is only undone in Settings; a yes there grants
+ * permission and subscribes nothing — "permission granted, this phone absent" — so the
+ * server still has no phone. The floor is asked by `OvertimePushNudge`, which subscribes.
+ *
+ * Returns whether it asked. Never throws.
+ */
+export function askOnFirstGesture(
+  role: Role | null | undefined,
+  N: PermissionAsker | undefined = typeof Notification !== "undefined" ? Notification : undefined,
+): boolean {
+  if (!N || N.permission !== "default" || !asksForNotificationPermissionAtLogin(role)) return false;
+  try {
+    const p = N.requestPermission();
+    if (p && typeof (p as Promise<unknown>).then === "function") (p as Promise<unknown>).catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
