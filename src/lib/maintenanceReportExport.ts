@@ -64,7 +64,7 @@ export function reportToXlsx(r: ShiftReport): ArrayBuffer {
   XLSX.utils.book_append_sheet(wb, sum, "Summary");
 
   const done = XLSX.utils.aoa_to_sheet([
-    head(["Line", "WO", "Work Order", "Problem", "Work carried out", "Engineer", "Downtime"]),
+    head(["Line", "WO", "Machine", "Problem", "Work carried out", "Engineer", "Downtime"]),
     ...r.completed.map(({ wo, totalMinutes }) => [
       lineLabelOf(wo.line_at_time, wo.line_name), wo.wo_number ?? "",
       clean(wo.machine), clean(wo.description) || "Not recorded",
@@ -142,7 +142,7 @@ export async function reportToPdf(r: ShiftReport): Promise<ArrayBuffer> {
 
   for (const { wo, totalMinutes } of r.completed) {
     const rows: [string, string][] = [
-      ...(clean(wo.machine) ? [["Work Order", clean(wo.machine)] as [string, string]] : []),
+      ...(clean(wo.machine) ? [["Machine", clean(wo.machine)] as [string, string]] : []),
       ["Problem", clean(wo.description) || "Not recorded"],
       ["Work carried out", clean(wo.resolution_notes) || "Not recorded"],
       ["Engineer", clean(wo.engineer_name) || "Not assigned"],

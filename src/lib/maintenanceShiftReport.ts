@@ -239,7 +239,20 @@ export function londonStamp(d: Date): string {
   return `${g("day")}/${g("month")}/${g("year")} ${g("hour")}:${g("minute")}`;
 }
 
-export const shiftLabel = (s: ShiftCode) => (s === "day" ? "Day Shift (06:00–18:00)" : "Night Shift (18:00–06:00)");
+/**
+ * "Line 4" → "𝗟𝗶𝗻𝗲 𝟰": Latin letters and digits as Unicode sans-serif bold, the only
+ * bold a plain-text file can carry. Everything else (–, ·, :, spaces) is left as is.
+ */
+export function boldText(s: string): string {
+  return s.replace(/[A-Za-z0-9]/g, (c) => {
+    const n = c.charCodeAt(0);
+    if (n <= 57) return String.fromCodePoint(0x1d7ec + n - 48);
+    if (n <= 90) return String.fromCodePoint(0x1d5d4 + n - 65);
+    return String.fromCodePoint(0x1d5ee + n - 97);
+  });
+}
+
+export const shiftLabel =(s: ShiftCode) => (s === "day" ? "Day Shift (06:00–18:00)" : "Night Shift (18:00–06:00)");
 
 export function lineLabelOf(lineAtTime: string | null, lineName: string | null): string {
   const line = clean(lineAtTime) || clean(lineName);
@@ -380,24 +393,27 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     problems.push("The stops counted do not match the stops listed.");
   }
 
-  // ── Text (WhatsApp-friendly: *bold*, short lines, no technical detail) ──
+  // ── Text: short lines, no technical detail. A .txt carries no formatting, and
+  // WhatsApp's *stars* print as stars in Notepad and Teams, so the headings and the
+  // downtime figures are written in Unicode bold letters, which read as bold in all three. ──
   const by = clean(input.generatedBy);
   const lines: string[] = [
-    "*Maintenance Report*",
-    `${window.shift === "day" ? "Day" : "Night"} Shift · ${ddmmyyyy(window.sessionDate)}`,
+    boldText("MAINTENANCE REPORT"),
+    `${shiftLabel(window.shift)} · ${ddmmyyyy(window.sessionDate)}`,
   ];
-  if (winEnd > nowMs) lines.push(`Shift still running — figures up to ${londonHM(generatedAt)}.`);
+  if (winEnd > nowMs) lines.push(`Shift in progress — figures as at ${londonHM(generatedAt)}.`);
   lines.push(
     "",
-    "*Shift summary*",
-    `Completed work orders: ${completed.length}`,
+    boldText("SHIFT SUMMARY"),
+    `Total counted downtime: ${boldText(formatMinutes(totalCountedMinutes))}`,
     `Downtime events: ${downtimeEvents}`,
-    `Total counted downtime: ${formatMinutes(totalCountedMinutes)}`,
+    `Completed work orders: ${completed.length}`,
+    `Open work orders: ${open.length}`,
     "",
-    "*Completed work orders*",
+    boldText("COMPLETED WORK ORDERS"),
   );
   if (completed.length === 0) {
-    lines.push("None completed this shift.");
+    lines.push("No work orders were completed during this shift.");
   }
   for (const { wo, totalMinutes } of completed) {
     const machine = clean(wo.machine);
@@ -406,24 +422,24 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     const engineer = clean(wo.engineer_name) || "Not assigned";
     lines.push(
       "",
-      `*${completedHeading(wo)}*`,
-      ...(machine ? [`Work Order: ${machine}`] : []),
+      boldText(completedHeading(wo)),
+      ...(machine ? [`Machine: ${machine}`] : []),
       `Problem: ${problem}`,
       `Work carried out: ${work}`,
       `Engineer: ${engineer}`,
-      `DOWNTIME: ${formatMinutes(totalMinutes)}`,
+      `Downtime: ${boldText(formatMinutes(totalMinutes))}`,
     );
   }
   if (open.length > 0) {
-    lines.push("", "*Open work orders*");
+    lines.push("", boldText("OPEN WORK ORDERS"));
     for (const p of open.slice(0, OPEN_MAX_LISTED)) {
       lines.push(
         `${p.wo_number ? `WO-${p.wo_number}` : "WO number not recorded"} · ${lineLabelOf(p.line_at_time, p.line_name)} · ` +
-          `${clean(p.description) || "Not recorded"} · ${clean(p.engineer_name) || "not assigned"} · OPEN`,
+          `${clean(p.description) || "Not recorded"} · ${clean(p.engineer_name) || "Not assigned"} · Open`,
       );
     }
     if (open.length > OPEN_MAX_LISTED) {
-      lines.push(`…and ${open.length - OPEN_MAX_LISTED} more (see Work Orders).`);
+      lines.push(`…and ${open.length - OPEN_MAX_LISTED} more — see Work Orders.`);
     }
   }
 
