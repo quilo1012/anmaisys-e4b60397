@@ -58,6 +58,7 @@ describe("the bell rings the phone", () => {
     expect(kinds).toContain("overtime_message");
     expect(kinds).toContain("overtime_booked");
     expect(kinds).toContain("overtime_yes");
+    expect(kinds).toContain("overtime_booking_cancelled");
   });
 
   it("calls send-push with the vault secret, not a literal, and never writes the bell twice", () => {
