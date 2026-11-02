@@ -38,6 +38,30 @@ export type Database = {
         }
         Relationships: []
       }
+      _bkp_gel_machine_20261101: {
+        Row: {
+          action: string
+          old: Json
+          row_id: string
+          saved_at: string
+          tbl: string
+        }
+        Insert: {
+          action: string
+          old: Json
+          row_id: string
+          saved_at?: string
+          tbl: string
+        }
+        Update: {
+          action?: string
+          old?: Json
+          row_id?: string
+          saved_at?: string
+          tbl?: string
+        }
+        Relationships: []
+      }
       _rls_snapshot: {
         Row: {
           linhas: number | null
