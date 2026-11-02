@@ -44,6 +44,7 @@ import { Button } from "@/components/ui/button";
 import { OnlineEngineersPanel } from "@/components/OnlineEngineersPanel";
 import { NotificationPanel } from "@/components/NotificationPanel";
 import { dashboardPathFor, type Role, can, canForDevice, subscribePermissionOverrides, subscribeMobileHidden, ALL_ROLES, ALL_ACTIONS, isPermissionOverridden, roleHolds, roleTitle, type DeviceType, type Action } from "@/lib/permissions";
+import { askOnFirstGesture } from "@/lib/notificationPermissionPrompt";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useHideOnScroll } from "@/hooks/use-hide-on-scroll";
 import { useDeviceType } from "@/hooks/use-device-type";
@@ -897,19 +898,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     return () => { a(); b(); };
   }, []);
 
+  // Read at the tap, not at mount: the role arrives after the first render.
+  const roleRef = useRef(role);
+  roleRef.current = role;
+
   useEffect(() => {
     const unlock = () => {
       unlockDMAudio();
       // Ask for OS notification permission once, on a real user gesture, so DM
       // alerts reach the tablet even when the app is backgrounded/unfocused.
-      // Nothing requested this before, so permission stayed "default" and native
-      // notifications never fired. Never re-prompts once answered.
-      try {
-        if (typeof Notification !== "undefined" && Notification.permission === "default") {
-          const p = Notification.requestPermission();
-          if (p && typeof (p as Promise<unknown>).then === "function") (p as Promise<unknown>).catch(() => {});
-        }
-      } catch { /* ignore */ }
+      // Not the floor: see `askOnFirstGesture`.
+      askOnFirstGesture(roleRef.current);
     };
     const opts = { once: true } as AddEventListenerOptions;
     window.addEventListener("pointerdown", unlock, opts);

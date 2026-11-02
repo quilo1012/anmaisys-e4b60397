@@ -305,8 +305,14 @@ export function useKeepPushSubscriptionCurrent(userId: string | null | undefined
 
     const sync = async () => {
       try {
-        const reg = await navigator.serviceWorker.getRegistration("/sw.js");
-        if (!reg) return;
+        // Permission granted with no worker at all: a prompt that only asked (the first-tap
+        // ask, until 02/11) never registered one, and returning here left the phone saying
+        // yes to a server that had never heard of it. Registering needs no tap.
+        let reg = await navigator.serviceWorker.getRegistration("/sw.js");
+        if (!reg) {
+          await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+          reg = await withTimeout(navigator.serviceWorker.ready, 20_000, "Preparing notifications");
+        }
         let sub = await reg.pushManager.getSubscription();
         if (!sub && VAPID_PUBLIC_KEY) {
           sub = await reg.pushManager.subscribe({
