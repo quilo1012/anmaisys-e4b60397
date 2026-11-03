@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { VAPID_PUBLIC_KEY as VAPID_KEY_CONST } from "@/lib/vapid";
 import { currentPushEnvironment, type PushEnvironment } from "@/lib/pushEnvironment";
 import { sameApplicationServerKey, isDifferentKeyError, describeSubscribeError, withTimeout } from "@/lib/pushSubscribe";
-import { clearPushError, readServerRegistration, rememberPushError, type ServerRegistration } from "@/lib/pushDiagnostics";
+import { clearPushError, pushErrorCode, readServerRegistration, rememberPushError, type ServerRegistration } from "@/lib/pushDiagnostics";
 
 const VAPID_PUBLIC_KEY =
   (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) || VAPID_KEY_CONST;
@@ -297,6 +297,9 @@ export function usePushNotifications() {
  *
  * Never asks for permission and never shows a toast: asking is the Enable button's job.
  */
+/** Second and third looks after a "push service error", then the half-hour visit takes over. */
+const RETRY_DELAYS_MS = [5_000, 30_000];
+
 export function useKeepPushSubscriptionCurrent(userId: string | null | undefined) {
   useEffect(() => {
     if (!userId || currentPushEnvironment().kind !== "ready") return;
@@ -330,8 +333,17 @@ export function useKeepPushSubscriptionCurrent(userId: string | null | undefined
         // believing it was on while the server had nothing (see pushDiagnostics).
         rememberPushError("resync", e);
         console.warn("push sync failed", e);
+        // Chrome on Android can reject subscribe() with "push service error" and finish the
+        // subscription a few seconds later anyway (03/11/2026: absent at 08:08:05, present
+        // at 08:08:13, never saved). Look again soon instead of at the next half-hour visit;
+        // the next sync finds it with getSubscription() and saves it.
+        if (pushErrorCode(e) === "push_service" && retries < RETRY_DELAYS_MS.length && !cancelled) {
+          retryTimer = window.setTimeout(() => { void sync(); }, RETRY_DELAYS_MS[retries++]);
+        }
       }
     };
+    let retries = 0;
+    let retryTimer: number | undefined;
     void sync();
     let lastSync = Date.now();
 
@@ -350,6 +362,7 @@ export function useKeepPushSubscriptionCurrent(userId: string | null | undefined
     document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelled = true;
+      window.clearTimeout(retryTimer);
       navigator.serviceWorker.removeEventListener("message", onMessage);
       document.removeEventListener("visibilitychange", onVisible);
     };
