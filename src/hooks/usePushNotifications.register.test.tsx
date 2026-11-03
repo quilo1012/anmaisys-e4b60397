@@ -188,6 +188,40 @@ describe("useKeepPushSubscriptionCurrent", () => {
     window.removeEventListener(PUSH_SAVED_EVENT, heard);
   });
 
+  it("saves the subscription Chrome finished after refusing it, without waiting half an hour", async () => {
+    // 03/11/2026 08:08, an Android Home Screen app: subscribe() rejected with "push service
+    // error", and 8 s later the same phone held a subscription the server never got.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      getSubscription.mockResolvedValueOnce(null).mockResolvedValue(subscription);
+      subscribe.mockRejectedValue(Object.assign(new Error("Registration failed - push service error"), { name: "AbortError" }));
+      renderHook(() => useKeepPushSubscriptionCurrent("u-1"));
+      await waitFor(() => expect(subscribe).toHaveBeenCalledTimes(1));
+      expect(rpc).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(10_000);
+      await waitFor(() => expect(rpc).toHaveBeenCalledWith("register_push_subscription", expect.objectContaining({ p_endpoint: subscription.endpoint })));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up after a few tries when the push service keeps refusing", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      getSubscription.mockResolvedValue(null);
+      subscribe.mockRejectedValue(Object.assign(new Error("Registration failed - push service error"), { name: "AbortError" }));
+      renderHook(() => useKeepPushSubscriptionCurrent("u-1"));
+      for (let i = 0; i < 6; i++) {
+        vi.advanceTimersByTime(60_000);
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      expect(subscribe).toHaveBeenCalledTimes(3);
+      expect(rpc).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("registers the phone again when the app comes back to the screen, at most every half hour", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
