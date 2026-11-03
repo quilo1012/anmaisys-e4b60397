@@ -8,9 +8,14 @@ import { z } from "npm:zod@3";
  * 209 active employees, 26 with an email on record. An email-and-confirmation sign-up
  * reaches the office; it does not reach a packing line. But every one of them already
  * has a row in `employees`, and 158 have an employee_ref ("E045") printed on a badge.
- * So the account is keyed to that: register once with ID + password + invite code,
- * and the row's user_id is set in the same breath — no "pick your name" step, no
- * pending queue, no email. Sign in afterwards with ID + password.
+ * Once that row's user_id is linked to an account, the person signs in here with ID +
+ * password.
+ *
+ * IT DOES NOT MAKE ACCOUNTS ANY MORE. Until 03/11/2026 a `register` mode created the
+ * account from invite code + badge number + password. The invite code is public
+ * (20261011230000) and nothing proved the caller held the badge, so anyone who knew an
+ * unclaimed number became that person. Nobody called it since PR #737; it is gone.
+ * Accounts come from the admin's invite. Audit 2026-11-02, SEC-001.
  *
  * Modelled on tablet-signin, and bound by the same rules: it authenticates rather
  * than verifies a caller, so it rate-limits per ID, answers every failure with the
@@ -19,10 +24,9 @@ import { z } from "npm:zod@3";
  */
 
 const BodySchema = z.object({
-  mode: z.enum(["register", "signin"]),
+  mode: z.enum(["signin"]),
   employee_ref: z.string().min(2).max(20),
   password: z.string().min(6).max(200),
-  invite_code: z.string().min(1).max(100).optional(),
 });
 
 const RL_WINDOW_MS = 5 * 60 * 1000;
@@ -79,7 +83,7 @@ Deno.serve(async (req) => {
   try {
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: "Invalid request" }, 400);
-    const { mode, password, invite_code } = parsed.data;
+    const { password } = parsed.data;
     const ref = normRef(parsed.data.employee_ref);
     if (!REF_SHAPE.test(ref)) return json({ error: "Invalid credentials" }, 401);
 
@@ -103,56 +107,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const employee = emp as EmployeeRow | null;
 
-    if (mode === "register") {
-      // The invite code is the gate; past it, the answers can be specific.
-      const { data: codeOk } = await admin.rpc("check_invite_code", { code: (invite_code ?? "").trim() });
-      if (!codeOk) {
-        recordFailure(ref);
-        return json({ error: "That invite code isn't valid any more — it may have expired. Ask your supervisor." }, 403);
-      }
-      if (!employee) {
-        recordFailure(ref);
-        return json({ error: `No active employee has ID ${ref}. Check the number on your badge, or ask your supervisor to add it.` }, 404);
-      }
-      if (employee.user_id) {
-        recordFailure(ref);
-        return json({ error: `ID ${ref} already has an account. Sign in with it instead, or ask your supervisor to reset the password.` }, 409);
-      }
-
-      const email = emailFor(ref);
-      const { data: created, error: createErr } = await admin.auth.admin.createUser({
-        email, password, email_confirm: true,
-        user_metadata: { name: employee.full_name, employee_ref: ref, employee_signin: "true" },
-      });
-      if (createErr || !created.user?.id) {
-        console.error("employee-signin createUser", createErr);
-        return json({ error: "Could not create the account. Try again, or ask your supervisor." }, 500);
-      }
-      const uid = created.user.id;
-
-      // Active, employee, linked — in that order, and all three before the session.
-      // `employee`, not `operator`: the badge is for answering overtime, and operator
-      // carries production logging and maintenance calls with it.
-      const { error: profErr } = await admin.from("profiles")
-        .upsert({ id: uid, name: employee.full_name, email, active: true }, { onConflict: "id" });
-      if (profErr) console.error("profiles upsert", profErr);
-      const { error: roleErr } = await admin.from("user_roles")
-        .upsert({ user_id: uid, role: "employee" }, { onConflict: "user_id" });
-      if (roleErr) console.error("user_roles upsert", roleErr);
-      const { error: linkErr } = await admin.from("employees")
-        .update({ user_id: uid }).eq("id", employee.id).is("user_id", null);
-      if (linkErr) console.error("employees link", linkErr);
-
-      // Admins hear about it, quietly.
-      const { data: admins } = await admin.from("user_roles").select("user_id").eq("role", "admin");
-      if (admins?.length) {
-        await admin.from("notifications").insert(admins.map((a: { user_id: string }) => ({
-          user_id: a.user_id, title: "New employee account",
-          body: `${employee.full_name} (${ref}) registered with their employee ID and is active.`,
-          priority: "low", action_url: "/users/manage",
-        })));
-      }
-    } else if (!employee?.user_id) {
+    if (!employee?.user_id) {
       recordFailure(ref);
       return json({ error: "Invalid credentials" }, 401);
     }
