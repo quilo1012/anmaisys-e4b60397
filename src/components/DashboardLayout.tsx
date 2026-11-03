@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin, KeyRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -172,6 +172,7 @@ export const navItems: NavItem[] = [
 
   // Assets
   { title: "Machines", url: "/dashboard/machines", icon: Cog, roles: ["admin", "manager", "maintenance_manager", "warehouse", "production_office_admin"], group: "Maintenance", action: "machines.view" },
+  { title: "Engineers (PIN)", shortTitle: "Engineers", url: "/dashboard/engineers", icon: KeyRound, roles: ["maintenance_manager"], group: "Maintenance", action: "engineers.manage" },
   { title: "Problems", url: "/dashboard/problems", icon: AlertCircle, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Maintenance", action: "problems.view" },
   // warehouse was the one role holding stock.view without a row for it — the
   // people who keep the parts could not open the parts screen from the menu.
@@ -734,6 +735,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/communication": "Communication Hub",
   "/dashboard/messages": "Communication Hub",
   "/users/manage": "User Management",
+  "/dashboard/engineers": "Engineers (PIN)",
   "/dashboard/permissions": "Permissions",
   "/dashboard/roles": "Role rules",
   "/dashboard/people": "Employee",
