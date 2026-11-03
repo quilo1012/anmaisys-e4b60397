@@ -157,7 +157,9 @@ export default function SignUp() {
         email: email.trim().toLowerCase(),
         password,
         options: {
-          data: { name: name.trim(), self_signup: "true" },
+          // The database checks this code again when the account is made: the check above
+          // only decides what this screen says (20261103100000).
+          data: { name: name.trim(), self_signup: "true", invite_code: code.trim() },
           // An overtime account is for one thing; land it there after the email click.
           emailRedirectTo: autoRole
             ? `${window.location.origin}/login?next=${encodeURIComponent("/dashboard/my-overtime")}`

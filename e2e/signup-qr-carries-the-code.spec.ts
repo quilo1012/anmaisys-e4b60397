@@ -96,7 +96,7 @@ test.describe("the login screen's QR", () => {
     const decoded = await decodeQr(page);
     expect(new URL(decoded).search).toBe("");
     await page.goto(new URL(decoded).pathname);
-    await expect(page.locator("#su-code-b")).toHaveValue("");
+    await expect(page.locator("#su-code")).toHaveValue("");
   });
 
   test("a closed or expired sign-up (null) carries no code either", async ({ page }) => {
@@ -111,34 +111,34 @@ test.describe("the page the QR opens, on a phone", () => {
 
   const link = `/signup?code=${encodeURIComponent(CODE)}`;
 
-  test("fills the field, keeps it across both doors, a reload and a trip to Sign in", async ({ page }) => {
+  // Create account has one door since #737 (email); the Employee ID door is gone.
+  test("fills the field, keeps it across a reload and a trip to Sign in", async ({ page }) => {
     await stubSupabase(page, { inviteCode: CODE, calls: [] });
     await page.goto(link);
 
-    await expect(page.locator("#su-code-b")).toHaveValue(CODE);
-    await page.getByRole("button", { name: "Email" }).click();
     await expect(page.locator("#su-code")).toHaveValue(CODE);
-    await page.getByRole("button", { name: "Employee ID" }).click();
-    await expect(page.locator("#su-code-b")).toHaveValue(CODE);
     await test.info().attach("signup-phone.png", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
 
     await page.reload();
-    await expect(page.locator("#su-code-b")).toHaveValue(CODE);
+    await expect(page.locator("#su-code")).toHaveValue(CODE);
 
     // The address loses the code; the tab keeps it.
     await page.goto("/signup");
-    await expect(page.locator("#su-code-b")).toHaveValue(CODE);
+    await expect(page.locator("#su-code")).toHaveValue(CODE);
   });
 
-  test("sends exactly that code to the backend from the Employee ID door", async ({ page }) => {
+  test("sends exactly that code with the account, for the database to check again", async ({ page }) => {
+    // handle_new_user gives the automatic role only for a code it accepts itself
+    // (20261103100000); the browser's check alone was the whole lock before.
     const stub: Stub = { inviteCode: CODE, calls: [] };
     await stubSupabase(page, stub);
     await page.goto(link);
-    await page.locator("#su-ref").fill("E045");
-    await page.locator("#su-pass-b").fill("fixture-password-123");
+    await page.locator("#su-name").fill("Fixture Person");
+    await page.locator("#su-email").fill("fixture@example.invalid");
+    await page.locator("#su-pass").fill("fixture-password-123");
     await page.locator("form button[type=submit]").click();
-    await expect.poll(() => stub.calls.find((c) => c.url.includes("employee-signin"))?.body)
-      .toMatchObject({ mode: "register", employee_ref: "E045", invite_code: CODE });
+    await expect.poll(() => stub.calls.find((c) => c.url.includes("/auth/v1/signup"))?.body)
+      .toMatchObject({ data: { self_signup: "true", invite_code: CODE } });
   });
 
   test("says at once when the code from the QR is no longer valid", async ({ page }) => {
@@ -151,7 +151,6 @@ test.describe("the page the QR opens, on a phone", () => {
     const stub: Stub = { inviteCode: undefined, calls: [] };
     await stubSupabase(page, stub);
     await page.goto("/signup");
-    await page.getByRole("button", { name: "Email" }).click();
     await expect(page.locator("#su-code")).toHaveValue("");
     await page.locator("#su-name").fill("Fixture Person");
     await page.locator("#su-email").fill("fixture@example.invalid");
