@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { resolveReportRange, reportPeriodLabel } from "@/lib/reportRange";
 import { getCurrentFactoryShift, shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { qualityActionFormDate, recordedAtOnSave } from "@/lib/qualityActionDate";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { cn } from "@/lib/utils";
 import { isMissingColumn } from "@/lib/postgrestErrors";
@@ -278,10 +279,13 @@ export function QualityActionsView() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(makeEmptyForm());
   const [editingId, setEditingId] = useState<string | null>(null);
+  // The row as it was opened, so a save that changes neither date nor shift keeps its time.
+  const [editingOriginal, setEditingOriginal] = useState<{ recorded_at: string; shift: string | null } | null>(null);
 
   // Open the same form pre-filled to edit an existing action.
   const openEdit = (a: QualityAction) => {
     setEditingId(a.id);
+    setEditingOriginal(a.recorded_at ? { recorded_at: a.recorded_at, shift: a.shift } : null);
     setForm({
       action_no: a.action_no ?? "",
       action_type_id: "",
@@ -292,7 +296,7 @@ export function QualityActionsView() {
       // Carried through so saving never turns an already-linked row's leader_id into
       // null just because the stored name no longer matches an active leader.
       original_leader_id: a.leader_id ?? null,
-      date: a.recorded_at ? a.recorded_at.slice(0, 10) : todayISO(),
+      date: a.recorded_at ? qualityActionFormDate(a.recorded_at, a.shift) : todayISO(),
       sku: a.sku ?? "",
       batch: a.batch ?? "",
       department: a.department ?? "",
@@ -565,7 +569,10 @@ export function QualityActionsView() {
   const create = useMutation({
     mutationFn: async () => {
       const leader = leaders.find((l) => l.id === form.leader_id);
-      const recorded_at = new Date(`${form.date || todayISO()}T12:00:00`).toISOString();
+      const recorded_at = recordedAtOnSave(
+        { date: form.date || todayISO(), shift: form.shift },
+        editingId ? editingOriginal : null,
+      );
       // No `excluded` here any more. Attribution decides what an action CHARGES, never
       // what it IS: the grade is now the one the person picked. Save still waits for the
       // attribution table, because the charge shown beside the labels depends on it.
@@ -591,7 +598,7 @@ export function QualityActionsView() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quality_actions"] });
       const wasEdit = !!editingId;
-      setOpen(false); setForm(makeEmptyForm()); setEditingId(null);
+      setOpen(false); setForm(makeEmptyForm()); setEditingId(null); setEditingOriginal(null);
       toast.success(wasEdit ? "Saved" : "Logged");
     },
     onError: (e: Error) => toast.error(e.message),
