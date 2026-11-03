@@ -41,7 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
-import { chipHours, placementHours, workedNote, type PlacementHours } from "@/lib/boardOvertime";
+import { chipHours, placementHours, workedNote, type PlacementHours, bookedNotOnBoard } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
 import { isHalfDay, isHalfDayTag, isWorkingHalfDay, placementForDrop } from "@/lib/halfDay";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
@@ -996,6 +996,11 @@ function ShiftBoard({
     allocations.forEach((a) => m.set(a.employee_id, a));
     return m;
   }, [allocations]);
+  // Confirmed for this board and not on it — see `bookedNotOnBoard`.
+  const missingBooked = useMemo(
+    () => bookedNotOnBoard(confirmedAsks, savedAllocations),
+    [confirmedAsks, savedAllocations],
+  );
   const chipOf = (employeeId: string) =>
     chipHours(byEmployee.get(employeeId), onDate, shift, confirmedAsks?.get(employeeId) ?? []);
   /** The worked hours a chip shows, when they differ from the plain shift. */
@@ -1758,6 +1763,51 @@ function ShiftBoard({
               </AlertDialogContent>
             </AlertDialog>
           </div>
+        </div>
+      )}
+
+      {/* Somebody told "you're booked" who is not on this board. The database writes the
+          booking here itself, but never over a row already there, so a copied day or an
+          absence left the person nowhere — Yuri Correa, Mon 02/11. Said where the board
+          starts, with the one-tap fix; a row in the way is named, not overwritten. */}
+      {missingBooked.length > 0 && (
+        <div role="status" aria-label="Booked for overtime, not on this board"
+          className="space-y-1.5 rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm print:hidden">
+          <div className="flex items-center gap-2 font-semibold">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warning-strong" />
+            {missingBooked.length === 1 ? "1 person is" : `${missingBooked.length} people are`} booked for overtime and not on this board
+          </div>
+          <ul className="space-y-1">
+            {missingBooked.map((m) => {
+              const name = everyoneById?.get(m.employeeId)?.full_name ?? "An employee";
+              const hours = m.asks.map((a) => `${a.starts_at.slice(0, 5)}–${a.ends_at.slice(0, 5)}`).join(" + ");
+              return (
+                <li key={m.employeeId} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-medium">{name}</span>
+                  <span className="tabular-nums text-muted-foreground">{hours}</span>
+                  {m.row && (
+                    <span className="text-muted-foreground">— on the board as {m.row}</span>
+                  )}
+                  {canManage && (
+                    <Button
+                      size="sm" variant="outline" className="ml-auto h-7 border-warning/50 bg-background"
+                      disabled={place.isPending}
+                      aria-label={`Put ${name} in Overtime`}
+                      onClick={() => place.mutate(
+                        { employeeId: m.employeeId, areaId: null, status: "overtime", explicit: true, overtimeRequestId: m.asks[0].request_id },
+                        {
+                          onSuccess: () => toast.success(`${name} is in the Overtime column.`),
+                          onError: (e) => toast.error((e as Error).message || "Could not place them."),
+                        },
+                      )}
+                    >
+                      Put in Overtime
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 

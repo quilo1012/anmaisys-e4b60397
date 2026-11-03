@@ -292,3 +292,36 @@ export function chipHours(
     arrivedLateAt: a.arrived_late_at && h.marks.lateStart ? a.arrived_late_at : null,
   };
 }
+
+/**
+ * Confirmed overtime for this board that the board does not show as working.
+ *
+ * The database writes a booking onto the board itself (`overtime_board_apply`), but
+ * `on conflict do nothing`: a person who already had a row that day and shift — put
+ * there by a copied day, an import, or an absence — kept that row, and the booking
+ * landed nowhere. On 01/11 Yuri Correa was told "is coming in" for Mon 02/11 and the
+ * Overtime column did not have him. The supervisor had no way to know.
+ *
+ * So the board compares the two: everybody with a confirmed ask on this board whose
+ * row is missing (`row: null`) or is not a working one (`row` is the status in the
+ * way — holiday, sick, unpaid, training). Somebody on a line, assigned or overtime, is
+ * on the board and is left out. Sorted by the ask's start, then by who.
+ */
+export function bookedNotOnBoard(
+  confirmed: ReadonlyMap<string, ReadonlyArray<ConfirmedAsk>> | undefined,
+  rows: ReadonlyArray<{ employee_id: string; status: string }>,
+): { employeeId: string; asks: ConfirmedAsk[]; row: string | null }[] {
+  if (!confirmed) return [];
+  const statusOf = new Map(rows.map((r) => [r.employee_id, r.status]));
+  const out: { employeeId: string; asks: ConfirmedAsk[]; row: string | null }[] = [];
+  for (const [employeeId, asks] of confirmed) {
+    if (asks.length === 0) continue;
+    const row = statusOf.get(employeeId) ?? null;
+    if (row === "assigned" || row === "overtime") continue;
+    out.push({ employeeId, asks: [...asks], row });
+  }
+  return out.sort((a, b) =>
+    a.asks[0].on_date.localeCompare(b.asks[0].on_date)
+    || a.asks[0].starts_at.localeCompare(b.asks[0].starts_at)
+    || a.employeeId.localeCompare(b.employeeId));
+}
