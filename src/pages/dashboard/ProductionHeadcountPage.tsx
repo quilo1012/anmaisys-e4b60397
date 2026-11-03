@@ -41,7 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
-import { chipHours, placementHours, workedNote, type PlacementHours, bookedNotOnBoard } from "@/lib/boardOvertime";
+import { chipHours, placementHours, workedNote, type PlacementHours, bookedNotOnBoard, overtimeIsAccepted } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
 import { isHalfDay, isHalfDayTag, isWorkingHalfDay, placementForDrop } from "@/lib/halfDay";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
@@ -424,6 +424,7 @@ export function Chip({
   arrivedLateReason,
   crew,
   leftOn,
+  overtimeNotAccepted,
   startTime,
   tag,
   workHours,
@@ -461,6 +462,11 @@ export function Chip({
   onOpen?: () => void;
   /** Working a day their own rota does not cover — marked on the line, not moved off it. */
   overtime?: boolean;
+  /**
+   * Saved as overtime with no accepted ask behind it (`overtimeIsAccepted`): placed off
+   * their rota, so payroll counts it as overtime, but they never said yes to one.
+   */
+  overtimeNotAccepted?: boolean;
   /** Off for half the shift. Shown on the chip so the block's count can be read honestly. */
   half?: boolean;
   /** Where a half-day person is working, on their mirror in Holidays: "Line 1". */
@@ -486,7 +492,7 @@ export function Chip({
   // Células brancas, como na folha. A cor fica para os cabeçalhos e para o líder; um
   // nome numa coluna de Holidays já diz o que é pela coluna onde está.
   const plain = "bg-card text-foreground";
-  const marked = !!(hint || workHours || startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
+  const marked = !!(hint || overtimeNotAccepted || workHours || startTime || tag || crew || leftOn || half || arrivedLateAt || leftEarlyAt || (role && !leader && role.short !== crew));
   const tones: Record<string, string> = {
     production: plain, support: plain, away: plain, overtime: plain, training: plain, roster: plain,
   };
@@ -618,6 +624,15 @@ export function Chip({
           className="shrink-0 rounded-sm border border-warning/40 bg-warning/15 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
         >
           {halfWhere ? `Half day · ${halfWhere}` : "Half day"}
+        </span>
+      )}
+      {overtimeNotAccepted && (
+        <span
+          data-testid="overtime-not-accepted"
+          title="Off their rota, so saved as overtime — but no overtime ask was accepted for this shift"
+          className="shrink-0 rounded-sm border border-warning/40 bg-warning/15 px-1 py-px text-2xs font-bold leading-tight text-warning-strong"
+        >
+          Not accepted
         </span>
       )}
       {hint && (
@@ -1050,7 +1065,7 @@ function ShiftBoard({
   const peopleByArea = useMemo(() => {
     const byArea = new Map<string, {
       person: HeadcountEmployee; shown: string; sheetName: string | null; startTime: string | null;
-      tag: string | null; overtime: boolean; leader: boolean;
+      tag: string | null; overtime: boolean; overtimeNotAccepted: boolean; leader: boolean;
     }[]>();
     for (const a of allocations) {
       if (a.status !== "assigned" && a.status !== "overtime") continue;
@@ -1065,7 +1080,9 @@ function ShiftBoard({
         sheetName: a.sheet_name ?? null,
         startTime: a.sheet_start_time ?? null,
         tag: a.sheet_tag ?? null,
-        overtime: a.status === "overtime",
+        // The green mark is for overtime somebody accepted; the rota's own stamp is said apart.
+        overtime: overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
+        overtimeNotAccepted: a.status === "overtime" && !overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
         // Only the leader designated on this line, shift and date. A job title alone never leads.
         leader: a.is_leader === true,
       });
@@ -1079,7 +1096,7 @@ function ShiftBoard({
       });
     }
     return byArea;
-  }, [allocations, employeeById]);
+  }, [allocations, employeeById, confirmedAsks]);
 
   /** Lines with more than one designated leader this shift: shown, never silently resolved. */
   const leaderConflicts = useMemo(() => {
@@ -1091,9 +1108,13 @@ function ShiftBoard({
   /** Same answer as before, now a lookup. Empty areas keep returning a fresh []. */
   const peopleIn = (areaId: string) => peopleByArea.get(areaId) ?? [];
 
+  // The Overtime block lists overtime somebody accepted. A row the rota stamped as
+  // overtime (placed off rota, no yes behind it) stays on its line, marked there; only
+  // one with no line is listed here, marked, so it is not lost from the board.
   const peopleWith = (status: AllocStatus) =>
     allocations
       .filter((a) => a.status === status && employeeById.has(a.employee_id))
+      .filter((a) => status !== "overtime" || !a.area_id || overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)))
       .map((a) => {
         const p = employeeById.get(a.employee_id)!;
         return Object.assign({}, p, {
@@ -1101,6 +1122,7 @@ function ShiftBoard({
           sheetName: a.sheet_name ?? null,
           startTime: a.sheet_start_time ?? null,
           tag: a.sheet_tag ?? null,
+          otNotAccepted: a.status === "overtime" && !overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
         });
       })
       .sort((a, b) => a.shown.localeCompare(b.shown))
@@ -1167,7 +1189,11 @@ function ShiftBoard({
   // reading zero sat under a total saying ten.
   // The rules live in `tallyBoard`, which the Production dashboard reads too, so the
   // dashboard and this board cannot come to different totals.
-  const tally = tallyBoard({ allocations, areas, roster, drawable: (id) => employeeById.has(id) });
+  // The Overtime figure is overtime somebody accepted; a row the rota stamped is counted apart.
+  const tally = tallyBoard({
+    allocations, areas, roster, drawable: (id) => employeeById.has(id),
+    overtimeAccepted: (a) => overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
+  });
   const totalStaff = tally.inProduction;
   const assignedCount = tally.working;
 
@@ -1306,6 +1332,7 @@ function ShiftBoard({
                   dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
                   role={roleOf(p)}
                   tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
+                  overtimeNotAccepted={"otNotAccepted" in p && p.otNotAccepted === true}
                   half={isHalfDay(byEmployee.get(p.id))}
                   halfWhere={p.halfWhere}
                   hint={block.status === "holiday" && !p.halfWhere && isHalfDay(byEmployee.get(p.id)) && !byEmployee.get(p.id)?.area_id
@@ -2034,7 +2061,7 @@ function ShiftBoard({
                         Leader conflict: {leaderConflicts.get(area.id)} leaders marked on {area.name} this shift
                       </div>
                     )}
-                    {people.map(({ person: p, shown, sheetName, startTime, tag, overtime: isOt, leader: leadsToday }) => (
+                    {people.map(({ person: p, shown, sheetName, startTime, tag, overtime: isOt, overtimeNotAccepted: otNotAccepted, leader: leadsToday }) => (
                       <Chip
                         key={p.id}
                         name={shown}
@@ -2050,6 +2077,7 @@ function ShiftBoard({
                         role={roleOf(p)}
                         dimmed={isDimmed(shown) && isDimmed(p.full_name)}
                         overtime={isOt}
+                        overtimeNotAccepted={otNotAccepted}
                         half={isHalfDay(byEmployee.get(p.id))}
                         {...marksOf(p.id)}
                         crew={crewBadge(p.shift_group)}

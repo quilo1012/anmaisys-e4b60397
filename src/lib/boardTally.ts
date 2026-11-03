@@ -45,6 +45,12 @@ export interface BoardTallyInput {
   /** Who the rota has due on this board on this day (`useShiftRoster().data`). */
   roster: ReadonlyArray<{ id: string }>;
   drawable: (employeeId: string) => boolean;
+  /**
+   * Whether an `overtime` row is backed by an accepted ask (`overtimeIsAccepted`). Given,
+   * `overtime` counts only those and the rest go to `overtimeNotAccepted`; left out,
+   * every `overtime` row counts, as before. Either way the person stays in their column.
+   */
+  overtimeAccepted?: (row: { employee_id: string; area_id: string | null; status: string }) => boolean;
 }
 
 export interface BoardTally {
@@ -56,6 +62,8 @@ export interface BoardTally {
   onLines: number;
   support: number;
   overtime: number;
+  /** `overtime` rows with no accepted ask behind them; 0 unless `overtimeAccepted` is given. */
+  overtimeNotAccepted: number;
   training: number;
   away: { sick: number; unpaid: number; holiday: number; total: number };
   /** On the rota today and on no row of the board. */
@@ -64,7 +72,7 @@ export interface BoardTally {
   byArea: Map<string, { working: number; overtime: number }>;
 }
 
-export function tallyBoard({ allocations, areas, roster, drawable }: BoardTallyInput): BoardTally {
+export function tallyBoard({ allocations, areas, roster, drawable, overtimeAccepted }: BoardTallyInput): BoardTally {
   const production = new Set(areas.filter((a) => a.kind === "production").map((a) => a.id));
   const rows = allocations.filter((a) => drawable(a.employee_id));
   const is = (s: string) => rows.filter((a) => a.status === s);
@@ -95,7 +103,8 @@ export function tallyBoard({ allocations, areas, roster, drawable }: BoardTallyI
     inProduction: inAreas.length,
     onLines,
     support: inAreas.length - onLines,
-    overtime: overtime.length,
+    overtime: overtimeAccepted ? overtime.filter(overtimeAccepted).length : overtime.length,
+    overtimeNotAccepted: overtimeAccepted ? overtime.filter((a) => !overtimeAccepted(a)).length : 0,
     training: is("training").length,
     away: { sick, unpaid, holiday, total: sick + unpaid + holiday },
     notPlaced: roster.filter((e) => !placed.has(e.id)).length,

@@ -96,16 +96,18 @@ describe("the next booked overtime, as a reminder", () => {
     expect(card).toHaveTextContent("+1 more booked");
   });
 
-  it("puts a Headcount placement first when it is sooner, and says the office put it there", () => {
+  // 03/11/2026: a Headcount placement with no accepted ask is the rota's overtime stamp,
+  // not a booking. It used to come first here as "Booked — put on the Headcount by the
+  // office" for somebody who had answered neither of that night's asks.
+  it("does not count down to a Headcount placement nobody accepted", () => {
     state.asks = [ask("mon", "2026-11-02", "06:00:00", "18:00:00")];
     state.responses = [accepted("r1", "mon")];
     state.board = [{ on_date: "2026-10-31", shift: "Day", status: "overtime", half_day: false, area: "Line 2", area_kind: "production", is_leader: false }];
     renderPage();
     const card = screen.getByTestId("next-overtime");
-    expect(card).toHaveTextContent("Line 2");
-    expect(card).toHaveTextContent("Starts tomorrow at 06:00");
-    expect(card).toHaveTextContent("Put on the Headcount by the office");
-    expect(screen.getByTestId("next-overtime-countdown")).toHaveTextContent("7 h 40 min");
+    expect(card).not.toHaveTextContent("Line 2");
+    expect(card).not.toHaveTextContent("Put on the Headcount by the office");
+    expect(screen.getByTestId("next-overtime-countdown")).toHaveTextContent("2 d 7 h");
   });
 
   it("the more-booked link opens the Accepted list", () => {
