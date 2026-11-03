@@ -672,6 +672,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path="/dashboard/engineers"
+                  element={
+                    <ProtectedRoute requiredAction="engineers.manage">
+                      <ManageUsers only="engineers" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/dashboard/users"
                   element={
                     <ProtectedRoute requiredAction="users.manage">

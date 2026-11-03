@@ -209,9 +209,15 @@ function InlineLaborRateCell({ engineer, onSaved }: { engineer: Engineer; onSave
 }
 
 
-export default function ManageUsers() {
+/**
+ * `only="engineers"` is the Maintenance Manager's way in: /dashboard/engineers is gated
+ * by `engineers.manage`, not `users.manage`, so it shows the Engineers (PIN) tab alone
+ * and never asks for staff, employees or leaders it would not be allowed to read.
+ */
+export default function ManageUsers({ only }: { only?: "engineers" } = {}) {
+  const engineersOnly = only === "engineers";
   const [users, setUsers] = useState<Profile[]>([]);
-  const [activeTab, setActiveTab] = useState<"staff" | "employees" | "engineers" | "leaders">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "employees" | "engineers" | "leaders">(engineersOnly ? "engineers" : "staff");
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -485,8 +491,9 @@ export default function ManageUsers() {
     // making any authenticated calls (avoids race where session is restoring
     // but role hasn't been fetched yet).
     if (!currentUser?.id || !currentRole) return;
-    fetchUsers();
     fetchEngineers();
+    if (engineersOnly) return;
+    fetchUsers();
     fetchLeaders();
     fetchLeadersWithoutPin();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -779,7 +786,7 @@ export default function ManageUsers() {
   const canLinkRecords = !!currentRole && can(currentRole, "workforce.manage");
   // Reading `employees` is closed to everyone but workforce.view; the record columns, the
   // unified form and the "no record" wording only exist for a role that can see the table.
-  const canSeeRecords = !!currentRole && can(currentRole, "workforce.view");
+  const canSeeRecords = !engineersOnly && !!currentRole && can(currentRole, "workforce.view");
   const canEditRecords = !!currentRole && (can(currentRole, "workforce.manage") || can(currentRole, "employees.manage"));
   const renderUserTable = (title: string, list: Profile[], emptyText: string, withRecord = false) => (
         <Card>
@@ -863,12 +870,12 @@ export default function ManageUsers() {
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
-          title="User Management"
-          description="Users, Roles & Permissions"
-          icon={<UsersIcon className="h-5 w-5" />}
+          title={engineersOnly ? "Engineers (PIN)" : "User Management"}
+          description={engineersOnly ? "Engineer identities for PIN-based actions" : "Users, Roles & Permissions"}
+          icon={engineersOnly ? <KeyRound className="h-5 w-5" /> : <UsersIcon className="h-5 w-5" />}
         />
 
-        <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+        <div className={engineersOnly ? "hidden" : "flex flex-wrap gap-2 border-b border-border pb-2"}>
           <Button
             type="button"
             variant={activeTab === "staff" ? "default" : "ghost"}

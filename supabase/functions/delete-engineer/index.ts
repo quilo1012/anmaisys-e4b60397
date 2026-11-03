@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
+import { callerMay, ENGINEERS_MANAGE_BASELINE } from "../_shared/callerMay.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,9 +24,9 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims?.sub) throw new Error("Not authenticated");
 
     const callerId = claimsData.claims.sub as string;
-    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "admin" });
-    const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "manager" });
-    if (!isAdmin && !isManager) throw new Error("Only managers and admins can delete engineers");
+    if (!(await callerMay(authHeader, callerId, "engineers.manage", ENGINEERS_MANAGE_BASELINE))) {
+      throw new Error("You don't have permission to delete engineers");
+    }
 
     const { engineerId } = schema.parse(await req.json());
     const { error } = await supabaseAdmin.from("engineers").delete().eq("id", engineerId);

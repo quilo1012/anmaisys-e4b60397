@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callerMay, ENGINEERS_VIEW_BASELINE } from "../_shared/callerMay.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -26,11 +27,7 @@ Deno.serve(async (req) => {
     if (claimsError || !claimsData?.claims?.sub) throw new Error("Not authenticated");
 
     const callerId = claimsData.claims.sub as string;
-    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "admin" });
-    const { data: isManager } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "manager" });
-    const { data: isMaintMgr } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "maintenance_manager" });
-
-    if (!isAdmin && !isManager && !isMaintMgr) {
+    if (!(await callerMay(authHeader, callerId, "engineers.view", ENGINEERS_VIEW_BASELINE))) {
       const role = (await supabaseAdmin.rpc("get_user_role", { _user_id: callerId })).data ?? "none";
       await supabaseAdmin.from("audit_logs").insert({
         user_id: callerId,
@@ -40,12 +37,15 @@ Deno.serve(async (req) => {
         entity_id: "list-engineers",
         details: { role, reason: "insufficient_role" },
       });
-      throw new Error("Only managers and admins can view engineers");
+      throw new Error("You don't have permission to view engineers");
     }
 
+    // labor_rate is pay data: only admins get it (the screen does not show it at all).
+    const { data: isAdmin } = await supabaseAdmin.rpc("has_role", { _user_id: callerId, _role: "admin" });
+    const columns = isAdmin ? "id, name, is_active, created_at, labor_rate" : "id, name, is_active, created_at";
     const { data, error } = await supabaseAdmin
       .from("engineers")
-      .select("id, name, is_active, created_at, labor_rate")
+      .select(columns)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
