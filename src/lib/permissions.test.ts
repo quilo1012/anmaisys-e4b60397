@@ -81,8 +81,9 @@ const EXPECTED: Record<Action, Role[]> = {
   "downtime.correct": ["admin", "maintenance_manager"],
   // `operator` fora desde 03/10/2026, por decisão. Se este teste voltar a falhar em
   // `operator cannot stopanalysis.view`, alguém devolveu o ecrã à linha — confirmar
-  // que foi de propósito antes de mexer nesta lista.
-  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "production_office_admin", "quality_supervisor"],
+  // que foi de propósito antes de mexer nesta lista. `maintenance_manager` fora desde
+  // 03/11/2026, também por decisão.
+  "stopanalysis.view": ["admin", "manager", "production_office_admin", "quality_supervisor"],
   "reports.export": ["admin", "manager", "production_office_admin"],
   "pm.view": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],
   "pm.manage": ["admin", "manager", "maintenance_manager", "engineer", "production_office_admin"],

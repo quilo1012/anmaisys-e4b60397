@@ -210,7 +210,7 @@ export const navItems: NavItem[] = [
   // `permissions.ts`: o `navItemShows()` cruza esta lista com o `can()`, por isso um
   // `operator` escrito aqui não devolve o ecrã sozinho — mas deixa as duas listas a
   // dizer coisas diferentes, que é como este ecrã apareceu a quem não o devia ver.
-  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "maintenance_manager", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
+  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and

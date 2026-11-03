@@ -174,7 +174,7 @@ const MATRIX: Record<Action, Role[]> = {
   // dizer o contrário do que a fábrica tinha decidido. A lista vai por extenso
   // exactamente por essa razão.
   // Sem `engineer` desde 19/10/2026: o menu do engenheiro é só manutenção.
-  "stopanalysis.view": ["admin", "manager", "maintenance_manager", "production_office_admin", "quality_supervisor"],
+  "stopanalysis.view": ["admin", "manager", "production_office_admin", "quality_supervisor"],
 
   "machines.view": [...ALL, "warehouse", "production_office_admin"],
   "machines.manage": ["admin", "manager", "production_office_admin"],
