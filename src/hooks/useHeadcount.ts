@@ -865,6 +865,12 @@ export function useAllocationMutations(onDate: string, shift: string) {
        * where "assigned" only ever means "put them here".
        */
       explicit?: boolean;
+      /**
+       * The overtime ask this row is for, when the board places a confirmed booking the
+       * database could not (see `bookedNotOnBoard`). Carried so the row is the ask's:
+       * a later cancellation takes it off the board like any row the ask wrote.
+       */
+      overtimeRequestId?: string;
     }) => {
       // What is being written over. Placing somebody on a line replaced an approved
       // holiday without a word: Ricardo Fernandes was booked off on 11/08, somebody
@@ -940,6 +946,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
             // function: the rule had already been written twice, and the second copy is
             // how the import came to carry a mark the board would have dropped.
             is_leader: keepsLeadership(prev, { areaId: input.areaId, status }),
+            ...(input.overtimeRequestId ? { overtime_request_id: input.overtimeRequestId } : {}),
           },
           { onConflict: "on_date,shift,employee_id" },
         );
