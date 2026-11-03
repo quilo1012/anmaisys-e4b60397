@@ -29,6 +29,14 @@ export type LocalSubscription = "present" | "absent" | "unknown";
 /** Whether the server holds a row for THIS phone, for THIS login. */
 export type ServerRegistration = "registered" | "missing" | "unknown" | "not_checked";
 export type WorkerState = "active" | "installing" | "none" | "unknown";
+/**
+ * Which link broke, when the server has nothing for this device. "permission denied,
+ * absent, not_checked" is ONE fact read three times: with permission denied nothing can be
+ * subscribed, and with no subscription there is nothing to look up. null = nothing broke.
+ */
+export type PushGapReason =
+  | "unsupported" | "permission_denied" | "not_enabled" | "no_worker"
+  | "not_subscribed" | "not_saved" | "server_unreadable";
 
 export interface PushErrorRecord {
   /** "enable" = the Turn on button; "resync" = the silent re-save at start-up. */
@@ -50,6 +58,7 @@ export interface PushDeviceState {
   /** "18.7" on an iPhone, for the 16.4 floor; null elsewhere. */
   iosVersion: string | null;
   lastError: PushErrorRecord | null;
+  reason: PushGapReason | null;
 }
 
 export const PUSH_ERROR_EVENT = "pmsystem:push-error";
@@ -176,20 +185,36 @@ export async function readPushDeviceState(userId: string): Promise<PushDeviceSta
   // subscription to look at, and permission cannot be asked here.
   if (environment.kind !== "ready") {
     const { loginPhones } = await readServerRegistration(null, userId);
-    return { ...base, permission: "unsupported", worker: "unknown", local: "unknown", server: "not_checked", loginPhones };
+    return { ...base, permission: "unsupported", worker: "unknown", local: "unknown", server: "not_checked", loginPhones, reason: "unsupported" };
   }
 
   const permission = (Notification.permission as PermissionReading) ?? "default";
   const { worker, endpoint, local } = await readWorkerAndSubscription();
   const { server, loginPhones } = await readServerRegistration(endpoint, userId);
-  return { ...base, permission, worker, local, server, loginPhones };
+  return { ...base, permission, worker, local, server, loginPhones, reason: gapReason(permission, worker, local, server) };
+}
+
+/** The first link that is missing, in the order a working device has them. */
+export function gapReason(
+  permission: PermissionReading, worker: WorkerState, local: LocalSubscription, server: ServerRegistration,
+): PushGapReason | null {
+  if (permission === "unsupported") return "unsupported";
+  if (permission === "denied") return "permission_denied";
+  if (local === "present") {
+    if (server === "registered") return null;
+    return server === "missing" ? "not_saved" : "server_unreadable";
+  }
+  if (permission === "default") return "not_enabled";
+  if (worker === "none") return "no_worker";
+  return "not_subscribed";
 }
 
 /** One line a person can read in Root Diagnostics without opening the metadata. */
 export function summarise(s: PushDeviceState): string {
   const opened = s.display === "standalone" ? "Home Screen app" : "browser tab";
   const err = s.lastError ? ` · last error ${s.lastError.stage}:${s.lastError.code}` : "";
-  return `Push on ${s.platform} ${opened}: permission ${s.permission}, this phone ${s.local}, server ${s.server}${err}`;
+  const why = s.reason ? ` · why ${s.reason}` : "";
+  return `Push on ${s.platform} ${opened}: permission ${s.permission}, this device ${s.local}, server ${s.server}${why}${err}`;
 }
 
 /** The parts of the state whose change is worth a second row the same day. */
@@ -238,6 +263,7 @@ export function telemetryRow(state: PushDeviceState, userId: string, role: strin
       platform: state.platform,
       ios_version: state.iosVersion,
       last_error: state.lastError,
+      reason: state.reason,
     },
   };
 }

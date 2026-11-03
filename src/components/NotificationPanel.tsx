@@ -11,7 +11,6 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { PushNotificationSetup } from "@/components/PushNotificationSetup";
 import { railEdge } from "@/components/ui/StatusRail";
-import { asksForNotificationPermissionAtLogin } from "@/lib/notificationPermissionPrompt";
 import { useMyNotifications } from "@/hooks/useMyNotifications";
 import { askAvailability, notificationTarget, type StoredNotification } from "@/lib/notificationFeed";
 
@@ -145,18 +144,6 @@ export function NotificationPanel() {
     }
   }, [navigate]);
 
-  // Request browser notification permission for engineers/managers/admins.
-  //
-  // The floor is excluded on purpose and the list lives in one place now: a bare
-  // prompt on page load is a grey bar with no sentence attached, and somebody who
-  // taps Block there has blocked the site. `OvertimePushNudge` asks the floor later,
-  // with a reason, and stays until it is answered — see `asksForNotificationPermissionAtLogin`.
-  useEffect(() => {
-    if (!asksForNotificationPermissionAtLogin(role)) return;
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => { /* ignore */ });
-    }
-  }, [role]);
 
   useEffect(() => {
     if (!user) return;

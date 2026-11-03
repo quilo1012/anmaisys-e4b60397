@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { requestNotificationPermission, sendWebNotification } from "@/lib/shifts";
+import { sendWebNotification } from "@/lib/shifts";
 import { useToast } from "@/hooks/use-toast";
 import { useCriticalAlert } from "@/contexts/CriticalAlertContext";
 import { isWOAcknowledged, acknowledgeWOLocal, clearAcknowledgedWOLocal } from "@/lib/woAck";
@@ -21,7 +21,8 @@ export function useWOAlerts() {
   const cbRef = useRef({ audioEnabled, promptEnableAudio, triggerAlert, acknowledge, shouldAlertForLine, toast });
   cbRef.current = { audioEnabled, promptEnableAudio, triggerAlert, acknowledge, shouldAlertForLine, toast };
 
-  // Request notification permission + unlock alert audio on first user gesture
+  // Unlock alert audio on first user gesture. Notification permission is asked only by
+  // the Turn on button, which also subscribes.
   useEffect(() => {
     if (!role) return;
 
@@ -31,7 +32,6 @@ export function useWOAlerts() {
       // Enable-Audio prompt (which would steal focus and look like the
       // original dialog refused to close).
       if (ev && (ev as KeyboardEvent).key === "Escape") return;
-      requestNotificationPermission();
       // Engineers must have alert audio unlocked to hear the siren
       if (role === "engineer" && !audioEnabled) {
         promptEnableAudio();

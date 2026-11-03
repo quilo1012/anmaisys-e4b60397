@@ -233,3 +233,52 @@ describe("how often", () => {
     expect(await reportPushDeviceState("u-1", "employee", day1)).toBe(true);
   });
 });
+
+describe("why the server has nothing — said apart from what the permission is", () => {
+  // 03/11/2026: "permission denied, this phone absent, server not_checked" on an admin's
+  // desktop. Three readings, one cause: with permission denied no subscription can exist,
+  // and with none there is nothing to look up. The row now says which link broke, and does
+  // not call a desktop a phone.
+  it("denied: nothing could be subscribed", async () => {
+    device({ ua: ANDROID_UA, permission: "denied" });
+    expect((await readPushDeviceState("u-1")).reason).toBe("permission_denied");
+  });
+
+  it("never asked: notifications were never turned on here", async () => {
+    device({ ua: ANDROID_UA, permission: "default" });
+    expect((await readPushDeviceState("u-1")).reason).toBe("not_enabled");
+  });
+
+  it("allowed, but no service worker", async () => {
+    device({ ua: ANDROID_UA, permission: "granted", worker: "none" });
+    expect((await readPushDeviceState("u-1")).reason).toBe("no_worker");
+  });
+
+  it("allowed, worker up, but never subscribed", async () => {
+    device({ ua: IPHONE_SAFARI_UA, standalone: true, permission: "granted" });
+    getSubscription.mockResolvedValue(null);
+    expect((await readPushDeviceState("u-1")).reason).toBe("not_subscribed");
+  });
+
+  it("subscribed here, but the server never got it", async () => {
+    device({ ua: IPHONE_SAFARI_UA, standalone: true, permission: "granted" });
+    getSubscription.mockResolvedValue({ endpoint: ENDPOINT });
+    expect((await readPushDeviceState("u-1")).reason).toBe("not_saved");
+  });
+
+  it("all agree: no reason", async () => {
+    device({ ua: IPHONE_SAFARI_UA, standalone: true, permission: "granted" });
+    getSubscription.mockResolvedValue({ endpoint: ENDPOINT });
+    rows.push({ endpoint: ENDPOINT });
+    expect((await readPushDeviceState("u-1")).reason).toBeNull();
+  });
+
+  it("the line says device, and why", async () => {
+    device({ ua: ANDROID_UA, permission: "denied" });
+    const row = telemetryRow(await readPushDeviceState("u-1"), "u-1", "admin");
+    expect(row.message).toContain("this device absent");
+    expect(row.message).not.toContain("this phone");
+    expect(row.message).toContain("why permission_denied");
+    expect(row.metadata.reason).toBe("permission_denied");
+  });
+});
