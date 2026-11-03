@@ -268,16 +268,6 @@ export function playAlertSound() { /* no-op */ }
 export function stopAlertSound() { /* no-op */ }
 export function playNotificationChime() { /* no-op */ }
 
-export async function requestNotificationPermission() {
-  if (!("Notification" in window)) return;
-  if (Notification.permission === "granted" || Notification.permission === "denied") return;
-  try {
-    await Notification.requestPermission();
-  } catch (e) {
-    console.warn("[Notify] Permission request failed", e);
-  }
-}
-
 export function sendWebNotification(title: string, body: string) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   try {
