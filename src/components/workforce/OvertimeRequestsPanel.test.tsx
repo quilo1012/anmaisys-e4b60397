@@ -142,6 +142,28 @@ describe("OvertimeRequestsPanel — edit", () => {
 });
 
 // Um pedido é uma janela só; o outro turno do mesmo dia nasce já preenchido.
+describe("OvertimeRequestsPanel — edit keeps the length", () => {
+  it("moves a 10-hour day ask to 18:00–04:00, not to a 12-hour night", () => {
+    editMutate.mockClear();
+    const day = requests[0];
+    day.ends_at = "16:00:00";
+    try {
+      render(<OvertimeRequestsPanel />);
+      const region = screen.getByRole("region", { name: /Day shift/ });
+      fireEvent.click(within(region).getByRole("button", { name: /Edit/ }));
+      const dialog = screen.getByRole("dialog", { name: "Edit this ask" });
+      expect(within(dialog).getByText("Shift (10h)")).toBeInTheDocument();
+      const shift = within(dialog).getByRole("group", { name: "Shift" });
+      expect(within(shift).getByRole("button", { name: /DAY SHIFT/ })).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(within(shift).getByRole("button", { name: /NIGHT SHIFT/ }));
+      expect(within(dialog).getByLabelText("Starts")).toHaveValue("18:00");
+      expect(within(dialog).getByLabelText("Ends")).toHaveValue("04:00");
+    } finally {
+      day.ends_at = "18:00:00";
+    }
+  });
+});
+
 describe("OvertimeRequestsPanel — add the other shift", () => {
   it("opens a night ask for the same day, with the day ask's people and count", async () => {
     createAsync.mockClear();
