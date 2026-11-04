@@ -342,12 +342,21 @@ describe("T12 order quantity differing from observed quantity", () => {
     expect(r.jobs[0].observedPerHour).toBe(450);
   });
 
-  it("sizes a job without a window from order ÷ rate, and marks it provisional", () => {
+  it("places a job without a window by order ÷ rate, but does not forecast the order back", () => {
     const r = forecastShift(input({ jobs: [job("J1", "SKU-A", 1, { orderQty: 300 })] }), NO_BREAK);
     expect(r.jobs[0].allocation).toMatchObject({ start: 0, end: 30, productiveMinutes: 30, basis: "order_qty_at_rate" });
-    expect(r.expectedTotal).toBe(300);
-    expect(r.confidence).toBe("low");
+    expect(r.jobs[0].expectedContainers).toBeNull();
+    expect(r.jobs[0].reasons[0]).toMatch(/would only repeat the order/);
+    expect(r.expectedTotal).toBeNull();
     expect(r.warnings.map((w) => w.code)).toEqual(expect.arrayContaining(["DURATION_FROM_ORDER_QTY", "UNPLANNED_TIME"]));
+  });
+
+  it("forecasts the part of an order-sized job that the shift cuts off", () => {
+    // 9000 at 600/h needs 900 min; the shift has 720, so the shift caps it.
+    const r = forecastShift(input({ jobs: [job("J1", "SKU-A", 1, { orderQty: 9000 })] }), NO_BREAK);
+    expect(r.jobs[0].expectedContainers).toBe(7200);
+    expect(r.warnings.map((w) => w.code)).toContain("ORDER_RUNS_PAST_SHIFT");
+    expect(r.confidence).toBe("low");
   });
 });
 
@@ -487,5 +496,62 @@ describe("T17 backtest by completed shift", () => {
     const res = backtest([101, 102, 103, 102, 200].map((f, i) => ({ key: `k${i}`, forecast: f, actual: 100, historySufficient: true })));
     expect(res.outliers).toEqual([{ key: "k4", pctError: 100 }]);
     expect(res.sufficient.scored).toBe(5);
+  });
+});
+
+describe("R regression: review of 04/11", () => {
+  it("R1 an unplaced break is not soaked up by setup time", () => {
+    // 720 − 25 changeover − 30 mixing − 75 break = 590 productive → 5900.
+    const r = forecastShift(input({ previousSku: "X", jobs: [fullDay("J1", "SKU-A")], breaks: null }));
+    expect(r.jobs[0].allocation!.productiveMinutes).toBe(590);
+    expect(r.expectedTotal).toBe(5900);
+  });
+
+  it("R1 nor by downtime", () => {
+    const r = forecastShift(input({ jobs: [fullDay("J1", "SKU-A")], breaks: null, downtime: [{ start: at("10:00"), end: at("12:00") }] }));
+    expect(r.jobs[0].allocation!.productiveMinutes).toBe(525);
+  });
+
+  it("R3 an order-sized job stops at the next job's planned start", () => {
+    const r = forecastShift(input({
+      jobs: [
+        job("J1", "SKU-A", 1, { orderQty: 6000 }),
+        job("J2", "SKU-B", 2, { plannedStart: at("08:00"), plannedEnd: at("18:00") }),
+      ],
+    }), NO_BREAK);
+    expect(r.jobs[0].allocation!.end).toBe(120);
+    expect(r.jobs[0].expectedContainers).toBe(1200);
+    expect(r.warnings.map((w) => w.code)).toContain("ORDER_RUNS_INTO_NEXT_JOB");
+    expect(r.jobs[1].allocation).toMatchObject({ start: 120, end: 720 });
+    // 600 min window − 25 changeover − 30 mixing = 545 productive → 5450.
+    expect(r.jobs[1].expectedContainers).toBe(5450);
+  });
+
+  it("R3 says so when a planned window is unusable", () => {
+    const r = forecastShift(input({ jobs: [job("J1", "SKU-A", 1, { plannedStart: at("12:00"), plannedEnd: at("08:00") })] }), NO_BREAK);
+    expect(r.warnings.map((w) => w.code)).toContain("WINDOW_IGNORED");
+  });
+
+  it("R4 a job with no SKU is not a SKU change, and the job after it is not 'the same SKU'", () => {
+    const r = forecastShift(input({
+      previousSku: "SKU-A",
+      jobs: [
+        job("J1", "SKU-A", 1, { plannedStart: at("06:00"), plannedEnd: at("10:00") }),
+        job("J2", "", 2, { plannedStart: at("10:00"), plannedEnd: at("14:00") }),
+        job("J3", "SKU-A", 3, { plannedStart: at("14:00"), plannedEnd: at("18:00") }),
+      ],
+    }), NO_BREAK);
+    expect(r.jobs.map((j) => j.transition)).toEqual(["same_sku", "sku_unknown", "sku_unknown"]);
+    expect(r.jobs.map((j) => j.changeoverMinutes + j.mixingMinutes)).toEqual([0, 0, 0]);
+    expect(r.confidence).toBe("none"); // J2 has no SKU, so no rate and no total
+  });
+
+  it("R6 a sequence that is not a number goes last, deterministically", () => {
+    const jobs = [job("J1", "SKU-A", Number.NaN, { plannedStart: at("06:00"), plannedEnd: at("07:00") }), job("J2", "SKU-A", 1, { plannedStart: at("07:00"), plannedEnd: at("08:00") })];
+    const a = forecastShift(input({ jobs }), NO_BREAK);
+    const b = forecastShift(input({ jobs: [...jobs].reverse() }), NO_BREAK);
+    expect(a.jobs.map((j) => j.jobId)).toEqual(["J2", "J1"]);
+    expect(b).toEqual(a);
+    expect(a.warnings.map((w) => w.code)).toContain("BAD_SEQUENCE");
   });
 });

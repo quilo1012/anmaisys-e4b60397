@@ -166,7 +166,8 @@ export interface EngineWarning {
   jobId?: string;
 }
 
-export type Transition = "first_unknown" | "first_empty" | "sku_change" | "same_sku";
+/** `sku_unknown`: this job, or the one before it, has no SKU, so whether the product changed is not known. */
+export type Transition = "first_unknown" | "first_empty" | "sku_change" | "same_sku" | "sku_unknown";
 export type RateStatus = "validated" | "provisional" | "insufficient_history" | "missing" | "conflict";
 
 export interface JobForecast {
@@ -477,9 +478,13 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       message: `The positioned breaks add up to ${breakTotal} min, not the ${cfg.breakMinutes} min allowance. The positioned times are used.`,
     });
   }
-  // Without break times, the allowance is taken evenly from every productive minute.
-  const spread = positioned ? 1 : (G - cfg.breakMinutes) / G;
   const netMinutes = G - breakTotal;
+  // Without break times, each job carries its share of the allowance by the length of
+  // its slot, taken from its productive time. The share is never set against setup or
+  // downtime, because an overlap that cannot be placed cannot be credited.
+  const lumpShare = (start: number, end: number) => (positioned ? 0 : (cfg.breakMinutes * (end - start)) / G);
+  const productiveOf = (start: number, setupEnd: number, end: number) =>
+    Math.max(0, freeMinutes(setupEnd, end, blocked) - lumpShare(start, end));
 
   assumptions.push(
     positioned
@@ -493,8 +498,19 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
   base.window = { start: new Date(win.startMs).toISOString(), end: new Date(win.endMs).toISOString(), grossMinutes: G, netMinutes };
   const rates = cleanRates(input.rates, warnings);
 
-  // Jobs in iTouch order. Ties are broken by id so the order never depends on input order.
-  const jobs = [...(input.jobs ?? [])].sort((a, b) => a.sequence - b.sequence || a.jobId.localeCompare(b.jobId));
+  // Jobs in iTouch order. Ties are broken by id, compared by code point rather than by
+  // locale, so the order never depends on input order or on the machine running it.
+  // A sequence that is not a number goes last instead of poisoning the sort.
+  const seqKey = (j: PlannedJob) => (Number.isFinite(j.sequence) ? j.sequence : Number.POSITIVE_INFINITY);
+  const jobs = [...(input.jobs ?? [])].sort((a, b) => {
+    const sa = seqKey(a);
+    const sb = seqKey(b);
+    if (sa !== sb) return sa < sb ? -1 : 1;
+    return a.jobId < b.jobId ? -1 : a.jobId > b.jobId ? 1 : 0;
+  });
+  if (jobs.some((j) => !Number.isFinite(j.sequence))) {
+    warnings.push({ code: "BAD_SEQUENCE", message: "A job has no usable sequence number; it is placed last." });
+  }
   for (let i = 1; i < jobs.length; i++) {
     if (jobs[i].sequence === jobs[i - 1].sequence) {
       warnings.push({ code: "DUPLICATE_SEQUENCE", message: `Jobs ${jobs[i - 1].jobId} and ${jobs[i].jobId} share sequence ${jobs[i].sequence}; ordered by job id.` });
@@ -512,19 +528,33 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
   const setupAvoidChangeover = blocked;
   const setupAvoidMixing = cfg.mixingMayOverlapBreak ? downtimeIntervals : blocked;
 
-  for (const job of jobs) {
+  const windowOf = (job: PlannedJob) => {
+    const ws = toMin(job.plannedStart);
+    const we = toMin(job.plannedEnd);
+    return ws !== null && we !== null && we > ws ? { start: ws, end: we } : null;
+  };
+
+  for (const [index, job] of jobs.entries()) {
     const sku = normaliseSku(job.sku);
     const reasons: string[] = [];
+    const first = out.length === 0;
     const transition: Transition =
-      out.length === 0 && prevSku === undefined ? "first_unknown"
-        : out.length === 0 && prevSku === null ? "first_empty"
-          : sku !== null && sku === prevSku ? "same_sku" : "sku_change";
+      sku === null ? "sku_unknown"
+        : first && prevSku === undefined ? "first_unknown"
+          : first && prevSku === null ? "first_empty"
+            : prevSku === undefined || prevSku === null ? "sku_unknown"
+              : sku === prevSku ? "same_sku" : "sku_change";
     if (transition === "first_unknown") {
       warnings.push({ code: "PREVIOUS_SKU_UNKNOWN", jobId: job.jobId, message: "What ran before the shift is unknown, so no changeover is charged before the first job." });
     }
+    if (transition === "sku_unknown") {
+      warnings.push({ code: "TRANSITION_UNKNOWN", jobId: job.jobId, message: "This job or the one before it has no SKU, so no changeover or mixing is charged here." });
+    }
 
     const changeover = transition === "sku_change" ? job.changeoverMinutes ?? cfg.changeoverMinutes : 0;
-    const mixing = cfg.mixingAt === "every_job" || transition !== "same_sku" ? job.mixingMinutes ?? cfg.mixingMinutes[line] : 0;
+    const mixing =
+      transition === "sku_unknown" ? 0
+        : cfg.mixingAt === "every_job" || transition !== "same_sku" ? job.mixingMinutes ?? cfg.mixingMinutes[line] : 0;
     const resolved = sku ? resolveRate(rates, line, sku, cfg) : { status: "missing" as RateStatus, rate: null };
     if (!sku) reasons.push("The job has no SKU.");
     else if (resolved.status === "missing") reasons.push(`No rate for ${sku} on Line ${line}.`);
@@ -532,9 +562,13 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
     else if (resolved.status === "conflict") reasons.push(`Rate records for ${sku} on Line ${line} disagree.`);
 
     // Where the job sits in the shift.
-    const ws = job.plannedStart && job.plannedEnd ? toMin(job.plannedStart) : null;
-    const we = job.plannedStart && job.plannedEnd ? toMin(job.plannedEnd) : null;
+    const window = windowOf(job);
+    if (!window && (job.plannedStart || job.plannedEnd)) {
+      warnings.push({ code: "WINDOW_IGNORED", jobId: job.jobId, message: "The planned window is incomplete, unreadable or reversed, so it was not used." });
+    }
     let allocation: JobForecast["allocation"] = null;
+    let productive = 0;
+    let completesOrder = false;
 
     const placeSetup = (from: number, limit: number) => {
       const co = consumeFreeTime(from, changeover, setupAvoidChangeover, limit);
@@ -542,9 +576,9 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       return { end: mx.end, intervals: [...co.taken, ...mx.taken], short: co.shortfall + mx.shortfall };
     };
 
-    if (ws !== null && we !== null && we > ws) {
-      let start = Math.max(0, ws);
-      const end = Math.min(G, we);
+    if (window) {
+      let start = Math.max(0, window.start);
+      const end = Math.min(G, window.end);
       if (cursor !== null && start < cursor) {
         warnings.push({ code: "WINDOW_OVERLAP", jobId: job.jobId, message: `Planned window starts before the previous job ends; moved to minute ${round1(cursor)}.` });
         start = cursor;
@@ -554,20 +588,36 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       } else {
         const setup = placeSetup(start, end);
         if (setup.short > 0) warnings.push({ code: "SETUP_EXCEEDS_WINDOW", jobId: job.jobId, message: "Changeover and mixing do not fit in the planned window." });
-        const productive = freeMinutes(setup.end, end, blocked) * spread;
+        productive = productiveOf(start, setup.end, end);
         allocation = { start, end, setupEnd: setup.end, productiveMinutes: round1(productive), basis: "planned_window" };
       }
       cursor = allocation ? allocation.end : cursor;
     } else if (cursor !== null && resolved.rate && job.orderQty && job.orderQty > 0) {
-      const setup = placeSetup(cursor, G);
-      const needed = ((job.orderQty / resolved.rate.perHour) * 60) / spread;
-      const run = consumeFreeTime(setup.end, needed, blocked, G);
-      if (run.shortfall > 0) {
-        warnings.push({ code: "ORDER_RUNS_PAST_SHIFT", jobId: job.jobId, message: "At this rate the order does not finish in this shift; the job is cut at shift end." });
+      // The slot is sized from the order, so it may not run into the next job that
+      // has a planned start.
+      const nextWindow = jobs.slice(index + 1).map(windowOf).find((w) => w !== null);
+      const limit = Math.min(G, nextWindow ? Math.max(cursor, nextWindow.start) : G);
+      const setup = placeSetup(cursor, limit);
+      const neededProductive = (job.orderQty / resolved.rate.perHour) * 60;
+      // Wall time whose productive part, after its share of an unplaced break, is the
+      // order. With positioned breaks the share is 0 and this is the order itself.
+      const share = positioned ? 0 : cfg.breakMinutes / G;
+      const neededWall = (neededProductive + share * (setup.end - cursor)) / (1 - share);
+      const run = consumeFreeTime(setup.end, neededWall, blocked, limit);
+      completesOrder = run.shortfall <= 1e-6;
+      if (!completesOrder) {
+        warnings.push(
+          limit < G
+            ? { code: "ORDER_RUNS_INTO_NEXT_JOB", jobId: job.jobId, message: "At this rate the order does not finish before the next job's planned start; the job is cut there." }
+            : { code: "ORDER_RUNS_PAST_SHIFT", jobId: job.jobId, message: "At this rate the order does not finish in this shift; the job is cut at shift end." },
+        );
       }
-      const productive = freeMinutes(setup.end, run.end, blocked) * spread;
+      productive = productiveOf(cursor, setup.end, run.end);
       allocation = { start: cursor, end: run.end, setupEnd: setup.end, productiveMinutes: round1(productive), basis: "order_qty_at_rate" };
       warnings.push({ code: "DURATION_FROM_ORDER_QTY", jobId: job.jobId, message: "No planned window: the slot is sized from order quantity ÷ rate (provisional)." });
+      if (completesOrder) {
+        reasons.push("Its time was sized from its order quantity, so a forecast would only repeat the order.");
+      }
       cursor = run.end;
     } else {
       reasons.push(
@@ -578,7 +628,9 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       cursor = null;
     }
 
-    const expected = allocation && resolved.rate ? Math.round((resolved.rate.perHour * allocation.productiveMinutes) / 60) : null;
+    // A job sized from its order and finishing it has no forecast of its own: the
+    // number would be the order quantity again.
+    const expected = allocation && resolved.rate && !completesOrder ? Math.round((resolved.rate.perHour * productive) / 60) : null;
     out.push({
       jobId: job.jobId,
       sequence: job.sequence,
@@ -598,7 +650,7 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       difference: null,
       reasons,
     });
-    if (sku !== null) prevSku = sku;
+    prevSku = sku === null ? undefined : sku;
   }
 
   const lastEnd = Math.max(0, ...out.map((j) => j.allocation?.end ?? 0));
@@ -616,7 +668,7 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
 
   const lowSignals =
     !positioned ||
-    out.some((j) => j.rateStatus === "provisional" || j.transition === "first_unknown" || j.allocation?.basis === "order_qty_at_rate");
+    out.some((j) => j.rateStatus === "provisional" || j.transition === "first_unknown" || j.transition === "sku_unknown" || j.allocation?.basis === "order_qty_at_rate");
   base.confidence = base.expectedTotal === null ? "none" : lowSignals ? "low" : "medium";
 
   return finishEvents(base, input, line, win, out, blocked, verified, warnings);
@@ -651,7 +703,9 @@ function finishEvents(
     .sort((a, b) => {
       const ta = Number.isFinite(a.ts) ? a.ts : Infinity;
       const tb = Number.isFinite(b.ts) ? b.ts : Infinity;
-      return ta - tb || String(a.e.eventId ?? "").localeCompare(String(b.e.eventId ?? "")) || a.i - b.i;
+      const ia = String(a.e.eventId ?? "");
+      const ib = String(b.e.eventId ?? "");
+      return ta - tb || (ia < ib ? -1 : ia > ib ? 1 : 0) || a.i - b.i;
     });
 
   const seen = new Set<string>();
