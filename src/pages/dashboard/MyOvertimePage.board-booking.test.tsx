@@ -1,9 +1,14 @@
 /**
- * Overtime the office put on the Headcount by hand reaches My Overtime as a booking.
+ * Overtime the office put on the Headcount by hand reaches My Overtime — but not as a booking.
  *
  * 30/10/2026: Ailton Junior was on Line 2 as overtime for Sat 31/10. Where I'm working
- * showed it; My Overtime said 0 Accepted and listed nothing for that day, because it
- * read only answers to asks and there was no ask behind the placement.
+ * showed it; My Overtime listed nothing for that day, because it read only answers to
+ * asks and there was no ask behind the placement.
+ *
+ * 03/11/2026: it then listed it as "You're in — booked" and counted it as Accepted. The
+ * row is the board's rota stamp (placed off rota → overtime), not a yes: 85 such rows
+ * since 20/10, most on shifts with an ask the person never answered. So it is listed,
+ * under All, and said for what it is; only an accepted ask is accepted.
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -92,31 +97,33 @@ const counter = (label: string) => screen.getByRole("button", { name: new RegExp
 describe("overtime placed on the Headcount by the office", () => {
   beforeEach(() => { state.asks = []; state.attendance.mockReset(); });
 
-  it("is a booking: listed, counted as accepted, and where it is", () => {
+  it("is listed and where it is, but not counted as accepted", () => {
     state.attendance.mockReturnValue(attendanceWith([line2Tomorrow]));
     renderPage();
     // Same read, same fortnight as Where I'm working.
     expect(state.attendance).toHaveBeenCalledWith(TODAY, iso(13));
-    expect(within(counter("Accepted")).getByText("1")).toBeInTheDocument();
+    expect(within(counter("Accepted")).getByText("0")).toBeInTheDocument();
     const card = screen.getByTestId("board-booking");
-    expect(card).toHaveTextContent("You're in");
+    expect(card).not.toHaveTextContent("You're in");
+    expect(card).toHaveTextContent("Not one you accepted");
     expect(card).toHaveTextContent("Line 2");
     expect(card).toHaveTextContent("06:00–18:00");
-    expect(card).toHaveTextContent("Put on the Headcount by the office");
+    expect(card).not.toHaveTextContent("Put on the Headcount by the office");
     // Nothing to answer and nothing to cancel on it.
     expect(within(card).queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText(/No upcoming overtime/)).not.toBeInTheDocument();
   });
 
-  it("shows under Accepted and not under Needs response", () => {
+  it("shows under All only — not under Accepted, not under Needs response", () => {
     state.asks = [ask("sun", iso(2))];
     state.attendance.mockReturnValue(attendanceWith([line2Tomorrow]));
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Needs response" }));
     expect(screen.queryByTestId("board-booking")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Accepted" }));
+    expect(screen.queryByTestId("board-booking")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
     expect(screen.getByTestId("board-booking")).toBeInTheDocument();
-    expect(screen.queryByText("Nothing in this view.")).not.toBeInTheDocument();
   });
 
   it("is not counted twice when the row is the bridge's for an ask already booked", () => {

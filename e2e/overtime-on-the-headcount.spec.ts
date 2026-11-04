@@ -73,19 +73,17 @@ const sideways = (page: Page) =>
     );
   });
 
-test("My Overtime lists the Headcount booking and counts it as accepted (390px)", async ({ page }) => {
+// 03/11/2026: a Headcount placement with no accepted ask is listed, never counted as accepted.
+test("My Overtime lists the Headcount placement without counting it as accepted (390px)", async ({ page }) => {
   await open(page, "/dashboard/my-overtime");
   const card = page.getByTestId("board-booking");
   await expect(card).toBeVisible({ timeout: 20000 });
   await expect(card).toContainText("Line 2");
-  await expect(card).toContainText("You're in");
-  await expect(page.getByRole("button", { name: /^1\s*Accepted$/ })).toBeVisible();
+  await expect(card).toContainText("Not one you accepted");
+  await expect(page.getByRole("button", { name: /^0\s*Accepted$/ })).toBeVisible();
   expect(await sideways(page), "page scrolls sideways").toBeLessThanOrEqual(0);
-  // The reminder: the Headcount booking is the next overtime, with the time left.
-  const next = page.getByTestId("next-overtime");
-  await expect(next).toContainText("Line 2");
-  await expect(next).toContainText(/Starts in/);
-  await next.screenshot({ path: "test-results/my-overtime-next-phone.png" });
+  // Nothing accepted, so no reminder counts down to it.
+  await expect(page.getByTestId("next-overtime")).toHaveCount(0);
   await card.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/my-overtime-board-booking-phone.png", fullPage: false });
 });

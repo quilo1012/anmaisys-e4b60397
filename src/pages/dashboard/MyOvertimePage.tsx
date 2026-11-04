@@ -303,19 +303,18 @@ function BoardBookingCard({ b }: { b: MyShift }) {
             )}
             <div className="text-sm text-muted-foreground">{areaText(b)}</div>
           </div>
-          <Badge variant="outline" className="shrink-0 bg-success/15 font-normal text-success border-success/30">
-            <Check className="mr-1 h-3 w-3" />
-            You're in
+          <Badge variant="outline" className="shrink-0 font-normal">
+            On the Headcount
           </Badge>
         </div>
         <div className="rounded-md border bg-muted/40 px-3 py-2 text-xs">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Booking</span>
-            <span className="font-medium">Put on the Headcount by the office</span>
+            <span className="text-muted-foreground">Overtime</span>
+            <span className="font-medium">Not one you accepted</span>
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          There was no ask to answer — you are already down for this overtime. To change it, talk to your supervisor.
+          The office put you on the Headcount for this shift, outside your rota, without an overtime you said yes to. If you were not expecting it, talk to your supervisor.
         </p>
       </CardContent>
     </Card>
@@ -436,16 +435,16 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   );
 
   /**
-   * Overtime the office put this person on in the Headcount by hand, with no ask to
-   * answer (`overtimeOnTheBoardOnly`). Same read and same fourteen days as Where I'm
+   * Overtime the office put this person on in the Headcount by hand, with no accepted ask
+   * behind it (`overtimeOnTheBoardOnly`). Listed under All so they know, never counted
+   * as accepted: it is the rota's overtime stamp, not a yes. Same read and same fourteen days as Where I'm
    * working, so the two screens share one answer and can never disagree about it. A
    * shift that has already begun leaves, as an ask does.
    */
   const boardFrom = currentShift().operationalDate;
   const boardTo = plusDays(boardFrom, 13);
   const { data: attendance } = useMyAttendance(boardFrom, boardTo);
-  // Every Headcount booking in the fortnight, started or not — the reminder card keeps
-  // one that is on now; the list below shows only those still to start.
+  // Every Headcount placement in the fortnight; the list shows only those still to start.
   const boardAll = useMemo(
     () => (attendance?.state === "ready" ? overtimeOnTheBoardOnly(attendance.data, boardFrom, boardTo) : [] as MyShift[]),
     [attendance, boardFrom, boardTo],
@@ -535,8 +534,8 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
 
   /**
    * The next booked overtime, as a reminder with the time left (30/10/2026): asks this
-   * person is confirmed on, and placements the office made on the Headcount. The column
-   * comes from the board row the booking landed on, when somebody has placed them.
+   * person is confirmed on. A Headcount placement with no accepted ask is not a booking
+   * (03/11/2026). The column comes from the board row the booking landed on.
    */
   const next = useMemo(() => {
     const board = attendance?.state === "ready" ? attendance.data.board : [];
@@ -550,14 +549,9 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
           shift: askShift(q), area: areaOf(slot.date, slot.shift), source: "ask",
         };
       }),
-      ...boardAll.filter((b) => /^\d\d:\d\d–\d\d:\d\d$/.test(b.hours ?? "")).map((b): BookedShift => ({
-        key: `board-${b.date}-${b.shift}`, date: b.date,
-        startsAt: (b.hours as string).slice(0, 5), endsAt: (b.hours as string).slice(6, 11),
-        shift: b.shift, area: b.area ?? null, source: "headcount",
-      })),
     ];
     return nextBookedShift(items, now);
-  }, [bookedAsks, boardAll, attendance, now]);
+  }, [bookedAsks, attendance, now]);
   const cancelling = useRef(false);
   /**
    * Booking again a booking the person cancelled in time (BLOCO 138). Said from the row
@@ -704,11 +698,12 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
     return null;
   };
   const buckets = visible.map((r) => ({ r, b: bucketOf(r) }));
-  // A placement on the Headcount is a booking: it counts as accepted, as a yes would.
+  // Only an accepted ask is accepted. A Headcount placement with no ask behind it is the
+  // rota's overtime stamp, not a yes (see `overtimeIsAccepted`), so it is listed under All only.
   const countOf = (k: "needs" | "accepted" | "declined") =>
-    buckets.filter((x) => x.b === k).length + (k === "accepted" ? boardBookings.length : 0);
+    buckets.filter((x) => x.b === k).length;
   const shownAsks = filter === "all" ? visible : buckets.filter((x) => x.b === filter).map((x) => x.r);
-  const shownBoard = filter === "all" || filter === "accepted" ? boardBookings : [];
+  const shownBoard = filter === "all" ? boardBookings : [];
   // Grouped by the day the shift is for, earliest first; on a day, the board's
   // placement comes before the asks, because it is already settled.
   const byDate: [string, OvertimeRequest[], MyShift[]][] = [];
