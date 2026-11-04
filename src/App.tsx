@@ -148,6 +148,7 @@ const ReliabilityDashboard = lazyWithReload(() => import("./pages/dashboard/Reli
 const ManageUsers = lazyWithReload(() => import("./pages/users/ManageUsers"));
 const DowntimePage = lazyWithReload(() => import("./pages/dashboard/DowntimePage"));
 const StopAnalysisPage = lazyWithReload(() => import("./pages/dashboard/StopAnalysisPage"));
+const SmartTargetPage = lazyWithReload(() => import("./pages/dashboard/SmartTargetPage"));
 
 const PreventiveMaintenancePage = lazyWithReload(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazyWithReload(() => import("./pages/dashboard/SettingsPage"));
@@ -628,6 +629,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="stopanalysis.view">
                       <StopAnalysisPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/smart-target"
+                  element={
+                    <ProtectedRoute requiredAction="smarttarget.view">
+                      <SmartTargetPage />
                     </ProtectedRoute>
                   }
                 />

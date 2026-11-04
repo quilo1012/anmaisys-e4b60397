@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin, KeyRound } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin, KeyRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -211,6 +211,10 @@ export const navItems: NavItem[] = [
   // `operator` escrito aqui não devolve o ecrã sozinho — mas deixa as duas listas a
   // dizer coisas diferentes, que é como este ecrã apareceu a quem não o devia ver.
   { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
+  // A diagnostic for now: per line and shift, what the forecast can say and what it
+  // is still missing. Same roles as the MATRIX grants smarttarget.view, so the two
+  // lists say the same thing.
+  { title: "Smart Target", shortTitle: "Target", url: "/dashboard/smart-target", icon: Target, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and
