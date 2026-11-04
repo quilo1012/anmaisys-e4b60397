@@ -37,7 +37,22 @@ const TYPE_COLOR: Record<string, string> = {
   // rendered the right answer without the column; what is left is a migration to
   // apply, which is a job, not an incident.
   SCHEMA_DRIFT: "bg-muted text-muted-foreground border-border",
+  PUSH_STATE: "bg-muted text-muted-foreground border-border",
 };
+
+/**
+ * Reports, not errors. PUSH_STATE is each phone saying, once a day, how push stands on
+ * it (src/lib/pushDiagnostics.ts) — it is how a "no_device" gets explained, so it keeps
+ * being written. It just does not belong in "All", which is the list of things that went
+ * wrong; it stays one click away on its own chip.
+ */
+const INFO_TYPES = new Set(["PUSH_STATE"]);
+
+/** What a logged RLS/API failure was asking for — the card is useless without it. */
+function requestLine(m: Record<string, unknown> | null): string | null {
+  if (!m || !m.resource) return null;
+  return [m.method, m.resource, m.status && `→ ${m.status}`, m.code && `(${m.code})`].filter(Boolean).join(" ");
+}
 
 export default function RootDiagnosticsPage() {
   const [filter, setFilter] = useState<string>("all");
@@ -60,7 +75,8 @@ export default function RootDiagnosticsPage() {
   });
 
   const types = Array.from(new Set(logs.map((l) => l.error_type)));
-  const shown = filter === "all" ? logs : logs.filter((l) => l.error_type === filter);
+  const problems = logs.filter((l) => !INFO_TYPES.has(l.error_type));
+  const shown = filter === "all" ? problems : logs.filter((l) => l.error_type === filter);
 
   const clearAll = async () => {
     if (!window.confirm("Delete ALL telemetry logs? This cannot be undone.")) return;
@@ -94,7 +110,7 @@ export default function RootDiagnosticsPage() {
 
         {types.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setFilter("all")} className={`rounded-full border px-3 py-1 text-xs ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-card"}`}>All ({logs.length})</button>
+            <button onClick={() => setFilter("all")} className={`rounded-full border px-3 py-1 text-xs ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-card"}`}>All ({problems.length})</button>
             {types.map((t) => (
               <button key={t} onClick={() => setFilter(t)} className={`rounded-full border px-3 py-1 text-xs font-mono ${filter === t ? "bg-primary text-primary-foreground" : "bg-card"}`}>
                 {t} ({logs.filter((l) => l.error_type === t).length})
@@ -124,6 +140,9 @@ export default function RootDiagnosticsPage() {
                 </CardHeader>
                 <CardContent className="pt-0 space-y-2">
                   <p className="font-medium break-words">{l.message}</p>
+                  {requestLine(l.metadata) && (
+                    <p className="font-mono text-xs text-muted-foreground break-words">{requestLine(l.metadata)}</p>
+                  )}
                   {l.stack_trace && (
                     <pre className="max-h-48 overflow-auto rounded bg-muted p-2 text-2xs leading-relaxed text-muted-foreground">{l.stack_trace}</pre>
                   )}
