@@ -1020,9 +1020,12 @@ function ShiftBoard({
   );
   // Booked for this board, then cancelled — see `cancelledOnBoard`.
   const cancelledAsks = useMemo(
-    () => cancelledOnBoard(cancelledRows ?? [], onDate, shift, confirmedAsks),
+    () => cancelledOnBoard(cancelledRows?.rows ?? [], onDate, shift, confirmedAsks, cancelledRows?.promotions),
     [cancelledRows, onDate, shift, confirmedAsks],
   );
+  /** Three lines, gaps first; the rest behind "Show all", so the board is not pushed down. */
+  const [allCancelledShown, setAllCancelledShown] = useState(false);
+  useEffect(() => { setAllCancelledShown(false); }, [onDate, shift]);
   const chipOf = (employeeId: string) =>
     chipHours(byEmployee.get(employeeId), onDate, shift, confirmedAsks?.get(employeeId) ?? []);
   /** The worked hours a chip shows, when they differ from the plain shift. */
@@ -1847,35 +1850,52 @@ function ShiftBoard({
 
       {/* Booked, then cancelled. The cancel takes the person off the board and the place
           goes to a reserve, so without this the supervisor only saw a name disappear.
-          Informational, so quieter than the warning above; a late cancel is the one
-          flagged, since that is the gap on a line. */}
-      {cancelledAsks.length > 0 && (
-        <section aria-label="Overtime cancelled for this shift"
-          className="rounded-lg border border-border bg-muted/40 text-sm print:hidden">
-          <div className="flex items-center gap-2 border-b border-border/70 px-3 py-2 font-semibold">
-            <CalendarX2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-            {cancelledAsks.length === 1 ? "1 person" : `${cancelledAsks.length} people`} cancelled overtime for this shift
-          </div>
-          <ul className="divide-y divide-border/60">
-            {cancelledAsks.map((c) => {
-              const name = everyoneById?.get(c.employeeId)?.full_name ?? "An employee";
-              return (
-                <li key={`${c.employeeId}-${c.startsAt}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-1.5">
-                  <span className="font-medium">{name}</span>
+          Informational, so quieter than the warning above. What is flagged is a gap on a
+          line: a late cancel, or a place nobody took. Those come first (`cancelledOnBoard`). */}
+      {cancelledAsks.length > 0 && (() => {
+        const nameOf = (id: string) => cancelledRows?.names.get(id) ?? everyoneById?.get(id)?.full_name ?? "An employee";
+        const shown = allCancelledShown ? cancelledAsks : cancelledAsks.slice(0, 3);
+        return (
+          <section aria-label="Overtime cancelled for this shift"
+            className="rounded-lg border border-border bg-muted/40 text-sm print:hidden">
+            <div className="flex items-center gap-2 border-b border-border/70 px-3 py-2 font-semibold">
+              <CalendarX2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {cancelledAsks.length === 1 ? "1 person" : `${cancelledAsks.length} people`} cancelled overtime for this shift
+            </div>
+            <ul className="divide-y divide-border/60">
+              {shown.map((c) => (
+                <li key={`${c.employeeId}-${c.startsAt}-${c.cancelledAt}`}
+                  className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-1.5">
+                  <span className="font-medium">{nameOf(c.employeeId)}</span>
                   <span className="tabular-nums text-muted-foreground">{c.startsAt}–{c.endsAt}</span>
-                  <span className="text-muted-foreground">Cancelled {cancelledWhen(c.cancelledAt)}</span>
-                  {c.note && <span className="basis-full text-xs text-muted-foreground sm:basis-auto">“{c.note}”</span>}
+                  <span className="text-muted-foreground">
+                    Cancelled{c.bySupervisor ? " by a supervisor" : ""} {cancelledWhen(c.cancelledAt)}
+                  </span>
+                  {c.promotedTo ? (
+                    <span className="text-muted-foreground">→ place went to <span className="text-foreground">{nameOf(c.promotedTo)}</span></span>
+                  ) : (
+                    <span className="font-medium text-destructive-strong">No reserve — place is empty</span>
+                  )}
                   <span className={c.late
                     ? "ml-auto rounded border border-destructive/40 bg-destructive/10 px-1.5 py-px text-xs font-medium text-destructive-strong"
                     : "ml-auto rounded border border-border px-1.5 py-px text-xs text-muted-foreground"}>
                     {c.late ? "Late notice" : "In time"}
                   </span>
+                  {c.note && <span className="basis-full text-xs text-muted-foreground">“{c.note}”</span>}
                 </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+              ))}
+            </ul>
+            {cancelledAsks.length > 3 && (
+              <button type="button"
+                className="w-full border-t border-border/70 px-3 py-1.5 text-left text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-expanded={allCancelledShown}
+                onClick={() => setAllCancelledShown((v) => !v)}>
+                {allCancelledShown ? "Show fewer" : `Show all (${cancelledAsks.length})`}
+              </button>
+            )}
+          </section>
+        );
+      })()}
 
       {/* An empty board on a date the rota has people due is not a quiet night: it is a
           board nobody imported. Three nights went that way unnoticed behind a small

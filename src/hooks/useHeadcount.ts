@@ -12,7 +12,7 @@ import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus"
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftPosition } from "./useWorkforce";
 import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
 import type { PreviousPlace } from "@/lib/headcountSuggestions";
-import { boardSlotOf, type CancelledAskRow, type ConfirmedAsk } from "@/lib/boardOvertime";
+import { boardSlotOf, type CancelledAskRow, type ConfirmedAsk, type ReservePromotion } from "@/lib/boardOvertime";
 import { applyLineOrder, type LineOrder } from "@/lib/lineOrder";
 
 export type HeadcountArea = {
@@ -536,7 +536,10 @@ export function useConfirmedOvertime(onDate: string, shift: string) {
 
 /**
  * Accepted answers for this board that were then cancelled (`cancelledOnBoard` picks
- * this board's out). Under the confirmed-overtime key, so the same realtime refresh
+ * this board's out), with what the panel needs beside them: each person's linked login,
+ * to tell a supervisor's cancel from their own; the bookings on the same asks, to find
+ * the reserve moved up; and the names of both, since a reserve may not be on this
+ * board's roster. Under the confirmed-overtime key, so the same realtime refresh
  * reaches it: a cancel takes the person off `daily_allocations`, which fires it.
  * A failure here only hides the list.
  */
@@ -545,37 +548,64 @@ export function useCancelledOvertime(onDate: string, shift: string) {
     queryKey: ["headcount-confirmed-overtime", "cancelled", onDate, shift],
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
-    queryFn: async (): Promise<CancelledAskRow[]> => {
+    queryFn: async (): Promise<{ rows: CancelledAskRow[]; promotions: ReservePromotion[]; names: Map<string, string> }> => {
+      const none = { rows: [], promotions: [], names: new Map<string, string>() };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
+      const db = supabase as any;
+      const { data, error } = await db
         .from("overtime_responses")
-        .select("request_id,employee_id,overtime_requests!inner(on_date,starts_at,ends_at,status),overtime_outcomes!inner(outcome,recorded_at,note)")
+        .select("request_id,employee_id,overtime_requests!inner(on_date,starts_at,ends_at,status),overtime_outcomes!inner(outcome,recorded_at,recorded_by,note)")
         .eq("decision", "accepted")
         .in("overtime_requests.on_date", [onDate, plusOneDay(onDate)])
         .neq("overtime_requests.status", "cancelled")
         .in("overtime_outcomes.outcome", ["cancelled", "cancelled_in_time", "cancelled_late"]);
       if (error) {
         console.warn("[headcount] cancelled overtime not read:", error.message);
-        return [];
+        return none;
       }
-      type Outcome = { outcome: string; recorded_at: string; note: string | null };
+      type Outcome = { outcome: string; recorded_at: string; recorded_by: string | null; note: string | null };
       type Row = {
         request_id: string; employee_id: string;
         overtime_requests: { on_date: string; starts_at: string; ends_at: string } | null;
         overtime_outcomes: Outcome[] | Outcome | null;
       };
-      const out: CancelledAskRow[] = [];
-      for (const r of (data ?? []) as Row[]) {
+      const raw = ((data ?? []) as Row[]).flatMap((r) => {
         const q = r.overtime_requests;
         const o = Array.isArray(r.overtime_outcomes) ? r.overtime_outcomes[0] : r.overtime_outcomes;
-        if (!q || !o) continue;
-        out.push({
-          request_id: r.request_id, employee_id: r.employee_id,
-          on_date: q.on_date, starts_at: q.starts_at, ends_at: q.ends_at,
-          outcome: o.outcome, recorded_at: o.recorded_at, note: o.note,
-        });
+        return q && o ? [{ r, q, o }] : [];
+      });
+      if (raw.length === 0) return none;
+
+      // Who else is booked on those asks: the reserve moved up is among them.
+      const { data: booked, error: bookedErr } = await db
+        .from("overtime_responses")
+        .select("request_id,employee_id,decided_at")
+        .in("request_id", [...new Set(raw.map((x) => x.r.request_id))])
+        .eq("decision", "accepted")
+        .not("decided_at", "is", null);
+      if (bookedErr) console.warn("[headcount] who took a cancelled place not read:", bookedErr.message);
+      const promotions = (booked ?? []) as ReservePromotion[];
+
+      const ids = [...new Set([...raw.map((x) => x.r.employee_id), ...promotions.map((p) => p.employee_id)])];
+      const { data: people, error: peopleErr } = await supabase
+        .from("employees")
+        .select("id,full_name,user_id")
+        .in("id", ids);
+      if (peopleErr) console.warn("[headcount] names for cancelled overtime not read:", peopleErr.message);
+      const loginOf = new Map<string, string | null>();
+      const names = new Map<string, string>();
+      for (const p of (people ?? []) as { id: string; full_name: string; user_id: string | null }[]) {
+        loginOf.set(p.id, p.user_id);
+        names.set(p.id, p.full_name);
       }
-      return out;
+
+      const rows = raw.map(({ r, q, o }): CancelledAskRow => ({
+        request_id: r.request_id, employee_id: r.employee_id,
+        on_date: q.on_date, starts_at: q.starts_at, ends_at: q.ends_at,
+        outcome: o.outcome, recorded_at: o.recorded_at, note: o.note,
+        recorded_by: o.recorded_by, employee_user_id: loginOf.get(r.employee_id) ?? null,
+      }));
+      return { rows, promotions, names };
     },
   });
 }
