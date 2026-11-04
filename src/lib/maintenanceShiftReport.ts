@@ -28,6 +28,7 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
 import { formatMinutes } from "@/lib/formatDuration";
+import { invokeFunction } from "@/lib/invokeFunction";
 
 /** At most this many open orders are written out; the rest are counted. */
 export const OPEN_MAX_LISTED = 20;
@@ -163,6 +164,10 @@ export interface ShiftReportData {
   completedOrders?: ReportWorkOrder[];
   /** Orders still open now. */
   pending?: PendingOrder[];
+  /** English for a completed order's repair notes, by order id, when the notes were not English. */
+  translatedNotes?: Record<string, string>;
+  /** Completed orders whose notes could not be put through translation. */
+  notesNotTranslated?: number;
 }
 
 export interface ReportStop {
@@ -176,6 +181,22 @@ export interface CompletedOrder {
   wo: ReportWorkOrder;
   stops: ReportStop[];
   totalMinutes: number;
+  /** The repair notes as printed: the engineer's words, or their English marked "(translated)". */
+  work: string;
+}
+
+/** An order still open now, with the downtime its stops caused this shift. */
+export interface OpenOrder extends PendingOrder {
+  totalMinutes: number;
+  /** A stop of this order has not been resumed yet. */
+  stillStopped: boolean;
+}
+
+/** An order that stopped a line this shift but was finished in another one (or rejected). */
+export interface LaterOrder {
+  wo: ReportWorkOrder;
+  totalMinutes: number;
+  stillStopped: boolean;
 }
 
 export type StopVerdict = "counted" | "planned" | "inverted" | "order not read";
@@ -202,7 +223,11 @@ export interface ShiftReport {
   /** Genuinely completed in this shift, newest completion first. */
   completed: CompletedOrder[];
   /** Still open now, as recorded. Never counted as completed. */
-  open: PendingOrder[];
+  open: OpenOrder[];
+  /** Stopped a line this shift, finished in another shift. With the two lists above it adds up to the total. */
+  completedLater: LaterOrder[];
+  /** Completed orders whose notes are printed as written because translation failed. */
+  notesNotTranslated: number;
   /** Validated stops that touched the window and were counted. */
   downtimeEvents: number;
   /** Sum of the counted stops' minutes inside the window, after exclusions. */
@@ -252,16 +277,43 @@ export function boldText(s: string): string {
   });
 }
 
-export const shiftLabel =(s: ShiftCode) => (s === "day" ? "Day Shift (06:00–18:00)" : "Night Shift (18:00–06:00)");
+export const shiftLabel = (s: ShiftCode) => (s === "day" ? "Day Shift (06:00–18:00)" : "Night Shift (18:00–06:00)");
 
+/**
+ * "3", "6A" and "Line 3" read "Line 3", "Line 6A"; a line named after its machine reads
+ * as named — "Capsules Machine 2", never "Line Capsules Machine 2".
+ */
 export function lineLabelOf(lineAtTime: string | null, lineName: string | null): string {
   const line = clean(lineAtTime) || clean(lineName);
-  return line ? `Line ${line.replace(/^line\s+/i, "")}` : "Line not recorded";
+  if (!line) return "Line not recorded";
+  const bare = line.replace(/^line\s+/i, "");
+  return bare !== line || /^(\d+[A-Za-z]?|[A-Za-z])$/.test(bare) ? `Line ${bare}` : line;
 }
 
 /** `Maintenance_Report_Night_Shift_2026-10-30.pdf` */
 export function reportFileName(w: Pick<ShiftWindow, "sessionDate" | "shift">, ext: "pdf" | "txt" | "xlsx"): string {
   return `Maintenance_Report_${w.shift === "day" ? "Day" : "Night"}_Shift_${w.sessionDate}.${ext}`;
+}
+
+export const woRef = (n: number | null) => (n ? `WO-${n}` : "WO number not recorded");
+
+/** "Downtime: 0h 40m (line still stopped)", or "No downtime this shift". */
+export function downtimeLabel(x: { totalMinutes: number; stillStopped: boolean }, emphasise: (s: string) => string = (s) => s): string {
+  if (x.totalMinutes === 0 && !x.stillStopped) return "No downtime this shift";
+  return `Downtime: ${emphasise(formatMinutes(x.totalMinutes))}${x.stillStopped ? " (line still stopped)" : ""}`;
+}
+
+/** A table cell's version: "0h 40m (line still stopped)", or "No downtime this shift". */
+export const downtimeValue = (x: { totalMinutes: number; stillStopped: boolean }) =>
+  downtimeLabel(x).replace(/^Downtime: /, "");
+
+/** "Completed 29/10/2026 08:15", or the status it ended in. */
+export function laterStatusLabel(wo: ReportWorkOrder): string {
+  if (FINISHED.has(wo.status)) {
+    return wo.completed_at_effective ? `Completed ${londonStamp(new Date(wo.completed_at_effective))}` : "Completed";
+  }
+  const s = wo.status.replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** The heading of a completed order: "Line 2 – WO-1451". */
@@ -373,11 +425,19 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
   // Genuinely completed in this shift. The list comes from the completed-orders read,
   // never from the stops: an order finished without a line stoppage is still completed,
   // and an open order with a long stop is still open.
+  const downtimeOf = (id: string) => {
+    const stops = stopsByWo.get(id) ?? [];
+    return { stops, totalMinutes: stops.reduce((sum, x) => sum + x.minutes, 0), stillStopped: stops.some((x) => x.ongoing) };
+  };
+  const translated = input.translatedNotes ?? {};
   const completed: CompletedOrder[] = (input.completedOrders ?? [])
     .filter((w) => FINISHED.has(w.status) && w.wo_type !== "warehouse_service")
     .map((w) => {
-      const stops = stopsByWo.get(w.id) ?? [];
-      return { wo: w, stops, totalMinutes: stops.reduce((sum, x) => sum + x.minutes, 0) };
+      const { stops, totalMinutes } = downtimeOf(w.id);
+      const own = clean(w.resolution_notes);
+      const english = clean(translated[w.id]);
+      const work = !own ? "Not recorded" : english && english !== own ? `${english} (translated)` : own;
+      return { wo: w, stops, totalMinutes, work };
     })
     .sort((a, b) => {
       const ta = a.wo.completed_at_effective ? new Date(a.wo.completed_at_effective).getTime() : 0;
@@ -385,12 +445,33 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
       return tb - ta || (a.wo.wo_number ?? 0) - (b.wo.wo_number ?? 0);
     });
 
-  const open = (input.pending ?? []).filter((p) => (PENDING_STATUSES as readonly string[]).includes(p.status));
+  const open: OpenOrder[] = (input.pending ?? [])
+    .filter((p) => (PENDING_STATUSES as readonly string[]).includes(p.status))
+    .map((p) => {
+      const { totalMinutes, stillStopped } = downtimeOf(p.id);
+      return { ...p, totalMinutes, stillStopped };
+    });
+
+  // Orders that stopped a line this shift but are in neither list: finished in another
+  // shift (common on a past shift's report) or rejected. Without them the sections
+  // would not add up to the total printed above them.
+  const listed = new Set([...completed.map((c) => c.wo.id), ...open.map((p) => p.id)]);
+  const completedLater: LaterOrder[] = [...stopsByWo.keys()]
+    .filter((id) => !listed.has(id))
+    .map((id) => {
+      const { totalMinutes, stillStopped } = downtimeOf(id);
+      return { wo: woById.get(id)!, totalMinutes, stillStopped };
+    })
+    .sort((a, b) => (a.wo.wo_number ?? 0) - (b.wo.wo_number ?? 0));
 
   // Self-check: what is printed is what was added up, and the audit trail agrees.
   const countedRows = rows.filter((r) => r.verdict === "counted");
   if (countedRows.length !== downtimeEvents || countedRows.reduce((n, r) => n + (r.minutes ?? 0), 0) !== totalCountedMinutes) {
     problems.push("The stops counted do not match the stops listed.");
+  }
+  const sectionMinutes = [...completed, ...open, ...completedLater].reduce((n, x) => n + x.totalMinutes, 0);
+  if (sectionMinutes !== totalCountedMinutes) {
+    problems.push(`The work orders listed add up to ${formatMinutes(sectionMinutes)}, not the ${formatMinutes(totalCountedMinutes)} counted.`);
   }
 
   // ── Text: short lines, no technical detail. A .txt carries no formatting, and
@@ -415,10 +496,9 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
   if (completed.length === 0) {
     lines.push("No work orders were completed during this shift.");
   }
-  for (const { wo, totalMinutes } of completed) {
+  for (const { wo, totalMinutes, work } of completed) {
     const machine = clean(wo.machine);
     const problem = clean(wo.description) || "Not recorded";
-    const work = clean(wo.resolution_notes) || "Not recorded";
     const engineer = clean(wo.engineer_name) || "Not assigned";
     lines.push(
       "",
@@ -434,20 +514,76 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     lines.push("", boldText("OPEN WORK ORDERS"));
     for (const p of open.slice(0, OPEN_MAX_LISTED)) {
       lines.push(
-        `${p.wo_number ? `WO-${p.wo_number}` : "WO number not recorded"} · ${lineLabelOf(p.line_at_time, p.line_name)} · ` +
-          `${clean(p.description) || "Not recorded"} · ${clean(p.engineer_name) || "Not assigned"} · Open`,
+        `${woRef(p.wo_number)} · ${lineLabelOf(p.line_at_time, p.line_name)} · ` +
+          `${clean(p.description) || "Not recorded"} · ${clean(p.engineer_name) || "Not assigned"} · Open · ${downtimeLabel(p, boldText)}`,
       );
     }
     if (open.length > OPEN_MAX_LISTED) {
-      lines.push(`…and ${open.length - OPEN_MAX_LISTED} more — see Work Orders.`);
+      const rest = open.slice(OPEN_MAX_LISTED).reduce((n, p) => n + p.totalMinutes, 0);
+      lines.push(`…and ${open.length - OPEN_MAX_LISTED} more — see Work Orders (downtime ${formatMinutes(rest)}).`);
+    }
+  }
+  if (completedLater.length > 0) {
+    lines.push("", boldText("STOPPED THIS SHIFT, COMPLETED LATER"));
+    for (const l of completedLater) {
+      lines.push(
+        `${woRef(l.wo.wo_number)} · ${lineLabelOf(l.wo.line_at_time, l.wo.line_name)} · ` +
+          `${clean(l.wo.description) || "Not recorded"} · ${clean(l.wo.engineer_name) || "Not assigned"} · ` +
+          `${laterStatusLabel(l.wo)} · ${downtimeLabel(l, boldText)}`,
+      );
     }
   }
 
   return {
     window, generatedAt, generatedBy: by || null,
-    text: lines.join("\n"), completed, open, downtimeEvents, totalCountedMinutes,
+    text: lines.join("\n"), completed, open, completedLater, notesNotTranslated: input.notesNotTranslated ?? 0,
+    downtimeEvents, totalCountedMinutes,
     rows, stopsRead, ordersRead: touched.size, plannedStops, excludedMinutes, problems,
   };
+}
+
+/** English for `text` (unchanged when it already is), or null when translation is unavailable. */
+export type Translate = (text: string) => Promise<string | null>;
+
+// One note, one call per session: regenerating a report, or the same shift in another
+// format, does not spend the translation allowance again.
+const englishOf = new Map<string, string>();
+
+const translateToEnglish: Translate = async (text) => {
+  const known = englishOf.get(text);
+  if (known !== undefined) return known;
+  try {
+    const { data, error } = await invokeFunction<{ translated?: string }>("translate-message", { text });
+    if (error) return null;
+    const out = clean(data?.translated) || text;
+    englishOf.set(text, out);
+    return out;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * The report goes out in English, but an engineer's repair notes are stored as written
+ * — and while the Finish step could not translate (its AI key was missing) many
+ * were stored in Portuguese. Each note is put through translation for the printout only;
+ * the record is never changed. A failure leaves the note as written and is counted, so
+ * the dialog can say so instead of the file passing for English.
+ */
+async function translateNotes(
+  rows: { id: string; resolution_notes: string | null }[],
+  translate: Translate,
+): Promise<{ notes: Record<string, string>; failed: number }> {
+  const notes: Record<string, string> = {};
+  let failed = 0;
+  await Promise.all(rows.map(async (r) => {
+    const own = clean(r.resolution_notes);
+    if (!own) return;
+    const english = await translate(own);
+    if (english === null) failed++;
+    else notes[r.id] = english;
+  }));
+  return { notes, failed };
 }
 
 /**
@@ -458,7 +594,7 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
  */
 export async function fetchMaintenanceShiftReport(
   now: Date = new Date(),
-  opts: { window?: ShiftWindow; generatedBy?: string | null } = {},
+  opts: { window?: ShiftWindow; generatedBy?: string | null; translate?: Translate } = {},
 ): Promise<ShiftReport> {
   const window = opts.window ?? shiftWindowAt(now);
   const startIso = window.start.toISOString();
@@ -495,7 +631,7 @@ export async function fetchMaintenanceShiftReport(
   const [wos, exclusions, plannedRows, completedRows, pendingRows] = await Promise.all([
     read("the work orders", fetchRowsByIds<any>(ids, (chunk, from, to) =>
       db.from("work_orders")
-        .select("id, wo_number, line_at_time, description, resolution_notes, status, wo_type, engineer_name, machine, line:lines!work_orders_line_id_fkey(name)")
+        .select("id, wo_number, line_at_time, description, resolution_notes, status, wo_type, engineer_name, machine, finished_at, completed_at, closed_at, line:lines!work_orders_line_id_fkey(name)")
         .in("id", chunk).order("id").range(from, to))),
     read("the downtime exclusions", fetchRowsByIds<ReportExclusion>(ids, (chunk, from, to) =>
       db.from("wo_downtime_exclusions")
@@ -525,10 +661,15 @@ export async function fetchMaintenanceShiftReport(
     })),
   ]);
 
+  const translation = await translateNotes(completedRows, opts.translate ?? translateToEnglish);
+
   return buildMaintenanceShiftReport({
     window,
     generatedAt: now,
-    workOrders: wos.map((w: any) => ({ ...w, line_name: w.line?.name ?? null })),
+    workOrders: wos.map((w: any) => ({
+      ...w, line_name: w.line?.name ?? null,
+      completed_at_effective: w.finished_at ?? w.completed_at ?? w.closed_at ?? null,
+    })),
     events,
     exclusions,
     plannedProblems: plannedRows.map((p) => String(p.name ?? "").toLowerCase()),
@@ -539,6 +680,8 @@ export async function fetchMaintenanceShiftReport(
       engineer_name: w.engineer_name, machine: w.machine,
       completed_at_effective: w.finished_at ?? w.completed_at ?? w.closed_at ?? null,
     })),
+    translatedNotes: translation.notes,
+    notesNotTranslated: translation.failed,
     pending: pendingRows.map((w) => ({
       id: w.id, wo_number: w.wo_number, line_at_time: w.line_at_time, line_name: w.line?.name ?? null,
       description: w.description, status: w.status, engineer_name: w.engineer_name, created_at: w.created_at,

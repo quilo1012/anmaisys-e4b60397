@@ -373,7 +373,7 @@ function EngineerDashboardContent() {
   const [rejectDialogWO, setRejectDialogWO] = useState<{ id: string; number: number | null; description: string | null } | null>(null);
 
   // BUG 4: state for "line still stopped" modal when trying to finish
-  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
+  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string; untranslated: boolean } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
 
@@ -646,13 +646,29 @@ function EngineerDashboardContent() {
     else toast({ title: "Report rewritten in English" });
   };
 
+  /**
+   * When the AI could not translate, the engineer's own words were saved — and the engineer
+   * is told, in a message that stays until closed, so it does not reach the shift report
+   * unnoticed. (One toast at a time here, so the warning rides on the success toast.)
+   */
+  const finishedToast = (title: string, untranslated: boolean) => {
+    if (!untranslated) { toast({ title }); return; }
+    toast({
+      title,
+      description: "⚠ Report saved but not translated — please check it is in English.",
+      duration: Infinity,
+    });
+  };
+
   const handleFinishConfirm = async () => {
     if (!signDialogWO) return;
     const woId = signDialogWO;
     const raw = resolutionNotes.trim();
     if (!raw) return;
     setPolishing(true);
-    const notes = (await polishToEnglish(raw)) ?? raw;
+    const english = await polishToEnglish(raw);
+    const notes = english ?? raw;
+    const untranslated = english === null;
     setPolishing(false);
 
     const engineer: EngineerIdentity = currentEngineer
@@ -670,10 +686,10 @@ function EngineerDashboardContent() {
       });
       setCurrentEngineer(null);
       sessionStorage.removeItem("currentEngineer");
-      toast({ title: "✅ Maintenance order finished" });
+      finishedToast("✅ Maintenance order finished", untranslated);
     } catch (err: any) {
       if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
-        setStoppedFinishCtx({ woId, signature: engineer.name, notes });
+        setStoppedFinishCtx({ woId, signature: engineer.name, notes, untranslated });
         return;
       }
       toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
@@ -683,7 +699,7 @@ function EngineerDashboardContent() {
   // BUG 4: resume the line, then retry finishing the WO (no PIN)
   const handleResumeThenFinish = async () => {
     if (!stoppedFinishCtx) return;
-    const { woId, signature, notes } = stoppedFinishCtx;
+    const { woId, signature, notes, untranslated } = stoppedFinishCtx;
     setResumingThenFinish(true);
     try {
       try {
@@ -705,7 +721,7 @@ function EngineerDashboardContent() {
         });
         setCurrentEngineer(null);
         sessionStorage.removeItem("currentEngineer");
-        toast({ title: "✅ Line resumed and maintenance order finished" });
+        finishedToast("✅ Line resumed and maintenance order finished", untranslated);
       } catch (err: any) {
         toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
       }

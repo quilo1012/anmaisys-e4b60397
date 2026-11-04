@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { boldText,
+import { boldText, lineLabelOf,
   buildMaintenanceShiftReport,
   shiftWindowAt,
   type ShiftReportData,
@@ -262,7 +262,7 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
     }));
     const r = buildMaintenanceShiftReport(data({ pending: many }));
     expect(r.open).toHaveLength(23);
-    expect(r.text).toContain("…and 3 more — see Work Orders.");
+    expect(r.text).toContain("…and 3 more — see Work Orders (downtime 0h 0m).");
     expect(r.text).not.toContain("WO-120 ·");
   });
 
@@ -305,5 +305,91 @@ describe("buildMaintenanceShiftReport — the printed file", () => {
     expect(r.problems[0]).toMatch(/WO-918/);
     expect(r.stopsRead).toBe(6);
     expect(r.ordersRead).toBe(4);
+  });
+});
+
+describe("lineLabelOf", () => {
+  it("prefixes a line number or letter, and leaves a line named after its machine as named", () => {
+    expect(lineLabelOf("3", null)).toBe("Line 3");
+    expect(lineLabelOf("Line 6A", null)).toBe("Line 6A");
+    expect(lineLabelOf("6A", null)).toBe("Line 6A");
+    expect(lineLabelOf(null, "Capsules Machine 2")).toBe("Capsules Machine 2");
+    expect(lineLabelOf("", null)).toBe("Line not recorded");
+  });
+});
+
+describe("buildMaintenanceShiftReport — notes in English", () => {
+  it("prints the English of a note written in another language, marked as translated", () => {
+    const r = buildMaintenanceShiftReport(data({
+      completedOrders: [wo("w1", { resolution_notes: "Line leader nao chamou para inspecao.", completed_at_effective: at("10:00") })],
+      translatedNotes: { w1: "The line leader did not call for an inspection." },
+    }));
+    expect(r.text).toContain("Work carried out: The line leader did not call for an inspection. (translated)");
+    expect(r.completed[0].work).toBe("The line leader did not call for an inspection. (translated)");
+  });
+
+  it("leaves a note that was already English exactly as the engineer wrote it, unmarked", () => {
+    const r = buildMaintenanceShiftReport(data({
+      completedOrders: [wo("w1", { completed_at_effective: at("10:00") })],
+      translatedNotes: { w1: "Replaced the capper belt" },
+    }));
+    expect(r.text).toContain("Work carried out: Replaced the capper belt\n");
+    expect(r.text).not.toContain("(translated)");
+  });
+
+  it("prints the note as written when translation failed, and says how many", () => {
+    const r = buildMaintenanceShiftReport(data({
+      completedOrders: [wo("w1", { resolution_notes: "operador nao chamou", completed_at_effective: at("10:00") })],
+      notesNotTranslated: 1,
+    }));
+    expect(r.text).toContain("Work carried out: operador nao chamou");
+    expect(r.notesNotTranslated).toBe(1);
+    expect(r.problems).toEqual([]);
+  });
+});
+
+describe("buildMaintenanceShiftReport — every minute is under an order", () => {
+  const pend = (id: string, n: number) => ({ id, wo_number: n, line_at_time: "Line 3", line_name: null, description: "Powder Leak", status: "open", engineer_name: null, created_at: at("07:00") });
+
+  it("shows each open order's downtime this shift, a line still stopped, and an order that stopped nothing", () => {
+    const r = buildMaintenanceShiftReport(data({
+      workOrders: [wo("w64", { status: "open" }), wo("w70", { status: "in_progress" })],
+      events: [
+        { id: "e1", work_order_id: "w64", stopped_at: at("09:00"), resumed_at: at("09:02"), duration_minutes: 2 },
+        { id: "e2", work_order_id: "w70", stopped_at: at("13:50"), resumed_at: null, duration_minutes: null },
+      ],
+      pending: [pend("w64", 1464), pend("w70", 1470), pend("w2", 1402)],
+    }));
+    expect(r.text).toContain(`WO-1464 · Line 3 · Powder Leak · Not assigned · Open · Downtime: ${boldText("0h 2m")}`);
+    expect(r.text).toContain(`WO-1470 · Line 3 · Powder Leak · Not assigned · Open · Downtime: ${boldText("0h 40m")} (line still stopped)`);
+    expect(r.text).toContain("WO-1402 · Line 3 · Powder Leak · Not assigned · Open · No downtime this shift");
+    expect(r.problems).toEqual([]);
+  });
+
+  it("lists an order that stopped a line this shift and was finished in a later one, so the lists add up to the total", () => {
+    const r = buildMaintenanceShiftReport(data({
+      generatedAt: new Date("2026-10-31T09:00:00Z"),
+      workOrders: [wo("w1"), wo("w49", { wo_number: 1449, line_at_time: "Line 2", description: "Printer Fault", completed_at_effective: "2026-10-30T08:15:00Z" })],
+      events: [
+        { id: "e1", work_order_id: "w1", stopped_at: at("08:00"), resumed_at: at("08:40"), duration_minutes: 40 },
+        { id: "e2", work_order_id: "w49", stopped_at: at("16:50"), resumed_at: "2026-10-30T08:00:00Z", duration_minutes: 910 },
+      ],
+      completedOrders: [wo("w1", { completed_at_effective: at("09:00") })],
+    }));
+    expect(r.totalCountedMinutes).toBe(40 + 70);
+    expect(r.completedLater.map((l) => l.wo.wo_number)).toEqual([1449]);
+    expect(r.text).toContain(boldText("STOPPED THIS SHIFT, COMPLETED LATER"));
+    expect(r.text).toContain(`WO-1449 · Line 2 · Printer Fault · Eng A · Completed 30/10/2026 08:15 · Downtime: ${boldText("1h 10m")}`);
+    expect(r.problems).toEqual([]);
+  });
+
+  it("has no 'completed later' section when every stopped order is completed or open", () => {
+    const r = buildMaintenanceShiftReport(data({
+      workOrders: [wo("w1")],
+      events: [{ id: "e1", work_order_id: "w1", stopped_at: at("08:00"), resumed_at: at("08:40"), duration_minutes: 40 }],
+      completedOrders: [wo("w1", { completed_at_effective: at("09:00") })],
+    }));
+    expect(r.completedLater).toEqual([]);
+    expect(r.text).not.toContain("COMPLETED LATER");
   });
 });

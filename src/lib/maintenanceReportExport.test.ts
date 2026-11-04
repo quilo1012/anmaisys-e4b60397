@@ -68,9 +68,28 @@ describe("reportToFile", () => {
     ]);
 
     const open = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Open"]);
-    expect(open.map((r) => [r["WO"], r["Line"], r["Problem"], r["Engineer"], r["Status"]])).toEqual([
-      [200, "Line 7", "Filler leak", "Eng A", "OPEN"],
+    expect(open.map((r) => [r["WO"], r["Line"], r["Problem"], r["Engineer"], r["Status"], r["Downtime"]])).toEqual([
+      [200, "Line 7", "Filler leak", "Eng A", "OPEN", "No downtime this shift"],
     ]);
+  });
+
+  it("an order that stopped the line this shift and was finished later is in its own sheet and PDF table", async () => {
+    const later = buildMaintenanceShiftReport({
+      window: shiftWindowFor("2026-10-28", "night"),
+      generatedAt: new Date(t("30T10:00")),
+      workOrders: [{ id: "c", wo_number: 149, line_at_time: "Capsules Machine 2", line_name: null, description: "Drill Fault", resolution_notes: null, status: "finished", engineer_name: "Eng A", machine: null, completed_at_effective: t("29T09:00") }],
+      events: [{ id: "e1", work_order_id: "c", stopped_at: t("29T05:00"), resumed_at: t("29T07:00"), duration_minutes: 120 }],
+      exclusions: [],
+      plannedProblems: [],
+    });
+    const wb = XLSX.read(await bytes(await reportToFile(later, "xlsx")), { type: "buffer" });
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Completed later"]);
+    expect(rows.map((r) => [r["WO"], r["Line"], r["Status"], r["Downtime"]])).toEqual([
+      [149, "Capsules Machine 2", "Completed 29/10/2026 09:00", "1h 0m"],
+    ]);
+    const pdf = (await bytes(await reportToFile(later, "pdf"))).toString("latin1");
+    expect(pdf).toContain("(Stopped this shift, completed later)");
+    expect(pdf).toContain("WO-149");
   });
 
   it("PDF names the shift, shows the total downtime prominently and lists completed and open orders", async () => {
