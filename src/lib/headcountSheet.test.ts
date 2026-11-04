@@ -710,7 +710,8 @@ describe("the day laid out as the company's sheet", () => {
   });
 
   it("keeps the rota's overtime stamp on its line but not under Overtime staff", () => {
-    const l = layout([al("e1", "overtime", "l1"), al("e2", "assigned", "of")]);
+    // From 20/10, when the floor answers in the app (`APP_OVERTIME_FROM`).
+    const l = layout([al("e1", "overtime", "l1", { on_date: "2026-11-03" }), al("e2", "assigned", "of", { on_date: "2026-11-03" })]);
     expect(l.top[0].names.map((n) => n.name)).toEqual(["Zeca Lima"]);
     expect(l.bottom.find((c) => c.label === "Overtime staff")!.names).toEqual([]);
     expect(l.totalStaff).toBe(2);
