@@ -33,7 +33,7 @@ describe("the Training area is the Training column", () => {
       allocations: foldTrainingArea(allocations, areas),
       areas: areas.filter((a) => !isTrainingArea(a)),
       roster: [],
-      drawable: () => true,
+      drawable: () => true, overtimeAccepted: () => true,
     });
     expect(t.onLines).toBe(1);
     expect(t.working).toBe(1);

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { tallyBoard, boardTrend, nextIsoDay } from "./boardTally";
+import { overtimeAcceptedIn, slotKey } from "./boardOvertime";
 
 const areas = [
   { id: "l1", kind: "production" },
@@ -21,7 +22,7 @@ describe("tallyBoard", () => {
     row("gone", "assigned", "l1"), // somebody the board cannot draw
   ];
   const roster = ["a", "b", "c", "e", "f", "x", "y"].map((id) => ({ id }));
-  const t = tallyBoard({ allocations, areas, roster, drawable: (id) => id !== "gone" });
+  const t = tallyBoard({ allocations, areas, roster, drawable: (id) => id !== "gone", overtimeAccepted: () => true });
 
   it("counts working as assigned only", () => {
     expect(t.working).toBe(3);
@@ -50,7 +51,7 @@ describe("tallyBoard", () => {
     expect(t.notPlaced).toBe(2); // x and y; e and f are placed, as away
   });
   it("is all zeros on an empty board", () => {
-    const empty = tallyBoard({ allocations: [], areas, roster: [], drawable: () => true });
+    const empty = tallyBoard({ allocations: [], areas, roster: [], drawable: () => true, overtimeAccepted: () => true });
     expect(empty).toMatchObject({ onRota: 0, working: 0, overtime: 0, notPlaced: 0, away: { total: 0 } });
   });
 });
@@ -65,7 +66,7 @@ describe("tallyBoard, a row with no line", () => {
       ],
       areas: [{ id: "l1", kind: "production" }],
       roster: [{ id: "a" }, { id: "b" }],
-      drawable: () => true,
+      drawable: () => true, overtimeAccepted: () => true,
     });
     expect(t.working).toBe(1);
     expect(t.notPlaced).toBe(1);
@@ -84,7 +85,7 @@ describe("boardTrend", () => {
         { on_date: "2026-10-14", employee_id: "a", status: "overtime" },
         { on_date: "2026-10-20", employee_id: "a", status: "assigned" }, // outside
       ],
-      "2026-10-12", "2026-10-14", () => true,
+      "2026-10-12", "2026-10-14", () => true, () => true,
     );
     expect(days.map((d) => d.on_date)).toEqual(["2026-10-12", "2026-10-13", "2026-10-14"]);
     expect(days[0]).toMatchObject({ working: 1, sick: 1 });
@@ -97,9 +98,27 @@ describe("boardTrend", () => {
         { on_date: "2026-10-12", employee_id: "leaver", status: "assigned" },
         { on_date: "2026-10-13", employee_id: "leaver", status: "assigned" },
       ],
-      "2026-10-12", "2026-10-13", (_id, d) => d <= "2026-10-12",
+      "2026-10-12", "2026-10-13", (_id, d) => d <= "2026-10-12", () => true,
     );
     expect(days.map((d) => d.working)).toEqual([1, 0]);
+  });
+});
+
+describe("boardTrend, overtime nobody accepted", () => {
+  it("counts the rota's stamp as working, and only the bridge's row or an accepted ask as overtime", () => {
+    const rows = [
+      { on_date: "2026-11-03", employee_id: "bridge", shift: "Night", status: "overtime", overtime_request_id: "q1" },
+      { on_date: "2026-11-03", employee_id: "desk", shift: "Night", status: "overtime", overtime_request_id: null },
+      { on_date: "2026-11-03", employee_id: "stamp", shift: "Night", status: "overtime", overtime_request_id: null },
+    ];
+    const accepted = overtimeAcceptedIn(new Set([slotKey("desk", "2026-11-03", "Night")]));
+    const [day] = boardTrend(rows, "2026-11-03", "2026-11-03", () => true, accepted);
+    expect(day).toMatchObject({ overtime: 2, working: 1 });
+  });
+
+  it("an accepted ask on the other board does not make it accepted", () => {
+    const accepted = overtimeAcceptedIn(new Set([slotKey("desk", "2026-11-03", "Day")]));
+    expect(accepted({ on_date: "2026-11-03", employee_id: "desk", shift: "Night", status: "overtime", overtime_request_id: null })).toBe(false);
   });
 });
 

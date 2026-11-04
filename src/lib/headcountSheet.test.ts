@@ -702,10 +702,17 @@ describe("the day laid out as the company's sheet", () => {
     expect(JSON.stringify(l)).not.toMatch(/sick|unpaid/i);
   });
 
-  it("lists overtime on the line and under Overtime staff, and counts the person once", () => {
-    const l = layout([al("e1", "overtime", "l1"), al("e2", "assigned", "of")]);
+  it("lists accepted overtime on the line and under Overtime staff, and counts the person once", () => {
+    const l = layout([al("e1", "overtime", "l1", { overtime_request_id: "q1" }), al("e2", "assigned", "of")]);
     expect(l.top[0].names.map((n) => n.name)).toEqual(["Zeca Lima"]);
     expect(l.bottom.find((c) => c.label === "Overtime staff")!.names.map((n) => n.name)).toEqual(["Zeca Lima"]);
+    expect(l.totalStaff).toBe(2);
+  });
+
+  it("keeps the rota's overtime stamp on its line but not under Overtime staff", () => {
+    const l = layout([al("e1", "overtime", "l1"), al("e2", "assigned", "of")]);
+    expect(l.top[0].names.map((n) => n.name)).toEqual(["Zeca Lima"]);
+    expect(l.bottom.find((c) => c.label === "Overtime staff")!.names).toEqual([]);
     expect(l.totalStaff).toBe(2);
   });
 

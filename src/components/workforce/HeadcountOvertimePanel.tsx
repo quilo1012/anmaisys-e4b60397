@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { overtimeAcceptedIn } from "@/lib/boardOvertime";
+import { fetchAcceptedOvertimeSlots } from "@/hooks/useHeadcount";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import {
@@ -51,7 +53,7 @@ export function HeadcountOvertimePanel() {
       // due made every person on the payroll read short by the rest of the period.
       const to: string = periodElapsedTo(period?.end_date ?? today, today);
 
-      const [emp, allocs] = await Promise.all([
+      const [emp, allocs, acceptedSlots] = await Promise.all([
         db.from("employees")
           .select("id, full_name, department, shift_group, shift_patterns(name, days)")
           .eq("active", true),
@@ -63,13 +65,17 @@ export function HeadcountOvertimePanel() {
           range: (a, b) => db.from("daily_allocations")
             // `on_date`, because which DAYS a board was drawn for is the question, and
             // the rows cannot answer it without carrying the day they belong to.
-            .select("employee_id, on_date, status, area_id, shift")
+            .select("employee_id, on_date, status, area_id, shift, overtime_request_id")
             .gte("on_date", from).lte("on_date", to)
             .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
             .range(a, b),
         }),
+        fetchAcceptedOvertimeSlots(from, to),
       ]);
       if (emp.error) throw emp.error;
+      // The bars are overtime somebody said yes to. A row the rota stamped `overtime`
+      // still counts as a day present below, but not here (`overtimeIsAccepted`).
+      const accepted = overtimeAcceptedIn(acceptedSlots);
 
       const shiftOf = new Map(((emp.data ?? []) as any[]).map((e) => [e.id, e.shift_group ?? "Not set"]));
       // The spellings were fixed in `employees` — "Prodcution" was on 28 records and
@@ -100,7 +106,7 @@ export function HeadcountOvertimePanel() {
         else if (a.status === "unpaid") c.unpaid += 1;
         counts.set(a.employee_id, c);
 
-        if (a.status === "overtime") {
+        if (a.status === "overtime" && accepted(a)) {
           const dn = deptOf.get(a.employee_id) ?? "Not set";
           byDept.set(dn, (byDept.get(dn) ?? 0) + 1);
           const sg = shiftOf.get(a.employee_id) ?? "Not set";

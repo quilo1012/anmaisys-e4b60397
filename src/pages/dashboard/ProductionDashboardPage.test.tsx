@@ -45,7 +45,11 @@ vi.mock("@/hooks/useHeadcount", () => ({
       error: state.allocError,
     };
   },
-  useBoardTrend: () => ({ data: { rows: [], drawableOn: () => true }, isLoading: false, error: null, refetch: vi.fn() }),
+  useBoardTrend: () => ({ data: { rows: [], drawableOn: () => true, overtimeAccepted: () => true }, isLoading: false, error: null, refetch: vi.fn() }),
+  // f said yes: the dashboard counts accepted overtime only, as the board does.
+  useConfirmedOvertime: (_d: string, shift: string) => ({
+    data: new Map(shift === "Day" ? [["f", [{ request_id: "q", employee_id: "f", on_date: "2026-10-14", starts_at: "06:00", ends_at: "18:00" }]]] : []),
+  }),
 }));
 vi.mock("@/hooks/useOvertimeRequests", () => ({
   useOvertimeRequestsBetween: () => {

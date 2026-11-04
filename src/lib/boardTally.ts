@@ -46,11 +46,12 @@ export interface BoardTallyInput {
   roster: ReadonlyArray<{ id: string }>;
   drawable: (employeeId: string) => boolean;
   /**
-   * Whether an `overtime` row is backed by an accepted ask (`overtimeIsAccepted`). Given,
-   * `overtime` counts only those and the rest go to `overtimeNotAccepted`; left out,
-   * every `overtime` row counts, as before. Either way the person stays in their column.
+   * Whether an `overtime` row is backed by an accepted ask (`overtimeIsAccepted`).
+   * `overtime` counts only those and the rest go to `overtimeNotAccepted`; the person
+   * stays in their column either way. Required, so no screen counts the rota's stamp
+   * as accepted overtime by leaving it out (the dashboard did, until 04/11/2026).
    */
-  overtimeAccepted?: (row: { employee_id: string; area_id: string | null; status: string }) => boolean;
+  overtimeAccepted: (row: { employee_id: string; area_id: string | null; status: string; overtime_request_id?: string | null }) => boolean;
 }
 
 export interface BoardTally {
@@ -62,7 +63,7 @@ export interface BoardTally {
   onLines: number;
   support: number;
   overtime: number;
-  /** `overtime` rows with no accepted ask behind them; 0 unless `overtimeAccepted` is given. */
+  /** `overtime` rows with no accepted ask behind them (the rota's stamp, see `overtimeIsAccepted`). */
   overtimeNotAccepted: number;
   training: number;
   away: { sick: number; unpaid: number; holiday: number; total: number };
@@ -103,8 +104,8 @@ export function tallyBoard({ allocations, areas, roster, drawable, overtimeAccep
     inProduction: inAreas.length,
     onLines,
     support: inAreas.length - onLines,
-    overtime: overtimeAccepted ? overtime.filter(overtimeAccepted).length : overtime.length,
-    overtimeNotAccepted: overtimeAccepted ? overtime.filter((a) => !overtimeAccepted(a)).length : 0,
+    overtime: overtime.filter(overtimeAccepted).length,
+    overtimeNotAccepted: overtime.filter((a) => !overtimeAccepted(a)).length,
     training: is("training").length,
     away: { sick, unpaid, holiday, total: sick + unpaid + holiday },
     notPlaced: roster.filter((e) => !placed.has(e.id)).length,
@@ -131,11 +132,13 @@ export interface BoardDay {
  * Every day in [from, to] gets a point, so a day nobody filled in reads as zero
  * rather than being skipped and joining its neighbours into one line.
  */
-export function boardTrend(
-  rows: ReadonlyArray<{ on_date: string; employee_id: string; status: string }>,
+export function boardTrend<R extends { on_date: string; employee_id: string; status: string }>(
+  rows: ReadonlyArray<R>,
   from: string,
   to: string,
   drawableOn: (employeeId: string, onDate: string) => boolean,
+  /** As `tallyBoard`'s: only overtime somebody accepted counts as overtime. */
+  overtimeAccepted: (row: R) => boolean,
 ): BoardDay[] {
   const days = new Map<string, BoardDay>();
   for (let d = from; d <= to; d = nextIsoDay(d)) {
@@ -145,7 +148,8 @@ export function boardTrend(
     const day = days.get(r.on_date);
     if (!day || !drawableOn(r.employee_id, r.on_date)) continue;
     if (r.status === "assigned") day.working += 1;
-    else if (r.status === "overtime") day.overtime += 1;
+    // The rota's stamp is somebody working, not overtime they said yes to.
+    else if (r.status === "overtime") day[overtimeAccepted(r) ? "overtime" : "working"] += 1;
     else if (r.status === "sick" || r.status === "unpaid" || r.status === "holiday" || r.status === "training") {
       day[r.status] += 1;
     }

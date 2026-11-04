@@ -291,6 +291,14 @@ describe("where I'm working comes from the Headcount Board", () => {
     ]);
   });
 
+  // 04/11/2026: the rota stamps `overtime` on any off-rota placement, with nobody asked.
+  it("shows the rota's overtime stamp as a shift they are put on, not overtime they accepted", () => {
+    const d = data({ board: [row("2026-10-13", { shift: "Night", status: "overtime", area: "Blender Team" })] });
+    expect(myShifts(d, "2026-10-13", "2026-10-13").map((s) => [s.shift, s.kind, s.area])).toEqual([
+      ["Night", "scheduled", "Blender Team"],
+    ]);
+  });
+
   it("lists accepted overtime the board does not hold yet, unassigned", () => {
     const d = data({ overtime: [{ on_date: "2026-10-17", starts_at: "06:00:00", ends_at: "18:00:00" }] });
     expect(myShifts(d, "2026-10-17", "2026-10-17")).toEqual([
