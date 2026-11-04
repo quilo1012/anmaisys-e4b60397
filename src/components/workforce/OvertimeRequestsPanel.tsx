@@ -406,10 +406,16 @@ function ShiftSection({ shift, asks, summary, rangeLabel, ctx, mayManage, onCrea
   );
 }
 
-function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roster }: {
+function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roster, copyFrom }: {
   open: boolean; onOpenChange: (v: boolean) => void; defaultShift: OvertimeShift;
   /** The day pressed on the calendar, or null for tomorrow. */
   defaultDate: string | null; roster: RosterName[];
+  /**
+   * Mais um turno para um pedido já publicado: a mesma data, crew, departamento,
+   * número e nota, no outro turno e com a mesma duração. Continua a ser um pedido
+   * novo, com a revisão e o aviso de sempre — um pedido é uma janela só.
+   */
+  copyFrom?: OvertimeRequest | null;
 }) {
   const { createRequest } = useOvertimeMutations();
   const [onDate, setOnDate] = useState(iso(new Date(Date.now() + 86_400_000)));
@@ -433,12 +439,21 @@ function NewRequestDialog({ open, onOpenChange, defaultShift, defaultDate, roste
   // Opening from the Night tab starts on the night's hours, and from a calendar day on
   // that day. Only on opening: once the supervisor has typed a time, switching tabs
   // behind the dialog must not undo it.
-  const openKey = `${defaultShift}|${defaultDate ?? ""}`;
+  const openKey = `${defaultShift}|${defaultDate ?? ""}|${copyFrom?.id ?? ""}`;
   if (open && seenDefault !== openKey) {
     setSeenDefault(openKey);
-    setStartsAt(SHIFT_HOURS[defaultShift].starts);
-    setEndsAt(SHIFT_HOURS[defaultShift].ends);
+    const len: OvertimeLength = copyFrom && windowMinutes(copyFrom.starts_at, copyFrom.ends_at) === 8 * 60 ? 8 : 12;
+    const win = len === 8 ? SHIFT_HOURS_8[defaultShift] : SHIFT_HOURS[defaultShift];
+    setLength(len);
+    setStartsAt(win.starts);
+    setEndsAt(win.ends);
     if (defaultDate) setOnDate(defaultDate);
+    if (copyFrom) {
+      setHeadcount(copyFrom.headcount == null ? "" : String(copyFrom.headcount));
+      setDepartment(copyFrom.department ?? "all");
+      setShiftGroup(copyFrom.shift_group ?? "all");
+      setNote(copyFrom.note ?? "");
+    }
     setExtraDates([]); setReview(null);
   }
   if (!open && seenDefault !== null) setSeenDefault(null);
@@ -748,6 +763,8 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
   );
   const [addingFor, setAddingFor] = useState<string>("");
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [addingShift, setAddingShift] = useState(false);
+  const otherShift: OvertimeShift = askShift(request) === "Day" ? "Night" : "Day";
 
   /**
    * Open, close or cancel — and say so when the write is refused.
@@ -1054,6 +1071,10 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <Button size="sm" variant="ghost" onClick={openEdit}>
                 <Pencil className="mr-1 h-4 w-4" /> Edit
               </Button>
+              {/* Dia e noite no mesmo dia: o outro turno é um pedido à parte, já preenchido. */}
+              <Button size="sm" variant="ghost" onClick={() => setAddingShift(true)}>
+                <Plus className="mr-1 h-4 w-4" /> Add {otherShift.toLowerCase()} shift
+              </Button>
               <Button size="sm" variant="ghost" onClick={() => setConfirmCancel(true)}>
                 Cancel ask
               </Button>
@@ -1110,6 +1131,11 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NewRequestDialog
+        open={addingShift} onOpenChange={setAddingShift}
+        defaultShift={otherShift} defaultDate={request.on_date} roster={roster} copyFrom={request}
+      />
 
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent className="sm:max-w-md">

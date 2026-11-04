@@ -141,6 +141,36 @@ describe("OvertimeRequestsPanel — edit", () => {
   });
 });
 
+// Um pedido é uma janela só; o outro turno do mesmo dia nasce já preenchido.
+describe("OvertimeRequestsPanel — add the other shift", () => {
+  it("opens a night ask for the same day, with the day ask's people and count", async () => {
+    createAsync.mockClear();
+    const day = requests[0] as Record<string, unknown>;
+    day.note = "Blender, bring boots";
+    try {
+      render(<OvertimeRequestsPanel />);
+      const region = screen.getByRole("region", { name: /Day shift/ });
+      fireEvent.click(within(region).getByRole("button", { name: "Add night shift" }));
+
+      const dialog = await screen.findByRole("dialog", { name: "New overtime ask" });
+      const shift = within(dialog).getByRole("group", { name: "Shift" });
+      expect(within(shift).getByRole("button", { name: /NIGHT SHIFT/ })).toHaveAttribute("aria-pressed", "true");
+      expect(within(dialog).getByLabelText(/People needed/)).toHaveValue(2);
+      expect(within(dialog).getByLabelText(/Note/)).toHaveValue("Blender, bring boots");
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Review the ask" }));
+      fireEvent.click(await screen.findByRole("button", { name: /Publish 1 ask/i }));
+      await vi.waitFor(() => expect(createAsync).toHaveBeenCalledTimes(1));
+      expect(createAsync.mock.calls[0][0]).toMatchObject({
+        on_date: tomorrow, starts_at: "18:00", ends_at: "06:00", headcount: 2,
+        department: null, shift_group: null, note: "Blender, bring boots",
+      });
+    } finally {
+      day.note = null;
+    }
+  });
+});
+
 describe("OvertimeRequestsPanel — calendar", () => {
   beforeEach(() => window.localStorage.removeItem("overtime.mode"));
 
