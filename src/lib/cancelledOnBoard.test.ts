@@ -1,17 +1,20 @@
 import { describe, it, expect } from "vitest";
-import { cancelledOnBoard, cancelledWhen, type CancelledAskRow } from "@/lib/boardOvertime";
+import { cancelledOnBoard, cancelledWhen, type CancelledAskRow, type ReservePromotion } from "@/lib/boardOvertime";
 
 const row = (employee_id: string, over: Partial<CancelledAskRow> = {}): CancelledAskRow => ({
   request_id: `q-${employee_id}`, employee_id, on_date: "2026-11-04", starts_at: "06:00:00", ends_at: "14:00:00",
-  outcome: "cancelled_in_time", recorded_at: "2026-11-04T07:10:00Z", note: null, ...over,
+  outcome: "cancelled_in_time", recorded_at: "2026-11-04T07:10:00+00:00", note: null,
+  recorded_by: `u-${employee_id}`, employee_user_id: `u-${employee_id}`, ...over,
 });
+const promoted = (request_id: string, employee_id: string, decided_at = "2026-11-04T07:10:00+00:00"): ReservePromotion =>
+  ({ request_id, employee_id, decided_at });
 
 describe("overtime cancelled for this board", () => {
   it("lists somebody who booked this board's overtime and then cancelled it", () => {
     const out = cancelledOnBoard([row("anthony")], "2026-11-04", "Day", new Map());
     expect(out).toEqual([{
       employeeId: "anthony", startsAt: "06:00", endsAt: "14:00", late: false,
-      cancelledAt: "2026-11-04T07:10:00Z", note: null,
+      cancelledAt: "2026-11-04T07:10:00+00:00", note: null, bySupervisor: false, promotedTo: null,
     }]);
   });
 
@@ -43,12 +46,49 @@ describe("overtime cancelled for this board", () => {
     expect(cancelledOnBoard([row("a")], "2026-11-04", "Day", confirmed)).toEqual([]);
   });
 
-  it("shows the most recent cancellation first", () => {
+  it("puts the ones that leave a gap first — late, or nobody took the place — then the most recent", () => {
     const out = cancelledOnBoard([
-      row("early", { recorded_at: "2026-11-03T18:00:00Z" }),
-      row("recent", { recorded_at: "2026-11-04T06:30:00Z" }),
-    ], "2026-11-04", "Day", new Map());
-    expect(out.map((x) => x.employeeId)).toEqual(["recent", "early"]);
+      row("filled-recent", { recorded_at: "2026-11-04T09:00:00+00:00" }),
+      row("empty-old", { recorded_at: "2026-11-03T18:00:00+00:00" }),
+      row("late-filled", { outcome: "cancelled_late", recorded_at: "2026-11-04T05:00:00+00:00" }),
+      row("filled-old", { recorded_at: "2026-11-04T06:00:00+00:00" }),
+    ], "2026-11-04", "Day", new Map(), [
+      promoted("q-filled-recent", "r1", "2026-11-04T09:00:00+00:00"),
+      promoted("q-late-filled", "r2", "2026-11-04T05:00:00+00:00"),
+      promoted("q-filled-old", "r3", "2026-11-04T06:00:00+00:00"),
+    ]);
+    expect(out.map((x) => x.employeeId)).toEqual(["late-filled", "empty-old", "filled-recent", "filled-old"]);
+  });
+});
+
+describe("who cancelled it", () => {
+  it("says a supervisor cancelled when the record was written by another login", () => {
+    const [x] = cancelledOnBoard([row("a", { recorded_by: "u-boss" })], "2026-11-04", "Day", new Map());
+    expect(x.bySupervisor).toBe(true);
+  });
+  it("does not guess when the employee has no login linked", () => {
+    const [x] = cancelledOnBoard([row("a", { recorded_by: "u-boss", employee_user_id: null })], "2026-11-04", "Day", new Map());
+    expect(x.bySupervisor).toBe(false);
+  });
+});
+
+describe("who took the place", () => {
+  it("is the reserve on the same ask moved up in the same moment as the cancel", () => {
+    const [x] = cancelledOnBoard([row("a")], "2026-11-04", "Day", new Map(), [
+      promoted("q-a", "maria"),
+      promoted("q-a", "earlier-yes", "2026-11-01T10:00:00+00:00"),
+      promoted("q-other", "someone-else"),
+    ]);
+    expect(x.promotedTo).toBe("maria");
+  });
+  it("matches the moment whatever the timestamp's spelling", () => {
+    const [x] = cancelledOnBoard([row("a", { recorded_at: "2026-11-04T07:10:00.123456+00:00" })], "2026-11-04", "Day", new Map(),
+      [promoted("q-a", "maria", "2026-11-04T07:10:00.123+00:00")]);
+    expect(x.promotedTo).toBe("maria");
+  });
+  it("is nobody when no reserve was moved up", () => {
+    const [x] = cancelledOnBoard([row("a")], "2026-11-04", "Day", new Map(), []);
+    expect(x.promotedTo).toBeNull();
   });
 });
 

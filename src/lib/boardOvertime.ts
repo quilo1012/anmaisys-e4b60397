@@ -365,43 +365,89 @@ export interface CancelledAskRow extends ConfirmedAsk {
   outcome: string;
   recorded_at: string;
   note: string | null;
+  /** The login that wrote the cancellation (`overtime_outcomes.recorded_by`). */
+  recorded_by: string | null;
+  /** The login linked to the person's record, when there is one (`employees.user_id`). */
+  employee_user_id: string | null;
+}
+
+/** A booking on an ask (`decision = 'accepted'`), with when it was decided. */
+export interface ReservePromotion {
+  request_id: string;
+  employee_id: string;
+  decided_at: string;
+}
+
+export interface CancelledOnBoard {
+  employeeId: string;
+  startsAt: string;
+  endsAt: string;
+  late: boolean;
+  cancelledAt: string;
+  note: string | null;
+  /** Written by a login that is not the person's own: a supervisor at the desk. */
+  bySupervisor: boolean;
+  /** The reserve moved up into the place, or null when nobody took it. */
+  promotedTo: string | null;
 }
 
 /** The outcomes that mean "booked, then not coming". A no-show or a sick call is not one. */
 const CANCELLATIONS = new Set(["cancelled", "cancelled_in_time", "cancelled_late"]);
+
+const instant = (iso: string) => new Date(iso).getTime();
 
 /**
  * Overtime for this board that somebody booked and then cancelled.
  *
  * `cancel_my_overtime` takes the person off the board and hands the place to a
  * reserve, so the board just lost a name with nothing to say why. The supervisor
- * read it as a gap. This lists who it was, the hours, and whether it came late
- * (`cancelled_late`, inside the notice period) — the one that leaves a line short.
+ * read it as a gap. This lists who it was, the hours, whether it came late
+ * (`cancelled_late`, inside the notice period), who wrote it, and who took the place.
+ *
+ * Nothing records which reserve a cancel moved up. But the move runs in the cancel's
+ * own transaction (`record_overtime_outcome`), and `now()` is the transaction's start,
+ * so the reserve's `decided_at` is the cancel's `recorded_at` to the microsecond: a
+ * booking on the same ask decided at that instant is the one. None means the place
+ * is empty.
+ *
  * Somebody still holding another confirmed ask on this board is on it and left out.
- * Most recent first.
+ * The ones that leave a gap — late, or nobody took the place — come first, then the
+ * most recent.
  */
 export function cancelledOnBoard(
   rows: ReadonlyArray<CancelledAskRow>,
   boardDate: string,
   shift: string,
   confirmed: ReadonlyMap<string, ReadonlyArray<ConfirmedAsk>> | undefined,
-): { employeeId: string; startsAt: string; endsAt: string; late: boolean; cancelledAt: string; note: string | null }[] {
-  return rows
+  promotions: ReadonlyArray<ReservePromotion> = [],
+): CancelledOnBoard[] {
+  const out = rows
     .filter((r) => CANCELLATIONS.has(r.outcome))
     .filter((r) => {
       const slot = boardSlotOf(r.on_date, r.starts_at);
       return slot.date === boardDate && slot.shift === shift;
     })
     .filter((r) => !(confirmed?.get(r.employee_id)?.length))
-    .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at) || a.employee_id.localeCompare(b.employee_id))
-    .map((r) => ({
-      employeeId: r.employee_id,
-      startsAt: r.starts_at.slice(0, 5),
-      endsAt: r.ends_at.slice(0, 5),
-      late: r.outcome === "cancelled_late",
-      cancelledAt: r.recorded_at,
-      note: r.note?.trim() || null,
-    }));
+    .map((r): CancelledOnBoard => {
+      const at = instant(r.recorded_at);
+      const took = promotions.find((p) =>
+        p.request_id === r.request_id && p.employee_id !== r.employee_id && instant(p.decided_at) === at);
+      return {
+        employeeId: r.employee_id,
+        startsAt: r.starts_at.slice(0, 5),
+        endsAt: r.ends_at.slice(0, 5),
+        late: r.outcome === "cancelled_late",
+        cancelledAt: r.recorded_at,
+        note: r.note?.trim() || null,
+        bySupervisor: !!r.recorded_by && !!r.employee_user_id && r.recorded_by !== r.employee_user_id,
+        promotedTo: took?.employee_id ?? null,
+      };
+    });
+  const leavesAGap = (c: CancelledOnBoard) => (c.late || !c.promotedTo ? 0 : 1);
+  return out.sort((a, b) =>
+    leavesAGap(a) - leavesAGap(b)
+    || instant(b.cancelledAt) - instant(a.cancelledAt)
+    || a.employeeId.localeCompare(b.employeeId));
 }
 
 const LONDON_DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" });
