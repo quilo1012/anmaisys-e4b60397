@@ -110,6 +110,10 @@ const NARROW: Record<string, string> = {
   "production_items @ src/pages/dashboard/ControlCenterPage.tsx":
     "The items of the sessions of ONE date and ONE shift — a handful of sessions, so "
     + "a handful of ids in the `.in(...)` and a few dozen rows back.",
+  "production_items @ src/pages/dashboard/SmartTargetPage.tsx":
+    "The items of the sessions of ONE date — both shifts, every line — keyed on the ids "
+    + "that read returned. Same shape as Control Center's read, a few dozen rows. The date "
+    + "picker moves the day; nothing on the page widens it to a range.",
   "production_items @ src/pages/dashboard/LineDisplayScreen.tsx":
     "One line, one date, one shift: the session on the screen in front of somebody. "
     + "185 items was the busiest week for the whole factory.",

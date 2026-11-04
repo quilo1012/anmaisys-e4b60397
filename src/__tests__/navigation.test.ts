@@ -123,6 +123,9 @@ describe("sidebar", () => {
       "RAG Weekly",
       "Performance",
       "Stop Analysis",
+      // What the shift should make, after what it made and why not: the forecast
+      // reads against the two rows above it.
+      "Smart Target",
       "SKU Products",
       "Production Control",
       "Board",
@@ -327,7 +330,6 @@ const NO_MENU_ROW: Partial<Record<Action, string>> = {
   "employees.view": "REACHED FROM THE HEADCOUNT TABS — the admin opens Employee beside the board, not from the menu.",
   "production.view": "NO SCREEN — a capability behind production sessions, not a page.",
   "planner.view": "NO SCREEN — the planner is a separate application.",
-  "smarttarget.view": "NO SCREEN — no route in this app.",
   "engineers.view": "NO SCREEN — no route of its own; engineers are managed from the hub.",
   "leaders.view": "NO SCREEN — no route of its own; leaders are managed from the hub.",
   "notifications.view": "REACHED FROM ANOTHER SCREEN — the bell in the header, not a row.",
