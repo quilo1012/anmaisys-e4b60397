@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { format, startOfDay, startOfWeek } from "date-fns";
 import {
   Wrench, ClipboardList, Hand, Loader2, Hourglass, PenTool, PowerOff, CalendarClock, CheckCircle2, Timer,
-  RefreshCw, Cog, Search, Clock, FileBarChart, AlertCircle, CalendarCheck,
+  RefreshCw, Cog, Search, Clock, FileBarChart, AlertCircle, CalendarCheck, BookOpen, FileText,
 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -24,6 +24,8 @@ import { byPriority, byEngineer, byLine, typeSplit, notAccepted, stale, isHighPr
 import { woListHref } from "@/lib/woListLink";
 import { formatMinutes } from "@/lib/formatDuration";
 import { useQueryClient } from "@tanstack/react-query";
+import { TechnicalInfoDialog } from "@/components/engineer/TechnicalInfoDialog";
+import { MaintenanceReportDialog } from "@/components/engineer/MaintenanceReportDialog";
 
 /**
  * Maintenance's own dashboard: the orders that are open now, the work done in a
@@ -50,8 +52,13 @@ const SHORTCUTS: Shortcut[] = [
 ];
 
 export default function MaintenanceDashboardPage() {
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const qc = useQueryClient();
+  // The engineer console's Technical Info and shift Report, for whoever runs the
+  // department from here (the maintenance manager has no engineer console of their own).
+  const mayEngineerTools = can(role, "dashboard.engineer");
+  const [techInfoOpen, setTechInfoOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [range, setRange] = useState<DateRange>(() => getPresetRange("30d"));
   const [preset, setPreset] = useState<DateRangePreset>("30d");
   const mayOrders = can(role, "wo.view");
@@ -65,11 +72,25 @@ export default function MaintenanceDashboardPage() {
         description="Open orders, the work done, where the hours go, and preventive work coming due."
         icon={<Wrench />}
         actions={
-          <Button variant="outline" size="sm" onClick={() => void qc.invalidateQueries()} aria-label="Refresh all figures">
-            <RefreshCw className="mr-1 h-4 w-4" /> Refresh
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {mayEngineerTools && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => setTechInfoOpen(true)} className="gap-1">
+                  <BookOpen className="h-4 w-4" /> Technical Info
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setReportOpen(true)} className="gap-1">
+                  <FileText className="h-4 w-4" /> Report
+                </Button>
+              </>
+            )}
+            <Button variant="outline" size="sm" onClick={() => void qc.invalidateQueries()} aria-label="Refresh all figures">
+              <RefreshCw className="mr-1 h-4 w-4" /> Refresh
+            </Button>
+          </div>
         }
       />
+      {techInfoOpen && <TechnicalInfoDialog open onOpenChange={setTechInfoOpen} />}
+      {reportOpen && <MaintenanceReportDialog open onOpenChange={setReportOpen} generatedBy={profile?.name ?? null} />}
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="space-y-1 text-xs font-medium text-muted-foreground">
           <span className="block">Period</span>
