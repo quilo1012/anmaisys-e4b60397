@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as XLSX from "xlsx";
-import { parseTimeMotoWorkbook, parseHm, parseDmy, matchNames, settlementsFor } from "@/lib/timeMotoSheet";
+import { parseTimeMotoWorkbook, parseHm, parseDmy, matchNames, settlementsFor, dropDaysNotWorkedYet, type TimeMotoRow, type TimeMotoParse } from "@/lib/timeMotoSheet";
 
 const book = (rows: unknown[][]) => {
   const wb = XLSX.utils.book_new();
@@ -347,5 +347,39 @@ describe("settlementsFor — what a hand-made match leaves on the payroll record
 
   it("ignores a choice for someone no longer on the roster", () => {
     expect(settlementsFor({ "Anyone Here": "gone" }, roster)).toEqual([]);
+  });
+});
+
+// O export do TimeMoto traz o período inteiro: os dias ainda por trabalhar vêm com o
+// horário e zero trabalhado, e a My Attendance lia isso como falta (02/11: 165 pessoas
+// "absent" de 3 a 8/11, e 36 h "short" a quem tinha 3 turnos pela frente).
+describe("dropDaysNotWorkedYet", () => {
+  const row = (date: string, over: Partial<TimeMotoRow> = {}): TimeMotoRow => ({
+    name: "A", date, start: null, end: null, workedMinutes: 0, balanceMinutes: -720,
+    absence: null, scheduledMinutes: 720, overtimeAdjMinutes: null, remarks: null, ...over,
+  });
+  const parse = (rows: TimeMotoRow[]): TimeMotoParse => ({
+    rows, columns: {}, ignoredColumns: [], skipped: [], names: ["A"], from: "2026-10-12", to: "2026-11-08",
+  });
+
+  it("drops today and later when nothing was clocked", () => {
+    const out = dropDaysNotWorkedYet(parse([row("2026-11-04"), row("2026-11-05")]), "2026-11-04");
+    expect(out.rows).toEqual([]);
+    expect(out.notWorkedYet).toBe(2);
+  });
+
+  it("keeps a past day with nothing clocked — that is a recorded absence", () => {
+    const out = dropDaysNotWorkedYet(parse([row("2026-11-03")]), "2026-11-04");
+    expect(out.rows).toHaveLength(1);
+    expect(out.notWorkedYet).toBe(0);
+  });
+
+  it("keeps today when the person has clocked in, and leave booked ahead", () => {
+    const out = dropDaysNotWorkedYet(parse([
+      row("2026-11-04", { start: "06:01" }),
+      row("2026-11-06", { absence: "Vacation" }),
+    ]), "2026-11-04");
+    expect(out.rows).toHaveLength(2);
+    expect(out.notWorkedYet).toBe(0);
   });
 });
