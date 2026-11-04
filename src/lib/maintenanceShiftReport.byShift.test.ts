@@ -206,7 +206,7 @@ describe("open orders on a recent shift", () => {
   it("writes out the first orders and counts the rest", () => {
     const many = Array.from({ length: OPEN_MAX_LISTED + 3 }, (_, i) => pending(100 + i));
     const r = buildMaintenanceShiftReport(base({ pending: many }));
-    expect(r.text).toContain(`…and 3 more — see Work Orders.`);
+    expect(r.text).toContain(`…and 3 more — see Work Orders (downtime 0h 0m).`);
     expect(r.text).not.toContain(`WO-${100 + OPEN_MAX_LISTED} ·`);
   });
 });

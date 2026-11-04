@@ -221,6 +221,11 @@ export function MaintenanceReportDialog({
                   {result.report.completed.length} completed · {result.report.downtimeEvents} downtime event(s) · read {londonStamp(result.report.generatedAt)}
                 </span>
               </div>
+              {result.report.notesNotTranslated > 0 && (
+                <p role="status" className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                  ⚠ Some notes could not be translated — they are shown as the engineer wrote them.
+                </p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {FORMATS.map((f) => (
                   <Button key={f.value} variant="outline" size="sm" onClick={() => void again(f.value)} className="gap-1">

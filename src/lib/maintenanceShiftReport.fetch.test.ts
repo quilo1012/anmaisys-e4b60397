@@ -114,3 +114,31 @@ describe("fetchMaintenanceShiftReport", () => {
     await expect(fetchMaintenanceShiftReport(NOW)).rejects.toThrow(/Could not read/);
   });
 });
+
+describe("fetchMaintenanceShiftReport — translation", () => {
+  const done = (id: string, notes: string) => ({
+    id, wo_number: 1, line_at_time: "Line 2", description: "Drill Fault", resolution_notes: notes, status: "finished",
+    engineer_name: "Eng A", machine: null, finished_at: "2026-10-29T09:00:00Z", completed_at: null, closed_at: null, line: null,
+  });
+
+  it("puts each completed order's notes through translation, without writing anything back", async () => {
+    tables.work_orders = { data: [done("w1", "operador nao chamou para avaliacao")] };
+    const seen: string[] = [];
+    const r = await fetchMaintenanceShiftReport(NOW, {
+      translate: async (t) => { seen.push(t); return "The operator did not call for an assessment."; },
+    });
+    expect(seen).toEqual(["operador nao chamou para avaliacao"]);
+    expect(r.text).toContain("Work carried out: The operator did not call for an assessment. (translated)");
+    expect(r.notesNotTranslated).toBe(0);
+    expect(calls.every((c) => c.ops.every((o) => !/^(insert|update|upsert|delete)\(/.test(o)))).toBe(true);
+  });
+
+  it("still produces the report when translation is unavailable, with the notes as written and the count of them", async () => {
+    tables.work_orders = { data: [done("w1", "operador nao chamou"), done("w2", "Reset sensor")] };
+    const r = await fetchMaintenanceShiftReport(NOW, { translate: async () => null });
+    expect(r.text).toContain("Work carried out: operador nao chamou");
+    expect(r.text).not.toContain("(translated)");
+    expect(r.notesNotTranslated).toBe(2);
+    expect(r.problems).toEqual([]);
+  });
+});

@@ -21,7 +21,7 @@ import {
   HEADER_H, REPORT_MARGIN, tableStyles, NAVY, INK, SUBTLE, CARD_BG, CARD_BORDER,
 } from "@/lib/reportTheme";
 import {
-  completedHeading, lineLabelOf, londonStamp, reportFileName,
+  completedHeading, downtimeValue, laterStatusLabel, lineLabelOf, londonStamp, reportFileName, woRef,
   type ShiftReport,
 } from "@/lib/maintenanceShiftReport";
 import { formatMinutes } from "@/lib/formatDuration";
@@ -65,10 +65,10 @@ export function reportToXlsx(r: ShiftReport): ArrayBuffer {
 
   const done = XLSX.utils.aoa_to_sheet([
     head(["Line", "WO", "Machine", "Problem", "Work carried out", "Engineer", "Downtime"]),
-    ...r.completed.map(({ wo, totalMinutes }) => [
+    ...r.completed.map(({ wo, totalMinutes, work }) => [
       lineLabelOf(wo.line_at_time, wo.line_name), wo.wo_number ?? "",
       clean(wo.machine), clean(wo.description) || "Not recorded",
-      clean(wo.resolution_notes) || "Not recorded",
+      work,
       clean(wo.engineer_name) || "Not assigned",
       formatMinutes(totalMinutes),
     ]),
@@ -78,14 +78,26 @@ export function reportToXlsx(r: ShiftReport): ArrayBuffer {
 
   if (r.open.length) {
     const open = XLSX.utils.aoa_to_sheet([
-      head(["WO", "Line", "Problem", "Engineer", "Status"]),
+      head(["WO", "Line", "Problem", "Engineer", "Status", "Downtime"]),
       ...r.open.map((p) => [
         p.wo_number ?? "", lineLabelOf(p.line_at_time, p.line_name), clean(p.description) || "Not recorded",
-        clean(p.engineer_name) || "not assigned", "OPEN",
+        clean(p.engineer_name) || "not assigned", "OPEN", downtimeValue(p),
       ]),
     ]);
-    open["!cols"] = [{ wch: 8 }, { wch: 14 }, { wch: 40 }, { wch: 18 }, { wch: 10 }];
+    open["!cols"] = [{ wch: 8 }, { wch: 14 }, { wch: 40 }, { wch: 18 }, { wch: 10 }, { wch: 28 }];
     XLSX.utils.book_append_sheet(wb, open, "Open");
+  }
+
+  if (r.completedLater.length) {
+    const later = XLSX.utils.aoa_to_sheet([
+      head(["WO", "Line", "Problem", "Engineer", "Status", "Downtime"]),
+      ...r.completedLater.map(({ wo, ...d }) => [
+        wo.wo_number ?? "", lineLabelOf(wo.line_at_time, wo.line_name), clean(wo.description) || "Not recorded",
+        clean(wo.engineer_name) || "Not assigned", laterStatusLabel(wo), downtimeValue(d),
+      ]),
+    ]);
+    later["!cols"] = [{ wch: 8 }, { wch: 14 }, { wch: 40 }, { wch: 18 }, { wch: 28 }, { wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, later, "Completed later");
   }
 
   return XLSX.write(wb, { type: "array", bookType: "xlsx" });
@@ -127,7 +139,7 @@ export async function reportToPdf(r: ShiftReport): Promise<ArrayBuffer> {
 
   if (r.completed.length === 0) {
     doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...SUBTLE);
-    doc.text("None completed this shift.", REPORT_MARGIN, y + 4);
+    doc.text("No work orders were completed during this shift.", REPORT_MARGIN, y + 4);
     y += 8;
   }
 
@@ -140,14 +152,17 @@ export async function reportToPdf(r: ShiftReport): Promise<ArrayBuffer> {
     return fy + wrapped.length * 3.6 + 1.2;
   };
 
-  for (const { wo, totalMinutes } of r.completed) {
+  for (const { wo, totalMinutes, work } of r.completed) {
     const rows: [string, string][] = [
       ...(clean(wo.machine) ? [["Machine", clean(wo.machine)] as [string, string]] : []),
       ["Problem", clean(wo.description) || "Not recorded"],
-      ["Work carried out", clean(wo.resolution_notes) || "Not recorded"],
+      ["Work carried out", work],
       ["Engineer", clean(wo.engineer_name) || "Not assigned"],
     ];
-    const blockH = 10 + rows.length * 5 + 12;
+    // A translated note runs longer than the original; the card grows with its lines.
+    doc.setFontSize(8);
+    const fieldsH = rows.reduce((h, [, v]) => h + (doc.splitTextToSize(v, contentW - 44) as string[]).length * 3.6 + 1.2, 0);
+    const blockH = 12 + fieldsH + 8;
     if (y + blockH > doc.internal.pageSize.getHeight() - 16) {
       doc.addPage(); header(); y = HEADER_H + 6;
     }
@@ -179,13 +194,40 @@ export async function reportToPdf(r: ShiftReport): Promise<ArrayBuffer> {
     doc.text("Open work orders", REPORT_MARGIN, y + 4);
     autoTable(doc, {
       startY: y + 7,
-      head: [["WO", "Line", "Problem", "Engineer", "Status"]],
+      head: [["WO", "Line", "Problem", "Engineer", "Status", "Downtime"]],
       body: r.open.map((p) => [
         p.wo_number ? `WO-${p.wo_number}` : "—",
         lineLabelOf(p.line_at_time, p.line_name),
         clean(p.description) || "Not recorded",
         clean(p.engineer_name) || "not assigned",
         "OPEN",
+        downtimeValue(p),
+      ]),
+      ...tableStyles,
+      margin: { top: HEADER_H + 6, left: REPORT_MARGIN, right: REPORT_MARGIN, bottom: 14 },
+      didDrawPage: header,
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
+  }
+
+  // ── Stopped a line this shift, finished in another: without them the lists would
+  // not add up to the total above. ──
+  if (r.completedLater.length) {
+    if (y + 30 > doc.internal.pageSize.getHeight() - 16) {
+      doc.addPage(); header(); y = HEADER_H + 6;
+    }
+    doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...INK);
+    doc.text("Stopped this shift, completed later", REPORT_MARGIN, y + 4);
+    autoTable(doc, {
+      startY: y + 7,
+      head: [["WO", "Line", "Problem", "Engineer", "Status", "Downtime"]],
+      body: r.completedLater.map(({ wo, ...d }) => [
+        woRef(wo.wo_number),
+        lineLabelOf(wo.line_at_time, wo.line_name),
+        clean(wo.description) || "Not recorded",
+        clean(wo.engineer_name) || "Not assigned",
+        laterStatusLabel(wo),
+        downtimeValue(d),
       ]),
       ...tableStyles,
       margin: { top: HEADER_H + 6, left: REPORT_MARGIN, right: REPORT_MARGIN, bottom: 14 },
