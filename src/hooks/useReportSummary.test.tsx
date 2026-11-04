@@ -59,6 +59,8 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: (t: string) => makeBuilder(t) } };
 });
 
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ session: { access_token: "t" } }) }));
+
 import { useReportSummary } from "./useReportSummary";
 
 const DAY = "2026-08-10";

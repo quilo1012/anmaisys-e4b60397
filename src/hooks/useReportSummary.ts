@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { supabase } from "@/integrations/supabase/client";
 import { shiftDateFetchRange, shiftSessionDate } from "@/lib/shifts";
+import { useHasSession } from "@/hooks/useWoMetrics";
 
 export interface ReportSummary {
   production: { plan: number; actual: number; efficiencyPct: number | null; days: number };
@@ -25,8 +26,11 @@ const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b,
  * time it disagreed with the detail screen behind it nobody would trust either.
  */
 export function useReportSummary(from: string, to: string, shift: "ALL" | "DAY" | "NIGHT") {
+  // Reads v_wo_metrics: without a session it goes out as anon and is refused (useHasSession).
+  const hasSession = useHasSession();
   return useQuery<ReportSummary>({
     queryKey: ["report-summary", from, to, shift],
+    enabled: hasSession,
     queryFn: async () => {
       const db = supabase as any;
       const window = shiftDateFetchRange(from, to);
