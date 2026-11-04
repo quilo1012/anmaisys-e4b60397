@@ -2126,6 +2126,39 @@ export type Database = {
         }
         Relationships: []
       }
+      itouch_cycle_times: {
+        Row: {
+          cavities: number | null
+          cycle_seconds: number | null
+          id: string
+          imported_at: string
+          imported_by: string | null
+          machine: string
+          sku: string
+          source: string
+        }
+        Insert: {
+          cavities?: number | null
+          cycle_seconds?: number | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          machine: string
+          sku: string
+          source: string
+        }
+        Update: {
+          cavities?: number | null
+          cycle_seconds?: number | null
+          id?: string
+          imported_at?: string
+          imported_by?: string | null
+          machine?: string
+          sku?: string
+          source?: string
+        }
+        Relationships: []
+      }
       leader_line_assignment: {
         Row: {
           created_at: string
@@ -8042,6 +8075,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      import_itouch_cycles: {
+        Args: { p_rows: Json; p_source: string }
+        Returns: Json
       }
       import_production_rows: { Args: { _rows: Json }; Returns: Json }
       import_rag_plan_workbook: {

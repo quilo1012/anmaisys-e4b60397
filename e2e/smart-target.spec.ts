@@ -51,7 +51,7 @@ const SKUS = [
   { id: "sku-mm", code: "MMMG2V", name: "MUSCLE MOOSE", target_per_hour: 600 },
 ];
 
-async function stub(page: Page) {
+async function stub(page: Page, cycles: unknown[] = []) {
   await page.addInitScript(([ref, session]) => {
     window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
   }, [PROJECT_REF, FAKE_SESSION] as const);
@@ -67,6 +67,7 @@ async function stub(page: Page) {
     if (url.includes("/production_sessions")) return json(SESSIONS);
     if (url.includes("/production_items")) return json(ITEMS);
     if (url.includes("/sku_products")) return json(SKUS);
+    if (url.includes("/itouch_cycle_times")) return json(cycles);
     return json([]);
   });
   const errors: string[] = [];
@@ -125,5 +126,33 @@ test("fits a phone", async ({ page }) => {
   });
   await page.screenshot({ path: "e2e/.results/smart-target-phone.png", fullPage: true });
   expect(clipped).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test("shows the iTouch cycles it holds and lists the ones Production must fix", async ({ page }) => {
+  const at = "2026-11-04T20:16:00Z";
+  const src = "iTouch Product Details (Applied_Nutrition_All_Lines.xlsx, loaded 04/11/2026)";
+  const row = (machine: string, sku: string, cycle_seconds: number | null) =>
+    ({ machine, sku, cycle_seconds, cavities: null, source: src, imported_at: at });
+  const errors = await stub(page, [
+    row("Filler Line 1", "ABEENG", 3.5),
+    row("Filler Line 1", "COL165SR", null),
+    row("Filler Line 4", "MMMG2V", 0.31),
+    row("Capsules MC 1", "CAPS1", 2),
+  ]);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+
+  await expect(page.getByText(/Applied_Nutrition_All_Lines\.xlsx/)).toBeVisible();
+  await expect(page.getByText("1 usable").first()).toBeVisible();
+  await expect(page.getByText(/For Production to fix in iTouch/)).toBeVisible();
+  await page.getByText(/For Production to fix in iTouch/).click();
+  await expect(page.getByRole("cell", { name: "No standard cycle time in iTouch." })).toBeVisible();
+  await expect(page.getByRole("cell", { name: /below 1\.5 s/ })).toBeVisible();
+  // Capsules are outside v1: left out, not reported as a fault.
+  await expect(page.getByText("CAPS1")).toHaveCount(0);
+  // A cycle is not a forecast: Line 1 still has no rate.
+  await expect(page.getByTestId("smart-target-line-1")).toContainText("No rate for ABEENG, COL165SR.");
+  await expect(page.getByRole("button", { name: "Import iTouch cycles" })).toBeVisible();
   expect(errors).toEqual([]);
 });
