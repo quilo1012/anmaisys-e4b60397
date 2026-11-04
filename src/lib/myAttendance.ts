@@ -174,7 +174,9 @@ export function buildMyDays(data: MyAttendanceData, from: string, to: string, to
         status = kindStatus(clock.absence_name);
         base.label = clock.absence_name;
         base.workedOnLeave = worked > 0;
-      } else if (worked > 0) {
+      } else if (worked > 0 || clock.start_time) {
+        // A clock-in with nothing worked is a shift still on when the file was
+        // exported (the import keeps today's clock-ins); the next import brings the hours.
         status = "present";
       } else if ((clock.scheduled_minutes ?? 0) > 0) {
         // TimeMoto itself expected a day and recorded none worked: that is a record of

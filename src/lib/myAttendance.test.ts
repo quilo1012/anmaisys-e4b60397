@@ -43,6 +43,12 @@ describe("a day is absent only when a record says so", () => {
     expect(day(d, "2026-10-05").status).toBe("absent");
   });
 
+  it("is present, not absent, when the clock has a clock-in and the shift was still on at export", () => {
+    // The import of 02/11 ran mid-shift: clocked in at 06:01, no clock-out, 0 worked yet.
+    const d = data({ clocks: [clock("2026-10-05", 0, -660, { start_time: "06:01", end_time: null })] });
+    expect(day(d, "2026-10-05").status).toBe("present");
+  });
+
   it("is absent when somebody marked it absent by hand", () => {
     const d = data({ marks: [{ on_date: "2026-10-05", status: "absent" }] });
     expect(day(d, "2026-10-05")).toMatchObject({ status: "absent", source: "mark" });
