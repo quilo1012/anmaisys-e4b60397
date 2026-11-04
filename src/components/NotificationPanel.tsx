@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Bell, AlertTriangle, Wrench, Package, Activity, UserCheck, Hand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { isRootAccount } from "@/lib/rootAccount";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -199,11 +200,13 @@ export function NotificationPanel() {
    * there until somebody thought to open the page. The people who can act on it are
    * the ones who never look. So it rings the same bell as everything else.
    *
-   * Admin only, because Root Diagnostics is admin only — and realtime honours the same
-   * row-level security, so nobody else would receive these rows anyway.
+   * Only the root login (lib/rootAccount): the page is open to every admin, but the
+   * bell is for whoever fixes the system. Realtime honours the admin-only read policy,
+   * so no other role could receive these rows anyway.
    */
+  const isRoot = isRootAccount(role, user?.email);
   useEffect(() => {
-    if (!user || role !== "admin") return;
+    if (!user || !isRoot) return;
 
     const channel = supabase
       .channel(`telemetry_panel_${user.id}`)
@@ -235,7 +238,7 @@ export function NotificationPanel() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [user, role, addNotification]);
+  }, [user, isRoot, addNotification]);
 
   // The rows the server wrote — overtime asks among them — kept across reloads. The
   // list above is only what happened while this tab was open.

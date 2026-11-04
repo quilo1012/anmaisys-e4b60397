@@ -65,6 +65,7 @@ import { ProfilePhotoDialog } from "@/components/chat/ProfilePhotoDialog";
 import { AvailabilityMenu } from "@/components/chat/AvailabilityMenu";
 import { endMyPresence } from "@/components/chat/PresenceHeartbeat";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
+import { isRootAccount } from "@/lib/rootAccount";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -859,7 +860,7 @@ function SidebarBrand() {
 }
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
-  const { role, profile, signOut } = useAuth();
+  const { role, profile, signOut, user } = useAuth();
   const { dark, toggle: toggleDark } = useDarkMode();
   const location = useLocation();
   const navigate = useNavigate();
@@ -868,7 +869,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   // Group messages ring here too, and count toward the same badge (BLOCO 108).
   const groupUnread = useGroupAlerts(can(role, "chat.dm"));
   const dmUnread = dmUnreadOnly + groupUnread;
-  const { data: crashCount = 0 } = useTelemetryCrashCount(role === "admin");
+  // The crash badge is a Root Diagnostics notification: root login only (lib/rootAccount).
+  const { data: crashCount = 0 } = useTelemetryCrashCount(isRootAccount(role, user?.email));
   const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [permissionVersion, setPermissionVersion] = useState(0);
