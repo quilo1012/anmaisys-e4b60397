@@ -546,7 +546,7 @@ export function useOvertimeMutations() {
     mutationFn: async ({
       id,
       ...patch
-    }: { id: string } & Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at" | "headcount">) => {
+    }: { id: string } & Pick<OvertimeRequest, "on_date" | "starts_at" | "ends_at" | "headcount"> & Partial<Pick<OvertimeRequest, "shift_group">>) => {
       const { data, error } = await db.from("overtime_requests").update(patch).eq("id", id).select("id");
       if (error) throw error;
       if (!(data as { id: string }[] | null)?.length) {

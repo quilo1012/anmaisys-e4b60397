@@ -39,7 +39,7 @@ import {
 } from "@/lib/overtimeRequests";
 import {
   askShift, askState, ASK_STATE_LABEL, summarise, filterAsks, clashesFor, boardDatesFor, duplicateNames,
-  hoursLabel, DEFAULT_FILTERS, OVERTIME_SHIFTS,
+  hoursLabel, windowMinutes, DEFAULT_FILTERS, OVERTIME_SHIFTS,
   type OvertimeShift, type AskFilters, type AskState, type BoardRow, type Clash, type ShiftSummary,
 } from "@/lib/overtimeShifts";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -730,13 +730,22 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
   const [edStart, setEdStart] = useState(request.starts_at.slice(0, 5));
   const [edEnd, setEdEnd] = useState(request.ends_at.slice(0, 5));
   const [edCount, setEdCount] = useState(request.headcount == null ? "" : String(request.headcount));
+  const [edCrew, setEdCrew] = useState(request.shift_group ?? "all");
   const openEdit = () => {
     setEdDate(request.on_date);
     setEdStart(request.starts_at.slice(0, 5));
     setEdEnd(request.ends_at.slice(0, 5));
     setEdCount(request.headcount == null ? "" : String(request.headcount));
+    setEdCrew(request.shift_group ?? "all");
     setEditing(true);
   };
+  // As mesmas duas teclas de turno do formulário de criação. O comprimento (8 ou 12 h)
+  // fica o que o pedido já tem; só a janela muda.
+  const edLength = windowMinutes(edStart, edEnd) === 8 * 60 ? 8 : 12;
+  const crews = useMemo(
+    () => Array.from(new Set([...roster.map((e) => e.shift_group), request.shift_group].filter(Boolean) as string[])).sort(),
+    [roster, request.shift_group],
+  );
   const [addingFor, setAddingFor] = useState<string>("");
   const [confirmCancel, setConfirmCancel] = useState(false);
 
@@ -1116,6 +1125,27 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <Label>Date</Label>
               <DateField value={edDate} onChange={setEdDate} aria-label="Date" />
             </div>
+            <div className="space-y-1.5">
+              <Label>Shift ({edLength} hours)</Label>
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Shift">
+                {OVERTIME_SHIFTS.map((sh) => {
+                  const Icon = SHIFT_ICON[sh];
+                  const win = edLength === 8 ? SHIFT_HOURS_8[sh] : SHIFT_HOURS[sh];
+                  const on = edStart === win.starts && edEnd === win.ends;
+                  const look = sh === "Day"
+                    ? (on ? "border-shift-day bg-shift-day text-white hover:bg-shift-day/90" : "border-shift-day/40 text-shift-day-strong hover:bg-shift-day/10")
+                    : (on ? "border-shift-night bg-shift-night text-white hover:bg-shift-night/90" : "border-shift-night/40 text-shift-night-strong hover:bg-shift-night/10");
+                  return (
+                    <Button key={sh} type="button" variant="outline" aria-pressed={on}
+                      className={cn("h-auto flex-col gap-0.5 py-2 font-semibold", look)}
+                      onClick={() => { setEdStart(win.starts); setEdEnd(win.ends); }}>
+                      <span className="flex items-center gap-1.5"><Icon className="h-4 w-4" aria-hidden /> {sh.toUpperCase()} SHIFT</span>
+                      <span className="text-xs font-normal tabular-nums">{win.starts}–{win.ends}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="ed-start">Starts</Label>
@@ -1130,6 +1160,22 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <Label htmlFor="ed-count">People needed <span className="font-normal text-muted-foreground">(optional)</span></Label>
               <Input id="ed-count" type="number" min={1} value={edCount} placeholder="Everyone who says yes"
                 onChange={(e) => setEdCount(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              {/* Quem pode responder, pela sua crew. Não é o turno da overtime — esse é a hora acima. */}
+              <Label>Crew asked</Label>
+              <Select value={edCrew} onValueChange={setEdCrew}>
+                <SelectTrigger aria-label="Crew asked"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Every crew</SelectItem>
+                  {crews.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {edCrew !== (request.shift_group ?? "all") && (
+                <p className="text-xs text-muted-foreground" data-testid="ed-crew-hint">
+                  Answers already given stay. The new crew can answer from now on, but no new phone alert is sent.
+                </p>
+              )}
             </div>
             {/* Nobody's booking is taken away by an edit: the database refuses it too. */}
             {edBelowTaken && (
@@ -1162,6 +1208,7 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
                 {
                   id: request.id, on_date: edDate, starts_at: edStart, ends_at: edEnd,
                   headcount: edCount.trim() ? Number(edCount) : null,
+                  shift_group: edCrew === "all" ? null : edCrew,
                 },
                 {
                   onSuccess: () => { setEditing(false); toast.success("Ask updated"); },
