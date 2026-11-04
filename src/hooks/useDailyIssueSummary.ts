@@ -3,6 +3,7 @@ import { formatDurationCompact } from "@/lib/formatDuration";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { shiftSessionDate } from "@/lib/shifts";
+import { useHasSession } from "@/hooks/useWoMetrics";
 
 export interface DayIssue {
   woNumber: number | null;
@@ -32,8 +33,11 @@ export interface DayShiftIssues {
  * started the evening before, the same rule the rest of the factory uses.
  */
 export function useDailyIssueSummary(from: string, to: string) {
+  // Reads v_wo_metrics: without a session it goes out as anon and is refused (useHasSession).
+  const hasSession = useHasSession();
   const { data = [], isLoading } = useQuery({
     queryKey: ["daily-issue-summary", from, to],
+    enabled: hasSession,
     queryFn: async () => {
       // A day either side: an order raised late on the last night is still the last
       // night's, and one raised just before midnight can belong to the day after.

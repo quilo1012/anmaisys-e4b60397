@@ -36,7 +36,7 @@ export interface WoMetrics {
  * Root Diagnostics files as an RLS_ERROR on /dashboard/manager. The grant is right; the
  * request had no token. Same gate as `useMyGroups`.
  */
-function useHasSession(): boolean {
+export function useHasSession(): boolean {
   return !!useAuth().session;
 }
 
