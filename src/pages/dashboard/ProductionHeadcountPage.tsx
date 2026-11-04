@@ -10,7 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle, MoreVertical, EyeOff, Eye, ArrowRightLeft } from "lucide-react";
+import { Check, Star, UserPlus, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Upload, CloudDownload, CopyPlus, Users, Factory, Wrench, PlaneTakeoff, Clock3, Sun, Moon, CalendarDays, GripVertical, UserCheck, UserX, Search, Undo2, AlertTriangle, CalendarX2, MoreVertical, EyeOff, Eye, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -41,7 +41,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { WorkforceTabs } from "@/components/workforce/WorkforceTabs";
 import { cn } from "@/lib/utils";
-import { chipHours, placementHours, workedNote, type PlacementHours, bookedNotOnBoard, overtimeIsAccepted } from "@/lib/boardOvertime";
+import { chipHours, placementHours, workedNote, type PlacementHours, bookedNotOnBoard, cancelledOnBoard, cancelledWhen, overtimeIsAccepted } from "@/lib/boardOvertime";
 import { hasPlaceOnBoard, tallyBoard } from "@/lib/boardTally";
 import { isHalfDay, isHalfDayTag, isWorkingHalfDay, placementForDrop } from "@/lib/halfDay";
 import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
@@ -57,6 +57,7 @@ import {
   useShiftRoster,
   useAllocations,
   useConfirmedOvertime,
+  useCancelledOvertime,
   useAllocationMutations,
   useCopyableDays,
   useHeadcountMatrix,
@@ -968,6 +969,7 @@ function ShiftBoard({
   const { data: savedAllocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
   // Confirmed overtime laid over each placement, so the card says the hours really worked.
   const { data: confirmedAsks } = useConfirmedOvertime(onDate, shift);
+  const { data: cancelledRows } = useCancelledOvertime(onDate, shift);
   // One Training column, not two: the area of that name is read as the Training state.
   const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
   const allocations = useMemo(() => foldTrainingArea(savedAllocations, allAreas), [savedAllocations, allAreas]);
@@ -1015,6 +1017,11 @@ function ShiftBoard({
   const missingBooked = useMemo(
     () => bookedNotOnBoard(confirmedAsks, savedAllocations),
     [confirmedAsks, savedAllocations],
+  );
+  // Booked for this board, then cancelled — see `cancelledOnBoard`.
+  const cancelledAsks = useMemo(
+    () => cancelledOnBoard(cancelledRows ?? [], onDate, shift, confirmedAsks),
+    [cancelledRows, onDate, shift, confirmedAsks],
   );
   const chipOf = (employeeId: string) =>
     chipHours(byEmployee.get(employeeId), onDate, shift, confirmedAsks?.get(employeeId) ?? []);
@@ -1836,6 +1843,38 @@ function ShiftBoard({
             })}
           </ul>
         </div>
+      )}
+
+      {/* Booked, then cancelled. The cancel takes the person off the board and the place
+          goes to a reserve, so without this the supervisor only saw a name disappear.
+          Informational, so quieter than the warning above; a late cancel is the one
+          flagged, since that is the gap on a line. */}
+      {cancelledAsks.length > 0 && (
+        <section aria-label="Overtime cancelled for this shift"
+          className="rounded-lg border border-border bg-muted/40 text-sm print:hidden">
+          <div className="flex items-center gap-2 border-b border-border/70 px-3 py-2 font-semibold">
+            <CalendarX2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+            {cancelledAsks.length === 1 ? "1 person" : `${cancelledAsks.length} people`} cancelled overtime for this shift
+          </div>
+          <ul className="divide-y divide-border/60">
+            {cancelledAsks.map((c) => {
+              const name = everyoneById?.get(c.employeeId)?.full_name ?? "An employee";
+              return (
+                <li key={`${c.employeeId}-${c.startsAt}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-3 py-1.5">
+                  <span className="font-medium">{name}</span>
+                  <span className="tabular-nums text-muted-foreground">{c.startsAt}–{c.endsAt}</span>
+                  <span className="text-muted-foreground">Cancelled {cancelledWhen(c.cancelledAt)}</span>
+                  {c.note && <span className="basis-full text-xs text-muted-foreground sm:basis-auto">“{c.note}”</span>}
+                  <span className={c.late
+                    ? "ml-auto rounded border border-destructive/40 bg-destructive/10 px-1.5 py-px text-xs font-medium text-destructive-strong"
+                    : "ml-auto rounded border border-border px-1.5 py-px text-xs text-muted-foreground"}>
+                    {c.late ? "Late notice" : "In time"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
 
       {/* An empty board on a date the rota has people due is not a quiet night: it is a
