@@ -754,9 +754,14 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
     setEdCrew(request.shift_group ?? "all");
     setEditing(true);
   };
-  // As mesmas duas teclas de turno do formulário de criação. O comprimento (8 ou 12 h)
-  // fica o que o pedido já tem; só a janela muda.
-  const edLength = windowMinutes(edStart, edEnd) === 8 * 60 ? 8 : 12;
+  // As mesmas duas teclas de turno do formulário de criação. A duração fica a que o
+  // pedido já tem, seja qual for (8, 10, 12 h…): só muda a hora de início, 06:00 ou 18:00.
+  const edMinutes = windowMinutes(edStart, edEnd);
+  const edWindow = (sh: OvertimeShift) => {
+    const starts = SHIFT_HOURS[sh].starts;
+    const end = (Number(starts.slice(0, 2)) * 60 + edMinutes) % (24 * 60);
+    return { starts, ends: `${String(Math.floor(end / 60)).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}` };
+  };
   const crews = useMemo(
     () => Array.from(new Set([...roster.map((e) => e.shift_group), request.shift_group].filter(Boolean) as string[])).sort(),
     [roster, request.shift_group],
@@ -1152,11 +1157,11 @@ function RequestCard({ request, ctx, mayManage }: { request: OvertimeRequest; ct
               <DateField value={edDate} onChange={setEdDate} aria-label="Date" />
             </div>
             <div className="space-y-1.5">
-              <Label>Shift ({edLength} hours)</Label>
+              <Label>Shift ({hoursBetween(edStart, edEnd)})</Label>
               <div className="grid grid-cols-2 gap-2" role="group" aria-label="Shift">
                 {OVERTIME_SHIFTS.map((sh) => {
                   const Icon = SHIFT_ICON[sh];
-                  const win = edLength === 8 ? SHIFT_HOURS_8[sh] : SHIFT_HOURS[sh];
+                  const win = edWindow(sh);
                   const on = edStart === win.starts && edEnd === win.ends;
                   const look = sh === "Day"
                     ? (on ? "border-shift-day bg-shift-day text-white hover:bg-shift-day/90" : "border-shift-day/40 text-shift-day-strong hover:bg-shift-day/10")
