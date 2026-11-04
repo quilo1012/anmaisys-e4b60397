@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
@@ -9,7 +9,7 @@ import { resolve } from "node:path";
  * 20261001203000: `CREATE OR REPLACE VIEW … AS` with no WITH clause resets the view's
  * options, and security_invoker went with them. `20261104090000` puts it back and takes
  * anon off the view. `APLICAR-143-…` is the one-block paste and `VERIFY-143-…` the
- * read-only check.
+ * read-only check. The guard for views made after this one is aViewSaysHowItRuns.test.ts.
  */
 const root = resolve(__dirname, "../..");
 const dir = resolve(root, "docs/apply-passo-3");
@@ -52,16 +52,5 @@ describe("the weekly scorecard view answers as the person asking", () => {
 
   it("takes anon off the view", () => {
     expect(code(migration)).toMatch(/revoke all on public\.v_leader_weekly_scorecard from anon;/i);
-  });
-
-  it("a view replaced from now on says how it runs, or it runs as its owner", () => {
-    // CREATE OR REPLACE VIEW without WITH (security_invoker …) drops the option it had.
-    const late = readdirSync(migrations).filter((f) => f.endsWith(".sql") && f >= "20261104090000");
-    for (const f of late) {
-      const sql = code(read(resolve(migrations, f)));
-      for (const m of sql.matchAll(/create or replace view\b[^;']*?\bas\b/gi)) {
-        expect(m[0], `${f}: ${m[0]}`).toMatch(/security_invoker/i);
-      }
-    }
   });
 });
