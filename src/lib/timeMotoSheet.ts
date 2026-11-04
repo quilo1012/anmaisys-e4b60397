@@ -40,6 +40,8 @@ export interface TimeMotoParse {
   names: string[];
   from: string | null;
   to: string | null;
+  /** Days left out because they had not been worked yet when the file was exported. */
+  notWorkedYet?: number;
 }
 
 /** Every spelling of a column this parser answers to. */
@@ -292,6 +294,22 @@ export function matchNames(
     unmatched.push({ name: n, reason: "unknown", candidates: [] });
   }
   return { matched, unmatched };
+}
+
+/**
+ * Leave out the days the file lists before they happened.
+ *
+ * TimeMoto exports the whole period: a day still to come is there with its schedule and
+ * nothing worked, which is exactly what a day somebody missed looks like. Imported, it
+ * reads as an absence — the import of 02/11/2026 marked 165 people absent from 3 to
+ * 8 November, and put 36 h "short" on anybody with three shifts still ahead. From today
+ * on, a day with no clock-in and no absence is a plan, not a record; the import after
+ * the day brings the real one. A past day with nothing clocked stays: that IS a record.
+ */
+export function dropDaysNotWorkedYet(parse: TimeMotoParse, today: string): TimeMotoParse {
+  const notYet = (r: TimeMotoRow) => r.date >= today && r.workedMinutes === 0 && !r.absence && !r.start && !r.end;
+  const rows = parse.rows.filter((r) => !notYet(r));
+  return { ...parse, rows, notWorkedYet: parse.rows.length - rows.length };
 }
 
 /** A row of the clock import, after the sheet names have been resolved to people. */

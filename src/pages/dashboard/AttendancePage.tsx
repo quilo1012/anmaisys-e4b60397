@@ -27,7 +27,7 @@ import { currentShift } from "@/lib/operationalShift";
 import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { ClockReconciliation } from "@/components/workforce/ClockReconciliation";
-import { parseTimeMotoWorkbook, matchNames, mergeClockRowsPerDay, settlementsFor, type TimeMotoParse } from "@/lib/timeMotoSheet";
+import { parseTimeMotoWorkbook, dropDaysNotWorkedYet, matchNames, mergeClockRowsPerDay, settlementsFor, type TimeMotoParse } from "@/lib/timeMotoSheet";
 import { splitAbsences } from "@/lib/absenceKind";
 
 
@@ -282,7 +282,8 @@ export default function AttendancePage() {
     setBusy(true);
     try {
       const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
-      const parsed = parseTimeMotoWorkbook(wb, Number(currentShift().operationalDate.slice(0, 4)));
+      const today = currentShift().operationalDate;
+      const parsed = dropDaysNotWorkedYet(parseTimeMotoWorkbook(wb, Number(today.slice(0, 4))), today);
       setAssigned(readAssigned());
       setPreview(parsed);
     } catch (e) {
@@ -828,6 +829,13 @@ export default function AttendancePage() {
                       their name exactly the same way.
                     </div>
                   </div>
+                )}
+
+                {!!preview.notWorkedYet && (
+                  <p className="text-2xs text-muted-foreground" data-testid="timemoto-not-worked-yet">
+                    {preview.notWorkedYet} day{preview.notWorkedYet === 1 ? "" : "s"} from today on with nothing clocked left out —
+                    not worked yet, so not absences. The next import after those days brings them.
+                  </p>
                 )}
 
                 {preview.skipped.length > 0 && (
