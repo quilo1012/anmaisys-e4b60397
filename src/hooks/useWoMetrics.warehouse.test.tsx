@@ -24,6 +24,9 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: (t: string) => builder(t) } };
 });
 
+let session: object | null = { access_token: "t" };
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ session }) }));
+
 import { useAllWoMetrics } from "./useWoMetrics";
 
 describe("useAllWoMetrics", () => {
@@ -33,5 +36,16 @@ describe("useAllWoMetrics", () => {
     const { result } = renderHook(() => useAllWoMetrics(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.map((r) => r.id)).toEqual(["m1"]);
+  });
+
+  it("sends nothing without a session: a read with no token goes out as anon and is refused", async () => {
+    session = null;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useAllWoMetrics(), { wrapper });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.data).toBeUndefined();
+    session = { access_token: "t" };
   });
 });

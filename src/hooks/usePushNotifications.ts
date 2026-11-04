@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { VAPID_PUBLIC_KEY as VAPID_KEY_CONST } from "@/lib/vapid";
 import { currentPushEnvironment, type PushEnvironment } from "@/lib/pushEnvironment";
 import { sameApplicationServerKey, isDifferentKeyError, describeSubscribeError, withTimeout } from "@/lib/pushSubscribe";
-import { clearPushError, pushErrorCode, readServerRegistration, rememberPushError, type ServerRegistration } from "@/lib/pushDiagnostics";
+import { clearPushError, PERMISSION_STAYED_DEFAULT, pushErrorCode, readServerRegistration, rememberPushError, type ServerRegistration } from "@/lib/pushDiagnostics";
 
 const VAPID_PUBLIC_KEY =
   (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) || VAPID_KEY_CONST;
@@ -154,6 +154,8 @@ export function usePushNotifications() {
       const perm = await Notification.requestPermission();
       setPermission(perm as PermissionState);
       if (perm !== "granted") {
+        // "denied" already says itself in PUSH_STATE; "default" after a tap does not.
+        if (perm === "default") rememberPushError("enable", { name: PERMISSION_STAYED_DEFAULT });
         toast.warning("Notifications stayed off. Tap Turn on again and choose Allow.");
         return false;
       }
