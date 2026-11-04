@@ -218,14 +218,28 @@ const show = ([a, b]: [number, number]) => `${clock(a)}–${clock(b)}`;
  * had said no to.
  *
  * The status stays as it is — payroll reads it. This is what the board shows as
- * overtime: a row the bridge wrote, or one with an accepted answer for this board.
+ * overtime: a row the bridge wrote, or one with an accepted answer for this board —
+ * or any overtime row before `APP_OVERTIME_FROM`.
  */
 export function overtimeIsAccepted(
-  a: Pick<PlacementLike, "status" | "overtime_request_id">,
+  a: Pick<PlacementLike, "status" | "overtime_request_id"> & { on_date?: string },
   asks: ReadonlyArray<ConfirmedAsk> | undefined,
 ): boolean {
-  return a.status === "overtime" && (!!a.overtime_request_id || (asks?.length ?? 0) > 0);
+  return a.status === "overtime"
+    && (!!a.overtime_request_id || (asks?.length ?? 0) > 0 || beforeTheApp(a.on_date));
 }
+
+/**
+ * The first board on which overtime has to be accepted in the app to count as overtime.
+ *
+ * Before it the floor had no app: overtime was arranged in person and written on the
+ * board, so the board's `overtime` row is the only record there is. On 13/10 those rows
+ * dropped out of the Overtime column when the rule above arrived (03/11). The owner set
+ * the line on 04/11: up to 19/10 an overtime row counts; from 20/10, only an accepted one
+ * — the window in which 74 stamped rows sat on shifts with an open ask.
+ */
+export const APP_OVERTIME_FROM = "2026-10-20";
+const beforeTheApp = (onDate: string | undefined) => !!onDate && onDate < APP_OVERTIME_FROM;
 
 /** One person on one board: the key `acceptedSlots` is read by. */
 export const slotKey = (employeeId: string, date: string, shift: string) => `${employeeId}|${date}|${shift}`;
@@ -237,7 +251,8 @@ export const slotKey = (employeeId: string, date: string, shift: string) => `${e
  */
 export function overtimeAcceptedIn(slots: ReadonlySet<string>) {
   return (a: { employee_id: string; on_date: string; shift: string; status: string; overtime_request_id?: string | null }) =>
-    a.status === "overtime" && (!!a.overtime_request_id || slots.has(slotKey(a.employee_id, a.on_date, a.shift)));
+    a.status === "overtime"
+    && (!!a.overtime_request_id || slots.has(slotKey(a.employee_id, a.on_date, a.shift)) || beforeTheApp(a.on_date));
 }
 
 /**

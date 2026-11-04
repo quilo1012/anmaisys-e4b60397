@@ -15,7 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Chip } from "@/pages/dashboard/ProductionHeadcountPage";
-import { overtimeIsAccepted, type ConfirmedAsk } from "./boardOvertime";
+import { overtimeAcceptedIn, overtimeIsAccepted, type ConfirmedAsk } from "./boardOvertime";
 import { tallyBoard } from "./boardTally";
 import { statusForPlacement } from "./rotaStatus";
 
@@ -24,6 +24,27 @@ const ACCEPTED: ConfirmedAsk[] = [
 ];
 const offRota = { known: true, coversDay: false, onThisBoard: true };
 const onRota = { known: true, coversDay: true, onThisBoard: true };
+
+describe("before the floor had the app", () => {
+  // 13/10/2026: overtime was arranged on the floor and written on the board by hand;
+  // nobody could say yes in the app. The owner, 04/11: up to 19/10 an overtime row on
+  // the board is overtime; from 20/10 only one somebody accepted.
+  it("counts an overtime row up to 19/10 with no ask behind it", () => {
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-13" }, [])).toBe(true);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-19" }, undefined)).toBe(true);
+  });
+  it("does not from 20/10", () => {
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-20" }, [])).toBe(false);
+  });
+  it("never makes a working row overtime", () => {
+    expect(overtimeIsAccepted({ status: "assigned", overtime_request_id: null, on_date: "2026-10-13" }, [])).toBe(false);
+  });
+  it("is the same rule for screens that read many days", () => {
+    const accepted = overtimeAcceptedIn(new Set());
+    expect(accepted({ employee_id: "e1", on_date: "2026-10-13", shift: "Day", status: "overtime", overtime_request_id: null })).toBe(true);
+    expect(accepted({ employee_id: "e1", on_date: "2026-10-20", shift: "Day", status: "overtime", overtime_request_id: null })).toBe(false);
+  });
+});
 
 describe("overtimeIsAccepted", () => {
   it("accepted: a row the bridge wrote for the ask", () => {
