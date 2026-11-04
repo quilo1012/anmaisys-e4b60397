@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildShiftInputs, MISSING_INPUTS, type SmartTargetItem, type SmartTargetSession } from "./smartTargetInput";
+import { buildShiftInputs, lineGaps, setupMinutes, MISSING_INPUTS, type SmartTargetItem, type SmartTargetSession } from "./smartTargetInput";
 import { buildSkuCatalogue } from "./lineSku";
 import { forecastShift } from "./smartTargetEngine";
 
@@ -47,6 +47,14 @@ describe("buildShiftInputs", () => {
     expect(lines[2].input.jobs).toHaveLength(2);
   });
 
+  it("runs two sessions' jobs one session after the other, never interleaved", () => {
+    const { lines } = buildShiftInputs("2026-11-03", "DAY", [
+      session("late", "Line 3", { started_at: "2026-11-03T12:00:00Z" }),
+      session("early", "Line 3", { started_at: "2026-11-03T06:05:00Z" }),
+    ], [item("C", "late", 1), item("D", "late", 2), item("A", "early", 1), item("B", "early", 2)], catalogue);
+    expect(lines[2].input.jobs.map((j) => j.jobId)).toEqual(["A", "B", "C", "D"]);
+  });
+
   it("treats a zero or missing planned quantity as unknown, not zero", () => {
     const { lines } = buildShiftInputs("2026-11-03", "DAY", [session("s", "Line 4")], [
       item("z", "s", 1, { planned_qty: 0 }),
@@ -76,5 +84,31 @@ describe("buildShiftInputs", () => {
   it("lists every input it leaves empty, with who can supply it", () => {
     expect(MISSING_INPUTS.map((m) => m.key)).toEqual(["rates", "events", "windows", "breaks", "previous_sku", "downtime"]);
     for (const m of MISSING_INPUTS) expect(m.owner.length).toBeGreaterThan(0);
+  });
+});
+
+describe("lineGaps and setupMinutes", () => {
+  const run = (items: SmartTargetItem[], previousSku?: string | null) => {
+    const { lines } = buildShiftInputs("2026-11-03", "DAY", [session("s", "Line 1")], items, catalogue);
+    return forecastShift({ ...lines[0].input, previousSku });
+  };
+
+  it("names each missing-rate SKU once, however many jobs it has", () => {
+    const r = run([item("a", "s", 1, { sku_id: "sku-a" }), item("b", "s", 2, { sku_id: "sku-a" }), item("c", "s", 3, { sku_id: "sku-b" })]);
+    expect(lineGaps(r)).toEqual([
+      "No rate for ABEENG, COL165SR.",
+      "Job times cannot be worked out without a rate or planned start and end times.",
+    ]);
+  });
+
+  it("counts jobs with no SKU", () => {
+    const r = run([item("a", "s", 1)]);
+    expect(lineGaps(r)).toContain("1 job has no SKU.");
+  });
+
+  it("adds up changeover and mixing across the sequence", () => {
+    // Previous SKU ABEENG: job 1 same SKU (0), job 2 same (0), job 3 change (25 + 30).
+    const r = run([item("a", "s", 1, { sku_id: "sku-a" }), item("b", "s", 2, { sku_id: "sku-a" }), item("c", "s", 3, { sku_id: "sku-b" })], "ABEENG");
+    expect(setupMinutes(r)).toBe(55);
   });
 });
