@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { WAREHOUSE_WO_TYPE } from "@/lib/woKinds";
 
@@ -27,8 +28,21 @@ export interface WoMetrics {
   total_cycle_sec: number | null;
 }
 
+/**
+ * Only with a session. The view calls `wo_downtime_seconds` and `wo_total_pause_seconds`,
+ * and `anon` has no EXECUTE on either (20261021120000 took it from every function). A read
+ * sent while the session is being restored, or after a refresh failed, goes out as `anon`
+ * and comes back 401 42501 "permission denied for function wo_downtime_seconds", which
+ * Root Diagnostics files as an RLS_ERROR on /dashboard/manager. The grant is right; the
+ * request had no token. Same gate as `useMyGroups`.
+ */
+function useHasSession(): boolean {
+  return !!useAuth().session;
+}
+
 /** Single-WO metrics from v_wo_metrics view. */
 export function useWoMetrics(workOrderId: string | undefined) {
+  const hasSession = useHasSession();
   return useQuery({
     queryKey: ["wo_metrics", workOrderId],
     queryFn: async () => {
@@ -41,7 +55,7 @@ export function useWoMetrics(workOrderId: string | undefined) {
       if (error) throw error;
       return data as WoMetrics | null;
     },
-    enabled: !!workOrderId,
+    enabled: !!workOrderId && hasSession,
     refetchInterval: 30_000,
   });
 }
@@ -64,6 +78,7 @@ export function useWoMetrics(workOrderId: string | undefined) {
 export function useAllWoMetrics(opts?: { from?: Date; to?: Date }) {
   const fromKey = opts?.from?.toISOString() ?? "all";
   const toKey = opts?.to?.toISOString() ?? "all";
+  const hasSession = useHasSession();
   return useQuery({
     queryKey: ["wo_metrics_all", fromKey, toKey],
     queryFn: async () => {
@@ -95,6 +110,7 @@ export function useAllWoMetrics(opts?: { from?: Date; to?: Date }) {
       const skip = new Set(warehouse.map((w) => w.id));
       return rows.filter((r) => !skip.has(r.id));
     },
+    enabled: hasSession,
     refetchInterval: 60_000,
   });
 }

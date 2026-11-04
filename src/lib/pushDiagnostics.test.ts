@@ -167,6 +167,7 @@ describe("errors become codes", () => {
     expect(pushErrorCode(new Error("Preparing notifications timed out after 20s"))).toBe("timeout");
     expect(pushErrorCode(new TypeError("something odd"))).toBe("other:TypeError");
     expect(pushErrorCode("a bare string")).toBe("other");
+    expect(pushErrorCode({ name: "PermissionStayedDefault" })).toBe("permission_stayed_default");
   });
 
   it("the last one is remembered with its stage", async () => {
@@ -280,5 +281,23 @@ describe("why the server has nothing — said apart from what the permission is"
     expect(row.message).not.toContain("this phone");
     expect(row.message).toContain("why permission_denied");
     expect(row.metadata.reason).toBe("permission_denied");
+  });
+});
+
+describe("an iPhone Home Screen app still at 'default'", () => {
+  it("never tapped: why not_enabled, and no last error", async () => {
+    device({ ua: IPHONE_SAFARI_UA, standalone: true, permission: "default", worker: "none" });
+    const s = await readPushDeviceState("u1");
+    expect([s.display, s.permission, s.local, s.server, s.reason, s.lastError])
+      .toEqual(["standalone", "default", "absent", "not_checked", "not_enabled", null]);
+  });
+
+  it("tapped Turn on and iOS answered 'default': the same reason, told apart by the last error", async () => {
+    device({ ua: IPHONE_SAFARI_UA, standalone: true, permission: "default", worker: "none" });
+    rememberPushError("enable", { name: "PermissionStayedDefault" });
+    const s = await readPushDeviceState("u1");
+    expect(s.reason).toBe("not_enabled");
+    expect(s.lastError?.code).toBe("permission_stayed_default");
+    expect(telemetryRow(s, "u1", "employee").message).toContain("last error enable:permission_stayed_default");
   });
 });

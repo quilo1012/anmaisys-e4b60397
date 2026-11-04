@@ -62,6 +62,8 @@ export interface PushDeviceState {
 }
 
 export const PUSH_ERROR_EVENT = "pmsystem:push-error";
+/** The error name `subscribe` records when the permission answer comes back "default". */
+export const PERMISSION_STAYED_DEFAULT = "PermissionStayedDefault";
 const ERROR_KEY = "an_push_last_error";
 const REPORT_KEY = "an_push_diag_v1";
 const SW_PATH = "/sw.js";
@@ -99,6 +101,10 @@ export function pushErrorCode(e: unknown): string {
   // First, because Postgres words its 42501 as "permission denied", which is not the
   // phone's notification permission.
   if (/^(PGRST\d{3}|[0-9A-Z]{5})$/.test(code)) return `save_refused:${code}`;
+  // The Turn on tap reached `requestPermission` and came back still "default": the
+  // prompt was not shown, or was closed without an answer. Without this, that phone
+  // reads exactly like one where nobody ever tapped.
+  if (name === PERMISSION_STAYED_DEFAULT) return "permission_stayed_default";
   if (isDifferentKeyError(e)) return "different_key";
   if (name === "NotAllowedError" || /permission|denied/i.test(message)) return "permission_denied";
   if (/unsupported MIME type|failed to register a serviceworker|script fetch/i.test(message)) return "worker_load";
