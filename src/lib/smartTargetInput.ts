@@ -27,8 +27,18 @@
  * When one of those arrives, it goes in here, and the gap list shrinks by itself.
  */
 
-import { parseLineNo, type LineNo, type PlannedJob, type ShiftForecastInput, type ShiftType } from "./smartTargetEngine";
+import {
+  parseLineNo,
+  type LineNo,
+  type PlannedJob,
+  type ShiftForecast,
+  type ShiftForecastInput,
+  type ShiftType,
+} from "./smartTargetEngine";
 import { identifyItemSku, type SkuCatalogue } from "./lineSku";
+
+/** Code-point order, so a sort never depends on the browser's locale. */
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export const SMART_TARGET_LINES: LineNo[] = [1, 2, 3, 4, 5, 6];
 
@@ -37,6 +47,8 @@ export interface SmartTargetSession {
   line: string;
   session_date: string;
   shift: string;
+  /** Orders two sessions of one line and shift; the earlier one's jobs run first. */
+  started_at?: string | null;
 }
 
 export interface SmartTargetItem {
@@ -119,18 +131,22 @@ export function buildShiftInputs(
   const forShift = sessions.filter(
     (s) => s.session_date === date && String(s.shift).trim().toUpperCase() === shift,
   );
-  const otherLines = [...new Set(forShift.filter((s) => parseLineNo(s.line) === null).map((s) => s.line.trim()))].sort();
+  const otherLines = [...new Set(forShift.filter((s) => parseLineNo(s.line) === null).map((s) => s.line.trim()))].sort(cmp);
 
   const lines = SMART_TARGET_LINES.map((line): LineShiftInput => {
-    const own = forShift.filter((s) => parseLineNo(s.line) === line).sort((a, b) => a.id.localeCompare(b.id));
+    const own = forShift
+      .filter((s) => parseLineNo(s.line) === line)
+      .sort((a, b) => cmp(a.started_at ?? "", b.started_at ?? "") || cmp(a.id, b.id));
     const notes: string[] = [];
     if (own.length > 1) {
       notes.push(`${own.length} production sessions exist for this line and shift; their jobs are read together.`);
     }
-    const ids = new Set(own.map((s) => s.id));
+    // Session first, then the order inside it: two sessions' jobs must not interleave.
+    const rank = new Map(own.map((s, i) => [s.id, i]));
     const jobs: PlannedJob[] = items
-      .filter((i) => ids.has(i.session_id))
-      .sort((a, b) => a.display_order - b.display_order || a.id.localeCompare(b.id))
+      .filter((i) => rank.has(i.session_id))
+      .sort((a, b) =>
+        rank.get(a.session_id)! - rank.get(b.session_id)! || a.display_order - b.display_order || cmp(a.id, b.id))
       .map((i, idx) => {
         const sku = identifyItemSku(
           { sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null },
@@ -165,4 +181,38 @@ export function buildShiftInputs(
   });
 
   return { lines, otherLines };
+}
+
+/**
+ * Why a line has no number, said once per cause instead of once per job.
+ *
+ * The engine gives each job its own reason, so three jobs without a rate give
+ * the same sentence three times. A person reading the card needs each cause once,
+ * with the SKUs it applies to.
+ */
+export function lineGaps(result: ShiftForecast): string[] {
+  const out: string[] = [];
+  const skusWith = (status: string) =>
+    [...new Set(result.jobs.filter((j) => j.sku && j.rateStatus === status).map((j) => j.sku as string))];
+  const missing = skusWith("missing");
+  const thin = skusWith("insufficient_history");
+  const conflict = skusWith("conflict");
+  if (missing.length) out.push(`No rate for ${missing.join(", ")}.`);
+  if (thin.length) out.push(`Too little history for ${thin.join(", ")}.`);
+  if (conflict.length) out.push(`Rate records disagree for ${conflict.join(", ")}.`);
+  const noSku = result.jobs.filter((j) => !j.sku).length;
+  if (noSku) out.push(`${noSku} job${noSku === 1 ? " has" : "s have"} no SKU.`);
+  if (result.jobs.some((j) => !j.allocation)) {
+    out.push("Job times cannot be worked out without a rate or planned start and end times.");
+  }
+  return out;
+}
+
+/**
+ * Minutes the plan spends on changeovers and mixing, from the sequence and the
+ * provisional durations. It needs no rate, so it is known even when the forecast
+ * is not. It is still an estimate until Production confirms the durations.
+ */
+export function setupMinutes(result: ShiftForecast): number {
+  return result.jobs.reduce((sum, j) => sum + j.changeoverMinutes + j.mixingMinutes, 0);
 }
