@@ -12,7 +12,7 @@ import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus"
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftPosition } from "./useWorkforce";
 import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
 import type { PreviousPlace } from "@/lib/headcountSuggestions";
-import { boardSlotOf, type ConfirmedAsk } from "@/lib/boardOvertime";
+import { boardSlotOf, type CancelledAskRow, type ConfirmedAsk } from "@/lib/boardOvertime";
 import { applyLineOrder, type LineOrder } from "@/lib/lineOrder";
 
 export type HeadcountArea = {
@@ -528,6 +528,52 @@ export function useConfirmedOvertime(onDate: string, shift: string) {
         const list = out.get(r.employee_id) ?? [];
         list.push({ request_id: r.request_id, employee_id: r.employee_id, on_date: q.on_date, starts_at: q.starts_at, ends_at: q.ends_at });
         out.set(r.employee_id, list);
+      }
+      return out;
+    },
+  });
+}
+
+/**
+ * Accepted answers for this board that were then cancelled (`cancelledOnBoard` picks
+ * this board's out). Under the confirmed-overtime key, so the same realtime refresh
+ * reaches it: a cancel takes the person off `daily_allocations`, which fires it.
+ * A failure here only hides the list.
+ */
+export function useCancelledOvertime(onDate: string, shift: string) {
+  return useQuery({
+    queryKey: ["headcount-confirmed-overtime", "cancelled", onDate, shift],
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    queryFn: async (): Promise<CancelledAskRow[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("overtime_responses")
+        .select("request_id,employee_id,overtime_requests!inner(on_date,starts_at,ends_at,status),overtime_outcomes!inner(outcome,recorded_at,note)")
+        .eq("decision", "accepted")
+        .in("overtime_requests.on_date", [onDate, plusOneDay(onDate)])
+        .neq("overtime_requests.status", "cancelled")
+        .in("overtime_outcomes.outcome", ["cancelled", "cancelled_in_time", "cancelled_late"]);
+      if (error) {
+        console.warn("[headcount] cancelled overtime not read:", error.message);
+        return [];
+      }
+      type Outcome = { outcome: string; recorded_at: string; note: string | null };
+      type Row = {
+        request_id: string; employee_id: string;
+        overtime_requests: { on_date: string; starts_at: string; ends_at: string } | null;
+        overtime_outcomes: Outcome[] | Outcome | null;
+      };
+      const out: CancelledAskRow[] = [];
+      for (const r of (data ?? []) as Row[]) {
+        const q = r.overtime_requests;
+        const o = Array.isArray(r.overtime_outcomes) ? r.overtime_outcomes[0] : r.overtime_outcomes;
+        if (!q || !o) continue;
+        out.push({
+          request_id: r.request_id, employee_id: r.employee_id,
+          on_date: q.on_date, starts_at: q.starts_at, ends_at: q.ends_at,
+          outcome: o.outcome, recorded_at: o.recorded_at, note: o.note,
+        });
       }
       return out;
     },

@@ -346,3 +346,61 @@ export function bookedNotOnBoard(
     || a.asks[0].starts_at.localeCompare(b.asks[0].starts_at)
     || a.employeeId.localeCompare(b.employeeId));
 }
+
+/** An accepted answer to an ask, with the cancellation recorded against it. */
+export interface CancelledAskRow extends ConfirmedAsk {
+  outcome: string;
+  recorded_at: string;
+  note: string | null;
+}
+
+/** The outcomes that mean "booked, then not coming". A no-show or a sick call is not one. */
+const CANCELLATIONS = new Set(["cancelled", "cancelled_in_time", "cancelled_late"]);
+
+/**
+ * Overtime for this board that somebody booked and then cancelled.
+ *
+ * `cancel_my_overtime` takes the person off the board and hands the place to a
+ * reserve, so the board just lost a name with nothing to say why. The supervisor
+ * read it as a gap. This lists who it was, the hours, and whether it came late
+ * (`cancelled_late`, inside the notice period) — the one that leaves a line short.
+ * Somebody still holding another confirmed ask on this board is on it and left out.
+ * Most recent first.
+ */
+export function cancelledOnBoard(
+  rows: ReadonlyArray<CancelledAskRow>,
+  boardDate: string,
+  shift: string,
+  confirmed: ReadonlyMap<string, ReadonlyArray<ConfirmedAsk>> | undefined,
+): { employeeId: string; startsAt: string; endsAt: string; late: boolean; cancelledAt: string; note: string | null }[] {
+  return rows
+    .filter((r) => CANCELLATIONS.has(r.outcome))
+    .filter((r) => {
+      const slot = boardSlotOf(r.on_date, r.starts_at);
+      return slot.date === boardDate && slot.shift === shift;
+    })
+    .filter((r) => !(confirmed?.get(r.employee_id)?.length))
+    .sort((a, b) => b.recorded_at.localeCompare(a.recorded_at) || a.employee_id.localeCompare(b.employee_id))
+    .map((r) => ({
+      employeeId: r.employee_id,
+      startsAt: r.starts_at.slice(0, 5),
+      endsAt: r.ends_at.slice(0, 5),
+      late: r.outcome === "cancelled_late",
+      cancelledAt: r.recorded_at,
+      note: r.note?.trim() || null,
+    }));
+}
+
+const LONDON_DAY = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" });
+const LONDON_TIME = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hour12: false });
+const LONDON_WEEKDAY = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" });
+
+/** "today 07:10", "yesterday 21:45", "Sun 01/11 09:00" — on the factory's clock. */
+export function cancelledWhen(iso: string, now = new Date()): string {
+  const at = new Date(iso);
+  const day = LONDON_DAY.format(at);
+  const time = LONDON_TIME.format(at);
+  if (day === LONDON_DAY.format(now)) return `today ${time}`;
+  if (day === LONDON_DAY.format(new Date(now.getTime() - 86_400_000))) return `yesterday ${time}`;
+  return `${LONDON_WEEKDAY.format(at)} ${day.slice(0, 5)} ${time}`;
+}
