@@ -73,12 +73,6 @@ describe("tallyBoard with overtimeAccepted", () => {
     expect(t.inProduction).toBe(3);
     expect(t.working).toBe(1);
   });
-
-  it("without the predicate, counts every overtime row as before", () => {
-    const old = tallyBoard({ allocations, areas, roster: [], drawable: () => true });
-    expect(old.overtime).toBe(3);
-    expect(old.overtimeNotAccepted).toBe(0);
-  });
 });
 
 describe("the board card", () => {

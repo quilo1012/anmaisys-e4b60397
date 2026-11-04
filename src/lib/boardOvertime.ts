@@ -227,6 +227,19 @@ export function overtimeIsAccepted(
   return a.status === "overtime" && (!!a.overtime_request_id || (asks?.length ?? 0) > 0);
 }
 
+/** One person on one board: the key `acceptedSlots` is read by. */
+export const slotKey = (employeeId: string, date: string, shift: string) => `${employeeId}|${date}|${shift}`;
+
+/**
+ * `overtimeIsAccepted` over a range of days, for screens that read many boards at once
+ * (the trend, the overtime panel). `slots` holds `slotKey`s of accepted asks, each on
+ * the board its hours belong to (`boardSlotOf`), with cancellations and drop-outs out.
+ */
+export function overtimeAcceptedIn(slots: ReadonlySet<string>) {
+  return (a: { employee_id: string; on_date: string; shift: string; status: string; overtime_request_id?: string | null }) =>
+    a.status === "overtime" && (!!a.overtime_request_id || slots.has(slotKey(a.employee_id, a.on_date, a.shift)));
+}
+
 /**
  * Hours for one placement on the board of `boardDate` / `shift`, with the confirmed
  * overtime that belongs to that board laid over it.
